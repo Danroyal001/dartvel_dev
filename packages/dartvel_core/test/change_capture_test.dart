@@ -707,6 +707,285 @@ void main() {
         });
       });
 
+      // A removal the privacy walk makes -- a retention sweep, an erasure, a
+      // replayed erasure, a device's offline copy -- is the one change the law
+      // requires to reach every copy. Made beside the record table rather than
+      // through it, it reached none of them: the warehouse kept exactly the
+      // rows the source removed for retention.
+      group('removals the privacy walk makes reach the log', () {
+        late DVDatabaseAdapter warehouseDb;
+        late DVCaptureConsumer consumer;
+        late DVRecordTable sessions;
+
+        Future<List<String>> warehoused([String model = 'sessions']) async =>
+            <String>[
+              for (final Map<String, Object?> r in await warehouseDb
+                  .query('SELECT * FROM $model ORDER BY _dv_key'))
+                '${r['_dv_key']}',
+            ];
+
+        Future<String> logText() async => jsonEncode(
+            await database.query('SELECT * FROM ${DVCapture.logTable}'));
+
+        Future<void> session(String id, String user, String ip) =>
+            sessions.write(<String, Object?>{
+              'id': id,
+              'user_id': user,
+              'ip': ip,
+              'created_at': now.toIso8601String(),
+            });
+
+        DVPrivacy privacyOver(
+          DVRetention retention, {
+          List<DVPrivacyAdapter> adapters = const <DVPrivacyAdapter>[],
+        }) =>
+            DVPrivacy(
+              models: <DVPrivacyModel>[
+                DVPrivacyModel(
+                  name: 'sessions',
+                  table: sessions,
+                  subject: const DVSubject.field('user_id'),
+                  personal: const <String>{'ip'},
+                  retention: retention,
+                ),
+              ],
+              database: database,
+              signingKey: List<int>.filled(32, 7),
+              adapters: adapters,
+              now: () => now,
+            );
+
+        setUp(() async {
+          warehouseDb = SqliteDVDatabaseAdapter.memory();
+          consumer = capture.consumer('warehouse',
+              sink: DVWarehouseSink(database: warehouseDb));
+          sessions = DVRecordTable(
+            table: 'sessions',
+            key: 'id',
+            columns: const <String>['id', 'user_id', 'ip', 'created_at'],
+            history: const DVHistory(),
+            softDelete: true,
+            capture: capture,
+            database: database,
+          );
+          await sessions.ensureSchema();
+        });
+
+        test("a retention sweep's deletes reach the warehouse, one captured "
+            'delete per swept row, in resumable batches', () async {
+          await session('old0', 'u1', '10.1.0.0');
+          await session('old1', 'u1', '10.1.0.1');
+          await session('old2', 'u1', '10.1.0.2');
+          // Soft-deleted: gone from the warehouse, still held at the source,
+          // and its values still in the log.
+          await sessions.delete('old2');
+          now = now.add(const Duration(days: 20));
+          await session('fresh', 'u1', '10.9.9.9');
+          await consumer.deliverAll();
+          expect(await warehoused(), <String>['fresh', 'old0', 'old1']);
+
+          now = now.add(const Duration(days: 15));
+          final DVPrivacy privacy = privacyOver(
+              const DVRetention.days(30, from: 'created_at'));
+          await privacy.ensureSchema();
+
+          final int head = await capture.head();
+          final DVRetentionPlan plan = await privacy.planRetention();
+          expect(plan.deletions['sessions'], 3);
+          expect(await capture.head(), head,
+              reason: 'a plan is a preview and captures nothing');
+          expect(await warehoused(), <String>['fresh', 'old0', 'old1']);
+
+          final DVRetentionSweep first =
+              await privacy.sweepRetention(batchSize: 2, maxBatches: 1);
+          expect(first.remaining, 1);
+          await consumer.deliverAll();
+          final DVRetentionSweep second =
+              await privacy.sweepRetention(batchSize: 2);
+          expect(second.remaining, 0);
+          await consumer.deliverAll();
+
+          expect(await warehoused(), <String>['fresh'],
+              reason: 'a warehouse must not keep what retention removed');
+          final List<DVCapturedChange> erasures = <DVCapturedChange>[
+            for (final DVCapturedChange c in await capture.changes())
+              if (c.erased) c,
+          ];
+          expect(erasures.map((DVCapturedChange c) => c.operation),
+              everyElement(DVCaptureOp.delete));
+          expect(
+              erasures.map((DVCapturedChange c) => '${c.key}').toList()..sort(),
+              <String>['old0', 'old1', 'old2']);
+          final String log = await logText();
+          for (int i = 0; i < 3; i++) {
+            expect(log, isNot(contains('10.1.0.$i')),
+                reason: 'the log is a copy retention applies to');
+          }
+          expect(log, contains('10.9.9.9'));
+          expect(await sessions.history('old0'), isEmpty);
+        });
+
+        test('a sweep that anonymizes sends the anonymized row, and no copy '
+            'keeps the earlier value', () async {
+          await session('s1', 'u1', '10.1.0.1');
+          await consumer.deliverAll();
+          now = now.add(const Duration(days: 31));
+          final DVRetentionSweep sweep = await privacyOver(const DVRetention.days(
+                  30,
+                  from: 'created_at',
+                  then: DVRetentionAction.anonymize))
+              .sweepRetention();
+          expect(sweep.anonymized['sessions'], 1);
+          await consumer.deliverAll();
+
+          final List<Map<String, Object?>> stored =
+              await warehouseDb.query('SELECT * FROM sessions');
+          expect(stored.single['ip'], DVPrivacy.tombstone);
+          expect(jsonEncode(stored), isNot(contains('10.1.0.1')));
+          expect(await logText(), isNot(contains('10.1.0.1')));
+        });
+
+        test('an erasure with no capture adapter still purges the log and '
+            'reaches a warehouse fed by delivery', () async {
+          await session('s1', 'u1', '10.1.0.1');
+          await session('s2', 'u2', '10.2.0.2');
+          await consumer.deliverAll();
+          final DVPrivacy privacy = privacyOver(DVRetention.indefinite);
+          await privacy.ensureSchema();
+
+          final DVErasureResult result =
+              await privacy.erase(subject: 'u1', reason: 'request');
+          expect(result.deleted['sessions'], 1);
+          await consumer.deliverAll();
+
+          expect(await warehoused(), <String>['s2']);
+          final String log = await logText();
+          expect(log, isNot(contains('10.1.0.1')));
+          expect(log, contains('10.2.0.2'));
+        });
+
+        test('an erasure through the capture adapter captures each record '
+            'once, at a version a warehouse fed by delivery applies', () async {
+          await session('s1', 'u1', '10.1.0.1');
+          await session('s2', 'u2', '10.2.0.2');
+          await consumer.deliverAll();
+          // The adapter erases this destination directly; the warehouse is
+          // not among its sinks and hears of the erasure only by delivery.
+          final _RecordingSink direct = _RecordingSink(name: 'direct');
+          final DVPrivacy privacy = privacyOver(
+            DVRetention.indefinite,
+            adapters: <DVPrivacyAdapter>[
+              DVCapturePrivacyAdapter(
+                  capture: capture, sinks: <DVCaptureSink>[direct]),
+            ],
+          );
+          await privacy.ensureSchema();
+
+          final DVErasureResult result =
+              await privacy.erase(subject: 'u1', reason: 'request');
+          expect(result.complete, isTrue);
+          expect(direct.erased.map((DVCapturedChange c) => c.key), <Object?>['s1']);
+          await consumer.deliverAll();
+
+          expect(await warehoused(), <String>['s2']);
+          expect(<Object?>[
+            for (final DVCapturedChange c in await capture.changes())
+              if (c.erased) c.key,
+          ], <Object?>['s1'],
+              reason: 'the walk and the adapter must not both capture it');
+        });
+
+        test('a replayed erasure purges the values a restore put back in the '
+            'log', () async {
+          await session('s1', 'u1', '10.1.0.1');
+          await consumer.deliverAll();
+          final List<Map<String, Object?>> rowBackup = await database.query(
+              'SELECT * FROM sessions WHERE id = ?', <Object?>['s1']);
+          final List<Map<String, Object?>> logBackup = await database.query(
+              'SELECT * FROM ${DVCapture.logTable} WHERE record_key = ?',
+              <Object?>[jsonEncode('s1')]);
+          final DVPrivacy privacy = privacyOver(DVRetention.indefinite);
+          await privacy.ensureSchema();
+          await privacy.erase(subject: 'u1', reason: 'request');
+
+          // The restore: the row and the log entries it had come back.
+          for (final Map<String, Object?> row in rowBackup) {
+            final List<String> cols = <String>[
+              for (final String c in row.keys)
+                if (sessions.columns.contains(c) ||
+                    c == DVRecordTable.versionColumn ||
+                    c == DVRecordTable.deletedColumn)
+                  c,
+            ];
+            await database.execute(
+              'INSERT INTO sessions (${cols.join(', ')}) '
+              'VALUES (${List<String>.filled(cols.length, '?').join(', ')})',
+              <Object?>[for (final String c in cols) row[c]],
+            );
+          }
+          for (final Map<String, Object?> entry in logBackup) {
+            await database.execute(
+              'UPDATE ${DVCapture.logTable} SET row_values = ?, purged = ? '
+              'WHERE change_id = ?',
+              <Object?>[entry['row_values'], entry['purged'], entry['change_id']],
+            );
+          }
+          expect(await logText(), contains('10.1.0.1'),
+              reason: 'precondition: the restore put the value back');
+
+          await privacy.replayErasures();
+
+          expect(await sessions.read('s1', withDeleted: true), isNull);
+          expect(await logText(), isNot(contains('10.1.0.1')));
+          await consumer.deliverAll();
+          expect(await warehoused(), isEmpty);
+        });
+
+        test("erasing a device's offline copy over a captured table purges "
+            'the log', () async {
+          // A table of its own, outside the walk, so only the adapter reaches it.
+          final DVRecordTable notes = DVRecordTable(
+            table: 'notes',
+            key: 'id',
+            columns: const <String>['id', 'user_id', 'ip', 'created_at'],
+            capture: capture,
+            database: database,
+          );
+          final DVOfflineStore store = DVOfflineStore(
+            table: notes,
+            policy: const DVOffline(strategy: DVConflict.lastWriteWins),
+            persistent: true,
+          );
+          await store.ensureSchema();
+          await store.write(<String, Object?>{
+            'id': 'n1',
+            'user_id': 'u1',
+            'ip': '10.1.0.1',
+            'created_at': now.toIso8601String(),
+          });
+          await consumer.deliverAll();
+          expect(await logText(), contains('10.1.0.1'),
+              reason: 'precondition: the local write was captured');
+          final DVPrivacy privacy = privacyOver(
+            DVRetention.indefinite,
+            adapters: <DVPrivacyAdapter>[
+              DVOfflineStorePrivacyAdapter(
+                  store: store, subject: const DVSubject.field('user_id')),
+            ],
+          );
+          await privacy.ensureSchema();
+
+          final DVErasureResult result =
+              await privacy.erase(subject: 'u1', reason: 'request');
+          expect(result.complete, isTrue);
+
+          expect(await notes.read('n1', withDeleted: true), isNull);
+          expect(await logText(), isNot(contains('10.1.0.1')));
+          await consumer.deliverAll();
+          expect(await warehoused('notes'), isEmpty);
+        });
+      });
+
       test('delivery runs on the job layer and a refused batch is retried',
           () async {
         final DVInMemoryQueueAdapter queue = DVInMemoryQueueAdapter();
