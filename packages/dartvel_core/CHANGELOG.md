@@ -1,5 +1,30 @@
 ## Unreleased
 
+- **A backend process is told its role and port, and refuses what it cannot
+  honour.** `DVProcessConfiguration.resolve` reads `DARTVEL_ROLE` (or
+  `--role`) as `web`, `worker` or `cron`, `DARTVEL_PORT`, and a worker's
+  `DARTVEL_QUEUE` (a comma-separated list, `default` when unset). A port that
+  is not a whole number from 1 to 65535 -- empty, signed, padded, hex, out of
+  range -- throws `DVProcessConfigurationError` instead of falling back to
+  the generated port, and so does an unknown role, a `--role` that disagrees
+  with the variable, or a queue named for a process that works none.
+  `ticksSchedules` is true for `cron` and for a process given no role, which
+  is the whole deployment; a process declared `web` leaves them to the cron
+  process.
+- **`DVQueueWorker` is the loop a worker process runs.** It works each named
+  queue in turns of `batch` jobs, waits `idle` when a pass found nothing, and
+  stops when `until` completes. It refuses to start on the process-local
+  default queue, which no other process can dispatch to, and with no job
+  handler registered, which would dead-letter everything it reserved.
+  `DVQueues.adapterConfigured` and `DVQueues.hasHandlers` are new.
+- **A schedule can fire once across several processes.** `DVScheduler` takes
+  a `lease`, claimed for each occurrence before it runs; `DVCacheScheduleLease`
+  claims it with `writeIfAbsent` on any `DVAtomicCacheAdapter` (Redis,
+  Memcached), keyed to the occurrence's instant in UTC so timers that land
+  seconds apart claim one key. An occurrence another process claimed is
+  skipped; a store that cannot be reached runs nothing and records the
+  failure rather than running unguarded.
+
 - **What an alert writes reads its value the way Studio shows it.** A firing
   rule's summary -- the first line of its incident, the notification body,
   the pager summary and `DV-ALERT-001` -- printed the raw reading, so an
