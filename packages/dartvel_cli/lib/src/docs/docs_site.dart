@@ -284,11 +284,15 @@ class _Builder {
           });
 
     mounts = dvDiscoverModuleMounts(root);
-    providers = StaticPathsGenerator.discover(root: root, pkgName: pkgName)
-      ..sort(
-        (StaticPathsProvider a, StaticPathsProvider b) =>
-            (a.className ?? '').compareTo(b.className ?? ''),
-      );
+    // A copy: discovery answers a constant empty list for a project with no
+    // lib directory, and sorting that in place threw.
+    providers =
+        List<StaticPathsProvider>.of(
+          StaticPathsGenerator.discover(root: root, pkgName: pkgName),
+        )..sort(
+          (StaticPathsProvider a, StaticPathsProvider b) =>
+              (a.className ?? '').compareTo(b.className ?? ''),
+        );
 
     _collectRoutes();
     _indexNodes();
