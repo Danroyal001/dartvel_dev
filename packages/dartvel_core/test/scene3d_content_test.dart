@@ -225,6 +225,19 @@ void main() {
       expect(await store.ids(), isEmpty);
     });
 
+    test('a bundle delivered as JSON that ships one scene twice is refused on decode',
+        () {
+      // What arrives over the air is JSON; checking only the typed object
+      // would let the second copy of a scene silently win on apply.
+      final Map<String, Object?> json = DV3DSceneBundle(
+        version: 'v5',
+        scenes: <DV3DSceneDocument>[_scene('lobby')],
+      ).toJson();
+      (json['scenes']! as List<Object?>).add(_scene('lobby', x: 1).toJson());
+      expect(() => DV3DSceneBundle.fromJson(json),
+          throwsA(isA<DV3DSceneFormatException>()));
+    });
+
     test('a bundle that ships and removes one scene, or ships it twice, is refused',
         () {
       expect(
