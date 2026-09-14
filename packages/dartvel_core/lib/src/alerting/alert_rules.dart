@@ -120,14 +120,37 @@ class DVAlertState {
     this.delivered = false,
     this.incidentId,
     this.dedupKey,
+    this.resolvingSince,
+    this.deliveredTo = const <String>{},
+    this.missed = const <String, String>{},
+    this.lastNotifiedAt,
   });
 
   final DVAlertStatus status;
   final DateTime? pendingSince;
   final DateTime? firingSince;
 
+  /// While firing: since when the condition has been clear. The alert
+  /// resolves once that has lasted the rule's resolve delay; null while the
+  /// breach holds.
+  final DateTime? resolvingSince;
+
   /// Whether this firing reached at least one target.
+  ///
+  /// At least one, not all: [missed] names the rest.
   final bool delivered;
+
+  /// The `user:<id>` and `pager:<name>` keys this firing reached.
+  final Set<String> deliveredTo;
+
+  /// The targets this firing has not reached, keyed `user:<id>`,
+  /// `pager:<name>` or `team:<name>` (a team that could not be resolved to
+  /// anyone), with the reason from the latest attempt. Each is tried again at
+  /// the next evaluation while the alert fires.
+  final Map<String, String> missed;
+
+  /// When this firing last reached somebody, or was first attempted.
+  final DateTime? lastNotifiedAt;
   final String? incidentId;
 
   /// The key this firing is known by to pagers.
@@ -293,6 +316,9 @@ class _RuleState {
 
   /// `user:<id>` and `pager:<name>` keys this firing reached.
   final Set<String> delivered = <String>{};
+
+  /// Targets not reached, with why, as of the latest attempt.
+  final Map<String, String> missed = <String, String>{};
   bool reportedUndelivered = false;
   bool reportedMissing = false;
 }
@@ -376,8 +402,19 @@ class DVAlerting {
       delivered: s.delivered.isNotEmpty,
       incidentId: s.incidentId,
       dedupKey: s.status == DVAlertStatus.firing ? s.dedupKey : null,
+      resolvingSince: s.status == DVAlertStatus.firing ? s.clearSince : null,
+      deliveredTo: Set<String>.unmodifiable(s.delivered),
+      missed: Map<String, String>.unmodifiable(s.missed),
+      lastNotifiedAt: s.lastNotifiedAt,
     );
   }
+
+  /// The pagers still owed a resolve for [rule]: each refused it, and it
+  /// stays queued until the pager takes it.
+  List<String> pendingResolves(String rule) => <String>[
+        for (final _PendingResolve item in _pendingResolves)
+          if (item.event.rule == rule) item.pager,
+      ];
 
   /// Evaluates every rule on [interval] until [stop].
   void start({Duration interval = const Duration(minutes: 1)}) {
@@ -474,6 +511,7 @@ class DVAlerting {
       ..lastNotifiedAt = null
       ..episodeNumber += 1
       ..delivered.clear()
+      ..missed.clear()
       ..reportedUndelivered = false;
     s.dedupKey = '${rule.name}#${now.toUtc().microsecondsSinceEpoch}';
     final String value = reading.duration != null
@@ -545,24 +583,39 @@ class DVAlerting {
           final DVAlertPager? pager = _pagers[target.name];
           if (pager == null) {
             failures.add('no pager registered as ${target.name}');
+            s.missed[key] = failures.last;
             continue;
           }
           try {
             await pager.trigger(event);
             s.delivered.add(key);
+            s.missed.remove(key);
             reachedAny = true;
           } on Object catch (error) {
             failures.add('pager ${target.name}: $error');
+            s.missed[key] = failures.last;
           }
         case DVAlertTargetKind.user:
         case DVAlertTargetKind.team:
+          final int before = failures.length;
           final List<String> recipients = await _recipients(target, failures);
+          if (target.kind == DVAlertTargetKind.team) {
+            final String teamKey = 'team:${target.name}';
+            if (failures.length > before) {
+              s.missed[teamKey] = failures.last;
+            } else {
+              s.missed.remove(teamKey);
+            }
+          }
           for (final String recipient in recipients) {
             final String key = 'user:$recipient';
             if (!repeat && s.delivered.contains(key)) continue;
             if (await _notify(recipient, message, failures)) {
               s.delivered.add(key);
+              s.missed.remove(key);
               reachedAny = true;
+            } else {
+              s.missed[key] = failures.last;
             }
           }
       }
@@ -696,7 +749,8 @@ class DVAlerting {
       ..firingSince = null
       ..clearSince = null
       ..incidentId = null
-      ..delivered.clear();
+      ..delivered.clear()
+      ..missed.clear();
   }
 
   /// A resolve a pager refused stays queued, across evaluations and whatever

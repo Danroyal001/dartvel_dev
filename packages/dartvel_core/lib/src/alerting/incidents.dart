@@ -19,6 +19,7 @@ class DVIncidentEntry {
     this.status,
     this.public = false,
     this.source = 'human',
+    this.actor,
   });
 
   final DateTime at;
@@ -38,12 +39,17 @@ class DVIncidentEntry {
   /// `alert`, `crash` or `human`.
   final String source;
 
+  /// Who wrote it, for an entry a person wrote. Kept on the timeline and
+  /// never published: a status page names what happened, not who typed it.
+  final String? actor;
+
   Map<String, Object?> toJson() => <String, Object?>{
         'at': at.toUtc().toIso8601String(),
         'message': message,
         if (status != null) 'status': status!.name,
         'public': public,
         'source': source,
+        if (actor != null) 'actor': actor,
       };
 
   static DVIncidentEntry fromJson(Map<String, Object?> json) => DVIncidentEntry(
@@ -54,6 +60,7 @@ class DVIncidentEntry {
             : DVIncidentStatus.values.byName(json['status']! as String),
         public: json['public'] == true,
         source: (json['source'] as String?) ?? 'human',
+        actor: json['actor'] as String?,
       );
 }
 
@@ -234,6 +241,7 @@ class DVIncidents {
     String source = 'human',
     String? rule,
     String? title,
+    String? actor,
     DateTime? now,
   }) async {
     final DVIncident? incident = await store.find(id);
@@ -250,6 +258,7 @@ class DVIncidents {
       status: status,
       public: public,
       source: source,
+      actor: actor,
     ));
     if (rule != null) incident.rules.add(rule);
     if (status != null) {
@@ -262,11 +271,12 @@ class DVIncidents {
 
   /// Declares the incident over, in public.
   Future<DVIncident> resolve(String id,
-          {required String message, DateTime? now}) =>
+          {required String message, String? actor, DateTime? now}) =>
       update(id,
           message: message,
           status: DVIncidentStatus.resolved,
           public: true,
+          actor: actor,
           now: now);
 
   /// Links a crash spike into the newest open incident, or opens one.
