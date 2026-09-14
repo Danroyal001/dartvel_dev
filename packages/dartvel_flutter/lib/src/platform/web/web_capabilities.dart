@@ -193,6 +193,12 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
       'anything to either, and the PWA manifest has no widget surface that '
       'ships in a stable browser.',
 
+  'tracking.requestAuthorization': 'App Tracking Transparency is an iOS '
+      'system prompt, and a browser has no equivalent to ask through. On the '
+      'web a tracking consent category is asked by the consent banner like '
+      'any other; answering this binding instead would record a grant from a '
+      'prompt nobody was shown.',
+
   'window.open': 'Registered by the dartvel_windowing package, not by a '
       'platform binding. window.open() in a tab is a popup the browser will '
       'usually block, and it is not a second application window.',
