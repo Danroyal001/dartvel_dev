@@ -36,6 +36,27 @@
   showing the field's poster where 3D cannot render and nothing for an empty
   field.
 
+- **Studio drives the content workflow.** `DVStudioScreen(content:, actor:,
+  reviewers:)` attaches a `DVStudioContent`, and without one Studio is
+  unchanged. The toolbar shows the open page's state as a pill (Draft, In
+  review, Approved, Scheduled with its slot, Published) and a primary action
+  that follows it and the actor's policy: Submit for review, Approve, Publish,
+  Publish now, Cancel schedule, disabled with the refusing reason as its
+  tooltip. A review panel shows the version, its author and reviewer, the
+  approval record (who, when, which revision), a request-changes reason and a
+  signed preview link with its expiry and a copy button; content changed
+  since approval shows a `DV-CONTENT-002` warning where Publish would be. A
+  schedule dialog picks a day and a time, moves or removes a slot. History
+  lists every version with its state, author and activity, shows what one
+  changes against the published version node by node through the new
+  `DVPageDocumentDiff` — added, removed, moved and edited nodes with each
+  property's old and new value — and restores a superseded version. The page
+  list and cards carry each page's state, draft-only pages are listed, and
+  the overview counts what needs review. Every action goes through
+  `DVContentWorkflow` as the actor, and a refusal or a stale snapshot is shown
+  inline rather than swallowed. `DVStudioContent` gains `can`, `routes`,
+  `previewLink`, `actorIdOf`, `now` and a `previewUrl` shape.
+
 - **`DV.Workers`.** The application's worker pool is reachable from a page as
   `DV.Workers`, the pool `DVWorkers.configure` installed, and the types a run
   hands back -- `DVWorkerResult`, `DVProgress`, `DVCancellation`,
