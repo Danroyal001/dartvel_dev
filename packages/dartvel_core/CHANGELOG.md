@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **An incident an alert opened is never published under the alert's name.**
+  An alert titles its incident after its rule (`Alert catalog-search-burn`)
+  and a crash spike after its release, and `DVStatusSnapshot.build` published
+  that title the moment anyone posted a public update without renaming the
+  incident first. `DVIncident.titleSource` (`alert`, `crash` or `human`, kept
+  through storage) records who wrote the title, and `DVIncident.publicTitle`
+  is what the snapshot and `DVStatusSubscribers.announce` now use: the title
+  as given when a person wrote it, otherwise `Issue affecting <components>`,
+  or `Service issue` when none are named. The public update is still
+  published; holding it back until a rename would leave the page reading as
+  operational during a declared incident. `openIncident` attributes the title
+  to its `source`, and `update(title:)` to the update's. An incident stored
+  before this change is read as titled by whatever opened it, so an alert
+  incident a person renamed before upgrading shows the neutral title until it
+  is renamed again.
+
 - **On Android and iOS the application key is in the keyring or it is
   refused; it is never kept in a file.** `DVAppKeyStores.choose` used to hand
   both platforms `DVFileAppKeyStore` under the home directory, which no

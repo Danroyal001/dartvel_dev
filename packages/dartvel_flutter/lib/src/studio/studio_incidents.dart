@@ -74,6 +74,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
   String _message = '';
   DVIncidentStatus? _moveTo;
   String? _title;
+  String _publicTitle = '';
   String _resolveMessage = '';
   bool _busy = false;
   (String, String)? _error;
@@ -88,9 +89,19 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
     _message = '';
     _moveTo = null;
     _title = null;
+    _publicTitle = '';
     _resolveMessage = '';
     _inputs++;
   }
+
+  /// Whether nobody has named it yet: an alert or a crash spike did, and that
+  /// name is internal. The runtime publishes it under a neutral title; Studio
+  /// asks for a real one before anything is posted in public.
+  static bool _machineTitled(DVIncident incident) =>
+      incident.titleSource != 'human';
+
+  static String _namer(DVIncident incident) =>
+      incident.titleSource == 'crash' ? 'crash spike' : 'alert';
 
   bool _isOpenGroup(DVIncident i) =>
       i.status == DVIncidentStatus.investigating ||
@@ -139,6 +150,11 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
     final bool public = _mode == _Mode.public;
     final String message = _message.trim();
     final DVIncidentStatus? moveTo = public ? _moveTo : null;
+    // Given with the update, in one write: the title and the first words the
+    // public reads arrive on the page together.
+    final String? title = public && _machineTitled(incident)
+        ? _publicTitle.trim()
+        : null;
     unawaited(
       _act(public ? 'The update was not posted' : 'The note was not added', (
         DVIncidents incidents,
@@ -149,12 +165,13 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           message: message,
           public: public,
           status: moveTo,
+          title: title,
           actor: actor,
           now: widget.now(),
         );
         return public
-            ? 'Posted as $actor. The status page shows it from its next '
-                  'snapshot.'
+            ? 'Posted as $actor${title == null ? '' : ', titled "$title"'}. '
+                  'The status page shows it from its next snapshot.'
             : 'Added to the timeline as $actor. It stays internal.';
       }),
     );
@@ -705,12 +722,16 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
   Widget _composer(DVIncident incident, DateTime now) {
     final bool public = _mode == _Mode.public;
     final String text = _message.trim();
+    final bool askTitle = public && _machineTitled(incident);
     final String? reason =
         _noActor ??
         (text.isEmpty
             ? (public
                   ? 'Write the public update first.'
                   : 'Write the note first.')
+            : askTitle && _publicTitle.trim().isEmpty
+            ? 'Give it a public title first. Its ${_namer(incident)} named '
+                  'it, and that name stays internal.'
             : _busy
             ? 'Saving…'
             : null);
@@ -765,6 +786,47 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               ),
             ),
           ),
+          if (askTitle) ...<Widget>[
+            const SizedBox(height: DVStudioStyle.space3),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  opsText(
+                    'PUBLIC TITLE',
+                    size: 10.5,
+                    color: DVStudioStyle.muted,
+                    weight: FontWeight.w600,
+                  ),
+                  const SizedBox(height: 6),
+                  KeyedSubtree(
+                    key: const ValueKey<String>(
+                      'dv-studio-incident-public-title',
+                    ),
+                    child: DVStudioTextInput(
+                      key: ValueKey<String>(
+                        'public-title-${incident.id}-$_inputs',
+                      ),
+                      value: _publicTitle,
+                      placeholder: 'What customers call the problem',
+                      onChanged: (String value) =>
+                          setState(() => _publicTitle = value),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  opsText(
+                    'Its ${_namer(incident)} named it "${incident.title}", '
+                    'which is never published. Until it has a title, the '
+                    'status page calls it "${incident.publicTitle}".',
+                    size: 11.5,
+                    color: DVStudioStyle.faint,
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (public) ...<Widget>[
             const SizedBox(height: DVStudioStyle.space3),
             Padding(
@@ -898,6 +960,14 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         draft.resolvedAt = null;
       }
     }
+    // The title goes with the update, so the preview carries it too. Left
+    // empty, the preview shows the title the runtime would publish instead.
+    final String title = _publicTitle.trim();
+    if (_machineTitled(incident) && title.isNotEmpty) {
+      draft
+        ..title = title
+        ..titleSource = 'human';
+    }
     final DVStatusSnapshot snapshot = DVStatusSnapshot.build(
       health: opsNoChecks,
       incidents: <DVIncident>[draft],
@@ -972,8 +1042,12 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         children: <Widget>[
           opsCardHeader(
             'Public title',
-            'The status page names the incident by this. An alert names it '
-                'after its rule; give it words a customer understands.',
+            _machineTitled(incident)
+                ? 'Its ${_namer(incident)} named it, and that name stays '
+                      'internal: the status page calls it '
+                      '"${incident.publicTitle}" until a person titles it.'
+                : 'The status page names the incident by this. Use words a '
+                      'customer understands.',
             icon: Icons.title,
           ),
           Padding(
