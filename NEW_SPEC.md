@@ -2024,7 +2024,7 @@ classified and how a blocking one is choreographed rather than simply run.
 
 # Schema Evolution
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Migrations alter a schema and Protocol Versioning and Client Compatibility
 keeps old clients alive. Between the two sits the change that locks a
