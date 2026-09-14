@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **A rule's reading and threshold use the runtime's wording.** The alert
+  detail formats both through `DVSignalRef.format`, the same call that writes
+  the alert's incident entry, so the rule on screen and the line on the
+  timeline show one number one way. A crash-rate or fleet-health rule now
+  reads as a percentage.
+
 - **A service level with no traffic shows its budget as not measured.** The
   Operations overview showed "100% left" and a full green bar for a level
   whose window saw no requests. It now reads "Not measured", with an empty,

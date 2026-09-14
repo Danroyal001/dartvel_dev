@@ -1409,16 +1409,10 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     );
   }
 
-  static String _threshold(DVAlertRule rule) {
-    final Object limit = rule.condition.threshold;
-    if (limit is Duration) {
-      return '${opsNumber(limit.inMicroseconds / 1000, digits: 1)}ms';
-    }
-    if (limit is! num) return '$limit';
-    return rule.signal.kind == DVSignalKind.errorBudgetBurn
-        ? opsBurn(limit.toDouble())
-        : opsNumber(limit);
-  }
+  /// The runtime's own wording, so the rule on this screen and the line its
+  /// alert wrote into the incident read the same number the same way.
+  static String _threshold(DVAlertRule rule) =>
+      rule.signal.format(rule.condition.threshold);
 
   static String _condition(DVAlertRule rule) =>
       '${rule.condition.above ? 'above' : 'below'} ${_threshold(rule)}';
@@ -1430,14 +1424,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       case DVSignalReadingStatus.noData:
         return 'No data';
       case DVSignalReadingStatus.value:
-        final Duration? duration = reading.duration;
-        if (duration != null) {
-          return '${opsNumber(duration.inMicroseconds / 1000, digits: 1)}ms';
-        }
-        final num value = reading.value!;
-        return rule.signal.kind == DVSignalKind.errorBudgetBurn
-            ? opsBurn(value.toDouble())
-            : opsNumber(value);
+        return rule.signal.format(reading.duration ?? reading.value!);
     }
   }
 

@@ -710,6 +710,26 @@ void main() {
       );
     });
 
+    testWidgets('what an alert wrote on the timeline reads its value the way '
+        'the rule does', (WidgetTester tester) async {
+      await pumpStudio(tester);
+      await openIncident(tester, searchIncident);
+      expect(
+        inKey(
+          'dv-studio-incident-entry-0',
+          find.textContaining('×, above 2.0×'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        inKey(
+          'dv-studio-incident-entry-0',
+          find.textContaining(RegExp(r'\d\.\d{3,}')),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('resolve is offered only while the incident is in monitoring', (
       WidgetTester tester,
     ) async {

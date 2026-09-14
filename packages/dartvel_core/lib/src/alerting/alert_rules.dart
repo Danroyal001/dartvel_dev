@@ -33,12 +33,8 @@ class DVAlertWhen {
     return above ? value > limit : value < limit;
   }
 
-  String _describe() {
-    final Object limit = threshold;
-    final String text =
-        limit is Duration ? '${limit.inMilliseconds}ms' : '$limit';
-    return '${above ? 'above' : 'below'} $text';
-  }
+  String _describe(DVSignalRef signal) =>
+      '${above ? 'above' : 'below'} ${signal.format(threshold)}';
 }
 
 enum DVAlertTargetKind { user, team, pager }
@@ -514,10 +510,12 @@ class DVAlerting {
       ..missed.clear()
       ..reportedUndelivered = false;
     s.dedupKey = '${rule.name}#${now.toUtc().microsecondsSinceEpoch}';
-    final String value = reading.duration != null
-        ? '${reading.duration!.inMilliseconds}ms'
-        : '${reading.value}';
-    s.summary = '${rule.signal} is $value, ${rule.condition._describe()}, '
+    // Written for a person: 6.7×, not the float the burn rate divided out to.
+    // The reading itself is not kept here, so nothing numeric is rounded.
+    final String value = rule.signal
+        .format(reading.duration ?? reading.value ?? 'no value');
+    s.summary = '${rule.signal} is $value, '
+        '${rule.condition._describe(rule.signal)}, '
         'for ${_describe(rule.forDuration)}';
 
     _addEpisode(DVAlertEpisode(rule: rule.name, firedAt: now), now);
