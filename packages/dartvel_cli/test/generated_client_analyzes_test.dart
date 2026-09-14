@@ -196,6 +196,17 @@ dependencies:
     path: ${p.join(root, 'packages', 'dartvel_flutter')}
 dartvel:
   prodBackendHost: https://example.com
+  memory:
+    budget: 64MB
+    segment: 16MB
+    touchPages: desktop
+    targets:
+      tizen: { budget: 32MB, segment: 8MB }
+  deviceProfiles:
+    lobby:
+      platform: sony-elinux
+      ram: 1GB
+      memory: { budget: 16MB }
 ''');
     // The Dartvel packages declare hosted constraints on each other so they
     // can be published; pub refuses a path dependency in a published package.
@@ -304,6 +315,22 @@ dependency_overrides:
 
     expect(router, contains('DVPageMiddleware.check'));
     expect(router, contains('DVPageMiddleware.isSignedIn ??='));
+  });
+
+  test('the memory configuration is actually in the analyzed client', () {
+    // The fixture declares dartvel.memory so the analyzer sees the startup
+    // call and the names it imports. Without this check the call could stop
+    // being emitted and the analysis would still pass.
+    final String client = Directory(
+      p.join(project.path, 'lib', 'dartvel_client'),
+    )
+        .listSync()
+        .whereType<File>()
+        .map((File f) => f.readAsStringSync())
+        .join('\n');
+
+    expect(client, contains('DVMemory.configure(DVMemoryConfig.parse('));
+    expect(client, contains("'lobby'"));
   });
 
   test('the admin pages were generated and analyzed too', () {

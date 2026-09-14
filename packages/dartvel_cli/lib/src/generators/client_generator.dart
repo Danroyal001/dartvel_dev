@@ -564,7 +564,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''}${_hasSharedStoreTuning(dv) ? ' DVWindowSharedStore,' : ''}${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -631,7 +631,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);
-${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
+${_memoryConfigSource(dv)}${_windowingDeclarationSource(dv)}${_sharedStoreTuningSource(dv)}${_deviceKioskInstallSource(dv)}
   // Every @DVClientCron schedule, registered and ticking. The entries were
   // generated and nothing started them, so a schedule declared on a page
   // never ran once. Starts no timer when the application declares none.
@@ -2121,6 +2121,45 @@ void startDartvelKiosk() {
     }
     out.writeln('}');
     return out.toString();
+  }
+
+  /// Whether the project declares anything DV.Memory reads: a `memory`
+  /// section, or a device profile with its own `memory` override.
+  static bool _hasMemoryConfig(YamlMap dv) {
+    if (dv['memory'] != null) return true;
+    final Object? profiles = dv['deviceProfiles'];
+    return profiles is Map &&
+        profiles.values.any((Object? body) => body is Map && body['memory'] != null);
+  }
+
+  /// Installs dartvel.memory, and each device profile's memory override, as
+  /// the configuration DV.Memory.allocate applies.
+  ///
+  /// Handed over as the declaration itself and parsed by DVMemoryConfig at
+  /// startup, so the runtime reads the same rules doctor checked rather than
+  /// a second reading of them. The device profile the build selected comes
+  /// from DARTVEL_DEVICE_PROFILE, which DV.Memory reads itself.
+  static String _memoryConfigSource(YamlMap dv) {
+    if (!_hasMemoryConfig(dv)) return '';
+    final Map<String, Object?> section = <String, Object?>{
+      if (dv['memory'] != null) 'memory': _plain(dv['memory']),
+    };
+    final Object? profiles = dv['deviceProfiles'];
+    if (profiles is Map) {
+      final Map<String, Object?> kept = <String, Object?>{};
+      profiles.forEach((Object? id, Object? body) {
+        if (body is! Map) return;
+        final Map<String, Object?> fields = <String, Object?>{
+          for (final String key in const <String>['platform', 'ram', 'memory'])
+            if (body[key] != null) key: _plain(body[key]),
+        };
+        if (fields.isNotEmpty) kept['$id'] = fields;
+      });
+      if (kept.isNotEmpty) section['deviceProfiles'] = kept;
+    }
+    return '  // dartvel.memory: the defaults and ceilings every DV.Memory.allocate\n'
+        '  // applies.\n'
+        '  DVMemory.configure(DVMemoryConfig.parse(${_dartLiteral(section, 1)}));\n';
   }
 
   /// YAML nodes as plain Dart values.
