@@ -1,5 +1,25 @@
 ## Unreleased
 
+- **`DV.Crashes` installs the crash reporter where Flutter reports errors.**
+  The runtime in dartvel_core recorded and sent, and nothing called it.
+  `DV.Crashes.install` chains `FlutterError.onError` and
+  `PlatformDispatcher.instance.onError` -- the application's own handler
+  still runs, after the report is on disk, and uninstalling restores it
+  unless the application has replaced ours since -- adds the isolate's error
+  listener, or on the web the window's `error` and `unhandledrejection`
+  listeners, and sends what the previous run left. One error reaching two
+  hooks is recorded once; the same hook seeing it again is a second
+  occurrence. The handler never throws and never re-enters itself: a failure
+  inside it is kept on `lastHandlerFailure` and the chain still runs. A
+  second install is refused, since chaining twice records twice.
+  `installApplication` is what the generated runtime calls: records in the
+  per-user data directory (`DARTVEL_CRASH_DIR` wins; Application Support on
+  Apple platforms, `LOCALAPPDATA` on Windows, beside the device state in
+  the files directory on Android) or `localStorage`, and an install id
+  generated once and kept beside them. It does nothing under `flutter test`,
+  where the test framework owns the hooks. `DV.Crashes.record` records a
+  caught error as non-fatal.
+
 - **`DVLocalAuthProvider` no longer says whether an account exists.**
   `signInWithEmailAndPassword` threw `unknownAccount` ("No account exists for
   that e-mail address. Call signUp first.") for a missing account and
