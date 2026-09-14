@@ -1,5 +1,22 @@
 ## Unreleased
 
+- **Platform memory: a budget reserved once and handed out arena-style.**
+  `DVPlatformMemory` reserves its budget up front in power-of-two segments
+  (native heap through FFI on native targets, typed data on web) and hands
+  out `DVInt`/`DVDouble`/`DVBool` scalars and `MemorySlice` lists over
+  int8..int64, float32 and float64 storage. A list larger than a segment is
+  chunked with shift-and-mask indexing and never split when it fits one.
+  `reset()` makes the arena reusable and invalidates every handle given out
+  before it, including a `transformAsync` that was waiting to resume;
+  `dispose()` releases it. `securedBytes` reports what was granted, and less
+  than asked is recorded as `DV-MEMORY-001`; an exhausted arena throws
+  `DV-MEMORY-002` without consuming anything, `int64` on web-js throws
+  `DV-MEMORY-003`, and `touchPages` on a mobile or embedded target is refused
+  as `DV-MEMORY-004`. `DVMemory.allocate` applies `dartvel.memory` defaults,
+  per-target ceilings and device-profile overrides, and registers each arena
+  for aggregate usage. The four codes are registered, and the registry check
+  now reads codes the specification lists in a text block as well as tables.
+
 - **A sweep or erasure no longer removes a row rewritten after it was read.**
   `DVPrivacy.sweepRetention` read the expired rows, then deleted or
   anonymized each by key alone, so a session renewed between the read and
