@@ -1,4 +1,22 @@
 ## Unreleased
+- **`dartvel docs` builds the application's own reference from the project
+  graph.** It covers models and fields (types, relations, policies, generated
+  surfaces, and example data built from each field's type), backend functions
+  (signature, doc comment and the request lifecycle stages in the order the
+  generated backend runs them), the route index (pages, generated model pages,
+  mounted module pages), jobs and cron, a policy matrix of resource against
+  action, the module map with what each module was granted, and the
+  diagnostics glossary from the registry `dartvel explain` reads. Descriptions
+  are doc comments, read through each node's source mapping. A sensitive field
+  is named, marked and never valued. Decision records under `docs/decisions`
+  (or `dartvel.docs.decisions`) link to the nodes they name as
+  `` `model:Order` ``, `` `function:checkout` `` and so on, and those nodes
+  link back. `DV-DOCS-001` is reported for a name that no longer exists, and
+  `DV-DOCS-002` for a node whose mapping no longer holds its declaration.
+  `graph.json` in the site is byte-for-byte the graph `dartvel mcp` hands an
+  agent. Output is byte-deterministic. `--output`, `--fatal-warnings`, and
+  `--serve`, which serves on loopback and rebuilds on change.
+
 - **The project graph marks a sensitive field wherever it sits in its
   annotation stack, and reads a backend function with middleware under its
   annotation.** `@DVModel.sensitiveField(encrypted: true)`, and a sensitive

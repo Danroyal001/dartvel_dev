@@ -1553,6 +1553,44 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   }
 
   /// Every cron entry the project declares, backend and client.
+  /// Every `@DVBackendCron` and `@DVClientCron` this application runs, as
+  /// the schedule generators read them.
+  ///
+  /// Public for the documentation site, so the schedules it lists are the
+  /// ones registered rather than a second reading of the source that could
+  /// disagree with this one. [file] is relative to [root], including for a
+  /// schedule a mounted module contributes.
+  static Future<
+      List<({String name, String cron, bool client, String file, bool? catchUp})>>
+      cronSchedules({required String root, required String pkgName}) async {
+    final String backendDir = dvProjectBackendDir(root);
+    final Map<String, String> projectRoots = <String, String>{
+      for (final project in _mergedProjects(root, pkgName, backendDir))
+        project.packageName: project.root,
+    };
+    final entries =
+        await _cronEntries(root: root, pkgName: pkgName, backendDir: backendDir);
+    return <({String name, String cron, bool client, String file, bool? catchUp})>[
+      for (final _CronEntry entry in entries)
+        (
+          name: entry.name,
+          cron: entry.cron,
+          client: entry.target == 'DVCronTarget.client',
+          file: p
+              .relative(
+                p.join(
+                  projectRoots[Uri.parse(entry.importUri).pathSegments.first] ??
+                      root,
+                  entry.relativePath,
+                ),
+                from: root,
+              )
+              .replaceAll(r'\', '/'),
+          catchUp: entry.catchUp,
+        ),
+    ];
+  }
+
   static Future<List<_CronEntry>> _cronEntries({
     required String root,
     required String pkgName,
