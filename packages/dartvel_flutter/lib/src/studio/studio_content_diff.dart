@@ -122,37 +122,45 @@ class DVPageDocumentDiff {
       final _Placed? was = old[node.id];
       final bool isRoot = node.id == after.root.id;
       if (was == null && !isRoot) {
-        changes.add(DVPageNodeChange(
-          kind: DVPageChangeKind.added,
-          nodeId: node.id,
-          label: here.label,
-          summary: _summary(node),
-          descendants: _count(node),
-        ));
+        changes.add(
+          DVPageNodeChange(
+            kind: DVPageChangeKind.added,
+            nodeId: node.id,
+            label: here.label,
+            summary: _summary(node),
+            descendants: _count(node),
+          ),
+        );
         return; // Its children came with it.
       }
       if (was != null) {
-        final List<DVPagePropertyChange> properties =
-            _propertyChanges(was.node, node);
+        final List<DVPagePropertyChange> properties = _propertyChanges(
+          was.node,
+          node,
+        );
         final bool moved = !isRoot && _moved(was, here, old, next);
         if (moved) {
-          changes.add(DVPageNodeChange(
-            kind: DVPageChangeKind.moved,
-            nodeId: node.id,
-            label: here.label,
-            summary: _summary(node),
-            properties: properties,
-            fromParent: was.parent == null ? null : old[was.parent]!.label,
-            toParent: here.parent == null ? null : next[here.parent]!.label,
-          ));
+          changes.add(
+            DVPageNodeChange(
+              kind: DVPageChangeKind.moved,
+              nodeId: node.id,
+              label: here.label,
+              summary: _summary(node),
+              properties: properties,
+              fromParent: was.parent == null ? null : old[was.parent]!.label,
+              toParent: here.parent == null ? null : next[here.parent]!.label,
+            ),
+          );
         } else if (properties.isNotEmpty) {
-          changes.add(DVPageNodeChange(
-            kind: DVPageChangeKind.changed,
-            nodeId: node.id,
-            label: here.label,
-            summary: _summary(node),
-            properties: properties,
-          ));
+          changes.add(
+            DVPageNodeChange(
+              kind: DVPageChangeKind.changed,
+              nodeId: node.id,
+              label: here.label,
+              summary: _summary(node),
+              properties: properties,
+            ),
+          );
         }
       }
       for (final DVPageNode child in node.children) {
@@ -166,13 +174,15 @@ class DVPageDocumentDiff {
     if (before != null) {
       void removed(DVPageNode node) {
         if (!next.containsKey(node.id)) {
-          changes.add(DVPageNodeChange(
-            kind: DVPageChangeKind.removed,
-            nodeId: node.id,
-            label: old[node.id]!.label,
-            summary: _summary(node),
-            descendants: _count(node),
-          ));
+          changes.add(
+            DVPageNodeChange(
+              kind: DVPageChangeKind.removed,
+              nodeId: node.id,
+              label: old[node.id]!.label,
+              summary: _summary(node),
+              descendants: _count(node),
+            ),
+          );
           return;
         }
         for (final DVPageNode child in node.children) {
@@ -238,7 +248,9 @@ class DVPageDocumentDiff {
   }
 
   static int _count(DVPageNode node) => node.children.fold<int>(
-      0, (int n, DVPageNode child) => n + 1 + _count(child));
+    0,
+    (int n, DVPageNode child) => n + 1 + _count(child),
+  );
 
   /// Moved when the container changed, or when the node's place among the
   /// siblings present in both versions changed. Siblings added or removed
@@ -276,17 +288,19 @@ class DVPageDocumentDiff {
       out.add(DVPagePropertyChange('action', from.action, to.action));
     }
     out.addAll(_mapChanges(from.properties, to.properties, null));
-    final List<String> breakpoints = <String>{
-      ...from.breakpoints.keys,
-      ...to.breakpoints.keys,
-    }.toList()
-      ..sort((String a, String b) => _breakpointOrder(a) - _breakpointOrder(b));
+    final List<String> breakpoints =
+        <String>{...from.breakpoints.keys, ...to.breakpoints.keys}.toList()
+          ..sort(
+            (String a, String b) => _breakpointOrder(a) - _breakpointOrder(b),
+          );
     for (final String breakpoint in breakpoints) {
-      out.addAll(_mapChanges(
-        from.breakpoints[breakpoint] ?? const <String, Object?>{},
-        to.breakpoints[breakpoint] ?? const <String, Object?>{},
-        breakpoint,
-      ));
+      out.addAll(
+        _mapChanges(
+          from.breakpoints[breakpoint] ?? const <String, Object?>{},
+          to.breakpoints[breakpoint] ?? const <String, Object?>{},
+          breakpoint,
+        ),
+      );
     }
     return out;
   }

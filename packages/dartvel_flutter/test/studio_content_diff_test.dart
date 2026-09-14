@@ -95,15 +95,19 @@ void main() {
     DVPageDocumentEditor(after)
       ..insert(card, parent: 'root')
       ..insert(
-        DVPageNode(id: 'c1', type: 'text', properties: <String, Object?>{
-          'text': 'Pro',
-        }),
+        DVPageNode(
+          id: 'c1',
+          type: 'text',
+          properties: <String, Object?>{'text': 'Pro'},
+        ),
         parent: 'card',
       )
       ..insert(
-        DVPageNode(id: 'c2', type: 'text', properties: <String, Object?>{
-          'text': r'$29',
-        }),
+        DVPageNode(
+          id: 'c2',
+          type: 'text',
+          properties: <String, Object?>{'text': r'$29'},
+        ),
         parent: 'card',
       );
 
@@ -149,9 +153,11 @@ void main() {
   test('a node inserted before its siblings does not mark them moved', () {
     final DVPageDocument after = copy(page());
     DVPageDocumentEditor(after).insert(
-      DVPageNode(id: 'banner', type: 'text', properties: <String, Object?>{
-        'text': 'Sale',
-      }),
+      DVPageNode(
+        id: 'banner',
+        type: 'text',
+        properties: <String, Object?>{'text': 'Sale'},
+      ),
       parent: 'root',
       index: 0,
     );
@@ -206,11 +212,14 @@ void main() {
 
   test('against nothing, every top-level node is an addition', () {
     final DVPageDocumentDiff diff = DVPageDocumentDiff.between(null, page());
+    expect(diff.nodes.map((DVPageNodeChange c) => c.nodeId).toList(), <String>[
+      'hero',
+      'footer',
+    ]);
     expect(
-      diff.nodes.map((DVPageNodeChange c) => c.nodeId).toList(),
-      <String>['hero', 'footer'],
+      diff.title,
+      isNull,
+      reason: 'a new page has a title, it did not change one',
     );
-    expect(diff.title, isNull,
-        reason: 'a new page has a title, it did not change one');
   });
 }
