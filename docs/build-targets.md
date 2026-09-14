@@ -1034,6 +1034,43 @@ so one script serves both. And `browser_specific_settings.gecko.id` is only
 emitted when `dartvel.extension.geckoId` is set in `pubspec.yaml` — fine for a
 temporary Firefox install, required before distribution.
 
+### Application key custody on phones
+
+`.github/workflows/key-custody.yml` puts the application key in the keyring each
+platform offers, then reads it back from a new process. Verified by run
+[34843926517](https://github.com/Danroyal001/dartvel_dev/actions/runs/34843926517)
+on commit `09b4c8ed`, 2026-09-14. All three jobs were green, and each row below
+is from that job's own report, not from its exit code alone.
+
+| Target | Store | What the run showed |
+| --- | --- | --- |
+| `android` | `DVAndroidKeystoreAppKeyStore` | API 34 `google_apis` x86_64 emulator. One installed debug build of `app_key_custody_probe.dart` was launched twice, with a `force-stop` in between and `pidof` empty before the second launch. The generated runtime's `DVWindowSharedStore.defaultAppKeys` was the Keystore store. The Keystore held `dartvel.appkey.dartvel_example` with `exportable: false`. The second launch opened canaries sealed under both keys by the first. A key planted in the old file layout was moved in, and the file was removed. Scans of `/data/user/0/com.example.dartvel_example` read 5 and 6 files and found no key bytes, raw or base64 |
+| `ios` | `DVKeychainAppKeyStore` | iPhone simulator, same probe. Two `simctl launch` runs with a terminate in between. The wired store was the Keychain, and the item read back `accessible: cku` (after first unlock, this device only) and `synchronizable: false`. Canaries opened after the restart, the planted key was moved in, and scans of the data container read 13 and 14 files and found no key bytes |
+| `macos` | `DVKeychainAppKeyStore` | An unsigned `dart test` process on the runner: round-trip, replace in place, clear, accounts kept apart, plus the custody rules suite (29 passed, 2 skipped as not-this-platform) |
+
+Why a probe and not `flutter test`: `flutter test` uninstalls the application
+when it finishes, and an uninstall deletes the Keystore entry and the Keychain
+item. A second run would start from nothing.
+
+What the run found that the code did not assume: **`HOME` is unset in the
+application process** on both the emulator and the simulator. The file store
+those platforms used to get therefore resolved to `./.dartvel/keys/<app>.key`,
+relative to a read-only filesystem root, and the probe could not plant a key
+there ("Read-only file system"). No earlier version could have kept a key at
+that path in those environments. The move was exercised through a second
+application id whose old file was planted inside the data directory. That
+path is the same code, not the same location.
+
+Not shown by this run:
+- Real devices, hardware-backed (TEE or StrongBox) Keystore keys, and a signed
+  iOS build.
+- A device locked before first unlock. That refusal is covered only by the
+  pure-Dart tests of `dvKeychainRefusal` and the migrating store.
+- Which accessibility class macOS reports. The macOS assertion accepts an item
+  that reports none, and a passing test prints nothing.
+- Anything beyond the application's own data directory. The scans are small,
+  and they check the one thing this change could put on disk.
+
 ---
 
 ## CI for hosts you do not have
