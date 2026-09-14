@@ -7,6 +7,14 @@
   any other sink there is no endpoint, since nothing would read what it
   accepted. The generated client passes `DartvelRuntime.api` so the runtime
   reaches the same backend.
+- **Generated pages sit under the consent banner, and iOS without a tracking
+  usage description is a build error.** When `dartvel.analytics` is declared
+  every generated route wraps its page in `DVConsentBanner`, since a banner
+  an application has to remember to place is one nobody sees. `dartvel
+  routes` reports `DV-ANALYTICS-002` through the consent policy's own check
+  when a category is declared `tracking: true` and `ios/Runner/Info.plist`
+  has no `NSUserTrackingUsageDescription`, which iOS needs before it shows
+  App Tracking Transparency -- a key inside a comment does not count.
 - **`dartvel.crashes` is checked when the client is generated.** `dartvel
   routes` parses the section with the runtime's own `DVCrashConfig.parse`
   before it writes anything, and refuses a value it cannot honour naming the
