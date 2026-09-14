@@ -98,6 +98,43 @@ class DVSignalRef {
   final Duration? window;
   final Duration? shortWindow;
 
+  /// [value] as a person reads this signal: a burn rate as `6.7×`, a latency
+  /// in milliseconds, a crash rate or fleet health as a percentage, a count or
+  /// a metric with no more decimals than it needs.
+  ///
+  /// Text only. What an alert writes into a timeline, a page and a
+  /// notification is read by a person; a reading's number is untouched.
+  String format(Object value) {
+    if (value is Duration) {
+      return '${_decimals(value.inMicroseconds / 1000, 1)}ms';
+    }
+    if (value is! num) return '$value';
+    return switch (kind) {
+      DVSignalKind.errorBudgetBurn =>
+        '${value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1)}×',
+      DVSignalKind.trace => '${_decimals(value, 1)}ms',
+      DVSignalKind.crashRate ||
+      DVSignalKind.kioskFleetHealth =>
+        '${_decimals(value * 100, 2)}%',
+      _ => _decimals(value, 2),
+    };
+  }
+
+  /// At most [digits] decimals, without trailing zeros -- except that a value
+  /// that is not zero is never written as `0`.
+  static String _decimals(num value, int digits) {
+    if (value == value.roundToDouble() && value.abs() < 1e15) {
+      return value.round().toString();
+    }
+    String text = value.toStringAsFixed(digits);
+    if (double.parse(text) == 0) text = value.toStringAsPrecision(3);
+    if (text.contains('.') && !text.contains('e')) {
+      text = text.replaceFirst(RegExp(r'0+$'), '');
+      if (text.endsWith('.')) text = text.substring(0, text.length - 1);
+    }
+    return text;
+  }
+
   /// Whether readings are durations rather than numbers.
   bool get measuresDuration => kind == DVSignalKind.trace;
 
