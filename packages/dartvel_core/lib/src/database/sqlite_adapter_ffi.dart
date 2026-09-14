@@ -6,13 +6,28 @@ library dartvel_core.database.sqlite_ffi;
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
+import '../schema/schema_change.dart';
 import 'adapter.dart';
 
 /// A real SQLite adapter. Unlike [MemoryDVDatabaseAdapter] — which interprets
 /// the subset of SQL Dartvel itself issues — this executes arbitrary SQL.
-class SqliteDVDatabaseAdapter implements DVDatabaseAdapter {
+class SqliteDVDatabaseAdapter
+    implements DVDatabaseAdapter, DVSchemaClassifier {
   final sqlite.Database _db;
   final String location;
+
+  /// What each schema change costs on the SQLite library this process linked.
+  ///
+  /// The linked library, not a version written down somewhere: a bundled
+  /// SQLite and the system one differ, and it is the linked one that runs the
+  /// statement.
+  DVSqliteSchemaRules get schemaRules => DVSqliteSchemaRules(
+        DVDatabaseServerVersion.parse(sqlite.sqlite3.version.libVersion),
+      );
+
+  @override
+  DVSchemaChangeClass? classify(DVSchemaChange change) =>
+      schemaRules.classify(change);
   bool _closed = false;
 
   SqliteDVDatabaseAdapter._(this._db, this.location);

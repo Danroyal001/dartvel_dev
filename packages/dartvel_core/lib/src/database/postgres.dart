@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../schema/schema_change.dart';
 import 'adapter.dart';
 import 'postgres_socket_unsupported.dart'
     if (dart.library.io) 'postgres_socket_io.dart';
@@ -49,7 +50,8 @@ class DVPostgresException implements Exception {
 /// Postgres's `$1..$n` outside string literals, so SQL written against the
 /// SQLite adapter runs unchanged. Parameters travel through the extended
 /// query protocol — never interpolated into SQL.
-class DVPostgresDatabaseAdapter implements DVDatabaseAdapter {
+class DVPostgresDatabaseAdapter
+    implements DVDatabaseAdapter, DVSchemaClassifier {
   final String host;
   final int port;
   final String database;
@@ -222,6 +224,24 @@ class DVPostgresDatabaseAdapter implements DVDatabaseAdapter {
     final reply = await _run(sql, params ?? const <Object?>[]);
     return reply.affected;
   }
+
+  DVPostgresSchemaRules? _schemaRules;
+
+  /// What each schema change costs on the server this adapter is connected
+  /// to, read from that server's own version.
+  Future<DVPostgresSchemaRules> schemaRules() async {
+    final DVPostgresSchemaRules? known = _schemaRules;
+    if (known != null) return known;
+    final List<Map<String, Object?>> rows =
+        await query("SELECT current_setting('server_version') AS v");
+    return _schemaRules = DVPostgresSchemaRules(
+      DVDatabaseServerVersion.parse('${rows.single['v']}'),
+    );
+  }
+
+  @override
+  Future<DVSchemaChangeClass?> classify(DVSchemaChange change) async =>
+      (await schemaRules()).classify(change);
 
   Future<void> close() async {
     final connection = _connection;

@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **Schema changes are classified by the adapter, and planned.** A schema
+  change is described (`DVAddColumn`, `DVAddIndex`, `DVAddNotNull`,
+  `DVChangeColumnType`, `DVRenameColumn`, `DVDropColumn`, `DVCreateTable`,
+  `DVRawSchemaChange`) and `DVDatabaseAdapter.classify(change)` answers
+  `instant`, `online` or `blocking` for the server the adapter is connected
+  to, version included: PostgreSQL (a default is a rewrite before 11,
+  `NOT NULL` is online from 12), MySQL 8 (with the point releases that brought
+  `INSTANT`), and SQLite/Turso from the library actually linked. A MariaDB or
+  pre-8 MySQL server, the in-memory adapter and hand-written SQL classify
+  nothing. `DVSchemaPlanner` treats an unclassifiable change as blocking
+  (`DV-SCHEMA-006`), refuses a blocking type change as written and plans its
+  expand/contract instead -- only when the expand itself does not block, and
+  saying what the contract step will cost (`DV-SCHEMA-001`). `DVSchemaDeployGate`
+  refuses a blocking change against production without an override that
+  carries a reason, and returns the record to log (`DV-SCHEMA-002`).
+  `DVSchemaSnapshot` carries a production server's provider, version, columns
+  and row counts, so a plan rehearsed against it classifies as production
+  would. `classify` is an extension over the adapter contract rather than a new
+  abstract member, so adapters written elsewhere keep compiling; one that
+  implements `DVSchemaClassifier` teaches the planner.
+
 - **Erasure, subject-access export and retention, as a runtime (`DVPrivacy`).**
   Each model declares how its rows reach the person they belong to —
   `DVSubject.self`, `.field(column)`, or `.through(column, parent:)` for a row
