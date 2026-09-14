@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`DV.Workers`.** The application's worker pool is reachable from a page as
+  `DV.Workers`, the pool `DVWorkers.configure` installed, and the types a run
+  hands back -- `DVWorkerResult`, `DVProgress`, `DVCancellation`,
+  `DVWorkerFailure`, `DVWorkerCapability`, `DVWorkerBuffer` and the rest --
+  come through `package:dartvel_flutter/dartvel_flutter.dart` like every other
+  namespace. A task run through it leaves the UI isolate.
+
 - **Studio is laid out like the tools it has to stand beside.** A dark
   navigation rail replaces the tab strip, with an icon and a label per
   section; `DVStudioSection` takes an optional `icon` for it, and a section
