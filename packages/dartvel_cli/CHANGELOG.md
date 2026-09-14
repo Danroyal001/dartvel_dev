@@ -1,4 +1,13 @@
 ## Unreleased
+- **The project graph marks a sensitive field wherever it sits in its
+  annotation stack, and reads a backend function with middleware under its
+  annotation.** `@DVModel.sensitiveField(encrypted: true)`, and a sensitive
+  field with `@DVModel.searchableField()` under it, were described as ordinary
+  fields to `dartvel inspect` and to an agent over `dartvel mcp`. The model
+  generator already accepted both. A function with `@DVUseMiddleware` below
+  `@DVBackendFunction` was read as an unannotated file named after itself, at
+  line 1.
+
 - **Generated output is byte-identical for identical inputs, and
   `dartvel generate --check` fails when it is stale.** Every generated file
   used to open with a wall-clock `// BUILD:` stamp, so every regeneration
