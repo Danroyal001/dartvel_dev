@@ -1,5 +1,31 @@
 ## Unreleased
 
+- **XR: the platform-independent runtime for presenting a scene in space.**
+  `DVSpatialCapability` (with `headset()` and `glasses()`) reads a
+  capability report strictly: a field not reported is false, and a member
+  this version does not know is dropped. `DVSpatialConvention.poseToWorld`
+  converts a device pose into the scene's world by change of basis through
+  the same matrix a document in that convention gets, and refuses a
+  non-unit orientation. Scene nodes carry a typed `DVAnchor` (plane, image,
+  hand, world) that round-trips in the document; the graph places an
+  anchored node at a rigid frame, hides it, or leaves it at the origin, and
+  refuses a mirrored frame. `DVXRDevice` is the adapter contract, one method
+  per binding the specification names, with `DVXRFakeDevice` as a strict
+  headless device. `DVXRRuntime.present` opens a volume or immersive space or
+  says why not (`DV-WINDOW-014`/`015`, `DV-XR-006`, `DV-WINDOW-004`), keeps
+  immersive spaces exclusive, and a `DVSpatialSession` asks for the camera
+  before passthrough, falls back to a full space lit by the studio with
+  `DV-XR-001`, closes the space and the session when the application leaves
+  the screen, the camera permission is revoked, the event stream breaks or
+  the session ends, persists a world anchor only with consent and only as the
+  OS token (`DV-XR-003` when it does not re-localize), delivers hand and
+  controller rays in world space and gaze only as a selected node, applies
+  the comfort policy (`DV-XR-005`) and reports a sustained frame-rate drop
+  once (`DV-XR-007`). No pose, anchor position or light probe reaches a
+  report. Presented flat, a scene with anchors or the passthrough environment
+  still renders and says so once (`DV-XR-002`, `DV-XR-001`). No native
+  binding exists yet on any target.
+
 - **A flag resolution names the rule that decided it, and a debug override
   can reach the whole process.** `DVFlagResolution.rule` is the index of the
   rule that served the value or held the default (`DV-FLAGS-005`/`006`), null
