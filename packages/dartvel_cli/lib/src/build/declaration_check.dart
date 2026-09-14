@@ -63,6 +63,16 @@ class DVDeclarationCheck {
       ok = false;
     }
 
+    // Whether what is mounted is the module that was pinned, and whether it
+    // uses only what this application granted. A digest, key or grant that
+    // does not match is a build error, so it is refused here, before
+    // anything is generated -- not left to a doctor nobody ran.
+    final DVModuleCheck trust = DVModuleCheck.trust(root);
+    if (!trust.ok) {
+      lines.addAll(trust.lines);
+      ok = false;
+    }
+
     return DVDeclarationCheck(ok: ok, lines: lines);
   }
 }
