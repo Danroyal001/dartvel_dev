@@ -197,6 +197,23 @@ $yaml
       expect(dvArtifactIsDevClient(aab), isFalse);
     });
 
+    test('a marker straddling two reads is still found', () {
+      // Stored entries are read 64 KiB at a time, so a marker starting ten
+      // bytes before that boundary is split across two chunks; a search that
+      // looked at each chunk alone would miss it.
+      const int boundary = 1 << 16;
+      final List<int> data = <int>[
+        ...List<int>.filled(boundary - 10, 0x2a),
+        ...dvDevClientShellMarker.codeUnits,
+        ...List<int>.filled(1000, 0x11),
+      ];
+      final String apk = artifact(
+        'split.apk',
+        zip(<String, List<int>>{'lib/arm64-v8a/libapp.so': data}, stored: true),
+      );
+      expect(dvArtifactIsDevClient(apk), isTrue);
+    });
+
     test('a marker split across the inflater\'s chunks is still found', () {
       final List<int> big = <int>[
         for (int i = 0; i < 300000; i++) (i * 7919) & 0xff,
