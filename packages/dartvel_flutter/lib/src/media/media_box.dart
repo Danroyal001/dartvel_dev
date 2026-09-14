@@ -8,7 +8,6 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Directory;
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/foundation.dart';
@@ -89,7 +88,7 @@ abstract final class DVMediaBackends {
         capabilities: DVCaptureCapabilities.none,
         backend: () => throw StateError('No capture backend is registered.'),
         permissions: const _DVPlatformCapturePermissions(),
-        files: DVPrivateCaptureFiles(Directory.systemTemp.path),
+        files: const _DVNoCaptureFiles(),
         lifecycle: environment().lifecycle,
       );
 
@@ -100,6 +99,24 @@ abstract final class DVMediaBackends {
     _capture = null;
     environment = DVMediaEnvironment.new;
   }
+}
+
+/// Where recordings go on a target with no capture bound: nowhere. Never
+/// reached, because the capability report refuses first. Not a filesystem
+/// type, because this file is compiled for the web too.
+final class _DVNoCaptureFiles implements DVCaptureFiles {
+  const _DVNoCaptureFiles();
+
+  Never _none() => throw StateError('No capture backend is registered.');
+
+  @override
+  Future<String> reserve(String extension) async => _none();
+
+  @override
+  Future<int> seal(String path) async => _none();
+
+  @override
+  Future<void> discard(String path) async {}
 }
 
 /// `DV.Platform.permissions`, as capture asks it.
