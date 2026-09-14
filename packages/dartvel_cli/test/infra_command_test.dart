@@ -19,7 +19,12 @@ const String dbUrl = 'postgres://app:hunter2hunter2@db.internal/app';
 const String hostKey =
     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ3w6s0R7p0mYtq2i6bqH6pX1bq9sQyZ4l8m2m6yJ0a1';
 
-String pubspec({bool backup = true, int instances = 1}) => '''
+String pubspec({
+  bool backup = true,
+  int instances = 1,
+  bool workers = false,
+  bool logs = false,
+}) => '''
 name: shop
 dartvel:
   secrets:
@@ -42,8 +47,8 @@ dartvel:
       proxy: { adapter: caddy }
       services:
         backend: { instances: $instances }
-        cron: { enabled: true }
-${backup ? '''      database:
+${workers ? '        workers: { queues: [default, mail], instances: 2 }\n' : ''}        cron: { enabled: true }
+${logs ? '      logs: { ship: monitoring }\n' : ''}${backup ? '''      database:
         adapter: postgres
         backup: { schedule: '0 3 * * *', retain: 30d }
 ''' : ''}''';
@@ -283,9 +288,25 @@ void main() {
     });
 
     test('says what it cannot do', () async {
-      File('${root.path}/pubspec.yaml').writeAsStringSync(pubspec(instances: 2));
+      File('${root.path}/pubspec.yaml').writeAsStringSync(pubspec(logs: true));
       expect(await cli().plan('production'), 1);
-      expect(printed(), contains('instances'));
+      expect(printed(), contains('logs.ship'));
+    });
+
+    test('plans two instances, workers and a cron unit', () async {
+      // The specification's own services, which were refused until the
+      // generated backend could be told its port and role.
+      File('${root.path}/pubspec.yaml')
+          .writeAsStringSync(pubspec(instances: 2, workers: true));
+      expect(await cli().plan('production'), 0, reason: printed());
+      for (final String unit in <String>[
+        'shop-backend-2.service',
+        'shop-worker-mail-2.service',
+        'shop-cron.service',
+      ]) {
+        expect(printed(), contains(unit));
+      }
+      expect(host.calls, isEmpty);
     });
   });
 
@@ -304,7 +325,7 @@ void main() {
     });
 
     test('an unsupported declaration applies nothing', () async {
-      File('${root.path}/pubspec.yaml').writeAsStringSync(pubspec(instances: 2));
+      File('${root.path}/pubspec.yaml').writeAsStringSync(pubspec(logs: true));
       expect(await cli().provision('production'), 1);
       expect(host.calls, isEmpty);
     });

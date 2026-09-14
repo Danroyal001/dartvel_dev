@@ -1,4 +1,11 @@
 ## Unreleased
+- **`dartvel infra plan` and `provision` accept several backend instances,
+  workers and cron `enabled: false`.** The command hands the renderer the
+  default capabilities, which now say the generated backend reads
+  `DARTVEL_PORT` and `DARTVEL_ROLE`, so the specification's own services
+  block plans: one unit per instance on its own port, one per worker and
+  queue, and a cron unit. `logs.ship` is still refused and still applies
+  nothing.
 - **`dartvel deploy --functions` for Cloud Run binds the port Cloud Run
   assigns.** Its Dockerfile set `ENV DARTVEL_PORT=$PORT`, which Docker
   expands when the image is built, when `PORT` is unset, so the server was
