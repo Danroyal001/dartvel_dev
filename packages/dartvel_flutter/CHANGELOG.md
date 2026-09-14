@@ -34,6 +34,11 @@
   where the test framework owns the hooks. `DV.Crashes.record` records a
   caught error as non-fatal.
 
+- **`DV.Analytics` and `DV.Privacy`.** The configured analytics runtime and
+  privacy walk, which the generated runtime starts from `dartvel.analytics`
+  and `DARTVEL_PRIVACY_KEY`. Each throws, naming what to declare, in an
+  application that has not configured it.
+
 - **`DVLocalAuthProvider` no longer says whether an account exists.**
   `signInWithEmailAndPassword` threw `unknownAccount` ("No account exists for
   that e-mail address. Call signUp first.") for a missing account and

@@ -527,6 +527,7 @@ export 'dartvel_config.g.dart';
 export 'dartvel_runtime.dart';
 export 'env.g.dart';
 export 'ai_tools.g.dart';
+export 'analytics.g.dart';
 export 'functions.g.dart';
 export 'flags.g.dart';
 export 'jobs.g.dart';
@@ -534,6 +535,7 @@ export 'client_jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
 export 'policies.g.dart';
+export 'privacy.g.dart';
 export 'home_widgets.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
@@ -599,11 +601,12 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCrashConfig, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVCrashInstallation, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+import 'package:dartvel_core/dartvel.dart' show DVCrashConfig, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
+import 'analytics.g.dart' show configureDartvelAnalytics;
 import 'client_jobs.g.dart' show registerDartvelClientJobs;
 import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
@@ -669,6 +672,13 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // are kept in is the files directory they found. Before this nothing
   // installed the crash runtime, so a real application recorded no crash.
   installDartvelCrashReporting();
+  // DV.Analytics from dartvel.analytics, over this device's own database:
+  // consent belongs to the install. After the bindings, because the database
+  // is opened as the runtime starts and on Android the directory it goes in
+  // is the files directory they find; and after the flags, so the exposure
+  // sink it connects is for flags the runtime knows. Nothing in a project
+  // that declares no analytics.
+  configureDartvelAnalytics(database: () => dvLocalAnalyticsDatabase('$pkgName', androidStateDirectory: DVDeviceRuntime.stateDirectory));
   // The arguments this process was started with -- a file association, a
   // dartvel:// link, a second launch -- and the launches that come after it.
   startDartvelLaunch(arguments);

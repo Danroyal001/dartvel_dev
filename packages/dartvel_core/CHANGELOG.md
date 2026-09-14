@@ -35,6 +35,30 @@
   and the count survives a reload loop the way the file store's survives a
   restart.
 
+- **`DV.Analytics` and `DV.Privacy` have a runtime to be.**
+  `DVAnalyticsRuntime.start` builds consent and the pipeline over one
+  database, keeps an install id in it across launches, reads the stored
+  consent, connects Feature Flags' exposure when
+  `DVAnalyticsSettings.flagExposureCategory` names a category, and installs
+  the analytics privacy adapters -- and an event tracked before all that has
+  finished waits for it. Judged at the call instead, an event tracked in the
+  first milliseconds of a launch was checked against the declared default,
+  so a category defaulting to granted recorded somebody who had withdrawn
+  it. A pipeline that cannot start drops events with the reason.
+  `DVPrivacyRuntime` holds the configured `DVPrivacy`, from
+  `DARTVEL_PRIVACY_KEY` (hex or base64, at least 32 bytes, no default) or
+  `configure`, and adds every installed adapter to it whichever is
+  configured first. `DVAnalyticsSettings.fromConfig` reads `dartvel.analytics`
+  (`store`, `consent`, `flags.category`, `sessionCap`) and
+  `DVConsentPolicy.fromConfig` now refuses what it does not understand: an
+  unknown key, a category body that is not a map, and a `required` or
+  `tracking` that is not a boolean, each of which used to be read as absent
+  or false. `dvLocalAnalyticsDatabase` opens a device's own SQLite file for
+  consent in the per-user data directory each platform keeps
+  (`dvAnalyticsDirectoryFor`, `DARTVEL_ANALYTICS_DIR` wins), and holds it in
+  memory on the web, under `flutter test`, and where there is no such
+  directory.
+
 - **Sign-ups that hit a taken address count against the source.** A sign-up
   that signs somebody in cannot hide that an address was free, so
   `DVCredentialGuard.signUp` makes probing for accounts through it expensive

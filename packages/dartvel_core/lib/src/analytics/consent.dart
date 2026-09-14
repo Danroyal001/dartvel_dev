@@ -169,7 +169,19 @@ final class DVConsentPolicy {
   /// The version is required. Without one a changed set of categories could
   /// never ask again, and every earlier answer would stand for purposes
   /// nobody was asked about.
+  ///
+  /// Read strictly. A key it does not know is refused rather than skipped:
+  /// `tracknig: true` skipped is a tracking category that never shows the App
+  /// Tracking Transparency prompt, and `required: "yes"` read as false is a
+  /// category the application needs defaulting to denied. Neither throws
+  /// anywhere later, so the configuration is the only place to catch them.
   factory DVConsentPolicy.fromConfig(Map<String, Object?> consent) {
+    for (final String key in consent.keys) {
+      if (!_consentKeys.contains(key)) {
+        throw ArgumentError.value(key, 'consent',
+            'is not a consent setting; accepted: ${_consentKeys.join(', ')}');
+      }
+    }
     final Object? version = consent['version'];
     if (version == null || '$version'.trim().isEmpty) {
       throw ArgumentError.value(consent, 'consent',
@@ -182,9 +194,29 @@ final class DVConsentPolicy {
     final List<DVConsentDeclaration> declarations = <DVConsentDeclaration>[];
     for (final MapEntry<Object?, Object?> entry in raw.entries) {
       final Object? body = entry.value;
+      if (body != null && body is! Map) {
+        throw ArgumentError.value(body, '${entry.key}',
+            'must be a map of ${_categoryKeys.join(', ')}, such as '
+                '{ default: denied }');
+      }
       final Map<Object?, Object?> fields =
           body is Map ? body : const <Object?, Object?>{};
-      final bool required = fields['required'] == true;
+      for (final Object? key in fields.keys) {
+        if (!_categoryKeys.contains(key)) {
+          throw ArgumentError.value(key, '${entry.key}',
+              'is not a category setting; accepted: ${_categoryKeys.join(', ')}');
+        }
+      }
+      bool flag(String key) {
+        final Object? value = fields[key];
+        if (value == null) return false;
+        if (value is bool) return value;
+        throw ArgumentError.value(
+            value, '${entry.key}.$key', 'must be true or false');
+      }
+
+      final bool required = flag('required');
+      final bool tracking = flag('tracking');
       final Object? def = fields['default'];
       final bool? granted = switch (def) {
         null => null,
@@ -197,11 +229,18 @@ final class DVConsentPolicy {
         DVConsentCategory('${entry.key}'),
         required: required,
         defaultGranted: granted,
-        tracking: fields['tracking'] == true,
+        tracking: tracking,
       ));
     }
     return DVConsentPolicy(version: '$version', categories: declarations);
   }
+
+  static const List<String> _consentKeys = <String>['version', 'categories'];
+  static const List<String> _categoryKeys = <String>[
+    'required',
+    'default',
+    'tracking',
+  ];
 
   final String version;
   final List<DVConsentDeclaration> categories;

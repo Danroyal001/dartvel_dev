@@ -14,6 +14,20 @@
   its release -- `unversioned`, said in every report, when there is none.
   Nothing installed the crash runtime before, so a real application recorded
   no crash at all.
+- **`dartvel.analytics` is read at generation and started by the app.**
+  `dartvel routes` checks `dartvel.analytics` before writing anything and
+  stops on a key or value it does not understand -- `consnet:`,
+  `tracknig: true`, `default: grant`, `required: "yes"`, a store other than
+  `database`, a flag category the consent policy does not declare, or a
+  category name that is not a Dart name -- where each used to be skipped or
+  read as false. It writes `analytics.g.dart` (the checked settings,
+  `ConsentCategories.<name>` constants, `configureDartvelAnalytics`) and
+  `privacy.g.dart` (`configureDartvelBackendPrivacy`), both core-only and
+  exported from the barrel. The client runtime starts analytics over the
+  device's own database after the platform bindings, which on Android find
+  the directory it goes in; the generated server
+  starts it over the application's database and configures `DV.Privacy`
+  from `DARTVEL_PRIVACY_KEY`.
 - **A generated worker runs the application's `@DVJob` handlers.**
   `jobs.g.dart` imported `dartvel_flutter`, which a server cannot load, so
   the generated backend registered no handler and every `DARTVEL_ROLE=worker`
