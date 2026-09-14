@@ -524,6 +524,10 @@ class DVMeters {
 
   final Map<String, Future<void>> _tails = <String, Future<void>>{};
 
+  /// The queue a tenant's meter is serialised on. One function, because a
+  /// check and a recording on two spellings of it do not wait for each other.
+  static String _queueKey(String tenant, String meter) => '$tenant\u0000$meter';
+
   /// Runs [body] after every earlier body for [key] has finished.
   ///
   /// Enforcement is a read and a write; without this, every request in the
@@ -572,7 +576,7 @@ class DVMeters {
     final String tenant = const DVTenants().currentTenant;
     final DateTime now = _clock().toUtc();
     final DateTime when = (at ?? now).toUtc();
-    return _serialised('$tenant ${meter.name}',
+    return _serialised(_queueKey(tenant, meter.name),
         () => _record(meter, amount, key, tenant, now, when));
   }
 
@@ -723,7 +727,7 @@ class DVMeters {
     }
     final String tenant = const DVTenants().currentTenant;
     final DateTime now = _clock().toUtc();
-    return _serialised('$tenant ${meter.name}', () async {
+    return _serialised(_queueKey(tenant, meter.name), () async {
       final DVMeterPeriod period = await _periodFor(tenant, now, <String>{});
       final List<num> existing = <num>[
         for (final DVMeterRecord r in await store.recordsIn(
