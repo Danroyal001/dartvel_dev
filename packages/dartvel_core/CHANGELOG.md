@@ -17,6 +17,26 @@
   to the subject; a row that no longer does is left alone and kept out of
   what record adapters are handed.
 
+- **`DV.Workers`: declared offloadable work on a bounded pool.**
+  `DVWorkers.run(task, input: ..., onProgress:, cancellation:, timeout:)`
+  runs a top-level or static `DVWorkerTask` on its own isolate on the VM, and
+  its future always completes exactly once -- with the value, with what the
+  task threw, cancelled, timed out, or as a crash when the worker ended
+  without answering, including a worker that exited, died of an uncaught
+  asynchronous error, or awaited something nothing could complete. Input,
+  result or captured state that cannot cross the boundary fails by name
+  (`DV-WORKER-002` for a capture) and frees its slot. Cancelling or timing
+  out kills the isolate rather than forgetting it, and the slot is held until
+  the isolate has actually exited, so the bound counts threads that are
+  really running. The pool is sized from a `DVWorkerProfile` -- one core left
+  for the UI, never more than eight -- rather than from a number the
+  application sets, and saturation is logged once per episode as
+  `DV-WORKER-005`. `DVCancellation.until(signal, ended)` binds a run to a
+  lifecycle so no progress or result reaches an owner that has gone. Where
+  there are no threads the pool runs work inline and says so once through
+  `DV.log` as `DV-WORKER-001`; `DVWorkers.capability` reports which mechanism
+  carries the work and whether memory is shared or copied.
+
 - **A retention sweep's deletes reach the capture log and the warehouse.**
   `DVPrivacy.sweepRetention` removed and anonymized expired rows with SQL of
   its own beside `DVRecordTable`, so no change was captured: a warehouse fed
