@@ -32,6 +32,7 @@ export 'src/ai/ai_features.dart';
 export 'src/ai/mcp.dart';
 export 'src/ai/prompts.dart';
 export 'src/alerting/alerting.dart';
+export 'src/analytics/agreements.dart';
 export 'src/analytics/analytics.dart';
 export 'src/analytics/consent.dart';
 export 'src/analytics/product_analytics.dart';
