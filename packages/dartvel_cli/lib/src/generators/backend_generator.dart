@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVCrashConfig,
+        DVCrashSinkChoice,
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
@@ -26,6 +28,57 @@ import 'policy_classes.dart';
 import 'route_utils.dart';
 
 class BackendGenerator {
+  /// `dartvel.crashes`, read with the parser the runtime uses, so a value the
+  /// runtime could not honour fails the build here too.
+  static DVCrashConfig _dvCrashConfig(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const DVCrashConfig();
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    try {
+      return DVCrashConfig.parse(dartvel is Map ? dartvel['crashes'] : null);
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+  }
+
+  /// The crash endpoint, for an application whose clients send reports to
+  /// its own backend.
+  ///
+  /// The body limit is enforced where the body is read -- a limit checked
+  /// after the read is not a limit -- and nothing a report carries is logged
+  /// on any path, including a failure nobody anticipated, which answers a
+  /// fixed 503.
+  static String _dvCrashRouteSource(DVCrashConfig crashes) => '''
+  // Crash reports from this application's clients: dartvel.crashes.sink is
+  // dartvel.
+  router.post(cfg.apiBasePath + core.DVCrashIngest.path, (dv.Request req) async {
+    core.DVCrashIngestResult result;
+    try {
+      final core.DVCrashIngest ingest = _dartvelCrashIngest ??= core.DVCrashIngest(
+        repository: core.DVDatabaseCrashReportRepository.application(),
+        perInstallPerHour: ${crashes.ingestPerInstallPerHour},
+        maxBytes: ${crashes.ingestMaxBytes},
+      );
+      if (core.dvDeclaredTooLarge(contentLength: req.headers.get('content-length'), limit: ingest.maxBytes)) {
+        result = const core.DVCrashIngestResult(core.DVCrashIngestOutcome.tooLarge);
+      } else {
+        final body = await core.dvReadCapped(req.body.stream, ingest.maxBytes);
+        result = body == null
+            ? const core.DVCrashIngestResult(core.DVCrashIngestOutcome.tooLarge)
+            : await ingest.accept(body);
+      }
+    } on Object {
+      result = const core.DVCrashIngestResult(core.DVCrashIngestOutcome.unavailable);
+    }
+    return dv.Response(result.status,
+        headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+        body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result.toJson()))));
+  });
+''';
+
   static Future<void> generate({
     required String root,
     required String backendDir,
@@ -326,6 +379,10 @@ $openApiJson\'\'\';
     final String applicationFavicon =
         seoFavicon == null ? 'null' : "'${esc(seoFavicon)}'";
     final DVServerOptions server = dvServerOptions(root);
+    // dartvel.crashes, with the runtime's own parser: whether this backend
+    // serves the crash endpoint, and what it accepts there.
+    final DVCrashConfig crashes = _dvCrashConfig(root);
+    final bool servesCrashes = crashes.sink == DVCrashSinkChoice.dartvel;
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
@@ -460,7 +517,7 @@ dv.Response _dvTooLarge(int limit) => dv.Response(413,
     body: Stream<List<int>>.value(
         conv.utf8.encode(core.dvTooLargeMessage(limit))));
 
-dv.Response _dvCsrfForbidden() => dv.Response(403,
+${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\ncore.DVCrashIngest? _dartvelCrashIngest;\n\n' : ''}dv.Response _dvCsrfForbidden() => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
 
@@ -775,7 +832,7 @@ $handlerClose''';
       }),
     );
   });
-  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
+${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),
           body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson))));
