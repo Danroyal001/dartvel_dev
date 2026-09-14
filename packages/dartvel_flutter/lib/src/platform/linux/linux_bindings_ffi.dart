@@ -18,6 +18,7 @@ import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
 import 'linux_kiosk_ffi.dart';
+import 'linux_media_gst.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_nfc.dart';
 import 'linux_printing_ffi.dart';
@@ -249,6 +250,9 @@ class DVLinuxBindings {
     // First, and outside the try: a device with no desktop still has a
     // serial port, and what follows gives up when GTK is missing.
     registerDeviceBindings();
+    // Playback and recording need GStreamer, not a display: a headless
+    // eLinux panel still plays its announcements.
+    DVLinuxMedia.register();
     try {
       _x11 = DynamicLibrary.open('libX11.so.6');
       _gtk = DynamicLibrary.open('libgtk-3.so.0');
