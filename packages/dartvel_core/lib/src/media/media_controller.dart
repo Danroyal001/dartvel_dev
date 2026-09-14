@@ -358,7 +358,11 @@ final class _DVMediaSession {
   }
 
   void _onEvent(DVMediaBackendEvent event) {
-    if (isDisposed) return;
+    // Failed is terminal for this session. A report that arrives after it --
+    // a backend answering a play request, one already queued -- describes
+    // nothing the application can use, and reviving the state would show a
+    // Pause button over a decoder that is not there.
+    if (isDisposed || state.value == DVPlaybackState.failed) return;
     switch (event) {
       case DVMediaReady(:final Duration duration):
         this.duration.set(duration);
