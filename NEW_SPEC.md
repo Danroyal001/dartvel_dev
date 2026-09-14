@@ -9033,7 +9033,7 @@ than a machine somebody has to describe in a runbook.
 
 # Backend Release Management
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Deployment says where a backend runs. This says how a new one replaces the one
 already running, and how it goes back.
