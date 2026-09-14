@@ -1,4 +1,14 @@
 ## Unreleased
+- **The generated backend's unhandled errors are crash reports.** Each
+  process installs `DVServerCrashes` with its role before it does anything
+  that can fail. A request that answers 500 is recorded by the web process,
+  a schedule that throws by the cron process, and a job dead-lettered after
+  its last attempt by the worker, each labelled with that role and the
+  pubspec version. Records go in `DARTVEL_CRASH_DIR`, else
+  `.dartvel/crashes` beside the application, with the server's install id
+  beside them; with `sink: dartvel` they are kept in the application's own
+  crash table. A process that cannot install crash reporting says so and
+  serves anyway.
 - **Privacy declarations are read at generation.** `dartvel routes` reads
   every `@DVModel`'s `subject:`, `retain:`, `@DVModel.retain` and `onErase`
   before writing anything, stops on a sensitive field no subject path reaches

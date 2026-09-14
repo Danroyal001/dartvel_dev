@@ -171,13 +171,17 @@ class _DVTask {
 class DVScheduler {
   /// [lease], when given, is claimed for each occurrence before it runs, so
   /// processes sharing its store run each occurrence once between them.
-  DVScheduler({DateTime Function()? clock, this.lease})
+  ///
+  /// [onFailure] is told about each task that throws, as it happens. Without
+  /// it a failure is kept in [failures], which a served process never reads.
+  DVScheduler({DateTime Function()? clock, this.lease, this.onFailure})
       : _clock = clock ?? DateTime.now {
     _startedAt = _clock();
   }
 
   final DateTime Function() _clock;
   final DVScheduleLease? lease;
+  final void Function(DVScheduledFailure failure)? onFailure;
   late final DateTime _startedAt;
   final Map<String, _DVTask> _tasks = <String, _DVTask>{};
   final List<DVScheduledFailure> _failures = <DVScheduledFailure>[];
@@ -322,12 +326,20 @@ class DVScheduler {
           // Recorded, not rethrown: one bad job must not silence every other
           // schedule in the process, and the next occurrence is a fresh
           // attempt rather than a disabled task.
-          _failures.add(DVScheduledFailure(
+          final DVScheduledFailure failure = DVScheduledFailure(
             name: task.name,
             at: occurrence,
             error: error,
             stackTrace: stack,
-          ));
+          );
+          _failures.add(failure);
+          // A listener that throws must not stop the other occurrences, for
+          // the same reason the task's own failure does not.
+          try {
+            onFailure?.call(failure);
+          } on Object {
+            // Kept in failures above either way.
+          }
         }
       }
       task.lastRun = due.last;
