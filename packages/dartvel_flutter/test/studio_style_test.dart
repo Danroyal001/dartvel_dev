@@ -121,4 +121,61 @@ void main() {
     expect(fill('Create'), DVStudioStyle.accent,
         reason: 'the primary action carries the accent');
   });
+
+  testWidgets('a control narrower than its label shrinks the label', (
+    WidgetTester tester,
+  ) async {
+    // A label is as long as a translation or a larger system font makes it,
+    // and a control is as wide as the row it sits in allows. The label was
+    // an inflexible text in a shrink-wrapped row, so a control given less
+    // room than its label threw an overflow instead of cutting the label
+    // short — and the Pro sections, which put controls in narrow toolbars,
+    // hit it seventeen times before shortening every label to route around
+    // it, which only moves the failure to the next caller.
+    const String label = 'A label longer than its box';
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 90,
+            child: DVStudioStyle.control(
+              label,
+              enabled: true,
+              icon: DVStudioIcons.publish,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull,
+        reason: 'a narrow control overflowed rather than shrinking its label');
+    expect(find.text(label), findsOneWidget,
+        reason: 'the label is cut short, not removed');
+    expect(tester.getSize(find.text(label)).width, lessThanOrEqualTo(90));
+  });
+
+  testWidgets('with room, a control is as wide as its label needs', (
+    WidgetTester tester,
+  ) async {
+    // The other half: the label only shrinks under pressure. In the test font
+    // every glyph is as wide as the font is tall, so "Publish" at 13 pixels
+    // is 91 pixels wide when nothing cuts it.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: DVStudioStyle.control(
+            'Publish',
+            enabled: true,
+            icon: DVStudioIcons.publish,
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getSize(find.text('Publish')).width, closeTo(91, 0.5));
+  });
 }
