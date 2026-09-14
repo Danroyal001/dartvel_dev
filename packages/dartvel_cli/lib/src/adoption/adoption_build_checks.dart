@@ -73,7 +73,8 @@ DVAdoptionBuildReport dvAdoptionBuildCheck({
 
   final Map<String, (String, String)> generated = <String, (String, String)>{};
   for (final (String path, String source) in <(String, String)>[
-    ..._pageRoutes(root, pagesDir),
+    for (final (String path, String source) in dvGeneratedPageRoutes(root, pagesDir))
+      (path, 'the page $source'),
     ...extraRoutes,
   ]) {
     generated.putIfAbsent(_shape(path), () => (path, source));
@@ -122,8 +123,9 @@ bool _handWritten(String rel) =>
     !rel.endsWith('.freezed.dart');
 
 /// Generated page routes, as the client generator discovers them: files
-/// under [pagesDir] with `@DVPage`, or the legacy `*.page.dart`.
-List<(String, String)> _pageRoutes(String root, String pagesDir) {
+/// under [pagesDir] with `@DVPage`, or the legacy `*.page.dart`, as
+/// `(route, 'lib/file.dart:line')`.
+List<(String, String)> dvGeneratedPageRoutes(String root, String pagesDir) {
   final Directory dir = Directory(p.join(root, pagesDir));
   if (!dir.existsSync()) return const <(String, String)>[];
   final List<File> files = dir
@@ -154,7 +156,7 @@ List<(String, String)> _pageRoutes(String root, String pagesDir) {
     }
     routes.add((
       route,
-      'the page $rel:${annotation == -1 ? 1 : _lineOf(masked, annotation)}',
+      '$rel:${annotation == -1 ? 1 : _lineOf(masked, annotation)}',
     ));
   }
   return routes;
@@ -285,7 +287,7 @@ const Set<String> _serializerAnnotations = <String>{
   'MappableClass',
 };
 
-final RegExp _classDeclaration = RegExp(
+final RegExp dvClassDeclaration = RegExp(
   r'(?<![A-Za-z0-9_$])(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*class\s+([A-Za-z_$][A-Za-z0-9_$]*)',
 );
 
@@ -294,8 +296,8 @@ Iterable<String> _serializerConflictsIn(
   String source,
   String masked,
 ) sync* {
-  for (final RegExpMatch match in _classDeclaration.allMatches(masked)) {
-    final List<(String, int)> stack = _annotationsBefore(masked, match.start);
+  for (final RegExpMatch match in dvClassDeclaration.allMatches(masked)) {
+    final List<(String, int)> stack = dvAnnotationsBefore(masked, match.start);
     final int dvModel = stack.indexWhere((( String, int) a) => a.$1 == 'DVModel');
     if (dvModel == -1) continue;
 
@@ -336,7 +338,7 @@ Iterable<String> _serializerConflictsIn(
 
 /// The annotations directly above the declaration starting at [at], as
 /// `(name, offset)` from the top, in [masked] source.
-List<(String, int)> _annotationsBefore(String masked, int at) {
+List<(String, int)> dvAnnotationsBefore(String masked, int at) {
   final List<(String, int)> found = <(String, int)>[];
   int i = at;
   while (true) {
