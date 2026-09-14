@@ -152,6 +152,7 @@ export 'src/notifications/web_push_vapid.dart';
 export 'src/observability/observability.dart';
 export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
+export 'src/preview/preview.dart';
 export 'src/privacy/privacy.dart';
 export 'src/protocol/protocol.dart';
 export 'src/queues/amqp_queue.dart';
