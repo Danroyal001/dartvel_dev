@@ -25,6 +25,7 @@ import 'src/kiosk/device_kiosk.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/kiosk/session_clear.dart';
+import 'src/media/media_box.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
@@ -209,6 +210,77 @@ export 'package:dartvel_core/dartvel.dart'
         DVImage,
         DVImageSource,
         DVImageVariants,
+        // Media playback and capture: the player behind DVBox.video and
+        // DVBox.audio, DV.Platform.Media capture, and the backend contracts a
+        // native binding implements, with the fakes a test drives them with.
+        DVAudioFocus,
+        DVAudioFocusBackend,
+        DVAudioFocusRefused,
+        DVAudioFormat,
+        DVBackgroundPlayback,
+        DVCaptureBackend,
+        DVCaptureBackendEvent,
+        DVCaptureBusy,
+        DVCaptureCapabilities,
+        DVCaptureDeviceLost,
+        DVCaptureFailed,
+        DVCaptureFailure,
+        DVCaptureFiles,
+        DVCaptureInterrupted,
+        DVCaptureInterruption,
+        DVCaptureKind,
+        DVCapturePermissionRefused,
+        DVCapturePermissionRevoked,
+        DVCapturePermissions,
+        DVCaptureRequest,
+        DVCaptureSession,
+        DVCaptureStarted,
+        DVCaptureState,
+        DVCaptureStopped,
+        DVCaptureUnsupported,
+        DVDrmAdapter,
+        DVDrmProtection,
+        DVDrmScheme,
+        DVFakeAudioFocusBackend,
+        DVFakeCaptureBackend,
+        DVFakeCapturePermissions,
+        DVFakeDrmAdapter,
+        DVFakeMediaPlayerBackend,
+        DVFakeMediaTimers,
+        DVFile,
+        DVForwardingMediaSignal,
+        DVMediaBackendCapabilities,
+        DVMediaBackendEvent,
+        DVMediaBuffered,
+        DVMediaBuffering,
+        DVMediaCapture,
+        DVMediaCompleted,
+        DVMediaController,
+        DVMediaDiagnosticSink,
+        DVMediaDrmUnavailable,
+        DVMediaEnvironment,
+        DVMediaFailed,
+        DVMediaPaused,
+        DVMediaPlayerBackend,
+        DVMediaPlaying,
+        DVMediaPosition,
+        DVMediaReady,
+        DVMediaSeekCompleted,
+        DVMediaSignal,
+        DVMediaSource,
+        DVMediaSourceKind,
+        DVMediaStreaming,
+        DVMediaStreamingUnsupported,
+        DVMediaTimer,
+        DVMediaTimers,
+        DVMutableMediaSignal,
+        DVPlaybackState,
+        DVPrivateCaptureFiles,
+        DVProcessAudioFocusBackend,
+        DVRange,
+        DVSystemMediaTimers,
+        dvAudioFocus,
+        dvLogMediaDiagnostic,
         DVJob,
         DVExportResult,
         DVExportOptions,
@@ -460,6 +532,7 @@ export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
 export 'src/media/image_view.dart';
+export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/modules/module_shell.dart';
 export 'src/modules/module_theme.dart';
@@ -1559,6 +1632,57 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
+  /// A video player, as a box.
+  ///
+  /// Playback is a box mode rather than a third primitive: the box owns size,
+  /// modifiers, gestures and semantics, [source] owns what is played. The
+  /// box's element owns the player, so leaving the page releases the decoder
+  /// and audio focus. Pass [controller] to keep a player alive beyond the box
+  /// -- a "now playing" bar in another window; otherwise read
+  /// [DVBox.controller].
+  DVBox.video(
+    DVMediaSource source, {
+    DVImage? poster,
+    DVMediaControls controls = DVMediaControls.standard,
+    DVBackgroundPlayback background = DVBackgroundPlayback.none,
+    bool autoplay = false,
+    DVMediaController? controller,
+    DVModifier? modifier,
+  }) : this._(
+          child: DVMediaView(
+            source: source,
+            kind: DVMediaKind.video,
+            poster: poster,
+            controls: controls,
+            background: background,
+            autoplay: autoplay,
+            controller: controller,
+          ),
+          modifier: modifier,
+        );
+
+  /// An audio player, as a box. See [DVBox.video].
+  DVBox.audio(
+    DVMediaSource source, {
+    DVImage? artwork,
+    DVMediaControls controls = DVMediaControls.standard,
+    DVBackgroundPlayback background = DVBackgroundPlayback.none,
+    bool autoplay = false,
+    DVMediaController? controller,
+    DVModifier? modifier,
+  }) : this._(
+          child: DVMediaView(
+            source: source,
+            kind: DVMediaKind.audio,
+            poster: artwork,
+            controls: controls,
+            background: background,
+            autoplay: autoplay,
+            controller: controller,
+          ),
+          modifier: modifier,
+        );
+
   const DVBox._({
     Widget? child,
     List<Widget>? children,
@@ -1639,6 +1763,47 @@ class DVBox<T> extends StatelessWidget {
       );
 
   DVBox<T> scrollable() => _copyWith(scrollable: true);
+
+  /// The player of a `DVBox.video` or `DVBox.audio` box.
+  ///
+  /// The same controller through every modifier, so
+  /// `DVBox.video(source).aspectRatio(16 / 9).controller` is the player the
+  /// box mounts. Throws for a box that is not a player.
+  DVMediaController get controller {
+    final Widget? child = _child;
+    if (child is DVMediaView) return child.controller;
+    throw StateError('Only DVBox.video and DVBox.audio have a controller.');
+  }
+
+  /// Holds the box's content to [ratio] (width / height).
+  DVBox<T> aspectRatio(double ratio) {
+    final Widget? child = _child;
+    if (child is DVMediaView) {
+      return DVBox<T>._(
+        modifier: _modifier,
+        child: child.withAspectRatio(ratio),
+      );
+    }
+    // The content, not the decoration: padding and a border sit outside the
+    // ratio the way they sit outside every other size a box is given.
+    final DVBox<T> inner = DVBox<T>._(
+      child: _child,
+      children: _children,
+      layout: _layout,
+      columns: _columns,
+      responsive: _responsive,
+      align: _align,
+      crossAlign: _crossAlign,
+      spacing: _spacing,
+      scrollable: _scrollable,
+      items: _items,
+      itemBuilder: _itemBuilder,
+    );
+    return DVBox<T>._(
+      modifier: _modifier,
+      child: AspectRatio(aspectRatio: ratio, child: inner),
+    );
+  }
 
   DVBox<T> _copyWith({
     DVModifier? modifier,
@@ -2942,6 +3107,31 @@ class DVCamera {
 
 class DVMedia {
   const DVMedia();
+
+  /// What this target can record, as its capture binding reports it. Nothing
+  /// on a target with no binding registered.
+  DVCaptureCapabilities get captureCapabilities =>
+      DVMediaBackends.capture.capabilities;
+
+  /// Records audio. Await the session for the [DVFile]; hold it to stop early.
+  ///
+  /// Permission goes through `DV.Platform.permissions`; a refusal is a typed
+  /// [DVCapturePermissionRefused]. The recording stops if the application is
+  /// backgrounded, and is written where only this account can read it.
+  DVCaptureSession recordAudio({
+    DVAudioFormat format = DVAudioFormat.aac,
+    Duration? maxDuration,
+  }) =>
+      DVMediaBackends.capture
+          .recordAudio(format: format, maxDuration: maxDuration);
+
+  /// Records video. See [recordAudio].
+  DVCaptureSession recordVideo({
+    DVVideoQuality quality = DVVideoQuality.hd720,
+    Duration? maxDuration,
+  }) =>
+      DVMediaBackends.capture
+          .recordVideo(quality: quality, maxDuration: maxDuration);
 
   Future<List<Map<String, Object?>>> pick({
     String type = 'image',
@@ -5204,6 +5394,7 @@ class DVPlatform {
   // `Tray` and `Menus` above, and `DV` proxies each one at the top level. The
   // lowerCamel getters stay as-is so existing call sites keep working.
   DVCamera get Camera => camera;
+  DVMedia get Media => media;
   DVLocation get Location => location;
   DVBluetooth get Bluetooth => bluetooth;
   DVNfc get NFC => nfc;
