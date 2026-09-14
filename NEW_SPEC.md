@@ -6069,7 +6069,7 @@ JNI/jnigen only, no Flutter platform channels.
 ---
 # Platform Memory
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Deterministic, preallocated, reusable memory on every Dartvel target. Apps that
 process large data — media pipelines, analytics, ML pre/post-processing,
