@@ -1435,8 +1435,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ADOPT-005',
-      reason: 'dartvel init found a project it did not create and refused to '
-          'scaffold',
+      reason: 'dartvel create found a pubspec.yaml it did not write and refused '
+          'to overwrite it',
       level: 'error',
     ),
     DVDiagnostic(

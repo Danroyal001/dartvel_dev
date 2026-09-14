@@ -9908,15 +9908,16 @@ It adds the dependency and the `dartvel:` key. That is all. It writes no
 scaffold, moves no files, and rewrites no `pubspec.yaml` beyond those two
 additions.
 
-That is a change, and the change is the point. **`init` is today an alias of
-`create`, and `create` overwrites `pubspec.yaml` with the scaffold template.**
+That is a change, and the change is the point. **`init` was an alias of
+`create`, and `create` overwrote `pubspec.yaml` with the scaffold template.**
 Run in an existing application — which is exactly where somebody adopting
-Dartvel would run it, and exactly what the word invites — it replaces every
-dependency the project declared and reports it as an information line. The two
+Dartvel would run it, and exactly what the word invites — it replaced every
+dependency the project declared and reported it as an information line. The two
 words mean different things and must stop being synonyms: `create` makes a
 project that did not exist, `init` initializes Dartvel inside one that does.
-`dartvel init` refuses rather than scaffolds when it finds a `pubspec.yaml` it
-did not write (`DV-ADOPT-005`).
+`dartvel create` refuses rather than overwrites when it finds a `pubspec.yaml`
+it did not write (`DV-ADOPT-005`), and points at `dartvel init`, which adds
+Dartvel to that project without scaffolding over it.
 
 ## Usage decides what is linked
 
@@ -10046,7 +10047,7 @@ There is no eject command because there is nothing to eject from.
 | `DV-ADOPT-002` | a route is defined by both the host router and a generated route | build `error` |
 | `DV-ADOPT-003` | an annotated model already has a generated serializer | build `error` |
 | `DV-ADOPT-004` | an imported schema changed; regenerate and review the diff | `warning` |
-| `DV-ADOPT-005` | `dartvel init` found a project it did not create and refused to scaffold | `error` |
+| `DV-ADOPT-005` | `dartvel create` found a `pubspec.yaml` it did not write and refused to overwrite it | `error` |
 
 ---
 
