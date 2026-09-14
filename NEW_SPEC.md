@@ -11737,7 +11737,7 @@ panels, analyzer rules, and build hooks. Raw HTTP behavior stays on
 ---
 # Generated Code Determinism
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Unified Development promises generated code is inspectable: real Dart, in the
 repository, with source mappings back to what produced it. Inspectable is not

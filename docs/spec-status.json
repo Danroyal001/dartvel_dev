@@ -1394,9 +1394,13 @@
     {
       "section": "Generated Code Determinism",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "The contract is not met today, and the section names the reason: routes_generator.dart takes a wall-clock build id per generation and writes it into every generated file as a `// BUILD: <iso>#<millis>` header, so every regeneration modifies every file whether or not the project changed. Nothing else of this exists: there is no `dartvel generate --check`, no second-run comparison behind DV-GEN-002, no sorting guarantee for anything derived from a directory listing or a map, no CODEOWNERS template in the scaffold, and `dartvel upgrade --plan` -- which DV-GEN-003 reports through -- is itself unbuilt, as Unified Development and The Golden Path both record. The output is not run through dart format on the way out either."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/test/generated_code_determinism_test.dart",
+        "packages/dartvel_cli/lib/src/generators/generate_check.dart",
+        "packages/dartvel_cli/lib/src/commands/generate_command.dart"
+      ],
+      "absent": "Built: identical inputs produce byte-identical output, proven by generating a project with pages, a model, a job, flags and a backend function twice and at two paths; no build stamp, timestamp or absolute path in any generated file; the generator version recorded once, in the dartvel_client.dart header; dvGenBuildId, which dartvel dev prints, is a hash of the generated backend routes rather than a time; every directory listing the generators read is sorted; and dartvel generate --check, which generates two scratch copies without writing to the project, reports DV-GEN-001 for stale paths and DV-GEN-002 for paths that differ between the copies, and exits non-zero. Absent: output is not run through dart format; no CODEOWNERS template ships with the scaffold; dartvel upgrade --plan is unbuilt, so DV-GEN-003 is registered but never emitted; DV-GEN-002 is checked only by --check, not by every build; the ordering guarantee rests on the sorts in code, since no test can make the filesystem list in a different order; a module mounted from outside the project root is not copied into the check's scratch location. Where the section and the code disagree: the section speaks of committed generated output and a CODEOWNERS rule for it, but the scaffold, every example and the site gitignore lib/dartvel_client and the backend generator adds that line on every run, so by default nothing generated is committed; formatting with the installed dart format would make output depend on the SDK version unless dart_style is pinned; the generator had no provenance record for the build id to move into, so the one value with a reader became a content hash; the section treats dartvel generate as the generator, but the generator is dartvel routes (run by dartvel build and dartvel dev) and generate scaffolds templates, so only --check was added to it."
     },
     {
       "section": "Documentation Generation",
