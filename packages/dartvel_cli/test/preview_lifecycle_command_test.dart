@@ -180,6 +180,13 @@ void main() {
     return exitCode;
   }
 
+  test('--help is a successful exit, not a usage error', () async {
+    // The serve options moved to a parser of their own when the verbs
+    // arrived, and that parser did not know --help: asking for help exited
+    // 64, which a script reads as having called the command wrongly.
+    expect(await run(<String>['--help']), 0);
+  });
+
   test('with no adapter that can host previews, create is DV-PREVIEW-010 and fails the step',
       () async {
     final int code = await run(<String>['create'], host: (_) => null);
