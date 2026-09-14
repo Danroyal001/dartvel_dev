@@ -119,6 +119,24 @@ class DVMetrics {
   ]) =>
       DVHistogram._(_seriesFor(name, _DVMetricKind.histogram, labels, help));
 
+  /// `counter`, `gauge` or `histogram`, or null when nothing registered
+  /// [name].
+  ///
+  /// So a reader can tell a metric that has not moved yet from one that no
+  /// longer exists: an alert rule naming a renamed metric reads nothing
+  /// forever, and without this it looks exactly like a quiet night.
+  String? typeOf(String name) => _kinds[name]?.name;
+
+  /// The current value of a counter or gauge series, or null when that series
+  /// has not been recorded. A histogram has no single value and reads null.
+  double? valueOf(
+    String name, [
+    Map<String, String> labels = const <String, String>{},
+  ]) {
+    if (_kinds[name] == _DVMetricKind.histogram) return null;
+    return _series[name]?[_key(labels)]?.value;
+  }
+
   /// Forgets everything. For tests, which must not see each other's counts.
   void reset() {
     _kinds.clear();
