@@ -76,8 +76,27 @@ final class _DenyAll implements DVSpatialConsent {
 /// them under `xr.anchors.*` in the shared window store.
 abstract interface class DVSpatialAnchorStore {
   Future<String?> read(String id);
+
+  /// Stores [token] for [id], or throws -- [DVSpatialAnchorNotStored] when
+  /// the store declines on purpose. Never stores it some weaker way instead.
   Future<void> write(String id, String token);
   Future<void> remove(String id);
+
+  /// Every anchor id a token is held for, so a withdrawal or an erasure can
+  /// reach tokens no open scene names.
+  Future<List<String>> ids();
+}
+
+/// A token a store declined to keep, and why, in words that name the anchor
+/// and never the token.
+final class DVSpatialAnchorNotStored implements Exception {
+  const DVSpatialAnchorNotStored(this.anchor, this.reason);
+
+  final String anchor;
+  final String reason;
+
+  @override
+  String toString() => 'DVSpatialAnchorNotStored: the token for world anchor "$anchor" was not stored: $reason';
 }
 
 final class DVMemorySpatialAnchorStore implements DVSpatialAnchorStore {
@@ -91,6 +110,9 @@ final class DVMemorySpatialAnchorStore implements DVSpatialAnchorStore {
 
   @override
   Future<void> remove(String id) async => _tokens.remove(id);
+
+  @override
+  Future<List<String>> ids() async => _tokens.keys.toList(growable: false);
 }
 
 /// Why a request was not presented in space.
@@ -643,11 +665,30 @@ final class DVSpatialSession {
     } on Object catch (error) {
       _bindingFailed('xr.anchor.persist', error);
     }
-    if (token == null) {
+    // Asked again: the OS can take a while to hand over a token, and an
+    // agreement withdrawn in the meantime is withdrawn for this token too.
+    if (token == null || !_runtime.consent.granted(DVSpatialDataUse.persistAnchors)) {
       a.persisted.remove(id);
       return;
     }
-    await store.write(anchor.id!, token);
+    try {
+      await store.write(anchor.id!, token);
+    } on Object catch (error) {
+      // Not persisted, so not marked: a mark would stop the next attempt.
+      // Logged rather than a session code because no XR code names this
+      // cause. The anchor id and the reason a Dartvel store gives are safe to
+      // log; any other error is named by type alone, since its message could
+      // carry the token it failed to write.
+      a.persisted.remove(id);
+      DVObservability.log(
+        'a world anchor token was not stored, so the anchor lasts for this session only',
+        level: DVLogLevel.error,
+        context: <String, Object?>{
+          'anchor': anchor.id,
+          if (error is DVSpatialAnchorNotStored) 'reason': error.reason else 'error': error.runtimeType.toString(),
+        },
+      );
+    }
   }
 
   void _onEvent(DVXRDeviceEvent event) {
