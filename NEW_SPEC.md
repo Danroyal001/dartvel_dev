@@ -4642,7 +4642,7 @@ and release health per cohort next to the rollout that produced the cohort.
 
 # Alerting, SLOs and Status Pages
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Monitoring collects logs, metrics and traces; Crash Reporting collects the
 crashes. Between all of that and a person there is nothing. No rule fires, no
