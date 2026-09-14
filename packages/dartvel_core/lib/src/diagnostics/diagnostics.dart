@@ -1530,6 +1530,32 @@ final class DVDiagnostics {
       reason: 'a framework string is a literal rather than an i18n key',
       level: 'warning',
     ),
+    // Platform Memory lists these in a text block rather than a table, so the
+    // specification assigns no level; these are calibrated to what the
+    // developer does next. A partly secured budget still runs, sized from
+    // securedBytes. An exhausted arena and int64 on web-js refuse the
+    // allocation outright. touchPages on a mobile device is refused, and the
+    // arena works without it.
+    DVDiagnostic(
+      code: 'DV-MEMORY-001',
+      reason: 'Configured budget not fully secured (asked 4GB, granted 1.5GB).',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEMORY-002',
+      reason: 'Arena exhausted; increase budget, reset(), or reduce workload.',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEMORY-003',
+      reason: 'int64 requested on web-js; use intList()/int32()/float64().',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MEMORY-004',
+      reason: 'touchPages enabled on a mobile/embedded target.',
+      level: 'warning',
+    ),
   ];
 
   /// The diagnostic for [code], or null if nothing is registered under it.
