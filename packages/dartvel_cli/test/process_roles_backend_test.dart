@@ -21,7 +21,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -211,12 +210,22 @@ Future<void> everyMinute() async {
 ''');
     write('bin/probe.dart', _probe);
 
-    final Directory previous = Directory.current;
-    Directory.current = project;
-    try {
-      await routes.generate();
-    } finally {
-      Directory.current = previous;
+    // `dartvel routes` as a separate process, so this suite never moves the
+    // test runner's working directory, which every suite running beside it
+    // in the same process shares.
+    final String cliPackage = p.join(packages, 'dartvel_cli');
+    final ProcessResult generated = await Process.run(
+      Platform.resolvedExecutable,
+      <String>[
+        '--packages=${p.join(cliPackage, '.dart_tool', 'package_config.json')}',
+        p.join(cliPackage, 'bin', 'routes.dart'),
+      ],
+      workingDirectory: project.path,
+    );
+    if (generated.exitCode != 0) {
+      throw StateError(
+        'dartvel routes failed:\n${generated.stdout}\n${generated.stderr}',
+      );
     }
     // The schedule has to have been found, or every count below is 0 for the
     // wrong reason.
