@@ -740,6 +740,8 @@ DVCrashInstallation? installDartvelCrashReporting({DVCrashStore? store, DVCrashS
       release: '${esc(crashRelease)}',
       // dartvel.crashes, as the build checked it.
       config: DVCrashConfig.parse(${_dartLiteral(crashConfig.toDeclaration(), 3)}),
+      // The backend a Dartvel sink sends to: the one this runtime calls.
+      api: DartvelRuntime.api,
       store: store,
       sink: sink,
       evenUnderTest: evenUnderTest,

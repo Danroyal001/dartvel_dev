@@ -4,6 +4,9 @@ library;
 import 'dart:async';
 import 'dart:math';
 
+import 'package:http/http.dart' as http;
+
+import 'crash_ingest.dart';
 import 'crash_report.dart';
 import 'crash_store.dart';
 import 'release_health.dart';
@@ -11,6 +14,17 @@ import 'release_health.dart';
 /// Where recovered reports go: the deployment's backend, Sentry, Crashlytics,
 /// or an application's own. The capture path is the same whichever it is.
 abstract class DVCrashSink {
+  const DVCrashSink();
+
+  /// The deployment's own backend: reports posted to [endpoint], which the
+  /// generated backend serves when `dartvel.crashes.sink` is `dartvel`.
+  factory DVCrashSink.dartvel({
+    required Uri Function() endpoint,
+    http.Client? client,
+    Duration timeout,
+    void Function(String line)? log,
+  }) = DVDartvelCrashSink;
+
   Future<void> send(DVCrashReport report);
 }
 

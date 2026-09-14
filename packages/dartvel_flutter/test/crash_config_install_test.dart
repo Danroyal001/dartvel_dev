@@ -4,9 +4,10 @@
 // silent failure as one that does not parse: the pubspec says 0.25 and every
 // non-fatal is kept, says one full report and a crash loop fills the disk, or
 // says crash reporting is off for debug builds and the hooks go in anyway.
+import 'dart:io';
 import 'dart:ui';
 
-import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dartvel.dart' hide Platform;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +107,72 @@ void main() {
     )!;
 
     expect(installation.reporter.breadcrumbs.capacity, 2);
+  });
+
+  group('sink: dartvel', () {
+    test("sends the previous run's reports to the backend the runtime names",
+        () async {
+      final HttpServer server =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final List<String> paths = <String>[];
+      server.listen((HttpRequest request) async {
+        paths.add(request.uri.path);
+        await request.drain<void>();
+        request.response.statusCode = 201;
+        await request.response.close();
+      });
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      DVCrashReporting(
+        store: store,
+        context: () =>
+            const DVCrashContext(release: '1.0.0', installId: 'install-1'),
+        onDiagnostic: (String code, String message) {},
+      ).record(StateError('last run'), StackTrace.current, fatal: true);
+
+      final DVCrashInstallation installation =
+          const DVCrashes().installApplication(
+        appId: 'crash_config_install_test',
+        release: '1.0.0',
+        store: store,
+        installId: 'install-1',
+        config: const DVCrashConfig(sink: DVCrashSinkChoice.dartvel),
+        api: (String path) =>
+            Uri.parse('http://127.0.0.1:${server.port}/api$path'),
+        onDiagnostic: (String code, String message) => codes.add(code),
+        evenUnderTest: true,
+      )!;
+
+      expect(await installation.recovered, 1);
+      expect(paths, <String>['/api/_dartvel/crashes']);
+      expect(store.raw, isEmpty);
+    });
+
+    test('with no API to reach it is refused, not sent nowhere', () {
+      expect(
+        () => installWith(
+          const DVCrashConfig(sink: DVCrashSinkChoice.dartvel),
+          DVMemoryCrashStore(),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('sink: none sends nothing and keeps the record', () async {
+      final DVMemoryCrashStore store = DVMemoryCrashStore();
+      DVCrashReporting(
+        store: store,
+        context: () =>
+            const DVCrashContext(release: '1.0.0', installId: 'install-1'),
+        onDiagnostic: (String code, String message) {},
+      ).record(StateError('last run'), StackTrace.current, fatal: true);
+
+      final DVCrashInstallation installation =
+          installWith(const DVCrashConfig(), store)!;
+
+      expect(await installation.recovered, 0);
+      expect(store.raw, hasLength(1));
+    });
   });
 
   test('the identity category comes from the configuration', () async {

@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`sink: dartvel` sends reports to the application's own backend.**
+  `installApplication` takes the runtime's API resolver (`api`) and, when
+  `dartvel.crashes.sink` is `dartvel`, sends what the previous run left to
+  the crash endpoint under the API base path. Declaring the Dartvel sink
+  with no API to reach is refused at installation rather than sending
+  nowhere.
+
 - **`DV.Crashes.installApplication` applies `dartvel.crashes`.** A build mode
   the configuration disables says `DV-CRASH-009` and installs nothing -- no
   hook, no store, no install id written. Otherwise the sample rate, the

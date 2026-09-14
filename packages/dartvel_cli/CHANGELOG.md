@@ -1,4 +1,12 @@
 ## Unreleased
+- **The generated backend accepts crash reports when the application sends
+  them there.** With `dartvel.crashes.sink: dartvel` the backend serves
+  `POST <apiBasePath>/_dartvel/crashes` through `DVCrashIngest`, storing
+  reports in the application's database under the declared per-install
+  limit and size; the body limit is enforced where the body is read. With
+  any other sink there is no endpoint, since nothing would read what it
+  accepted. The generated client passes `DartvelRuntime.api` so the runtime
+  reaches the same backend.
 - **`dartvel.crashes` is checked when the client is generated.** `dartvel
   routes` parses the section with the runtime's own `DVCrashConfig.parse`
   before it writes anything, and refuses a value it cannot honour naming the

@@ -85,6 +85,51 @@ void main() {
     expect(again.identityConsent, const DVConsentCategory('crash_identity'));
   });
 
+  group('the Dartvel sink and what its backend accepts', () {
+    test('sink: dartvel, with the ingest limits, round-trips', () {
+      final DVCrashConfig config = DVCrashConfig.parse(<String, Object?>{
+        'sink': 'dartvel',
+        'ingest': <String, Object?>{
+          'perInstallPerHour': 10,
+          'maxBytes': 65536,
+        },
+      });
+      expect(config.sink, DVCrashSinkChoice.dartvel);
+      expect(config.ingestPerInstallPerHour, 10);
+      expect(config.ingestMaxBytes, 65536);
+
+      final DVCrashConfig again = DVCrashConfig.parse(config.toDeclaration());
+      expect(again.sink, DVCrashSinkChoice.dartvel);
+      expect(again.ingestPerInstallPerHour, 10);
+      expect(again.ingestMaxBytes, 65536);
+    });
+
+    test('the ingest defaults', () {
+      final DVCrashConfig config =
+          DVCrashConfig.parse(<String, Object?>{'sink': 'dartvel'});
+      expect(config.ingestPerInstallPerHour, 30);
+      expect(config.ingestMaxBytes, 262144);
+    });
+
+    for (final (String key, Object? ingest) in <(String, Object?)>[
+      ('ingest', 'strict'),
+      ('ingest.perInstallPerHour', <String, Object?>{'perInstallPerHour': 0}),
+      ('ingest.maxBytes', <String, Object?>{'maxBytes': 100}),
+      ('ingest.maxBytes', <String, Object?>{'maxBytes': '1MB'}),
+      ('ingest.perInstall', <String, Object?>{'perInstall': 5}),
+    ]) {
+      test('refuses $key: $ingest', () {
+        expect(
+          () => DVCrashConfig.parse(<String, Object?>{
+            'sink': 'dartvel',
+            'ingest': ingest,
+          }),
+          refusing(key),
+        );
+      });
+    }
+  });
+
   group('refused, naming the key, never defaulted', () {
     final Map<String, Map<String, Object?>> cases =
         <String, Map<String, Object?>>{
