@@ -4764,7 +4764,7 @@ is worse than no alert, since it makes the dashboard look covered.
 
 # Product Analytics and Consent
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Monitoring and Observability watches the system: logs, metrics, traces,
 diagnostics. Nothing measures the product — which screens people reach, which
