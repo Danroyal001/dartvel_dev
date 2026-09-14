@@ -1,5 +1,36 @@
 ## Unreleased
 
+- **On Android and iOS the application key is in the keyring or it is
+  refused; it is never kept in a file.** `DVAppKeyStores.choose` used to hand
+  both platforms `DVFileAppKeyStore` under the home directory, which no
+  platform key store protects. iOS now gets the Keychain, and Android gets
+  the Android Keystore store passed as the new `androidKeystore:` factory
+  (`dvAppKeyStoreFor` in dartvel_flutter supplies it). Without one, the store
+  is `DVUnavailableAppKeyStore`, and every call on it refuses. Both are
+  wrapped in `DVMigratingAppKeyStore`, which moves a key an earlier version
+  left at the old file path into the keyring the first time it reads. The
+  file is removed only after the keyring copy reads back equal. A keyring
+  that refuses, drops or alters the write leaves the file in place and
+  throws, and writes go to the keyring alone. A keyring that cannot answer
+  throws the new typed `DVAppKeyStoreUnavailable` (store, reason, platform
+  status) rather than falling back. `DVAppKeyStores.platform` takes
+  `platform:` and `androidKeystore:`, and asks for a Secret Service only on
+  Linux. `DVAppKeyStores.legacyFilePath` names the old path.
+  `DVDescribedAppKeyStore` lets a store defined elsewhere say where it keeps
+  the key.
+
+- **The Keychain store works on iOS, keeps its item on this device, and
+  refuses with a reason.** `DVKeychainAppKeyStore` is available on iOS as
+  well as macOS. Its item is written
+  `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and not synchronizable,
+  so it never syncs to iCloud Keychain or restores onto another device.
+  Replacing a key updates the item in place: the old delete-then-add could
+  lose the key when the add was refused. A failing `OSStatus` is a
+  `DVAppKeyStoreUnavailable` from `dvKeychainRefusal`, which names a device
+  not unlocked since boot (`errSecInteractionNotAllowed`), a missing
+  entitlement, and an absent keychain. `debugItemAttributes()` reads back the
+  item's accessibility class and sync flag.
+
 - **An alert's state says who it reached, who it missed and whether it is
   resolving; an incident entry says who wrote it.** `DVAlertState` gains
   `deliveredTo`, `missed` (each unreached user, pager or unresolvable team

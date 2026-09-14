@@ -29,6 +29,8 @@ class DVKeychainAppKeyStore implements DVAppKeyStore {
 
   static bool get isAvailable => false;
 
+  static const String accessibleAfterFirstUnlockThisDeviceOnly = 'cku';
+
   @override
   Future<Uint8List?> read() async => null;
 
@@ -37,4 +39,6 @@ class DVKeychainAppKeyStore implements DVAppKeyStore {
 
   @override
   Future<void> clear() async {}
+
+  Future<Map<String, Object?>?> debugItemAttributes() async => null;
 }

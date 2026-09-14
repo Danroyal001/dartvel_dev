@@ -199,6 +199,16 @@ void main() {
       expect(await b.read(), key(9));
       await a.write(key(10));
       expect(await a.read(), key(10), reason: 'writing again replaces');
+      // Asked of the Keychain, not of what was passed to it: this device
+      // only, after first unlock, and never to iCloud.
+      final Map<String, Object?>? attributes = await a.debugItemAttributes();
+      expect(attributes, isNotNull);
+      expect(attributes!['synchronizable'], isNot(true));
+      final Object? accessible = attributes['accessible'];
+      if (accessible != null) {
+        expect(accessible, DVKeychainAppKeyStore.accessibleAfterFirstUnlockThisDeviceOnly);
+      }
+      printOnFailure('Keychain item attributes on macOS: $attributes');
       await a.clear();
       expect(await a.read(), isNull);
       expect(await b.read(), key(9));
