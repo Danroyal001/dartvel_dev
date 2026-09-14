@@ -286,6 +286,23 @@ export 'package:dartvel_core/dartvel.dart'
         DVPolicyCheck,
         DVQueueAdapter,
         DVQueues,
+        // DV.Workers and what it hands a caller.
+        DVCancellation,
+        DVProgress,
+        DVWorkerBuffer,
+        DVWorkerCapability,
+        DVWorkerFailure,
+        DVWorkerFailureKind,
+        DVWorkerLease,
+        DVWorkerLendable,
+        DVWorkerMechanism,
+        DVWorkerOutcome,
+        DVWorkerProfile,
+        DVWorkerReporter,
+        DVWorkerResult,
+        DVWorkerTask,
+        DVWorkerTasks,
+        DVWorkers,
         DVReportResult,
         DVScheduledReport,
         DVSearchProvider,
@@ -6387,6 +6404,11 @@ class DV {
   static DVStorage get BlobStorage => const DVStorage();
   static DVQueues get Queues => const DVQueues();
   static DVQueues get Jobs => const DVQueues();
+
+  /// `DV.Workers`: declared offloadable work off the UI isolate, on a pool
+  /// sized from the device rather than by the application. In-process and
+  /// gone with the process -- work that must outlive it is a job.
+  static DVWorkers get Workers => DVWorkers.current;
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
   static DVUpdates get Updates => const DVUpdates();
