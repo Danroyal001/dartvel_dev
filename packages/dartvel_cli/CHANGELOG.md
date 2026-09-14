@@ -1,4 +1,13 @@
 ## Unreleased
+- **The generated backend starts a preview before anything else runs.**
+  `startBackend` calls `DVPreviewServer.start(Platform.environment)` as its
+  first statement, so a backend deployed as a preview captures outbound mail
+  and notifications, namespaces its queues and uses its own database before a
+  module, tool or schedule is registered, and exits instead of serving when
+  it cannot establish any of that. `startBackend` takes `previewMembership`
+  for members previews and passes it to `serve`. In any other environment the
+  generated backend behaves as before.
+
 - **`@DVModel.model3dField()` is generated like any other media field.** The
   model carries `model3dFields`, the upload limits by field; `viewer3D()`
   renders the first 3D field in a `DVModel3DViewer`; the generated page and
@@ -7,6 +16,7 @@
   anything but `DVSceneAsset`, or an annotation argument other than `poster`,
   `maxSizeMb` and `maxTriangles` written as a literal, fails generation with
   the reason rather than generating a field with no limit.
+
 - **`dartvel db pull --local` prints `@DVModel` suggestions from the drift
   tables, isar collections and sqflite `CREATE TABLE` statements a project
   already has.** Column types map to model field types with nullability kept;
