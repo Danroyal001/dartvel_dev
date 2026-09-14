@@ -199,6 +199,28 @@ abstract interface class DVPrivacyAdapter {
   Future<Map<String, Object?>> export(DVPrivacySubjectRef subject);
 }
 
+/// A row an erasure reached, identified by its table and key.
+class DVErasedRecord {
+  const DVErasedRecord({required this.table, required this.key});
+
+  final DVRecordTable table;
+  final Object key;
+}
+
+/// A store holding copies of individual rows -- a change capture log, a
+/// warehouse -- that finds them by the rows themselves rather than by the
+/// subject.
+///
+/// Such a store cannot walk the subject paths once the rows are gone, so the
+/// erasure hands it the rows it reached, resolved before anything was
+/// changed. [erase] is not called for it.
+abstract interface class DVPrivacyRecordAdapter implements DVPrivacyAdapter {
+  Future<void> eraseRecords(
+    DVPrivacySubjectRef subject,
+    List<DVErasedRecord> records,
+  );
+}
+
 /// A row an erasure kept under a declared retention.
 class DVKeptRecord {
   const DVKeptRecord({
@@ -576,9 +598,18 @@ class DVPrivacy {
       );
     }
 
+    final List<DVErasedRecord> reached = <DVErasedRecord>[
+      for (final DVPrivacyModel model in models)
+        for (final DVRecord row in walk[model.name] ?? const <DVRecord>[])
+          DVErasedRecord(table: model.table, key: row.key),
+    ];
     for (final DVPrivacyAdapter adapter in adapters) {
       try {
-        await adapter.erase(ref);
+        if (adapter is DVPrivacyRecordAdapter) {
+          await adapter.eraseRecords(ref, reached);
+        } else {
+          await adapter.erase(ref);
+        }
       } on Object catch (error) {
         unreached.add(adapter.name);
         _report(
