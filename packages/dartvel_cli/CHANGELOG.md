@@ -1,4 +1,15 @@
 ## Unreleased
+- **`dartvel deploy --functions` for Cloud Run binds the port Cloud Run
+  assigns.** Its Dockerfile set `ENV DARTVEL_PORT=$PORT`, which Docker
+  expands when the image is built, when `PORT` is unset, so the server was
+  handed an empty port. The image now reads `PORT` when the container starts
+  (`CMD ["/bin/sh", "-c", "DARTVEL_PORT=\"$PORT\" exec /app/server"]`), and
+  an unset `PORT` still reaches the server empty, which refuses to start
+  naming `DARTVEL_PORT`. Every Dockerfile says that the image is one whole
+  process given no `DARTVEL_ROLE` -- serving and ticking the schedules -- and
+  how to run it as `web`, `cron` and `worker` containers instead. The
+  tests run each image's command and read the result through the backend's
+  own `DVProcessConfiguration`.
 - **The generated runtime gives the shared window store its application
   key store.** The store now encrypts world anchor tokens under the
   application key and refuses them when it has no key store, and it has no
