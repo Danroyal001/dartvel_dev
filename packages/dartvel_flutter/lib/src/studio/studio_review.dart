@@ -602,14 +602,24 @@ Widget studioStatePill(
 }) {
   final DVContentVersion<DVPageDocument>? version = session.current;
   final DVContentState? state = version?.state;
+  // An approval that no longer covers the content is not one, so the pill
+  // does not say Approved (or Scheduled) over it.
+  final bool changed =
+      version != null &&
+      (state == DVContentState.approved || state == DVContentState.scheduled) &&
+      version.changedSinceApproval;
   final Color tone = state == null
       ? DVStudioStyle.faint
+      : changed
+      ? DVStudioStyle.warning
       : studioContentStateTone(state);
   final DateTime? slot = version?.scheduledAt;
   final String label = !session.loaded
       ? 'Loading…'
       : state == null
       ? 'Not saved'
+      : changed
+      ? 'Changed since approval'
       : state == DVContentState.scheduled && slot != null
       ? 'Scheduled · ${studioSlot(slot, session.content.now())}'
       : studioContentStateLabel(state);
@@ -633,14 +643,19 @@ Widget studioStatePill(
           children: <Widget>[
             DVStudioStyle.dot(tone),
             const SizedBox(width: 6),
-            DVText(label).modifier(
-              const DVModifier()
-                  .fontSize(12)
-                  .color(
-                    tone == DVStudioStyle.faint ? DVStudioStyle.muted : tone,
-                  )
-                  .fontWeight(FontWeight.w600)
-                  .maxLines(1),
+            // Flexible, so a long state ("Changed since approval") beside the
+            // live version is cut short in a narrow panel instead of
+            // overflowing it.
+            Flexible(
+              child: DVText(label).modifier(
+                const DVModifier()
+                    .fontSize(12)
+                    .color(
+                      tone == DVStudioStyle.faint ? DVStudioStyle.muted : tone,
+                    )
+                    .fontWeight(FontWeight.w600)
+                    .maxLines(1),
+              ),
             ),
             if (session.published != null && session.open != null) ...<Widget>[
               const SizedBox(width: 8),
@@ -1802,9 +1817,10 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center,
+          // Padding rather than a height and an alignment: a Container with
+          // an alignment grows to the width it is offered, and in the Wrap
+          // that made each quick pick a full-width bar.
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: active ? DVStudioStyle.selected : DVStudioStyle.surface,
             border: Border.all(
