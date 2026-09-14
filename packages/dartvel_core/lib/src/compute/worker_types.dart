@@ -287,6 +287,15 @@ final class DVWorkerCall<I, O> {
 
   final DVWorkerTask<I, O> task;
 
+  /// The task as a plain function, for use as a key.
+  ///
+  /// Reading [task] through a `DVWorkerCall<Object?, Object?>` is a
+  /// covariance check against `(Object?, DVWorkerReporter) => Object?`,
+  /// which every task with a narrower input fails -- in dart2js, as a
+  /// TypeError on the first run. This getter reads it inside the class,
+  /// where its own type is known.
+  Function get function => task;
+
   FutureOr<O> invoke(Object? input, DVWorkerReporter reporter) =>
       task(input as I, reporter);
 }
