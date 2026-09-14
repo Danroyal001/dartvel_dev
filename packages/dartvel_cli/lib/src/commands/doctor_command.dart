@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../doctor/kiosk_check.dart';
+import '../doctor/memory_check.dart';
 import '../doctor/module_check.dart';
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
@@ -357,7 +358,21 @@ class DoctorCommand extends Command<void> {
       }
     }
 
-    return check.ok && modules.ok;
+    // dartvel.memory against each device profile's declared RAM, and
+    // touchPages against the platforms that refuse it.
+    final Object? platforms = dartvel is Map ? dartvel['platforms'] : null;
+    final DVMemoryCheck memory = DVMemoryCheck.run(
+      dartvel,
+      <String>[if (platforms is List) for (final Object? p in platforms) '$p'],
+    );
+    if (memory.lines.isNotEmpty) {
+      Logger.log('');
+      for (final String line in memory.lines) {
+        Logger.log(line);
+      }
+    }
+
+    return check.ok && modules.ok && memory.ok;
   }
 
   /// The kiosk targets this project builds for.
