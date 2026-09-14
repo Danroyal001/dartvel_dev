@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`DV.Crashes.identify` ties reports to an account only under consent.**
+  `installApplication` takes the consent category the application declares
+  (`identityConsent`), and every report carries the flags in force when it
+  was written. `identify(userId, consent:)` binds the id to that category, so
+  a report carries it only while the category is granted; with no category
+  declared it is refused rather than quietly ignored, and before
+  installation the identity is held and applied at install.
+
 - **`DV.Crashes` installs the crash reporter where Flutter reports errors.**
   The runtime in dartvel_core recorded and sent, and nothing called it.
   `DV.Crashes.install` chains `FlutterError.onError` and

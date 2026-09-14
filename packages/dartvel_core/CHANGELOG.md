@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **A crash report's user id is bound to consent, and its flags are the ones
+  in force.** `DVCrashIdentity` holds the account an install is signed in as
+  and hands a report the id only through `DVConsent.boundIdentity`, read when
+  the report is written: no grant, no id, and the report still arrives; a
+  withdrawal takes effect on the next crash. A consent policy that does not
+  declare the category is no identity rather than an exception inside the
+  crash handler. `DVCrashContext.userId` carries it, and is absent from the
+  JSON when null. `dvCrashFlagsSnapshot()` is every declared flag's answer
+  when the report is written, through the new `DVFlags.peek`: no exposure is
+  recorded (a crash must not count somebody into an experiment), no
+  diagnostic reported and nothing pinned, and a flag settled on next launch
+  answers with the value this process kept, which is what the crashing code
+  was running on. A context that cannot be read is an empty snapshot, not a
+  lost report.
+
 - **Crash records have somewhere to go in a browser.** `DVFileCrashStore`
   throws on the web by design, so a web build had no store a crash handler
   could write to before the page went away. `DVKeyValueCrashStore` keeps
