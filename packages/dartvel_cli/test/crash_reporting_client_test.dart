@@ -91,6 +91,7 @@ void main() {
     final ErrorCallback? testDispatcher = PlatformDispatcher.instance.onError;
     final DVMemoryCrashSink sink = DVMemoryCrashSink();
 
+    FlutterError.onError = (FlutterErrorDetails d) {};
     final DVCrashInstallation installation =
         installDartvelCrashReporting(sink: sink, evenUnderTest: true)!;
     final int sent = await installation.recovered;
@@ -101,6 +102,15 @@ void main() {
       'installIds': <String>[for (final r in sink.received) r.context.installId],
       'recordsLeft': records().length,
     };
+    // The reports sent above were written by the first launch and carry its
+    // id whatever this launch does. What this launch's own install id is only
+    // shows on a report this launch writes.
+    FlutterError.reportError(FlutterErrorDetails(
+      exception: StateError('next launch'),
+      stack: StackTrace.current,
+    ));
+    out['installIdNow'] = (records().single['context']!
+        as Map<String, Object?>)['installId'];
     installation.uninstall();
     FlutterError.onError = testHandler;
     PlatformDispatcher.instance.onError = testDispatcher;
@@ -228,6 +238,8 @@ dependency_overrides:
     expect(next['messages'], <String>['Bad state: first launch']);
     expect(next['installIds'], <Object?>[first['installId']]);
     expect(next['recordsLeft'], 0);
+    // One install, two launches, one id.
+    expect(next['installIdNow'], first['installId']);
   });
 
   test('configureDartvelRuntime installs crash reporting', () {
