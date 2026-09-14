@@ -7,6 +7,20 @@
   is guessed: the output says sensitivity was not inferred. `db pull` without
   the flag is unchanged.
 
+- **`dartvel db migrate --plan`, `--dry-run --against snapshot` and
+  `--production`.** `--plan` prints the class of every change the migration
+  would make -- instant, online or blocking, from the SQLite library the CLI
+  links -- and applies nothing, nor creates a database that is not there.
+  `--dry-run --against snapshot` rehearses against
+  `.dartvel/db/production.snapshot.json` (or `--snapshot <file>`): production's
+  provider, server version, columns and row counts, gated as production, and
+  exits 1 when the gate would refuse. `--production` refuses a blocking change
+  without `--allow-blocking <reason>` (`DV-SCHEMA-002`), and a real run's
+  override is appended to `.dartvel/db/schema_overrides.jsonl`; a dry run logs
+  nothing. A provider the CLI has no connection to, with no snapshot, has
+  nothing to classify its changes with, so against production they need the
+  override. `--against` without `--dry-run` or `--plan` is refused rather than
+  applied.
 - **`dartvel inspect adoption` reports what is Dartvel-managed and what is
   not: routes, models, screens and functions.** The managed half is generated
   pages, the graph's models and backend functions. The unmanaged half is host
