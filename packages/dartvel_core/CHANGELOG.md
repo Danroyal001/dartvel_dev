@@ -12,6 +12,31 @@
   cancelled or timed-out run, only once the isolate has exited. A disposed
   arena cannot be lent.
 
+- **Expand/contract runs as phases with gates, and its backfill is a
+  verified, throttled job.** `DVSchemaEvolution` walks expand, dual-write,
+  backfill, verify and contract, and refuses a release that already ran a
+  phase, because each phase is its own deploy. The read switch needs every
+  chunk backfilled, every chunk verified, and no dual-write discrepancy inside
+  the whole verification window (`DV-SCHEMA-004`, `DV-SCHEMA-007`); the
+  contract, and the later drop of the old column, are refused while a client
+  on a protocol older than the expand's still calls (`DV-SCHEMA-005`), and a
+  missing client histogram is refused rather than read as none.
+  `DVSchemaEvolutionStore` keeps the state in the database, and its
+  `phaseSource` answers Backend Release Management's `DVMigrationPhaseSource`
+  through `DVSchemaEvolution.releasePhase`. `DVBackfill` copies a column in
+  chunks by key and records each chunk after writing it, so a restart resumes
+  after the last one and a pause holds across restarts; `verify` hashes each
+  recorded chunk on both shapes -- a swapped pair of values is caught where a
+  count agrees -- names a mismatched chunk (`DV-SCHEMA-004`) and reports a
+  chunk that verified and then diverged as a dual-write discrepancy
+  (`DV-SCHEMA-007`). `DVBackfillThrottle` starts at the
+  `dartvel.database.tier` rate (500, 2,000 or 10,000 rows/s), halves when
+  replica lag or write latency crosses `dartvel.database.backfill`'s budget,
+  steps back up by a tenth of the starting rate while under it, and reports
+  staying below its floor past its patience once (`DV-SCHEMA-003`).
+  `DVSchemaBackfills` runs a backfill as slices on `DVQueues`, each queueing
+  the next, and a paused one stops queueing itself.
+
 - **Platform memory: a budget reserved once and handed out arena-style.**
   `DVPlatformMemory` reserves its budget up front in power-of-two segments
   (native heap through FFI on native targets, typed data on web) and hands
