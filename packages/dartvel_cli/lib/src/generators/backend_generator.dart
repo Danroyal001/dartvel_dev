@@ -63,7 +63,9 @@ class BackendGenerator {
   /// The body limit is enforced where the body is read -- a limit checked
   /// after the read is not a limit -- and nothing a report carries is logged
   /// on any path, including a failure nobody anticipated, which answers a
-  /// fixed 503.
+  /// fixed 503. Each report is counted against the client's source as
+  /// `DVClientAddress` resolves it, as well as against the install id the
+  /// report names, because the install id is the client's to choose.
   static String _dvCrashRouteSource(DVCrashConfig crashes) => '''
   // Crash reports from this application's clients: dartvel.crashes.sink is
   // dartvel.
@@ -80,6 +82,7 @@ class BackendGenerator {
       final core.DVCrashIngest ingest = _dartvelCrashIngest ??= core.DVCrashIngest(
         repository: core.DVDatabaseCrashReportRepository.application(),
         perInstallPerHour: ${crashes.ingestPerInstallPerHour},
+        perSourcePerHour: ${crashes.ingestPerSourcePerHour},
         maxBytes: ${crashes.ingestMaxBytes},
       );
       if (core.dvDeclaredTooLarge(contentLength: req.headers.get('content-length'), limit: ingest.maxBytes)) {
@@ -88,7 +91,7 @@ class BackendGenerator {
         final body = await core.dvReadCapped(req.body.stream, ingest.maxBytes);
         result = body == null
             ? const core.DVCrashIngestResult(core.DVCrashIngestOutcome.tooLarge)
-            : await ingest.accept(body);
+            : await ingest.accept(body, source: core.DVClientAddress.sourceOf(req));
       }
     } on Object {
       result = const core.DVCrashIngestResult(core.DVCrashIngestOutcome.unavailable);
