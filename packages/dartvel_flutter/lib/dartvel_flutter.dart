@@ -44,6 +44,7 @@ import 'src/platform/terminal_size_web.dart'
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
 import 'src/routing/nav_link.dart' show DVLinkOpener;
+import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
@@ -688,6 +689,7 @@ export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
+export 'src/routing/page_mfa.dart';
 export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
@@ -5957,6 +5959,37 @@ class DVAuth {
   }
 
   Widget SignInWithEmailAndPasswordPage() => _EmailPasswordAuthPage(auth: this);
+
+  /// The second-factor challenge: a code from the authenticator app, or one
+  /// recovery code, for this device's live session.
+  ///
+  /// Served at `dvSecondFactorRoute` by the generated router when a page
+  /// declares `mfa:`. Once the server accepts the factor it goes to [from]
+  /// when that is a path in this application, or `/` -- never to another
+  /// site, whatever the query string says. Pushed with no [from], as the
+  /// generated step-up does for a refused backend call, it pops with true.
+  Widget SecondFactorPage({String? from}) =>
+      _SecondFactorPage(auth: this, from: from);
+
+  /// Makes a generated call refused for a missing second factor present
+  /// [SecondFactorPage] over the current screen and send the call again once
+  /// a factor is presented -- `DVStepUp.challenge`, unless the application
+  /// installed its own. Installed by the generated runtime.
+  ///
+  /// With no router attached, or no navigator yet, nothing is presented and
+  /// the refusal reaches the caller.
+  static void installStepUp() {
+    DVStepUp.challenge ??= (DVStepUpRequest request) async {
+      final NavigatorState? navigator =
+          DVNavigation._router?.routerDelegate.navigatorKey.currentState;
+      if (navigator == null) return false;
+      final bool? presented = await navigator.push<bool>(MaterialPageRoute<bool>(
+        builder: (BuildContext context) =>
+            Scaffold(body: SafeArea(child: const DVAuth().SecondFactorPage())),
+      ));
+      return presented ?? false;
+    };
+  }
   Widget SignInWithProviderPage() =>
       _ProviderAuthPage(auth: this, provider: 'provider');
   Widget SignInWithRawOAuthPage() =>
@@ -6415,6 +6448,140 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                     .color(Colors.white)
                     .onPressed(() => unawaited(_submit())),
               ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondFactorPage extends StatefulWidget {
+  const _SecondFactorPage({required this.auth, this.from});
+
+  final DVAuth auth;
+  final String? from;
+
+  @override
+  State<_SecondFactorPage> createState() => _SecondFactorPageState();
+}
+
+class _SecondFactorPageState extends State<_SecondFactorPage> {
+  final TextEditingController _code = TextEditingController();
+  final TextEditingController _recovery = TextEditingController();
+  bool _useRecovery = false;
+  bool _busy = false;
+
+  /// Fixed text chosen here. Nothing the server said is shown.
+  String? _error;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    _recovery.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? error;
+    bool done = false;
+    try {
+      if (_useRecovery) {
+        await widget.auth.completeSecondFactor(recoveryCode: _recovery.text.trim());
+      } else {
+        await widget.auth.completeSecondFactor(code: _code.text.trim());
+      }
+      done = true;
+    } on DVSecondFactorRefused catch (refusal) {
+      error = refusal.message;
+    } on DVVelocityRefusal catch (refusal) {
+      error = refusal.message;
+    } on DVSessionRequestFailed catch (failure) {
+      error = failure.statusCode == 401
+          ? 'Your session has ended. Sign in again.'
+          : 'That did not work. Try again.';
+    } on Object {
+      error = 'That did not work. Try again.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+    if (!done) return;
+    final String? from = widget.from;
+    if (from == null && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    final GoRouter? router = DVNavigation._router;
+    final String target = DVPageMfa.safeReturn(from);
+    if (router != null) {
+      router.go(target);
+    } else {
+      unawaited(Navigator.of(context).maybePop(true));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? error = _error;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Material(
+          type: MaterialType.transparency,
+          child: DVBox.list([
+            DVText(_useRecovery
+                ? 'Enter one of your recovery codes.'
+                : 'Enter the code from your authenticator app.'),
+            if (_useRecovery)
+              TextField(
+                key: const ValueKey<String>('dv-auth-recovery-code'),
+                controller: _recovery,
+                decoration: const InputDecoration(labelText: 'Recovery code'),
+                autocorrect: false,
+              )
+            else
+              TextField(
+                key: const ValueKey<String>('dv-auth-code'),
+                controller: _code,
+                decoration: const InputDecoration(labelText: 'Code'),
+                keyboardType: TextInputType.number,
+                autofillHints: const <String>[AutofillHints.oneTimeCode],
+              ),
+            if (error != null)
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-auth-error'),
+                child: DVText(error),
+              ),
+            KeyedSubtree(
+              key: const ValueKey<String>('dv-auth-submit'),
+              child: DVText(_busy ? 'Checking...' : 'Continue').modifier(
+                const DVModifier()
+                    .padding(12)
+                    .rounded(8)
+                    .backgroundColor(const Color(0xFF111827))
+                    .color(Colors.white)
+                    .onPressed(() => unawaited(_submit())),
+              ),
+            ),
+            KeyedSubtree(
+              key: const ValueKey<String>('dv-auth-use-recovery'),
+              child: DVText(_useRecovery
+                      ? 'Use the authenticator app instead'
+                      : 'Use a recovery code instead')
+                  .modifier(const DVModifier().padding(8).onPressed(() {
+                setState(() {
+                  _useRecovery = !_useRecovery;
+                  _error = null;
+                });
+              })),
             ),
           ]),
         ),
