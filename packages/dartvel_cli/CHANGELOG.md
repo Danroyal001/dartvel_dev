@@ -1,4 +1,12 @@
 ## Unreleased
+- **The generated crash endpoint limits each client source.** With
+  `sink: dartvel`, the endpoint passes `DVClientAddress.sourceOf(req)` to
+  `DVCrashIngest.accept`, and `dartvel.crashes.ingest.perSourcePerHour` to
+  the ingest. That setting defaults to ten installs at their full
+  `perInstallPerHour`, and `dartvel routes` refuses it below 1 or below the
+  per-install budget. A client writing a new install id per report is
+  refused with 429 once its address has stored that many this hour, instead
+  of being stored without limit.
 - **`dartvel.server.ipv6SourcePrefix` sets how much of an IPv6 address is one
   source.** It defaults to 64, and `dartvel routes` checks it with the
   runtime's own rule: a whole number from 32 to 128, never quoted. Anything
