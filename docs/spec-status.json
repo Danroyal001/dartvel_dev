@@ -1002,9 +1002,22 @@
     {
       "section": "Compute: Workers and Native Offload",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "Nothing of this is built. DV.Workers does not exist: there is no task surface, no pool, no progress or cancellation plumbed to Background and Durable Work's typed events, and no device-profile sizing. DVRust is one integer type (DVRustInt, with +, - and *), so the Rust-kernel-in-a-worker path and the zero-copy arena hand-off both rest on bindings that are not generated yet; Platform Memory is itself Designed, so the arenas they would share do not exist either. dartvel analyze performance exists and reads a live performance map, but registers none of DV-WORKER-003's UI-isolate detection. The web half is the part with no prototype at all -- no web-worker bridge, and no capability reporting of the structured-clone-versus-shared-memory distinction the section turns on."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/compute/workers.dart",
+        "packages/dartvel_core/lib/src/compute/workers_isolate.dart",
+        "packages/dartvel_core/lib/src/compute/workers_web.dart",
+        "packages/dartvel_core/lib/src/compute/web_worker_protocol.dart",
+        "packages/dartvel_core/lib/src/compute/worker_buffer_ffi.dart",
+        "packages/dartvel_core/lib/web_worker.dart",
+        "packages/dartvel_core/test/workers_test.dart",
+        "packages/dartvel_core/test/worker_buffer_test.dart",
+        "packages/dartvel_core/test/worker_arena_test.dart",
+        "packages/dartvel_core/test/web_worker_protocol_test.dart",
+        "packages/dartvel_core/test/workers_web_node_test.dart",
+        "packages/dartvel_flutter/test/workers_surface_test.dart"
+      ],
+      "absent": "Built: DV.Workers.run hands a top-level or static task to its own isolate on the VM and always answers exactly once -- a value, what the task threw, cancelled, timed out, or crashed when the worker exited, died of an uncaught error or awaited something nothing could complete; input, result or captured state that cannot cross fails by name and frees its slot (DV-WORKER-002 for a capture, at run time); cancel and timeout kill the isolate and the slot is held until it has exited, so the bound counts live threads; the pool is bounded and sized from DVWorkerProfile(cores) with one core left for the UI and never more than eight; saturation logs DV-WORKER-005 once per episode; DVCancellation.until(signal, ended) binds a run to a lifecycle so nothing reaches an ended owner; without threads the work runs inline and DV-WORKER-001 is logged once; DVWorkers.capability reports the mechanism, its label, shared memory and zero-copy native. On the web, a web worker per task where the page has Worker: the task crosses by a name registered on both sides, input and result by structured clone, with the first uncloneable value named; a final answer is always posted; a script that fails to load is a crash and cancel terminates the worker; shared memory is reported only on a cross-origin-isolated page, and DV-WORKER-004 is logged once when bytes were copied. That runner is exercised through dart2js under Node with a worker_threads Worker, not in any browser. Zero-copy: DVWorkerBuffer and Platform Memory's DVPlatformMemory arenas can be lent to a worker by address, and while lent they cannot be read, freed, reset, disposed or lent again; they come back with the answer, or after a cancel or timeout only once the isolate has exited; a blocking native call on a worker leaves the caller's event loop free. Not built: DV-WORKER-002 as a build error (nothing checks for captures at compile time, and on the VM a closure capturing only sendable state runs, then fails on the web); DV-WORKER-003 in dartvel analyze performance; pool sizing from dartvel.deviceProfiles (no profile declares cores and nothing generates a DVWorkerProfile, so a build without one sizes from Platform.numberOfProcessors or navigator.hardwareConcurrency, the number the section warns against on embedded boards); generated Rust bindings (none exist, so the Rust kernel in a worker is a lent address plus hand-written FFI); generated worker-script entry and task registration for web builds, which applications do by hand today; a SharedArrayBuffer path even where shared memory is available; the jobs layer adopting DVProgress and DVCancellation. Where the section and the code disagree: it says progress and cancellation are typed events Background and Durable Work already defines, and that section defines none, so they are defined here; a task takes (input, DVWorkerReporter) rather than input alone, because a function that reports progress needs a way to report it; a web worker cannot be handed a function, so web tasks are registered by name, which the section's one-surface example does not show."
     },
     {
       "section": "Kiosk Mode",
