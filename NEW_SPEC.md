@@ -6198,7 +6198,7 @@ signals in a memory panel.
 
 # Compute: Workers and Native Offload
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Three things in this specification do heavy work on the client and none of
 them names the others. Package Structure binds Rust through FFI. Platform
