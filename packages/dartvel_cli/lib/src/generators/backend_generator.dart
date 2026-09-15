@@ -1195,6 +1195,15 @@ const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
 /// Whether responses are compressed, from `dartvel.server.compression`.
 const bool dartvelCompression = $compressionLiteral;
 
+/// The proxies whose forwarded client address is believed, from
+/// `dartvel.server.trustedProxies`; a deployment adds more with
+/// DARTVEL_TRUSTED_PROXIES. Empty trusts none, and every per-source limit
+/// counts the connection's peer.
+const List<String> dartvelTrustedProxies = ${server.trustedProxiesSource};
+
+/// The header those proxies write, from `dartvel.server.forwardedHeader`.
+const String? dartvelForwardedHeader = ${server.forwardedHeaderSource};
+
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
 /// the model's data. With [pageStore] -- any cache adapter, so Redis where
@@ -1294,6 +1303,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   } else if (dartvelBackendCronEntries.isNotEmpty) {
     stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
   }
+  // Who each request came from, for every per-source limit: the peer, or the
+  // client a trusted proxy reports. Before the router, so no request is
+  // counted by the default that trusts no proxy; a range in
+  // DARTVEL_TRUSTED_PROXIES that does not parse refuses the start.
+  core.DVClientAddress.install(core.DVClientAddress.fromConfiguration(trustedProxies: dartvelTrustedProxies, forwardedHeader: dartvelForwardedHeader, environment: Platform.environment));
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? processConfiguration.port;
