@@ -268,11 +268,19 @@ class BackendGenerator {
         final String modifier = privateExpression.body.modifier == null
             ? ''
             : ' ${privateExpression.body.modifier}';
+        // The injected context's type, as the generated file names it. The
+        // parameter list was copied verbatim, and this file imports
+        // dartvel_core as core, so `DVContext context` named a type that does
+        // not exist here and no private function taking the context compiled.
+        final String helperParameters = injectsContext
+            ? privateExpression.parameters.replaceFirst(
+                RegExp(r'(?<![\w.$])DVContext\b'), 'core.DVContext')
+            : privateExpression.parameters;
         // A block keeps its braces; dropping `async` here would make the
         // helper return a value where the route awaits a Future.
         helper = privateExpression.body.isBlock
-            ? '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters})$modifier {\n$qualifiedPrivateExpression\n}'
-            : '${privateExpression.returnType} _dvBackendFn$i(${privateExpression.parameters})$modifier => $qualifiedPrivateExpression;';
+            ? '${privateExpression.returnType} _dvBackendFn$i($helperParameters)$modifier {\n$qualifiedPrivateExpression\n}'
+            : '${privateExpression.returnType} _dvBackendFn$i($helperParameters)$modifier => $qualifiedPrivateExpression;';
       } else {
         // 1) Try to find a function whose name matches the sanitized filename
         final regCandidate = RegExp(
@@ -590,16 +598,23 @@ dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(
         conv.utf8.encode('Not authorized (\$policy)')));
-${authenticates ? r'''
-/// The authentication stage: an API key or OAuth access token on the
-/// request becomes core.DVApiPrincipal.current for the rest of it, checked
-/// against the tenant the request resolved to. A request carrying neither is
-/// the application's own and runs unchanged. A refusal is fixed text with
-/// nothing of the credential in it, and is never cached.
+
+/// The authentication stage.${authenticates ? r'''
+/// An API key or OAuth access token on the request becomes
+/// core.DVApiPrincipal.current for the rest of it, checked against the
+/// tenant the request resolved to.''' : ''}
+/// The application's own session -- a `Bearer dvs_` token or the session
+/// cookie -- becomes core.DVSessionPrincipal.current, on the tenant it was
+/// issued on and with the user read again for this request, so a route policy
+/// is asked about the person signed in rather than about nobody. A request
+/// carrying none of these runs unchanged. A refusal is fixed text with nothing
+/// of the credential in it, and is never cached; a session that does not
+/// authenticate is refused on every route, because a revoked session fails its
+/// next request rather than being read as an anonymous one.
 Future<dv.Response> _dvAuthenticated(
   dv.Request req,
   Future<dv.Response> Function() run,
-) async {
+) async {${authenticates ? r'''
   final core.DVApiAuthentication auth =
       await core.DVPlatformApi.authenticateRequest(req.headers.get('authorization'));
   if (auth.refused) {
@@ -612,10 +627,26 @@ Future<dv.Response> _dvAuthenticated(
         body: Stream<List<int>>.value(conv.utf8.encode(auth.message!)));
   }
   final core.DVApiPrincipal? principal = auth.principal;
-  if (principal == null) return run();
-  return core.DVApiPrincipal.actingAs(principal, run);
+  if (principal != null) return core.DVApiPrincipal.actingAs(principal, run);''' : ''}
+  final core.DVSessionAuthenticationResult session =
+      await core.DVSessionAuthentication.authenticateRequest(
+          authorization: req.headers.get('authorization'),
+          cookie: req.headers.get('cookie'));
+  if (session.refused) {
+    return dv.Response(session.status!,
+        headers: dv.Headers({
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store',
+          if (session.challenge != null) 'www-authenticate': session.challenge!,
+          if (session.clearCookie != null) 'set-cookie': session.clearCookie!,
+        }),
+        body: Stream<List<int>>.value(conv.utf8.encode(session.message!)));
+  }
+  final core.DVSessionPrincipal? signedIn = session.principal;
+  if (signedIn == null) return run();
+  return core.DVSessionPrincipal.actingAs(signedIn, run);
 }
-''' : ''}
+
 /// The tenant scope and authentication stage for a route that is not a
 /// backend function: GraphQL, the crash endpoint, OpenAPI and health.
 ///
@@ -627,7 +658,7 @@ Future<dv.Response> _dvStaged(
   dv.Request req,
   Future<dv.Response> Function() run,
 ) =>
-    core.dvWithRequestTenant(req, () => ${authenticates ? '_dvAuthenticated(req, run)' : 'run()'});
+    core.dvWithRequestTenant(req, () => _dvAuthenticated(req, run));
 
 /// Runs a route's declared middleware around its handler.
 ///
@@ -742,7 +773,9 @@ ${backendEntries.map((e) {
         if (traces)
           ('core.dvTraced(core.DVObservability.tracer, req, ',
               '(dv.Request req)'),
-        if (authenticates) ('_dvAuthenticated(req, ', '()'),
+        // On every route, with or without dartvel.platformApi: the
+        // application's own sessions authenticate here too.
+        ('_dvAuthenticated(req, ', '()'),
         if (chainKeys.isNotEmpty)
           (
             '_dvGuarded(req, const <String>['
@@ -976,7 +1009,7 @@ $handlerClose''';
       '\${map['query'] ?? ''}',
       variables: (map['variables'] as Map?)?.cast<String, Object?>(),
       operationName: map['operationName'] as String?,
-      authenticated: core.DVApiPrincipal.current != null,
+      authenticated: core.DVApiPrincipal.current != null || core.DVSessionPrincipal.current != null,
     );
     return dv.Response.json(result);
   }));
@@ -996,7 +1029,7 @@ $handlerClose''';
       '\${map['query'] ?? ''}',
       variables: (map['variables'] as Map?)?.cast<String, Object?>(),
       operationName: map['operationName'] as String?,
-      authenticated: core.DVApiPrincipal.current != null,
+      authenticated: core.DVApiPrincipal.current != null || core.DVSessionPrincipal.current != null,
     );
     return dv.Response.stream(
       (sink) {
@@ -1117,7 +1150,17 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
   final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
   if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
-  configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);${authenticates ? '''
+  configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
+  // The application's own sessions authenticate on every route. Over this
+  // process's database when it has one, so a session outlives a restart and
+  // is seen by every web process; in memory otherwise. An application that
+  // installed its own stage first -- to resolve its user -- keeps it.
+  if (core.DVSessionAuthentication.installed == null) {
+    core.DVSessionAuthentication.install(
+      sessions: core.DVSessions(store: dartvelDatabase == null ? core.DVMemorySessionStore() : core.DVDatabaseSessionStore(dartvelDatabase)),
+      development: Platform.environment['DARTVEL_ENVIRONMENT'] == 'development',
+    );
+  }${authenticates ? '''
   // dartvel.platformApi: API keys and OAuth tokens authenticate on every
   // route, over the database this process resolves on the first request
   // that presents one -- an application may configure DV.Database after
