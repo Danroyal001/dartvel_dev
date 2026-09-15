@@ -5761,6 +5761,16 @@ class DVAuth {
   DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
 
+  /// The current organization's API keys, each operation asked of
+  /// [authorization] on a `DVApiKeyResource`.
+  DVApiKeyManagement get apiKeys =>
+      DVPlatformApiAuth(authorization: authorization).apiKeys;
+
+  /// The current organization's OAuth clients, each operation asked of
+  /// [authorization] on a `DVOAuthClientResource`.
+  DVOAuthClientManagement get oauthClients =>
+      DVPlatformApiAuth(authorization: authorization).oauthClients;
+
   void configure(DVAuthProvider provider) {
     _provider = provider;
     _currentUser = null;

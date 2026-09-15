@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`DVPlatformApiAuth` manages the current organization's API keys and
+  OAuth clients through `DV.Auth.authorization`.** `apiKeys.issue`, `list`,
+  `rotate` and `revoke`, and `oauthClients.register`, `list` and `revoke`,
+  act on the organization on the current tenant and ask the policy
+  registered for `DVApiKeyResource` or `DVOAuthClientResource` (`create`,
+  `viewAny`, `update`, `delete`), which sees the organization, the key or
+  client, and the scopes asked for. With no policy, or nobody signed in, the
+  answer is no and nothing is written. Another organization's key or client
+  named by id is answered as not found. A rate plan the declaration does not
+  have is refused at issue. A third-party principal is refused by its scopes
+  first.
+
 - **`@DVModel(history: DVHistory(keep: ...))`.** The annotation field the
   Record History section designs, read by `dartvel routes`: a generated
   model declaring it writes its change log with every change and reads it
