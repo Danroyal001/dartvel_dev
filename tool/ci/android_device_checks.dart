@@ -104,6 +104,34 @@ int _rank(DVLockTaskState state) => switch (state) {
   DVLockTaskState.none => 1,
   DVLockTaskState.unknown => 0,
 };
+
+// ---------------------------------------------------------------------------
+// Who holds input focus.
+
+final RegExp _currentFocus = RegExp(r'mCurrentFocus=(.*)');
+final RegExp _windowName = RegExp(r'^Window\{\S+\s+u\d+\s+(.*)\}\s*$');
+
+/// The window holding input focus, as `adb shell dumpsys window` names it, or
+/// null when nothing does or the dump does not say.
+///
+/// The window rather than `mFocusedApp`: a not-responding dialog over the
+/// application leaves the focused app unchanged and takes the window, and
+/// the window is what Android checks before it hands over the clipboard.
+String? dvFocusHolder(String dumpsysWindow) {
+  final RegExpMatch? line = _currentFocus.firstMatch(dumpsysWindow);
+  if (line == null) return null;
+  final String value = line.group(1)!.trim();
+  if (value == 'null' || value.isEmpty) return null;
+  final RegExpMatch? window = _windowName.firstMatch(value);
+  return window == null ? value : window.group(1)!.trim();
+}
+
+/// Whether a window of [package] holds input focus in [dumpsysWindow].
+bool dvApplicationHasFocus(String dumpsysWindow, String package) {
+  final String? holder = dvFocusHolder(dumpsysWindow);
+  return holder != null && holder.startsWith('$package/');
+}
+
 // ---------------------------------------------------------------------------
 // The run itself.
 
@@ -119,6 +147,33 @@ Future<void> main(List<String> arguments) async {
   final List<String> failures = <String>[];
 
   Directory(_diag).createSync(recursive: true);
+
+  // No error dialogs on this device. A software-rendered emulator is slow
+  // enough that the launcher misses its deadline, and the "Pixel Launcher
+  // isn't responding" dialog that follows takes input focus from whatever
+  // is in front. From Android 10 an application off focus reads the
+  // clipboard as null, so the clipboard round trip below failed in every run
+  // whose screenshot shows that dialog and in none whose screenshot does
+  // not. The launcher is not under test, and a dialog about it is not a
+  // finding about Dartvel. Set before anything is installed, and any dialog
+  // already up is closed.
+  await _step('hide system error dialogs', failures, () async {
+    await _adb(<String>[
+      'shell',
+      'settings',
+      'put',
+      'global',
+      'hide_error_dialogs',
+      '1',
+    ]);
+    await _adb(<String>[
+      'shell',
+      'am',
+      'broadcast',
+      '-a',
+      'android.intent.action.CLOSE_SYSTEM_DIALOGS',
+    ]);
+  });
 
   await _step(
     'install the APK',
@@ -185,6 +240,21 @@ Future<void> main(List<String> arguments) async {
   // Run here rather than after the reinstall below, so the one reinstall
   // covers both integration tests -- `flutter test` uninstalls the package
   // when it finishes, and the device-owner work further down needs it back.
+  // Who holds focus as the bindings test starts. Diagnostic only: the test
+  // installs and launches its own copy, so this is the device's state going
+  // in, and a dialog in front of everything is what it is here to name.
+  final ProcessResult focus = await Process.run('adb', <String>[
+    'shell',
+    'dumpsys',
+    'window',
+  ]);
+  final String focusDump = '${focus.stdout}';
+  File('$_diag/android-focus.log').writeAsStringSync(focusDump);
+  stdout.writeln(
+    '== input focus before the bindings test: '
+    '${dvFocusHolder(focusDump) ?? '(nobody, or dumpsys did not say)'}',
+  );
+
   await _step(
     'the bindings answer on the device',
     failures,
