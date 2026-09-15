@@ -13,6 +13,9 @@
 /// that invented a user would be answering a question it cannot see.
 library dartvel_core.auth.backend_policy;
 
+import '../observability/observability.dart';
+import 'api_scopes.dart';
+
 /// The gate the generated backend router calls before running a function.
 class DVBackendPolicy {
   const DVBackendPolicy._();
@@ -26,7 +29,18 @@ class DVBackendPolicy {
   static Future<bool> Function(String policy, String path)? decide;
 
   /// Whether this request may run a function guarded by [policy].
+  ///
+  /// A request authenticated with an API key or an OAuth token is refused
+  /// first when its scopes do not cover [policy] as `Resource.action`
+  /// (`DV-APIKEY-002`), before the application is asked. Inside its scopes
+  /// the application still decides, so a scope narrows what the policy allows
+  /// and never widens it.
   static Future<bool> allows(String policy, String path) async {
+    final DVApiPrincipal? principal = DVApiPrincipal.current;
+    if (principal != null && !principal.permits(policy)) {
+      DVObservability.logger.warn('${DVApiScopeRefused(policy, principal.scopes)}');
+      return false;
+    }
     final Future<bool> Function(String, String)? answer = decide;
     if (answer == null) return false;
     return answer(policy, path);
