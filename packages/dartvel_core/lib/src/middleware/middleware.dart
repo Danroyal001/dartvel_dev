@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../annotations/annotations.dart' show DVCSRF;
+import '../http/client_address.dart';
 import '../http/wintercg.dart' as dv;
 import '../tenancy/tenants.dart';
 
@@ -392,34 +393,20 @@ Uri _requestUri(Object? request) {
   return Uri(path: _requestPath(request));
 }
 
+/// Who the rate limit counts [request] against: the client address
+/// [DVClientAddress] resolves, then a caller id a map-shaped request names.
+///
+/// Never a header. This read X-Forwarded-For, CF-Connecting-IP, X-Real-IP,
+/// Fastly-Client-IP, True-Client-IP and Forwarded in turn, each of which a
+/// client sends to an origin it can reach directly, so a caller writing a new
+/// value per request was never limited. A CDN's own header is believed only
+/// as far as its proxy is configured as trusted, through the resolver.
 String _clientIdentifier(Object? request) {
-  final headers = _requestHeaders(request);
-  final forwardedFor = headers['x-forwarded-for'];
-  if (forwardedFor != null && forwardedFor.trim().isNotEmpty) {
-    return forwardedFor.split(',').first.trim();
-  }
-
-  for (final name in const [
-    'cf-connecting-ip',
-    'x-real-ip',
-    'fastly-client-ip',
-    'true-client-ip',
-  ]) {
-    final value = headers[name];
-    if (value != null && value.trim().isNotEmpty) return value.trim();
-  }
-
-  final forwarded = headers['forwarded'];
-  if (forwarded != null) {
-    final match = RegExp(r'for="?([^;,"]+)"?').firstMatch(forwarded);
-    final value = match?.group(1);
-    if (value != null && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-  }
+  final address = DVClientAddress.current.resolve(request);
+  if (address != null) return address.toString();
 
   if (request is Map<String, Object?>) {
-    for (final key in const ['clientId', 'client_id', 'remoteAddress', 'ip']) {
+    for (final key in const ['clientId', 'client_id']) {
       final value = request[key];
       if (value is String && value.trim().isNotEmpty) return value.trim();
     }

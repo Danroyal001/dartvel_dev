@@ -5,10 +5,12 @@ Map<String, Object?> request({
   String method = 'POST',
   String path = '/admin/users',
   String? country,
+  String? peer = '127.0.0.1:40000',
 }) =>
     <String, Object?>{
       'method': method,
       'path': path,
+      if (peer != null) 'peerAddress': peer,
       'headers': <String, String>{
         if (country != null) 'x-test-country': country,
       },
@@ -30,6 +32,46 @@ Future<MiddlewareContext> run(DVWaf waf, Object? req) async {
 
 void main() {
   final fromHeader = DVWaf.countryHeader('x-test-country');
+
+  // The proxy that sets the country header. The header is believed only from
+  // it: a client that reaches the origin directly can send any header.
+  setUp(() => DVClientAddress.install(
+      DVClientAddress.parse(const <String>['127.0.0.1'])));
+  tearDown(DVClientAddress.reset);
+
+  group("the country header is the trusted proxy's to set", () {
+    test('from a peer that is not a trusted proxy it is unknown', () async {
+      final waf = DVWaf(const <DVWafRule>[adminFromOutside],
+          countryOf: fromHeader);
+      // Claiming an allowed country from outside the proxy does not get past
+      // an allow-list: unknown is outside every one.
+      final context =
+          await run(waf, request(country: 'GB', peer: '198.51.100.4:5'));
+      expect(context.shouldContinue, isFalse);
+      expect(context.data['wafRule'], 'block-admin-from-outside');
+    });
+
+    test('with no peer address it is unknown', () async {
+      final waf = DVWaf(const <DVWafRule>[adminFromOutside],
+          countryOf: fromHeader);
+      expect(
+          (await run(waf, request(country: 'GB', peer: null))).shouldContinue,
+          isFalse);
+    });
+
+    test('with no trusted proxy configured it is unknown', () async {
+      DVClientAddress.reset();
+      final waf = DVWaf(const <DVWafRule>[adminFromOutside],
+          countryOf: fromHeader);
+      expect((await run(waf, request(country: 'GB'))).shouldContinue, isFalse);
+    });
+
+    test('from the trusted proxy it decides', () async {
+      final waf = DVWaf(const <DVWafRule>[adminFromOutside],
+          countryOf: fromHeader);
+      expect((await run(waf, request(country: 'GB'))).shouldContinue, isTrue);
+    });
+  });
 
   group('matching', () {
     test('the rule in the spec refuses a write to /admin from outside',

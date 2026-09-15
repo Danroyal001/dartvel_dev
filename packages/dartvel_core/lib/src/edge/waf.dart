@@ -7,6 +7,7 @@
 /// rules on it.
 library dartvel_core.edge.waf;
 
+import '../http/client_address.dart';
 import '../middleware/middleware.dart';
 import '../observability/observability.dart';
 import 'request_parts.dart';
@@ -197,13 +198,18 @@ class DVWaf {
   Map<String, DateTime> get lastMatched =>
       Map<String, DateTime>.unmodifiable(_lastMatched);
 
-  /// Reads the country from a header a CDN sets, such as `cf-ipcountry`.
+  /// Reads the country from a header a CDN sets, such as `cf-ipcountry`,
+  /// when the request came straight from a trusted proxy.
   ///
-  /// Opt-in by name: a header is only as trustworthy as the proxy that
-  /// overwrites it, and a client can send any header it likes to an origin
-  /// that is reachable directly.
-  static DVWafCountryResolver countryHeader(String header) =>
-      (request) => dvEdgeHeader(request, header);
+  /// Opt-in by name, and believed only from a peer [DVClientAddress.current]
+  /// trusts: a header is only as trustworthy as the proxy that overwrites it,
+  /// and a client that reaches the origin directly can send any header it
+  /// likes. From anywhere else the country is unknown, which is outside every
+  /// allow-list.
+  static DVWafCountryResolver countryHeader(String header) => (request) =>
+      DVClientAddress.current.peerIsTrusted(request)
+          ? dvEdgeHeader(request, header)
+          : null;
 
   /// Pushes the rules to [adapter]. A failure is thrown, not swallowed; the
   /// middleware keeps enforcing either way.

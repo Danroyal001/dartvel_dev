@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('CommonMiddleware.rateLimit', () {
-    test('tracks forwarded clients independently', () async {
+    test('tracks clients by their connection, independently', () async {
       final middleware = CommonMiddleware.rateLimit(
         maxRequests: 1,
         window: const Duration(minutes: 1),
@@ -93,10 +93,8 @@ dv.Request _request({
   return dv.Request(
     method: 'POST',
     url: Uri.parse('https://example.test/forms'),
-    headers: dv.Headers(<String, String>{
-      'x-forwarded-for': ip,
-      'content-type': contentType,
-    }),
+    headers: dv.Headers(<String, String>{'content-type': contentType}),
+    peerAddress: dv.DVPeerAddress.parse(ip),
     bodyStream: Stream<List<int>>.value(utf8.encode(body)),
   );
 }

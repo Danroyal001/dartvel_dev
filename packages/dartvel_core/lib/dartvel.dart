@@ -102,6 +102,8 @@ export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
 export 'src/graphql/graphql.dart';
 export 'src/http/aws_sigv4.dart';
+export 'src/http/client_address.dart'
+    show DVClientAddress, DVCidr, DVForwardedHeader;
 export 'src/http/flat_buffer.dart';
 // Conditional, because the native client needs dart:ffi and web has none.
 // Exporting it unconditionally broke the web build with "Dart library
@@ -110,6 +112,7 @@ export 'src/http/flat_buffer.dart';
 export 'src/http/native_client_web.dart'
     if (dart.library.ffi) 'src/http/native_client.dart';
 export 'src/http/outbound.dart';
+export 'src/http/peer_address.dart' show DVIpAddress, DVPeerAddress;
 export 'src/http/transport.dart';
 // Re-export common types so backends can import only dartvel_core.
 // The wire types live here now. dartvel_core is on both sides of the wire, so
@@ -122,7 +125,6 @@ export 'src/http/transport.dart';
 // widget. Server code that wants the full set imports
 // `package:dartvel_core/http.dart`.
 export 'src/http/wintercg.dart' show Request, Response, Headers;
-export 'src/http/peer_address.dart' show DVIpAddress, DVPeerAddress;
 export 'src/compute/web_worker_protocol.dart' hide dvDebugResetCopiedReport;
 export 'src/compute/worker_buffer_stub.dart'
     if (dart.library.ffi) 'src/compute/worker_buffer_ffi.dart';
