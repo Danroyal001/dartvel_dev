@@ -15,7 +15,11 @@ axum = { version = "0.7", features = ["http2"] }
 # clang without an -isysroot and cannot find stdlib.h.
 axum-server = { version = "0.7", default-features = false, features = ["tls-rustls-no-provider"] }
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.5", features = ["cors", "compression-full", "fs"] }
+tower-http = { version = "0.5", features = ["cors", "compression-full", "fs", "catch-panic"] }
+# Already in the graph through axum-server. Named here for the timer: without
+# one hyper has no header read timeout, and a connection that sends half a
+# request line holds its slot for as long as the client likes.
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
 bytes = "1"
 once_cell = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
