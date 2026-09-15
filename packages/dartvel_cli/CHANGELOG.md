@@ -1,4 +1,10 @@
 ## Unreleased
+- **The generated runtime signs `DV.Auth` in through the application's
+  backend.** It installs a `DVSessionClient` over `DartvelRuntime.api`, makes
+  it `DV.Auth`'s default provider, hands its token to
+  `DartvelClient.setAuthToken`, keeps a native token sealed under the key
+  `dartvel key` manages, and checks a stored session with the server at launch.
+  In a browser no token is kept.
 - **The generated backend serves the application's own sign-in.** Under the
   API base path: `POST /auth/sign-up`, `/auth/sign-in`, `/auth/second-factor`
   and `/auth/sign-out` on the request's tenant, and `GET /auth/session`,
