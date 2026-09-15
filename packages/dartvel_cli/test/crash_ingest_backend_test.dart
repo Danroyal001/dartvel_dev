@@ -42,12 +42,14 @@ class Broken implements DVDatabaseAdapter {
       throw StateError('database down while writing $secret');
 }
 
-Future<Map<String, Object?>> post(int port, List<int> bytes) async {
+Future<Map<String, Object?>> post(int port, List<int> bytes,
+    [Map<String, String> headers = const <String, String>{}]) async {
   final HttpClient client = HttpClient();
   try {
     final HttpClientRequest request = await client
         .postUrl(Uri.parse('http://127.0.0.1:$port/api/_dartvel/crashes'));
     request.headers.contentType = ContentType.json;
+    headers.forEach(request.headers.set);
     request.add(bytes);
     final HttpClientResponse response = await request.close();
     return <String, Object?>{
@@ -86,6 +88,14 @@ Future<void> main() async {
       out['second'] = await post(port, report('b', 'install-1', 'again'));
       out['limited'] = await post(port, report('c', 'install-1', 'again'));
       out['otherInstall'] = await post(port, report('d', 'install-2', 'other'));
+      // A new install id, from the same address, past the source budget.
+      out['sourceLimited'] =
+          await post(port, report('f', 'install-4', 'rotated $secret'));
+      // 127.0.0.1 is a trusted proxy here, reporting another client: that
+      // client is another source, with its own budget. Were the endpoint to
+      // count every report in one bucket, this would be refused too.
+      out['otherSource'] = await post(port, report('g', 'install-5', 'elsewhere'),
+          <String, String>{'x-forwarded-for': '203.0.113.50'});
       out['malformed'] = await post(port, utf8.encode('{"message": "$secret"'));
       out['tooLarge'] =
           await post(port, report('e', 'install-3', 'x' * 8000));
@@ -181,7 +191,10 @@ void main() {
     sink: dartvel
     ingest:
       perInstallPerHour: 2
+      perSourcePerHour: 3
       maxBytes: 4096
+  server:
+    trustedProxies: ["127.0.0.1/32"]
 ''');
     undeclared = await backendProject(packages, '  backendPort: 8089');
   });
@@ -226,7 +239,8 @@ void main() {
   int status(Map<String, Object?> r, String key) =>
       (r[key]! as Map<String, Object?>)['status']! as int;
 
-  test('reports are validated, stored once, and limited per install', () async {
+  test('reports are validated, stored once, and limited per install and per '
+      'source', () async {
     final (Map<String, Object?> r, String output) = await probe(declared);
 
     expect(status(r, 'stored'), 201);
@@ -234,9 +248,13 @@ void main() {
     expect(status(r, 'second'), 201);
     expect(status(r, 'limited'), 202);
     expect(status(r, 'otherInstall'), 201);
+    // Three stored from 127.0.0.1 is the source's budget: a fourth install id
+    // does not buy a fourth row.
+    expect(status(r, 'sourceLimited'), 429);
+    expect(status(r, 'otherSource'), 201);
     expect(status(r, 'malformed'), 400);
     expect(status(r, 'tooLarge'), 413);
-    expect(r['rows'], 3);
+    expect(r['rows'], 4);
     // The report said it; nothing the server printed or answered may.
     expect(output, isNot(contains(secret)));
     expect(jsonEncode(r), isNot(contains(secret)));
