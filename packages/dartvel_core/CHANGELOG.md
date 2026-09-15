@@ -8,6 +8,23 @@
   form -- and refuses what is not strictly an address, including IPv4 with a
   leading zero. `DVPeerAddress` is an address with an optional port, read from
   `1.2.3.4:80`, `[2001:db8::1]:80` or a bare address.
+- **Second factors, as endpoints.** `DVAuthEndpoints` now also handles the
+  signed-in person's factors: `factors` (whether an authenticator is active
+  and how many recovery codes are left, never a code), `beginTotp` (the secret
+  and its `otpauth://` URI), `confirmTotp`, `recoveryCodes` and
+  `removeFactor`. Beginning activates nothing -- sign-in asks for no code
+  until one from the app confirms it. Recovery codes are answered once and
+  kept only as salted HMACs; a new set replaces every earlier code, and
+  generating one needs a second factor within `stepUpWindow` (ten minutes by
+  default), because a stolen session printing itself recovery codes would
+  keep the account after the session was revoked. Removing the authenticator
+  takes a code or a recovery code in the same request, however recent the
+  session's factor, and removes every recovery code with it. Each change
+  rotates the session. `DVAuthEndpoints.stepUpRequired` is the refusal for a
+  missing or stale factor: 401 with RFC 9470's
+  `insufficient_user_authentication` and `max_age`. `DVAccountDirectory`
+  (implemented by `LocalAuthProvider`) lets the authenticator list the account
+  under its address.
 
 - **The application's own sign-in, as endpoints.** `DVAuthEndpoints` handles
   sign-up, sign-in, a second factor, sign-out, the current session, the
