@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../auth/api_scopes.dart' show DVApiPrincipal;
+import '../auth/session_authentication.dart' show DVSessionPrincipal;
 import '../lifecycle/lifecycle.dart';
 
 /// Lifecycle signals scoped to a single context.
@@ -98,13 +100,35 @@ class DVContext {
     DVMutableLifecycleSignal<DVRequestLifecycle>? requestLifecycle,
     DVMutableLifecycleSignal<DVPageLifecycle>? pageLifecycle,
     DVContext? parent,
+    DVSessionPrincipal? session,
+    DVApiPrincipal? apiPrincipal,
   })  : _parent = parent,
         _id = parent == null ? _dvNewTransactionId() : '',
+        session = session ?? parent?.session ?? DVSessionPrincipal.current,
+        apiPrincipal =
+            apiPrincipal ?? parent?.apiPrincipal ?? DVApiPrincipal.current,
         lifecycle = DVContextLifecycle(
           transaction: transactionLifecycle,
           request: requestLifecycle,
           page: pageLifecycle,
         );
+
+  /// The signed-in person the request authenticated with the application's
+  /// own session, or null.
+  ///
+  /// Taken when the context is made -- which, for an injected context, is
+  /// inside the request's authentication stage -- so work the function hands
+  /// on keeps the caller it was started by.
+  final DVSessionPrincipal? session;
+
+  /// The third-party caller the request authenticated with an API key or an
+  /// OAuth token, or null.
+  final DVApiPrincipal? apiPrincipal;
+
+  /// The application's user the session resolved to on this request, or
+  /// null for a request with no session or an application that resolves no
+  /// user.
+  Object? get user => session?.user;
 
   /// The enclosing context when transactions are nested.
   final DVContext? _parent;

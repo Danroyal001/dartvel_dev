@@ -23,6 +23,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' as crypto;
 
 import '../database/adapter.dart';
+import '../tenancy/tenants.dart';
 
 /// A signed-in device.
 ///
@@ -36,6 +37,11 @@ class DVSession {
   final String id;
 
   final String userId;
+
+  /// The tenant the session was issued on. It authenticates requests on this
+  /// tenant only, and rotation does not change it: moving to another tenant
+  /// is a new sign-in.
+  final String tenant;
 
   /// When the person signed in. Rotation does not change it.
   final DateTime createdAt;
@@ -64,6 +70,7 @@ class DVSession {
   const DVSession({
     required this.id,
     required this.userId,
+    this.tenant = DVTenants.defaultTenant,
     required this.createdAt,
     required this.lastSeenAt,
     this.device,
@@ -85,6 +92,7 @@ class DVSession {
       DVSession(
         id: id ?? this.id,
         userId: userId,
+        tenant: tenant,
         createdAt: createdAt,
         lastSeenAt: lastSeenAt ?? this.lastSeenAt,
         device: device,
@@ -318,25 +326,26 @@ class DVDatabaseSessionStore implements DVSessionStore {
 
   Future<void> _ensure() => _ready ??= adapter.execute(
         'CREATE TABLE IF NOT EXISTS $table ('
-        'token_hash TEXT, id TEXT, user_id TEXT, created_at INTEGER, '
-        'last_seen_at INTEGER, mfa_at INTEGER, revoked_at INTEGER, '
-        'device TEXT, location TEXT, claims TEXT)',
+        'token_hash TEXT, id TEXT, user_id TEXT, tenant TEXT, '
+        'created_at INTEGER, last_seen_at INTEGER, mfa_at INTEGER, '
+        'revoked_at INTEGER, device TEXT, location TEXT, claims TEXT)',
       );
 
   static const String _columns =
-      'token_hash, id, user_id, created_at, last_seen_at, mfa_at, revoked_at, '
-      'device, location, claims';
+      'token_hash, id, user_id, tenant, created_at, last_seen_at, mfa_at, '
+      'revoked_at, device, location, claims';
 
   @override
   Future<void> insert(DVSessionRecord record) async {
     await _ensure();
     final Map<String, Object?> row = _DVSessionRows.toRow(record);
     await adapter.execute(
-      'INSERT INTO $table ($_columns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO $table ($_columns) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       <Object?>[
         row['token_hash'],
         row['id'],
         row['user_id'],
+        row['tenant'],
         row['created_at'],
         row['last_seen_at'],
         row['mfa_at'],
@@ -430,6 +439,7 @@ abstract final class _DVSessionRows {
       'token_hash': record.tokenHash,
       'id': s.id,
       'user_id': s.userId,
+      'tenant': s.tenant,
       'created_at': s.createdAt.millisecondsSinceEpoch,
       'last_seen_at': s.lastSeenAt.millisecondsSinceEpoch,
       'mfa_at': s.mfaSatisfiedAt?.millisecondsSinceEpoch,
@@ -451,6 +461,7 @@ abstract final class _DVSessionRows {
       DVSession(
         id: row['id']! as String,
         userId: row['user_id']! as String,
+        tenant: row['tenant'] as String? ?? DVTenants.defaultTenant,
         createdAt: time(row['created_at'])!,
         lastSeenAt: time(row['last_seen_at'])!,
         mfaSatisfiedAt: time(row['mfa_at']),
@@ -490,18 +501,30 @@ class DVSessions {
 
   DateTime get _now => _clock().toUtc();
 
+  /// Every session token starts with this, so a request's authentication
+  /// stage can tell the application's own session from an API key (`dvk_`),
+  /// an OAuth access token (`dvat_`) and any other bearer token the
+  /// application uses, without asking the store about each.
+  static const String tokenPrefix = 'dvs_';
+
   /// Signs [userId] in on a device: a new session and the token for it.
+  ///
+  /// The session belongs to [tenant], or to the tenant current where it is
+  /// created -- the tenant the sign-in request resolved to -- and
+  /// authenticates on that tenant only.
   Future<DVIssuedSession> create(
     String userId, {
+    String? tenant,
     String? device,
     String? location,
     Map<String, Object?> claims = const <String, Object?>{},
   }) async {
     final DateTime now = _now;
-    final String token = _secret(32);
+    final String token = _token();
     final DVSession session = DVSession(
       id: 'ses_${_secret(16)}',
       userId: userId,
+      tenant: tenant ?? const DVTenants().currentTenant,
       createdAt: now,
       lastSeenAt: now,
       device: device,
@@ -516,10 +539,17 @@ class DVSessions {
   ///
   /// A valid check records use, which is what keeps an active session inside
   /// its idle timeout.
-  Future<DVSessionCheck> check(String token) async {
+  ///
+  /// With [tenant], a session issued on any other tenant is
+  /// [DVSessionFailure.unknown] -- there is no session with this token here
+  /// -- and its use is not recorded, so presenting it elsewhere does not keep
+  /// it alive.
+  Future<DVSessionCheck> check(String token, {String? tenant}) async {
     final String hash = _hash(token);
     final DVSessionRecord? record = await store.byTokenHash(hash);
-    if (record == null || !_sameHash(record.tokenHash, hash)) {
+    if (record == null ||
+        !_sameHash(record.tokenHash, hash) ||
+        (tenant != null && record.session.tenant != tenant)) {
       return const DVSessionCheck.failed(DVSessionFailure.unknown);
     }
     final DVSession session = record.session;
@@ -563,7 +593,7 @@ class DVSessions {
     final DVSession? session = current.session;
     if (session == null) throw DVSessionInvalid(current.failure!);
     final DateTime now = _now;
-    final String next = _secret(32);
+    final String next = _token();
     final DVSession rotated = session._copy(
       id: 'ses_${_secret(16)}',
       lastSeenAt: now,
@@ -630,6 +660,8 @@ class DVSessions {
   bool _expired(DVSession session, DateTime now) =>
       now.difference(session.lastSeenAt) >= idleTimeout ||
       now.difference(session.createdAt) >= absoluteTimeout;
+
+  String _token() => '$tokenPrefix${_secret(32)}';
 
   String _secret(int bytes) => base64Url
       .encode(List<int>.generate(bytes, (_) => _random.nextInt(256)))

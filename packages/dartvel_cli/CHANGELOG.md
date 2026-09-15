@@ -1,4 +1,20 @@
 ## Unreleased
+- **The generated backend authenticates the application's own sessions.**
+  Every route's authentication stage -- backend functions, GraphQL, the crash
+  endpoint, OpenAPI and health -- now resolves a `Bearer dvs_...` session
+  token, which `DartvelClient.setAuthToken` sends, or the `__Host-dv_session`
+  cookie into `DVSessionPrincipal.current` on the request's tenant, after the
+  platform API's stage and whether or not `dartvel.platformApi` is declared.
+  An injected `DVContext` carries it as `context.session` and `context.user`.
+  A presented session that does not authenticate -- unknown, rotated away,
+  revoked, expired or issued on another tenant -- is a 401 with
+  `WWW-Authenticate` and `no-store` on every route, and one carried by the
+  cookie clears the cookie. `startBackend` installs the stage over the
+  application's database unless the application installed its own first,
+  which is where it passes `resolveUser`. `/graphql` and `/graphql/stream`
+  pass `authenticated` for a session as for a key. A private backend function
+  taking `DVContext` now compiles: its helper copied the parameter list
+  verbatim and named a type the generated file imports as `core.DVContext`.
 - **The generated client registers `@DVPolicy` classes under the application's
   own answer, as the server does.** `policies.g.dart` used `register`, so
   `configureDartvelRuntime` replaced an answer the application had already
