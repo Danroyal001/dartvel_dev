@@ -22,6 +22,10 @@ import 'dart:typed_data';
 /// Bytes a request body may be when a route declares `bodyLimit`.
 const int dvDefaultBodyLimitBytes = 1024 * 1024;
 
+/// Bytes the native server reads of any request body, when neither the server
+/// nor the route says otherwise.
+const int dvDefaultMaxBodyBytes = 1024 * 1024;
+
 /// Bytes a multipart upload may be when a route declares `uploadLimit`.
 const int dvDefaultUploadLimitBytes = 16 * 1024 * 1024;
 

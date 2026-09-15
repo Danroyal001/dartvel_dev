@@ -5,38 +5,71 @@ import 'wintercg.dart';
 
 typedef Handler = Future<Response> Function(Request);
 
+/// A route as the native server needs to know it: its method, its pattern,
+/// and the largest body it reads.
+final class DVRouteBodyLimit {
+  const DVRouteBodyLimit(this.method, this.pattern, this.maxBytes);
+
+  /// `GET`, `POST` and so on, or `*` for a route that takes any method.
+  final String method;
+
+  /// The pattern as the route was registered.
+  final String pattern;
+
+  /// Bytes this route reads, or null for the server's `maxBodyBytes`.
+  final int? maxBytes;
+}
+
+/// Routes a request to the first route whose method and pattern match it.
+///
+/// Each registration takes `maxBodyBytes`, the largest body that route reads
+/// when it needs more (or less) than the server's own limit. The native side
+/// reads a body before any Dart runs, so it has to be told: serve() takes
+/// [bodyLimits] as `routeBodyLimits`.
 class Router {
   final _routes = <_Route>[];
 
-  Router get(String pattern, Handler h) {
-    _routes.add(_Route('GET', pattern, h));
+  Router get(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('GET', pattern, h, maxBodyBytes);
+
+  Router post(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('POST', pattern, h, maxBodyBytes);
+
+  Router put(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('PUT', pattern, h, maxBodyBytes);
+
+  Router delete(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('DELETE', pattern, h, maxBodyBytes);
+
+  Router head(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('HEAD', pattern, h, maxBodyBytes);
+
+  Router any(String pattern, Handler h, {int? maxBodyBytes}) =>
+      _add('*', pattern, h, maxBodyBytes);
+
+  Router _add(String method, String pattern, Handler h, int? maxBodyBytes) {
+    // Refused here rather than read as "the server's limit": somebody who
+    // wrote a number meant that number.
+    if (maxBodyBytes != null && maxBodyBytes <= 0) {
+      throw ArgumentError.value(maxBodyBytes, 'maxBodyBytes',
+          'must be positive: a route that reads no body declares no limit');
+    }
+    _routes.add(_Route(method, pattern, h, maxBodyBytes));
     return this;
   }
 
-  Router post(String pattern, Handler h) {
-    _routes.add(_Route('POST', pattern, h));
-    return this;
-  }
-
-  Router put(String pattern, Handler h) {
-    _routes.add(_Route('PUT', pattern, h));
-    return this;
-  }
-
-  Router delete(String pattern, Handler h) {
-    _routes.add(_Route('DELETE', pattern, h));
-    return this;
-  }
-
-  Router head(String pattern, Handler h) {
-    _routes.add(_Route('HEAD', pattern, h));
-    return this;
-  }
-
-  Router any(String pattern, Handler h) {
-    _routes.add(_Route('*', pattern, h));
-    return this;
-  }
+  /// Every route, in the order requests are dispatched to them, with the
+  /// limit it declared or null for the server's.
+  ///
+  /// All of them rather than only the limited ones: the native side matches
+  /// first route first, as [call] does, so a route with no limit of its own
+  /// keeps the server's limit for the requests it takes even when a later
+  /// route with a larger limit would match them too.
+  List<DVRouteBodyLimit> get bodyLimits => List<DVRouteBodyLimit>.unmodifiable(
+      <DVRouteBodyLimit>[
+        for (final _Route route in _routes)
+          DVRouteBodyLimit(route.method, route.source, route.maxBodyBytes),
+      ]);
 
   /// The paths that are never counted or logged.
   ///
@@ -226,8 +259,10 @@ Response _notFound() => Response.text(
 
 class _Route {
   final String method;
+  final String source;
   final URLPattern pattern;
   final Handler handler;
-  _Route(this.method, String pattern, this.handler)
-      : pattern = URLPattern(pattern);
+  final int? maxBodyBytes;
+  _Route(this.method, this.source, this.handler, this.maxBodyBytes)
+      : pattern = URLPattern(source);
 }
