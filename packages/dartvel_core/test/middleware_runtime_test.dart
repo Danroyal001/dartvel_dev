@@ -20,8 +20,10 @@ Map<String, Object?> request({
   String method = 'GET',
   String path = '/orders',
   Map<String, String> headers = const <String, String>{},
+  String? peer,
 }) =>
     <String, Object?>{
+      if (peer != null) 'peerAddress': peer,
       'method': method,
       'path': path,
       'headers': headers,
@@ -146,9 +148,7 @@ void main() {
     test('a rate limit refuses with 429 once the window is full', () async {
       DVMiddlewareSettings.rateLimitMaxRequests = 2;
 
-      final Map<String, Object?> caller = request(
-        headers: <String, String>{'x-real-ip': '198.51.100.7'},
-      );
+      final Map<String, Object?> caller = request(peer: '198.51.100.7:4000');
       expect(
         (await dvRunMiddlewares(const <String>['rateLimit'], caller)).allowed,
         isTrue,
@@ -169,9 +169,7 @@ void main() {
       // counter in a closure that is thrown away, so the limit would never be
       // reached and the test above would be the only thing that ever saw one.
       DVMiddlewareSettings.rateLimitMaxRequests = 1;
-      final Map<String, Object?> caller = request(
-        headers: <String, String>{'x-real-ip': '203.0.113.9'},
-      );
+      final Map<String, Object?> caller = request(peer: '203.0.113.9:4000');
 
       await dvRunMiddlewares(const <String>['rateLimit'], caller);
       expect(
@@ -184,14 +182,42 @@ void main() {
       DVMiddlewareSettings.rateLimitMaxRequests = 1;
       await dvRunMiddlewares(
         const <String>['rateLimit'],
-        request(headers: <String, String>{'x-real-ip': '198.51.100.1'}),
+        request(peer: '198.51.100.1:4000'),
       );
 
       final DVMiddlewareResult other = await dvRunMiddlewares(
         const <String>['rateLimit'],
-        request(headers: <String, String>{'x-real-ip': '198.51.100.2'}),
+        request(peer: '198.51.100.2:4000'),
       );
       expect(other.allowed, isTrue);
+    });
+
+    test('a new forwarded header per request is still the same caller',
+        () async {
+      // The rate limit keyed on the first X-Forwarded-For entry, or X-Real-IP,
+      // so a caller that wrote a new one per request was never limited.
+      DVMiddlewareSettings.rateLimitMaxRequests = 1;
+      await dvRunMiddlewares(
+        const <String>['rateLimit'],
+        request(
+          peer: '198.51.100.9:4000',
+          headers: <String, String>{'x-forwarded-for': '203.0.113.1'},
+        ),
+      );
+
+      final DVMiddlewareResult spoofed = await dvRunMiddlewares(
+        const <String>['rateLimit'],
+        request(
+          peer: '198.51.100.9:4001',
+          headers: <String, String>{
+            'x-forwarded-for': '203.0.113.2',
+            'x-real-ip': '203.0.113.3',
+            'cf-connecting-ip': '203.0.113.4',
+          },
+        ),
+      );
+      expect(spoofed.allowed, isFalse);
+      expect(spoofed.status, 429);
     });
 
     test('maintenance refuses with 503 and lets health through', () async {

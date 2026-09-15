@@ -32,6 +32,7 @@ import 'dart:typed_data';
 
 import '../edge/bot_protection.dart';
 import '../edge/credentials.dart';
+import '../http/client_address.dart';
 import '../http/wintercg.dart';
 import '../middleware/body_limit.dart';
 import '../observability/observability.dart';
@@ -148,19 +149,14 @@ class DVAuthEndpoints {
       !isBrowser(request) &&
       request.headers.get(deliveryHeader)?.trim().toLowerCase() == 'token';
 
-  /// Who a velocity limit counts [request] against: the client address the
-  /// proxy in front of the server reports. The server layer does not expose
-  /// the peer address, so a request that reaches it directly shares one
-  /// source with every other such request.
-  static String sourceOf(Request request) {
-    final String? forwarded = request.headers.get('x-forwarded-for');
-    if (forwarded != null && forwarded.trim().isNotEmpty) {
-      return forwarded.split(',').first.trim();
-    }
-    final String? real = request.headers.get('x-real-ip');
-    if (real != null && real.trim().isNotEmpty) return real.trim();
-    return 'direct';
-  }
+  /// Who a velocity limit counts [request] against: its client address, as
+  /// [DVClientAddress] resolves it -- the connection's peer, or the client a
+  /// trusted proxy reports.
+  ///
+  /// This read the first `X-Forwarded-For` entry, which the client writes: a
+  /// new one per attempt escaped the per-source limit, and every request
+  /// sending none shared one source.
+  static String sourceOf(Request request) => DVClientAddress.sourceOf(request);
 
   // --- credentials -----------------------------------------------------------
 
