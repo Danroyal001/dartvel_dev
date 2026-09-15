@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **Crash ingest limits each client source as well as each install.**
+  `DVCrashIngest`'s per-install limit keys on the install id a report names,
+  which the client writes, so a client writing a new id per report was never
+  limited and could fill `dv_crash_reports`. `accept(body, source:)` now also
+  counts stored reports against the client's source: its IPv4 address or
+  IPv6 /64, as `DVClientAddress.sourceOf` resolves it. Past
+  `perSourcePerHour` a report is refused with the new outcome `sourceLimited`,
+  answered 429, and `DV-CRASH-004` is logged once an hour per source without
+  the address. The default is ten installs at their full per-install budget
+  (300 for 30), so an office or carrier-grade NAT is not refused at the
+  second device. 429 rather than 202 means `DVCrashSink.dartvel` keeps what
+  it could not deliver and sends it again later. The install limit is checked
+  first, so one install in a crash loop still gets the final 202. Only a
+  stored report spends either budget. A caller that passes no source counts
+  in one unknown source rather than none. `dartvel.crashes.ingest.perSourcePerHour`
+  sets the bound; `DVCrashConfig` refuses it below 1 or below
+  `perInstallPerHour`, naming the key.
+
 - **An IPv6 client is counted by its /64.** `DVClientAddress.sourceOf`, and
   with it the sign-in and sign-up velocity limits
   (`DVAuthEndpoints.sourceOf`) and `CommonMiddleware.rateLimit`'s default

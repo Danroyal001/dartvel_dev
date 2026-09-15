@@ -33,8 +33,26 @@ final class DVCrashConfig {
     this.fullReportsPerRelease = 5,
     this.identityConsent,
     this.ingestPerInstallPerHour = 30,
+    int? ingestPerSourcePerHour,
     this.ingestMaxBytes = 262144,
-  });
+  })  : assert(ingestPerSourcePerHour == null ||
+            ingestPerSourcePerHour >= ingestPerInstallPerHour),
+        _ingestPerSourcePerHour = ingestPerSourcePerHour;
+
+  /// How many installs behind one address the default per-source budget
+  /// allows at their full per-install budget.
+  static const int ingestInstallsPerSource = 10;
+
+  final int? _ingestPerSourcePerHour;
+
+  /// With `sink: dartvel`, the reports the backend stores per client source
+  /// -- an IPv4 address or an IPv6 client's /64 -- per hour; past it they are
+  /// refused with 429 and sent again later. Unless declared,
+  /// [ingestInstallsPerSource] installs at their full per-install budget, so
+  /// raising `perInstallPerHour` raises it too.
+  int get ingestPerSourcePerHour =>
+      _ingestPerSourcePerHour ??
+      ingestInstallsPerSource * ingestPerInstallPerHour;
 
   /// The builds crash reporting is off in. Off is a declaration the build
   /// reports (`DV-CRASH-009`).
@@ -179,19 +197,22 @@ final class DVCrashConfig {
     }
 
     int perInstallPerHour = 30;
+    int? perSourcePerHour;
     int maxBytes = 262144;
     final Object? ingest = section['ingest'];
     if (ingest != null) {
       if (ingest is! Map) {
         throw ArgumentError.value(ingest, '$_section.ingest',
             'must be a map of what the backend accepts: perInstallPerHour, '
-            'maxBytes');
+            'perSourcePerHour, maxBytes');
       }
       for (final Object? key in ingest.keys) {
-        if (key != 'perInstallPerHour' && key != 'maxBytes') {
+        if (key != 'perInstallPerHour' &&
+            key != 'maxBytes' &&
+            key != 'perSourcePerHour') {
           throw ArgumentError.value(ingest[key], '$_section.ingest.$key',
-              'is not an ingest setting; the settings are perInstallPerHour '
-              'and maxBytes');
+              'is not an ingest setting; the settings are perInstallPerHour, '
+              'perSourcePerHour and maxBytes');
         }
       }
       final Object? perInstall = ingest['perInstallPerHour'];
@@ -203,6 +224,24 @@ final class DVCrashConfig {
               'must be a whole number of reports, 1 or more');
         }
         perInstallPerHour = perInstall;
+      }
+      final Object? perSource = ingest['perSourcePerHour'];
+      if (perSource != null) {
+        if (perSource is! int || perSource < 1) {
+          throw ArgumentError.value(
+              perSource,
+              '$_section.ingest.perSourcePerHour',
+              'must be a whole number of reports, 1 or more');
+        }
+        if (perSource < perInstallPerHour) {
+          throw ArgumentError.value(
+              perSource,
+              '$_section.ingest.perSourcePerHour',
+              'must be at least perInstallPerHour ($perInstallPerHour): below '
+              'it one install behind an address could never store its own '
+              'budget');
+        }
+        perSourcePerHour = perSource;
       }
       final Object? bytes = ingest['maxBytes'];
       if (bytes != null) {
@@ -222,6 +261,7 @@ final class DVCrashConfig {
       fullReportsPerRelease: full == null ? 5 : full as int,
       identityConsent: identityConsent,
       ingestPerInstallPerHour: perInstallPerHour,
+      ingestPerSourcePerHour: perSourcePerHour,
       ingestMaxBytes: maxBytes,
     );
   }
@@ -243,6 +283,7 @@ final class DVCrashConfig {
           'identity': <String, Object?>{'consent': identityConsent!.name},
         'ingest': <String, Object?>{
           'perInstallPerHour': ingestPerInstallPerHour,
+          'perSourcePerHour': ingestPerSourcePerHour,
           'maxBytes': ingestMaxBytes,
         },
       };
