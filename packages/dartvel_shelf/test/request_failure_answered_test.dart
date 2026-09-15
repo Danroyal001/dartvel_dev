@@ -214,6 +214,78 @@ void main() {
   // routes' errors itself, so only this reaches serve()'s own failure path.
   // The error message names nothing of the request, because it is the
   // application's text; the request's query and headers carry the marker.
+  // The native side's half: what it does with a request Dart never answers,
+  // a client that never finishes sending one, and a response it cannot
+  // encode. Each used to leave the connection open or drop it unanswered.
+  group('the native side', () {
+    late ServerHandle slow;
+    final Completer<void> never = Completer<void>();
+
+    setUp(() async {
+      slow = await serve((Request req) async {
+        switch (req.url.path) {
+          case '/never':
+            await never.future;
+          case '/bad-header':
+            return Response(200,
+                headers: Headers()..set('x-broken', 'line\r\nsplit: $marker'));
+          case '/bad-status':
+            return Response(42);
+        }
+        return Response.text('ok');
+      }, host: '127.0.0.1', port: 0, requestTimeout: const Duration(seconds: 1));
+    });
+
+    tearDown(() => slow.stop());
+
+    test('a request Dart never answers is answered 504 and closed at the '
+        'request timeout', () async {
+      final Exchange result = await exchange(slow.port, get('/never'));
+      answered(result, 504);
+      expect(result.closed, isTrue, reason: '$result');
+    });
+
+    test('headers that never finish are closed at the request timeout',
+        () async {
+      final Exchange result = await exchange(
+          slow.port, ascii.encode('GET /ok HTTP/1.1\r\nHost: localhost\r\n'));
+      expect(result.closed, isTrue,
+          reason: 'one stalled connection per slot is the whole attack: '
+              '$result');
+      expect(result.elapsed, lessThan(bound));
+    });
+
+    test('a body that never arrives is answered 408 and closed', () async {
+      final Exchange result = await exchange(
+          slow.port,
+          ascii.encode('POST /ok HTTP/1.1\r\nHost: localhost\r\n'
+              'Content-Length: 100\r\n\r\npartial'));
+      answered(result, 408);
+      expect(result.closed, isTrue, reason: '$result');
+    });
+
+    test('a response header the native side cannot send is answered 500',
+        () async {
+      // It panicked on unwrap: the connection dropped with no answer.
+      final Exchange result = await exchange(slow.port, get('/bad-header'));
+      answered(result, 500);
+      final Exchange next = await exchange(slow.port, get('/ok'));
+      expect(next.status, 200, reason: '$next');
+    });
+
+    test('a status that is not an HTTP status is answered 500, not 200',
+        () async {
+      answered(await exchange(slow.port, get('/bad-status')), 500);
+    });
+
+    test('a request timeout that is not positive is refused', () async {
+      await expectLater(
+          serve((Request req) async => Response.text('ok'),
+              host: '127.0.0.1', port: 0, requestTimeout: Duration.zero),
+          throwsArgumentError);
+    });
+  });
+
   group('a handler that fails', () {
     late ServerHandle bare;
 

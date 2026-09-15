@@ -1,5 +1,28 @@
 ## Unreleased
 
+- **No request holds a connection open indefinitely.** `serve()` takes
+  `requestTimeout` (60 seconds by default, as before), and the native side now
+  bounds every phase of a request with it:
+  - **Headers.** An HTTP/1 header read has a timeout. hyper has one, but it
+    does nothing without a timer, and axum-server installs none, so a client
+    that sent half a request line held its slot for as long as it liked.
+    Unfinished headers are now closed.
+  - **Body.** A declared body that never arrives is answered 408 and closed.
+  - **Handler.** A handler that never answers is answered 504 and closed,
+    where it was answered with the connection kept open.
+
+  A response the native side cannot send is answered 500. That covers a
+  header name or value HTTP does not allow, which panicked on `unwrap` and
+  dropped the connection unanswered, and a status outside 100-999, which was
+  sent as 200. Any other panic while answering is also a 500. A request's
+  bytes are kept until Dart acknowledges copying them
+  (`aw_request_received`) or answers. They used to be freed when the native
+  side stopped waiting, so an isolate busy past the timeout read freed memory.
+  Both symbols are new exports rather than a change to the callback's shape,
+  so the ABI version stays 2. A library without them is still served, and is
+  refused only for a non-default `requestTimeout`. The committed `linux-x64`
+  library is rebuilt.
+
 - **A request that cannot be read is answered, and no longer stops the
   server.** `serve()` built each request inside the native callback and
   outside every handler's try. A target `Uri.parse` refused, such as the

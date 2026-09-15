@@ -107,6 +107,36 @@ class DartvelShelfBindings {
   late final _aw_configure_compression = _aw_configure_compressionPtr
       .asFunction<int Function(int)>();
 
+  /// The request timeout for the next server this thread starts, in
+  /// milliseconds. It bounds reading a request's headers, reading its body,
+  /// and waiting for Dart's answer; past it the connection is answered (408
+  /// for a body that never arrived, 504 for Dart) or, with headers unfinished,
+  /// closed. Zero is refused with 1: a request that may take no time at all is
+  /// a server that answers nothing.
+  int aw_configure_request_timeout(int milliseconds) {
+    return _aw_configure_request_timeout(milliseconds);
+  }
+
+  late final _aw_configure_request_timeoutPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_configure_request_timeout',
+      );
+  late final _aw_configure_request_timeout = _aw_configure_request_timeoutPtr
+      .asFunction<int Function(int)>();
+
+  /// Dart has copied the request [req_id]'s bytes out of native memory, which
+  /// may now be freed.
+  void aw_request_received(int req_id) {
+    return _aw_request_received(req_id);
+  }
+
+  late final _aw_request_receivedPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Uint64)>>(
+        'aw_request_received',
+      );
+  late final _aw_request_received = _aw_request_receivedPtr
+      .asFunction<void Function(int)>();
+
   int aw_start(FfiStr host, int port, int _flags) {
     return _aw_start(host, port, _flags);
   }

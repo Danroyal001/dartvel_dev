@@ -64,6 +64,22 @@ int32_t aw_configure_spa_root(struct FfiStr path);
 
 int32_t aw_configure_compression(int32_t enabled);
 
+/**
+ * The request timeout for the next server this thread starts, in
+ * milliseconds. It bounds reading a request's headers, reading its body,
+ * and waiting for Dart's answer; past it the connection is answered (408
+ * for a body that never arrived, 504 for Dart) or, with headers unfinished,
+ * closed. Zero is refused with 1: a request that may take no time at all is
+ * a server that answers nothing.
+ */
+int32_t aw_configure_request_timeout(uint64_t milliseconds);
+
+/**
+ * Dart has copied the request [req_id]'s bytes out of native memory, which
+ * may now be freed.
+ */
+void aw_request_received(uint64_t req_id);
+
 int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t _flags);
 
 /**
