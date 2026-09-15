@@ -9,6 +9,10 @@
   ranges in `DARTVEL_TRUSTED_PROXIES`, before the router is built, so every
   per-source limit counts the connection's peer unless that peer is a listed
   proxy. A project that names none trusts none.
+- **The generated runtime sends `x-dartvel-device`.** Its `DVSessionClient`
+  is built with `device: dvSessionDeviceLabel()`, so a session from a native
+  client is recorded with its platform and the sessions list can tell devices
+  apart.
 - **The generated backend serves account changes.** `GET /auth/account`,
   `POST /auth/account/email`, `/auth/account/email/verify` and
   `/auth/account/delete`, behind the authentication stage and CSRF-checked,

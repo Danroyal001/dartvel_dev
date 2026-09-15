@@ -84,4 +84,12 @@ void main() {
         contains("tokens: kIsWeb ? null : dvSessionTokenStoreFor('shop_app'),"));
     expect(runtime, contains("dvAppKeyStoreFor('shop_app')"));
   });
+
+  test('the runtime records which kind of device this is on the session, and '
+      'nothing that names it', () async {
+    final String runtime = await _runtime();
+    expect(runtime, contains('device: dvSessionDeviceLabel(),'));
+    expect(runtime, contains('dvSessionDeviceLabel'));
+    expect(runtime, isNot(contains('Platform.localHostname')));
+  });
 }
