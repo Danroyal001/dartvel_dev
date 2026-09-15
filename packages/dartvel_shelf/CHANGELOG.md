@@ -1,5 +1,36 @@
 ## Unreleased
 
+- **No request body is read past a limit.** The native side read every
+  request body into memory before Dart saw any of it, with no cap, so one
+  client could send any size, or a chunked body that never ended, and the
+  server held all of it until the request timeout. The route checks in Dart
+  (`bodyLimit`, `uploadLimit`, the crash endpoint's `maxBytes`) ran after
+  that read, too late to bound it. `serve()` now takes `maxBodyBytes`, 1 MiB
+  by default, and the native side enforces it before the body is buffered:
+  - A declared `Content-Length` over the limit is answered 413 without
+    reading any of the body.
+  - A body that grows past the limit while being read, chunked or not, is
+    answered 413 at that point. The chunk that would pass the limit is not
+    kept, so no more than the limit is ever held or handed to Dart. A
+    `Content-Length` that understates what follows ends the body where it
+    said.
+  - Both close the connection, and the answer is fixed text naming the
+    limit: the same words as `dvTooLargeMessage`, and nothing of the request.
+
+  `serve()` also takes `routeBodyLimits`, a `Router`'s `bodyLimits`, so an
+  upload route reads up to its own limit without every route doing so. The
+  native side matches each request the way the router dispatches: same
+  patterns, first match decides. A request whose path has a `.` or `..`
+  segment, which Dart resolves to another path before routing, gets the
+  server's limit. 1 MiB is what `bodyLimit` already gave a route, and what
+  nginx accepts by default. Two new exports, `aw_configure_max_body_bytes`
+  and `aw_configure_route_body_limit`, configure this per thread, as the
+  timeout is. The callback shape is unchanged, so the ABI version stays 2. A
+  library without the exports is refused whatever the caller asked for: it
+  reads bodies with no limit at all, so it cannot even give the default. A
+  non-positive `maxBodyBytes` or route limit is refused. The committed
+  `linux-x64` library is rebuilt.
+
 - **No request holds a connection open indefinitely.** `serve()` takes
   `requestTimeout` (60 seconds by default, as before), and the native side now
   bounds every phase of a request with it:

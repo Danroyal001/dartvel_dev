@@ -353,6 +353,207 @@ static PENDING_REQUEST_TIMEOUTS: OnceCell<
 #[derive(Clone, Copy)]
 struct RequestTimeout(std::time::Duration);
 
+/// Bytes a request body may be when the server configured no limit: 1 MiB.
+///
+/// Every body is held whole in memory, here and again in Dart, so this is
+/// the figure one request can cost, times each connection a client opens.
+/// 1 MiB is what `bodyLimit` already gives a route in Dart, so declaring it
+/// and declaring nothing agree, and what nginx accepts by default, so an
+/// application behind one is not refused differently here. A route that
+/// takes more says so, and only that route gets it.
+const DEFAULT_MAX_BODY_BYTES: u64 = 1024 * 1024;
+
+/// One piece of one segment of a route pattern.
+#[derive(Debug)]
+enum PatternPiece {
+    Literal(String),
+    /// One or more characters of a segment, as `[^/]+` in the Dart router.
+    Parameter,
+}
+
+/// A route as registered in Dart, reduced to what matching a path needs.
+#[derive(Debug)]
+struct RouteBodyLimit {
+    method: String,
+    segments: Vec<Vec<PatternPiece>>,
+    /// None: the server's limit.
+    max_bytes: Option<u64>,
+}
+
+/// The limits one server applies, riding in the request extensions.
+///
+/// The body is read here, before any Dart runs, so a limit Dart checks after
+/// the read cannot bound what was buffered. The routes come from Dart's
+/// router in its own order, and a request takes the limit of the first one
+/// that matches it, as the router dispatches.
+#[derive(Clone)]
+struct BodyLimits {
+    default: u64,
+    routes: Arc<Vec<RouteBodyLimit>>,
+}
+
+struct PendingBodyLimits {
+    default: u64,
+    routes: Vec<RouteBodyLimit>,
+}
+
+/// What each thread configured and has not yet started a server with, for
+/// the reason the pending handlers are keyed by thread.
+static PENDING_BODY_LIMITS: OnceCell<Mutex<HashMap<std::thread::ThreadId, PendingBodyLimits>>> =
+    OnceCell::new();
+
+fn is_name_start(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_'
+}
+
+fn is_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+/// A route pattern as the Dart router reads it (URLPattern in dartvel_core).
+///
+/// There, `<name>` is `:name` and `<name|expression>` is `:name(expression)`;
+/// a colon followed by a name is a parameter matching one or more characters
+/// of a segment; and everything else is text -- including the parentheses,
+/// which the router escapes before it looks for parameters, so the
+/// expression is never applied. Read the same way here, the two match the
+/// same paths.
+fn parse_route_pattern(pattern: &str) -> Vec<Vec<PatternPiece>> {
+    normalize_angle_parameters(pattern)
+        .split('/')
+        .map(parse_segment)
+        .collect()
+}
+
+fn normalize_angle_parameters(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut rest = pattern;
+    while let Some(open) = rest.find('<') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let name_len = after
+            .chars()
+            .enumerate()
+            .take_while(|(i, c)| if *i == 0 { is_name_start(*c) } else { is_name_char(*c) })
+            .count();
+        if name_len > 0 {
+            // Names are ASCII, so characters and bytes agree.
+            let (name, tail) = after.split_at(name_len);
+            if let Some(tail) = tail.strip_prefix('>') {
+                out.push(':');
+                out.push_str(name);
+                rest = tail;
+                continue;
+            }
+            if let Some(expression) = tail.strip_prefix('|') {
+                if let Some(close) = expression.find('>').filter(|close| *close > 0) {
+                    out.push(':');
+                    out.push_str(name);
+                    out.push('(');
+                    out.push_str(&expression[..close]);
+                    out.push(')');
+                    rest = &expression[close + 1..];
+                    continue;
+                }
+            }
+        }
+        out.push('<');
+        rest = after;
+    }
+    out.push_str(rest);
+    out
+}
+
+fn parse_segment(segment: &str) -> Vec<PatternPiece> {
+    let mut pieces = Vec::new();
+    let mut literal = String::new();
+    let mut chars = segment.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != ':' || !chars.peek().is_some_and(|next| is_name_start(*next)) {
+            literal.push(c);
+            continue;
+        }
+        while chars.peek().is_some_and(|next| is_name_char(*next)) {
+            chars.next();
+        }
+        if !literal.is_empty() {
+            pieces.push(PatternPiece::Literal(std::mem::take(&mut literal)));
+        }
+        pieces.push(PatternPiece::Parameter);
+    }
+    if !literal.is_empty() {
+        pieces.push(PatternPiece::Literal(literal));
+    }
+    pieces
+}
+
+fn segment_matches(pieces: &[PatternPiece], text: &str) -> bool {
+    match pieces.split_first() {
+        None => text.is_empty(),
+        Some((PatternPiece::Literal(literal), rest)) => text
+            .strip_prefix(literal.as_str())
+            .is_some_and(|tail| segment_matches(rest, tail)),
+        // At least one character, and as many as leave the rest a match.
+        Some((PatternPiece::Parameter, rest)) => text
+            .char_indices()
+            .map(|(i, _)| i)
+            .skip(1)
+            .chain(std::iter::once(text.len()))
+            .filter(|end| *end > 0)
+            .any(|end| segment_matches(rest, &text[end..])),
+    }
+}
+
+/// `.` or `..`, including percent-encoded. Dart resolves these away before it
+/// routes, so a route matched with one in the path is not the route that
+/// runs.
+fn is_dot_segment(segment: &str) -> bool {
+    let decoded = segment.to_ascii_lowercase().replace("%2e", ".");
+    decoded == "." || decoded == ".."
+}
+
+impl BodyLimits {
+    /// The limit for a request: the first route matching it decides, and a
+    /// request no route matches -- or one whose path has a dot segment --
+    /// gets the server's.
+    fn for_request(&self, method: &str, path: &str) -> u64 {
+        let segments: Vec<&str> = path.split('/').collect();
+        if segments.iter().any(|segment| is_dot_segment(segment)) {
+            return self.default;
+        }
+        self.routes
+            .iter()
+            .find(|route| {
+                (route.method == "*" || route.method == method)
+                    && route.segments.len() == segments.len()
+                    && route
+                        .segments
+                        .iter()
+                        .zip(&segments)
+                        .all(|(pieces, segment)| segment_matches(pieces, segment))
+            })
+            .map_or(self.default, |route| route.max_bytes.unwrap_or(self.default))
+    }
+}
+
+/// This thread's configured limits, or the default for a server that
+/// configured none.
+fn take_pending_body_limits() -> BodyLimits {
+    let pending = PENDING_BODY_LIMITS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&std::thread::current().id()));
+    match pending {
+        Some(pending) => BodyLimits {
+            default: pending.default,
+            routes: Arc::new(pending.routes),
+        },
+        None => BodyLimits {
+            default: DEFAULT_MAX_BODY_BYTES,
+            routes: Arc::new(Vec::new()),
+        },
+    }
+}
+
 /// The bytes a request's callback points into.
 ///
 /// The callback is a Dart listener: it runs when the isolate gets to it, not
@@ -663,6 +864,105 @@ pub extern "C" fn aw_request_received(req_id: u64) {
     release_request_parts(req_id);
 }
 
+/// The largest request body the next server this thread starts reads, in
+/// bytes, for every request no route limit covers. A body declared larger is
+/// answered 413 without being read, and one that grows past it while being
+/// read is answered 413 there; both close the connection. Zero is refused
+/// with 1: a server that reads no body at all is not a limit anybody means.
+///
+/// Also forgets any route limits this thread added and never started a
+/// server with, so a serve() that failed between the two leaves nothing
+/// behind for the next.
+#[no_mangle]
+pub extern "C" fn aw_configure_max_body_bytes(bytes: u64) -> i32 {
+    if bytes == 0 {
+        return 1;
+    }
+    let pending = PENDING_BODY_LIMITS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(
+        std::thread::current().id(),
+        PendingBodyLimits {
+            default: bytes,
+            routes: Vec::new(),
+        },
+    );
+    0
+}
+
+/// Adds a route to the next server this thread starts, after the ones
+/// already added: its method (`*` for any), its pattern as the Dart router
+/// registered it, and the largest body it reads in bytes, or 0 for the
+/// server's limit. A request takes the limit of the first route that matches
+/// it, in the order they were added, which is the order the router
+/// dispatches in. Returns 2 when the method or pattern is not text.
+#[no_mangle]
+pub extern "C" fn aw_configure_route_body_limit(method: FfiStr, pattern: FfiStr, bytes: u64) -> i32 {
+    let (Some(method), Some(pattern)) = (ffi_text(&method), ffi_text(&pattern)) else {
+        return 2;
+    };
+    let route = RouteBodyLimit {
+        method: method.to_string(),
+        segments: parse_route_pattern(pattern),
+        max_bytes: (bytes != 0).then_some(bytes),
+    };
+    let pending = PENDING_BODY_LIMITS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending)
+        .entry(std::thread::current().id())
+        .or_insert_with(|| PendingBodyLimits {
+            default: DEFAULT_MAX_BODY_BYTES,
+            routes: Vec::new(),
+        })
+        .routes
+        .push(route);
+    0
+}
+
+/// The text an [FfiStr] points at, or None when it is not UTF-8.
+fn ffi_text(text: &FfiStr) -> Option<&str> {
+    if text.ptr.is_null() {
+        return (text.len == 0).then_some("");
+    }
+    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
+    std::str::from_utf8(unsafe { std::slice::from_raw_parts(text.ptr, text.len) }).ok()
+}
+
+/// Whether a request's declared Content-Length is already over [limit]. A
+/// length too long to be a number is over it; a header that is not a length
+/// at all is no information, and the read bounds that request instead.
+fn declared_too_large(headers: &axum::http::HeaderMap, limit: u64) -> bool {
+    let Some(text) = headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+    else {
+        return false;
+    };
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return false;
+    }
+    match text.parse::<u64>() {
+        Ok(declared) => declared > limit,
+        Err(_) => true,
+    }
+}
+
+/// 413, closing the connection so the rest of the body is never read.
+///
+/// The same words the route checks in Dart answer with, so a client is told
+/// the same thing whichever side refused it, and nothing of the request: the
+/// limit is the contract, not something the client sent.
+fn too_large_response(limit: u64) -> Response<Body> {
+    let mut response = closing_response(StatusCode::PAYLOAD_TOO_LARGE);
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    *response.body_mut() = Body::from(format!(
+        "Request body too large. This endpoint accepts at most {limit} bytes."
+    ));
+    response
+}
+
 /// Bounds reading a request's headers. hyper has a header read timeout, but
 /// it does nothing without a timer, and axum-server installs none.
 fn bound_header_read(
@@ -707,6 +1007,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         .get()
         .and_then(|pending| safe_lock(pending).remove(&std::thread::current().id()))
         .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    // Likewise: this thread's body limits, or the default.
+    let body_limits = take_pending_body_limits();
 
     let handle = axum_server::Handle::new();
     if let Some(handles) = SERVER_HANDLES.get() {
@@ -796,6 +1098,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             // was registered most recently.
             app = app.layer(axum::Extension(ServerId(server_id)));
             app = app.layer(axum::Extension(RequestTimeout(request_timeout)));
+            app = app.layer(axum::Extension(body_limits));
             // Outermost: a panic anywhere in answering a request is a 500
             // rather than a connection dropped with no answer at all.
             app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
@@ -1029,6 +1332,20 @@ async fn dart_proxy_with_fallback(
         .map(|RequestTimeout(timeout)| *timeout)
         .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
     let deadline = tokio::time::Instant::now() + request_timeout;
+    // Decided before a byte of the body is read. Every body is held whole
+    // here and again in Dart, and it was read with no bound at all, so one
+    // client could send as much as it liked -- or a chunked body that never
+    // ended -- and all of it was kept.
+    let body_limit = req
+        .extensions()
+        .get::<BodyLimits>()
+        .map_or(DEFAULT_MAX_BODY_BYTES, |limits| {
+            limits.for_request(req.method().as_str(), req.uri().path())
+        });
+    // A body announced too large is refused without reading any of it.
+    if declared_too_large(req.headers(), body_limit) {
+        return too_large_response(body_limit);
+    }
     let req_id = match NEXT_ID.get() {
         Some(id) => id.fetch_add(1, Ordering::Relaxed),
         None => return Response::builder()
@@ -1044,21 +1361,34 @@ async fn dart_proxy_with_fallback(
     
     let mut body_buf = BytesMut::new();
     let mut body_stream = req.into_body().into_data_stream();
+    // Whether the body ended within the limit. A chunk that would take it
+    // past is refused before it is kept, so no more than the limit is ever
+    // held: a Content-Length that understates what follows ends the body
+    // where it said, and a chunked body -- slow, or endless -- stops here.
     let read_body = async {
         while let Some(chunk) = body_stream.next().await {
             match chunk {
-                Ok(bytes) => body_buf.extend_from_slice(&bytes),
+                Ok(bytes) => {
+                    if (body_buf.len() as u64).saturating_add(bytes.len() as u64) > body_limit {
+                        return false;
+                    }
+                    body_buf.extend_from_slice(&bytes);
+                }
                 Err(_) => {
                     body_buf.clear();
                     break;
                 }
             }
         }
+        true
     };
     // A declared body that never arrives held the connection for as long as
     // the client kept it open.
-    if tokio::time::timeout_at(deadline, read_body).await.is_err() {
-        return closing_response(StatusCode::REQUEST_TIMEOUT);
+    match tokio::time::timeout_at(deadline, read_body).await {
+        Err(_) => return closing_response(StatusCode::REQUEST_TIMEOUT),
+        // Closed as well as answered, so the rest is never read.
+        Ok(false) => return too_large_response(body_limit),
+        Ok(true) => {}
     }
     let bytes = body_buf.freeze();
 
@@ -1469,6 +1799,184 @@ mod request_tests {
             safe_lock(p).remove(&std::thread::current().id())
         });
         assert_eq!(pending, Some(Some(std::time::Duration::from_millis(1500))));
+    }
+}
+
+#[cfg(test)]
+mod body_limit_tests {
+    use super::*;
+
+    fn limits(routes: &[(&str, &str, Option<u64>)]) -> BodyLimits {
+        BodyLimits {
+            default: 100,
+            routes: Arc::new(
+                routes
+                    .iter()
+                    .map(|(method, pattern, max_bytes)| RouteBodyLimit {
+                        method: method.to_string(),
+                        segments: parse_route_pattern(pattern),
+                        max_bytes: *max_bytes,
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    fn ffi(text: &str) -> FfiStr {
+        FfiStr {
+            ptr: text.as_ptr(),
+            len: text.len(),
+        }
+    }
+
+    #[test]
+    fn a_path_no_route_matches_gets_the_server_limit() {
+        let limits = limits(&[("POST", "/upload", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/elsewhere"), 100);
+    }
+
+    #[test]
+    fn a_route_gets_its_own_limit_for_its_own_method_only() {
+        let limits = limits(&[("POST", "/upload", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/upload"), 1000);
+        assert_eq!(limits.for_request("PUT", "/upload"), 100);
+    }
+
+    #[test]
+    fn a_parameter_is_one_segment_that_is_not_empty() {
+        let limits = limits(&[("POST", "/files/:id", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/files/42"), 1000);
+        assert_eq!(limits.for_request("POST", "/files/"), 100);
+        assert_eq!(limits.for_request("POST", "/files"), 100);
+        assert_eq!(limits.for_request("POST", "/files/4/2"), 100);
+    }
+
+    #[test]
+    fn a_parameter_inside_a_segment_keeps_the_literal_around_it() {
+        let limits = limits(&[("POST", "/files/:id.json", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/files/a.json"), 1000);
+        assert_eq!(limits.for_request("POST", "/files/a.b.json"), 1000);
+        assert_eq!(limits.for_request("POST", "/files/.json"), 100);
+        assert_eq!(limits.for_request("POST", "/files/a.txt"), 100);
+    }
+
+    #[test]
+    fn an_angle_bracket_parameter_is_a_parameter() {
+        let limits = limits(&[("POST", "/raw/<name>/x", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/raw/abc/x"), 1000);
+    }
+
+    #[test]
+    fn an_expression_after_a_parameter_is_text_as_in_the_dart_router() {
+        // URLPattern escapes the parentheses before it looks for parameters,
+        // so the expression is text there. Applied here, this side would
+        // match paths the router never gives the route.
+        let limits = limits(&[
+            ("POST", r"/scans/<id|\d+>", Some(1000)),
+            ("POST", r"/other/:id(\d+)", Some(1000)),
+        ]);
+        assert_eq!(limits.for_request("POST", "/scans/42"), 100);
+        assert_eq!(limits.for_request("POST", r"/scans/42(\d+)"), 1000);
+        assert_eq!(limits.for_request("POST", "/other/42"), 100);
+        assert_eq!(limits.for_request("POST", r"/other/x(\d+)"), 1000);
+    }
+
+    #[test]
+    fn a_colon_not_followed_by_a_name_is_text() {
+        let limits = limits(&[("POST", "/a:/b", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/a:/b"), 1000);
+        assert_eq!(limits.for_request("POST", "/ab/b"), 100);
+    }
+
+    #[test]
+    fn the_first_route_that_matches_decides_even_with_no_limit_of_its_own() {
+        let limits = limits(&[
+            ("*", "/shadow/:name", None),
+            ("POST", "/shadow/upload", Some(1000)),
+        ]);
+        assert_eq!(limits.for_request("POST", "/shadow/upload"), 100);
+    }
+
+    #[test]
+    fn a_route_for_any_method_takes_every_method() {
+        let limits = limits(&[("*", "/any", Some(1000))]);
+        assert_eq!(limits.for_request("DELETE", "/any"), 1000);
+    }
+
+    #[test]
+    fn a_trailing_slash_is_another_path() {
+        let limits = limits(&[("POST", "/upload", Some(1000))]);
+        assert_eq!(limits.for_request("POST", "/upload/"), 100);
+    }
+
+    #[test]
+    fn a_dot_segment_never_reaches_a_route() {
+        // Dart resolves these to some other path before routing, so the
+        // route matched here would not be the one that runs.
+        let limits = limits(&[("POST", "/files/:id", Some(1000)), ("*", "/:a/:b/:c", Some(1000))]);
+        for path in ["/files/..", "/files/.", "/files/%2e%2E", "/files/.%2e", "/x/../y"] {
+            assert_eq!(limits.for_request("POST", path), 100, "{path}");
+        }
+    }
+
+    #[test]
+    fn a_declared_length_over_the_limit_is_too_large() {
+        let mut headers = axum::http::HeaderMap::new();
+        assert!(!declared_too_large(&headers, 100));
+        headers.insert(header::CONTENT_LENGTH, axum::http::HeaderValue::from_static("100"));
+        assert!(!declared_too_large(&headers, 100));
+        headers.insert(header::CONTENT_LENGTH, axum::http::HeaderValue::from_static("101"));
+        assert!(declared_too_large(&headers, 100));
+        headers.insert(
+            header::CONTENT_LENGTH,
+            axum::http::HeaderValue::from_static("99999999999999999999999"),
+        );
+        assert!(declared_too_large(&headers, 100));
+    }
+
+    #[tokio::test]
+    async fn the_refusal_closes_and_names_the_limit_and_nothing_else() {
+        let response = too_large_response(4096);
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(response.headers()[header::CONNECTION], "close");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "text/plain; charset=utf-8");
+        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        assert_eq!(
+            &body[..],
+            b"Request body too large. This endpoint accepts at most 4096 bytes."
+        );
+    }
+
+    #[test]
+    fn configuring_refuses_zero_and_starts_the_route_list_afresh() {
+        assert_ne!(aw_configure_max_body_bytes(0), 0);
+        assert_eq!(aw_configure_max_body_bytes(500), 0);
+        // Zero is a route with no limit of its own, which still has to be
+        // listed: it may come before a route with one.
+        assert_eq!(aw_configure_route_body_limit(ffi("*"), ffi("/upload/:x"), 0), 0);
+        assert_eq!(aw_configure_route_body_limit(ffi("POST"), ffi("/upload"), 9000), 0);
+        let bad = [0xff_u8, 0xfe];
+        let not_text = FfiStr {
+            ptr: bad.as_ptr(),
+            len: bad.len(),
+        };
+        assert_eq!(aw_configure_route_body_limit(ffi("POST"), not_text, 9000), 2);
+        let started = take_pending_body_limits();
+        assert_eq!(started.default, 500);
+        assert_eq!(started.for_request("POST", "/upload"), 9000);
+        assert_eq!(started.for_request("POST", "/upload/a"), 500);
+        assert_eq!(started.routes.len(), 2);
+
+        // A serve() that failed before starting leaves nothing behind for the
+        // next server this thread starts.
+        assert_eq!(aw_configure_route_body_limit(ffi("POST"), ffi("/stale"), 9000), 0);
+        assert_eq!(aw_configure_max_body_bytes(700), 0);
+        let next = take_pending_body_limits();
+        assert_eq!(next.default, 700);
+        assert_eq!(next.for_request("POST", "/stale"), 700);
+
+        // And a server that configured nothing gets the default.
+        assert_eq!(take_pending_body_limits().default, DEFAULT_MAX_BODY_BYTES);
     }
 }
 
