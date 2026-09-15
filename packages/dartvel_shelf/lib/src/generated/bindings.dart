@@ -22,6 +22,14 @@ class DartvelShelfBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
+  int aw_abi_version() {
+    return _aw_abi_version();
+  }
+
+  late final _aw_abi_versionPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint32 Function()>>('aw_abi_version');
+  late final _aw_abi_version = _aw_abi_versionPtr.asFunction<int Function()>();
+
   void aw_register_handler(DartReqHandler cb) {
     return _aw_register_handler(cb);
   }
@@ -206,12 +214,23 @@ typedef DartReqHandlerFunction =
       ffi.Pointer<ffi.Uint8>,
       ffi.Size,
       FfiBuf,
+      FfiStr,
     );
 typedef DartDartReqHandlerFunction =
-    void Function(int, FfiStr, FfiStr, ffi.Pointer<ffi.Uint8>, int, FfiBuf);
+    void Function(
+      int,
+      FfiStr,
+      FfiStr,
+      ffi.Pointer<ffi.Uint8>,
+      int,
+      FfiBuf,
+      FfiStr,
+    );
 typedef DartStreamCancelHandler =
     ffi.Pointer<ffi.NativeFunction<DartStreamCancelHandlerFunction>>;
 typedef DartStreamCancelHandlerFunction = ffi.Void Function(ffi.Uint64);
 typedef DartDartStreamCancelHandlerFunction = void Function(int);
+
+const int AW_ABI_VERSION = 2;
 
 const int AW_FLAG_H2C = 1;
