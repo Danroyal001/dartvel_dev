@@ -12,6 +12,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/server_options.dart';
+import 'package:dartvel_core/dartvel.dart' show dvDefaultMaxBodyBytes;
 import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -292,6 +293,52 @@ dartvel:
         routes,
         contains('compression: compression ?? dartvelCompression'),
       );
+    });
+
+    test('the largest request body reaches the serve call, with every '
+        "route's own", () async {
+      // The native server reads a body before any Dart runs, so this is the
+      // only place the limit can be enforced. A value emitted and not passed
+      // is a server reading any size while the pubspec says otherwise, and
+      // a serve call without the router's limits caps every upload route at
+      // this number.
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  server:
+    maxBodyBytes: 65536
+''');
+
+      expect(routes, contains('const int dartvelMaxBodyBytes = 65536;'));
+      expect(routes, contains('maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes'));
+      expect(routes, contains('routeBodyLimits: router.bodyLimits'));
+    });
+
+    test('a project that sets no body limit gets the runtime default', () {
+      expect(
+        DVServerOptions.parse(YamlMap.wrap(<String, Object?>{})).maxBodyBytes,
+        dvDefaultMaxBodyBytes,
+      );
+      expect(
+        DVServerOptions.parse(_dv(<String, Object?>{'maxBodyBytes': 4096}))
+            .maxBodyBytes,
+        4096,
+      );
+    });
+
+    test('a body limit that is not a positive whole number of bytes stops the '
+        'build', () {
+      // "16MB" is text, 0 reads no body at all, and 1.5 is not a byte count.
+      // Each carried on as the default would be a limit somebody wrote down
+      // and did not get.
+      for (final Object value in <Object>['16MB', '65536', 0, -1, 1.5, true]) {
+        expect(
+          () => DVServerOptions.parse(_dv(<String, Object?>{'maxBodyBytes': value})),
+          throwsA(isA<FormatException>().having((FormatException e) => e.message,
+              'message', contains('dartvel.server.maxBodyBytes'))),
+          reason: '$value',
+        );
+      }
     });
 
     test('the trusted proxies reach the resolver the server installs',

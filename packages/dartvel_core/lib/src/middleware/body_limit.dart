@@ -31,8 +31,12 @@ const int dvDefaultUploadLimitBytes = 16 * 1024 * 1024;
 
 /// Limits an application can move.
 ///
-/// Static, and read when the request is handled rather than captured, so a
-/// deployment that raises the upload size does not have to rebuild.
+/// Static, and read when the generated backend starts rather than compiled
+/// in, so a deployment that raises the upload size does not have to rebuild.
+/// Read once there, not per request: each route's number is registered with
+/// the native server, which refuses a body past it before reading it, and
+/// the route's own check uses the same number. Set these before
+/// `startBackend`; a change afterwards reaches neither.
 class DVBodyLimits {
   static int body = dvDefaultBodyLimitBytes;
   static int upload = dvDefaultUploadLimitBytes;

@@ -99,7 +99,10 @@ class BackendGenerator {
     return dv.Response(result.status,
         headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
         body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result.toJson()))));
-  }));
+    // The ingest's own limit, registered with the server: below it a report
+    // is refused before it is read, and above the server's limit it is not
+    // refused before the ingest can answer it.
+  }), maxBodyBytes: ${crashes.ingestMaxBytes});
 ''';
 
   /// The OAuth provider's endpoints, for an application that declares
@@ -924,6 +927,36 @@ ${backendEntries.map((e) {
       final String handlerOpen = open.toString();
       final String handlerClose = '  }${')' * wrappers});';
 
+      // The declared body limits, read once where the router is built and
+      // handed to the native server as well as to the check in the handler.
+      //
+      // The native server reads the body before any Dart runs, so a limit
+      // only the handler knows is checked after the whole body is already in
+      // memory. Registered on the route, the server refuses past it without
+      // buffering, and an upload route reads past the server's limit without
+      // every route doing so. Read once rather than per request, so the two
+      // cannot disagree: a DVBodyLimits changed after the backend starts
+      // would otherwise be checked in Dart and not by the server.
+      final bool limitsBody = middlewareKeys.contains('bodyLimit');
+      final bool limitsUpload = middlewareKeys.contains('uploadLimit');
+      final String limitDeclarations = <String>[
+        if (limitsBody) '  final int _dvBodyLimit$i = core.DVBodyLimits.body;\n',
+        if (limitsUpload)
+          '  final int _dvUploadLimit$i = core.DVBodyLimits.upload;\n',
+      ].join();
+      // Both declared is the larger for the server; the check below still
+      // holds a body that is not multipart to the smaller.
+      final String routeLimit = limitsBody && limitsUpload
+          ? '_dvUploadLimit$i > _dvBodyLimit$i ? _dvUploadLimit$i : _dvBodyLimit$i'
+          : limitsUpload
+              ? '_dvUploadLimit$i'
+              : limitsBody
+                  ? '_dvBodyLimit$i'
+                  : '';
+      final String routeClose = routeLimit.isEmpty
+          ? handlerClose
+          : '  }${')' * wrappers}, maxBodyBytes: $routeLimit);';
+
       final String policy = e['policy'] ?? '';
       // The declared second factor, asked before the policy: whether the
       // session proves enough is an authentication question, and a policy is
@@ -969,9 +1002,9 @@ ${backendEntries.map((e) {
         // No shortcut for the plainest raw handler any more. It used to be
         // registered bare, which meant the one kind of route that reads the
         // request itself ran with no tenant scope around it.
-        return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen$mfaGate$policyGate
+        return '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen$mfaGate$policyGate
     return await f$i.handler(req);
-$handlerClose''';
+$routeClose''';
       }
       final tparams =
           (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
@@ -1021,17 +1054,16 @@ $handlerClose''';
       // after the read is not a limit. So the check is emitted here, and
       // only for a route that asked -- one on every route would refuse the
       // upload endpoint nobody limited.
-      final bool limitsBody = middlewareKeys.contains('bodyLimit');
-      final bool limitsUpload = middlewareKeys.contains('uploadLimit');
       // Declaring both means each shape gets its own number, which is the
       // point of there being two: a JSON body of several megabytes is a
-      // mistake, and an upload of several megabytes is the feature.
+      // mistake, and an upload of several megabytes is the feature. The
+      // numbers are the ones registered with the server above.
       final String limitExpr = limitsBody && limitsUpload
           ? "ct.contains('multipart/form-data') "
-              '? core.DVBodyLimits.upload : core.DVBodyLimits.body'
+              '? _dvUploadLimit$i : _dvBodyLimit$i'
           : limitsUpload
-              ? 'core.DVBodyLimits.upload'
-              : 'core.DVBodyLimits.body';
+              ? '_dvUploadLimit$i'
+              : '_dvBodyLimit$i';
       final String readBody = limitsBody || limitsUpload
           ? '''        final _dvLimit = $limitExpr;
         if (core.dvDeclaredTooLarge(
@@ -1073,7 +1105,7 @@ $readBody
       // middleware that guessed which would be the same silence again.
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
-            '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
+            '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -1101,9 +1133,9 @@ $contextFailed
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
-$handlerClose''';
+$routeClose''';
       }
-      return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
+      return '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -1131,7 +1163,7 @@ $contextFailed
       stderr.writeln(st);
       return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
     }
-$handlerClose''';
+$routeClose''';
     }).join('\n')}
   if (!_hasHealth) {
     // Public, because a load balancer asks it with no credential. A credential
@@ -1246,6 +1278,11 @@ const String? dartvelForwardedHeader = ${server.forwardedHeaderSource};
 /// per address.
 const int dartvelIpv6SourcePrefix = ${server.ipv6SourcePrefix};
 
+/// The largest request body the server reads for a route that declares no
+/// limit of its own, from `dartvel.server.maxBodyBytes`. A route declaring
+/// bodyLimit or uploadLimit, and the crash endpoint, register their own.
+const int dartvelMaxBodyBytes = ${server.maxBodyBytes};
+
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
 /// the model's data. With [pageStore] -- any cache adapter, so Redis where
@@ -1266,7 +1303,11 @@ const int dartvelIpv6SourcePrefix = ${server.ipv6SourcePrefix};
 /// ticks the schedules starts them -- with [scheduleLease] claimed per
 /// occurrence, [scheduleClock] as the time and [scheduleTick] as the cadence.
 /// [port] wins over DARTVEL_PORT, which wins over the generated port.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20)}) {
+///
+/// [maxBodyBytes] overrides `dartvel.server.maxBodyBytes`. Each route's own
+/// limit is read from `DVBodyLimits` when the router is built here, so set
+/// those before calling this.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes}) {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -1357,7 +1398,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // second entrypoint can still override either; the configuration is
   // what an application gets when it says nothing here, which is what
   // every generated entrypoint does.
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership);
+  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: router.bodyLimits);
 }
 
 /// The schedule timer this process started, so a stopped process stops it.
