@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`DV.Auth.apiKeys` and `DV.Auth.oauthClients`.** The platform API's
+  management surface, `DVPlatformApiAuth` over `DV.Auth.authorization`, so a
+  policy registered through `DV.Auth.registerPolicy` for `DVApiKeyResource`
+  or `DVOAuthClientResource` decides who may issue, list, rotate and revoke
+  the current organization's keys and register, list and revoke its OAuth
+  clients.
+
 - **`DV.Auth.OAuthConsentPage`.** The screen a person answers a partner's
   OAuth request on, built from `DVBox` and `DVText`. It asks the backend to
   describe the request, shows the client and each scope in the wording its

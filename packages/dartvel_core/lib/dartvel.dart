@@ -49,6 +49,7 @@ export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
 export 'src/auth/oauth_endpoints.dart';
 export 'src/auth/platform_api.dart';
+export 'src/auth/platform_api_management.dart';
 export 'src/auth/platform_api_config.dart';
 export 'src/auth/secret_hash.dart';
 export 'src/billing/invoice.dart';
