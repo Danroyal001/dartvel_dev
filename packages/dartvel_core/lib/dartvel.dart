@@ -80,6 +80,7 @@ export 'src/auth/password.dart';
 export 'src/auth/saml.dart';
 export 'src/auth/second_factor.dart';
 export 'src/auth/sessions.dart';
+export 'src/auth/step_up.dart';
 export 'src/auth/tokens.dart';
 export 'src/auth/web3.dart';
 export 'src/auth/webauthn.dart';

@@ -37,6 +37,7 @@ import '../http/wintercg.dart';
 import '../middleware/body_limit.dart';
 import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
+import 'api_scopes.dart' show DVApiPrincipal;
 import 'auth.dart';
 import 'second_factor.dart';
 import 'session_authentication.dart';
@@ -508,6 +509,30 @@ class DVAuthEndpoints {
           'factors': await _factorStatus(factors, principal.userId),
         }, bearer: rotated.bearer);
       });
+
+  /// The gate a generated route declaring `mfa:` runs: null when the request's
+  /// session meets [policy], otherwise the refusal to answer with.
+  ///
+  /// Nobody signed in is a plain 401 -- signing in comes first. A caller
+  /// authenticated with an API key or an OAuth token is 403: it has no second
+  /// factor to present, and a step-up challenge would send it looking for
+  /// one. A session without the factor, or with one older than the policy's
+  /// window, is [stepUpRequired]. A session still waiting for its second
+  /// factor never gets here: the authentication stage refused it.
+  static Response? requireMfa(DVMfa policy) {
+    final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+    if (principal == null) {
+      if (DVApiPrincipal.current != null) {
+        return _error(403, 'mfa_unavailable',
+            'This needs a signed-in person\'s second factor.');
+      }
+      return _unauthenticated();
+    }
+    if (policy.isSatisfiedBy(principal.session, DateTime.now().toUtc())) {
+      return null;
+    }
+    return stepUpRequired(policy);
+  }
 
   /// The refusal for a session whose second factor is missing or older than
   /// [policy] allows (`DV-SESSION-001`): RFC 9470's

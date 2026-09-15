@@ -458,6 +458,10 @@ class BackendGenerator {
         // Whether that policy is a quoted Resource.action the registry
         // answers, rather than a name only the application's decide can.
         'policyAction': dvBackendPolicyIsAction(src) ? '1' : '0',
+        // The second factor the function declares, as the expression the
+        // gate evaluates. An mfa: this cannot read stops the build.
+        'mfa': dvMfaFromSource(src, annotation: 'DVBackendFunction', rel: rel) ??
+            '',
         // Where it was declared, for a refusal that has to name the file.
         'rel': rel,
         // The middleware the function declares, in declaration order. Read
@@ -898,6 +902,16 @@ ${backendEntries.map((e) {
       final String handlerClose = '  }${')' * wrappers});';
 
       final String policy = e['policy'] ?? '';
+      // The declared second factor, asked before the policy: whether the
+      // session proves enough is an authentication question, and a policy is
+      // asked about a caller once that is settled.
+      final String mfa = e['mfa'] ?? '';
+      final String mfaGate = mfa.isEmpty
+          ? ''
+          : '\n    {'
+              '\n      final _dvStepUp = core.DVAuthEndpoints.requireMfa($mfa);'
+              '\n      if (_dvStepUp != null) return _dvStepUp;'
+              '\n    }';
       // A route that declares no policy action is one no scope can cover, so
       // a request authenticated with an API key or OAuth token is refused
       // there rather than run with a caller nothing checked.
@@ -932,7 +946,7 @@ ${backendEntries.map((e) {
         // No shortcut for the plainest raw handler any more. It used to be
         // registered bare, which meant the one kind of route that reads the
         // request itself ran with no tenant scope around it.
-        return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen$policyGate
+        return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen$mfaGate$policyGate
     return await f$i.handler(req);
 $handlerClose''';
       }
@@ -1037,7 +1051,7 @@ $readBody
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
             '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
-$requestPrelude$policyGate$contextPrelude
+$requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
@@ -1067,7 +1081,7 @@ $contextFailed
 $handlerClose''';
       }
       return '''  router.$method(cfg.apiBasePath + '$path', $handlerOpen
-$requestPrelude$policyGate$contextPrelude
+$requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
       if (result is dv.Response) return result;
@@ -1617,20 +1631,27 @@ Map<String, String> _dvPrepareHeaders(
   return _dvHeadersWithCsrf(methodUpper, merged);
 }
 
+/// Sends a generated call. A function declaring `mfa:` answers a session
+/// without a recent second factor with a step-up refusal; DVStepUp presents
+/// the challenge the runtime installed and sends the call once more. The
+/// headers are prepared per send, because a completed challenge rotates the
+/// session token they carry.
 Future<DVHttpResponse> _dvRequest(String method, Uri uri,
-    {Object? data, Map<String, String>? headers}) async {
+    {Object? data, Map<String, String>? headers}) {
   final methodUpper = method.toUpperCase();
-  final hdrs = _dvPrepareHeaders(methodUpper, headers);
-  final payload = _dvPayloadWithCsrf(methodUpper, data);
-  final declared = hdrs['content-type'] ?? hdrs['Content-Type'];
-  final encoded = _dvEncodeBody(payload, declared);
-  if (encoded.contentType != null) hdrs['content-type'] = encoded.contentType!;
-  return dvSendHttpRequest(DVHttpRequest(
-    url: uri,
-    method: methodUpper,
-    headers: hdrs,
-    body: encoded.body,
-  ));
+  return DVStepUp.send(() {
+    final hdrs = _dvPrepareHeaders(methodUpper, headers);
+    final payload = _dvPayloadWithCsrf(methodUpper, data);
+    final declared = hdrs['content-type'] ?? hdrs['Content-Type'];
+    final encoded = _dvEncodeBody(payload, declared);
+    if (encoded.contentType != null) hdrs['content-type'] = encoded.contentType!;
+    return dvSendHttpRequest(DVHttpRequest(
+      url: uri,
+      method: methodUpper,
+      headers: hdrs,
+      body: encoded.body,
+    ));
+  });
 }
 
 Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
@@ -2828,8 +2849,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       if (annotation == -1) return null;
 
       // Step past the annotation's own argument list, then any further
-      // annotations or pragmas sitting between it and the declaration.
-      int at = source.indexOf('\n', annotation);
+      // annotations or pragmas sitting between it and the declaration. The
+      // argument list is stepped over by counting parentheses: a formatter
+      // wraps `@DVBackendFunction(mfa: DVMfa.recent(Duration(minutes: 15)))`
+      // across lines, and reading the next line as the declaration missed
+      // the function, so its route called a name that did not exist.
+      int argsEnd = annotation + '@DVBackendFunction'.length;
+      final int open = _firstNonSpace(source, argsEnd);
+      if (open < source.length && source[open] == '(') {
+        final int close = _matchingParen(source, open);
+        if (close == -1) return null;
+        argsEnd = close + 1;
+      }
+      int at = source.indexOf('\n', argsEnd);
       if (at == -1) return null;
       while (at < source.length) {
         final int lineEnd =

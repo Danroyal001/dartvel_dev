@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../auth/sessions.dart' show DVMfa;
 import '../data/record_history.dart' show DVHistory;
 import '../privacy/privacy.dart' show DVRetention;
 
@@ -75,10 +76,17 @@ class DVPage {
   /// neighbours -- every route was emitted with a URL and nothing else.
   final DVPageSitemap? sitemap;
 
+  /// The second factor this device's session must have presented before the
+  /// page opens, or null for none. An unsatisfied page redirects to the
+  /// second-factor challenge and comes back once it is presented. The page is
+  /// the interface; the backend functions it calls enforce their own `mfa`.
+  final DVMfa? mfa;
+
   const DVPage({
     this.path,
     this.title,
     this.policy,
+    this.mfa,
     this.shell = DVPageShellMode.adaptive,
     this.scaffold = true,
     this.showAppBar = false,
@@ -590,7 +598,15 @@ class DVSensitiveModelField {
 class DVBackendFunction {
   final String? policy;
 
-  const DVBackendFunction({this.policy});
+  /// The second factor the caller's session must have presented, or null for
+  /// none: `DVMfa.required` for one at some point in the session,
+  /// `DVMfa.recent(Duration(minutes: 15))` for one within the window.
+  ///
+  /// Refused with 401 and RFC 9470's `insufficient_user_authentication`, so
+  /// the client asks for a code and retries rather than signing out.
+  final DVMfa? mfa;
+
+  const DVBackendFunction({this.policy, this.mfa});
 }
 
 /// Annotation for a Backend Cron Job

@@ -9,6 +9,22 @@
   ranges in `DARTVEL_TRUSTED_PROXIES`, before the router is built, so every
   per-source limit counts the connection's peer unless that peer is a listed
   proxy. A project that names none trusts none.
+- **`mfa:` is read by the generator.** A backend function declaring
+  `@DVBackendFunction(mfa: ...)` answers a session without the second factor
+  with the step-up refusal before its policy is asked or the function runs,
+  raw handlers included. A page declaring `@DVPage(mfa: ...)` gets a redirect
+  that sends the session to `/second-factor` -- served by
+  `DV.Auth.SecondFactorPage` whenever a page declares one -- and back once a
+  factor is presented. Generated calls go through `DVStepUp.send`, and the
+  runtime installs `DVAuth.installStepUp()`, so a refused call presents the
+  challenge and resumes. An `mfa:` value the generator cannot read (anything
+  but `DVMfa.required`, `DVMfa.none` or `DVMfa.recent(Duration(...))` with
+  literal fields) stops the build naming the file rather than generating the
+  route unguarded.
+- **A backend function's annotation may span lines.** The declaration under a
+  wrapped `@DVBackendFunction(...)` was not found, so its route called a name
+  that did not exist; the argument list is now stepped over by counting
+  parentheses.
 - **The generated backend serves second-factor enrollment.** `GET
   /auth/factors` and `POST /auth/factors/totp`, `/auth/factors/totp/confirm`,
   `/auth/factors/recovery-codes` and `/auth/factors/remove`, behind the

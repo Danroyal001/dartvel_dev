@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **The second-factor challenge, for pages and calls.** `DVPageMfa` is what
+  the generated router asks for a page declaring `mfa:`: nobody signed in goes
+  to `dvSignInRoute`, a session without a recent enough factor goes to
+  `dvSecondFactorRoute` with where it was going, and a browser that has not
+  yet asked the server which session it is on asks before refusing.
+  `DV.Auth.SecondFactorPage({from})` takes a code or a recovery code, keeps
+  the rotated session, and goes to `from` only when it is a path in this
+  application -- `//host`, `https://host` and backslash forms go to `/`, so the
+  challenge is not an open redirect. `DVAuth.installStepUp()` makes a refused
+  backend call present the page over the current screen and resume.
 - **QR codes in Dart.** `DVQrCode.encode` builds a byte-mode, level-M symbol
   in the smallest version that holds the text, and `DVQrImage` draws it dark
   on white with a quiet zone. The tests read every symbol back with a reader

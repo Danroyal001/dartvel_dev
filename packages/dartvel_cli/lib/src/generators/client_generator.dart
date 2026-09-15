@@ -367,6 +367,9 @@ class ClientGenerator {
           generatedWidget: _generatedPageWidgetName(className),
           pageScaffold: _pageScaffoldSpec(src),
           policy: _pagePolicy(src),
+          // An mfa: this cannot read stops the build rather than generating
+          // the page open.
+          mfa: dvMfaFromSource(src, annotation: 'DVPage', rel: rel, prefix: ''),
           // Read here because nothing else ever read it. The annotation's
           // only reader anywhere was the backend generator's spelling check,
           // which walks every file under lib/ and so validated the names on
@@ -689,6 +692,9 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   );
   DVSessionClient.install(dartvelSessions);
   DVAuth.installDefaultProvider(DVSessionAuthProvider(dartvelSessions));
+  // A generated call refused for a missing second factor presents the
+  // challenge over the current screen and is sent again once it is presented.
+  DVAuth.installStepUp();
   if (!kIsWeb) {
     unawaited(dartvelSessions.restore().then<void>((_) {}, onError: (Object _) {}));
   }
@@ -1018,6 +1024,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       String dir,
       String? policy, [
       List<String> middleware = const <String>[],
+      String? mfa,
     ]) {
       // Build ancestor chain from pagesDir to dir; collect guards
       final parts = <String>[];
@@ -1041,6 +1048,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         directoryGuards: chain,
         policy: policy,
         middleware: middleware,
+        mfa: mfa,
       );
     }
 
@@ -1089,7 +1097,7 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
           (e) => '''
     GoRoute(
       path: '${esc(e.route)}',
-${guardRedirectFor(e.directory, e.policy, e.middleware)}      pageBuilder: (context, state) {
+${guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
         final page = const ${e.generatedWidget}();
@@ -1314,7 +1322,7 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     // module mount carries its own `sitemap: include|exclude`.
     final guardedRoutes = <String>{
       for (final e in pageEntries)
-        if (guardRedirectFor(e.directory, e.policy, e.middleware).isNotEmpty)
+        if (guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa).isNotEmpty)
           e.route,
     };
     final guardedRoutesSrc = guardedRoutes.isEmpty
@@ -1364,12 +1372,28 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     ),'''
         : '';
 
+    // @DVPage(mfa: ...): where an unsatisfied page sends a person, and where
+    // the challenge brings them back from. Only when some page declares one,
+    // and not over a page the application put at the same path.
+    final bool servesSecondFactor = pageEntries.any((e) => e.mfa != null) &&
+        !pageEntries.any((e) => e.route == '/second-factor');
+    final secondFactorRouteSrc = servesSecondFactor
+        ? '''
+    GoRoute(
+      path: '/second-factor',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: DV.Auth.SecondFactorPage(from: state.uri.queryParameters['from']),
+      ),
+    ),'''
+        : '';
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
       modelRoutesSrc,
       homeWidgetRoutesSrc,
       moduleRoutesSrc,
       oauthConsentRouteSrc,
+      secondFactorRouteSrc,
     ]);
 
     final generatedPageWidgets = pageEntries.map((e) {
@@ -3670,6 +3694,10 @@ class _PageEntry {
 
   /// The policy this page declares, or null. Emitted into the route's
   /// redirect so the router refuses before the page builds.
+  /// The second factor this page declares, as dvMfaFromSource read it with
+  /// no prefix, or null.
+  final String? mfa;
+
   final String? policy;
 
   /// The middleware keys this page declares, in the order it declared them.
@@ -3702,6 +3730,7 @@ class _PageEntry {
 
   const _PageEntry({
     this.policy,
+    this.mfa,
     this.middleware = const <String>[],
     required this.importIndex,
     required this.className,

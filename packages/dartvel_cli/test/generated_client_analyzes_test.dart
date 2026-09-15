@@ -150,7 +150,7 @@ import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVUseMiddleware([DVMiddlewares.auth, DVMiddlewares.maintenance])
-@DVPage(title: 'Account')
+@DVPage(title: 'Account', mfa: DVMfa.recent(Duration(minutes: 15)))
 @pragma('vm:entry-point')
 Widget _accountPage(BuildContext context) => const DVText('Account');
 ''';
@@ -158,7 +158,7 @@ Widget _accountPage(BuildContext context) => const DVText('Account');
 const String _backendFunction = '''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVBackendFunction()
+@DVBackendFunction(mfa: DVMfa.required)
 @pragma('vm:entry-point')
 Future<Map<String, Object?>> _ping() async => <String, Object?>{'ok': true};
 ''';
@@ -349,6 +349,26 @@ dependency_overrides:
 
     expect(router, contains('DVPageMiddleware.check'));
     expect(router, contains('DVPageMiddleware.isSignedIn ??='));
+  });
+
+  test('the second-factor gate, its challenge route and the step-up are in '
+      'the analyzed client', () {
+    // The Account page declares mfa: and the backend function does too, so
+    // the redirect, the /second-factor route, the step-up install and the
+    // call through DVStepUp are code the analyzer compiled -- a helper whose
+    // signature drifted reads perfectly as text.
+    final String client = Directory(
+      p.join(project.path, 'lib', 'dartvel_client'),
+    )
+        .listSync()
+        .whereType<File>()
+        .map((File f) => f.readAsStringSync())
+        .join('\n');
+    expect(client,
+        contains('DVPageMfa.recent(context, state, const Duration(milliseconds: 900000))'));
+    expect(client, contains("path: '/second-factor'"));
+    expect(client, contains('DVAuth.installStepUp();'));
+    expect(client, contains('DVStepUp.send('));
   });
 
   test('the memory configuration is actually in the analyzed client', () {

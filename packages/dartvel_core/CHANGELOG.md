@@ -39,6 +39,17 @@
   form -- and refuses what is not strictly an address, including IPv4 with a
   leading zero. `DVPeerAddress` is an address with an optional port, read from
   `1.2.3.4:80`, `[2001:db8::1]:80` or a bare address.
+- **`@DVBackendFunction(mfa:)` and `@DVPage(mfa:)`.** Both annotations take a
+  `DVMfa`: `DVMfa.required` for a second factor at some point in the session,
+  `DVMfa.recent(Duration(...))` for one within the window.
+  `DVAuthEndpoints.requireMfa(policy)` is the gate a generated route runs:
+  nobody signed in is a plain 401, a caller on an API key or OAuth token is 403
+  (it has no factor to present), and a session without a recent enough factor
+  is `stepUpRequired` -- 401 with `insufficient_user_authentication` and
+  `max_age`. `DVStepUp.send` is how a generated call answers that: it presents
+  `DVStepUp.challenge` and sends the call once more. Only an `mfa_required`
+  answer is a step-up, calls refused together share one challenge, and a
+  dismissed or failed challenge returns the refusal without sending again.
 - **Second factors, as endpoints.** `DVAuthEndpoints` now also handles the
   signed-in person's factors: `factors` (whether an authenticator is active
   and how many recovery codes are left, never a code), `beginTotp` (the secret
