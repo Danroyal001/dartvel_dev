@@ -1,5 +1,31 @@
 ## Unreleased
 
+- **The application's own sign-in, as endpoints.** `DVAuthEndpoints` handles
+  sign-up, sign-in, a second factor, sign-out, the current session, the
+  signed-in person's sessions, revoking one and revoking the others; the
+  generated backend serves them. `DVAuthEndpoints.install(credentials:
+  DVCredentialGuard(provider: ...), secondFactors: ...)` names the provider,
+  and until then signing in is a 503 saying so. Credentials go through the
+  guard, so an unknown account and a wrong password get one answer after the
+  same floor of time, velocity limits apply per account and per source, and a
+  breached password is refused at sign-up. A session is issued with
+  `DVSessions` on the request's tenant and replaces one the request already
+  carried. A browser -- a request with `Origin` or `Sec-Fetch-*`, which a
+  script cannot remove -- gets it only in the `__Host-dv_session` cookie
+  (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`); a native client that asks
+  with `x-dartvel-session-delivery: token` gets the `dvs_` token only in the
+  body. An account with a second factor gets a session carrying
+  `DVSession.mfaPendingClaim`, which the authentication stage refuses on every
+  route with `Bearer error="insufficient_user_authentication"`; a TOTP code
+  or a recovery code at `/auth/second-factor`, counted against the account's
+  velocity limit, completes it through `DVSessions.completeMfa`, and only the
+  rotated token carries the person's privilege. Sign-out revokes on the
+  server and clears the cookie. The sessions endpoints answer for the
+  signed-in person's own sessions on the request's tenant: another person's
+  session id is 404, and revoking the others keeps this one. Nothing presented
+  is logged or echoed, and every answer is `no-store`. `DVSession.toJson` and
+  `DVSession.fromJson` describe a session without its token.
+
 - **A route refused for want of a caller says so.**
   `DVBackendPolicy.checkAction` answers `DVPolicyDecision.allowed`,
   `unauthenticated` or `forbidden`, and `allowsAction` is it answering

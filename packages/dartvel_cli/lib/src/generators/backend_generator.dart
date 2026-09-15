@@ -128,6 +128,61 @@ class BackendGenerator {
   router.any(core.DVOAuthEndpoints.metadataPath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'GET', crossOrigin: true));
 ''';
 
+  /// The application's own sign-in endpoints, on every generated backend.
+  ///
+  /// Registered before any backend function, so a catch-all route cannot
+  /// shadow them; a function declaring one of their exact paths stops the
+  /// build instead. Each runs on the request's tenant. Sign-up, sign-in, the
+  /// second factor and sign-out judge the session they are given themselves
+  /// -- one waiting for its second factor is refused by the authentication
+  /// stage, and it is the session those endpoints finish or end -- while the
+  /// sessions endpoints run behind the stage and answer for the person it
+  /// authenticated. Every POST is CSRF-checked, sign-in included: a login
+  /// CSRF signs a victim's browser into the attacker's account.
+  static String _dvAuthRouteSource() => '''
+  // The application's own sign-in. Answers 503 naming DVAuthEndpoints.install
+  // until the application installs its auth provider.
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signUpPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.signUp(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signInPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.signIn(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.secondFactorPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.secondFactor(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signOutPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.signOut(req);
+  }));
+  router.get(cfg.apiBasePath + core.DVAuthEndpoints.sessionPath, (dv.Request req) => _dvStaged(req, () => core.DVAuthEndpoints.session(req)));
+  router.get(cfg.apiBasePath + core.DVAuthEndpoints.sessionsPath, (dv.Request req) => _dvStaged(req, () => core.DVAuthEndpoints.sessions(req)));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.revokePath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.revoke(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.revokeOthersPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.revokeOthers(req);
+  }));
+''';
+
+  /// The paths [_dvAuthRouteSource] serves, below the API base path. Kept
+  /// beside it: a function declaring one would be shadowed and never run.
+  static const List<String> dvReservedAuthPaths = <String>[
+    '/auth/sign-up',
+    '/auth/sign-in',
+    '/auth/second-factor',
+    '/auth/sign-out',
+    '/auth/session',
+    '/auth/sessions',
+    '/auth/sessions/revoke',
+    '/auth/sessions/revoke-others',
+  ];
+
   static Future<void> generate({
     required String root,
     required String backendDir,
@@ -350,6 +405,14 @@ class BackendGenerator {
         if (typedName.isNotEmpty) {
           invocation = 'f$i.$typedName';
         }
+      }
+      if (dvReservedAuthPaths.contains(urlPath)) {
+        throw StateError(
+          '$rel declares ${method.toUpperCase()} '
+          '$urlPath, which the generated backend serves for signing in. The '
+          'function would never run. Move it, or install your provider with '
+          'DVAuthEndpoints.install and use the generated endpoint.',
+        );
       }
       backendEntries.add({
         'i': '$i',
@@ -722,7 +785,7 @@ dv.Router buildBackendRouter() {
   dartvelRegisterBackendPolicies();
   core.DVBackendPolicy.verifyRegistered(const <String>[${routeActions.map((String a) => "'$a'").join(', ')}]);
   final router = dv.Router();
-  bool _hasHealth = false;
+${_dvAuthRouteSource()}  bool _hasHealth = false;
 ${backendEntries.map((e) {
       final path = esc(e['path'] ?? '');
       final method = e['method']!;
