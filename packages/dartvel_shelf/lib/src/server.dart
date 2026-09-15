@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
+        DVLogLevel,
+        DVObservability,
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
@@ -216,6 +218,9 @@ Future<ServerHandle> serve(
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
   final authority = host.contains(':') && !host.startsWith('[') ? '[$host]' : host;
+  // The port a request's URL names. The bound one once the server is up, which
+  // is before any request can arrive; `port` may be 0.
+  var urlPort = port;
 
   void handleRequest(
       int reqId,
@@ -225,35 +230,37 @@ Future<ServerHandle> serve(
       int hdrsLen,
       gen.FfiBuf body,
       gen.FfiStr peer) {
-    // The accepted socket's address, from the native side and never from a
-    // header. Empty, or anything that does not parse, is no peer at all
-    // rather than a guess.
-    final DVPeerAddress? peerAddress = peer.len == 0
-        ? null
-        : DVPeerAddress.tryParse(
-            String.fromCharCodes(peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len)));
-    final methodStr = String.fromCharCodes(
-        method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
-    final targetStr = String.fromCharCodes(
-        target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
-    final headers =
-        decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
-    // Bracketed for IPv6: `http://::1:0/` is not a URL, and the parse threw
-    // here, in the native callback and outside every handler's try, so the
-    // request was never answered.
-    final url = Uri.parse('http://$authority:$port$targetStr');
-    final bodyBytes =
-        Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len));
+    // Nothing thrown here may leave this function. It runs in the native
+    // callback, outside every handler's try: a request whose URL did not
+    // parse was never answered, and the exception, unhandled in the root
+    // zone, ended the process -- one `GET http://x:1/ HTTP/1.1` stopped the
+    // server. So building the request is guarded as a whole, and every way
+    // out answers.
+    final Request req;
+    try {
+      req = _readRequest(
+        method: method,
+        target: target,
+        hdrsPtr: hdrsPtr,
+        hdrsLen: hdrsLen,
+        body: body,
+        peer: peer,
+        authority: authority,
+        port: urlPort,
+      );
+    } on _MalformedRequest catch (refusal) {
+      _logRefused(400, 'refused before any route saw it: ${refusal.reason}');
+      _answerError(api, reqId, 400);
+      return;
+    } catch (error, stack) {
+      _logRefused(500,
+          'could not be read (${error.runtimeType}), a failure in serve()',
+          stack);
+      _answerError(api, reqId, 500);
+      return;
+    }
 
     Future<void>(() async {
-      final req = Request(
-        method: methodStr,
-        url: url,
-        headers: Headers(headers),
-        bodyStream: Stream<List<int>>.value(bodyBytes),
-        peerAddress: peerAddress,
-      );
-
       try {
         final resp = await effective(req);
         final hdrsFlat = encodeHeaders(resp.headers.multiValueMap);
@@ -277,9 +284,14 @@ Future<ServerHandle> serve(
           bodyBuf.ref.len = 0;
           out.ref.body = bodyBuf.ref;
 
-          api.aw_complete(reqId, out.ref);
+          final int accepted = api.aw_complete(reqId, out.ref);
           pkgffi.calloc.free(bodyBuf);
           pkgffi.calloc.free(out);
+          pkgffi.malloc.free(hdrsNative);
+          // The native side gave up on this request -- it timed out, or the
+          // server stopped -- so nothing would read the stream. Not listened
+          // to, rather than produced into a channel that is gone.
+          if (accepted != 0) return;
 
           late StreamSubscription<List<int>> subscription;
           subscription = resp.body!.stream.listen(
@@ -320,16 +332,18 @@ Future<ServerHandle> serve(
           api.aw_complete(reqId, out.ref);
           pkgffi.calloc.free(bodyBuf);
           pkgffi.calloc.free(out);
+          pkgffi.malloc.free(bodyNative);
+          pkgffi.malloc.free(hdrsNative);
         }
-      } catch (_) {
-        final out = pkgffi.calloc<gen.FfiResp>();
-        out.ref.status = 500;
-        out.ref.is_stream = 0;
-        out.ref.body = (pkgffi.calloc<gen.FfiBuf>()..ref.len = 0).ref;
-        out.ref.hdrs = pkgffi.malloc<ffi.Uint8>(0).cast();
-        out.ref.hdrs_len = 0;
-        api.aw_complete(reqId, out.ref);
-        pkgffi.calloc.free(out);
+      } catch (error, stack) {
+        // By type alone: an error's message is free to quote the request
+        // that caused it. A Router catches its routes' errors and logs them
+        // itself; this is a handler serve() was given directly, or a failure
+        // turning a response into bytes.
+        _logRefused(500, 'failed (${error.runtimeType})', stack);
+        // Already answered is harmless: the native side answers a request
+        // once and refuses the second.
+        _answerError(api, reqId, 500);
       }
     });
   }
@@ -414,9 +428,173 @@ Future<ServerHandle> serve(
   // answer, and it is also the one to report back for a fixed port, since
   // agreeing with the request is then the same number.
   final boundPort = api.aw_server_port(serverId);
+  if (boundPort != 0) urlPort = boundPort;
 
   return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
       dartRequestHandler, dartCancelHandler);
+}
+
+/// A request that cannot be served as written, and why, in words chosen here:
+/// nothing of the request is in [reason].
+final class _MalformedRequest implements Exception {
+  const _MalformedRequest(this.reason);
+  final String reason;
+}
+
+/// The request the native side passed, copied out of native memory.
+///
+/// Throws [_MalformedRequest] for a request target no route could be given.
+Request _readRequest({
+  required gen.FfiStr method,
+  required gen.FfiStr target,
+  required ffi.Pointer<ffi.Uint8> hdrsPtr,
+  required int hdrsLen,
+  required gen.FfiBuf body,
+  required gen.FfiStr peer,
+  required String authority,
+  required int port,
+}) {
+  // The accepted socket's address, from the native side and never from a
+  // header. Empty, or anything that does not parse, is no peer at all
+  // rather than a guess.
+  final DVPeerAddress? peerAddress = peer.len == 0
+      ? null
+      : DVPeerAddress.tryParse(String.fromCharCodes(
+          peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len)));
+  final methodStr = String.fromCharCodes(
+      method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
+  final targetStr = String.fromCharCodes(
+      target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
+  final headers = decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
+  final bodyBytes =
+      Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len));
+  return Request(
+    method: methodStr,
+    url: _requestUrl(targetStr, authority: authority, port: port),
+    headers: Headers(headers),
+    bodyStream: Stream<List<int>>.value(bodyBytes),
+    peerAddress: peerAddress,
+  );
+}
+
+/// The URL of a request whose request line named [target], on this server.
+///
+/// Origin form (`/path?query`) is the usual target. Absolute form
+/// (`http://host:port/path`) is one a server must accept, and is what a
+/// request over HTTP/2 carries; only its path and query are used, since the
+/// authority it names is the client's claim and this server answers for
+/// [authority]. Pasted after the authority whole, as it was, it made a URL
+/// with two ports, which Uri.parse refused inside the native callback.
+///
+/// Refused: the asterisk form and anything else that is not a path; a percent
+/// sign not followed by two hex digits; and a path or query whose escapes do
+/// not decode as UTF-8, which Dart's Uri cannot decode and every route that
+/// read `pathSegments` or `queryParameters` would have answered with 500.
+Uri _requestUrl(String target,
+    {required String authority, required int port}) {
+  String pathAndQuery;
+  if (target.startsWith('/')) {
+    pathAndQuery = target;
+  } else {
+    final String lower = target.toLowerCase();
+    final int schemeEnd = lower.startsWith('http://')
+        ? 7
+        : lower.startsWith('https://')
+            ? 8
+            : -1;
+    if (schemeEnd < 0) {
+      throw const _MalformedRequest(
+          'the request target is neither a path nor an absolute http URL');
+    }
+    int rest = target.length;
+    for (int i = schemeEnd; i < target.length; i++) {
+      final String c = target[i];
+      if (c == '/' || c == '?' || c == '#') {
+        rest = i;
+        break;
+      }
+    }
+    final String tail = target.substring(rest);
+    pathAndQuery = tail.startsWith('/') ? tail : '/$tail';
+  }
+  final int fragment = pathAndQuery.indexOf('#');
+  if (fragment >= 0) pathAndQuery = pathAndQuery.substring(0, fragment);
+  for (int i = 0; i < pathAndQuery.length; i++) {
+    if (pathAndQuery.codeUnitAt(i) != 0x25) continue;
+    if (i + 2 >= pathAndQuery.length ||
+        !_isHex(pathAndQuery.codeUnitAt(i + 1)) ||
+        !_isHex(pathAndQuery.codeUnitAt(i + 2))) {
+      throw const _MalformedRequest(
+          'the request target has a percent sign that is not an escape');
+    }
+  }
+  final Uri? url = Uri.tryParse('http://$authority:$port$pathAndQuery');
+  if (url == null) {
+    throw const _MalformedRequest('the request target is not a URL path');
+  }
+  try {
+    // Decoded now, once -- Uri keeps the result -- so a target that cannot
+    // be decoded is the client's 400 here rather than a route's 500 later.
+    url.pathSegments;
+    url.queryParametersAll;
+  } on FormatException {
+    throw const _MalformedRequest(
+        'the request target does not percent-decode as UTF-8');
+  } on ArgumentError {
+    throw const _MalformedRequest(
+        'the request target does not percent-decode as UTF-8');
+  }
+  return url;
+}
+
+bool _isHex(int unit) =>
+    (unit >= 0x30 && unit <= 0x39) ||
+    (unit >= 0x41 && unit <= 0x46) ||
+    (unit >= 0x61 && unit <= 0x66);
+
+/// A request serve() answered with an error itself, logged by [what] alone:
+/// never the method, target, headers or body, and never an error's message,
+/// which is free to quote them.
+void _logRefused(int status, String what, [StackTrace? stack]) {
+  try {
+    DVObservability.log(
+      'dartvel: a request $what; answered $status',
+      level: status >= 500 ? DVLogLevel.error : DVLogLevel.warn,
+      context: <String, Object?>{'status': status},
+      stackTrace: stack,
+    );
+  } catch (_) {
+    // A logger that throws must not cost the request its answer.
+  }
+}
+
+/// Answers [reqId] with [status] and fixed text. Never throws.
+void _answerError(gen.DartvelShelfBindings api, int reqId, int status) {
+  try {
+    final List<int> text = utf8.encode(
+        status == 400 ? 'Bad Request\n' : 'Internal Server Error\n');
+    final Uint8List hdrs = encodeHeaders(<String, List<String>>{
+      'content-type': <String>['text/plain; charset=utf-8'],
+    });
+    final hdrsNative = pkgffi.malloc<ffi.Uint8>(hdrs.length)
+      ..asTypedList(hdrs.length).setAll(0, hdrs);
+    final bodyNative = pkgffi.malloc<ffi.Uint8>(text.length)
+      ..asTypedList(text.length).setAll(0, text);
+    final out = pkgffi.calloc<gen.FfiResp>();
+    out.ref
+      ..status = status
+      ..is_stream = 0
+      ..hdrs = hdrsNative.cast()
+      ..hdrs_len = hdrs.length;
+    out.ref.body.ptr = bodyNative.cast();
+    out.ref.body.len = text.length;
+    api.aw_complete(reqId, out.ref);
+    pkgffi.calloc.free(out);
+    pkgffi.malloc.free(bodyNative);
+    pkgffi.malloc.free(hdrsNative);
+  } catch (_) {
+    // Out of native memory. The native side's timeout answers instead.
+  }
 }
 
 void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
