@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`@DVModel(history: DVHistory(keep: ...))`.** The annotation field the
+  Record History section designs, read by `dartvel routes`: a generated
+  model declaring it writes its change log with every change and reads it
+  back with `model.history()`.
+
 - **`DVRecordTable` can hold a tenant's rows in a shared table, and a delete
   holds to the version it read.** `scope: DVRecordScope('dv_tenant', tenant)`
   matches every read, update, delete, restore check and history lookup on

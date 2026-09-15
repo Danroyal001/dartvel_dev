@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDatabaseAdapter,
+        DVHistory,
         DVLogLevel,
         DVPrivacy,
         DVPrivacyFinding,
@@ -16,6 +17,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:path/path.dart' as p;
 
 import 'annotation_args.dart';
+import 'record_columns.dart';
 import 'tenant_column.dart';
 
 /// One model's privacy declaration, as written on its `@DVModel`.
@@ -31,6 +33,8 @@ class DVPrivacyModelDeclaration {
     required this.subject,
     required this.retention,
     required this.retain,
+    required this.history,
+    required this.historySource,
   });
 
   /// The generated model's name: `Order` for `_Order`.
@@ -51,6 +55,12 @@ class DVPrivacyModelDeclaration {
   final DVSubject? subject;
   final DVRetention? retention;
   final DVRetain? retain;
+
+  /// The model's change log, which an erasure removes with the row, or null.
+  final DVHistory? history;
+
+  /// The Dart that constructs [history], as `privacy.g.dart` writes it.
+  final String? historySource;
 
   /// How the rows reach their subject, as `dartvel privacy check` prints it.
   String? get subjectDescription {
@@ -317,6 +327,12 @@ class DVPrivacyDeclarations {
           'subject\'s');
     }
 
+    // The generated model keeps its change log beside its table, so the
+    // registration an erasure walks has to know it is there: without it the
+    // row is deleted and every value it ever held stays in the log.
+    final ({DVHistory history, String source})? history =
+        dvHistoryArg(d.args['history'], refuse);
+
     return DVPrivacyModelDeclaration._(
       name: d.name,
       source: d.source,
@@ -328,6 +344,8 @@ class DVPrivacyDeclarations {
       subject: subject,
       retention: retention,
       retain: retain,
+      history: history?.history,
+      historySource: history?.source,
     );
   }
 
@@ -354,6 +372,7 @@ class DVPrivacyDeclarations {
         key: key,
         columns: d.columns,
         sensitive: d.sensitive,
+        history: d.history,
         database: database,
       ),
       subject: d.subject,
@@ -392,6 +411,9 @@ class DVPrivacyDeclarations {
         ..writeln('          columns: const <String>[${d.columns.map(lit).join(', ')}],');
       if (d.sensitive.isNotEmpty) {
         sb.writeln('          sensitive: const ${set(d.sensitive)},');
+      }
+      if (d.historySource != null) {
+        sb.writeln('          history: ${d.historySource},');
       }
       sb
         ..writeln('          database: database,')

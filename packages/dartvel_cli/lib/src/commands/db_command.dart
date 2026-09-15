@@ -678,6 +678,17 @@ Future<DVMigrationReport> dvApplyMigrations(
   final List<String> statements = <String>[
     for (final Map<String, Object?> table in tables)
       if (table['createSql'] is String) table['createSql']! as String,
+    // A table made before generated models carried a version is not changed
+    // by CREATE TABLE IF NOT EXISTS, and the privacy walk refuses a table
+    // without the column. PostgreSQL can add it without knowing whether it
+    // is there; MySQL and SQLite have no IF NOT EXISTS for a column, so there
+    // it waits for a migration that can see the table.
+    if (settings.provider == 'postgres' || settings.provider == 'postgresql')
+      for (final Map<String, Object?> table in tables)
+        if (table['columnTypes'] is Map)
+          for (final Object? column in (table['columnTypes']! as Map).keys)
+            dvAddColumnSql(dvAddColumnFor(table, '$column'),
+                ifNotExists: true),
   ];
 
   if (settings.provider != 'sqlite') {
@@ -740,7 +751,7 @@ Future<DVMigrationReport> dvApplyMigrations(
       }
 
       for (final String column in missing) {
-        await db.execute('ALTER TABLE $name ADD COLUMN $column TEXT');
+        await db.execute(dvAddColumnSql(dvAddColumnFor(table, column)));
         added.add('$name.$column');
       }
       if (missing.contains(dvTenantColumn) && tenant != null) {
@@ -836,11 +847,38 @@ List<DVSchemaChange> dvPendingSchemaChanges(
       continue;
     }
     for (final String column in want) {
-      if (!have.contains(column)) changes.add(DVAddColumn(name, column));
+      if (!have.contains(column)) changes.add(dvAddColumnFor(table, column));
     }
   }
   return changes;
 }
+
+/// The column [column] of a generated [table], as the change that adds it.
+///
+/// Nullable TEXT unless the generator recorded a type for it under
+/// `columnTypes` -- the record version, which has to arrive as `NOT NULL
+/// DEFAULT 1` so the rows already there can be written at the version they
+/// hold.
+DVAddColumn dvAddColumnFor(Map<String, Object?> table, String column) {
+  final Object? types = table['columnTypes'];
+  final Object? spec = types is Map ? types[column] : null;
+  if (spec is! Map) return DVAddColumn('${table['table']}', column);
+  return DVAddColumn(
+    '${table['table']}',
+    column,
+    type: '${spec['type'] ?? 'TEXT'}',
+    nullable: spec['nullable'] != false,
+    defaultSql: spec['default'] == null ? null : '${spec['default']}',
+  );
+}
+
+/// The SQL that makes [change]. `IF NOT EXISTS` only where asked for: it is
+/// PostgreSQL's, and SQLite and MySQL refuse it.
+String dvAddColumnSql(DVAddColumn change, {bool ifNotExists = false}) =>
+    'ALTER TABLE ${change.table} ADD COLUMN '
+    '${ifNotExists ? 'IF NOT EXISTS ' : ''}${change.column} ${change.type}'
+    '${change.nullable ? '' : ' NOT NULL'}'
+    '${change.defaultSql == null ? '' : ' DEFAULT ${change.defaultSql}'}';
 
 /// Classifies the pending migration.
 ///
