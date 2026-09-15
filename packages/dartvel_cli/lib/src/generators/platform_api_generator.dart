@@ -2,7 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVPlatformApiConfig, DVPlatformApiConfigError, DVUndefinedScopeAction;
+    show
+        DVApiScopes,
+        DVOAuthEndpoints,
+        DVPlatformApiConfig,
+        DVPlatformApiConfigError,
+        DVUndefinedScopeAction;
 import 'package:path/path.dart' as p;
 
 import 'backend_generator.dart' show dvMergedLibSources;
@@ -55,6 +60,9 @@ class PlatformApiGenerator {
           for (final DVPolicyClass policy in dvPolicyClassesIn(source, path))
             for (final DVPolicyMethod method in policy.methods)
               '${method.action}:${policy.resource}',
+      // The framework's own actions, which the framework's endpoints check:
+      // a key allowed to introspect tokens holds a scope covering this.
+      DVApiScopes.policyKeyOf(DVOAuthEndpoints.introspectAction),
     };
     try {
       config.scopes.validateAgainst(defined);

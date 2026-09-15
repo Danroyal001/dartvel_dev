@@ -254,6 +254,26 @@ void main() {
     });
   });
 
+  test('the framework\'s introspection action needs no policy', () async {
+    // DVOAuthToken.introspect is checked by the generated introspection
+    // endpoint, not by an application policy, so a scope naming it builds.
+    // An action on the same made-up resource the framework does not define
+    // still stops the build.
+    final Directory dir = _project('''
+  platformApi:
+    scopes:
+      tokens:introspect: [DVOAuthToken.introspect]
+    oauth: true
+''');
+    made.add(dir);
+    await routes.generate(root_: dir.path);
+    await refuses('''
+  platformApi:
+    scopes:
+      tokens:issue: [DVOAuthToken.issue]
+''', <String>['DV-APIKEY-001', 'DVOAuthToken.issue']);
+  });
+
   test('a project that declares no platform API has no registry', () async {
     final Directory dir = _project('  backendPort: 8089');
     made.add(dir);

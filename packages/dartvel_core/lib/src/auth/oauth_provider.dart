@@ -447,6 +447,15 @@ class DVOAuthProvider {
     return DVRegisteredOAuthClient(_clientFrom(record), secret);
   }
 
+  /// The client [clientId] with [secret], or a [DVOAuthError]
+  /// `invalid_client`. A public client authenticates with no secret.
+  ///
+  /// For an endpoint that needs to know who is calling before it does
+  /// anything else, such as introspection. An unknown id costs what a wrong
+  /// secret does.
+  Future<DVOAuthClient> authenticateClient(String clientId, String? secret) =>
+      _authenticateClient(clientId, secret);
+
   Future<DVOAuthClient?> findClient(String id) async {
     final DVRecord? record = await _clients.read(id);
     return record == null ? null : _clientFrom(record);
