@@ -6,6 +6,7 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'record_columns.dart';
 import 'tenant_column.dart';
 import '../utils/helpers.dart';
 
@@ -186,8 +187,6 @@ class ModelGenerator {
         final String tableExpr = ownModuleId == null
             ? "'$tableName'"
             : "_dvModule.table('$tableName')";
-        final String dbRef =
-            ownModuleId == null ? 'const DVDatabase()' : '_dvModule.database';
         classesGenerated.add(className);
 
         // Whether this model's rows belong to a tenant.
@@ -211,6 +210,21 @@ class ModelGenerator {
         // this is opt-in at all.
         final bool tenantScoped =
             RegExp(r'\btenantScoped\s*:\s*true\b').hasMatch(modelArgs);
+
+        // @DVModel(history: DVHistory(...)): the change log the record table
+        // writes with every change. Refused when it cannot be read, because a
+        // history the generator skipped is a log that is silently never kept.
+        String? historyArg;
+        for (final String part in dvSplitArgs(modelArgs)) {
+          final RegExpMatch? named =
+              RegExp(r'^\s*history\s*:(?!:)([\s\S]*)$').firstMatch(part);
+          if (named != null) historyArg = named.group(1)!.trim();
+        }
+        final history = dvHistoryArg(
+          historyArg,
+          (String message) =>
+              throw StateError('Dartvel: $sourceClassName: $message.'),
+        );
 
         // billable and nativePrice, which the specification writes as
         //
@@ -914,9 +928,6 @@ class ModelGenerator {
         // Read when the statement runs, not captured once: the tenant is per
         // request and DVTenants keeps it in a zone that follows async work.
         const String tenantValue = 'const DVTenants().currentTenant';
-        final String tenantWhere = tenantScoped ? '$tenantColumn = ? AND ' : '';
-        final String tenantOnly = tenantScoped ? ' WHERE $tenantColumn = ?' : '';
-        final String tenantBind = tenantScoped ? '$tenantValue, ' : '';
 
         final keyField = fields.isEmpty
             ? null
@@ -944,14 +955,10 @@ class ModelGenerator {
           );
         }
         if (keyField != null) {
-          final columnList = <String>[
+          final String storedColumns = <String>[
             if (tenantScoped) tenantColumn,
             ...fields.map((Map<String, String> f) => f['name']!),
-          ].join(', ');
-          final placeholderList = <String>[
-            if (tenantScoped) '?',
-            ...fields.map((Map<String, String> f) => '?'),
-          ].join(', ');
+          ].map((String c) => "'$c'").join(', ');
           String toParam(Map<String, String> f) {
             final base = f['type']!.replaceAll('?', '');
             final name = f['name']!;
@@ -1027,51 +1034,110 @@ class ModelGenerator {
           sb.writeln('    );');
           sb.writeln('  }');
           sb.writeln();
+          // Persistence goes through DVRecordTable, the one write path the
+          // rest of the runtime reads. Generated save() was a delete then an
+          // insert with no version, so the table had no _dv_version column:
+          // the privacy walk refused to erase it, a sweep could not write at
+          // the version it read, history and capture never saw a change, and
+          // two people saving one record both succeeded while one of them
+          // lost everything they typed.
+          sb.writeln('  /// Where [$className] rows are read and written.');
+          sb.writeln('  ///');
+          sb.writeln('  /// Every write is conditional on the version it read, so');
+          sb.writeln('  /// the erasure, the retention sweep, change capture and');
+          sb.writeln('  /// history agree with this model about when a row moved.');
+          sb.writeln('  static DVRecordTable _dvRecords() => DVRecordTable(');
+          sb.writeln(
+            "        table: ${ownModuleId == null ? "dvTenantTable('$tableName')" : "_dvModule.table('$tableName')"},",
+          );
+          sb.writeln("        key: '$keyField',");
+          sb.writeln('        columns: const <String>[$storedColumns],');
+          if (sensitiveFieldNames.isNotEmpty) {
+            sb.writeln(
+              "        sensitive: const <String>{${sensitiveFieldNames.map((String n) => "'$n'").join(', ')}},",
+            );
+          }
+          if (history != null) {
+            sb.writeln('        history: const ${history.source},');
+          }
+          if (tenantScoped) {
+            // Read when the statement runs, not captured once.
+            sb.writeln(
+              "        scope: DVRecordScope('$tenantColumn', $tenantValue),",
+            );
+          }
+          if (ownModuleId != null) {
+            sb.writeln('        database: _dvModule.database,');
+          }
+          sb.writeln('      );');
+          sb.writeln();
+          sb.writeln('  /// The record each [$className] loaded from the database');
+          sb.writeln('  /// was read at, so saving it is checked against that');
+          sb.writeln('  /// version. Beside the model rather than a field on it,');
+          sb.writeln('  /// where it would reach equality, forms and JSON.');
+          sb.writeln(
+            "  static final Expando<DVRecord> _dvRead = Expando<DVRecord>('$className record');",
+          );
+          sb.writeln();
+          sb.writeln('  static $className _dvLoaded(DVRecord record) {');
+          sb.writeln('    final model = _fromRow(record.values);');
+          sb.writeln('    _dvRead[model] = record;');
+          sb.writeln('    return model;');
+          sb.writeln('  }');
+          sb.writeln();
           sb.writeln('  /// Every stored [$className].');
           sb.writeln('  static Future<core.List<$className>> all() async {');
+          sb.writeln('    final records = await _dvRecords().all();');
           sb.writeln(
-            "    final rows = await $dbRef.query('SELECT * FROM $tableRef$tenantOnly'${tenantScoped ? ', <Object?>[$tenantValue]' : ''});",
-          );
-          sb.writeln(
-            '    return rows.map(_fromRow).toList(growable: false);',
+            '    return records.map(_dvLoaded).toList(growable: false);',
           );
           sb.writeln('  }');
           sb.writeln();
           sb.writeln('  /// The stored [$className] whose $keyField matches,');
           sb.writeln('  /// or null.');
           sb.writeln('  static Future<$className?> find(String $keyField) async {');
-          sb.writeln(
-            "    final rows = await $dbRef.query('SELECT * FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[$tenantBind$keyField]);",
-          );
-          sb.writeln('    return rows.isEmpty ? null : _fromRow(rows.first);');
+          sb.writeln('    final record = await _dvRecords().read($keyField);');
+          sb.writeln('    return record == null ? null : _dvLoaded(record);');
           sb.writeln('  }');
           sb.writeln();
-          sb.writeln('  /// Upserts [model] and publishes the change.');
+          sb.writeln('  /// Stores [model] and publishes the change.');
+          sb.writeln('  ///');
+          sb.writeln('  /// A model loaded from the database, or copied from one, is');
+          sb.writeln('  /// saved at the version it was read and refused with');
+          sb.writeln('  /// [DVConflictError] when the row has moved since. One built');
+          sb.writeln('  /// by hand has read nothing and replaces what is there, at');
+          sb.writeln('  /// the version it finds.');
           sb.writeln('  static Future<$className> save($className model) async {');
-          sb.writeln('    final db = $dbRef;');
+          sb.writeln('    final read = _dvRead[model];');
+          sb.writeln('    final written = await _dvRecords().write(');
+          sb.writeln('      <String, Object?>{');
+          for (final Map<String, String> f in fields) {
+            sb.writeln("        '${f['name']}': ${toParam(f)},");
+          }
+          sb.writeln('      },');
+          sb.writeln('      base: read,');
           sb.writeln(
-            "    final existing = await db.query('SELECT ${fields.first['name']} FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
+            '      onConflict: read == null ? DVConflict.lastWriteWins : DVConflict.ask,',
           );
-          sb.writeln(
-            "    await db.execute('DELETE FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
-          );
-          sb.writeln(
-            "    await db.execute('INSERT INTO $tableRef ($columnList) VALUES ($placeholderList)', <Object?>[$tenantBind${fields.map(toParam).join(', ')}]);",
-          );
+          sb.writeln('    );');
+          sb.writeln('    if (read != null) _dvRead[model] = written.record;');
           sb.writeln('    await DVModelSync.publish<$className>(');
           sb.writeln('      model,');
-          sb.writeln('      kind: existing.isEmpty');
+          sb.writeln('      kind: written.inserted');
           sb.writeln('          ? DVModelChangeKind.created');
           sb.writeln('          : DVModelChangeKind.updated,');
           sb.writeln('    );');
           sb.writeln('    return model;');
           sb.writeln('  }');
           sb.writeln();
-          sb.writeln('  /// Removes [model] and publishes the deletion.');
+          sb.writeln('  /// Removes [model] and publishes the deletion. Refused');
+          sb.writeln('  /// with [DVConflictError] when a loaded model\'s row has');
+          sb.writeln('  /// moved since it was read.');
           sb.writeln('  static Future<void> destroy($className model) async {');
           sb.writeln(
-            "    await $dbRef.execute('DELETE FROM $tableRef WHERE $tenantWhere$keyField = ?', <Object?>[${tenantBind}model.$keyField]);",
+            '    await _dvRecords().delete(model.$keyField, base: _dvRead[model]);',
           );
+          sb.writeln('    _dvRead[model] = null;');
           sb.writeln(
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
           );
@@ -1282,12 +1348,19 @@ class ModelGenerator {
           return '${type.endsWith('?') ? type : '$type?'} ${f['name']}';
         }).join(', ');
         sb.writeln('  $className copyWith({$params}) {');
-        sb.writeln('    return $className(');
+        sb.writeln('    final dvCopy = $className(');
         for (final field in fields) {
           final name = field['name']!;
           sb.writeln('      $name: $name ?? this.$name,');
         }
         sb.writeln('    );');
+        if (keyField != null) {
+          // `order.copyWith(quantity: 3).save()` is the edit of a record that
+          // was read, and has to be checked against that read like one.
+          sb.writeln('    final dvRead = $className._dvRead[this];');
+          sb.writeln('    if (dvRead != null) $className._dvRead[dvCopy] = dvRead;');
+        }
+        sb.writeln('    return dvCopy;');
         sb.writeln('  }');
 
         // Instance persistence, per the spec's `await user.sync()`.
@@ -1308,6 +1381,21 @@ class ModelGenerator {
           );
           sb.writeln('    return this;');
           sb.writeln('  }');
+          if (history != null) {
+            if (fields.any((Map<String, String> f) => f['name'] == 'history')) {
+              throw StateError(
+                'Dartvel: $sourceClassName declares history: and a field named '
+                'history. The generated model.history() would be hidden by the '
+                'field, so the change log could not be read. Rename the field.',
+              );
+            }
+            sb.writeln();
+            sb.writeln('  /// Who changed this model, what and when, oldest first.');
+            sb.writeln('  /// Sensitive fields are recorded as changed, never as values.');
+            sb.writeln(
+              '  Future<List<DVHistoryEntry>> history() => $className._dvRecords().history($keyField);',
+            );
+          }
         }
 
         // Database metadata
@@ -1320,7 +1408,14 @@ class ModelGenerator {
           if (tenantScoped) tenantColumn,
           ...fields.map((f) => f['name']!),
         ];
-        final cols = columnNames.map((String c) => '$c TEXT').join(', ');
+        // The record table's bookkeeping columns follow the fields, typed:
+        // the version is NOT NULL DEFAULT 1 so that no row, created here or
+        // migrated from before, holds a version a conditional write can
+        // never match.
+        final cols = <String>[
+          ...columnNames.map((String c) => '$c TEXT'),
+          ...dvRecordColumns.map((DVRecordColumn c) => c.definition),
+        ].join(', ');
         sb.writeln(
           "  String get createTableSql => 'CREATE TABLE IF NOT EXISTS $tableRef ($cols)';",
         );
@@ -1334,7 +1429,16 @@ class ModelGenerator {
             'table': tableName,
             'model': className,
             'tenantScoped': tenantScoped,
-            'columns': columnNames,
+            'columns': <String>[
+              ...columnNames,
+              ...dvRecordColumns.map((DVRecordColumn c) => c.name),
+            ],
+            // What migrate adds a missing column as, where that is not
+            // nullable TEXT.
+            'columnTypes': <String, Object?>{
+              for (final DVRecordColumn c in dvRecordColumns)
+                c.name: c.toJson(),
+            },
             // The plain table name, not tableRef: tableRef is a Dart
             // interpolation that resolves the tenant's schema at run time,
             // and the migration is SQL somebody runs. Under
@@ -1345,6 +1449,20 @@ class ModelGenerator {
             'createSql':
                 'CREATE TABLE IF NOT EXISTS $tableName ($cols)',
           });
+          if (history != null) {
+            // The log the record table writes with every change. Made by the
+            // same migration, or the model's first save is rolled back for
+            // want of somewhere to write its entry (DV-HISTORY-005).
+            schemaTables.add(<String, Object?>{
+              'table': '${tableName}__history',
+              'model': className,
+              'tenantScoped': false,
+              'columns': <String>[
+                for (final DVRecordColumn c in dvHistoryColumns) c.name,
+              ],
+              'createSql': dvHistoryCreateSql(tableName),
+            });
+          }
         }
 
         sb.writeln('}');

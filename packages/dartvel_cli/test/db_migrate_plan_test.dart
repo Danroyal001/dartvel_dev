@@ -67,13 +67,21 @@ void _snapshot(Directory root, Map<String, Object?> json, {String? path}) {
     ..writeAsStringSync(jsonEncode(json));
 }
 
-Map<String, Object?> _ordersSnapshot(String provider, String version) =>
+/// Production's orders table. By default it already carries the record
+/// table's bookkeeping columns, so the only change a test sees is the one it
+/// makes; [versioned] false is the table as generated before them.
+Map<String, Object?> _ordersSnapshot(String provider, String version,
+        {bool versioned = true}) =>
     <String, Object?>{
       'provider': provider,
       'serverVersion': version,
       'tables': <String, Object?>{
         'orders': <String, Object?>{
-          'columns': <String>['id', 'total'],
+          'columns': <String>[
+            'id',
+            'total',
+            if (versioned) ...<String>['_dv_version', '_dv_deleted_at'],
+          ],
           'rows': 120000000,
         },
       },
@@ -293,6 +301,61 @@ void main() {
     });
   });
 
+  // A table generated before generated models carried a version has no
+  // _dv_version, and the column has to arrive with a value every conditional
+  // write can match. Adding it is a one-line change that is instant on most
+  // servers and rewrites a hundred-million-row table on some, so it goes
+  // through the classification like any other change rather than around it.
+  group('the version column on a table that predates it', () {
+    test('is added with a default, and is instant on SQLite', () async {
+      await _generate(root, _order, 'b1');
+      await dvSqliteExecute(
+          p.join(root.path, 'app.db'), 'CREATE TABLE orders (id TEXT, total TEXT)');
+
+      final DVSchemaPlan plan = await dvPlanMigration(root.path);
+
+      final DVSchemaPlanStep version = plan.steps.singleWhere(
+          (DVSchemaPlanStep s) =>
+              s.change is DVAddColumn &&
+              (s.change as DVAddColumn).column == '_dv_version');
+      expect(version.change.description,
+          'add column orders._dv_version INTEGER NOT NULL DEFAULT 1');
+      expect(version.changeClass, DVSchemaChangeClass.instant);
+      expect(version.classifiedByAdapter, isTrue);
+      expect(plan.blocking, isEmpty);
+    });
+
+    test(
+        'on a PostgreSQL that rewrites the table to fill a default, a large '
+        'table is refused without an override', () async {
+      await _generate(root, _order, 'b1');
+      final Map<String, Object?> production =
+          _ordersSnapshot('postgres', '10.23', versioned: false);
+      _snapshot(root, production);
+
+      final DVSchemaPlan plan = await dvPlanMigration(
+        root.path,
+        against: DVSchemaSnapshot.fromJson(production),
+      );
+      final DVSchemaPlanStep version = plan.steps.singleWhere(
+          (DVSchemaPlanStep s) => s.change.description.contains('_dv_version'));
+      expect(version.changeClass, DVSchemaChangeClass.blocking);
+      expect(version.rows, 120000000);
+
+      await _migrate(root, <String>['--dry-run', '--against', 'snapshot']);
+      expect(exitCode, 1);
+    });
+
+    test('where the server keeps the default in its catalogue, it passes',
+        () async {
+      await _generate(root, _order, 'b1');
+      _snapshot(root, _ordersSnapshot('postgres', '16.2', versioned: false));
+
+      await _migrate(root, <String>['--dry-run', '--against', 'snapshot']);
+      expect(exitCode, 0);
+    });
+  });
+
   group('--production', () {
     test('a provider nothing can classify needs an override', () async {
       // The CLI has no connection to a managed Postgres, so nothing can say
@@ -327,7 +390,9 @@ void main() {
           jsonDecode(lines.single) as Map<String, Object?>;
       expect(record['code'], 'DV-SCHEMA-002');
       expect(record['reason'], '3am, everyone told');
-      expect(record['changes'], <String>['create table orders (id, total)']);
+      expect(record['changes'], <String>[
+        'create table orders (id, total, _dv_version, _dv_deleted_at)',
+      ]);
       // And the migration went on to do what it does for this provider.
       expect(
         File(

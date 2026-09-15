@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../data/record_history.dart' show DVHistory;
 import '../privacy/privacy.dart' show DVRetention;
 
 /// Annotation for a route
@@ -322,6 +323,15 @@ class DVModel {
   /// `@DVModel.sensitiveField(onErase: ...)`.
   final DVErase onErase;
 
+  /// The model's change log: `DVHistory(keep: Duration(days: 365))`, or null
+  /// for none.
+  ///
+  /// Every generated model already writes at the version it read; this adds
+  /// the log of who changed what, written with each change and read back
+  /// with `model.history()`. Sensitive fields are recorded as changed and
+  /// never as values, and an erasure removes the log with the row.
+  final DVHistory? history;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -334,6 +344,7 @@ class DVModel {
     this.tenantScoped = false,
     this.subject,
     this.retain,
+    this.history,
   })  : encrypted = false,
         retainYears = null,
         retainBecause = null,
@@ -372,6 +383,7 @@ class DVModel {
     this.onErase = DVErase.delete,
   })  : searchable = false,
         subject = null,
+        history = null,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -395,6 +407,7 @@ class DVModel {
   const DVModel.searchableField()
       : searchable = true,
         subject = null,
+        history = null,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -468,6 +481,7 @@ class DVModel {
     int? maxTriangles,
   })  : isModel3dField = true,
         subject = null,
+        history = null,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -501,6 +515,7 @@ class DVModel {
       : retainYears = years,
         retainBecause = because,
         subject = null,
+        history = null,
         retain = null,
         onErase = DVErase.delete,
         searchable = false,
@@ -525,6 +540,7 @@ class DVModel {
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
       : searchable = false,
         subject = null,
+        history = null,
         retain = null,
         retainYears = null,
         retainBecause = null,

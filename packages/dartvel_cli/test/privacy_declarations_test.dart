@@ -289,4 +289,69 @@ class _Note {
     expect(generated, contains("retain: DVRetain(years: 7, because: 'tax law')"));
     expect(generated, contains("anonymizeOnErase: <String>{'nationalId'}"));
   });
+
+  // A generated model that keeps history writes a change log beside its
+  // table, holding earlier values. The erasure walks the registration, not
+  // the generated model, so a registration without the history policy would
+  // delete the row and leave every value it ever held in the log -- and
+  // report the erasure complete.
+  test('a model keeping history is registered with it, so an erasure purges '
+      'the log its writes kept', () async {
+    const String note = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(subject: #userId, retain: DVRetention.indefinite, history: DVHistory(keep: Duration(days: 365)))
+class _Note {
+  final String id;
+  final String userId;
+  @DVModel.sensitiveField()
+  final String body;
+  final String title;
+  const _Note({required this.id, required this.userId, required this.body, required this.title});
+}
+''';
+    final Directory dir = project(<String, String>{'user': _user, 'note': note});
+    final DVPrivacyDeclarations declared =
+        DVPrivacyDeclarations.discover(root: dir.path);
+    expect(declared.render(),
+        contains('history: DVHistory(keep: Duration(days: 365))'));
+
+    final MemoryDVDatabaseAdapter db = MemoryDVDatabaseAdapter();
+    // The table the generated Note writes through.
+    final DVRecordTable written = DVRecordTable(
+      table: 'notes',
+      key: 'id',
+      columns: const <String>['id', 'userId', 'body', 'title'],
+      sensitive: const <String>{'body'},
+      history: const DVHistory(keep: Duration(days: 365)),
+      database: db,
+    );
+    await written.ensureSchema();
+    final DVRecord first = (await written.write(<String, Object?>{
+      'id': 'n1', 'userId': 'u1', 'body': 'x', 'title': 'Ada at home',
+    })).record;
+    await written.write(<String, Object?>{
+      'id': 'n1', 'userId': 'u1', 'body': 'y', 'title': 'Ada at work',
+    }, base: first);
+    expect(await written.history('n1'), hasLength(2));
+
+    final List<DVPrivacyModel> models = declared.toPrivacyModels(db);
+    for (final DVPrivacyModel m in models) {
+      await m.table.ensureSchema();
+    }
+    final DVPrivacy privacy = DVPrivacy(
+      models: models,
+      database: db,
+      signingKey: List<int>.filled(32, 9),
+      now: () => DateTime.utc(2026, 2, 1),
+    );
+    await privacy.ensureSchema();
+    final DVErasureResult result =
+        await privacy.erase(subject: 'u1', reason: 'DSAR');
+
+    expect(result.complete, isTrue);
+    expect(await written.read('n1'), isNull);
+    expect(await db.query('SELECT * FROM notes__history'), isEmpty,
+        reason: "the log still holds the subject's earlier titles");
+  });
 }
