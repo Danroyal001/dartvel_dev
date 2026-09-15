@@ -1,4 +1,15 @@
 ## Unreleased
+- **`dartvel routes` reads `dartvel.platformApi`.** The scopes, rate plans,
+  `requireExpiry` and `oauth` lifetimes are parsed before anything is
+  written, and a key nothing reads, an action that is not `Resource.action`
+  or a rate plan with no window stops the build naming the key. A scope
+  naming an action no `@DVPolicy` class in the application or a merged
+  module defines stops it with `DV-APIKEY-001`; the check is by resource and
+  action together, so `Invoice.view` is not satisfied by an `OrderPolicy`.
+  The declaration is generated into `platform_api.g.dart` as
+  `dartvelPlatformApi`, exported from the client barrel and parsed at
+  startup by the same parser the build used; a project declaring none gets
+  `null`.
 - **The generated backend's unhandled errors are crash reports.** Each
   process installs `DVServerCrashes` with its role before it does anything
   that can fail. A request that answers 500 is recorded by the web process,

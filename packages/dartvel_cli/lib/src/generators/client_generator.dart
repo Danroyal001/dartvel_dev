@@ -534,6 +534,7 @@ export 'jobs.g.dart';
 export 'client_jobs.g.dart';
 export 'models.g.dart';
 export 'openapi.g.dart';
+export 'platform_api.g.dart';
 export 'policies.g.dart';
 export 'privacy.g.dart';
 export 'home_widgets.g.dart';
