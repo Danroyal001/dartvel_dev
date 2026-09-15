@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **A GraphQL field runs under the policy of what it resolves through.**
+  `DVGraphQLField(policy: 'Order.create')` is asked the way a backend
+  function's route asks it -- scopes, then the registry, then `decide` --
+  before the resolver runs, on queries, mutations, nested fields and
+  subscriptions; a refused field is null with a `FORBIDDEN` error and its
+  resolver never runs. A root field declaring no policy answers no API key or
+  OAuth token, as a route declaring no policy action already does. A
+  subscription captures the caller and the tenant when `DVGraphQL.subscribe`
+  is called, because its stream is started wherever somebody listens.
+
 - **`@DVPolicy` registrations are a layer the application's own wins over,
   and a route's `Resource.action` is answered by the registry.**
   `DV.Auth.authorization.registerDeclared` is what the generated client and
