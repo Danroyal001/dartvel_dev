@@ -649,6 +649,7 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
+export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
