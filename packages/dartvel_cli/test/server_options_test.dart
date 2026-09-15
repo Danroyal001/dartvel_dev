@@ -185,6 +185,34 @@ void main() {
       }
     });
 
+    test('the IPv6 source prefix defaults to the runtime default', () {
+      final DVServerOptions options =
+          DVServerOptions.parse(YamlMap.wrap(<String, Object?>{}));
+      expect(options.ipv6SourcePrefix, 64);
+    });
+
+    test('an IPv6 source prefix a project names is read', () {
+      expect(
+        DVServerOptions.parse(_dv(<String, Object?>{'ipv6SourcePrefix': 56}))
+            .ipv6SourcePrefix,
+        56,
+      );
+    });
+
+    test('an IPv6 source prefix the runtime would refuse stops the build', () {
+      // Refused here rather than at startup: a prefix of 0 would count every
+      // IPv6 client on the internet as one source.
+      for (final Object bad in <Object>[0, 31, 129, 64.5, '64', true]) {
+        expect(
+          () => DVServerOptions.parse(
+              _dv(<String, Object?>{'ipv6SourcePrefix': bad})),
+          throwsA(isA<FormatException>().having((FormatException e) => e.message,
+              'message', contains('dartvel.server.ipv6SourcePrefix'))),
+          reason: '$bad',
+        );
+      }
+    });
+
     test('a header no proxy writes is refused', () {
       expect(
         () => DVServerOptions.parse(_dv(<String, Object?>{
@@ -289,10 +317,40 @@ dartvel:
           'core.DVClientAddress.install(core.DVClientAddress.fromConfiguration('
           'trustedProxies: dartvelTrustedProxies, '
           'forwardedHeader: dartvelForwardedHeader, '
+          'ipv6SourcePrefix: dartvelIpv6SourcePrefix, '
           'environment: Platform.environment));');
       expect(install, isNot(-1));
       expect(install, lessThan(routes.indexOf('return dv.serve(')),
           reason: 'installed before the first request can arrive');
+    });
+
+    test('the IPv6 source prefix reaches the resolver the server installs',
+        () async {
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  server:
+    ipv6SourcePrefix: 48
+''');
+      expect(routes, contains('const int dartvelIpv6SourcePrefix = 48;'));
+      expect(routes, contains('ipv6SourcePrefix: dartvelIpv6SourcePrefix'));
+      expect(
+        await routesFor('name: server_options_app\n'),
+        contains('const int dartvelIpv6SourcePrefix = 64;'),
+      );
+    });
+
+    test('an IPv6 source prefix the runtime cannot use stops the build',
+        () async {
+      await expectLater(
+        routesFor('''
+name: server_options_app
+dartvel:
+  server:
+    ipv6SourcePrefix: 8
+'''),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('a project that names no proxy trusts none', () async {

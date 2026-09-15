@@ -1,4 +1,11 @@
 ## Unreleased
+- **`dartvel.server.ipv6SourcePrefix` sets how much of an IPv6 address is one
+  source.** It defaults to 64, and `dartvel routes` checks it with the
+  runtime's own rule: a whole number from 32 to 128, never quoted. Anything
+  else stops the build naming the key, because a prefix of 0 would count
+  every IPv6 client as one. The generated `startBackend` passes it to
+  `DVClientAddress.fromConfiguration`, so every per-source limit counts a
+  client's network rather than the address it chose.
 - **`dartvel.server.trustedProxies` names the proxies whose forwarded client
   address is believed.** A list of ranges (`127.0.0.1/32`, `10.0.0.0/8`, or a
   bare address), read by `dartvel routes` with the runtime's own parser, so a
