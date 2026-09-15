@@ -357,7 +357,15 @@ class JobGenerator {
   };
 
   /// The import through which [path] reaches Flutter, or null when it does
-  /// not.
+  /// not. The generated server cannot import a file that does, which the
+  /// policy registrations have to know as well as the job handlers.
+  static String? flutterReachedFrom(
+    String path, {
+    required String root,
+    required String pkgName,
+  }) =>
+      _flutterReachedFrom(path, root: root, pkgName: pkgName, seen: <String>{});
+
   static String? _flutterReachedFrom(
     String path, {
     required String root,

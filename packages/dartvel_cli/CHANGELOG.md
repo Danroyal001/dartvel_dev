@@ -1,4 +1,21 @@
 ## Unreleased
+- **The generated backend registers `@DVPolicy` classes before any route
+  exists.** Every policy class in the application and in the modules it
+  merges whose file does not reach Flutter is registered from
+  `backend_policies.g.dart` at the top of `buildBackendRouter`, so a route
+  declaring `@DVBackendFunction(policy: 'Order.view')` is answered by
+  `OrderPolicy.view` with no hand registration, and a module's routes by the
+  module's policies. Before, the server registered none: with no
+  `DVBackendPolicy.decide` every such route refused, and with a `decide`
+  that said yes a route whose policy nobody wrote was opened. `dartvel
+  routes` now stops on a route whose `Resource.action` no policy class the
+  server can load defines, naming the file -- including one defined only by
+  a class that imports the generated client, which the server cannot
+  compile. A framework action such as `DVApiKeyResource.viewAny` is left to
+  the application to register, and the server refuses to start when it has
+  not. A policy class only the client can load is reported on every build.
+  A resource parameter may be nullable (`Order? order`), which is how a
+  policy answers for a route that has no order to hand it.
 - **The generated router serves `/oauth/consent` when
   `dartvel.platformApi.oauth` is on.** The authorization endpoint sends a
   person there, and the route renders `DV.Auth.OAuthConsentPage` with the
