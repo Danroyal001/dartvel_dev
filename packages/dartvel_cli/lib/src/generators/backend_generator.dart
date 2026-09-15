@@ -91,6 +91,35 @@ class BackendGenerator {
   });
 ''';
 
+  /// The OAuth provider's endpoints, for an application that declares
+  /// `dartvel.platformApi.oauth`.
+  ///
+  /// Each runs on the request's tenant and none sits behind the
+  /// authentication stage, because each authenticates its caller its own way.
+  /// A method an endpoint does not serve is a 405 naming the ones it does --
+  /// a code exchange sent as GET is refused rather than falling through to a
+  /// 404 that reads as a wrong path -- and a CORS preflight is answered only
+  /// where a browser-based client needs one.
+  static String _dvOAuthRouteSource() => '''
+  // dartvel.platformApi.oauth: this application is an OAuth 2.1 provider.
+  router.get(cfg.apiBasePath + core.DVOAuthEndpoints.authorizePath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVOAuthEndpoints.authorize(req)));
+  router.post(cfg.apiBasePath + core.DVOAuthEndpoints.authorizePath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+    // The consent answer is a state-changing POST from a signed-in person.
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVOAuthEndpoints.approve(req);
+  }));
+  router.any(cfg.apiBasePath + core.DVOAuthEndpoints.authorizePath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'GET, POST'));
+  router.get(cfg.apiBasePath + core.DVOAuthEndpoints.authorizationRequestPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVOAuthEndpoints.authorizationRequest(req)));
+  router.post(cfg.apiBasePath + core.DVOAuthEndpoints.tokenPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVOAuthEndpoints.token(req)));
+  router.any(cfg.apiBasePath + core.DVOAuthEndpoints.tokenPath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'POST', crossOrigin: true));
+  router.post(cfg.apiBasePath + core.DVOAuthEndpoints.introspectionPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVOAuthEndpoints.introspect(req)));
+  router.any(cfg.apiBasePath + core.DVOAuthEndpoints.introspectionPath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'POST'));
+  router.post(cfg.apiBasePath + core.DVOAuthEndpoints.revocationPath, (dv.Request req) => core.dvWithRequestTenant(req, () => core.DVOAuthEndpoints.revoke(req)));
+  router.any(cfg.apiBasePath + core.DVOAuthEndpoints.revocationPath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'POST', crossOrigin: true));
+  router.get(core.DVOAuthEndpoints.metadataPath, (dv.Request req) => core.DVOAuthEndpoints.metadata(req, apiBasePath: cfg.apiBasePath));
+  router.any(core.DVOAuthEndpoints.metadataPath, (dv.Request req) async => core.DVOAuthEndpoints.otherMethod(req, allow: 'GET', crossOrigin: true));
+''';
+
   static Future<void> generate({
     required String root,
     required String backendDir,
@@ -901,7 +930,7 @@ $handlerClose''';
       }),
     );
   });
-${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
+${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),
           body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson))));

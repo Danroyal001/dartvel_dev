@@ -5,6 +5,26 @@
   model declaring it writes its change log with every change and reads it
   back with `model.history()`.
 
+- **`DVOAuthEndpoints` serves the OAuth provider over HTTP.** Authorization
+  sends a valid request to `/oauth/consent` with its parameters, shows an
+  unknown client or unregistered redirect URI without redirecting, and sends
+  any other error back to the client with its state; the consent answer
+  needs `DVOAuthEndpoints.resolveUser` to name a signed-in person and
+  answers the redirect as JSON. The token endpoint serves
+  `authorization_code` with PKCE, `refresh_token` and `client_credentials`.
+  Token, introspection and revocation take only a form POST, refused before
+  anything in a GET or a JSON body is looked at, so a refused exchange spends
+  no code; a repeated parameter or a client authenticating two ways is
+  `invalid_request`. Introspection answers only a confidential client or a
+  key or token whose scopes cover `DVOAuthToken.introspect`, and only for
+  tokens on the request's tenant. Every token response and error is
+  `no-store` with `Pragma: no-cache`; the token and revocation endpoints and
+  the RFC 8414 metadata document allow any origin, the authorization
+  endpoint none. `dartvel.platformApi.oauth.issuer` fixes the metadata's
+  issuer, which is otherwise the request's origin and then not cacheable.
+  `DVOAuthProvider.authenticateClient` is public. Errors are fixed text and
+  only an error's type is logged.
+
 - **`DVRecordTable` can hold a tenant's rows in a shared table, and a delete
   holds to the version it read.** `scope: DVRecordScope('dv_tenant', tenant)`
   matches every read, update, delete, restore check and history lookup on
