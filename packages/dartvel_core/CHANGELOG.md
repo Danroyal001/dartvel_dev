@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **`DVRecordTable` can hold a tenant's rows in a shared table, and a delete
+  holds to the version it read.** `scope: DVRecordScope('dv_tenant', tenant)`
+  matches every read, update, delete, restore check and history lookup on
+  the column, fills it on a write, and refuses a write naming another value,
+  so two tenants can each keep an `o1` without either reading, updating or
+  deleting the other's; history and captured changes are recorded under the
+  scope's tenant. A schema-qualified table name (`acme.orders`, which
+  `schemaPerTenant` resolves to) is accepted, and nothing else that is not
+  an identifier. `delete(id, base:)` is refused with `DVConflictError` when
+  the row has moved since `base` was read, and a hard delete that matches no
+  row because another writer moved it in between now throws instead of
+  returning, having logged and captured a deletion that did not happen.
+  `DVWriteResult.inserted` says whether a write created the record, which
+  `version == 1` cannot, since an update that changed nothing stays at one.
+
 - **`DVPlatformApi` is the authentication stage of a generated backend.**
   `authenticateRequest` resolves a `dvk_` key or `dvat_` access token in an
   `Authorization: Bearer` header on the current tenant, applies the key's
