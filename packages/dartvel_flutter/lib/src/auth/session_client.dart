@@ -305,6 +305,50 @@ class DVSessionClient {
     return session;
   }
 
+  // --- this person's sessions ------------------------------------------------
+
+  /// Every live session of the signed-in person on this tenant, newest
+  /// sign-in first, with this device's marked current. The server answers
+  /// for the person this session belongs to and nobody else.
+  Future<List<DVSession>> sessions() async {
+    const String path = DVAuthEndpoints.sessionsPath;
+    final Map<String, Object?> json =
+        _decode(await _request('GET', path, bearer: _token), path);
+    final Object? listed = json['sessions'];
+    if (listed is! List) throw const DVSessionRequestFailed(200, path);
+    return <DVSession>[
+      for (final Object? s in listed)
+        if (s is Map) DVSession.fromJson(Map<String, Object?>.from(s)),
+    ];
+  }
+
+  /// Revokes one of the signed-in person's sessions by its listed id. The
+  /// server refuses another person's as not found, which throws here.
+  /// Revoking this device's own session signs this device out.
+  Future<void> revoke(String sessionId) async {
+    const String path = DVAuthEndpoints.revokePath;
+    final DVHttpResponse response = await _request('POST', path,
+        body: <String, Object?>{'id': sessionId}, bearer: _token);
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw DVSessionRequestFailed(response.statusCode, path);
+    }
+    if (current?.id == sessionId) {
+      _pendingUser = null;
+      await _forget();
+    }
+  }
+
+  /// Revokes every other session of the signed-in person on this tenant and
+  /// answers how many. This device's session is the one the server keeps.
+  Future<int> revokeOthers() async {
+    const String path = DVAuthEndpoints.revokeOthersPath;
+    final Map<String, Object?> json =
+        _decode(await _request('POST', path, bearer: _token), path);
+    final Object? revoked = json['revoked'];
+    if (revoked is! int) throw const DVSessionRequestFailed(200, path);
+    return revoked;
+  }
+
   // --- the wire --------------------------------------------------------------
 
   Future<DVAuthUser> _credentials(String path, Map<String, Object?> body) async {
@@ -361,6 +405,8 @@ class DVSessionClient {
       // Nothing stored, or nowhere to store it.
     }
     if (held) onToken?.call(null);
+    // A signal set to what it holds emits nothing, so a listener sees only
+    // the transitions.
     _session.set(null);
   }
 
@@ -424,6 +470,47 @@ class DVSessionClient {
       _ => DVSessionRequestFailed(response.statusCode, path),
     };
   }
+}
+
+/// `DV.Session`: this device's session, as a read-only signal.
+///
+/// There is no setter anywhere on it. The session is what the server issued
+/// and last confirmed, so only the installed [DVSessionClient] changes it --
+/// on sign-in, a completed second factor, a launch's check, sign-out and a
+/// revocation of this device. Empty until the generated runtime installs a
+/// client.
+class DVSessionSignal implements DVLifecycleSignal<DVSession?> {
+  const DVSessionSignal();
+
+  static final DVMutableLifecycleSignal<DVSession?> _none =
+      DVMutableLifecycleSignal<DVSession?>(null);
+
+  DVLifecycleSignal<DVSession?> get _source =>
+      DVSessionClient.installed?.session ?? _none;
+
+  /// This device's session, or null when nobody is signed in here.
+  DVSession? get current => _source.value;
+
+  /// The session's opaque id: rotated with its token, never a user id.
+  String? get id => current?.id;
+
+  /// The session's server-issued claims.
+  Map<String, Object?> get claims => current?.claims ?? const <String, Object?>{};
+
+  @override
+  DVSession? get value => _source.value;
+
+  @override
+  DVSession? read() => _source.read();
+
+  @override
+  Stream<DVSession?> get changes => _source.changes;
+
+  @override
+  StreamSubscription<DVSession?> listen(
+    FutureOr<void> Function(DVSession? state) onState,
+  ) =>
+      _source.listen(onState);
 }
 
 /// `DV.Auth`'s provider over [DVSessionClient]: e-mail and password against
