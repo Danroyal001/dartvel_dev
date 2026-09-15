@@ -13,7 +13,8 @@
 /// already there, and the generator emits the answer into the call.
 library;
 
-import 'package:dartvel_core/dartvel.dart' show DVCidr, DVForwardedHeader;
+import 'package:dartvel_core/dartvel.dart'
+    show DVCidr, DVClientAddress, DVForwardedHeader;
 
 /// A CORS policy, as configured.
 class DVCorsSettings {
@@ -47,6 +48,7 @@ class DVServerOptions {
     this.compression = true,
     this.trustedProxies = const <String>[],
     this.forwardedHeader,
+    this.ipv6SourcePrefix = DVClientAddress.defaultIpv6SourcePrefix,
   });
 
   /// The configured policy, or null when the project said nothing.
@@ -72,6 +74,11 @@ class DVServerOptions {
   /// Which header those proxies write, `x-forwarded-for` or `forwarded`; null
   /// is the runtime's default, `x-forwarded-for`.
   final String? forwardedHeader;
+
+  /// How many leading bits of an IPv6 client address count as one source:
+  /// `dartvel.server.ipv6SourcePrefix`, 64 unless the project says otherwise.
+  /// Checked with the runtime's own rule, from 32 to 128.
+  final int ipv6SourcePrefix;
 
   /// The `dartvelTrustedProxies` literal for the generated backend.
   String get trustedProxiesSource => _stringList(trustedProxies);
@@ -130,7 +137,26 @@ class DVServerOptions {
       compression: compression is bool ? compression : true,
       trustedProxies: _trustedProxies(_value(server, 'trustedProxies')),
       forwardedHeader: _forwardedHeader(_value(server, 'forwardedHeader')),
+      ipv6SourcePrefix: _ipv6SourcePrefix(_value(server, 'ipv6SourcePrefix')),
     );
+  }
+
+  static int _ipv6SourcePrefix(Object? node) {
+    if (node == null) return DVClientAddress.defaultIpv6SourcePrefix;
+    // A quoted "64" is refused too: YAML makes it text, and reading text as a
+    // number here would accept what the runtime's constant cannot be.
+    if (node is! int) {
+      throw FormatException(
+        'dartvel.server.ipv6SourcePrefix must be a whole number of bits from '
+        '${DVClientAddress.minIpv6SourcePrefix} to 128, such as 64, not '
+        '"$node".',
+      );
+    }
+    try {
+      return DVClientAddress.checkIpv6SourcePrefix(node);
+    } on FormatException catch (error) {
+      throw FormatException('dartvel.server.${error.message}');
+    }
   }
 
   static List<String> _trustedProxies(Object? node) {
