@@ -217,8 +217,30 @@ fn build_cors(cfg: &CorsOptions) -> CorsLayer {
     cors
 }
 
-// Dart request callback: void(req_id, method, target, hdrs_flat, hdrs_len, body)
-pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, FfiBuf);
+// Dart request callback:
+// void(req_id, method, target, hdrs_flat, hdrs_len, body, peer)
+//
+// `peer` is the connection's remote socket address as text -- `a.b.c.d:port`
+// or `[v6]:port` -- taken from the accepted socket, or empty when there is
+// none. It is the only thing in a request a client cannot choose, which is
+// why it is passed at all: without it every per-source limit in Dart keyed on
+// a header.
+pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, FfiBuf, FfiStr);
+
+/// The shape of the calls between this library and Dart.
+///
+/// Raised whenever a callback's signature changes. A Dart side built for one
+/// shape calling a library built for another does not fail cleanly: a
+/// callback invoked with fewer arguments than Dart expects reads whatever is
+/// in the missing argument's register, and a stale committed library would do
+/// exactly that. Dart checks this before registering anything.
+pub const AW_ABI_VERSION: u32 = 2;
+
+#[no_mangle]
+pub extern "C" fn aw_abi_version() -> u32 {
+    AW_ABI_VERSION
+}
+
 // Dart stream cancel callback: void(req_id)
 pub type DartStreamCancelHandler = extern "C" fn(u64);
 
@@ -608,10 +630,19 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     // bind that failed panicked inside a detached thread while the caller held
     // a handle that looked healthy. The first symptom was a connection refused
     // somewhere unrelated, which is the worst place for it to appear.
-    let addr = format!("{}:{}", host_string, port);
-    let parsed_addr: std::net::SocketAddr = match addr.parse() {
-        Ok(parsed) => parsed,
-        Err(_) => return AW_START_BAD_ADDRESS,
+    // Parsed as an IP first: `format!("{host}:{port}")` is not a socket
+    // address for IPv6, where "::1:8080" is ambiguous and "[::1]:8080" is what
+    // the parser wants, so every IPv6 host was refused as unparseable.
+    let parsed_addr: std::net::SocketAddr = match host_string
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<std::net::IpAddr>()
+    {
+        Ok(ip) => std::net::SocketAddr::new(ip, port),
+        Err(_) => match format!("{}:{}", host_string, port).parse() {
+            Ok(parsed) => parsed,
+            Err(_) => return AW_START_BAD_ADDRESS,
+        },
     };
     let listener = match std::net::TcpListener::bind(parsed_addr) {
         Ok(listener) => listener,
@@ -680,16 +711,18 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             // port. A serve error now means the loop ended, which is what
             // shutdown looks like too — it is not grounds for a panic in a
             // thread nobody is watching.
+            // With connect info, so each request carries the socket address it
+            // was accepted from and dart_proxy can hand it to Dart.
             let result = if let Some(tls_config) = TLS_CONFIG.get() {
                 let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config.clone());
                 axum_server::from_tcp_rustls(listener, rustls_config)
                     .handle(handle_clone)
-                    .serve(app.into_make_service())
+                    .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
                     .await
             } else {
                 axum_server::from_tcp(listener)
                     .handle(handle_clone)
-                    .serve(app.into_make_service())
+                    .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
                     .await
             };
             if let Err(error) = result {
@@ -841,6 +874,33 @@ pub extern "C" fn aw_stream_complete(req_id: u64) -> i32 {
 }
 
 // ===== Helpers =====
+/// The accepted socket's remote address, or an empty string when the request
+/// did not come through a listener that records one.
+///
+/// An IPv4 client of a dual-stack socket is reported as its IPv4 address
+/// rather than `::ffff:a.b.c.d`, which compares unequal to the same host in
+/// every list and limit. The scope id is dropped: it names an interface on
+/// this host, not a different peer.
+fn peer_text(req: &Request<Body>) -> String {
+    match req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
+        Some(axum::extract::ConnectInfo(addr)) => canonical_peer(*addr).to_string(),
+        None => String::new(),
+    }
+}
+
+fn canonical_peer(addr: std::net::SocketAddr) -> std::net::SocketAddr {
+    match addr {
+        std::net::SocketAddr::V6(v6) => match v6.ip().to_ipv4_mapped() {
+            Some(v4) => std::net::SocketAddr::new(std::net::IpAddr::V4(v4), v6.port()),
+            None => std::net::SocketAddr::new(std::net::IpAddr::V6(*v6.ip()), v6.port()),
+        },
+        v4 => v4,
+    }
+}
+
 fn headers_flat(req: &Request<Body>) -> Vec<u8> {
     let mut out = Vec::new();
     for (k, v) in req.headers().iter() {
@@ -873,6 +933,7 @@ async fn dart_proxy_with_fallback(
     let method = req.method().as_str().as_bytes().to_vec();
     let target = req.uri().to_string().into_bytes();
     let flattened_headers = headers_flat(&req);
+    let peer = peer_text(&req).into_bytes();
     
     let mut body_buf = BytesMut::new();
     let mut body_stream = req.into_body().into_data_stream();
@@ -898,6 +959,10 @@ async fn dart_proxy_with_fallback(
     let body_ffi = FfiBuf {
         ptr: bytes.as_ptr(),
         len: bytes.len(),
+    };
+    let peer_ffi = FfiStr {
+        ptr: peer.as_ptr(),
+        len: peer.len(),
     };
 
     let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
@@ -927,6 +992,7 @@ async fn dart_proxy_with_fallback(
             flattened_headers.as_ptr(),
             flattened_headers.len(),
             body_ffi,
+            peer_ffi,
         );
     } else {
         return Response::builder()
@@ -1141,5 +1207,30 @@ fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
             eprintln!("WARN: Mutex poisoned, recovering");
             p.into_inner()
         }
+    }
+}
+
+#[cfg(test)]
+mod peer_tests {
+    use super::canonical_peer;
+    use std::net::SocketAddr;
+
+    #[test]
+    fn an_ipv4_client_of_a_dual_stack_socket_is_its_ipv4_address() {
+        let mapped: SocketAddr = "[::ffff:203.0.113.7]:5100".parse().unwrap();
+        assert_eq!(canonical_peer(mapped).to_string(), "203.0.113.7:5100");
+    }
+
+    #[test]
+    fn ipv6_keeps_its_address_and_loses_its_scope() {
+        let scoped = SocketAddr::V6(std::net::SocketAddrV6::new(
+            "fe80::1".parse().unwrap(),
+            443,
+            0,
+            3,
+        ));
+        assert_eq!(canonical_peer(scoped).to_string(), "[fe80::1]:443");
+        let v4: SocketAddr = "198.51.100.4:80".parse().unwrap();
+        assert_eq!(canonical_peer(v4), v4);
     }
 }

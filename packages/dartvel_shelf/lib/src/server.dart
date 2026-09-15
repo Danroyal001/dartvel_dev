@@ -23,6 +23,10 @@ import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
 typedef _NativeCb = gen.DartReqHandlerFunction;
+
+/// The callback shape this file is written for; see `AW_ABI_VERSION` in
+/// rust/src/lib.rs. 2 added the peer address.
+const int _nativeAbiVersion = 2;
 typedef _NativeCancelCb = gen.DartStreamCancelHandlerFunction;
 
 class ServerHandle {
@@ -149,6 +153,21 @@ Future<ServerHandle> serve(
 
   final api = gen.DartvelShelfBindings(dylib);
 
+  // Before anything is registered. A library built for an older callback
+  // shape calls the request handler with fewer arguments than it declares,
+  // and the missing one is read from whatever the register holds: not an
+  // error, a garbage pointer. Refused here, by name, instead.
+  final int abi =
+      dylib.providesSymbol('aw_abi_version') ? api.aw_abi_version() : 1;
+  if (abi != _nativeAbiVersion) {
+    throw StateError(
+      'dartvel: the native server library at ${uri.toFilePath()} speaks ABI '
+      '$abi and this package speaks $_nativeAbiVersion. Rebuild it: '
+      'cargo build --release --target <triple> in dartvel_shelf/rust, then '
+      'copy the result over that file.',
+    );
+  }
+
   // Wrap handler with SSR middleware if spaRoot is provided
   var effectiveHandler = handler;
   if (spaRoot != null) {
@@ -196,16 +215,33 @@ Future<ServerHandle> serve(
   final effective = preview == null ? routed : preview.wrap(routed);
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
+  final authority = host.contains(':') && !host.startsWith('[') ? '[$host]' : host;
 
-  void handleRequest(int reqId, gen.FfiStr method, gen.FfiStr target,
-      ffi.Pointer<ffi.Uint8> hdrsPtr, int hdrsLen, gen.FfiBuf body) {
+  void handleRequest(
+      int reqId,
+      gen.FfiStr method,
+      gen.FfiStr target,
+      ffi.Pointer<ffi.Uint8> hdrsPtr,
+      int hdrsLen,
+      gen.FfiBuf body,
+      gen.FfiStr peer) {
+    // The accepted socket's address, from the native side and never from a
+    // header. Empty, or anything that does not parse, is no peer at all
+    // rather than a guess.
+    final DVPeerAddress? peerAddress = peer.len == 0
+        ? null
+        : DVPeerAddress.tryParse(
+            String.fromCharCodes(peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len)));
     final methodStr = String.fromCharCodes(
         method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
     final targetStr = String.fromCharCodes(
         target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
     final headers =
         decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
-    final url = Uri.parse('http://$host:$port$targetStr');
+    // Bracketed for IPv6: `http://::1:0/` is not a URL, and the parse threw
+    // here, in the native callback and outside every handler's try, so the
+    // request was never answered.
+    final url = Uri.parse('http://$authority:$port$targetStr');
     final bodyBytes =
         Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len));
 
@@ -215,6 +251,7 @@ Future<ServerHandle> serve(
         url: url,
         headers: Headers(headers),
         bodyStream: Stream<List<int>>.value(bodyBytes),
+        peerAddress: peerAddress,
       );
 
       try {

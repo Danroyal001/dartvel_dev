@@ -1,5 +1,22 @@
 ## Unreleased
 
+- **A request knows the address its connection came from.** The native
+  server passes each accepted socket's remote address across the FFI boundary,
+  and `serve()` sets it as `Request.peerAddress`: a `DVPeerAddress` with the
+  IPv4 or IPv6 address and the port. It comes from the socket and never from a
+  header, and an IPv4 client of a dual-stack socket is its IPv4 address rather
+  than `::ffff:a.b.c.d`. Until now nothing in Dart could say who was on the
+  other end of a connection, so every per-source limit keyed on a header the
+  client wrote. The request callback gained an argument, so the library
+  exports `aw_abi_version` and `serve()` refuses a library built for the old
+  shape by name, instead of reading the missing argument out of a register.
+  The committed `linux-x64` library is rebuilt.
+
+- **An IPv6 host can be served.** `aw_start` formatted `host:port` and parsed
+  that, which for `::1` is `::1:0` and was refused as unparseable; and the
+  request URL was built the same way, so a request that did reach an IPv6
+  server threw in the native callback and was never answered.
+
 - **`serve()` installs the preview's access gate around everything it
   answers.** In a process deployed with `DARTVEL_ENVIRONMENT=preview`, serve
   uses the preview already started or starts it, and a preview that cannot
