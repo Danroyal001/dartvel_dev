@@ -111,7 +111,41 @@ void main() {
       expect(config.ingestMaxBytes, 262144);
     });
 
+    test('perSourcePerHour round-trips', () {
+      final DVCrashConfig config = DVCrashConfig.parse(<String, Object?>{
+        'sink': 'dartvel',
+        'ingest': <String, Object?>{
+          'perInstallPerHour': 10,
+          'perSourcePerHour': 40,
+        },
+      });
+      expect(config.ingestPerSourcePerHour, 40);
+      expect(DVCrashConfig.parse(config.toDeclaration()).ingestPerSourcePerHour,
+          40);
+    });
+
+    test('perSourcePerHour defaults to ten installs at their full budget', () {
+      expect(
+          DVCrashConfig.parse(<String, Object?>{'sink': 'dartvel'})
+              .ingestPerSourcePerHour,
+          300);
+      final DVCrashConfig raised = DVCrashConfig.parse(<String, Object?>{
+        'sink': 'dartvel',
+        'ingest': <String, Object?>{'perInstallPerHour': 50},
+      });
+      expect(raised.ingestPerSourcePerHour, 500);
+      expect(DVCrashConfig.parse(raised.toDeclaration()).ingestPerSourcePerHour,
+          500);
+    });
+
     for (final (String key, Object? ingest) in <(String, Object?)>[
+      ('ingest.perSourcePerHour', <String, Object?>{'perSourcePerHour': 0}),
+      ('ingest.perSourcePerHour', <String, Object?>{'perSourcePerHour': 'many'}),
+      // One install behind an address could never spend its own budget.
+      (
+        'ingest.perSourcePerHour',
+        <String, Object?>{'perInstallPerHour': 30, 'perSourcePerHour': 10}
+      ),
       ('ingest', 'strict'),
       ('ingest.perInstallPerHour', <String, Object?>{'perInstallPerHour': 0}),
       ('ingest.maxBytes', <String, Object?>{'maxBytes': 100}),
