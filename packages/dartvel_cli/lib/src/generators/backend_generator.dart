@@ -3070,6 +3070,23 @@ List<(_DVMergedProject, File)> _mergedLibFiles(
         for (final file in _libFilesOf(project.root)) (project, file),
     ];
 
+/// Every mergeable project's lib files as (project-relative path, source).
+///
+/// The same set the policy registrations are generated from, so a check
+/// against the application's policies sees exactly the policies it registers.
+List<(String, String)> dvMergedLibSources(
+  String root,
+  String pkgName,
+  String backendDir,
+) =>
+    <(String, String)>[
+      for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir))
+        (
+          p.relative(file.path, from: project.root).replaceAll('\\', '/'),
+          file.readAsStringSync(),
+        ),
+    ];
+
 /// Every Dart file under a project's `lib`, minus its own generated client.
 List<File> _libFilesOf(String projectRoot) {
   const LocalFileSystem fs = LocalFileSystem();

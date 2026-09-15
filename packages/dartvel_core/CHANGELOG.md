@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`DVPlatformApiConfig` parses `dartvel.platformApi`.** Scopes as a list
+  of `Resource.action` or `{actions, description}`, rate plans as
+  `{maxRequests, window}` with the window written as `15m`, `1h` or `7d`,
+  `requireExpiry`, and `oauth` as `true` or a map of code, access-token and
+  refresh-token lifetimes. Anything else throws
+  `DVPlatformApiConfigError` naming the key, including a misspelt key, an
+  empty scope and a plan with no window, which is never defaulted.
+
 - **A crash reporter no longer stops a web application from starting, and a
   crash has one fingerprint on every platform.** `dvCrashReportId` drew its
   random part below `1 << 32`, which is 0 on the web, where shifts are
