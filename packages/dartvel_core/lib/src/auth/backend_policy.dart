@@ -18,6 +18,19 @@ import '../observability/observability.dart';
 import 'api_scopes.dart';
 import 'session_authentication.dart';
 
+/// What a route's policy made of a request.
+enum DVPolicyDecision {
+  /// The function runs.
+  allowed,
+
+  /// Nobody authenticated, and the policy needs a caller: 401. Signing in is
+  /// the answer, and a client told so can send the person to sign in.
+  unauthenticated,
+
+  /// Refused whoever is asking: 403. Signing in again would not help.
+  forbidden,
+}
+
 /// The gate the generated backend router calls before running a function.
 class DVBackendPolicy {
   const DVBackendPolicy._();
@@ -68,11 +81,20 @@ class DVBackendPolicy {
   ///   with the principal current;
   /// * otherwise the registered policy itself, asked with the principal (or
   ///   no caller) and no resource.
-  static Future<bool> allowsAction(String action, String path) async {
+  static Future<bool> allowsAction(String action, String path) async =>
+      await checkAction(action, path) == DVPolicyDecision.allowed;
+
+  /// [allowsAction], saying why a refusal is one: in the same order, with
+  /// [DVPolicyDecision.unauthenticated] where the registered policy would be
+  /// asked with no caller and its user parameter is not nullable. Every
+  /// other refusal -- outside a key's scopes, an action nothing registered,
+  /// decide saying no, a caller the policy cannot take, the policy saying no
+  /// -- is [DVPolicyDecision.forbidden].
+  static Future<DVPolicyDecision> checkAction(String action, String path) async {
     final DVApiPrincipal? principal = DVApiPrincipal.current;
     if (principal != null && !principal.permits(action)) {
       DVObservability.logger.warn('${DVApiScopeRefused(action, principal.scopes)}');
-      return false;
+      return DVPolicyDecision.forbidden;
     }
     const DVAuthAuthorization authorization = DVAuthAuthorization();
     if (!isAction(action) ||
@@ -83,11 +105,21 @@ class DVBackendPolicy {
         'the method on a @DVPolicy class, or register it with '
         'DV.Auth.authorization.',
       );
-      return false;
+      return DVPolicyDecision.forbidden;
     }
     final Future<bool> Function(String, String)? answer = decide;
-    if (answer != null) return answer(action, path);
-    return authorization.canAction(callerFor(action), action);
+    if (answer != null) {
+      return await answer(action, path)
+          ? DVPolicyDecision.allowed
+          : DVPolicyDecision.forbidden;
+    }
+    final Object? caller = callerFor(action);
+    if (caller == null && authorization.requiresCaller(action)) {
+      return DVPolicyDecision.unauthenticated;
+    }
+    return await authorization.canAction(caller, action)
+        ? DVPolicyDecision.allowed
+        : DVPolicyDecision.forbidden;
   }
 
   /// Who the registered policy for [action] is asked about on this request.
