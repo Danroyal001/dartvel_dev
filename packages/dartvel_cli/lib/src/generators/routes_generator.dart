@@ -12,6 +12,7 @@ import 'client_generator.dart';
 import 'flag_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
+import 'platform_api_generator.dart';
 import 'privacy_declarations.dart';
 import 'static_paths_generator.dart';
 
@@ -70,6 +71,20 @@ Future<void> generate({
   }
   for (final finding in privacyDeclarations.findings) {
     stderr.writeln(finding);
+  }
+
+  // dartvel.platformApi, before anything is written: a key nothing reads or
+  // a scope naming an action no @DVPolicy defines (DV-APIKEY-001) stops the
+  // build here, rather than shipping a scope every partner call is refused
+  // under.
+  final platformApi = PlatformApiGenerator.read(dv);
+  if (platformApi != null) {
+    PlatformApiGenerator.check(
+      root: root,
+      pkgName: pkgName,
+      backendDir: config.backendDir,
+      config: platformApi,
+    );
   }
 
   final backendHost = config.backendHost;
@@ -199,6 +214,10 @@ Future<void> generate({
     settings: analyticsSettings,
     privacy: privacyDeclarations,
   );
+
+  // The scope registry, rate plans and OAuth settings, which the client and
+  // the generated server both read.
+  PlatformApiGenerator.generate(root: root, dv: dv);
 
   // Generate Models
   await ModelGenerator.generate(

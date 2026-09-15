@@ -47,6 +47,7 @@ export 'src/auth/api_keys.dart';
 export 'src/auth/api_scopes.dart';
 export 'src/auth/auth.dart';
 export 'src/auth/backend_policy.dart';
+export 'src/auth/platform_api_config.dart';
 export 'src/auth/secret_hash.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
