@@ -393,8 +393,9 @@ Uri _requestUri(Object? request) {
   return Uri(path: _requestPath(request));
 }
 
-/// Who the rate limit counts [request] against: the client address
-/// [DVClientAddress] resolves, then a caller id a map-shaped request names.
+/// Who the rate limit counts [request] against: the client's source as
+/// [DVClientAddress] resolves it -- an IPv4 address or an IPv6 client's /64 --
+/// then a caller id a map-shaped request names.
 ///
 /// Never a header. This read X-Forwarded-For, CF-Connecting-IP, X-Real-IP,
 /// Fastly-Client-IP, True-Client-IP and Forwarded in turn, each of which a
@@ -402,8 +403,8 @@ Uri _requestUri(Object? request) {
 /// value per request was never limited. A CDN's own header is believed only
 /// as far as its proxy is configured as trusted, through the resolver.
 String _clientIdentifier(Object? request) {
-  final address = DVClientAddress.current.resolve(request);
-  if (address != null) return address.toString();
+  final source = DVClientAddress.current.source(request);
+  if (source != null) return source;
 
   if (request is Map<String, Object?>) {
     for (final key in const ['clientId', 'client_id']) {

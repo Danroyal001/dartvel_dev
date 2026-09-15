@@ -36,6 +36,91 @@ void main() {
   final DVClientAddress behindCaddy =
       DVClientAddress.parse(const <String>['127.0.0.1/32', '::1/128']);
 
+  // A per-source limit counts sources, and an IPv6 source is a network, not
+  // an address. A subscriber is routinely given a /64 and chooses any of its
+  // 2^64 addresses per connection, so a limit keyed on the address counts
+  // one client as a new source per request -- and still looks like it works.
+  group('per-source buckets', () {
+    tearDown(DVClientAddress.reset);
+
+    String sourceOf(String peer, [DVClientAddress? resolver]) {
+      if (resolver != null) DVClientAddress.install(resolver);
+      return DVClientAddress.sourceOf(_request(peer));
+    }
+
+    test('addresses in one /64 are one source by default', () {
+      final String first = sourceOf('[2001:db8:1:2::1]:5000');
+      expect(sourceOf('[2001:db8:1:2:ffff:ffff:ffff:fffe]:5001'), first);
+      expect(sourceOf('[2001:db8:1:2:abcd::9]:5002'), first);
+      expect(first, '2001:db8:1:2::/64');
+    });
+
+    test('the next /64 is another source', () {
+      expect(sourceOf('[2001:db8:1:3::1]:1'),
+          isNot(sourceOf('[2001:db8:1:2::1]:1')));
+    });
+
+    test('IPv4 is counted per address', () {
+      expect(sourceOf('203.0.113.7:1'), '203.0.113.7');
+      expect(sourceOf('203.0.113.8:1'), isNot(sourceOf('203.0.113.7:1')));
+    });
+
+    test('an IPv4-mapped peer is its IPv4 address, not a member of ::/64',
+        () {
+      // Bucketed as IPv6 it would share ::ffff:0:0/64 with every IPv4 client
+      // of a dual-stack socket: all of them one source.
+      expect(sourceOf('[::ffff:203.0.113.7]:1'), '203.0.113.7');
+      expect(sourceOf('[::ffff:203.0.113.8]:1'),
+          isNot(sourceOf('[::ffff:203.0.113.7]:1')));
+    });
+
+    test('the client a trusted proxy reports is bucketed the same way', () {
+      DVClientAddress.install(behindCaddy);
+      String via(String client) => DVClientAddress.sourceOf(_request(
+          '127.0.0.1:9', <String, Object>{'x-forwarded-for': client}));
+      expect(via('2001:db8:9:9::1'), via('2001:db8:9:9::2'));
+      expect(via('2001:db8:9:9::1'), '2001:db8:9:9::/64');
+    });
+
+    test('the prefix is configurable', () {
+      const DVClientAddress wide = DVClientAddress(ipv6SourcePrefix: 56);
+      expect(sourceOf('[2001:db8:1:2ff::1]:1', wide),
+          sourceOf('[2001:db8:1:200::1]:1', wide));
+      expect(sourceOf('[2001:db8:1:200::1]:1', wide), '2001:db8:1:200::/56');
+
+      const DVClientAddress exact = DVClientAddress(ipv6SourcePrefix: 128);
+      expect(sourceOf('[2001:db8::1]:1', exact), '2001:db8::1');
+      expect(sourceOf('[2001:db8::2]:1', exact),
+          isNot(sourceOf('[2001:db8::1]:1', exact)));
+    });
+
+    test('configuration carries the prefix', () {
+      final DVClientAddress resolver =
+          DVClientAddress.fromConfiguration(ipv6SourcePrefix: 48);
+      expect(resolver.ipv6SourcePrefix, 48);
+      expect(const DVClientAddress().ipv6SourcePrefix, 64);
+    });
+
+    test('a prefix outside 32 to 128 is refused', () {
+      for (final int bad in <int>[0, 31, 129, -64]) {
+        expect(() => DVClientAddress.checkIpv6SourcePrefix(bad),
+            throwsFormatException, reason: '$bad');
+        expect(() => DVClientAddress.fromConfiguration(ipv6SourcePrefix: bad),
+            throwsFormatException, reason: '$bad');
+      }
+      for (final int good in <int>[32, 48, 64, 128]) {
+        expect(DVClientAddress.checkIpv6SourcePrefix(good), good);
+      }
+    });
+
+    test('the sign-in and sign-up source is the bucket', () {
+      expect(
+        DVAuthEndpoints.sourceOf(_request('[2001:db8:5:5::10]:1')),
+        DVAuthEndpoints.sourceOf(_request('[2001:db8:5:5::11]:1')),
+      );
+    });
+  });
+
   group('the peer decides unless it is a trusted proxy', () {
     test('a spoofed header from an untrusted peer changes nothing', () {
       const DVClientAddress none = DVClientAddress();
@@ -311,6 +396,11 @@ void main() {
             _request(null, <String, Object>{'x-forwarded-for': '203.0.113.7'})),
         DVClientAddress.unknownSource,
       );
+    });
+
+    test('a request with no peer is the one unknown source', () {
+      expect(DVClientAddress.sourceOf(_request(null)),
+          DVClientAddress.unknownSource);
     });
 
     test('a map-shaped request carries its peer under peerAddress only', () {

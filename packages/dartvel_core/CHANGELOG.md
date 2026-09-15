@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **An IPv6 client is counted by its /64.** `DVClientAddress.sourceOf`, and
+  with it the sign-in and sign-up velocity limits
+  (`DVAuthEndpoints.sourceOf`) and `CommonMiddleware.rateLimit`'s default
+  identifier, count an IPv6 client's `/64` network, written as a range such
+  as `2001:db8:1:2::/64`. Until now each /128 was counted, so a client given
+  a /64, which is what subscribers routinely get, was a new source on every
+  request from a new address and escaped every per-source limit. IPv4 is
+  still counted per address, and an IPv4-mapped address is IPv4, not a member
+  of `::ffff:0:0/64`. `DVClientAddress(ipv6SourcePrefix:)`, `.parse` and
+  `.fromConfiguration` take the prefix, from 32 to 128. `checkIpv6SourcePrefix`
+  refuses anything else, and so does `install`. `DVClientAddress.source`
+  gives the key for a request and `DVCidr.containing` gives the network an
+  address is in.
+
 - **Changing an account's address, and deleting the account, as endpoints.**
   `DVAuthEndpoints.account` describes the signed-in person's account.
   `requestEmailChange` sends a code to the new address through
