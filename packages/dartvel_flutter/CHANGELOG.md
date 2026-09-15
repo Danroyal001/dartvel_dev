@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **QR codes in Dart.** `DVQrCode.encode` builds a byte-mode, level-M symbol
+  in the smallest version that holds the text, and `DVQrImage` draws it dark
+  on white with a quiet zone. The tests read every symbol back with a reader
+  written from the standard's tables that shares no code with the encoder.
+
 - **`DV.Auth` enrolls and removes a second factor.** `DV.Auth.secondFactors()`
   says whether an authenticator is active and how many recovery codes are
   left; `enrollTotp()` answers the secret and `otpauth://` URI to show;
