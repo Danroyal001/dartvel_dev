@@ -26,6 +26,27 @@ void main() {
       expect(third.shouldContinue, isTrue);
     });
 
+    test('counts an IPv6 client by its /64, not the address it chose',
+        () async {
+      final middleware = CommonMiddleware.rateLimit(
+        maxRequests: 1,
+        window: const Duration(minutes: 1),
+      );
+
+      final first = MiddlewareContext();
+      await middleware(_request(ip: '[2001:db8:7:7::1]:4000'), first);
+      expect(first.shouldContinue, isTrue);
+
+      final rotated = MiddlewareContext();
+      await middleware(_request(ip: '[2001:db8:7:7::2]:4001'), rotated);
+      expect(rotated.shouldContinue, isFalse,
+          reason: 'a new address in the same /64 is the same client');
+
+      final elsewhere = MiddlewareContext();
+      await middleware(_request(ip: '[2001:db8:7:8::1]:4002'), elsewhere);
+      expect(elsewhere.shouldContinue, isTrue);
+    });
+
     test('uses typed map client identifiers', () async {
       final middleware = CommonMiddleware.rateLimit(
         maxRequests: 1,

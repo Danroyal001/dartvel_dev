@@ -17,6 +17,11 @@
 ///   read: a proxy that appends writes a valid address, so garbage can only
 ///   have come from the client;
 /// * no peer address is no client address. Never a header instead.
+///
+/// And what a limit counts is the client's source, not its address: an IPv4
+/// address, or the IPv6 network of `ipv6SourcePrefix` bits (a /64 unless
+/// configured) the address is in, since a client holding a /64 can use any
+/// address in it.
 library dartvel_core.http.client_address;
 
 import 'peer_address.dart';
@@ -110,6 +115,22 @@ final class DVCidr {
     return DVCidr._(address, prefix);
   }
 
+  /// The range of [prefixLength] bits that contains [address]: the address
+  /// with every bit past the prefix cleared. Unlike [parse], which refuses a
+  /// host written as a range, this is how a host is turned into its network.
+  static DVCidr containing(DVIpAddress address, int prefixLength) {
+    final int bits = address.isIPv4 ? 32 : 128;
+    if (prefixLength < 0 || prefixLength > bits) {
+      throw ArgumentError.value(
+          prefixLength, 'prefixLength', 'is not from 0 to $bits');
+    }
+    final List<int> bytes = address.bytes.toList();
+    for (int bit = prefixLength; bit < bits; bit++) {
+      bytes[bit >> 3] &= ~(0x80 >> (bit & 7)) & 0xff;
+    }
+    return DVCidr._(DVIpAddress.fromBytes(bytes), prefixLength);
+  }
+
   /// [parse], or null.
   static DVCidr? tryParse(String text) {
     try {
@@ -154,7 +175,40 @@ final class DVClientAddress {
   const DVClientAddress({
     this.trustedProxies = const <DVCidr>[],
     this.forwardedHeader = DVForwardedHeader.xForwardedFor,
-  });
+    this.ipv6SourcePrefix = defaultIpv6SourcePrefix,
+  }) : assert(ipv6SourcePrefix >= minIpv6SourcePrefix &&
+            ipv6SourcePrefix <= 128);
+
+  /// A /64 is what a subscriber is routinely given, and every address in it
+  /// is theirs to use: counted per address, one client is a new source on
+  /// every request it chooses to make from a new one.
+  static const int defaultIpv6SourcePrefix = 64;
+
+  /// Shorter than a /32 -- what a registry allocates a whole provider --
+  /// counts a provider's customers as one source.
+  static const int minIpv6SourcePrefix = 32;
+
+  /// How many leading bits of an IPv6 client address are one source.
+  ///
+  /// IPv4 is always counted per address, and an IPv4-mapped IPv6 address is
+  /// IPv4: bucketed as IPv6 it would share `::ffff:0:0/64` with every IPv4
+  /// client of a dual-stack socket.
+  final int ipv6SourcePrefix;
+
+  /// [prefix], or a [FormatException] when it is not from
+  /// [minIpv6SourcePrefix] to 128.
+  static int checkIpv6SourcePrefix(int prefix) {
+    if (prefix < minIpv6SourcePrefix || prefix > 128) {
+      throw FormatException(
+        'ipv6SourcePrefix must be from $minIpv6SourcePrefix to 128, not '
+        '$prefix. 64 counts each subscriber\'s /64 as one source; 128 counts '
+        'every address, which a client with a /64 escapes by changing '
+        'address, and shorter than $minIpv6SourcePrefix counts a whole '
+        'provider as one.',
+      );
+    }
+    return prefix;
+  }
 
   /// From configuration text, refusing a range or header name that does not
   /// parse. Nothing is skipped: a trusted proxy that silently is not one
@@ -162,6 +216,7 @@ final class DVClientAddress {
   factory DVClientAddress.parse(
     Iterable<String> trustedProxies, {
     String? forwardedHeader,
+    int ipv6SourcePrefix = defaultIpv6SourcePrefix,
   }) =>
       DVClientAddress(
         trustedProxies: List<DVCidr>.unmodifiable(
@@ -169,6 +224,7 @@ final class DVClientAddress {
         forwardedHeader: forwardedHeader == null
             ? DVForwardedHeader.xForwardedFor
             : DVForwardedHeader.parse(forwardedHeader),
+        ipv6SourcePrefix: checkIpv6SourcePrefix(ipv6SourcePrefix),
       );
 
   /// What the generated backend starts with: `dartvel.server.trustedProxies`
@@ -178,8 +234,14 @@ final class DVClientAddress {
   factory DVClientAddress.fromConfiguration({
     Iterable<String> trustedProxies = const <String>[],
     String? forwardedHeader,
+    int ipv6SourcePrefix = defaultIpv6SourcePrefix,
     Map<String, String> environment = const <String, String>{},
   }) {
+    try {
+      checkIpv6SourcePrefix(ipv6SourcePrefix);
+    } on FormatException catch (error) {
+      throw FormatException('dartvel.server.${error.message}');
+    }
     final String? fromEnvironment = environment[trustedProxiesVariable];
     final List<String> all = <String>[
       ...trustedProxies,
@@ -188,7 +250,8 @@ final class DVClientAddress {
           if (c.trim().isNotEmpty) c.trim(),
     ];
     try {
-      return DVClientAddress.parse(all, forwardedHeader: forwardedHeader);
+      return DVClientAddress.parse(all,
+          forwardedHeader: forwardedHeader, ipv6SourcePrefix: ipv6SourcePrefix);
     } on FormatException catch (error) {
       throw FormatException(
         'dartvel.server.trustedProxies, or $trustedProxiesVariable: '
@@ -218,15 +281,35 @@ final class DVClientAddress {
   /// counts the proxy, and one without a proxy counts its clients.
   static DVClientAddress get current => _installed;
 
-  static void install(DVClientAddress resolver) => _installed = resolver;
+  /// Makes [resolver] the one this process uses. A prefix the const
+  /// constructor could only assert on is refused here, where it takes effect.
+  static void install(DVClientAddress resolver) {
+    checkIpv6SourcePrefix(resolver.ipv6SourcePrefix);
+    _installed = resolver;
+  }
 
   /// Back to trusting no proxy, for tests.
   static void reset() => _installed = const DVClientAddress();
 
-  /// The installed resolver's answer as a key: the canonical address, or
-  /// [unknownSource].
+  /// The installed resolver's [source] for [request], or [unknownSource].
   static String sourceOf(Object? request) =>
-      current.resolve(request)?.toString() ?? unknownSource;
+      current.source(request) ?? unknownSource;
+
+  /// The key a per-source limit counts [request] under, or null when it has
+  /// no peer address: an IPv4 client's address, or the /[ipv6SourcePrefix]
+  /// network an IPv6 client's address is in, written as a range
+  /// (`2001:db8:1:2::/64`).
+  String? source(Object? request) {
+    final DVIpAddress? address = resolve(request);
+    return address == null ? null : sourceKey(address);
+  }
+
+  /// [address] as a source: itself for IPv4 or a /128, otherwise the network
+  /// of [ipv6SourcePrefix] bits it belongs to.
+  String sourceKey(DVIpAddress address) {
+    if (address.isIPv4 || ipv6SourcePrefix >= 128) return address.toString();
+    return DVCidr.containing(address, ipv6SourcePrefix).toString();
+  }
 
   bool trusts(DVIpAddress address) =>
       trustedProxies.any((DVCidr range) => range.contains(address));
