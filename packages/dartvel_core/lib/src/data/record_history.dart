@@ -177,7 +177,14 @@ class DVRecord {
 
 /// The outcome of a write.
 class DVWriteResult {
-  const DVWriteResult(this.record, {this.conflict, this.discarded = false});
+  const DVWriteResult(this.record,
+      {this.conflict, this.discarded = false, this.inserted = false});
+
+  /// Whether the write created the record rather than updating one.
+  ///
+  /// Not the same question as `record.version == 1`: an update that changed
+  /// nothing leaves a record at version one too.
+  final bool inserted;
 
   /// The record as stored after the write.
   final DVRecord record;
@@ -274,6 +281,23 @@ class DVRevertResult {
 /// written is undone -- a change log that can miss entries is not a record of
 /// anything. Inside `DV.transaction` every write registers its own inverse, so
 /// a failure later in the unit of work takes the write and its entry with it.
+/// The part of a table one record table may see: the rows whose [column]
+/// holds [value], such as a tenant-scoped model's `dv_tenant`.
+///
+/// Every read, write, delete and history lookup is matched on it, and a
+/// write that names a different value is refused. Keys are then unique per
+/// scope rather than per table, which is what lets two tenants each have an
+/// order `o1` without either one reading, updating or deleting the other's.
+final class DVRecordScope {
+  const DVRecordScope(this.column, this.value);
+
+  final String column;
+
+  /// Bound as a parameter, and compared with `=`: a null value matches no
+  /// row, as SQL has it, rather than every row with no tenant.
+  final Object? value;
+}
+
 class DVRecordTable {
   DVRecordTable({
     required this.table,
@@ -285,6 +309,7 @@ class DVRecordTable {
     this.versioned = true,
     this.softDelete = false,
     this.capture,
+    this.scope,
     DVDatabaseAdapter? database,
   })  : historyPolicy = history,
         columns = List<String>.unmodifiable(columns),
@@ -293,13 +318,23 @@ class DVRecordTable {
         _database = database {
     // Names are interpolated into SQL, so they are checked rather than
     // trusted; a value never is -- values are always bound parameters.
-    for (final String name in <String>[table, key, ...columns]) {
+    // The table may be schema-qualified, because schemaPerTenant resolves a
+    // model's table to `tenant.orders`; nothing else may be.
+    if (!_tableName.hasMatch(table)) {
+      throw ArgumentError.value(table, 'table', 'not a plain SQL identifier');
+    }
+    for (final String name in <String>[key, ...columns]) {
       if (!_identifier.hasMatch(name)) {
         throw ArgumentError.value(name, 'name', 'not a plain SQL identifier');
       }
     }
     if (!columns.contains(key)) {
       throw ArgumentError.value(key, 'key', 'is not one of the columns');
+    }
+    final DVRecordScope? scoped = scope;
+    if (scoped != null && !columns.contains(scoped.column)) {
+      throw ArgumentError.value(
+          scoped.column, 'scope', 'is not one of the columns');
     }
     for (final String name in <String>{...sensitive, ...unique}) {
       if (!columns.contains(name)) {
@@ -310,6 +345,8 @@ class DVRecordTable {
   }
 
   static final RegExp _identifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+  static final RegExp _tableName =
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$');
 
   /// The column holding each row's version.
   static const String versionColumn = '_dv_version';
@@ -341,6 +378,20 @@ class DVRecordTable {
   /// The change capture log every write is recorded to, or null when the
   /// model is not captured. Sensitive fields are left out of it.
   final DVCapture? capture;
+
+  /// The rows this table may see, or null for the whole table.
+  final DVRecordScope? scope;
+
+  /// ` AND column = ?` for the scope, or nothing.
+  String get _scopeAnd => scope == null ? '' : ' AND ${scope!.column} = ?';
+
+  List<Object?> get _scopeParams =>
+      scope == null ? const <Object?>[] : <Object?>[scope!.value];
+
+  /// The tenant a history entry and a captured change are recorded under:
+  /// the one given, else the scope's.
+  String? _tenant(String? given) =>
+      given ?? (scope?.value == null ? null : '${scope!.value}');
 
   final DVDatabaseAdapter? _database;
 
@@ -375,8 +426,8 @@ class DVRecordTable {
   /// [withDeleted].
   Future<DVRecord?> read(Object id, {bool withDeleted = false}) async {
     final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $table WHERE $key = ?',
-      <Object?>[id],
+      'SELECT * FROM $table WHERE $key = ?$_scopeAnd',
+      <Object?>[id, ..._scopeParams],
     );
     if (rows.isEmpty) return null;
     final DVRecord record = _fromRow(rows.first);
@@ -386,10 +437,15 @@ class DVRecordTable {
 
   /// Every record, excluding soft-deleted ones unless [withDeleted].
   Future<List<DVRecord>> all({bool withDeleted = false}) async {
+    final List<String> where = <String>[
+      if (scope != null) '${scope!.column} = ?',
+      if (!withDeleted && softDelete) '$deletedColumn IS NULL',
+    ];
     final List<Map<String, Object?>> rows = await database.query(
-      withDeleted || !softDelete
+      where.isEmpty
           ? 'SELECT * FROM $table'
-          : 'SELECT * FROM $table WHERE $deletedColumn IS NULL',
+          : 'SELECT * FROM $table WHERE ${where.join(' AND ')}',
+      _scopeParams,
     );
     return <DVRecord>[
       for (final Map<String, Object?> row in rows)
@@ -409,7 +465,18 @@ class DVRecordTable {
     String? actor,
     String? tenant,
   }) async {
+    final DVRecordScope? scoped = scope;
+    if (scoped != null &&
+        values.containsKey(scoped.column) &&
+        !_same(values[scoped.column], scoped.value)) {
+      // Refused rather than overridden: a caller naming another tenant has a
+      // bug, and quietly storing the row under this one hides it.
+      throw ArgumentError.value(values[scoped.column], scoped.column,
+          'is not the scope of this table (${scoped.value})');
+    }
     final Map<String, Object?> mine = _normalize(values);
+    if (scoped != null) mine[scoped.column] = scoped.value;
+    tenant = _tenant(tenant);
     final Object? id = mine[key];
     if (id == null) {
       throw ArgumentError.value(values, 'values', 'has no $key');
@@ -417,7 +484,8 @@ class DVRecordTable {
 
     final DVRecord? current = await read(id, withDeleted: true);
     if (current == null) {
-      return DVWriteResult(await _insert(id, mine, actor, tenant));
+      return DVWriteResult(await _insert(id, mine, actor, tenant),
+          inserted: true);
     }
 
     if (versioned && base?.version != current.version) {
@@ -467,9 +535,27 @@ class DVRecordTable {
   }
 
   /// Deletes the record: marks it when [softDelete], removes it otherwise.
-  Future<void> delete(Object id, {String? actor, String? tenant}) async {
+  ///
+  /// With [base], the record as this writer read it, the delete is refused
+  /// when the row has moved since, as a write is. Either way it applies only
+  /// to the row at the version the delete itself read: one rewritten in
+  /// between is refused with [DVConflictError] rather than reported deleted.
+  Future<void> delete(Object id,
+      {DVRecord? base, String? actor, String? tenant}) async {
+    tenant = _tenant(tenant);
     final DVRecord? current = await read(id, withDeleted: true);
     if (current == null) return;
+    if (versioned && base != null && base.version != current.version) {
+      throw DVConflictError(
+        table: table,
+        key: id,
+        mine: const <String, Object?>{},
+        theirs: current.values,
+        base: base.values,
+        expectedVersion: base.version,
+        actualVersion: current.version,
+      );
+    }
 
     if (softDelete) {
       if (current.deletedAt != null) return;
@@ -478,10 +564,24 @@ class DVRecordTable {
       return;
     }
 
-    await database.execute(
-      'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
-      <Object?>[id, current.version],
+    final int affected = await database.execute(
+      'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
+      <Object?>[id, current.version, ..._scopeParams],
     );
+    if (affected != 1) {
+      // Another write moved the row after it was read. Logging and capturing
+      // a deletion now would record one that did not happen.
+      final DVRecord? now = await read(id, withDeleted: true);
+      throw DVConflictError(
+        table: table,
+        key: id,
+        mine: const <String, Object?>{},
+        theirs: now?.values ?? const <String, Object?>{},
+        base: current.values,
+        expectedVersion: current.version,
+        actualVersion: now?.version ?? -1,
+      );
+    }
     final String? entry;
     try {
       entry = await _log(
@@ -521,6 +621,7 @@ class DVRecordTable {
   /// Refused rather than forced when a live record holds one of its [unique]
   /// fields, because the alternative is two live rows claiming one value.
   Future<DVRecord> restore(Object id, {String? actor, String? tenant}) async {
+    tenant = _tenant(tenant);
     final DVRecord? current = await read(id, withDeleted: true);
     if (current == null) {
       throw StateError('$table[$id] does not exist, so it cannot be restored.');
@@ -532,8 +633,9 @@ class DVRecordTable {
       final Object? value = current.values[field];
       if (value == null) continue;
       final List<Map<String, Object?>> holders = await database.query(
-        'SELECT $key FROM $table WHERE $field = ? AND $deletedColumn IS NULL',
-        <Object?>[value],
+        'SELECT $key FROM $table WHERE $field = ? AND $deletedColumn IS NULL'
+        '$_scopeAnd',
+        <Object?>[value, ..._scopeParams],
       );
       if (holders.any((Map<String, Object?> row) => !_same(row[key], id))) {
         taken.add(field);
@@ -550,10 +652,13 @@ class DVRecordTable {
   /// The record's change log, oldest first. Empty when history is off.
   Future<List<DVHistoryEntry>> history(Object id) async {
     if (historyPolicy == null) return const <DVHistoryEntry>[];
+    // Scoped by the tenant each entry was written under, which is the
+    // scope's: another tenant's record with the same key is another record.
     final List<Map<String, Object?>> rows = await database.query(
       'SELECT * FROM $historyTable WHERE record_key = ? '
+      '${scope == null ? '' : 'AND tenant = ? '}'
       'ORDER BY record_version ASC',
-      <Object?>[id],
+      <Object?>[id, if (scope != null) _tenant(null)],
     );
     return rows.map(_entryFromRow).toList(growable: false);
   }
@@ -573,6 +678,7 @@ class DVRecordTable {
     String? actor,
     String? tenant,
   }) async {
+    tenant = _tenant(tenant);
     final DVRecord? current = await read(id, withDeleted: true);
     if (current == null) {
       throw StateError('$table[$id] does not exist, so it cannot be reverted.');
@@ -642,8 +748,8 @@ class DVRecordTable {
       );
     } catch (error) {
       await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
-        <Object?>[id, 1],
+        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
+        <Object?>[id, 1, ..._scopeParams],
       );
       throw DVHistoryWriteError(table: table, key: id, cause: error);
     }
@@ -658,16 +764,16 @@ class DVRecordTable {
       );
     } catch (error) {
       await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
-        <Object?>[id, 1],
+        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
+        <Object?>[id, 1, ..._scopeParams],
       );
       await _unlog(entry);
       throw DVCaptureWriteError(table: table, key: id, cause: error);
     }
     DVTransactionRunner.activeContext?.compensate(() async {
       await database.execute(
-        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?',
-        <Object?>[id, 1],
+        'DELETE FROM $table WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
+        <Object?>[id, 1, ..._scopeParams],
       );
       await _unlog(entry);
     });
@@ -759,13 +865,15 @@ class DVRecordTable {
     final String assignments =
         _storedColumns.map((String column) => '$column = ?').join(', ');
     return database.execute(
-      'UPDATE $table SET $assignments WHERE $key = ? AND $versionColumn = ?',
+      'UPDATE $table SET $assignments '
+      'WHERE $key = ? AND $versionColumn = ?$_scopeAnd',
       <Object?>[
         for (final String column in columns) record.values[column],
         record.version,
         record.deletedAt == null ? null : _stamp(record.deletedAt!),
         record.key,
         expected,
+        ..._scopeParams,
       ],
     );
   }

@@ -441,6 +441,204 @@ void main() {
           expect(await hard.read('h1', withDeleted: true), isNull);
         });
       });
+
+      // A generated model's save and destroy go through the record table, so
+      // the delete has to hold to the same rule as the write: it applies to
+      // the row as it was read, or it does not apply.
+      group('deletes checked against the version read', () {
+        test('a delete carrying a stale read is refused', () async {
+          final DVRecord read = (await orders.write(_order('o1'))).record;
+          await orders.write(_order('o1', quantity: 2), base: read);
+
+          await expectLater(
+            orders.delete('o1', base: read),
+            throwsA(isA<DVConflictError>()
+                .having((DVConflictError e) => e.expectedVersion,
+                    'expectedVersion', 1)
+                .having(
+                    (DVConflictError e) => e.actualVersion, 'actualVersion', 2)),
+          );
+          expect((await orders.read('o1'))!.values['quantity'], 2,
+              reason: 'the row somebody rewrote is still there');
+        });
+
+        test('a delete carrying the current read applies', () async {
+          final DVRecord read = (await orders.write(_order('o1'))).record;
+          await orders.delete('o1', base: read);
+          expect(await orders.read('o1'), isNull);
+        });
+
+        test(
+            'a hard delete that loses a race says so, and logs no deletion '
+            'that did not happen', () async {
+          final _RacingAdapter racing = _RacingAdapter(database);
+          final DVRecordTable hard =
+              _orders(racing, softDelete: false);
+          await hard.ensureSchema();
+          await hard.write(_order('h1'));
+          // Another writer moves the row between the delete's read and its
+          // DELETE, which then matches nothing.
+          racing.before = (String sql) async {
+            if (!sql.startsWith('DELETE FROM orders ')) return;
+            racing.before = null;
+            final DVRecord now = (await hard.read('h1'))!;
+            await hard.write(_order('h1', quantity: 9), base: now);
+          };
+
+          await expectLater(hard.delete('h1'), throwsA(isA<DVConflictError>()));
+          expect((await hard.read('h1'))!.values['quantity'], 9);
+          final List<DVHistoryEntry> log = await hard.history('h1');
+          expect(log.where((DVHistoryEntry e) => e.deleted), isEmpty,
+              reason: 'a change log recording a delete that matched no row '
+                  'is a record of something that never happened');
+        });
+      });
+
+      group('the write result', () {
+        test('says whether it inserted, including for an update that '
+            'changed nothing', () async {
+          expect((await orders.write(_order('o1'))).inserted, isTrue);
+          final DVRecord read = (await orders.read('o1'))!;
+          final DVWriteResult again =
+              await orders.write(_order('o1'), base: read);
+          expect(again.inserted, isFalse);
+          expect(again.record.version, 1);
+        });
+      });
+
+      // A tenant-scoped model keeps every tenant's rows in one table, keyed
+      // per tenant. A record table reading by key alone would hand one
+      // tenant's row to another, or overwrite it, and both look like a save
+      // that worked.
+      group('scoped to a tenant', () {
+        late DVRecordTable acme;
+        late DVRecordTable globex;
+
+        DVRecordTable scoped(String tenant) => DVRecordTable(
+              table: 'tenant_orders',
+              key: 'id',
+              columns: const <String>[
+                'dv_tenant', 'id', 'reference', 'quantity', 'card',
+              ],
+              sensitive: const <String>{'card'},
+              history: const DVHistory(),
+              scope: DVRecordScope('dv_tenant', tenant),
+              database: database,
+            );
+
+        setUp(() async {
+          acme = scoped('acme');
+          globex = scoped('globex');
+          // One table for both tenants, with the tenant column, and its log.
+          await acme.ensureSchema();
+        });
+
+        test('a key reused by another tenant is another row', () async {
+          await acme.write(_order('o1', quantity: 1));
+          final DVWriteResult theirs =
+              await globex.write(_order('o1', quantity: 5));
+
+          expect(theirs.inserted, isTrue,
+              reason: "acme's o1 is not globex's to update");
+          expect((await acme.read('o1'))!.values['quantity'], 1);
+          expect((await globex.read('o1'))!.values['quantity'], 5);
+          expect((await acme.read('o1'))!.values['dv_tenant'], 'acme');
+          expect((await acme.all()).length, 1);
+        });
+
+        test("an update or delete never reaches another tenant's row",
+            () async {
+          await acme.write(_order('o1', quantity: 1));
+          await globex.write(_order('o1', quantity: 5));
+
+          final DVRecord read = (await acme.read('o1'))!;
+          await acme.write(_order('o1', quantity: 2), base: read);
+          expect((await globex.read('o1'))!.values['quantity'], 5);
+          expect((await globex.read('o1'))!.version, 1);
+
+          await acme.delete('o1');
+          expect(await acme.read('o1'), isNull);
+          expect(await globex.read('o1'), isNotNull);
+        });
+
+        test('a write naming another tenant is refused', () async {
+          await expectLater(
+            acme.write(<String, Object?>{
+              ..._order('o1'),
+              'dv_tenant': 'globex',
+            }),
+            throwsArgumentError,
+          );
+          expect(await globex.read('o1'), isNull);
+        });
+
+        test("history is the tenant's own", () async {
+          await acme.write(_order('o1'));
+          await globex.write(_order('o1'));
+          final List<DVHistoryEntry> log = await acme.history('o1');
+          expect(log, hasLength(1));
+          expect(log.single.tenant, 'acme');
+        });
+      });
     });
+  }
+
+  group('table names', () {
+    test('a schema-qualified name reads and writes that schema', () async {
+      // schemaPerTenant resolves a model's table to `tenant.orders`.
+      final SqliteDVDatabaseAdapter database = SqliteDVDatabaseAdapter.memory();
+      addTearDown(database.close);
+      await database.execute("ATTACH DATABASE ':memory:' AS acme");
+      final DVRecordTable orders = DVRecordTable(
+        table: 'acme.orders',
+        key: 'id',
+        columns: const <String>['id', 'reference', 'quantity', 'card'],
+        history: const DVHistory(),
+        database: database,
+      );
+      await orders.ensureSchema();
+      await orders.write(_order('o1'));
+      expect((await orders.read('o1'))!.version, 1);
+      expect(await database.query('SELECT id FROM acme.orders'), hasLength(1));
+      expect(await orders.history('o1'), hasLength(1));
+    });
+
+    test('anything else that is not an identifier is still refused', () {
+      for (final String name in <String>[
+        'a.b.c',
+        '.orders',
+        'orders; DROP TABLE users',
+      ]) {
+        expect(
+          () => DVRecordTable(
+            table: name,
+            key: 'id',
+            columns: const <String>['id'],
+          ),
+          throwsArgumentError,
+          reason: name,
+        );
+      }
+    });
+  });
+}
+
+/// Runs [before] ahead of each statement, so a test can put another writer
+/// between a read and the write that follows it.
+class _RacingAdapter implements DVDatabaseAdapter {
+  _RacingAdapter(this.inner);
+
+  final DVDatabaseAdapter inner;
+  Future<void> Function(String sql)? before;
+
+  @override
+  Future<List<Map<String, Object?>>> query(String sql,
+          [List<Object?>? params]) =>
+      inner.query(sql, params);
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) async {
+    await before?.call(sql);
+    return inner.execute(sql, params);
   }
 }
