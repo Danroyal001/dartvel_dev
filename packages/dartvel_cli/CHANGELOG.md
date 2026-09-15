@@ -1,4 +1,12 @@
 ## Unreleased
+- **The generated backend serves the application's own sign-in.** Under the
+  API base path: `POST /auth/sign-up`, `/auth/sign-in`, `/auth/second-factor`
+  and `/auth/sign-out` on the request's tenant, and `GET /auth/session`,
+  `GET /auth/sessions`, `POST /auth/sessions/revoke` and
+  `/auth/sessions/revoke-others` behind the authentication stage, each handled
+  by `DVAuthEndpoints`. They are registered before any backend function, so a
+  catch-all route cannot shadow them, and a function declaring one of their
+  exact paths stops the build. Every POST is CSRF-checked, sign-in included.
 - **A generated route answers 401 when signing in is the answer.** A route
   with a quoted `Resource.action` asks `DVBackendPolicy.checkAction`: with no
   session or key on a route whose policy needs a caller it answers 401 with
