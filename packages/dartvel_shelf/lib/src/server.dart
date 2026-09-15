@@ -12,7 +12,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
-        dvConfigureRuntimeLogging;
+        dvConfigureRuntimeLogging,
+        dvDefaultMaxBodyBytes;
 import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
@@ -126,10 +127,32 @@ Future<ServerHandle> serve(
   // body, and the handler. Past it the native side answers 408 or 504 and
   // closes the connection, or closes one whose headers never finished.
   Duration requestTimeout = _defaultRequestTimeout,
+  // The largest request body the native side reads, for a request no route
+  // limit covers. A body declared larger is answered 413 without being read;
+  // one that grows past it is answered 413 as it does; both close the
+  // connection.
+  int maxBodyBytes = dvDefaultMaxBodyBytes,
+  // Every route, in dispatch order, with the limit it declared: a Router's
+  // bodyLimits. A route's own limit replaces maxBodyBytes for the requests it
+  // takes, so an upload route reads more without every route doing so.
+  Iterable<DVRouteBodyLimit> routeBodyLimits = const <DVRouteBodyLimit>[],
 }) async {
   if (requestTimeout <= Duration.zero) {
     throw ArgumentError.value(requestTimeout, 'requestTimeout',
         'must be positive: a request allowed no time is never answered');
+  }
+  if (maxBodyBytes <= 0) {
+    throw ArgumentError.value(maxBodyBytes, 'maxBodyBytes',
+        'must be positive: a server that reads no body is not a limit');
+  }
+  final List<DVRouteBodyLimit> routeLimits =
+      List<DVRouteBodyLimit>.of(routeBodyLimits);
+  for (final DVRouteBodyLimit route in routeLimits) {
+    final int? bytes = route.maxBytes;
+    if (bytes != null && bytes <= 0) {
+      throw ArgumentError.value(bytes, 'routeBodyLimits',
+          'a route limit must be positive (${route.method} ${route.pattern})');
+    }
   }
 
   // Where a log line actually goes. The runtime's logger keeps records in a
@@ -195,6 +218,19 @@ Future<ServerHandle> serve(
       'configure a request timeout. Rebuild it: cargo build --release '
       '--target <triple> in dartvel_shelf/rust, then copy the result over '
       'that file.',
+    );
+  }
+  // Refused whatever the caller asked for, unlike the timeout above. A
+  // library without these reads every body whole with no limit at all, so it
+  // cannot give even the default: serving from it would leave one client
+  // able to fill this process's memory, with nothing saying so.
+  if (!dylib.providesSymbol('aw_configure_max_body_bytes') ||
+      !dylib.providesSymbol('aw_configure_route_body_limit')) {
+    throw StateError(
+      'dartvel: the native server library at ${uri.toFilePath()} cannot '
+      'limit a request body, so it would read any size a client sends. '
+      'Rebuild it: cargo build --release --target <triple> in '
+      'dartvel_shelf/rust, then copy the result over that file.',
     );
   }
 
@@ -405,6 +441,8 @@ Future<ServerHandle> serve(
     final int milliseconds = requestTimeout.inMilliseconds;
     api.aw_configure_request_timeout(milliseconds < 1 ? 1 : milliseconds);
   }
+  // Likewise on this thread, with nothing awaited before aw_start.
+  _configureBodyLimits(api, maxBodyBytes, routeLimits);
 
   if (tls != null) {
     final certBytes = dvFfiBytes(tls.certPem);
@@ -725,6 +763,44 @@ void _configureSpaRoot(gen.DartvelShelfBindings api, String? spaRoot) {
 
 void _configureCompression(gen.DartvelShelfBindings api, bool enabled) {
   api.aw_configure_compression(enabled ? 1 : 0);
+}
+
+/// The server's body limit and every route's, in dispatch order.
+///
+/// The server's first: it also clears any routes this thread added for a
+/// serve() that failed before starting.
+void _configureBodyLimits(gen.DartvelShelfBindings api, int maxBodyBytes,
+    List<DVRouteBodyLimit> routes) {
+  final int rc = api.aw_configure_max_body_bytes(maxBodyBytes);
+  if (rc != 0) throw StateError('Body limit config failed (code=$rc)');
+  for (final DVRouteBodyLimit route in routes) {
+    final List<int> method = dvFfiBytes(route.method);
+    final List<int> pattern = dvFfiBytes(route.pattern);
+    final methodPtr = pkgffi.malloc<ffi.Uint8>(method.isEmpty ? 1 : method.length)
+      ..asTypedList(method.length).setAll(0, method);
+    final patternPtr =
+        pkgffi.malloc<ffi.Uint8>(pattern.isEmpty ? 1 : pattern.length)
+          ..asTypedList(pattern.length).setAll(0, pattern);
+    final methodStr = pkgffi.calloc<gen.FfiStr>();
+    final patternStr = pkgffi.calloc<gen.FfiStr>();
+    methodStr.ref
+      ..ptr = methodPtr.cast()
+      ..len = method.length;
+    patternStr.ref
+      ..ptr = patternPtr.cast()
+      ..len = pattern.length;
+    // Zero is a route with no limit of its own. It is still sent: it may come
+    // before a route with one, and then it decides.
+    final int routeRc = api.aw_configure_route_body_limit(
+        methodStr.ref, patternStr.ref, route.maxBytes ?? 0);
+    pkgffi.calloc.free(methodStr);
+    pkgffi.calloc.free(patternStr);
+    pkgffi.malloc.free(methodPtr);
+    pkgffi.malloc.free(patternPtr);
+    if (routeRc != 0) {
+      throw StateError('Route body limit config failed (code=$routeRc)');
+    }
+  }
 }
 
 String getMimeType(String path) {
