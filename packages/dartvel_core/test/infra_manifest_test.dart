@@ -603,5 +603,89 @@ void main() {
       );
       expect(fw.firewall!.tcpPorts, containsAll(<int>[8080, 8081]));
     });
+
+    // Who a per-source limit counts, read the way the backend reads it: the
+    // resolver built from each web unit's own environment, asked about a
+    // request arriving from the address Caddy dials. The silent failure is a
+    // unit that does not name the proxy: every client then counts as Caddy,
+    // one bucket for the whole internet, and nothing refuses to start.
+    Request arriving(String peer, {String? forwardedFor}) => Request(
+          method: 'POST',
+          url: Uri.parse('https://api.example.com/api/auth/sign-in'),
+          headers: Headers(<String, String>{
+            if (forwardedFor != null) 'x-forwarded-for': forwardedFor,
+          }),
+          bodyStream: const Stream<List<int>>.empty(),
+          peerAddress: DVPeerAddress.parse(peer),
+        );
+
+    List<DVInfraResource> webUnits(DVInfraDesiredState state) => <DVInfraResource>[
+          for (final DVInfraResource r in state.resources)
+            if (r.kind == DVInfraResourceKind.unit &&
+                r.requiresRelease &&
+                r.content != null &&
+                DVProcessConfiguration.resolve(
+                  environment: unitEnvironment(r),
+                  generatedPort: 8080,
+                ).servesHttp)
+              r,
+        ];
+
+    test('behind Caddy, the client Caddy reports is the source', () {
+      final DVInfraDesiredState state = desired(production());
+      final Set<String> dialled = <String>{
+        for (final String upstream in upstreams(state))
+          DVPeerAddress.parse(upstream).address.toString(),
+      };
+      expect(dialled, isNotEmpty);
+      expect(webUnits(state), hasLength(2));
+      for (final DVInfraResource unit in webUnits(state)) {
+        final DVClientAddress resolver = DVClientAddress.fromConfiguration(
+          environment: unitEnvironment(unit),
+        );
+        for (final String proxy in dialled) {
+          expect(
+            resolver
+                .resolve(arriving('$proxy:51000', forwardedFor: '203.0.113.7'))
+                .toString(),
+            '203.0.113.7',
+            reason: '${unit.id} must believe the proxy it sits behind',
+          );
+        }
+        // Only the proxy: a request that reached the port some other way
+        // is its own source, whatever it says.
+        expect(
+          resolver
+              .resolve(arriving('198.51.100.4:51000', forwardedFor: '203.0.113.7'))
+              .toString(),
+          '198.51.100.4',
+          reason: unit.id,
+        );
+      }
+    });
+
+    test('without a proxy no forwarded address is believed', () {
+      final DVInfraDesiredState state = desired(
+        production(
+          edited((Map<Object?, Object?> e) {
+            e.remove('proxy');
+            e.remove('tls');
+            e.remove('logs');
+          }),
+        ),
+      );
+      expect(webUnits(state), isNotEmpty);
+      for (final DVInfraResource unit in webUnits(state)) {
+        expect(unitEnvironment(unit),
+            isNot(contains(DVClientAddress.trustedProxiesVariable)));
+        expect(
+          DVClientAddress.fromConfiguration(environment: unitEnvironment(unit))
+              .resolve(arriving('127.0.0.1:51000', forwardedFor: '203.0.113.7'))
+              .toString(),
+          '127.0.0.1',
+          reason: unit.id,
+        );
+      }
+    });
   });
 }
