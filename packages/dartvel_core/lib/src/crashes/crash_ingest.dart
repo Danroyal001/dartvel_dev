@@ -9,7 +9,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../database/adapter.dart';
+import '../http/client_address.dart';
 import '../observability/logging.dart';
+import 'crash_config.dart';
 import 'crash_report.dart';
 import 'crash_reporting.dart';
 
@@ -116,6 +118,9 @@ enum DVCrashIngestOutcome {
 
   /// Counted and not stored: the install is past its hourly budget.
   limited,
+
+  /// Refused for now: the client's source is past its hourly budget.
+  sourceLimited,
   invalid,
   tooLarge,
 
@@ -135,6 +140,7 @@ final class DVCrashIngestResult {
         DVCrashIngestOutcome.stored => 201,
         DVCrashIngestOutcome.duplicate => 200,
         DVCrashIngestOutcome.limited => 202,
+        DVCrashIngestOutcome.sourceLimited => 429,
         DVCrashIngestOutcome.invalid => 400,
         DVCrashIngestOutcome.tooLarge => 413,
         DVCrashIngestOutcome.unavailable => 503,
@@ -146,6 +152,9 @@ final class DVCrashIngestResult {
         DVCrashIngestOutcome.duplicate => 'already stored',
         DVCrashIngestOutcome.limited =>
           'counted: this install is past its crash reports for the hour',
+        DVCrashIngestOutcome.sourceLimited =>
+          'too many crash reports from this network this hour; send it again '
+              'later',
         DVCrashIngestOutcome.invalid => 'not a crash report',
         DVCrashIngestOutcome.tooLarge => 'larger than a crash report may be',
         DVCrashIngestOutcome.unavailable =>
@@ -160,7 +169,7 @@ final class DVCrashIngestResult {
 }
 
 /// The backend's side of `sink: dartvel`: accepts a report, validates it,
-/// limits it per install, and stores it.
+/// limits it per install and per client source, and stores it.
 ///
 /// Nothing a report carries is ever logged or answered, including when it is
 /// refused or cannot be stored. A report's message is whatever the error said,
@@ -170,11 +179,31 @@ class DVCrashIngest {
   DVCrashIngest({
     required this.repository,
     this.perInstallPerHour = 30,
+    int? perSourcePerHour,
     this.maxBytes = 262144,
     DateTime Function()? clock,
     void Function(String line)? log,
-  })  : _clock = clock ?? DateTime.now,
+  })  : perSourcePerHour =
+            perSourcePerHour ?? installsPerSource * perInstallPerHour,
+        _clock = clock ?? DateTime.now,
         _log = log ?? _defaultLog;
+
+  /// How many installs behind one address the default per-source budget
+  /// allows at their full per-install budget.
+  static const int installsPerSource = DVCrashConfig.ingestInstallsPerSource;
+
+  /// Reports stored per client source per hour; past it they are refused
+  /// with 429.
+  ///
+  /// The per-install limit keys on an id the client writes, so a client that
+  /// writes a new one per report is never limited by it. The source is the
+  /// address the backend resolved -- an IPv4 address or an IPv6 client's /64
+  /// -- which the client does not choose. It defaults to [installsPerSource]
+  /// installs at their full budget, because an office, a campus or a
+  /// carrier-grade NAT is many installs behind one address, and a refusal is
+  /// 429 rather than 202 so what they send past it is kept on the device and
+  /// sent again, not lost.
+  final int perSourcePerHour;
 
   /// Where the generated backend serves it, under the API base path.
   static const String path = '/_dartvel/crashes';
@@ -197,6 +226,10 @@ class DVCrashIngest {
       <String, ListQueue<(DateTime, String)>>{};
   final Map<String, int> _limited = <String, int>{};
   final Map<String, DateTime> _limitReported = <String, DateTime>{};
+  final Map<String, ListQueue<DateTime>> _fromSource =
+      <String, ListQueue<DateTime>>{};
+  final Map<String, int> _sourceLimited = <String, int>{};
+  final Map<String, DateTime> _sourceLimitReported = <String, DateTime>{};
 
   static final DVLogger _logger = DVLogger();
 
@@ -206,7 +239,17 @@ class DVCrashIngest {
   /// How many of [installId]'s reports were counted rather than stored.
   int limited(String installId) => _limited[installId] ?? 0;
 
-  Future<DVCrashIngestResult> accept(List<int> body) async {
+  /// How many reports from [source] were refused this hour for its budget.
+  int sourceLimited(String source) => _sourceLimited[source] ?? 0;
+
+  /// Accepts one report sent from [source]: the client's key as
+  /// `DVClientAddress.sourceOf` gives it. A caller that passes none counts
+  /// every such report in one unknown source, which is limited rather than
+  /// left unlimited.
+  Future<DVCrashIngestResult> accept(
+    List<int> body, {
+    String source = DVClientAddress.unknownSource,
+  }) async {
     if (body.length > maxBytes) {
       return const DVCrashIngestResult(DVCrashIngestOutcome.tooLarge);
     }
@@ -229,8 +272,11 @@ class DVCrashIngest {
 
     final DateTime now = _clock();
     _sweep(now);
+    // Looked up, not created: an install id is created only once a report of
+    // its is stored, so a client writing a new id per report does not grow
+    // this map with ids that were refused.
     final ListQueue<(DateTime, String)> recent =
-        _recent.putIfAbsent(installId, ListQueue<(DateTime, String)>.new);
+        _recent[installId] ?? ListQueue<(DateTime, String)>();
     while (recent.isNotEmpty && now.difference(recent.first.$1) >= _window) {
       recent.removeFirst();
     }
@@ -239,6 +285,8 @@ class DVCrashIngest {
     if (recent.any(((DateTime, String) entry) => entry.$2 == report.id)) {
       return const DVCrashIngestResult(DVCrashIngestOutcome.duplicate);
     }
+    // The install's limit first: one install in a crash loop is answered
+    // 202, which is final, rather than 429, which it would retry forever.
     if (recent.length >= perInstallPerHour) {
       _limited[installId] = limited(installId) + 1;
       final DateTime? reported = _limitReported[installId];
@@ -253,6 +301,26 @@ class DVCrashIngest {
       return const DVCrashIngestResult(DVCrashIngestOutcome.limited);
     }
 
+    final ListQueue<DateTime> fromSource =
+        _fromSource[source] ?? ListQueue<DateTime>();
+    while (fromSource.isNotEmpty &&
+        now.difference(fromSource.first) >= _window) {
+      fromSource.removeFirst();
+    }
+    if (fromSource.length >= perSourcePerHour) {
+      _sourceLimited[source] = sourceLimited(source) + 1;
+      final DateTime? reported = _sourceLimitReported[source];
+      if (reported == null || now.difference(reported) >= _window) {
+        _sourceLimitReported[source] = now;
+        // Not which address: a client address is personal data, and the log
+        // says what happened, not to whom.
+        _log('DV-CRASH-004: a client address is past $perSourcePerHour crash '
+            'reports this hour; further reports from it are refused with 429 '
+            'and sent again later');
+      }
+      return const DVCrashIngestResult(DVCrashIngestOutcome.sourceLimited);
+    }
+
     final bool kept;
     try {
       kept = await repository.put(report, receivedAt: now);
@@ -264,7 +332,10 @@ class DVCrashIngest {
     if (!kept) {
       return const DVCrashIngestResult(DVCrashIngestOutcome.duplicate);
     }
-    recent.add((now, report.id));
+    // Only a stored report spends either budget: a duplicate, a report
+    // counted per install, and a store that failed and will be retried do not.
+    _recent[installId] = recent..add((now, report.id));
+    _fromSource[source] = fromSource..add(now);
     return const DVCrashIngestResult(DVCrashIngestOutcome.stored);
   }
 
@@ -281,6 +352,14 @@ class DVCrashIngest {
         recent.isEmpty || now.difference(recent.last.$1) >= _window);
     _limitReported.removeWhere(
         (String _, DateTime at) => now.difference(at) >= _window);
+    _fromSource.removeWhere((String _, ListQueue<DateTime> stored) =>
+        stored.isEmpty || now.difference(stored.last) >= _window);
+    _sourceLimitReported.removeWhere(
+        (String _, DateTime at) => now.difference(at) >= _window);
+    // A source's refusal count goes with its window, so a client cycling
+    // through networks cannot grow this map without bound.
+    _sourceLimited
+        .removeWhere((String source, int _) => !_fromSource.containsKey(source));
   }
 }
 
