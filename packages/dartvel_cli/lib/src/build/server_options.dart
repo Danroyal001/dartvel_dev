@@ -14,7 +14,7 @@
 library;
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVCidr, DVClientAddress, DVForwardedHeader;
+    show DVCidr, DVClientAddress, DVForwardedHeader, dvDefaultMaxBodyBytes;
 
 /// A CORS policy, as configured.
 class DVCorsSettings {
@@ -49,7 +49,10 @@ class DVServerOptions {
     this.trustedProxies = const <String>[],
     this.forwardedHeader,
     this.ipv6SourcePrefix = DVClientAddress.defaultIpv6SourcePrefix,
+    this.maxBodyBytes = dvDefaultMaxBodyBytes,
   });
+
+  final int maxBodyBytes;
 
   /// The configured policy, or null when the project said nothing.
   ///
@@ -138,7 +141,23 @@ class DVServerOptions {
       trustedProxies: _trustedProxies(_value(server, 'trustedProxies')),
       forwardedHeader: _forwardedHeader(_value(server, 'forwardedHeader')),
       ipv6SourcePrefix: _ipv6SourcePrefix(_value(server, 'ipv6SourcePrefix')),
+      maxBodyBytes: _maxBodyBytes(_value(server, 'maxBodyBytes')),
     );
+  }
+
+  static int _maxBodyBytes(Object? node) {
+    if (node == null) return dvDefaultMaxBodyBytes;
+    // A whole number only. A quoted "65536" is text in YAML, and "16MB" is
+    // a unit this does not read; accepting either as the default would be a
+    // limit somebody wrote down and did not get.
+    if (node is! int || node <= 0) {
+      throw FormatException(
+        'dartvel.server.maxBodyBytes must be a positive whole number of '
+        'bytes, such as 1048576, not "$node". It is the largest request body '
+        'the server reads for a route that declares no limit of its own.',
+      );
+    }
+    return node;
   }
 
   static int _ipv6SourcePrefix(Object? node) {

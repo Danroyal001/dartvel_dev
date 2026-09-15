@@ -1,4 +1,22 @@
 ## Unreleased
+- **The generated backend's body limits are enforced by the server, before
+  the body is read.** `dartvel.server.maxBodyBytes` sets the largest body the
+  native server reads for a route that declares no limit: 1 MiB by default.
+  `dartvel routes` refuses a value that is not a positive whole number of
+  bytes, including a quoted `"65536"` or `16MB`. The generated `startBackend`
+  passes it to `serve()`, with every route's own limit from
+  `router.bodyLimits`, and takes a `maxBodyBytes` override. A route declaring
+  `uploadLimit` registers `DVBodyLimits.upload` with the server, so an upload
+  reads past the server limit, and no other route does. `bodyLimit`
+  registers `DVBodyLimits.body`. A route declaring both registers the larger,
+  and the Dart check still picks by content type. The crash endpoint
+  registers `dartvel.crashes.ingest.maxBytes`, so an ingest limit above the
+  server's is not refused first. Raw handlers declaring either key now get
+  it too, where before nothing enforced it. Before this, every one of these
+  limits was checked in Dart after the native side had already buffered the
+  whole body, with no limit. A route's limit is read from `DVBodyLimits` once,
+  when `startBackend` builds the router, and the server and the route check
+  use that same number. Set `DVBodyLimits` before starting the backend.
 - **The generated crash endpoint limits each client source.** With
   `sink: dartvel`, the endpoint passes `DVClientAddress.sourceOf(req)` to
   `DVCrashIngest.accept`, and `dartvel.crashes.ingest.perSourcePerHour` to
