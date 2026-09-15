@@ -71,6 +71,36 @@ class DVSecondFactorStatus {
       'DVSecondFactorStatus(totp: $totp, recoveryCodes: $recoveryCodes)';
 }
 
+/// The signed-in person's account, as the server describes it.
+class DVAccount {
+  const DVAccount({required this.id, this.email, this.name, this.pendingEmail});
+
+  final String id;
+
+  /// The address the account signs in with. It changes only once a new
+  /// address is verified.
+  final String? email;
+  final String? name;
+
+  /// A new address waiting for its code, or null.
+  final String? pendingEmail;
+
+  factory DVAccount.fromJson(Object? json, String path) {
+    if (json is! Map || json['id'] is! String) {
+      throw DVSessionRequestFailed(200, path);
+    }
+    return DVAccount(
+      id: json['id'] as String,
+      email: json['email'] as String?,
+      name: json['name'] as String?,
+      pendingEmail: json['pendingEmail'] as String?,
+    );
+  }
+
+  @override
+  String toString() => 'DVAccount($id)';
+}
+
 /// Where a native client keeps its session token.
 abstract interface class DVSessionTokenStore {
   Future<String?> read();
@@ -437,6 +467,62 @@ class DVSessionClient {
     });
   }
 
+  // --- this person's account ------------------------------------------------
+
+  /// The signed-in person's account, including an address change still
+  /// waiting for its code.
+  Future<DVAccount> account() async {
+    const String path = DVAuthEndpoints.accountPath;
+    final Map<String, Object?> json =
+        _decode(await _request('GET', path, bearer: _token), path);
+    return DVAccount.fromJson(json['account'], path);
+  }
+
+  /// Asks for the account's address to become [email]. The server sends a
+  /// code to that address; nothing changes until [confirmEmailChange]
+  /// presents it.
+  Future<void> requestEmailChange(String email) async {
+    const String path = DVAuthEndpoints.emailChangePath;
+    _decode(
+        await _request('POST', path,
+            body: <String, Object?>{'email': email}, bearer: _token),
+        path);
+  }
+
+  /// Presents the code sent to the new address. The address changes, the
+  /// server rotates the session, and this device keeps the rotated one.
+  Future<DVAccount> confirmEmailChange(String code) async {
+    const String path = DVAuthEndpoints.emailVerifyPath;
+    final Map<String, Object?> json =
+        await _rotated(path, <String, Object?>{'code': code});
+    return DVAccount.fromJson(json['account'], path);
+  }
+
+  /// Deletes the account, presenting its [password] -- and a [code] or
+  /// [recoveryCode] when it has a second factor. Only once the server
+  /// confirms is the session forgotten here; a refusal throws and leaves
+  /// the device signed in.
+  Future<void> deleteAccount({
+    required String password,
+    String? code,
+    String? recoveryCode,
+  }) async {
+    const String path = DVAuthEndpoints.deleteAccountPath;
+    _decode(
+        await _request('POST', path,
+            body: <String, Object?>{
+              'password': password,
+              'confirm': true,
+              if (code != null) 'code': code,
+              if (recoveryCode != null) 'recoveryCode': recoveryCode,
+            },
+            bearer: _token),
+        path);
+    _pendingToken = null;
+    _pendingUser = null;
+    await _forget();
+  }
+
   /// A POST whose answer carries the rotated session, which is adopted
   /// before the rest of the answer is handed back.
   Future<Map<String, Object?>> _rotated(
@@ -547,9 +633,9 @@ class DVSessionClient {
     } on FormatException {
       decoded = null;
     }
-    if (response.statusCode == 200) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
       if (decoded is Map) return Map<String, Object?>.from(decoded);
-      throw DVSessionRequestFailed(200, path);
+      throw DVSessionRequestFailed(response.statusCode, path);
     }
     final Object? error = decoded is Map ? decoded['error'] : null;
     throw switch (error) {

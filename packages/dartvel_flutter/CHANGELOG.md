@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **The prebuilt account pages.** `DV.Auth.SecurityPage()` shows whether an
+  authenticator is on, enrolls one from a QR code drawn in Dart with the key
+  beside it, shows new recovery codes once with a copy button and keeps none
+  after they are dismissed, and removes the authenticator only with a code.
+  `SessionsPage()` lists every device with its last use and signs out one or
+  all the others. `SignUpPage()` creates an account, and an address that has
+  one reads exactly like any other failure. `ProfilePage()` shows the address
+  and changes it only once the code sent to the new one is entered.
+  `DeletePage()` sends nothing until `DELETE` is typed and the password -- and
+  the code, when there is a second factor -- is given. Each is built from
+  `DVBox` and `DVText`. `DV.Auth.account()`, `requestEmailChange`,
+  `confirmEmailChange` and `deleteAccount(confirmed:)` are what they call.
+
 - **The second-factor challenge, for pages and calls.** `DVPageMfa` is what
   the generated router asks for a page declaring `mfa:`: nobody signed in goes
   to `dvSignInRoute`, a session without a recent enough factor goes to

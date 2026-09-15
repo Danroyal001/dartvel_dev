@@ -9,6 +9,11 @@
   ranges in `DARTVEL_TRUSTED_PROXIES`, before the router is built, so every
   per-source limit counts the connection's peer unless that peer is a listed
   proxy. A project that names none trusts none.
+- **The generated backend serves account changes.** `GET /auth/account`,
+  `POST /auth/account/email`, `/auth/account/email/verify` and
+  `/auth/account/delete`, behind the authentication stage and CSRF-checked,
+  handled by `DVAuthEndpoints`; a function declaring one of these paths stops
+  the build.
 - **`mfa:` is read by the generator.** A backend function declaring
   `@DVBackendFunction(mfa: ...)` answers a session without the second factor
   with the step-up refusal before its policy is asked or the function runs,
