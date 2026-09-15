@@ -599,6 +599,18 @@ dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     body: Stream<List<int>>.value(
         conv.utf8.encode('Not authorized (\$policy)')));
 
+/// Nobody authenticated, on a route whose policy needs a caller. 401 rather
+/// than the 403 a refused caller gets: signing in is the answer, and a client
+/// told so can send the person to sign in instead of to a page saying they
+/// may not.
+dv.Response _dvUnauthenticated() => dv.Response(401,
+    headers: dv.Headers({
+      'content-type': 'text/plain; charset=utf-8',
+      'cache-control': 'no-store',
+      'www-authenticate': 'Bearer',
+    }),
+    body: Stream<List<int>>.value(conv.utf8.encode('Unauthorized')));
+
 /// The authentication stage.${authenticates ? r'''
 /// An API key or OAuth access token on the request becomes
 /// core.DVApiPrincipal.current for the rest of it, checked against the
@@ -811,8 +823,16 @@ ${backendEntries.map((e) {
           // were registered in; a reference names no action, so only the
           // application's decide can answer it.
           : e['policyAction'] == '1'
-              ? "\n    if (!await core.DVBackendPolicy.allowsAction('$policy', req.url.path)) "
-                  "return _dvPolicyForbidden('$policy');"
+              // 401 when nobody authenticated and the policy needs a caller,
+              // 403 for every other refusal.
+              ? "\n    switch (await core.DVBackendPolicy.checkAction('$policy', req.url.path)) {"
+                  '\n      case core.DVPolicyDecision.allowed:'
+                  '\n        break;'
+                  '\n      case core.DVPolicyDecision.unauthenticated:'
+                  '\n        return _dvUnauthenticated();'
+                  '\n      case core.DVPolicyDecision.forbidden:'
+                  "\n        return _dvPolicyForbidden('$policy');"
+                  '\n    }'
               : "\n    if (!await _dvAllowed('$policy', req)) "
                   "return _dvPolicyForbidden('$policy');";
 

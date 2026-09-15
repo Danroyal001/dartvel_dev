@@ -4043,9 +4043,13 @@ class DVNotificationsService {
 
 /// One registered check, and what it can be asked with.
 class _DVPolicyEntry {
-  _DVPolicyEntry(this.check, this.accepts, this.signature);
+  _DVPolicyEntry(this.check, this.accepts, this.signature, this.takesNoUser);
 
   final FutureOr<bool> Function(Object?, Object?) check;
+
+  /// Whether the check can be called with no caller at all: its user
+  /// parameter is nullable.
+  final bool takesNoUser;
 
   /// Whether the check can be called with this caller and resource at all.
   final bool Function(Object? user, Object? resource) accepts;
@@ -4061,6 +4065,7 @@ class _DVPolicyEntry {
             check(user as TUser, resource as TResource),
         (Object? user, Object? resource) => user is TUser && resource is TResource,
         '($TUser, $TResource)',
+        null is TUser,
       );
 }
 
@@ -4143,6 +4148,16 @@ class DVAuthAuthorization {
   bool acceptsCaller(String action, Object? user) {
     final _DVPolicyEntry? entry = _entry(DVApiScopes.policyKeyOf(action));
     return entry != null && entry.accepts(user, null);
+  }
+
+  /// Whether the policy for [action] needs a caller: its user parameter is
+  /// not nullable, so a request that authenticated nobody cannot be asked
+  /// about. Judged on the user alone -- a policy that also needs a resource
+  /// is refused for that, which signing in would not change. False for an
+  /// action nothing registered.
+  bool requiresCaller(String action) {
+    final _DVPolicyEntry? entry = _entry(DVApiScopes.policyKeyOf(action));
+    return entry != null && !entry.takesNoUser;
   }
 
   Future<bool> can<TUser, TResource>(

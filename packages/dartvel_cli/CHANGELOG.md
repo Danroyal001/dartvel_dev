@@ -1,4 +1,12 @@
 ## Unreleased
+- **A generated route answers 401 when signing in is the answer.** A route
+  with a quoted `Resource.action` asks `DVBackendPolicy.checkAction`: with no
+  session or key on a route whose policy needs a caller it answers 401 with
+  `WWW-Authenticate: Bearer` and `no-store`, and every other refusal is still
+  the 403 it was, including a key the policy cannot take and a policy that
+  takes no caller and says no. The CSRF check still runs first and still
+  applies to a session-authenticated state change, bearer or cookie; an API
+  key or OAuth token is still exempt.
 - **The generated backend authenticates the application's own sessions.**
   Every route's authentication stage -- backend functions, GraphQL, the crash
   endpoint, OpenAPI and health -- now resolves a `Bearer dvs_...` session
