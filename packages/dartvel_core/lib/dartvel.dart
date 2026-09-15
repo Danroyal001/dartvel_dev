@@ -4133,6 +4133,18 @@ class DVAuthAuthorization {
 
   _DVPolicyEntry? _entry(String key) => _policies[key] ?? _declared[key];
 
+  /// Whether the policy for [action], named as `Resource.action`, can be
+  /// called with [user] as its caller and no resource.
+  ///
+  /// The registry holds the types the policy was torn off with, which is how
+  /// a route picks the caller a policy takes: the application's user for a
+  /// policy written against it, the session principal for one written
+  /// against that. False for an action nothing registered.
+  bool acceptsCaller(String action, Object? user) {
+    final _DVPolicyEntry? entry = _entry(DVApiScopes.policyKeyOf(action));
+    return entry != null && entry.accepts(user, null);
+  }
+
   Future<bool> can<TUser, TResource>(
     TUser user,
     String action,

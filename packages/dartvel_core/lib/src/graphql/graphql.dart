@@ -15,6 +15,7 @@ import 'package:crypto/crypto.dart';
 
 import '../auth/api_scopes.dart';
 import '../auth/backend_policy.dart';
+import '../auth/session_authentication.dart';
 import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
 
@@ -571,14 +572,18 @@ class DVGraphQL {
     // process default, so the policy would be asked about the wrong caller and
     // the resolver would read the wrong tenant's data.
     final DVApiPrincipal? principal = DVApiPrincipal.current;
+    final DVSessionPrincipal? session = DVSessionPrincipal.current;
     final String? tenant =
         DVTenants.hasScope ? const DVTenants().currentTenant : null;
     Future<void> startAsCaller() {
       Future<void> onTenant() =>
           tenant == null ? start() : const DVTenants().withTenant(tenant, start);
-      return principal == null
+      Future<void> asSession() => session == null
           ? onTenant()
-          : DVApiPrincipal.actingAs(principal, onTenant);
+          : DVSessionPrincipal.actingAs(session, onTenant);
+      return principal == null
+          ? asSession()
+          : DVApiPrincipal.actingAs(principal, asSession);
     }
 
     controller = StreamController<Map<String, Object?>>(

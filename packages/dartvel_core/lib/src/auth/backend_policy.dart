@@ -16,6 +16,7 @@ library dartvel_core.auth.backend_policy;
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../observability/observability.dart';
 import 'api_scopes.dart';
+import 'session_authentication.dart';
 
 /// The gate the generated backend router calls before running a function.
 class DVBackendPolicy {
@@ -86,7 +87,29 @@ class DVBackendPolicy {
     }
     final Future<bool> Function(String, String)? answer = decide;
     if (answer != null) return answer(action, path);
-    return authorization.canAction(principal, action);
+    return authorization.canAction(callerFor(action), action);
+  }
+
+  /// Who the registered policy for [action] is asked about on this request.
+  ///
+  /// The API key or OAuth principal when the platform API authenticated the
+  /// request. For the application's own session, the application's user
+  /// when the policy can take it -- which a policy taking `Object?` can, so
+  /// `user is Account` answers for a signed-in account -- then the session
+  /// principal when the policy is written against that. When the policy can
+  /// take neither, the user (or the principal) is still what it is asked
+  /// with, so the refusal names the caller it could not take. Null for a
+  /// request that authenticated nobody.
+  static Object? callerFor(String action) {
+    final DVApiPrincipal? key = DVApiPrincipal.current;
+    if (key != null) return key;
+    final DVSessionPrincipal? session = DVSessionPrincipal.current;
+    if (session == null) return null;
+    const DVAuthAuthorization authorization = DVAuthAuthorization();
+    final Object? user = session.user;
+    if (user != null && authorization.acceptsCaller(action, user)) return user;
+    if (authorization.acceptsCaller(action, session)) return session;
+    return user ?? session;
   }
 
   /// Refuses to start a server whose routes declare an action nothing has
