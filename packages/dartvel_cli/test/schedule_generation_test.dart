@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/backend_generator.dart';
+import 'package:dartvel_cli/src/module_trust/capability_analysis.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -157,6 +158,17 @@ Future<void> cleanupExpiredSessions() async {}
         schedules,
         contains('dartvelBackendCronHandlers = '
             '<String, Future<void> Function()>{};'),
+      );
+      // And it reads as no scheduled work to whoever reads the code. A
+      // module's generated files are analysed for the capabilities it uses,
+      // and a scheduler constructed behind an isEmpty guard read as cron --
+      // so a parent mounting a module with no schedule was refused for not
+      // granting one.
+      expect(
+        dvAnalyseModuleSources(<String, String>{
+          'lib/dartvel_client/schedules.g.dart': schedules,
+        }).uses.cron,
+        isFalse,
       );
     } finally {
       if (root.existsSync()) root.deleteSync(recursive: true);
