@@ -603,7 +603,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVCrashConfig, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVSessionAuthProvider, DVSessionClient, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -613,6 +613,7 @@ import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 import 'policies.g.dart' show dartvelRegisterPolicies;
+import 'functions.g.dart' show DartvelClient;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -673,6 +674,24 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // are kept in is the files directory they found. Before this nothing
   // installed the crash runtime, so a real application recorded no crash.
   installDartvelCrashReporting();
+  // DV.Auth signs in through this application's own backend unless the
+  // application configures another provider. A native session token is
+  // sealed under the application key `dartvel key` manages before it is
+  // written, and handed to every generated call; in a browser the server's
+  // HttpOnly cookie is the session and no token is kept. After the bindings,
+  // because on Android the token file goes in the directory they find. A
+  // stored session is checked with the server at launch; the keyring is asked
+  // nothing unless one is stored.
+  final DVSessionClient dartvelSessions = DVSessionClient(
+    api: DartvelRuntime.api,
+    onToken: (String? token) => DartvelClient.setAuthToken(token ?? ''),
+    tokens: kIsWeb ? null : dvSessionTokenStoreFor('$pkgName'),
+  );
+  DVSessionClient.install(dartvelSessions);
+  DVAuth.installDefaultProvider(DVSessionAuthProvider(dartvelSessions));
+  if (!kIsWeb) {
+    unawaited(dartvelSessions.restore().then<void>((_) {}, onError: (Object _) {}));
+  }
   // DV.Analytics from dartvel.analytics, over this device's own database:
   // consent belongs to the install. After the bindings, because the database
   // is opened as the runtime starts and on Android the directory it goes in
