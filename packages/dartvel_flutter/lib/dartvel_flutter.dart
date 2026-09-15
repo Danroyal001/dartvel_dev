@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/switch_control.dart';
+import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/browser_extension_platform_memory.dart'
     if (dart.library.html) 'src/browser_extension_platform_web.dart'
@@ -183,6 +184,14 @@ export 'package:dartvel_core/dartvel.dart'
         AnthropicDVAIAdapter,
         AuthException,
         AuthFailure,
+        // What signing in through the generated backend throws and returns,
+        // so an application importing only this library can catch it.
+        DVBotRefusal,
+        DVBreachedPasswordRefusal,
+        DVMfa,
+        DVMfaRequired,
+        DVSession,
+        DVVelocityRefusal,
         AuthProvider,
         AuthState,
         AuthUser,
@@ -640,6 +649,9 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
+export 'src/auth/session_client.dart';
+export 'src/auth/session_token_file_io.dart'
+    if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
 export 'src/flags/flag_signal.dart';
 export 'src/kiosk/device_kiosk.dart';
@@ -5757,6 +5769,14 @@ class DVAuth {
   const DVAuth();
   static DVAuthProvider? _provider;
   static DVAuthUser? _currentUser;
+  static DVAuthProvider? _defaultProvider;
+
+  /// The provider `DV.Auth` uses when the application configured none. The
+  /// generated runtime installs one signing in through the application's own
+  /// backend; [configure] replaces it.
+  static void installDefaultProvider(DVAuthProvider? provider) {
+    _defaultProvider = provider;
+  }
 
   DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
@@ -5854,8 +5874,28 @@ class DVAuth {
     ));
   }
 
+  /// Presents a code from the account's authenticator, or one recovery code,
+  /// for a sign-in that threw [DVMfaRequired]. The person is signed in once
+  /// the server accepts it.
+  Future<void> completeSecondFactor({String? code, String? recoveryCode}) async {
+    _currentUser = await _sessionClient.completeSecondFactor(
+      code: code,
+      recoveryCode: recoveryCode,
+    );
+  }
+
+  DVSessionClient get _sessionClient {
+    final DVAuthProvider? provider = _provider ?? _defaultProvider;
+    if (provider is DVSessionAuthProvider) return provider.client;
+    return DVSessionClient.installed ??
+        (throw StateError(
+          'DV.Auth has no session client. The generated runtime installs one '
+          'over the application\'s backend.',
+        ));
+  }
+
   DVAuthProvider get _configuredProvider {
-    final provider = _provider;
+    final provider = _provider ?? _defaultProvider;
     if (provider == null) {
       throw StateError(
         'DV.Auth has no configured provider. Configure an auth adapter before signing in.',
@@ -6156,6 +6196,7 @@ extension DVFlutterTestHarness on DVTestHarness {
   void resetAuthProvider() {
     DVAuth._currentUser = null;
     DVAuth._provider = null;
+    DVAuth._defaultProvider = null;
   }
 
   void resetBillingProvider() {
@@ -6225,49 +6266,113 @@ class _EmailPasswordAuthPage extends StatefulWidget {
 class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _code = TextEditingController();
+
+  /// Whether the password was accepted and the account's second factor is
+  /// being asked for.
+  bool _awaitingCode = false;
+  bool _busy = false;
+
+  /// Fixed text chosen here. Nothing a server or provider said is shown.
+  String? _error;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _code.dispose();
     super.dispose();
   }
 
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? error;
+    try {
+      if (_awaitingCode) {
+        await widget.auth.completeSecondFactor(code: _code.text.trim());
+        _awaitingCode = false;
+      } else {
+        await widget.auth.signInWithEmailAndPassword(
+          email: _email.text,
+          password: _password.text,
+        );
+      }
+    } on DVMfaRequired {
+      _awaitingCode = true;
+    } on AuthException catch (refusal) {
+      error = refusal.failure == AuthFailure.invalidCredentials
+          ? AuthException.invalidCredentials.message
+          : 'Signing in failed. Check your details and try again.';
+    } on DVVelocityRefusal catch (refusal) {
+      error = refusal.message;
+    } on DVSecondFactorRefused catch (refusal) {
+      error = refusal.message;
+    } on Object {
+      error = 'Signing in failed. Try again.';
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+  }
+
   @override
-  Widget build(BuildContext context) => Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Material(
-            type: MaterialType.transparency,
-            child: DVBox.list([
+  Widget build(BuildContext context) {
+    final String? error = _error;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Material(
+          type: MaterialType.transparency,
+          child: DVBox.list([
+            if (!_awaitingCode) ...<Widget>[
               TextField(
+                key: const ValueKey<String>('dv-auth-email'),
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email'),
               ),
               TextField(
+                key: const ValueKey<String>('dv-auth-password'),
                 controller: _password,
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
               ),
-              const DVText('Sign in').modifier(
+            ] else
+              TextField(
+                key: const ValueKey<String>('dv-auth-code'),
+                controller: _code,
+                decoration: const InputDecoration(
+                  labelText: 'Code from your authenticator app',
+                ),
+                keyboardType: TextInputType.number,
+                autofillHints: const <String>[AutofillHints.oneTimeCode],
+              ),
+            if (error != null)
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-auth-error'),
+                child: DVText(error),
+              ),
+            KeyedSubtree(
+              key: const ValueKey<String>('dv-auth-submit'),
+              child: DVText(_awaitingCode ? 'Continue' : 'Sign in').modifier(
                 const DVModifier()
                     .padding(12)
                     .rounded(8)
                     .backgroundColor(const Color(0xFF111827))
                     .color(Colors.white)
-                    .onPressed(() {
-                  unawaited(
-                    widget.auth.signInWithEmailAndPassword(
-                      email: _email.text,
-                      password: _password.text,
-                    ),
-                  );
-                }),
+                    .onPressed(() => unawaited(_submit())),
               ),
-            ]),
-          ),
+            ),
+          ]),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _ProviderAuthPage extends StatelessWidget {

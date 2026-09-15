@@ -1,5 +1,27 @@
 ## Unreleased
 
+- **`DV.Auth` signs in through the application's own backend.**
+  `DVSessionClient` calls the generated `/auth/sign-in`, `/auth/sign-up`,
+  `/auth/second-factor` and `/auth/sign-out`, and `DVSessionAuthProvider` is
+  `DV.Auth`'s provider over it; the generated runtime installs both with
+  `DVAuth.installDefaultProvider`, and `DV.Auth.configure` still replaces it.
+  A native client asks for the `dvs_` token, hands it to
+  `DartvelClient.setAuthToken` and keeps it in a `DVSealedSessionTokenStore`:
+  AES-256-GCM under the application key `dartvel key` manages, in the
+  platform keyring, before a byte reaches the file. With no key custody the
+  token lasts for the process and is never written down; an unreadable file is
+  discarded rather than sent. A browser asks for nothing and stores nothing,
+  because the server's `HttpOnly` cookie is the session. Sign-out forgets the
+  session only once the server has revoked it -- one it did not confirm throws
+  `DVSessionRequestFailed` and leaves the device signed in. A sign-in to an
+  account with a second factor throws `DVMfaRequired` and holds the pending
+  session in memory only; `DV.Auth.completeSecondFactor(code: ...)` presents
+  it, and only the rotated token is stored and handed out. At launch a stored
+  session is checked with the server and forgotten when refused
+  (`DV-SESSION-002`). Refusals are rebuilt from their code with the client's
+  own wording. `DV.Auth.SignInWithEmailAndPasswordPage` shows a refusal and
+  asks for the second factor when the account has one.
+
 - **`DV.Auth.apiKeys` and `DV.Auth.oauthClients`.** The platform API's
   management surface, `DVPlatformApiAuth` over `DV.Auth.authorization`, so a
   policy registered through `DV.Auth.registerPolicy` for `DVApiKeyResource`
