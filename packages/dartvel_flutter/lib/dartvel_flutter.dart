@@ -5884,6 +5884,23 @@ class DVAuth {
     );
   }
 
+  /// Every device signed in as this person, newest first, with this one
+  /// marked current.
+  Future<List<DVSession>> sessions() async => _sessionClient.sessions();
+
+  /// Revokes one device's session by its listed id. Its next request fails;
+  /// revoking this device's own session signs this device out.
+  Future<void> revoke(String sessionId) async {
+    final DVSessionClient client = _sessionClient;
+    final bool here = client.current?.id == sessionId;
+    await client.revoke(sessionId);
+    if (here) _currentUser = null;
+  }
+
+  /// Revokes every session of this person except this device's, and answers
+  /// how many.
+  Future<int> revokeOthers() async => _sessionClient.revokeOthers();
+
   DVSessionClient get _sessionClient {
     final DVAuthProvider? provider = _provider ?? _defaultProvider;
     if (provider is DVSessionAuthProvider) return provider.client;
@@ -7081,6 +7098,11 @@ class DV {
   static DVContacts get Contacts => Platform.Contacts;
 
   static DVAuth get Auth => const DVAuth();
+
+  /// `DV.Session`: this device's session as a read-only signal --
+  /// `DV.Session.current`, `.id` and `.claims` -- changed only by what the
+  /// server answers.
+  static DVSessionSignal get Session => const DVSessionSignal();
 
   /// `DV.Analytics`: typed events checked against consent before they leave
   /// the device. Started by the generated runtime from `dartvel.analytics`,

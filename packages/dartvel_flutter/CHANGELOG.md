@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`DV.Session`, and `DV.Auth.sessions`, `revoke` and `revokeOthers`.**
+  `DV.Session` is this device's session as a read-only signal
+  (`DVSessionSignal`, a `DVLifecycleSignal<DVSession?>`): `current`, `id` and
+  `claims`, with `changes` and `listen`, and no setter -- only the server's
+  answers change it. `DV.Auth.sessions()` lists the signed-in person's
+  sessions newest first with this one marked current, `DV.Auth.revoke(id)`
+  revokes one and signs this device out when it is this device's, and
+  `DV.Auth.revokeOthers()` revokes the rest and answers how many, each through
+  the generated endpoints, which answer for the signed-in person's own
+  sessions only. A revoke the server refused throws and changes nothing.
+
 - **`DV.Auth` signs in through the application's own backend.**
   `DVSessionClient` calls the generated `/auth/sign-in`, `/auth/sign-up`,
   `/auth/second-factor` and `/auth/sign-out`, and `DVSessionAuthProvider` is
