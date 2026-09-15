@@ -66,5 +66,39 @@ Future<Refund> _refundOrder(Order order) async => Refund.create(order);
       expect(dvBackendPolicyFromSource(page), isNull);
       expect(dvPagePolicyFromSource(fn), isNull);
     });
+
+    test('a quoted Resource.action is the policy', () {
+      // The annotation's policy is a String, so a literal compiles. Read only
+      // as a reference it was dropped, and the function it guarded answered
+      // everybody -- while a scope names exactly this shape of action.
+      expect(
+        dvBackendPolicyFromSource("@DVBackendFunction(policy: 'Order.view')\n"
+            'Future<int> _f() async => 1;'),
+        'Order.view',
+      );
+      expect(
+        dvBackendPolicyFromSource('@DVBackendFunction(policy: "Order.create")\n'
+            'Future<int> _f() async => 1;'),
+        'Order.create',
+      );
+    });
+
+    test('a quoted policy that cannot be emitted stops the build', () {
+      // Emitted into generated source. Skipping it would leave the route
+      // unguarded; emitting it would compile into something nobody wrote.
+      for (final String literal in <String>[
+        "'refund orders'",
+        r"'x\'); evil('",
+        "''",
+      ]) {
+        expect(
+          () => dvBackendPolicyFromSource(
+              '@DVBackendFunction(policy: $literal)\n'
+              'Future<int> _f() async => 1;'),
+          throwsA(isA<StateError>()),
+          reason: literal,
+        );
+      }
+    });
   });
 }

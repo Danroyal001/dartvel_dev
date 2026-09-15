@@ -148,9 +148,30 @@ String? dvPagePolicyFromSource(String source) {
 ///
 /// [source] is the function's own source, so a file with several backend
 /// functions gives each its own answer rather than the first one's.
+///
+/// A quoted policy is read too, as in `policy: 'Order.view'`: the annotation's
+/// field is a String, so a literal compiles, and a scope names exactly that
+/// shape of action. Read only as a reference, a literal was dropped and the
+/// function it guarded answered everybody. A literal that cannot be emitted
+/// into generated source safely stops the build rather than being skipped.
 String? dvBackendPolicyFromSource(String source) {
   final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
   if (args == null) return null;
+  final RegExpMatch? quoted =
+      RegExp(r'''policy\s*:\s*(['"])(.*?)\1''').firstMatch(args);
+  if (quoted != null) {
+    final String literal = quoted.group(2)!;
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)*$')
+        .hasMatch(literal)) {
+      throw StateError(
+        '@DVBackendFunction(policy: ${quoted.group(0)!.split(':').skip(1).join(':').trim()}) '
+        'is not a policy Dartvel can guard a route with. Write a '
+        'Resource.action such as \'Order.view\', or a reference such as '
+        'DVPolicies.refund.',
+      );
+    }
+    return literal;
+  }
   final RegExpMatch? match = RegExp(
     r'policy\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)',
   ).firstMatch(args);

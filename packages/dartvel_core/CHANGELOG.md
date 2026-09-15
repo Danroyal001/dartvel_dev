@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **`DVPlatformApi` is the authentication stage of a generated backend.**
+  `authenticateRequest` resolves a `dvk_` key or `dvat_` access token in an
+  `Authorization: Bearer` header on the current tenant, applies the key's
+  declared rate plan, and answers `DVApiAuthentication.none` for any other
+  header. Every credential refusal is the same 401; a store that fails is a
+  503 that logs the error type only; a platform credential reaching a
+  process with no platform API installed is a 503 rather than ignored. It
+  builds `DVOrganizations`, `DVApiKeys` and, when OAuth is on,
+  `DVOAuthProvider` over the application's database on first use.
+  `DVApiPrincipal.current` and `DVApiPrincipal.actingAs` carry the caller in
+  a zone. `DVBackendPolicy.allows` refuses a policy outside the current
+  principal's scopes with `DV-APIKEY-002` before `decide` is asked.
+
 - **`DVPlatformApiConfig` parses `dartvel.platformApi`.** Scopes as a list
   of `Resource.action` or `{actions, description}`, rate plans as
   `{maxRequests, window}` with the window written as `15m`, `1h` or `7d`,

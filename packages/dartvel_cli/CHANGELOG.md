@@ -1,4 +1,20 @@
 ## Unreleased
+- **A generated backend authenticates API keys and OAuth tokens on every
+  route.** With `dartvel.platformApi` declared, each route's lifecycle has an
+  authentication stage inside the tenant scope and tracing and outside the
+  declared middleware. An `Authorization: Bearer` credential starting `dvk_`
+  or `dvat_` is checked against the request's tenant and becomes
+  `DVApiPrincipal.current` for the rest of the request; any other bearer is
+  the application's and passes through. An invalid, revoked, expired or
+  other-tenant credential answers one 401 with one body and
+  `WWW-Authenticate: Bearer error="invalid_token"`; a key over its rate plan
+  answers 429. `DVBackendPolicy.allows` refuses an action outside the
+  principal's scopes before the application's `decide` runs, which then sees
+  the principal. A keyed request is refused on a route that declares no
+  policy action, and is not asked for a CSRF token. `@DVBackendFunction`
+  reads a quoted policy such as `policy: 'Order.view'`, which was dropped and
+  left the route unguarded, and stops the build on a quoted policy it cannot
+  emit.
 - **`dartvel routes` reads `dartvel.platformApi`.** The scopes, rate plans,
   `requireExpiry` and `oauth` lifetimes are parsed before anything is
   written, and a key nothing reads, an action that is not `Resource.action`
