@@ -36,12 +36,15 @@ import '../http/client_address.dart';
 import '../http/wintercg.dart';
 import '../middleware/body_limit.dart';
 import '../observability/observability.dart';
+import '../privacy/privacy.dart' show DVErasureResult, DVPrivacy;
 import '../tenancy/tenants.dart';
 import 'api_scopes.dart' show DVApiPrincipal;
 import 'auth.dart';
 import 'second_factor.dart';
 import 'session_authentication.dart';
 import 'sessions.dart';
+import 'tokens.dart'
+    show DVAuthTokenFailure, DVAuthTokenRecord, DVAuthTokenResult, DVAuthTokens;
 
 /// Handlers for the generated auth routes.
 ///
@@ -67,6 +70,10 @@ class DVAuthEndpoints {
   static const String totpConfirmPath = '/auth/factors/totp/confirm';
   static const String recoveryCodesPath = '/auth/factors/recovery-codes';
   static const String removeFactorPath = '/auth/factors/remove';
+  static const String accountPath = '/auth/account';
+  static const String emailChangePath = '/auth/account/email';
+  static const String emailVerifyPath = '/auth/account/email/verify';
+  static const String deleteAccountPath = '/auth/account/delete';
 
   /// Every path these endpoints are served under, below the API base path.
   static const List<String> paths = <String>[
@@ -83,6 +90,10 @@ class DVAuthEndpoints {
     totpConfirmPath,
     recoveryCodesPath,
     removeFactorPath,
+    accountPath,
+    emailChangePath,
+    emailVerifyPath,
+    deleteAccountPath,
   ];
 
   /// Sent as `token` by a native client that keeps the session token itself.
@@ -108,6 +119,10 @@ class DVAuthEndpoints {
   static DVSecondFactors? _secondFactors;
   static Duration _secondFactorWindow = const Duration(minutes: 10);
   static Duration _stepUpWindow = const Duration(minutes: 10);
+  static Future<void> Function(String email, String code)? _sendEmailVerification;
+  static DVPrivacy? _privacy;
+  static DVAuthTokens _verificationTokens =
+      DVAuthTokens(lifetime: const Duration(minutes: 30));
 
   /// Makes these endpoints sign people in through [credentials], with
   /// [secondFactors] when accounts may have one.
@@ -117,16 +132,29 @@ class DVAuthEndpoints {
   /// how recently a second factor must have been presented for a session to
   /// generate recovery codes -- what a stolen session would do first, to
   /// keep the account after the session is revoked.
+  ///
+  /// [sendEmailVerification] delivers the code that proves a new address
+  /// receives mail -- typically `DV.Notifications.mail` -- and changing an
+  /// address is refused until one is installed. [privacy] is the project's
+  /// Data Compliance erasure, which deleting an account runs before the
+  /// account is removed. [verificationTokens] keeps those codes, hashed.
   static void install({
     required DVCredentialGuard credentials,
     DVSecondFactors? secondFactors,
     Duration secondFactorWindow = const Duration(minutes: 10),
     Duration stepUpWindow = const Duration(minutes: 10),
+    Future<void> Function(String email, String code)? sendEmailVerification,
+    DVPrivacy? privacy,
+    DVAuthTokens? verificationTokens,
   }) {
     _credentials = credentials;
     _secondFactors = secondFactors;
     _secondFactorWindow = secondFactorWindow;
     _stepUpWindow = stepUpWindow;
+    _sendEmailVerification = sendEmailVerification;
+    _privacy = privacy;
+    _verificationTokens =
+        verificationTokens ?? DVAuthTokens(lifetime: const Duration(minutes: 30));
   }
 
   /// Takes the installed provider away, for a test.
@@ -135,6 +163,9 @@ class DVAuthEndpoints {
     _secondFactors = null;
     _secondFactorWindow = const Duration(minutes: 10);
     _stepUpWindow = const Duration(minutes: 10);
+    _sendEmailVerification = null;
+    _privacy = null;
+    _verificationTokens = DVAuthTokens(lifetime: const Duration(minutes: 30));
   }
 
   /// Whether a provider is installed in this process.
@@ -623,6 +654,257 @@ class DVAuthEndpoints {
 
   static Response _noSecondFactor() => _error(
       409, 'no_second_factor', 'This account has no second factor.');
+
+  // --- the signed-in person's account ----------------------------------------
+
+  /// `GET /auth/account`: the signed-in person's account, with an address
+  /// change still waiting for its code.
+  static Future<Response> account(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        return _json(200, <String, Object?>{
+          'account': await _accountJson(principal),
+        });
+      });
+
+  /// `POST /auth/account/email`: `email`, the address the account should
+  /// move to. Sends a code to that address and changes nothing.
+  ///
+  /// The answer is the same whether or not another account has the address:
+  /// the session holder learns that only by proving they receive its mail.
+  /// Requests count against the account's and the source's velocity limits,
+  /// so this is not a way to mail codes to strangers.
+  static Future<Response> requestEmailChange(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final Object? provider = guard.provider;
+        final Future<void> Function(String, String)? send = _sendEmailVerification;
+        if (provider is! DVAccountProvider || send == null) {
+          return _accountChangesNotConfigured();
+        }
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final String? email = body.string('email')?.trim().toLowerCase();
+        if (email == null || !_address.hasMatch(email)) {
+          return _error(400, 'invalid_email', 'That e-mail address is not valid.');
+        }
+        final String userId = principal.userId;
+        final AuthUser? user = await provider.userById(userId);
+        if (user == null) return _unauthenticated();
+        if (user.email.toLowerCase() == email) {
+          return _error(
+              400, 'invalid_request', 'That is already the account\'s address.');
+        }
+        final String account = _emailChangeKey(userId);
+        final String source = sourceOf(request);
+        final DVVelocityRefusal? locked =
+            await guard.velocity.check(account: account, source: source);
+        if (locked != null) return _velocity(locked);
+        await guard.velocity.recordFailure(account: account, source: source);
+        final String code = await _verificationTokens.issueOtp(account);
+        await _verificationTokens.store.put(
+          _emailTargetKey(userId),
+          DVAuthTokenRecord(
+            identifier: email,
+            hash: '',
+            expiresAt: DateTime.now().add(_verificationTokens.lifetime),
+          ),
+        );
+        await send(email, code);
+        return _json(202, <String, Object?>{'pendingEmail': email});
+      });
+
+  /// `POST /auth/account/email/verify`: `code`, as the new address received
+  /// it. The address changes now, and the session rotates.
+  static Future<Response> verifyEmailChange(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final Object? provider = guard.provider;
+        if (provider is! DVAccountProvider) return _accountChangesNotConfigured();
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final String? code = body.string('code');
+        if (code == null) {
+          return _error(400, 'invalid_request', 'A code is required.');
+        }
+        final String userId = principal.userId;
+        final String? target = await _pendingEmail(userId);
+        if (target == null) return _invalidCode();
+        final DVAuthTokenResult result =
+            await _verificationTokens.redeemOtp(_emailChangeKey(userId), code.trim());
+        if (!result.isSuccess) {
+          return result.failure == DVAuthTokenFailure.throttled
+              ? _error(429, 'too_many_attempts', 'Too many attempts. Request a new code.')
+              : _invalidCode();
+        }
+        await _verificationTokens.store.delete(_emailTargetKey(userId));
+        try {
+          await provider.changeEmail(userId, target);
+        } on AuthException catch (error) {
+          return switch (error.failure) {
+            AuthFailure.accountExists => _error(409, 'account_exists',
+                'An account already exists for that e-mail address.'),
+            AuthFailure.invalidEmail =>
+              _error(400, 'invalid_email', 'That e-mail address is not valid.'),
+            _ => throw error,
+          };
+        }
+        final _Rotated? rotated =
+            await _rotate(request, factorPresented: false);
+        if (rotated == null) return _unauthenticated();
+        return _deliver(request, rotated.stage, rotated.issued, <String, Object?>{
+          'account': await _accountJson(principal),
+        }, bearer: rotated.bearer);
+      });
+
+  /// `POST /auth/account/delete`: `confirm: true`, the account's `password`,
+  /// and a `code` or `recoveryCode` when it has a second factor.
+  ///
+  /// Not a row deletion: the project's Data Compliance erasure runs first
+  /// where one is installed, and a failure there answers 503 with the account
+  /// intact so it can be tried again. Then the second factors, the account and
+  /// every session go, and the cookie is cleared.
+  static Future<Response> deleteAccount(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final Object? provider = guard.provider;
+        if (provider is! DVAccountProvider) return _accountChangesNotConfigured();
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final Object? confirm = body.fields['confirm'];
+        if (confirm != true && confirm != 'true') {
+          return _error(400, 'confirmation_required',
+              'Deleting an account needs explicit confirmation.');
+        }
+        final String? password = body.string('password');
+        if (password == null) {
+          return _error(
+              400, 'invalid_request', 'The account\'s password is required.');
+        }
+        final String userId = principal.userId;
+        final AuthUser? user = await provider.userById(userId);
+        if (user == null) return _unauthenticated();
+        // Re-authentication through the guard, so a wrong password here counts
+        // against the account exactly as one at sign-in does.
+        try {
+          final AuthUser? again = await guard.signIn(user.email, password,
+              source: sourceOf(request));
+          if (again == null || again.id != userId) {
+            return _credentialError(AuthException.invalidCredentials);
+          }
+        } on Object catch (error) {
+          return _credentialError(error);
+        }
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors != null && await factors.hasTotp(userId)) {
+          final String? code = body.string('code');
+          final String? recoveryCode = body.string('recoveryCode');
+          if (code == null && recoveryCode == null) {
+            return stepUpRequired(DVMfa.required);
+          }
+          final Response? failed = await _presentFactor(
+            guard,
+            request,
+            userId,
+            () => code != null
+                ? factors.verifyTotp(userId, code)
+                : factors.redeemRecoveryCode(userId, recoveryCode!),
+          );
+          if (failed != null) return failed;
+        }
+        final DVPrivacy? privacy = _privacy;
+        final DVErasureResult? erasure = privacy == null
+            ? null
+            : await privacy.erase(
+                subject: userId,
+                reason: 'The account holder deleted their account.',
+                requestedBy: userId,
+                runBy: 'DVAuthEndpoints.deleteAccount',
+              );
+        if (factors != null) {
+          await factors.removeTotp(userId);
+          await factors.removeRecoveryCodes(userId);
+        }
+        await _verificationTokens.store.delete(_emailTargetKey(userId));
+        await provider.deleteAccount(userId);
+        final DVSessions sessions = DVSessionAuthentication.sessions;
+        for (final DVSession session in await sessions.list(userId)) {
+          await sessions.revoke(session.id);
+        }
+        final DVSessionAuthentication stage = _stage();
+        return _json(
+          200,
+          <String, Object?>{
+            'deleted': true,
+            'erasure': erasure == null
+                ? null
+                : <String, Object?>{
+                    'complete': erasure.complete,
+                    'unreached': erasure.unreached,
+                    'codes': erasure.codes,
+                  },
+          },
+          headers: <String, String>{
+            'set-cookie': stage.cookie.clearHeader(development: stage.development),
+          },
+        );
+      });
+
+  static Future<Map<String, Object?>> _accountJson(
+      DVSessionPrincipal principal) async {
+    AuthUser? user;
+    final Object? provider = _credentials?.provider;
+    if (provider is DVAccountDirectory) {
+      user = await provider.userById(principal.userId);
+    }
+    final Object? resolved = principal.user;
+    if (user == null && resolved is AuthUser) user = resolved;
+    final String? pending = await _pendingEmail(principal.userId);
+    return <String, Object?>{
+      'id': principal.userId,
+      if (user != null) 'email': user.email,
+      if (user?.name != null) 'name': user!.name,
+      if (pending != null) 'pendingEmail': pending,
+    };
+  }
+
+  /// The address an account is moving to, while its code is still good.
+  static Future<String?> _pendingEmail(String userId) async {
+    final DVAuthTokenRecord? record =
+        await _verificationTokens.store.get(_emailTargetKey(userId));
+    if (record == null) return null;
+    if (DateTime.now().isAfter(record.expiresAt)) {
+      await _verificationTokens.store.delete(_emailTargetKey(userId));
+      return null;
+    }
+    return record.identifier;
+  }
+
+  static String _emailChangeKey(String userId) => 'email-change:$userId';
+
+  static String _emailTargetKey(String userId) => 'email-change-target:$userId';
+
+  static final RegExp _address = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  static Response _invalidCode() =>
+      _error(400, 'invalid_code', 'That code is not valid.');
+
+  static Response _accountChangesNotConfigured() => _error(
+        503,
+        'account_changes_not_configured',
+        'Changing or deleting an account needs a provider that is a '
+            'DVAccountProvider, and changing an address needs '
+            'sendEmailVerification, both passed to DVAuthEndpoints.install.',
+      );
 
   // --- issuing ---------------------------------------------------------------
 

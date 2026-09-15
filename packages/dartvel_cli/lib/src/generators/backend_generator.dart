@@ -187,6 +187,22 @@ class BackendGenerator {
     if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     return core.DVAuthEndpoints.removeFactor(req);
   }));
+  // The signed-in person's account: an address change that waits for the new
+  // address, and deletion behind the password, the second factor and explicit
+  // confirmation.
+  router.get(cfg.apiBasePath + core.DVAuthEndpoints.accountPath, (dv.Request req) => _dvStaged(req, () => core.DVAuthEndpoints.account(req)));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.emailChangePath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.requestEmailChange(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.emailVerifyPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.verifyEmailChange(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.deleteAccountPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.deleteAccount(req);
+  }));
 ''';
 
   /// The paths [_dvAuthRouteSource] serves, below the API base path. Kept
@@ -205,6 +221,10 @@ class BackendGenerator {
     '/auth/factors/totp/confirm',
     '/auth/factors/recovery-codes',
     '/auth/factors/remove',
+    '/auth/account',
+    '/auth/account/email',
+    '/auth/account/email/verify',
+    '/auth/account/delete',
   ];
 
   static Future<void> generate({
