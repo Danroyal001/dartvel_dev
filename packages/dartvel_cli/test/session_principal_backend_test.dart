@@ -214,6 +214,19 @@ Future<void> main() async {
         await call(port, 'POST', '/api/orders', bearer: write.secret);
     out['createReadKey'] =
         await call(port, 'POST', '/api/orders', bearer: read.secret);
+
+    // --- refusals: nobody signed in, or somebody who may not -------------
+    out['viewAnonymous'] = await call(port, 'GET', '/api/orders');
+    out['removeAnonymous'] = await call(port, 'GET', '/api/remove');
+    out['viewReadKey'] =
+        await call(port, 'GET', '/api/orders', bearer: read.secret);
+    out['createAnonymous'] = await call(port, 'POST', '/api/orders');
+    out['createAdminWithoutCsrf'] = await call(port, 'POST', '/api/orders',
+        bearer: secondAdmin, csrf: false);
+    out['createAdminCookieWithoutCsrf'] = await call(port, 'POST', '/api/orders',
+        cookie: '__Host-dv_session=$secondAdmin', csrf: false);
+    out['createWriteKeyWithoutCsrf'] = await call(port, 'POST', '/api/orders',
+        bearer: write.secret, csrf: false);
   } finally {
     await handle.stop();
   }
@@ -524,6 +537,41 @@ Future<String> _whoami(DVContext context) async => describeCaller(context);
         expect(status('createWriteKey'), 200, reason: '${at('createWriteKey')}');
         expect(status('createReadKey'), 403,
             reason: 'outside the key\'s scopes: ${at('createReadKey')}');
+      });
+    });
+
+    group('refusals', () {
+      test('no session on a route whose policy needs a signed-in user is 401',
+          () {
+        for (final String key in <String>['viewAnonymous', 'removeAnonymous']) {
+          expect(status(key), 401, reason: '$key: ${at(key)}');
+          expect(at(key)['www'], 'Bearer', reason: key);
+          expect(at(key)['cacheControl'], 'no-store', reason: key);
+        }
+      });
+
+      test('a caller the policy cannot take is 403, not asked to sign in', () {
+        expect(status('viewReadKey'), 403, reason: '${at('viewReadKey')}');
+      });
+
+      test('a policy that answers without a caller refuses with 403', () {
+        expect(status('createAnonymous'), 403,
+            reason: '${at('createAnonymous')}');
+      });
+
+      test('a session-authenticated state change still needs a CSRF token', () {
+        for (final String key in <String>[
+          'createAdminWithoutCsrf',
+          'createAdminCookieWithoutCsrf',
+        ]) {
+          expect(status(key), 403, reason: '$key: ${at(key)}');
+          expect(body(key), contains('CSRF'), reason: key);
+        }
+      });
+
+      test('an API key is still exempt from CSRF', () {
+        expect(status('createWriteKeyWithoutCsrf'), 200,
+            reason: '${at('createWriteKeyWithoutCsrf')}');
       });
     });
   });

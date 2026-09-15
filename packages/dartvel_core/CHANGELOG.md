@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **A route refused for want of a caller says so.**
+  `DVBackendPolicy.checkAction` answers `DVPolicyDecision.allowed`,
+  `unauthenticated` or `forbidden`, and `allowsAction` is it answering
+  allowed. `unauthenticated` is the one case where signing in would change
+  the answer: nobody authenticated, `decide` is not set, and the registered
+  policy's user parameter is not nullable
+  (`DV.Auth.authorization.requiresCaller`). Every other refusal -- outside a
+  key's scopes, an action nothing registered, `decide` saying no, a caller the
+  policy cannot take, the policy saying no -- stays `forbidden`.
+
 - **A route's policy is asked about the signed-in person.**
   `DVBackendPolicy.allowsAction` asked a registered policy with the API key
   principal or nobody, so a policy written against the application's user
