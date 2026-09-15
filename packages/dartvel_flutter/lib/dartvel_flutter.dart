@@ -14,6 +14,7 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/switch_control.dart';
+import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/browser_extension_platform_memory.dart'
@@ -5990,6 +5991,68 @@ class DVAuth {
       return presented ?? false;
     };
   }
+
+  /// The signed-in person's account, including an address change waiting for
+  /// its code.
+  Future<DVAccount> account() async => _sessionClient.account();
+
+  /// Asks for the account's address to become [email]. A code goes to that
+  /// address, and nothing changes until [confirmEmailChange] presents it --
+  /// an address that changed unverified is a takeover with a password reset
+  /// attached.
+  Future<void> requestEmailChange(String email) async =>
+      _sessionClient.requestEmailChange(email);
+
+  /// Presents the code sent to the new address; the address changes then.
+  Future<void> confirmEmailChange(String code) async {
+    final DVAccount account = await _sessionClient.confirmEmailChange(code);
+    final DVAuthUser? current = _currentUser;
+    _currentUser = DVAuthUser(
+      id: account.id,
+      email: account.email,
+      provider: current?.provider ?? 'email',
+      metadata: current?.metadata ?? const <String, Object?>{},
+      createdAt: current?.createdAt ?? DateTime.now().toUtc(),
+    );
+  }
+
+  /// Deletes the account. [confirmed] is the person's explicit confirmation,
+  /// and nothing is sent without it; the server also asks for the
+  /// [password], and a [code] or [recoveryCode] when there is a second
+  /// factor, then hands the person to the project's Data Compliance erasure
+  /// where one is configured. The device signs out once the server confirms.
+  Future<void> deleteAccount({
+    required String password,
+    required bool confirmed,
+    String? code,
+    String? recoveryCode,
+  }) {
+    if (!confirmed) {
+      throw ArgumentError.value(
+          confirmed, 'confirmed', 'Deleting an account needs explicit confirmation');
+    }
+    return _sessionClient
+        .deleteAccount(password: password, code: code, recoveryCode: recoveryCode)
+        .then((_) => _currentUser = null);
+  }
+
+  /// Two-factor status, enrollment with a QR code, recovery codes shown once,
+  /// and removing the authenticator.
+  Widget SecurityPage() => _SecurityPage(auth: this);
+
+  /// Every device signed in as this person, with sign-out for each and for
+  /// all the others.
+  Widget SessionsPage() => _SessionsPage(auth: this);
+
+  /// Creating an account with an e-mail address and a password.
+  Widget SignUpPage() => _SignUpPage(auth: this);
+
+  /// The account's address, changed only once the new one is verified.
+  Widget ProfilePage() => _ProfilePage(auth: this);
+
+  /// Deleting the account, behind typed confirmation, the password and the
+  /// second factor.
+  Widget DeletePage() => _DeletePage(auth: this);
   Widget SignInWithProviderPage() =>
       _ProviderAuthPage(auth: this, provider: 'provider');
   Widget SignInWithRawOAuthPage() =>
@@ -6587,6 +6650,695 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
         ),
       ),
     );
+  }
+}
+
+/// The account pages' shared frame: a column of at most 440 logical pixels,
+/// scrolled when it is taller than the window, so no page overflows at any
+/// window size.
+Widget _dvAccountFrame(List<Widget> children) => LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) =>
+          SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Material(
+              type: MaterialType.transparency,
+              child: DVBox.list(children),
+            ),
+          ),
+        ),
+      ),
+    );
+
+/// A button in the account pages: text on dark, keyed for tests.
+Widget _dvAccountButton(String key, String label, VoidCallback onPressed) =>
+    KeyedSubtree(
+      key: ValueKey<String>(key),
+      child: DVText(label).modifier(
+        const DVModifier()
+            .padding(12)
+            .rounded(8)
+            .backgroundColor(const Color(0xFF111827))
+            .color(Colors.white)
+            .onPressed(onPressed),
+      ),
+    );
+
+Widget _dvAccountKeyed(String key, Widget child) =>
+    KeyedSubtree(key: ValueKey<String>(key), child: child);
+
+/// Fixed text for a refused code or password. Nothing a server said is shown.
+String _dvAccountRefusal(Object error, {required String fallback}) {
+  if (error is DVSecondFactorRefused) return error.message;
+  if (error is DVVelocityRefusal) return 'Too many attempts. Try again later.';
+  if (error is AuthException &&
+      error.failure == AuthFailure.invalidCredentials) {
+    return 'That password is not right.';
+  }
+  if (error is DVSessionRequestFailed && error.statusCode == 401) {
+    return 'Your session has ended. Sign in again.';
+  }
+  return fallback;
+}
+
+String _dvAccountTime(DateTime at) {
+  final DateTime utc = at.toUtc();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${utc.year}-${two(utc.month)}-${two(utc.day)} '
+      '${two(utc.hour)}:${two(utc.minute)} UTC';
+}
+
+// --- SecurityPage -------------------------------------------------------------
+
+class _SecurityPage extends StatefulWidget {
+  const _SecurityPage({required this.auth});
+
+  final DVAuth auth;
+
+  @override
+  State<_SecurityPage> createState() => _SecurityPageState();
+}
+
+class _SecurityPageState extends State<_SecurityPage> {
+  final TextEditingController _code = TextEditingController();
+  final TextEditingController _removeCode = TextEditingController();
+  final TextEditingController _stepUpCode = TextEditingController();
+
+  DVSecondFactorStatus? _status;
+  DVTotpEnrollment? _enrollment;
+
+  /// The only copy of a new set of codes, cleared when the person says they
+  /// saved them. Never read back from anywhere.
+  List<String>? _codes;
+  bool _needsStepUp = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _code.dispose();
+    _removeCode.dispose();
+    _stepUpCode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final DVSecondFactorStatus status = await widget.auth.secondFactors();
+      if (mounted) setState(() => _status = status);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _error = _dvAccountRefusal(error,
+            fallback: 'Your security settings could not be loaded.'));
+      }
+    }
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } on DVMfaRequired {
+      _needsStepUp = true;
+      _error = 'Enter a code from your authenticator app to continue.';
+    } on Object catch (error) {
+      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _load();
+  }
+
+  Future<void> _enroll() => _run(() async {
+        _enrollment = await widget.auth.enrollTotp();
+      });
+
+  Future<void> _confirm() => _run(() async {
+        await widget.auth.confirmTotp(_code.text.trim());
+        _enrollment = null;
+        _code.clear();
+      });
+
+  Future<void> _generate() => _run(() async {
+        final DVRecoveryCodes codes = await widget.auth.regenerateRecoveryCodes();
+        _codes = codes.codes;
+        _needsStepUp = false;
+      });
+
+  Future<void> _stepUp() => _run(() async {
+        await widget.auth.completeSecondFactor(code: _stepUpCode.text.trim());
+        _stepUpCode.clear();
+        _needsStepUp = false;
+        final DVRecoveryCodes codes = await widget.auth.regenerateRecoveryCodes();
+        _codes = codes.codes;
+      });
+
+  Future<void> _remove() async {
+    final String presented = _removeCode.text.trim();
+    if (presented.isEmpty) {
+      setState(() => _error =
+          'Enter a code from your authenticator app or a recovery code.');
+      return;
+    }
+    await _run(() async {
+      final bool isCode = RegExp(r'^\d{6,8}$').hasMatch(presented);
+      await widget.auth.removeSecondFactor(
+        code: isCode ? presented : null,
+        recoveryCode: isCode ? null : presented,
+      );
+      _removeCode.clear();
+      _codes = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DVSecondFactorStatus? status = _status;
+    final DVTotpEnrollment? enrollment = _enrollment;
+    final List<String>? codes = _codes;
+    final String? error = _error;
+    return _dvAccountFrame(<Widget>[
+      const DVText('Authenticator app'),
+      if (status == null && error == null) const DVText('Loading...'),
+      if (status != null)
+        status.totp
+            ? _dvAccountKeyed('dv-security-totp-on', const DVText('On'))
+            : _dvAccountKeyed('dv-security-totp-off', const DVText('Off')),
+      if (status != null && !status.totp && enrollment == null)
+        _dvAccountButton('dv-security-enroll', 'Set up an authenticator app',
+            () => unawaited(_enroll())),
+      if (enrollment != null) ...<Widget>[
+        const DVText(
+            'Scan this code with your authenticator app, or enter the key by hand.'),
+        Center(child: DVQrImage(data: enrollment.uri.toString(), size: 220)),
+        DVText(enrollment.secret),
+        TextField(
+          key: const ValueKey<String>('dv-security-code'),
+          controller: _code,
+          decoration: const InputDecoration(labelText: 'Code from the app'),
+          keyboardType: TextInputType.number,
+          autofillHints: const <String>[AutofillHints.oneTimeCode],
+        ),
+        _dvAccountButton('dv-security-confirm', 'Turn on', () => unawaited(_confirm())),
+      ],
+      if (status != null && status.totp) ...<Widget>[
+        const DVText('Recovery codes'),
+        _dvAccountKeyed('dv-security-recovery-remaining',
+            DVText('Unused recovery codes: ${status.recoveryCodes}')),
+        if (codes == null)
+          _dvAccountButton('dv-security-recovery-generate',
+              'Generate new recovery codes', () => unawaited(_generate())),
+        if (_needsStepUp) ...<Widget>[
+          TextField(
+            key: const ValueKey<String>('dv-security-stepup-code'),
+            controller: _stepUpCode,
+            decoration: const InputDecoration(labelText: 'Code from the app'),
+            keyboardType: TextInputType.number,
+          ),
+          _dvAccountButton(
+              'dv-security-stepup', 'Continue', () => unawaited(_stepUp())),
+        ],
+        if (codes != null) ...<Widget>[
+          const DVText(
+              'Save these codes somewhere safe. Each works once, and they will '
+              'not be shown again. Generating new ones replaces them.'),
+          for (final String code in codes) DVText(code),
+          _dvAccountButton('dv-security-recovery-copy', 'Copy', () {
+            // Through the platform binding, as every clipboard use is. A copy
+            // that failed says so, rather than leaving the person believing
+            // the codes are somewhere they are not.
+            unawaited(const DVClipboard().copy(codes.join('\n')).then<void>(
+              (_) {},
+              onError: (Object _) {
+                if (mounted) {
+                  setState(() => _error =
+                      'The codes could not be copied. Write them down instead.');
+                }
+              },
+            ));
+          }),
+          _dvAccountButton('dv-security-recovery-done', 'I have saved them', () {
+            setState(() => _codes = null);
+            unawaited(_load());
+          }),
+        ],
+        const DVText('Remove the authenticator app'),
+        TextField(
+          key: const ValueKey<String>('dv-security-remove-code'),
+          controller: _removeCode,
+          decoration:
+              const InputDecoration(labelText: 'Code from the app or a recovery code'),
+          autocorrect: false,
+        ),
+        _dvAccountButton(
+            'dv-security-remove', 'Remove', () => unawaited(_remove())),
+      ],
+      if (error != null) _dvAccountKeyed('dv-security-error', DVText(error)),
+    ]);
+  }
+}
+
+// --- SessionsPage -------------------------------------------------------------
+
+class _SessionsPage extends StatefulWidget {
+  const _SessionsPage({required this.auth});
+
+  final DVAuth auth;
+
+  @override
+  State<_SessionsPage> createState() => _SessionsPageState();
+}
+
+class _SessionsPageState extends State<_SessionsPage> {
+  List<DVSession>? _sessions;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final List<DVSession> sessions = await widget.auth.sessions();
+      if (mounted) setState(() => _sessions = sessions);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _error = _dvAccountRefusal(error,
+            fallback: 'Your devices could not be loaded.'));
+      }
+    }
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } on Object catch (error) {
+      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<DVSession>? sessions = _sessions;
+    final String? error = _error;
+    return _dvAccountFrame(<Widget>[
+      const DVText('Where you are signed in'),
+      if (sessions == null && error == null) const DVText('Loading...'),
+      if (sessions != null)
+        for (final DVSession session in sessions)
+          DVBox.list(<Widget>[
+            DVText(session.device ?? 'Unknown device'),
+            DVText('Last active ${_dvAccountTime(session.lastSeenAt)}'),
+            if (session.isCurrent)
+              _dvAccountKeyed(
+                  'dv-sessions-current-${session.id}', const DVText('This device'))
+            else
+              _dvAccountButton('dv-sessions-revoke-${session.id}', 'Sign out',
+                  () => unawaited(_run(() => widget.auth.revoke(session.id)))),
+          ]),
+      if (sessions != null && sessions.length > 1)
+        _dvAccountButton('dv-sessions-revoke-others', 'Sign out everywhere else',
+            () => unawaited(_run(() async {
+                  await widget.auth.revokeOthers();
+                }))),
+      if (error != null) _dvAccountKeyed('dv-sessions-error', DVText(error)),
+    ]);
+  }
+}
+
+// --- SignUpPage ---------------------------------------------------------------
+
+class _SignUpPage extends StatefulWidget {
+  const _SignUpPage({required this.auth});
+
+  final DVAuth auth;
+
+  @override
+  State<_SignUpPage> createState() => _SignUpPageState();
+}
+
+class _SignUpPageState extends State<_SignUpPage> {
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _email = TextEditingController();
+  final TextEditingController _password = TextEditingController();
+  bool _busy = false;
+  bool _done = false;
+  String? _error;
+
+  /// One text for an address that has an account and for every failure that
+  /// is not about what was typed, so the page is not a way to find out
+  /// which addresses have accounts.
+  static const String _unavailable =
+      'We could not create an account with those details. If you already '
+      'have one, sign in instead.';
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? error;
+    try {
+      final String name = _name.text.trim();
+      await widget.auth.signUp(
+        email: _email.text.trim(),
+        password: _password.text,
+        metadata: <String, Object?>{if (name.isNotEmpty) 'name': name},
+      );
+      _done = true;
+    } on AuthException catch (refusal) {
+      error = switch (refusal.failure) {
+        AuthFailure.weakPassword => 'That password is too weak.',
+        AuthFailure.invalidEmail => 'That e-mail address is not valid.',
+        _ => _unavailable,
+      };
+    } on DVBreachedPasswordRefusal {
+      error = 'That password has appeared in a data breach. Choose another.';
+    } on DVVelocityRefusal {
+      error = 'Too many attempts. Try again later.';
+    } on Object {
+      error = _unavailable;
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? error = _error;
+    if (_done) {
+      return _dvAccountFrame(<Widget>[
+        _dvAccountKeyed('dv-signup-done', const DVText('Your account is ready.')),
+      ]);
+    }
+    return _dvAccountFrame(<Widget>[
+      const DVText('Create an account'),
+      TextField(
+        key: const ValueKey<String>('dv-signup-name'),
+        controller: _name,
+        decoration: const InputDecoration(labelText: 'Name (optional)'),
+        autofillHints: const <String>[AutofillHints.name],
+      ),
+      TextField(
+        key: const ValueKey<String>('dv-signup-email'),
+        controller: _email,
+        decoration: const InputDecoration(labelText: 'Email'),
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const <String>[AutofillHints.email],
+      ),
+      TextField(
+        key: const ValueKey<String>('dv-signup-password'),
+        controller: _password,
+        decoration: const InputDecoration(labelText: 'Password'),
+        obscureText: true,
+        autofillHints: const <String>[AutofillHints.newPassword],
+      ),
+      if (error != null) _dvAccountKeyed('dv-signup-error', DVText(error)),
+      _dvAccountButton('dv-signup-submit', _busy ? 'Creating...' : 'Create account',
+          () => unawaited(_submit())),
+    ]);
+  }
+}
+
+// --- ProfilePage --------------------------------------------------------------
+
+class _ProfilePage extends StatefulWidget {
+  const _ProfilePage({required this.auth});
+
+  final DVAuth auth;
+
+  @override
+  State<_ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<_ProfilePage> {
+  final TextEditingController _newEmail = TextEditingController();
+  final TextEditingController _code = TextEditingController();
+  DVAccount? _account;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _newEmail.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final DVAccount account = await widget.auth.account();
+      if (mounted) setState(() => _account = account);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _error = _dvAccountRefusal(error,
+            fallback: 'Your profile could not be loaded.'));
+      }
+    }
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } on AuthException catch (refusal) {
+      _error = switch (refusal.failure) {
+        AuthFailure.invalidEmail => 'That e-mail address is not valid.',
+        AuthFailure.accountExists =>
+          'That address cannot be used for this account.',
+        _ => 'That did not work. Try again.',
+      };
+    } on Object catch (error) {
+      _error = _dvAccountRefusal(error, fallback: 'That did not work. Try again.');
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DVAccount? account = _account;
+    final String? error = _error;
+    final String? pending = account?.pendingEmail;
+    return _dvAccountFrame(<Widget>[
+      const DVText('Profile'),
+      if (account == null && error == null) const DVText('Loading...'),
+      if (account != null) ...<Widget>[
+        if (account.name != null) DVText(account.name!),
+        const DVText('Email'),
+        _dvAccountKeyed('dv-profile-email', DVText(account.email ?? '')),
+        if (pending != null) ...<Widget>[
+          _dvAccountKeyed(
+            'dv-profile-pending',
+            DVText('We sent a code to $pending. Your address changes once you '
+                'enter it.'),
+          ),
+          TextField(
+            key: const ValueKey<String>('dv-profile-email-code'),
+            controller: _code,
+            decoration: const InputDecoration(labelText: 'Code from the e-mail'),
+            keyboardType: TextInputType.number,
+            autofillHints: const <String>[AutofillHints.oneTimeCode],
+          ),
+          _dvAccountButton('dv-profile-verify-email', 'Confirm new address',
+              () => unawaited(_run(() async {
+                    await widget.auth.confirmEmailChange(_code.text.trim());
+                    _code.clear();
+                  }))),
+        ],
+        TextField(
+          key: const ValueKey<String>('dv-profile-new-email'),
+          controller: _newEmail,
+          decoration: const InputDecoration(labelText: 'New email'),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        _dvAccountButton('dv-profile-change-email', 'Change email',
+            () => unawaited(_run(() async {
+                  await widget.auth.requestEmailChange(_newEmail.text.trim());
+                  _newEmail.clear();
+                }))),
+      ],
+      if (error != null) _dvAccountKeyed('dv-profile-error', DVText(error)),
+    ]);
+  }
+}
+
+// --- DeletePage ---------------------------------------------------------------
+
+class _DeletePage extends StatefulWidget {
+  const _DeletePage({required this.auth});
+
+  final DVAuth auth;
+
+  @override
+  State<_DeletePage> createState() => _DeletePageState();
+}
+
+class _DeletePageState extends State<_DeletePage> {
+  /// What the person types to say they mean it.
+  static const String _phrase = 'DELETE';
+
+  final TextEditingController _confirm = TextEditingController();
+  final TextEditingController _password = TextEditingController();
+  final TextEditingController _code = TextEditingController();
+  bool _hasFactor = false;
+  bool _busy = false;
+  bool _done = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _confirm.dispose();
+    _password.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final DVSecondFactorStatus status = await widget.auth.secondFactors();
+      if (mounted) setState(() => _hasFactor = status.totp);
+    } on Object {
+      // Without an answer the server still asks for the factor if it wants
+      // one; the page shows the field when it does.
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    final String password = _password.text;
+    final String code = _code.text.trim();
+    String? refusal;
+    if (_confirm.text.trim() != _phrase) {
+      refusal = 'Type $_phrase to confirm.';
+    } else if (password.isEmpty) {
+      refusal = 'Enter your password.';
+    } else if (_hasFactor && code.isEmpty) {
+      refusal = 'Enter a code from your authenticator app or a recovery code.';
+    }
+    if (refusal != null) {
+      setState(() => _error = refusal);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? error;
+    try {
+      final bool isCode = RegExp(r'^\d{6,8}$').hasMatch(code);
+      await widget.auth.deleteAccount(
+        password: password,
+        confirmed: true,
+        code: code.isEmpty || !isCode ? null : code,
+        recoveryCode: code.isEmpty || isCode ? null : code,
+      );
+      _done = true;
+    } on DVMfaRequired {
+      _hasFactor = true;
+      error = 'Enter a code from your authenticator app or a recovery code.';
+    } on Object catch (failure) {
+      error = _dvAccountRefusal(failure,
+          fallback: 'Your account could not be deleted. Try again.');
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? error = _error;
+    if (_done) {
+      return _dvAccountFrame(<Widget>[
+        _dvAccountKeyed(
+            'dv-delete-done', const DVText('Your account has been deleted.')),
+      ]);
+    }
+    return _dvAccountFrame(<Widget>[
+      const DVText('Delete your account'),
+      const DVText(
+          'This deletes your account and the data held about you, and signs '
+          'you out everywhere. It cannot be undone.'),
+      TextField(
+        key: const ValueKey<String>('dv-delete-confirm-text'),
+        controller: _confirm,
+        decoration: const InputDecoration(labelText: 'Type $_phrase to confirm'),
+        autocorrect: false,
+      ),
+      TextField(
+        key: const ValueKey<String>('dv-delete-password'),
+        controller: _password,
+        decoration: const InputDecoration(labelText: 'Password'),
+        obscureText: true,
+        autofillHints: const <String>[AutofillHints.password],
+      ),
+      if (_hasFactor)
+        TextField(
+          key: const ValueKey<String>('dv-delete-code'),
+          controller: _code,
+          decoration:
+              const InputDecoration(labelText: 'Code from the app or a recovery code'),
+          autocorrect: false,
+        ),
+      if (error != null) _dvAccountKeyed('dv-delete-error', DVText(error)),
+      _dvAccountButton('dv-delete-submit', _busy ? 'Deleting...' : 'Delete my account',
+          () => unawaited(_submit())),
+    ]);
   }
 }
 

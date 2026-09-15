@@ -73,6 +73,23 @@ abstract interface class DVAccountDirectory {
   Future<AuthUser?> userById(String id);
 }
 
+/// A provider that can change an account's address and delete an account,
+/// for the generated account endpoints.
+///
+/// The endpoints decide when: an address changes only after a code sent to
+/// it comes back, and an account is deleted only after its password -- and
+/// its second factor, when it has one -- and explicit confirmation. The
+/// provider only does what it is told.
+abstract interface class DVAccountProvider implements DVAccountDirectory {
+  /// Moves the account with [id] to [email]. Throws [AuthException] with
+  /// [AuthFailure.accountExists] when another account has that address and
+  /// [AuthFailure.invalidEmail] when it is not one.
+  Future<AuthUser> changeEmail(String id, String email);
+
+  /// Removes the account with [id]. Its credentials no longer sign in.
+  Future<void> deleteAccount(String id);
+}
+
 /// Auth manager
 class Auth {
   static Auth? _instance;
@@ -170,7 +187,7 @@ class _StoredCredential {
 /// in memory and has no account recovery, e-mail verification, or session
 /// expiry, so it remains a development and test adapter — configure a real
 /// [AuthProvider] for production.
-class LocalAuthProvider implements AuthProvider, DVAccountDirectory {
+class LocalAuthProvider implements AuthProvider, DVAccountProvider {
   static const int minimumPasswordLength = 8;
 
   final _controller = StreamController<AuthUser?>.broadcast();
@@ -260,6 +277,44 @@ class LocalAuthProvider implements AuthProvider, DVAccountDirectory {
       if (stored.user.id == id) return stored.user;
     }
     return null;
+  }
+
+  @override
+  Future<AuthUser> changeEmail(String id, String email) async {
+    final String key = _normalize(email);
+    if (!key.contains('@') || key.startsWith('@') || key.endsWith('@')) {
+      throw const AuthException(
+        AuthFailure.invalidEmail,
+        'That e-mail address is not valid.',
+      );
+    }
+    final MapEntry<String, _StoredCredential> current = _accounts.entries
+        .firstWhere((MapEntry<String, _StoredCredential> e) => e.value.user.id == id,
+            orElse: () => throw StateError('No account has that id.'));
+    if (current.key == key) return current.value.user;
+    if (_accounts.containsKey(key)) {
+      throw const AuthException(
+        AuthFailure.accountExists,
+        'An account already exists for that e-mail address.',
+      );
+    }
+    final AuthUser moved = AuthUser(
+      id: id,
+      email: key,
+      name: current.value.user.name,
+      metadata: current.value.user.metadata,
+    );
+    _accounts.remove(current.key);
+    _accounts[key] = _StoredCredential(moved, current.value.passwordHash);
+    if (_currentUser?.id == id) _currentUser = moved;
+    return moved;
+  }
+
+  @override
+  Future<void> deleteAccount(String id) async {
+    _accounts.removeWhere(
+        (String _, _StoredCredential stored) => stored.user.id == id);
+    if (_currentUser?.id == id) _currentUser = null;
   }
 
   /// Removes every account and signs out. Intended for test teardown.

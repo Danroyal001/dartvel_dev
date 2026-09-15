@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **Changing an account's address, and deleting the account, as endpoints.**
+  `DVAuthEndpoints.account` describes the signed-in person's account.
+  `requestEmailChange` sends a code to the new address through
+  `sendEmailVerification` and changes nothing; its answer is the same whether
+  or not another account has the address. `verifyEmailChange` takes the code,
+  moves the account, and rotates the session; an address still waiting is
+  `pendingEmail`. `deleteAccount` needs `confirm: true`, the password --
+  checked through the credential guard, so a wrong one counts as one at
+  sign-in does -- and the second factor when the account has one, then runs
+  the project's `DVPrivacy` erasure where installed, removes the factors, the
+  account and every session, and clears the cookie; a failed erasure answers
+  503 with the account intact. `DVAccountProvider` is what a provider
+  implements to be changed and deleted, and `LocalAuthProvider` does.
+
 - **A provisioned host's backend believes the client Caddy reports.** With
   `proxy: { adapter: caddy }`, every backend unit `dartvel infra` renders sets
   `DARTVEL_TRUSTED_PROXIES` to the address Caddy dials it on, the same
