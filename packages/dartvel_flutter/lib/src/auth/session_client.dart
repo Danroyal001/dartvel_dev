@@ -23,9 +23,32 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter/widgets.dart' show BuildContext, Element;
 
 import '../../dartvel_flutter.dart' show DVAuthProvider, DVAuthUser;
+
+/// What a session from this install is recorded as: the platform and the
+/// kind of client, such as `Android app` or `Web browser`.
+///
+/// Sent as `x-dartvel-device` so the sessions page can tell devices apart.
+/// Deliberately coarse. A host name, a user name or a hardware identifier
+/// would tell a list of devices apart better and would follow the person
+/// across sign-outs, which is the fingerprinting the specification rules
+/// out; the platform is the same on every launch of an install and says
+/// nothing about who holds it.
+String dvSessionDeviceLabel() {
+  if (kIsWeb) return 'Web browser';
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.android => 'Android app',
+    TargetPlatform.iOS => 'iOS app',
+    TargetPlatform.macOS => 'macOS app',
+    TargetPlatform.windows => 'Windows app',
+    TargetPlatform.linux => 'Linux app',
+    TargetPlatform.fuchsia => 'Fuchsia app',
+  };
+}
 
 /// A request to the generated auth endpoints that the server did not answer
 /// as asked. Carries the status and the path, never the body.
@@ -683,6 +706,39 @@ class DVSessionSignal implements DVLifecycleSignal<DVSession?> {
 
   /// The session's server-issued claims.
   Map<String, Object?> get claims => current?.claims ?? const <String, Object?>{};
+
+  static final Expando<Map<DVLifecycleSignal<DVSession?>, StreamSubscription<DVSession?>>>
+      _watchers =
+      Expando<Map<DVLifecycleSignal<DVSession?>, StreamSubscription<DVSession?>>>(
+          'DV.Session watchers');
+
+  /// This device's session, rebuilding the widget [context] belongs to when
+  /// it changes -- sign-in, a completed second factor, sign-out, a revocation
+  /// -- the way `.watch(context)` reads every other signal in a build.
+  ///
+  /// One subscription per element, however often it rebuilds. Nothing tells a
+  /// signal an element went away, so the first change after it did is when
+  /// the subscription goes.
+  DVSession? watch(BuildContext context) {
+    final Element element = context as Element;
+    final DVLifecycleSignal<DVSession?> source = _source;
+    final Map<DVLifecycleSignal<DVSession?>, StreamSubscription<DVSession?>> subs =
+        _watchers[element] ??=
+            <DVLifecycleSignal<DVSession?>, StreamSubscription<DVSession?>>{};
+    subs.putIfAbsent(source, () {
+      late final StreamSubscription<DVSession?> subscription;
+      subscription = source.changes.listen((DVSession? _) {
+        if (element.mounted) {
+          element.markNeedsBuild();
+          return;
+        }
+        subs.remove(source);
+        unawaited(subscription.cancel());
+      });
+      return subscription;
+    });
+    return source.value;
+  }
 
   @override
   DVSession? get value => _source.value;
