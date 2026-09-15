@@ -13,6 +13,8 @@
 /// already there, and the generator emits the answer into the call.
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVCidr, DVForwardedHeader;
+
 /// A CORS policy, as configured.
 class DVCorsSettings {
   const DVCorsSettings({
@@ -40,7 +42,12 @@ class DVCorsSettings {
 
 /// What `dartvel.server` decides for the whole server.
 class DVServerOptions {
-  const DVServerOptions({this.cors, this.compression = true});
+  const DVServerOptions({
+    this.cors,
+    this.compression = true,
+    this.trustedProxies = const <String>[],
+    this.forwardedHeader,
+  });
 
   /// The configured policy, or null when the project said nothing.
   ///
@@ -52,6 +59,28 @@ class DVServerOptions {
 
   /// On unless the project turns it off.
   final bool compression;
+
+  /// The proxies whose forwarded client address is believed, as ranges:
+  /// `dartvel.server.trustedProxies`. Empty trusts none, and the client
+  /// address is the connection's peer.
+  ///
+  /// Checked with the runtime's own parser, so what the build accepts is
+  /// exactly what the server reads: a range it could not read, or would read
+  /// as something wider, is refused here rather than at the first request.
+  final List<String> trustedProxies;
+
+  /// Which header those proxies write, `x-forwarded-for` or `forwarded`; null
+  /// is the runtime's default, `x-forwarded-for`.
+  final String? forwardedHeader;
+
+  /// The `dartvelTrustedProxies` literal for the generated backend.
+  String get trustedProxiesSource => _stringList(trustedProxies);
+
+  /// The `dartvelForwardedHeader` literal for the generated backend.
+  String get forwardedHeaderSource {
+    final String? header = forwardedHeader;
+    return header == null ? 'null' : "'$header'";
+  }
 
   /// The `dv.CorsOptions(...)` literal for the generated backend, or null.
   String? get corsSource {
@@ -99,7 +128,48 @@ class DVServerOptions {
     return DVServerOptions(
       cors: _cors(_value(server, 'cors')),
       compression: compression is bool ? compression : true,
+      trustedProxies: _trustedProxies(_value(server, 'trustedProxies')),
+      forwardedHeader: _forwardedHeader(_value(server, 'forwardedHeader')),
     );
+  }
+
+  static List<String> _trustedProxies(Object? node) {
+    if (node == null) return const <String>[];
+    if (node is! Iterable) {
+      throw FormatException(
+        'dartvel.server.trustedProxies must be a list of address ranges, '
+        'such as [127.0.0.1/32, "::1/128"], not "$node".',
+      );
+    }
+    final List<String> ranges = <String>[];
+    for (final Object? entry in node) {
+      if (entry is! String) {
+        throw FormatException(
+          'dartvel.server.trustedProxies: "$entry" is not an address range. '
+          'Quote it; YAML reads some values as something other than text.',
+        );
+      }
+      try {
+        DVCidr.parse(entry.trim());
+      } on FormatException catch (error) {
+        throw FormatException(
+          'dartvel.server.trustedProxies: ${error.message} A proxy listed here '
+          'is believed about who its clients are, so a wrong range trusts the '
+          'wrong machines.',
+        );
+      }
+      ranges.add(entry.trim());
+    }
+    return List<String>.unmodifiable(ranges);
+  }
+
+  static String? _forwardedHeader(Object? node) {
+    if (node == null) return null;
+    try {
+      return DVForwardedHeader.parse('$node').headerName;
+    } on FormatException catch (error) {
+      throw FormatException('dartvel.server.${error.message}');
+    }
   }
 
   static DVCorsSettings? _cors(Object? node) {
