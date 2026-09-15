@@ -133,6 +133,32 @@ Future<void> main() async {
 }
 ''';
 
+/// The client's side of the same question: the registrations the generated
+/// client makes before a page can ask whether to draw an action, after the
+/// application registered its own answer -- which is the order the client
+/// runtime runs them in.
+const String _clientProbe = r'''
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' hide Platform;
+import 'package:policy_probe/dartvel_client/policies.g.dart' as client;
+import 'package:policy_probe/policies/order_policy.dart';
+
+Future<void> main() async {
+  const DVAuthAuthorization authorization = DVAuthAuthorization();
+  authorization.register<Object?, Order?>(
+      'delete', (Object? user, Order? order) => false);
+  client.dartvelRegisterPolicies();
+  stdout.writeln('PROBE ${jsonEncode(<String, Object?>{
+    'view': await authorization.canAction(null, 'Order.view'),
+    'delete': await authorization.canAction(null, 'Order.delete'),
+    'note': await authorization.canAction(null, 'Note.view'),
+  })}');
+  exit(0);
+}
+''';
+
 Future<String> packagesDirectory() async {
   final Uri cli = (await Isolate.resolvePackageUri(
     Uri.parse('package:dartvel_cli/src/generators/routes_generator.dart'),
@@ -256,6 +282,7 @@ class NotePolicy {
     write('modules/store/lib/backend/functions/notes.get.dart',
         _function('Note.view', 'notes', 'notes'));
     write('bin/probe.dart', _probe);
+    write('bin/client_probe.dart', _clientProbe);
 
     final String cliPackage = p.join(packages, 'dartvel_cli');
     final ProcessResult generated = await Process.run(
@@ -286,10 +313,11 @@ class NotePolicy {
   });
 
   Future<(Map<String, Object?>, String)> probe(
-      [Map<String, String> environment = const <String, String>{}]) async {
+      [Map<String, String> environment = const <String, String>{},
+      String script = 'bin/probe.dart']) async {
     final ProcessResult result = await Process.run(
       Platform.resolvedExecutable,
-      <String>['run', 'bin/probe.dart'],
+      <String>['run', script],
       workingDirectory: project.path,
       environment: environment,
     ).timeout(const Duration(minutes: 4));
@@ -356,6 +384,21 @@ class NotePolicy {
         () {
       expect(status('frameworkKeys'), 200, reason: '${at('frameworkKeys')}');
     });
+  });
+
+  test('the client does not present as allowed what the server refuses',
+      () async {
+    // The server answered Order.view 200 and Order.delete 403, the second
+    // because the application registered its own answer. A client whose
+    // generated registration replaced that answer would draw Delete for
+    // somebody the server then refuses -- the inconsistency a generated
+    // table or form shows as a button that fails.
+    final (Map<String, Object?> client, _) =
+        await probe(const <String, String>{}, 'bin/client_probe.dart');
+
+    expect(client['view'], isTrue);
+    expect(client['delete'], isFalse);
+    expect(client['note'], isTrue);
   });
 
   test('refuses to start when a route names an action nothing registered',
