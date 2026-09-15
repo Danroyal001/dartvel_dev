@@ -168,6 +168,25 @@ class BackendGenerator {
     if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     return core.DVAuthEndpoints.revokeOthers(req);
   }));
+  // The signed-in person's second factors: behind the stage, so a session
+  // still waiting for its own second factor changes none of them.
+  router.get(cfg.apiBasePath + core.DVAuthEndpoints.factorsPath, (dv.Request req) => _dvStaged(req, () => core.DVAuthEndpoints.factors(req)));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.totpPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.beginTotp(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.totpConfirmPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.confirmTotp(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.recoveryCodesPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.recoveryCodes(req);
+  }));
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.removeFactorPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.removeFactor(req);
+  }));
 ''';
 
   /// The paths [_dvAuthRouteSource] serves, below the API base path. Kept
@@ -181,6 +200,11 @@ class BackendGenerator {
     '/auth/sessions',
     '/auth/sessions/revoke',
     '/auth/sessions/revoke-others',
+    '/auth/factors',
+    '/auth/factors/totp',
+    '/auth/factors/totp/confirm',
+    '/auth/factors/recovery-codes',
+    '/auth/factors/remove',
   ];
 
   static Future<void> generate({

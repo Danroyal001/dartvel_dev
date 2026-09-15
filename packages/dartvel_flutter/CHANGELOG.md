@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`DV.Auth` enrolls and removes a second factor.** `DV.Auth.secondFactors()`
+  says whether an authenticator is active and how many recovery codes are
+  left; `enrollTotp()` answers the secret and `otpauth://` URI to show;
+  `confirmTotp(code)` activates it; `regenerateRecoveryCodes()` answers a new
+  set once; `removeSecondFactor(code:|recoveryCode:)` removes the
+  authenticator. The server rotates the session on each change and the device
+  keeps only the rotated token -- a recovery code or a secret never reaches
+  the token store. A refusal asking for a fresher factor throws
+  `DVMfaRequired` and keeps the session, rather than reading as a revoked one.
+
 - **`DV.Session`, and `DV.Auth.sessions`, `revoke` and `revokeOthers`.**
   `DV.Session` is this device's session as a read-only signal
   (`DVSessionSignal`, a `DVLifecycleSignal<DVSession?>`): `current`, `id` and

@@ -1,4 +1,11 @@
 ## Unreleased
+- **The generated backend serves second-factor enrollment.** `GET
+  /auth/factors` and `POST /auth/factors/totp`, `/auth/factors/totp/confirm`,
+  `/auth/factors/recovery-codes` and `/auth/factors/remove`, behind the
+  authentication stage so a session still waiting for its own second factor
+  changes nothing, each CSRF-checked and handled by `DVAuthEndpoints`. A
+  function declaring one of these paths stops the build, as the sign-in paths
+  do.
 - **The generated runtime signs `DV.Auth` in through the application's
   backend.** It installs a `DVSessionClient` over `DartvelRuntime.api`, makes
   it `DV.Auth`'s default provider, hands its token to

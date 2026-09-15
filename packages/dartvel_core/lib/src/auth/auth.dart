@@ -63,6 +63,16 @@ abstract class AuthProvider {
   Stream<AuthUser?> get authStateChanges;
 }
 
+/// A provider that can describe an account by its id, for the account
+/// endpoints that act on the signed-in person rather than on credentials.
+///
+/// Separate from [AuthProvider] so a provider that cannot answer is still a
+/// provider: what depends on it degrades to the user id rather than failing.
+abstract interface class DVAccountDirectory {
+  /// The account with [id], or null when there is none.
+  Future<AuthUser?> userById(String id);
+}
+
 /// Auth manager
 class Auth {
   static Auth? _instance;
@@ -160,7 +170,7 @@ class _StoredCredential {
 /// in memory and has no account recovery, e-mail verification, or session
 /// expiry, so it remains a development and test adapter — configure a real
 /// [AuthProvider] for production.
-class LocalAuthProvider implements AuthProvider {
+class LocalAuthProvider implements AuthProvider, DVAccountDirectory {
   static const int minimumPasswordLength = 8;
 
   final _controller = StreamController<AuthUser?>.broadcast();
@@ -242,6 +252,14 @@ class LocalAuthProvider implements AuthProvider {
     _currentUser = user;
     _controller.add(_currentUser);
     return _currentUser;
+  }
+
+  @override
+  Future<AuthUser?> userById(String id) async {
+    for (final _StoredCredential stored in _accounts.values) {
+      if (stored.user.id == id) return stored.user;
+    }
+    return null;
   }
 
   /// Removes every account and signs out. Intended for test teardown.
