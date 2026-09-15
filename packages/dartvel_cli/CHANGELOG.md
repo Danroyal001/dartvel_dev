@@ -24,6 +24,16 @@
   read, refused when it cannot be, generated into the record table with
   `model.history()`, and carried into `privacy.g.dart`, so an erasure
   removes the log with the row instead of leaving every value it held.
+- **A generated backend is an OAuth 2.1 provider when
+  `dartvel.platformApi.oauth` is on.** It serves `GET` and `POST
+  <api>/oauth/authorize`, `GET <api>/oauth/authorize/request` for the consent
+  screen, `POST <api>/oauth/token`, `POST <api>/oauth/introspect`, `POST
+  <api>/oauth/revoke` and `GET /.well-known/oauth-authorization-server`, each
+  on the request's tenant. Another method is a 405 naming the allowed ones,
+  and a CORS preflight is answered only on the token and revocation
+  endpoints and the metadata document. The consent answer is checked for a
+  CSRF token. A scope may name `DVOAuthToken.introspect`, the framework's
+  own action for introspection, without an application policy.
 - **A generated backend authenticates API keys and OAuth tokens on every
   route.** With `dartvel.platformApi` declared, each route's lifecycle has an
   authentication stage inside the tenant scope and tracing and outside the

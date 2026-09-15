@@ -26,11 +26,17 @@ class DVOAuthSettings {
     this.codeLifetime = const Duration(minutes: 1),
     this.accessTokenLifetime = const Duration(hours: 1),
     this.refreshTokenLifetime = const Duration(days: 30),
+    this.issuer,
   });
 
   final Duration codeLifetime;
   final Duration accessTokenLifetime;
   final Duration refreshTokenLifetime;
+
+  /// The issuer the RFC 8414 metadata names, as an origin such as
+  /// `https://api.example.com`. Null means the origin each request named,
+  /// which is right behind no proxy and wrong behind one.
+  final String? issuer;
 }
 
 /// The whole `dartvel.platformApi` declaration.
@@ -65,6 +71,7 @@ class DVPlatformApiConfig {
     'codeLifetime',
     'accessTokenLifetime',
     'refreshTokenLifetime',
+    'issuer',
   };
   static final RegExp _scopeName = RegExp(r'^\S+$');
   static final RegExp _action = RegExp(r'^[A-Za-z_]\w*\.[A-Za-z_]\w*$');
@@ -224,6 +231,7 @@ class DVPlatformApiConfig {
           'refreshTokenLifetime',
           defaults.refreshTokenLifetime,
         ),
+        issuer: _issuerOf(oauthValue['issuer']),
       );
     } else if (oauthValue != null && oauthValue != false) {
       throw DVPlatformApiConfigError(
@@ -238,6 +246,27 @@ class DVPlatformApiConfig {
       requireExpiry: requireExpiry == true,
       oauth: oauth,
     );
+  }
+
+  /// `dartvel.platformApi.oauth.issuer`: an http or https origin with no
+  /// path, query or fragment, since RFC 8414 derives the metadata location
+  /// from it and a path would move the document.
+  static String? _issuerOf(Object? value) {
+    if (value == null) return null;
+    final Uri? uri = Uri.tryParse('$value');
+    if (uri == null ||
+        (uri.scheme != 'https' && uri.scheme != 'http') ||
+        uri.host.isEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.userInfo.isNotEmpty) {
+      throw DVPlatformApiConfigError(
+        'dartvel.platformApi.oauth.issuer: "$value" is not an origin. Write '
+        'it as https://api.example.com, with no path.',
+      );
+    }
+    return '${uri.scheme}://${uri.authority}';
   }
 
   static Duration _durationOf(Object? value, String where) {
