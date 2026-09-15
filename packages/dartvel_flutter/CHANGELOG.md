@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`DV.Session.watch(context)`, and a device on every session.** A widget
+  reading the session in its build with `watch` rebuilds on sign-in, a
+  completed second factor, sign-out and revocation, with one subscription per
+  element that goes when the element does. `dvSessionDeviceLabel()` is what a
+  session from this install is recorded as -- the platform and the kind of
+  client, `Android app` or `Web browser` -- and never a host name, a user name
+  or a hardware identifier, which would follow the person across sign-outs.
+
 - **The prebuilt account pages.** `DV.Auth.SecurityPage()` shows whether an
   authenticator is on, enrolls one from a QR code drawn in Dart with the key
   beside it, shows new recovery codes once with a copy button and keeps none
