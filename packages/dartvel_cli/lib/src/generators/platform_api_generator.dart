@@ -130,8 +130,9 @@ class PlatformApiGenerator {
           '${e.key}': _plain(e.value),
       };
     }
-    if (value is List)
+    if (value is List) {
       return <Object?>[for (final Object? v in value) _plain(v)];
+    }
     return value;
   }
 }
