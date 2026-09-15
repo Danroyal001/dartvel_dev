@@ -118,6 +118,54 @@ await DV.Http.get('https://api.stripe.com' + suffix);
       expect(a.uses.secrets, <String>{'STRIPE_KEY'});
     });
 
+    // Every module's generated client registers its own backend with DV this
+    // way. It is the application's backend, not a domain anyone grants, and
+    // reading it as a runtime-built egress URL refused every build of a
+    // parent whose module client had already been generated -- which is
+    // every build after the first.
+    test('the generated runtime registering its own backend is not egress', () {
+      final DVModuleCodeAnalysis a = analyse('''
+void configureDartvelRuntime() {
+  DV.registerRuntime(
+    baseUrl: () => DartvelRuntime.baseUrl,
+    apiBasePath: () => DartvelRuntime.apiBasePath,
+    api: DartvelRuntime.api,
+  );
+}
+''');
+      expect(a.unresolved, isEmpty);
+      expect(a.uses.egress, isEmpty);
+    });
+
+    test(
+      'a runtime registration pointed anywhere else is still unresolved',
+      () {
+        final DVModuleCodeAnalysis a = analyse('''
+DV.registerRuntime(
+  baseUrl: () => elsewhere,
+  apiBasePath: () => '/api',
+  api: (String p) => Uri.parse(p),
+);
+''');
+        expect(a.unresolved.single.what, contains('base URL'));
+      },
+    );
+
+    test(
+      'the runtime backend given to a declared host is still unresolved',
+      () {
+        // The exemption is the registration, not the expression: a module that
+        // hands the same value to DV.Http is declaring a host the build cannot
+        // read.
+        final DVModuleCodeAnalysis a = analyse('''
+DV.Http.declare('mine', DVHttpHostConfig(
+  baseUrl: DartvelRuntime.baseUrl,
+));
+''');
+        expect(a.unresolved.single.what, contains('base URL'));
+      },
+    );
+
     test('a URL inside a string is not code', () {
       final DVModuleCodeAnalysis a = analyse(
         "const doc = 'call DV.Http.get(\"https://x.example\")';\n",

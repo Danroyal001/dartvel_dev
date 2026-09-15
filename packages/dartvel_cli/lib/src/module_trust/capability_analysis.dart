@@ -157,6 +157,7 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
       }
     }
     for (final RegExpMatch m in _baseUrl.allMatches(view.masked)) {
+      if (_registersGeneratedBackend(view.masked, m.start, m.end)) continue;
       final String? url = dvDartStringLiteralAt(view.code, m.end);
       final String? host = url == null ? null : _hostOf(url);
       if (host == null) {
@@ -238,6 +239,39 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
     ownNetwork: ownNetwork,
     unresolved: unresolved,
   );
+}
+
+final RegExp _generatedBackendValue = RegExp(
+  r'^\s*\(\s*\)\s*=>\s*DartvelRuntime\s*\.\s*baseUrl\b',
+);
+final RegExp _registerRuntimeCallee = RegExp(
+  r'\bDV\s*\.\s*registerRuntime\s*$',
+);
+
+/// Whether the `baseUrl:` between [start] and [end] is the generated
+/// runtime handing DV its own backend: `DV.registerRuntime(baseUrl: () =>
+/// DartvelRuntime.baseUrl, ...)`, which every generated client writes.
+///
+/// That address is the application's backend, which a module reaches through
+/// the calls Dartvel generates for it and which no grant names. Both halves
+/// are required: the same value given to a declared host is a host the build
+/// cannot read, and a registration pointed at anything else redirects every
+/// generated call.
+bool _registersGeneratedBackend(String masked, int start, int end) {
+  if (!_generatedBackendValue.hasMatch(masked.substring(end))) return false;
+  var depth = 0;
+  for (var i = start - 1; i >= 0; i--) {
+    final String c = masked[i];
+    if (c == ')' || c == ']' || c == '}') depth++;
+    if (c == '(' || c == '[' || c == '{') {
+      if (depth == 0) {
+        return c == '(' &&
+            _registerRuntimeCallee.hasMatch(masked.substring(0, i));
+      }
+      depth--;
+    }
+  }
+  return false;
 }
 
 String? _hostOfArgument(String code, int offset) {
