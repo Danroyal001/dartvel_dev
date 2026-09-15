@@ -70,6 +70,7 @@ Future<ServerHandle> serve(
   String? staticDir,
   String? spaRoot,
   bool compression = true,
+  Duration requestTimeout = const Duration(seconds: 60),
 }) async {
   throw StateError(
     'Dartvel Shelf server requires the FFI native backend. Build with dart.library.ffi and the ffigen-generated server bindings.',

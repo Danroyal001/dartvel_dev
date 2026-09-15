@@ -29,6 +29,10 @@ typedef _NativeCb = gen.DartReqHandlerFunction;
 /// The callback shape this file is written for; see `AW_ABI_VERSION` in
 /// rust/src/lib.rs. 2 added the peer address.
 const int _nativeAbiVersion = 2;
+
+/// The native side's own default, so a library that cannot be configured is
+/// refused only when a caller asked for something else.
+const Duration _defaultRequestTimeout = Duration(seconds: 60);
 typedef _NativeCancelCb = gen.DartStreamCancelHandlerFunction;
 
 class ServerHandle {
@@ -118,7 +122,16 @@ Future<ServerHandle> serve(
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
   DVPreviewMembership? previewMembership, // Who may open a members-only preview
+  // How long a request may take to arrive and be answered: its headers, its
+  // body, and the handler. Past it the native side answers 408 or 504 and
+  // closes the connection, or closes one whose headers never finished.
+  Duration requestTimeout = _defaultRequestTimeout,
 }) async {
+  if (requestTimeout <= Duration.zero) {
+    throw ArgumentError.value(requestTimeout, 'requestTimeout',
+        'must be positive: a request allowed no time is never answered');
+  }
+
   // Where a log line actually goes. The runtime's logger keeps records in a
   // bounded buffer and writes nowhere else on its own, because a library that
   // printed would put JSON into the middle of a Flutter test's output; a
@@ -167,6 +180,21 @@ Future<ServerHandle> serve(
       '$abi and this package speaks $_nativeAbiVersion. Rebuild it: '
       'cargo build --release --target <triple> in dartvel_shelf/rust, then '
       'copy the result over that file.',
+    );
+  }
+  // Added after ABI 2 without changing the callback's shape, so looked up
+  // rather than assumed. A library without the timeout still has its fixed
+  // one, which is refused only when a caller asked for another; one that
+  // does not take acknowledgements frees a request's bytes itself.
+  final bool configuresTimeout =
+      dylib.providesSymbol('aw_configure_request_timeout');
+  final bool acknowledgesRequests = dylib.providesSymbol('aw_request_received');
+  if (!configuresTimeout && requestTimeout != _defaultRequestTimeout) {
+    throw StateError(
+      'dartvel: the native server library at ${uri.toFilePath()} cannot '
+      'configure a request timeout. Rebuild it: cargo build --release '
+      '--target <triple> in dartvel_shelf/rust, then copy the result over '
+      'that file.',
     );
   }
 
@@ -248,6 +276,10 @@ Future<ServerHandle> serve(
         authority: authority,
         port: urlPort,
       );
+      // Copied out, so the native side may free what it passed. Until this
+      // it keeps them, because a listener runs when the isolate gets to it,
+      // which can be after the native side has stopped waiting.
+      if (acknowledgesRequests) api.aw_request_received(reqId);
     } on _MalformedRequest catch (refusal) {
       _logRefused(400, 'refused before any route saw it: ${refusal.reason}');
       _answerError(api, reqId, 400);
@@ -368,6 +400,11 @@ Future<ServerHandle> serve(
   _configureStatic(api, staticDir);
   _configureSpaRoot(api, null);
   _configureCompression(api, compression);
+  if (configuresTimeout) {
+    // On this thread and just before aw_start, which takes it from here.
+    final int milliseconds = requestTimeout.inMilliseconds;
+    api.aw_configure_request_timeout(milliseconds < 1 ? 1 : milliseconds);
+  }
 
   if (tls != null) {
     final certBytes = dvFfiBytes(tls.certPem);

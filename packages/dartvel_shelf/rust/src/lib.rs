@@ -338,6 +338,50 @@ static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
 static SPA_ROOT_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
+/// How long a request may take to arrive and be answered when the caller did
+/// not say: reading its headers, reading its body, and waiting for Dart.
+const DEFAULT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The request timeout each thread configured and has not yet started a
+/// server with. Keyed by thread for the reason the pending handlers are: two
+/// isolates starting servers at once must not take each other's setting.
+static PENDING_REQUEST_TIMEOUTS: OnceCell<
+    Mutex<HashMap<std::thread::ThreadId, std::time::Duration>>,
+> = OnceCell::new();
+
+/// Rides in the request extensions beside [ServerId].
+#[derive(Clone, Copy)]
+struct RequestTimeout(std::time::Duration);
+
+/// The bytes a request's callback points into.
+///
+/// The callback is a Dart listener: it runs when the isolate gets to it, not
+/// when it is called. The pointers it receives used to point into locals of
+/// the proxy future, which dropped them when the wait for Dart timed out -- so
+/// an isolate busy past the timeout read freed memory. They are kept here
+/// instead until Dart says it has copied them (aw_request_received) or answers
+/// (aw_complete), whichever comes first.
+struct RequestParts {
+    _method: Vec<u8>,
+    _target: Vec<u8>,
+    _headers: Vec<u8>,
+    _body: Bytes,
+    _peer: Vec<u8>,
+}
+
+static PENDING_REQUEST_PARTS: OnceCell<Mutex<HashMap<u64, RequestParts>>> = OnceCell::new();
+
+fn retain_request_parts(req_id: u64, parts: RequestParts) {
+    let map = PENDING_REQUEST_PARTS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(map).insert(req_id, parts);
+}
+
+fn release_request_parts(req_id: u64) {
+    if let Some(map) = PENDING_REQUEST_PARTS.get() {
+        safe_lock(map).remove(&req_id);
+    }
+}
+
 /// aw_start could not parse host:port into an address.
 const AW_START_BAD_ADDRESS: i32 = -2;
 /// aw_start parsed the address but could not bind it — in use, or not
@@ -593,6 +637,44 @@ pub extern "C" fn aw_configure_compression(enabled: i32) -> i32 {
     0
 }
 
+/// The request timeout for the next server this thread starts, in
+/// milliseconds. It bounds reading a request's headers, reading its body,
+/// and waiting for Dart's answer; past it the connection is answered (408
+/// for a body that never arrived, 504 for Dart) or, with headers unfinished,
+/// closed. Zero is refused with 1: a request that may take no time at all is
+/// a server that answers nothing.
+#[no_mangle]
+pub extern "C" fn aw_configure_request_timeout(milliseconds: u64) -> i32 {
+    if milliseconds == 0 {
+        return 1;
+    }
+    let pending = PENDING_REQUEST_TIMEOUTS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(
+        std::thread::current().id(),
+        std::time::Duration::from_millis(milliseconds),
+    );
+    0
+}
+
+/// Dart has copied the request [req_id]'s bytes out of native memory, which
+/// may now be freed.
+#[no_mangle]
+pub extern "C" fn aw_request_received(req_id: u64) {
+    release_request_parts(req_id);
+}
+
+/// Bounds reading a request's headers. hyper has a header read timeout, but
+/// it does nothing without a timer, and axum-server installs none.
+fn bound_header_read(
+    builder: &mut hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
+    timeout: std::time::Duration,
+) {
+    builder
+        .http1()
+        .timer(hyper_util::rt::TokioTimer::new())
+        .header_read_timeout(timeout);
+}
+
 #[no_mangle]
 pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     if host.ptr.is_null() {
@@ -618,6 +700,13 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let mutex = COMPRESSION_ENABLED.get_or_init(|| Mutex::new(false));
         *safe_lock(mutex)
     };
+
+    // This thread's, or the default: a server that configured nothing does
+    // not inherit what another server asked for.
+    let request_timeout = PENDING_REQUEST_TIMEOUTS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&std::thread::current().id()))
+        .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
     let handle = axum_server::Handle::new();
     if let Some(handles) = SERVER_HANDLES.get() {
@@ -706,6 +795,10 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             // proxy can reach this server's Dart handler rather than whichever
             // was registered most recently.
             app = app.layer(axum::Extension(ServerId(server_id)));
+            app = app.layer(axum::Extension(RequestTimeout(request_timeout)));
+            // Outermost: a panic anywhere in answering a request is a 500
+            // rather than a connection dropped with no answer at all.
+            app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
 
             // Already bound above, so nothing here can fail for want of a
             // port. A serve error now means the loop ended, which is what
@@ -715,12 +808,16 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             // was accepted from and dart_proxy can hand it to Dart.
             let result = if let Some(tls_config) = TLS_CONFIG.get() {
                 let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config.clone());
-                axum_server::from_tcp_rustls(listener, rustls_config)
+                let mut server = axum_server::from_tcp_rustls(listener, rustls_config);
+                bound_header_read(server.http_builder(), request_timeout);
+                server
                     .handle(handle_clone)
                     .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
                     .await
             } else {
-                axum_server::from_tcp(listener)
+                let mut server = axum_server::from_tcp(listener);
+                bound_header_read(server.http_builder(), request_timeout);
+                server
                     .handle(handle_clone)
                     .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
                     .await
@@ -789,6 +886,8 @@ pub extern "C" fn aw_stop(server_id: u64) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
+    // An answer means Dart read the request, whether or not it said so.
+    release_request_parts(req_id);
     let map_mutex = match PENDING_RESPONSES.get() {
         Some(m) => m,
         None => return 1,
@@ -922,6 +1021,14 @@ async fn dart_proxy_with_fallback(
 ) -> Response<Body> {
     // Read while the request is still whole; the body is taken further down.
     let server_id = req.extensions().get::<ServerId>().map(|ServerId(id)| *id);
+    // One deadline for the body and for Dart: a request is bounded as a
+    // whole, not per phase, so a client cannot spend the timeout twice.
+    let request_timeout = req
+        .extensions()
+        .get::<RequestTimeout>()
+        .map(|RequestTimeout(timeout)| *timeout)
+        .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let deadline = tokio::time::Instant::now() + request_timeout;
     let req_id = match NEXT_ID.get() {
         Some(id) => id.fetch_add(1, Ordering::Relaxed),
         None => return Response::builder()
@@ -937,14 +1044,21 @@ async fn dart_proxy_with_fallback(
     
     let mut body_buf = BytesMut::new();
     let mut body_stream = req.into_body().into_data_stream();
-    while let Some(chunk) = body_stream.next().await {
-        match chunk {
-            Ok(bytes) => body_buf.extend_from_slice(&bytes),
-            Err(_) => {
-                body_buf.clear();
-                break;
+    let read_body = async {
+        while let Some(chunk) = body_stream.next().await {
+            match chunk {
+                Ok(bytes) => body_buf.extend_from_slice(&bytes),
+                Err(_) => {
+                    body_buf.clear();
+                    break;
+                }
             }
         }
+    };
+    // A declared body that never arrives held the connection for as long as
+    // the client kept it open.
+    if tokio::time::timeout_at(deadline, read_body).await.is_err() {
+        return closing_response(StatusCode::REQUEST_TIMEOUT);
     }
     let bytes = body_buf.freeze();
 
@@ -984,82 +1098,38 @@ async fn dart_proxy_with_fallback(
                 .and_then(|handlers| safe_lock(handlers).get(&id).copied())
         })
         .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)));
-    if let Some(cb) = request_handler {
-        (cb)(
-            req_id,
-            method_ffi,
-            target_ffi,
-            flattened_headers.as_ptr(),
-            flattened_headers.len(),
-            body_ffi,
-            peer_ffi,
-        );
-    } else {
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::empty())
-            .unwrap();
-    }
-
-    match tokio::time::timeout(std::time::Duration::from_secs(60), response_rx).await {
-        Ok(Ok(resp)) => {
-            let status_code = StatusCode::from_u16(resp.status).unwrap_or(StatusCode::OK);
-            let mut builder = Response::builder().status(status_code);
-
-            let hdrs = resp.headers;
-            let mut i = 0;
-            while i < hdrs.len() {
-                let ke = hdrs[i..]
-                    .iter()
-                    .position(|&c| c == 0)
-                    .unwrap_or(hdrs.len() - i)
-                    + i;
-                let key = std::str::from_utf8(&hdrs[i..ke]).unwrap_or_default();
-                i = ke + 1;
-                let ve = hdrs[i..]
-                    .iter()
-                    .position(|&c| c == 0)
-                    .unwrap_or(hdrs.len() - i)
-                    + i;
-                let val = std::str::from_utf8(&hdrs[i..ve]).unwrap_or_default();
-                i = ve + 1;
-                if !key.is_empty() {
-                    builder = builder.header(key, val);
-                }
-            }
-
-            if status_code == StatusCode::NOT_FOUND {
-                if let Some(fallback_fn) = fallback {
-                    return fallback_fn();
-                }
-            }
-
-            if resp.is_stream != 0 {
-                let rx = PENDING_STREAM_RECEIVERS
-                    .get()
-                    .and_then(|m| safe_lock(m).remove(&req_id));
-                let rx = match rx {
-                    Some(rx) => rx,
-                    None => {
-                        return Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(Body::empty())
-                            .unwrap()
-                    }
-                };
-                let receiver_stream =
-                    tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-                let cancel_stream = CancelOnDropStream {
-                    inner: receiver_stream,
-                    req_id,
-                    server_id,
-                };
-                
-                builder.body(Body::from_stream(cancel_stream)).unwrap()
-            } else {
-                builder.body(Body::from(resp.body)).unwrap()
-            }
+    let Some(cb) = request_handler else {
+        if let Some(mutex) = PENDING_RESPONSES.get() {
+            safe_lock(mutex).remove(&req_id);
         }
+        return plain_response(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+    let headers_ptr = flattened_headers.as_ptr();
+    let headers_len = flattened_headers.len();
+    // Moving a Vec or Bytes moves its handle, not its heap buffer, so the
+    // pointers above stay valid for as long as the parts are held.
+    retain_request_parts(
+        req_id,
+        RequestParts {
+            _method: method,
+            _target: target,
+            _headers: flattened_headers,
+            _body: bytes,
+            _peer: peer,
+        },
+    );
+    (cb)(
+        req_id,
+        method_ffi,
+        target_ffi,
+        headers_ptr,
+        headers_len,
+        body_ffi,
+        peer_ffi,
+    );
+
+    match tokio::time::timeout_at(deadline, response_rx).await {
+        Ok(Ok(resp)) => response_from_dart(resp, req_id, server_id, fallback),
         _ => {
             if let Some(mutex) = PENDING_RESPONSES.get() {
                 safe_lock(mutex).remove(&req_id);
@@ -1067,13 +1137,111 @@ async fn dart_proxy_with_fallback(
             if let Some(fallback_fn) = fallback {
                 fallback_fn()
             } else {
-                Response::builder()
-                    .status(StatusCode::GATEWAY_TIMEOUT)
-                    .body(Body::empty())
-                    .unwrap()
+                // Closed as well as answered: the handler may still be
+                // running, and the slot is what a slow request was costing.
+                closing_response(StatusCode::GATEWAY_TIMEOUT)
             }
         }
     }
+}
+
+fn plain_response(status: StatusCode) -> Response<Body> {
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = status;
+    response
+}
+
+/// [status], and the connection closed after it.
+fn closing_response(status: StatusCode) -> Response<Body> {
+    let mut response = plain_response(status);
+    response
+        .headers_mut()
+        .insert(header::CONNECTION, axum::http::HeaderValue::from_static("close"));
+    response
+}
+
+/// Drops a stream Dart opened for a response that will not be sent, which
+/// tells Dart to stop producing it.
+fn abandon_stream(req_id: u64, server_id: Option<u64>) {
+    let rx = PENDING_STREAM_RECEIVERS
+        .get()
+        .and_then(|m| safe_lock(m).remove(&req_id));
+    if let Some(rx) = rx {
+        drop(CancelOnDropStream {
+            inner: tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
+            req_id,
+            server_id,
+        });
+    }
+}
+
+/// The response Dart answered with, or 500 when it cannot be sent.
+///
+/// A header name or value HTTP does not allow -- a newline in a value is the
+/// usual one -- panicked on unwrap here, and the connection dropped with no
+/// answer; a status outside 100-999 was sent as 200. Logged by what was wrong
+/// and never by the header's text, which can be anything the handler put
+/// there, including the request.
+fn response_from_dart(
+    resp: FfiRespOwned,
+    req_id: u64,
+    server_id: Option<u64>,
+    fallback: Option<fn() -> Response<Body>>,
+) -> Response<Body> {
+    let refuse = |why: &str| {
+        eprintln!("dartvel: a handler's response {why}; answered 500");
+        if resp.is_stream != 0 {
+            abandon_stream(req_id, server_id);
+        }
+        plain_response(StatusCode::INTERNAL_SERVER_ERROR)
+    };
+    let Ok(status_code) = StatusCode::from_u16(resp.status) else {
+        return refuse("has a status that is not an HTTP status");
+    };
+    let mut headers = axum::http::HeaderMap::new();
+    let mut fields = resp.headers.split(|&c| c == 0);
+    while let Some(name) = fields.next() {
+        let value = fields.next().unwrap_or_default();
+        if name.is_empty() {
+            continue;
+        }
+        let Ok(name) = header::HeaderName::from_bytes(name) else {
+            return refuse("has a header name HTTP does not allow");
+        };
+        let Ok(value) = axum::http::HeaderValue::from_bytes(value) else {
+            return refuse("has a header value HTTP does not allow");
+        };
+        headers.append(name, value);
+    }
+
+    if status_code == StatusCode::NOT_FOUND {
+        if let Some(fallback_fn) = fallback {
+            if resp.is_stream != 0 {
+                abandon_stream(req_id, server_id);
+            }
+            return fallback_fn();
+        }
+    }
+
+    let body = if resp.is_stream != 0 {
+        let rx = PENDING_STREAM_RECEIVERS
+            .get()
+            .and_then(|m| safe_lock(m).remove(&req_id));
+        let Some(rx) = rx else {
+            return plain_response(StatusCode::INTERNAL_SERVER_ERROR);
+        };
+        Body::from_stream(CancelOnDropStream {
+            inner: tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
+            req_id,
+            server_id,
+        })
+    } else {
+        Body::from(resp.body)
+    };
+    let mut response = Response::new(body);
+    *response.status_mut() = status_code;
+    *response.headers_mut() = headers;
+    response
 }
 
 async fn health_handler(req: Request<Body>) -> Response<Body> {
@@ -1207,6 +1375,100 @@ fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
             eprintln!("WARN: Mutex poisoned, recovering");
             p.into_inner()
         }
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+
+    fn answered(status: u16, headers: &[u8]) -> FfiRespOwned {
+        FfiRespOwned {
+            status,
+            headers: headers.to_vec(),
+            body: b"body".to_vec(),
+            is_stream: 0,
+        }
+    }
+
+    fn held(req_id: u64) -> bool {
+        PENDING_REQUEST_PARTS
+            .get()
+            .is_some_and(|map| safe_lock(map).contains_key(&req_id))
+    }
+
+    fn parts() -> RequestParts {
+        RequestParts {
+            _method: b"GET".to_vec(),
+            _target: b"/".to_vec(),
+            _headers: Vec::new(),
+            _body: Bytes::new(),
+            _peer: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_header_value_http_does_not_allow_is_a_500_not_a_panic() {
+        let response = response_from_dart(answered(200, b"x-a\0line\r\nsplit\0"), 9001, None, None);
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_header_name_http_does_not_allow_is_a_500() {
+        let response = response_from_dart(answered(200, b"bad name\0v\0"), 9002, None, None);
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_status_that_is_not_one_is_a_500_not_a_200() {
+        let response = response_from_dart(answered(42, b""), 9003, None, None);
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn a_sendable_response_keeps_its_status_and_every_header() {
+        let response = response_from_dart(
+            answered(201, b"x-a\0one\0x-a\0two\0content-type\0text/plain\0"),
+            9004,
+            None,
+            None,
+        );
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let values: Vec<_> = response.headers().get_all("x-a").iter().collect();
+        assert_eq!(values, ["one", "two"]);
+        assert_eq!(response.headers()["content-type"], "text/plain");
+    }
+
+    #[test]
+    fn a_request_is_held_until_dart_says_it_has_it() {
+        retain_request_parts(9101, parts());
+        assert!(held(9101));
+        aw_request_received(9101);
+        assert!(!held(9101));
+    }
+
+    #[test]
+    fn an_answer_releases_a_request_dart_never_acknowledged() {
+        retain_request_parts(9102, parts());
+        let empty = FfiResp {
+            status: 200,
+            body: FfiBuf { ptr: std::ptr::null(), len: 0 },
+            hdrs: std::ptr::null(),
+            hdrs_len: 0,
+            is_stream: 0,
+        };
+        aw_complete(9102, empty);
+        assert!(!held(9102));
+    }
+
+    #[test]
+    fn a_request_timeout_of_zero_is_refused() {
+        assert_ne!(aw_configure_request_timeout(0), 0);
+        assert_eq!(aw_configure_request_timeout(1500), 0);
+        let pending = PENDING_REQUEST_TIMEOUTS.get().map(|p| {
+            safe_lock(p).remove(&std::thread::current().id())
+        });
+        assert_eq!(pending, Some(Some(std::time::Duration::from_millis(1500))));
     }
 }
 
