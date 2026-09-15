@@ -7,6 +7,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/**
+ * The shape of the calls between this library and Dart.
+ *
+ * Raised whenever a callback's signature changes. A Dart side built for one
+ * shape calling a library built for another does not fail cleanly: a
+ * callback invoked with fewer arguments than Dart expects reads whatever is
+ * in the missing argument's register, and a stale committed library would do
+ * exactly that. Dart checks this before registering anything.
+ */
+#define AW_ABI_VERSION 2
+
 #define AW_FLAG_H2C 1
 
 typedef struct FfiStr {
@@ -24,7 +35,8 @@ typedef void (*DartReqHandler)(uint64_t,
                                struct FfiStr,
                                const uint8_t*,
                                size_t,
-                               struct FfiBuf);
+                               struct FfiBuf,
+                               struct FfiStr);
 
 typedef void (*DartStreamCancelHandler)(uint64_t);
 
@@ -35,6 +47,8 @@ typedef struct FfiResp {
   size_t hdrs_len;
   uint8_t is_stream;
 } FfiResp;
+
+uint32_t aw_abi_version(void);
 
 void aw_register_handler(DartReqHandler cb);
 

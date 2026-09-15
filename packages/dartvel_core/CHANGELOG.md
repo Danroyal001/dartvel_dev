@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`Request.peerAddress`, and addresses as values.** A request carries the
+  address at the other end of its connection when the server that built it
+  had one (`dartvel_shelf` sets it from the socket); null otherwise, and never
+  a header. `DVIpAddress` compares by meaning rather than spelling -- an
+  IPv4-mapped IPv6 address is its IPv4 address, and IPv6 prints in RFC 5952
+  form -- and refuses what is not strictly an address, including IPv4 with a
+  leading zero. `DVPeerAddress` is an address with an optional port, read from
+  `1.2.3.4:80`, `[2001:db8::1]:80` or a bare address.
+
 - **The application's own sign-in, as endpoints.** `DVAuthEndpoints` handles
   sign-up, sign-in, a second factor, sign-out, the current session, the
   signed-in person's sessions, revoking one and revoking the others; the

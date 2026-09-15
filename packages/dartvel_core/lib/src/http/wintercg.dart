@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'peer_address.dart';
+
 class Body {
   final Stream<List<int>> _stream;
   bool _used = false;
@@ -103,12 +105,22 @@ class Request {
   final Body body;
   final Map<String, String> params;
 
+  /// The address at the other end of the connection this request arrived
+  /// on, as the server's socket reports it -- or null when whatever built
+  /// this request had no connection to ask.
+  ///
+  /// Never read from a header. When a proxy sits in front of the server this
+  /// is the proxy; who the proxy was forwarding for is the client address
+  /// resolver's question, answered only for proxies the application trusts.
+  final DVPeerAddress? peerAddress;
+
   Request({
     required this.method,
     required this.url,
     required this.headers,
     required Stream<List<int>> bodyStream,
     Map<String, String>? params,
+    this.peerAddress,
   })  : params = params == null
             ? <String, String>{}
             : Map<String, String>.from(params),

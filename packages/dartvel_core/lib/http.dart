@@ -9,6 +9,7 @@
 /// Server code that wants all of them imports this instead.
 library dartvel_core.http;
 
+export 'src/http/peer_address.dart' show DVIpAddress, DVPeerAddress;
 export 'src/http/router.dart' show Router;
 export 'src/http/wintercg.dart'
     show Request, Response, Headers, Body, URLPattern;
