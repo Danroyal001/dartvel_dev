@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **A route's policy is asked about the signed-in person.**
+  `DVBackendPolicy.allowsAction` asked a registered policy with the API key
+  principal or nobody, so a policy written against the application's user
+  refused everybody signed in with a session. `DVBackendPolicy.callerFor`
+  now picks the caller: the key or OAuth principal when the platform API
+  authenticated the request; otherwise the application's user when the
+  policy can take it -- a policy taking `Object?` can, so `user is Account`
+  answers for a signed-in account -- then `DVSessionPrincipal` for a policy
+  written against that. The choice is made from the types the registry holds
+  for the policy (`DV.Auth.authorization.acceptsCaller`) rather than from a
+  name the generator assembled. A GraphQL subscription keeps the session
+  caller as it keeps a key's, since its stream starts outside the request.
+
 - **The application's own session is a caller.** `DVSessionAuthentication` is
   the authentication stage for a session: a `Bearer dvs_...` token or the
   `__Host-dv_session` cookie (`dv_session` in development) becomes

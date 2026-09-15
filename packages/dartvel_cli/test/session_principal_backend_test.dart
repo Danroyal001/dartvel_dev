@@ -192,6 +192,28 @@ Future<void> main() async {
         body: jsonDecode(introspection));
     out['graphqlSession'] = await call(port, 'POST', '/api/graphql',
         bearer: viewerToken, body: jsonDecode(introspection));
+
+    // --- route policies asked about the signed-in account -----------------
+    final String secondAdmin = await signIn(port, 'admin@acme.test');
+    (out['tokens']! as List<String>).add(secondAdmin);
+    out['viewViewer'] =
+        await call(port, 'GET', '/api/orders', bearer: viewerToken);
+    out['removeViewer'] =
+        await call(port, 'GET', '/api/remove', bearer: viewerToken);
+    out['removeAdmin'] =
+        await call(port, 'GET', '/api/remove', bearer: secondAdmin);
+    roles[admin.id] = 'viewer';
+    out['removeDemoted'] =
+        await call(port, 'GET', '/api/remove', bearer: secondAdmin);
+    roles[admin.id] = 'admin';
+    out['createViewer'] =
+        await call(port, 'POST', '/api/orders', bearer: viewerToken);
+    out['createAdmin'] =
+        await call(port, 'POST', '/api/orders', bearer: secondAdmin);
+    out['createWriteKey'] =
+        await call(port, 'POST', '/api/orders', bearer: write.secret);
+    out['createReadKey'] =
+        await call(port, 'POST', '/api/orders', bearer: read.secret);
   } finally {
     await handle.stop();
   }
@@ -475,6 +497,33 @@ Future<String> _whoami(DVContext context) async => describeCaller(context);
 
       test('a sign-in is still a state-changing request that needs CSRF', () {
         expect(status('signInWithoutCsrf'), 403);
+      });
+    });
+
+    group('route policies', () {
+      test('a policy written against the account is handed the account', () {
+        expect(status('viewViewer'), 200, reason: '${at('viewViewer')}');
+        expect(body('viewViewer'), 'orders');
+      });
+
+      test('the policy decides by the account\'s role', () {
+        expect(status('removeViewer'), 403, reason: '${at('removeViewer')}');
+        expect(status('removeAdmin'), 200, reason: '${at('removeAdmin')}');
+        expect(body('removeAdmin'), 'deleted');
+      });
+
+      test('a role changed mid-session is the role the next request is asked '
+          'with', () {
+        expect(status('removeDemoted'), 403, reason: '${at('removeDemoted')}');
+      });
+
+      test('a policy taking Object? tells an account from a key', () {
+        expect(status('createViewer'), 403, reason: '${at('createViewer')}');
+        expect(status('createAdmin'), 200, reason: '${at('createAdmin')}');
+        expect(body('createAdmin'), 'created');
+        expect(status('createWriteKey'), 200, reason: '${at('createWriteKey')}');
+        expect(status('createReadKey'), 403,
+            reason: 'outside the key\'s scopes: ${at('createReadKey')}');
       });
     });
   });
