@@ -137,6 +137,43 @@ class DartvelShelfBindings {
   late final _aw_request_received = _aw_request_receivedPtr
       .asFunction<void Function(int)>();
 
+  /// The largest request body the next server this thread starts reads, in
+  /// bytes, for every request no route limit covers. A body declared larger is
+  /// answered 413 without being read, and one that grows past it while being
+  /// read is answered 413 there; both close the connection. Zero is refused
+  /// with 1: a server that reads no body at all is not a limit anybody means.
+  ///
+  /// Also forgets any route limits this thread added and never started a
+  /// server with, so a serve() that failed between the two leaves nothing
+  /// behind for the next.
+  int aw_configure_max_body_bytes(int bytes) {
+    return _aw_configure_max_body_bytes(bytes);
+  }
+
+  late final _aw_configure_max_body_bytesPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_configure_max_body_bytes',
+      );
+  late final _aw_configure_max_body_bytes = _aw_configure_max_body_bytesPtr
+      .asFunction<int Function(int)>();
+
+  /// Adds a route to the next server this thread starts, after the ones
+  /// already added: its method (`*` for any), its pattern as the Dart router
+  /// registered it, and the largest body it reads in bytes, or 0 for the
+  /// server's limit. A request takes the limit of the first route that matches
+  /// it, in the order they were added, which is the order the router
+  /// dispatches in. Returns 2 when the method or pattern is not text.
+  int aw_configure_route_body_limit(FfiStr method, FfiStr pattern, int bytes) {
+    return _aw_configure_route_body_limit(method, pattern, bytes);
+  }
+
+  late final _aw_configure_route_body_limitPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(FfiStr, FfiStr, ffi.Uint64)>
+      >('aw_configure_route_body_limit');
+  late final _aw_configure_route_body_limit = _aw_configure_route_body_limitPtr
+      .asFunction<int Function(FfiStr, FfiStr, int)>();
+
   int aw_start(FfiStr host, int port, int _flags) {
     return _aw_start(host, port, _flags);
   }
