@@ -1,4 +1,11 @@
 ## Unreleased
+- **The generated client registers `@DVPolicy` classes under the application's
+  own answer, as the server does.** `policies.g.dart` used `register`, so
+  `configureDartvelRuntime` replaced an answer the application had already
+  registered for the same action and resource: the server refused
+  `Order.delete` for somebody the client still showed Delete to. It now
+  registers through `registerDeclared`, and the client and the server answer
+  an action the same way whichever ran first.
 - **GraphQL, the crash endpoint, OpenAPI and health run the authentication
   stage.** Each was registered bare -- no tenant scope and no authentication
   stage -- so a key for another tenant was refused with a 401 on a backend
