@@ -13,7 +13,10 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+import '../auth/api_scopes.dart';
+import '../auth/backend_policy.dart';
 import '../observability/observability.dart';
+import '../tenancy/tenants.dart';
 
 part 'limits.dart';
 
@@ -44,6 +47,16 @@ class DVGraphQLField {
   /// Absent, [DVGraphQLLimits.defaultPageSize].
   final int? pageSize;
 
+  /// The `Resource.action` this field runs under -- for a field that resolves
+  /// through a backend function, the action that function's route declares.
+  ///
+  /// Asked the way that route asks it (`DVBackendPolicy.allowsAction`) before
+  /// the resolver runs: a caller outside its scopes, an action nothing
+  /// registered, or a policy that denies nulls the field with an error and the
+  /// resolver never runs. A root field that declares none answers no API key
+  /// or OAuth token, because no scope can have been checked for it.
+  final String? policy;
+
   const DVGraphQLField(
     this.name,
     this.type, {
@@ -51,7 +64,31 @@ class DVGraphQLField {
     this.resolve,
     this.cost,
     this.pageSize,
+    this.policy,
   });
+}
+
+/// Why [field] may not resolve for this request, or null when it may.
+///
+/// A field declaring a policy is asked it as its backend function's route
+/// asks it. A root field declaring none answers the application's own
+/// requests and no API key or OAuth token: no scope can have been checked for
+/// it, which is the rule every generated route already follows. A nested field
+/// declaring none is part of what its parent returned, and is not refused.
+Future<String?> _dvFieldRefusal(
+  DVGraphQLField field, {
+  required bool root,
+}) async {
+  final String? policy = field.policy;
+  if (policy == null) {
+    if (root && DVApiPrincipal.current != null) {
+      return 'Not authorized (${field.name} declares no policy action)';
+    }
+    return null;
+  }
+  return await DVBackendPolicy.allowsAction(policy, 'graphql/${field.name}')
+      ? null
+      : 'Not authorized ($policy)';
 }
 
 /// A registered object type.
@@ -341,7 +378,7 @@ class DVGraphQL {
         continue;
       }
       data[selection.alias] =
-          await context.resolveField(field, selection, null);
+          await context.resolveField(field, selection, null, root: true);
     }
     return <String, Object?>{
       'data': data,
@@ -455,6 +492,21 @@ class DVGraphQL {
     StreamSubscription<Object?>? source;
 
     Future<void> start() async {
+      // Before the resolver, so a refused subscription never starts its
+      // producer.
+      final String? refusal = await _dvFieldRefusal(field, root: true);
+      if (refusal != null) {
+        controller.add(<String, Object?>{
+          'errors': <Object?>[
+            <String, Object?>{
+              'message': refusal,
+              'extensions': <String, Object?>{'code': 'FORBIDDEN'},
+            },
+          ],
+        });
+        await controller.close();
+        return;
+      }
       Object? stream;
       try {
         final args = <String, Object?>{
@@ -513,8 +565,24 @@ class DVGraphQL {
       );
     }
 
+    // Who is subscribing, and on which tenant, as of this call. The stream is
+    // started when somebody listens, and a server may listen from outside the
+    // request's zone -- where the caller would be nobody and the tenant the
+    // process default, so the policy would be asked about the wrong caller and
+    // the resolver would read the wrong tenant's data.
+    final DVApiPrincipal? principal = DVApiPrincipal.current;
+    final String? tenant =
+        DVTenants.hasScope ? const DVTenants().currentTenant : null;
+    Future<void> startAsCaller() {
+      Future<void> onTenant() =>
+          tenant == null ? start() : const DVTenants().withTenant(tenant, start);
+      return principal == null
+          ? onTenant()
+          : DVApiPrincipal.actingAs(principal, onTenant);
+    }
+
     controller = StreamController<Map<String, Object?>>(
-      onListen: () => unawaited(start()),
+      onListen: () => unawaited(startAsCaller()),
       // Cancelling the subscriber must cancel the source, or a closed client
       // leaves the producer running forever.
       onCancel: () async => source?.cancel(),
@@ -765,8 +833,18 @@ class _ExecutionContext {
   Future<Object?> resolveField(
     DVGraphQLField field,
     _Selection selection,
-    Object? parent,
-  ) async {
+    Object? parent, {
+    bool root = false,
+  }) async {
+    final String? refusal = await _dvFieldRefusal(field, root: root);
+    if (refusal != null) {
+      errors.add(<String, Object?>{
+        'message': refusal,
+        'path': <Object?>[selection.alias],
+        'extensions': <String, Object?>{'code': 'FORBIDDEN'},
+      });
+      return null;
+    }
     Object? value;
     try {
       final args = <String, Object?>{

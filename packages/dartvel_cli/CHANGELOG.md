@@ -1,4 +1,20 @@
 ## Unreleased
+- **GraphQL, the crash endpoint, OpenAPI and health run the authentication
+  stage.** Each was registered bare -- no tenant scope and no authentication
+  stage -- so a key for another tenant was refused with a 401 on a backend
+  function's route and not looked at on `/graphql`, where a mutation ran with
+  nothing checked, or on the crash endpoint, which stored a report under it.
+  All of them now run on the request's tenant and, with
+  `dartvel.platformApi` declared, judge an API key or OAuth token as every
+  other route does and refuse a bad one with the same 401. `/graphql` and
+  `/graphql/stream` pass `authenticated`, and a field's declared policy is
+  asked with the key as the caller, so a key's scopes apply to a mutation as
+  they do to the backend function it resolves through. The crash endpoint
+  refuses a valid key too (403): an install does not report with one, and the
+  endpoint declares no action a scope could cover. OpenAPI and health stay
+  public -- a partner's tooling sending its key with every request is answered
+  -- and so does `/graphql/schema`. The OAuth endpoints are unchanged: each
+  authenticates its caller its own way.
 - **The generated backend registers `@DVPolicy` classes before any route
   exists.** Every policy class in the application and in the modules it
   merges whose file does not reach Flutter is registered from

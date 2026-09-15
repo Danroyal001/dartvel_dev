@@ -67,7 +67,14 @@ class BackendGenerator {
   static String _dvCrashRouteSource(DVCrashConfig crashes) => '''
   // Crash reports from this application's clients: dartvel.crashes.sink is
   // dartvel.
-  router.post(cfg.apiBasePath + core.DVCrashIngest.path, (dv.Request req) async {
+  // On the request's tenant and behind the authentication stage: a key for
+  // another tenant is refused as on every route, and a valid key is refused
+  // too, because an install does not report with one and the endpoint
+  // declares no action a scope could cover.
+  router.post(cfg.apiBasePath + core.DVCrashIngest.path, (dv.Request req) => _dvStaged(req, () async {
+    if (core.DVApiPrincipal.current != null) {
+      return _dvPolicyForbidden('no declared policy action');
+    }
     core.DVCrashIngestResult result;
     try {
       final core.DVCrashIngest ingest = _dartvelCrashIngest ??= core.DVCrashIngest(
@@ -89,7 +96,7 @@ class BackendGenerator {
     return dv.Response(result.status,
         headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
         body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(result.toJson()))));
-  });
+  }));
 ''';
 
   /// The OAuth provider's endpoints, for an application that declares
@@ -609,6 +616,19 @@ Future<dv.Response> _dvAuthenticated(
   return core.DVApiPrincipal.actingAs(principal, run);
 }
 ''' : ''}
+/// The tenant scope and authentication stage for a route that is not a
+/// backend function: GraphQL, the crash endpoint, OpenAPI and health.
+///
+/// Each was registered bare, so a key for another tenant was refused with a
+/// 401 on a function's route and not looked at here -- where a GraphQL
+/// mutation then ran with nothing checked. A credential is judged here exactly
+/// as it is there, and refused with the same answer.
+Future<dv.Response> _dvStaged(
+  dv.Request req,
+  Future<dv.Response> Function() run,
+) =>
+    core.dvWithRequestTenant(req, () => ${authenticates ? '_dvAuthenticated(req, run)' : 'run()'});
+
 /// Runs a route's declared middleware around its handler.
 ///
 /// Both halves of this were missing. A refusal has to answer before the
@@ -937,12 +957,18 @@ $contextFailed
 $handlerClose''';
     }).join('\n')}
   if (!_hasHealth) {
-    router.get(cfg.apiBasePath + '/health', (dv.Request _) async => dv.Response.text('ok'));
+    // Public, because a load balancer asks it with no credential. A credential
+    // that is presented is still judged, so a bad one is refused here as it is
+    // everywhere else rather than read as a sign this route checks nothing.
+    router.get(cfg.apiBasePath + '/health', (dv.Request req) => _dvStaged(req, () async => dv.Response.text('ok')));
   }
   // GraphQL: whatever the application registered on DVGraphQL, served on
-  // the spec-shaped POST body {query, variables, operationName}. The SDL
-  // document at /graphql/schema is the machine-readable schema.
-  router.post(cfg.apiBasePath + '/graphql', (dv.Request req) async {
+  // the spec-shaped POST body {query, variables, operationName}, on the
+  // request's tenant and behind the authentication stage. Each field declaring
+  // a policy is asked it as its backend function's route asks it, so a key's
+  // scopes apply to a mutation as they do to the function it resolves through.
+  // The SDL document at /graphql/schema is the machine-readable schema.
+  router.post(cfg.apiBasePath + '/graphql', (dv.Request req) => _dvStaged(req, () async {
     final text = await req.body.text();
     final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
     final map = decoded is Map ? decoded : const <String, Object?>{};
@@ -950,25 +976,30 @@ $handlerClose''';
       '\${map['query'] ?? ''}',
       variables: (map['variables'] as Map?)?.cast<String, Object?>(),
       operationName: map['operationName'] as String?,
+      authenticated: core.DVApiPrincipal.current != null,
     );
     return dv.Response.json(result);
-  });
-  router.get(cfg.apiBasePath + '/graphql/schema', (dv.Request _) async =>
-      dv.Response.text(core.DVGraphQL.toSdl()));
+  }));
+  router.get(cfg.apiBasePath + '/graphql/schema', (dv.Request req) => _dvStaged(req, () async =>
+      dv.Response.text(core.DVGraphQL.toSdl())));
   // Subscriptions over Server-Sent Events. The server has no WebSocket, and
   // SSE is a standard GraphQL transport, so a subscription is reachable
   // today rather than waiting on one.
-  router.post(cfg.apiBasePath + '/graphql/stream', (dv.Request req) async {
+  router.post(cfg.apiBasePath + '/graphql/stream', (dv.Request req) => _dvStaged(req, () async {
     final text = await req.body.text();
     final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
     final map = decoded is Map ? decoded : const <String, Object?>{};
+    // Subscribed here, inside the request's tenant and authentication, which
+    // is who the subscription runs as: the stream below is written from
+    // wherever the server calls it.
+    final events = core.DVGraphQL.subscribe(
+      '\${map['query'] ?? ''}',
+      variables: (map['variables'] as Map?)?.cast<String, Object?>(),
+      operationName: map['operationName'] as String?,
+      authenticated: core.DVApiPrincipal.current != null,
+    );
     return dv.Response.stream(
       (sink) {
-        final events = core.DVGraphQL.subscribe(
-          '\${map['query'] ?? ''}',
-          variables: (map['variables'] as Map?)?.cast<String, Object?>(),
-          operationName: map['operationName'] as String?,
-        );
         late StreamSubscription<Map<String, Object?>> sub;
         sub = events.listen(
           (event) => sink.add(conv.utf8.encode(
@@ -991,11 +1022,13 @@ $handlerClose''';
         'cache-control': 'no-cache',
       }),
     );
-  });
-${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request _) async =>
+  }));
+${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvCrashRouteSource(crashes) : ''}  // The API reference is public documentation, so a partner's tooling that
+  // sends its key with every request is answered; a bad credential is not.
+  router.get(cfg.apiBasePath + '/openapi.json', (dv.Request req) => _dvStaged(req, () async =>
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),
-          body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson))));
+          body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson)))));
   return router;
 }
 
