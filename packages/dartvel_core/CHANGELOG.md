@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **A route declares the largest body it reads.** `Router.get`, `post`,
+  `put`, `delete`, `head` and `any` take `maxBodyBytes`, and
+  `Router.bodyLimits` lists every route in dispatch order with the limit it
+  declared, or null for the server's. That list is what dartvel_shelf's
+  `serve(routeBodyLimits:)` takes. The native server reads a body before any
+  Dart runs, so a limit checked in Dart comes after the body is already in
+  memory; the server has to learn a route's limit to enforce it. Every route
+  is listed, not only limited ones, because the first route that matches
+  decides, and a route with no limit of its own that comes first must keep
+  the server's limit. A limit that is not positive is refused at
+  registration. `DVRouteBodyLimit` is exported from `http.dart`, and
+  `dvDefaultMaxBodyBytes` (1 MiB, the same as `dvDefaultBodyLimitBytes`)
+  from the main barrel.
+
 - **Crash ingest limits each client source as well as each install.**
   `DVCrashIngest`'s per-install limit keys on the install id a report names,
   which the client writes, so a client writing a new id per report was never
