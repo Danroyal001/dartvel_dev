@@ -4040,26 +4040,97 @@ class DVNotificationsService {
   }
 }
 
+/// One registered check, and what it can be asked with.
+class _DVPolicyEntry {
+  _DVPolicyEntry(this.check, this.accepts, this.signature);
+
+  final FutureOr<bool> Function(Object?, Object?) check;
+
+  /// Whether the check can be called with this caller and resource at all.
+  final bool Function(Object? user, Object? resource) accepts;
+
+  /// `(User, Order)`, for a refusal that has to say what the check takes.
+  final String signature;
+
+  static _DVPolicyEntry of<TUser, TResource>(
+    DVPolicyCheck<TUser, TResource> check,
+  ) =>
+      _DVPolicyEntry(
+        (Object? user, Object? resource) =>
+            check(user as TUser, resource as TResource),
+        (Object? user, Object? resource) => user is TUser && resource is TResource,
+        '($TUser, $TResource)',
+      );
+}
+
 class DVAuthAuthorization {
-  static final Map<String, FutureOr<bool> Function(Object?, Object?)>
-      _policies = {};
+  /// What the application registered itself. It wins.
+  static final Map<String, _DVPolicyEntry> _policies = {};
+
+  /// What the generated client and server registered from `@DVPolicy`
+  /// classes, asked only where the application registered nothing.
+  static final Map<String, _DVPolicyEntry> _declared = {};
+
+  /// The keys a refusal has already been logged for, so a route asked a
+  /// thousand times says why once.
+  static final Set<String> _explained = <String>{};
 
   const DVAuthAuthorization();
+
+  /// The registry key for [action] on [TResource]: `Order?` is `Order`,
+  /// because a policy that answers for a route takes its resource nullable
+  /// and is still the policy for orders.
+  static String _keyOf<TResource>(String action) =>
+      '$action:${_resourceName<TResource>()}';
+
+  static String _resourceName<TResource>() {
+    final String name = '$TResource';
+    return name.endsWith('?') ? name.substring(0, name.length - 1) : name;
+  }
 
   /// Every registered policy, as `action:ResourceType`.
   ///
   /// `can` answers one question at a time and returns false for a policy that
   /// was never registered, which is indistinguishable from a policy that
   /// denied. Enumerating them is how that distinction becomes visible.
-  Set<String> get registeredPolicies => Set<String>.unmodifiable(_policies.keys);
+  Set<String> get registeredPolicies =>
+      Set<String>.unmodifiable(<String>{..._policies.keys, ..._declared.keys});
 
+  /// The policies registered from `@DVPolicy` classes.
+  Set<String> get declaredPolicies => Set<String>.unmodifiable(_declared.keys);
+
+  /// The declared policies the application registered its own answer for,
+  /// which is the one asked.
+  Set<String> get overriddenPolicies => Set<String>.unmodifiable(
+        _declared.keys.where(_policies.containsKey).toSet(),
+      );
+
+  /// Registers the application's own answer for [action] on [TResource].
+  ///
+  /// It replaces an earlier one of the application's, and wins over one
+  /// registered from a `@DVPolicy` class whichever of the two ran first -- an
+  /// answer written in code is the one somebody chose for this process, and
+  /// which one a request gets must not depend on startup order.
   void register<TUser, TResource>(
     String action,
     DVPolicyCheck<TUser, TResource> check,
   ) {
-    _policies['$action:${TResource.toString()}'] =
-        (user, resource) => check(user as TUser, resource as TResource);
+    _policies[_keyOf<TResource>(action)] =
+        _DVPolicyEntry.of<TUser, TResource>(check);
   }
+
+  /// Registers a `@DVPolicy` class's method. Called by the generated client
+  /// and server; the application's own [register] for the same action and
+  /// resource is asked instead.
+  void registerDeclared<TUser, TResource>(
+    String action,
+    DVPolicyCheck<TUser, TResource> check,
+  ) {
+    _declared[_keyOf<TResource>(action)] =
+        _DVPolicyEntry.of<TUser, TResource>(check);
+  }
+
+  _DVPolicyEntry? _entry(String key) => _policies[key] ?? _declared[key];
 
   Future<bool> can<TUser, TResource>(
     TUser user,
@@ -4067,9 +4138,47 @@ class DVAuthAuthorization {
     TResource resource,
   ) async {
     if (_outsideScopes<TResource>(user, action) != null) return false;
-    final check = _policies['$action:${TResource.toString()}'];
-    if (check == null) return false;
-    return check(user, resource);
+    final _DVPolicyEntry? entry = _entry(_keyOf<TResource>(action));
+    if (entry == null) return false;
+    return entry.check(user, resource);
+  }
+
+  /// Whether [user] may [action], named as `Resource.action`, optionally on
+  /// [resource].
+  ///
+  /// The question a route asks: it knows the action it declared and who is
+  /// calling, and usually has no resource. A policy that cannot be called
+  /// with what it is given -- one taking `Order` asked without an order, or a
+  /// `User` asked with an API key -- is refused and says so once, rather than
+  /// throwing a cast error from inside the registry where a refusal belongs.
+  Future<bool> canAction(
+    Object? user,
+    String action, {
+    Object? resource,
+  }) async {
+    final int dot = action.indexOf('.');
+    if (dot <= 0 || dot == action.length - 1) return false;
+    if (user is DVScopedPrincipal && !user.permits(action)) {
+      DVObservability.logger.warn('${DVApiScopeRefused(action, user.scopes)}');
+      return false;
+    }
+    final String key = DVApiScopes.policyKeyOf(action);
+    final _DVPolicyEntry? entry = _entry(key);
+    if (entry == null) return false;
+    if (!entry.accepts(user, resource)) {
+      if (_explained.add(key)) {
+        DVObservability.logger.warn(
+          'The policy for $action takes ${entry.signature} and was asked with '
+          '${user == null ? 'no caller' : user.runtimeType} and '
+          '${resource == null ? 'no resource' : resource.runtimeType}, so it '
+          'refused. A route has no resource to hand a policy: take the '
+          'resource as nullable to answer for a route, or answer it with '
+          'DVBackendPolicy.decide.',
+        );
+      }
+      return false;
+    }
+    return entry.check(user, resource);
   }
 
   /// A third-party caller's scopes are the policy context: an action they do

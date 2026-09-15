@@ -202,6 +202,21 @@ String? dvBackendPolicyFromSource(String source) {
 /// backwards to the end of whatever came before, forwards to the start of
 /// the body. `@DVPage` may sit either side of `@DVUseMiddleware`, so both
 /// directions are read.
+/// Whether a backend function's policy is a quoted `Resource.action`, such as
+/// `'Order.view'`, which the registry answers -- as opposed to a reference
+/// such as `DVPolicies.refund`, which names no action and only the
+/// application's `DVBackendPolicy.decide` can answer. Both reach the router as
+/// the same string, so the difference has to be read here.
+bool dvBackendPolicyIsAction(String source) {
+  final String? args = dvAnnotationArgs(source, 'DVBackendFunction');
+  if (args == null) return false;
+  final RegExpMatch? quoted =
+      RegExp(r'''policy\s*:\s*(['"])(.*?)\1''').firstMatch(args);
+  if (quoted == null) return false;
+  return RegExp(r'^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$')
+      .hasMatch(quoted.group(2)!);
+}
+
 bool dvMiddlewareDeclaresPage(String source, int start, int end) {
   int back = 0;
   for (final String boundary in <String>['}', ';', '\n\n']) {

@@ -91,7 +91,10 @@ List<DVPolicyClass> dvPolicyClassesIn(String source, String relativePath) {
           'without one could never be reached by the question it answers.',
         );
       }
-      final String taken = _typeOf(parameters[1]);
+      // `Order?` is the same resource as `Order`. A route has no order to
+      // hand the policy, so a method that answers for one takes it nullable,
+      // and the registry keys both under Order.
+      final String taken = _typeOf(parameters[1]).replaceFirst(RegExp(r'\?$'), '');
       if (taken != resource) {
         throw StateError(
           'The $action policy on $className in $relativePath is annotated '

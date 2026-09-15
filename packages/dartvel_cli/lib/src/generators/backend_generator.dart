@@ -14,6 +14,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvPageMiddlewareRefusal;
 import 'package:file/local.dart';
 import 'function_body.dart';
+import 'job_generator.dart';
 import 'symbol_qualifier.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
@@ -352,6 +353,11 @@ class BackendGenerator {
         // enforce policies even if the UI guard is bypassed, and until now
         // neither side enforced anything.
         'policy': dvBackendPolicyFromSource(src) ?? '',
+        // Whether that policy is a quoted Resource.action the registry
+        // answers, rather than a name only the application's decide can.
+        'policyAction': dvBackendPolicyIsAction(src) ? '1' : '0',
+        // Where it was declared, for a refusal that has to name the file.
+        'rel': rel,
         // The middleware the function declares, in declaration order. Read
         // here for the same reason: @DVUseMiddleware had one reader in the
         // repository and it was a spelling check, so nineteen keys were
@@ -360,6 +366,46 @@ class BackendGenerator {
         // Whether to build a DVContext and pass it first.
         'ctx': injectsContext ? '1' : '0',
       });
+    }
+
+    // @DVPolicy classes in the application and the modules it merges: which
+    // ones the server can load, and whether each route's declared action is
+    // answered by one of them. Refused here rather than left to the request,
+    // where a route whose policy nobody wrote could only refuse everybody --
+    // or, with an application decide that says yes, nobody.
+    final List<_DVFoundPolicy> policies = await _discoverPolicies(
+      root: root,
+      pkgName: pkgName,
+      backendDir: backendDir,
+    );
+    _refuseUnanswerableRoutePolicies(backendEntries, policies);
+    final List<String> routeActions = <String>{
+      for (final Map<String, String> e in backendEntries)
+        if (e['policyAction'] == '1') e['policy']!,
+    }.toList()
+      ..sort();
+    File(p.join(libClientDir.path, 'backend_policies.g.dart')).writeAsStringSync(
+      _registrationsSource(
+        library: 'dartvel_client_backend_policies',
+        function: 'dartvelRegisterBackendPolicies',
+        registration: 'registerDeclared',
+        policies: <_DVFoundPolicy>[
+          for (final _DVFoundPolicy found in policies)
+            if (found.clientOnlyBecause == null) found,
+        ],
+      ),
+    );
+    for (final _DVFoundPolicy found in policies) {
+      if (found.clientOnlyBecause == null) continue;
+      stderr.writeln(
+        'dartvel: @DVPolicy(${found.policy.resource}) '
+        '${found.policy.className} in ${found.shownPath} is registered in the '
+        'client only: that file reaches Flutter through '
+        '${found.clientOnlyBecause}. The generated server cannot import it, so '
+        'it answers ${found.policy.resource}\'s actions by default-deny; write '
+        'the policy against dartvel_core, without the generated client, to '
+        'enforce it on the server.',
+      );
     }
 
     // OpenAPI: derived entirely from the discovered functions, per the spec's
@@ -470,6 +516,7 @@ import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAIT
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
+import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies;
 ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -602,6 +649,15 @@ ${servesCrashes ? '/// The crash endpoint\'s ingest, built on the first report.\
     body: Stream<List<int>>.value(conv.utf8.encode('CSRF token missing')));
 
 dv.Router buildBackendRouter() {
+  // Every @DVPolicy class this server can load, from the application and the
+  // modules it merges, registered before a single route exists -- so no
+  // request can be answered by an empty registry, whether the router is
+  // served by startBackend or mounted by somebody else's server. Then every
+  // Resource.action a route declares must be registered, or nothing is
+  // served: the build has already refused an action no policy class defines,
+  // and what is left is a framework action the application registers itself.
+  dartvelRegisterBackendPolicies();
+  core.DVBackendPolicy.verifyRegistered(const <String>[${routeActions.map((String a) => "'$a'").join(', ')}]);
   final router = dv.Router();
   bool _hasHealth = false;
 ${backendEntries.map((e) {
@@ -698,8 +754,14 @@ ${backendEntries.map((e) {
               ? '\n    if (core.DVApiPrincipal.current != null) '
                   "return _dvPolicyForbidden('no declared policy action');"
               : '')
-          : "\n    if (!await _dvAllowed('$policy', req)) "
-              "return _dvPolicyForbidden('$policy');";
+          // A Resource.action is asked of the registry the @DVPolicy classes
+          // were registered in; a reference names no action, so only the
+          // application's decide can answer it.
+          : e['policyAction'] == '1'
+              ? "\n    if (!await core.DVBackendPolicy.allowsAction('$policy', req.url.path)) "
+                  "return _dvPolicyForbidden('$policy');"
+              : "\n    if (!await _dvAllowed('$policy', req)) "
+                  "return _dvPolicyForbidden('$policy');";
 
       if (typed.isEmpty) {
         // A raw handler owns the request, so there is no body prelude and no
@@ -1745,12 +1807,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       pkgName: pkgName,
       backendDir: backendDir,
     ));
-    File(p.join(libClientDir.path, 'policies.g.dart'))
-        .writeAsStringSync(await _generatePolicies(
-      root: root,
-      pkgName: pkgName,
-      backendDir: backendDir,
-    ));
+    File(p.join(libClientDir.path, 'policies.g.dart')).writeAsStringSync(
+      _registrationsSource(
+        library: 'dartvel_client_policies',
+        function: 'dartvelRegisterPolicies',
+        registration: 'register',
+        policies: policies,
+      ),
+    );
     // The client half is a separate file because the generated backend
     // imports the one above, and a client schedule declared on a page would
     // pull Flutter into a server with no dart:ui.
@@ -2024,30 +2088,22 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     return entries;
   }
 
-  /// Every `@DVPolicy(Resource)` class, registered.
+  /// Every `@DVPolicy(Resource)` class in the application and the modules it
+  /// merges, with whether the generated server can load it.
   ///
-  /// Read by the client and not by the generated server, for the reason the
-  /// client schedules live in their own file. A policy is written against the
-  /// application's models, application code is told to reach those through the
-  /// generated `dartvel_client.dart` barrel, and that barrel exports the
-  /// router and the generated widgets -- so importing one policy into the
-  /// server compiles Flutter into a process with no dart:ui. A show clause
-  /// does not prevent it, because the whole library is still compiled. The
-  /// server enforces `@DVBackendFunction(policy:)`, which is answered by name
-  /// through DVBackendPolicy and imports nothing of the client's.
-  ///
-  /// The registration tears the method off rather than wrapping it, so Dart
-  /// infers the user and resource types from the policy's own signature. That
-  /// is what makes the registry key the type the policy actually takes: a
-  /// string this generator assembled could be assembled wrongly, and the
-  /// symptom would be a policy that is registered under a name nothing asks
-  /// about, which looks exactly like a policy that denies.
-  static Future<String> _generatePolicies({
+  /// The client registers every one. The server registers those whose file
+  /// does not reach Flutter: a policy written against the generated models
+  /// reaches them through the `dartvel_client.dart` barrel, which exports the
+  /// router and the generated widgets, and importing that into a process with
+  /// no dart:ui is what once stopped the server registering policies at all.
+  /// A show clause does not prevent it, because the whole library is still
+  /// compiled.
+  static Future<List<_DVFoundPolicy>> _discoverPolicies({
     required String root,
     required String pkgName,
     required String backendDir,
   }) async {
-    final List<(String, DVPolicyClass)> found = <(String, DVPolicyClass)>[];
+    final List<_DVFoundPolicy> found = <_DVFoundPolicy>[];
     for (final (project, file) in _mergedLibFiles(root, pkgName, backendDir)) {
       final String source = await file.readAsString();
       if (!source.contains('@DVPolicy(')) continue;
@@ -2055,16 +2111,93 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           p.relative(file.path, from: project.root).replaceAll('\\', '/');
       final String importUri = relativePath.replaceFirst(
           RegExp(r'^lib/'), 'package:${project.packageName}/');
-      for (final DVPolicyClass policy
-          in dvPolicyClassesIn(source, relativePath)) {
-        found.add((importUri, policy));
+      final List<DVPolicyClass> classes =
+          dvPolicyClassesIn(source, relativePath);
+      if (classes.isEmpty) continue;
+      final String? reached = JobGenerator.flutterReachedFrom(
+        file.path,
+        root: project.root,
+        pkgName: project.packageName,
+      );
+      for (final DVPolicyClass policy in classes) {
+        found.add(_DVFoundPolicy(
+          importUri: importUri,
+          shownPath: p.relative(file.path, from: root).replaceAll('\\', '/'),
+          policy: policy,
+          clientOnlyBecause: reached,
+        ));
       }
     }
+    return found;
+  }
 
+  /// Stops the build on a route whose `Resource.action` no policy class the
+  /// server registers defines.
+  ///
+  /// An action on a framework resource -- a name starting `DV`, such as
+  /// `DVApiKeyResource.viewAny` -- is left alone: the application answers it
+  /// by registering it, which the build cannot see, and the generated server
+  /// refuses to start when it has not.
+  static void _refuseUnanswerableRoutePolicies(
+    List<Map<String, String>> entries,
+    List<_DVFoundPolicy> policies,
+  ) {
+    final Map<String, _DVFoundPolicy> server = <String, _DVFoundPolicy>{};
+    final Map<String, _DVFoundPolicy> clientOnly = <String, _DVFoundPolicy>{};
+    for (final _DVFoundPolicy found in policies) {
+      for (final DVPolicyMethod method in found.policy.methods) {
+        (found.clientOnlyBecause == null ? server : clientOnly).putIfAbsent(
+            '${found.policy.resource}.${method.action}', () => found);
+      }
+    }
+    for (final Map<String, String> entry in entries) {
+      if (entry['policyAction'] != '1') continue;
+      final String action = entry['policy']!;
+      if (server.containsKey(action) || action.startsWith('DV')) continue;
+      final String declared =
+          "@DVBackendFunction(policy: '$action') in ${entry['rel']}";
+      final _DVFoundPolicy? client = clientOnly[action];
+      final int dot = action.indexOf('.');
+      if (client == null) {
+        throw StateError(
+          '$declared names an action no @DVPolicy class defines, so the '
+          'route could never be allowed by a policy -- only refused, or opened '
+          'by a DVBackendPolicy.decide saying yes to a policy nobody wrote. '
+          'Write ${action.substring(dot + 1)} on a '
+          '@DVPolicy(${action.substring(0, dot)}) class; policy methods are '
+          '${dvPolicyActions.join(', ')}.',
+        );
+      }
+      throw StateError(
+        '$declared is defined by ${client.policy.className} in '
+        '${client.shownPath}, which the generated server cannot load: that '
+        'file reaches Flutter through ${client.clientOnlyBecause}. The route '
+        'would be refused on every request. Write the policy the server '
+        'enforces against dartvel_core, without importing the generated '
+        'client.',
+      );
+    }
+  }
+
+  /// A file registering [policies] with `DV.Auth.authorization` as the
+  /// declared answers, which the application's own registration wins over.
+  ///
+  /// The registration tears the method off rather than wrapping it, so Dart
+  /// infers the user and resource types from the policy's own signature. That
+  /// is what makes the registry key the type the policy actually takes: a
+  /// string this generator assembled could be assembled wrongly, and the
+  /// symptom would be a policy that is registered under a name nothing asks
+  /// about, which looks exactly like a policy that denies.
+  static String _registrationsSource({
+    required String library,
+    required String function,
+    required List<_DVFoundPolicy> policies,
+    required String registration,
+  }) {
     final Map<String, String> aliasByImport = <String, String>{};
-    for (final (String importUri, _) in found) {
+    for (final _DVFoundPolicy found in policies) {
       aliasByImport.putIfAbsent(
-        importUri,
+        found.importUri,
         () => 'pol${aliasByImport.length}',
       );
     }
@@ -2072,7 +2205,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     final StringBuffer sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
       ..writeln('// ignore_for_file: unused_import, directives_ordering')
-      ..writeln('library dartvel_client_policies;')
+      ..writeln('library $library;')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
     for (final MapEntry<String, String> import in aliasByImport.entries) {
@@ -2087,13 +2220,14 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('/// policy nobody registered is answered false, so the cost')
       ..writeln('/// of calling this late is a check that denies for a while')
       ..writeln('/// rather than one that throws.')
-      ..writeln('void dartvelRegisterPolicies() {');
-    if (found.isEmpty) {
+      ..writeln('void $function() {');
+    if (policies.isEmpty) {
       sb.writeln('  // The application declares no @DVPolicy class.');
     }
     int index = 0;
-    for (final (String importUri, DVPolicyClass policy) in found) {
-      final String alias = aliasByImport[importUri]!;
+    for (final _DVFoundPolicy found in policies) {
+      final DVPolicyClass policy = found.policy;
+      final String alias = aliasByImport[found.importUri]!;
       final String variable = 'policy$index';
       index++;
       if (policy.methods.isEmpty) {
@@ -2108,7 +2242,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           '$alias.${policy.className}();');
       for (final DVPolicyMethod method in policy.methods) {
         sb.writeln("  const DVAuthAuthorization()"
-            ".register('${esc(method.action)}', $variable.${method.action});");
+            ".$registration('${esc(method.action)}', $variable.${method.action});");
       }
     }
     sb.writeln('}');
@@ -3106,6 +3240,27 @@ String dvProjectBackendDir(String projectRoot) {
   } catch (_) {
     return 'lib/backend';
   }
+}
+
+/// One `@DVPolicy` class, where it is, and why only the client can load it.
+class _DVFoundPolicy {
+  const _DVFoundPolicy({
+    required this.importUri,
+    required this.shownPath,
+    required this.policy,
+    required this.clientOnlyBecause,
+  });
+
+  final String importUri;
+
+  /// Relative to the application, so a module's file names the module.
+  final String shownPath;
+
+  final DVPolicyClass policy;
+
+  /// The import through which its file reaches Flutter, or null when the
+  /// generated server can load it.
+  final String? clientOnlyBecause;
 }
 
 /// A project whose `lib` this application's generated schedule, AI tools and

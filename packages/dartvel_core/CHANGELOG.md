@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **`@DVPolicy` registrations are a layer the application's own wins over,
+  and a route's `Resource.action` is answered by the registry.**
+  `DV.Auth.authorization.registerDeclared` is what the generated client and
+  server register policy classes with; `register` is the application's, and
+  for the same action and resource it is asked instead, whichever ran first.
+  `declaredPolicies` and `overriddenPolicies` say which is which. `Order?` and
+  `Order` key the same resource. `canAction(user, 'Order.view', resource:)`
+  asks by name, refusing a caller or resource the policy cannot take -- a
+  policy taking `Order` asked without an order -- and saying why once, rather
+  than throwing a cast error. `DVBackendPolicy.allowsAction` is the gate a
+  generated route with a quoted `Resource.action` calls: a principal outside
+  its scopes is refused, then an action nothing registered is refused even
+  when `decide` says yes, then `decide` answers if the application set one,
+  and otherwise the registered policy does, with the principal and no
+  resource. `DVBackendPolicy.verifyRegistered` refuses to start a server whose
+  routes name an action nothing registered. `DVBackendPolicy.allows` is
+  unchanged for a reference such as `DVPolicies.refund`.
+
 - **`DVPlatformApiAuth` manages the current organization's API keys and
   OAuth clients through `DV.Auth.authorization`.** `apiKeys.issue`, `list`,
   `rotate` and `revoke`, and `oauthClients.register`, `list` and `revoke`,
