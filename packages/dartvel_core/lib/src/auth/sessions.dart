@@ -81,6 +81,53 @@ class DVSession {
     this.isCurrent = false,
   });
 
+  /// The claim a session issued at sign-in carries while the account's second
+  /// factor has not been presented. Server-issued, like every claim.
+  static const String mfaPendingClaim = 'dv.mfaPending';
+
+  /// Whether this session was issued by a password alone for an account that
+  /// has a second factor, which has not been presented yet. Such a session
+  /// authenticates nothing but the second factor and sign-out:
+  /// [DVSessions.completeMfa] records the factor, and the token it rotates to
+  /// is the first that carries the person's privilege.
+  bool get mfaPending => claims[mfaPendingClaim] == true && mfaSatisfiedAt == null;
+
+  /// The session as a client may see it: never the token, which is not on a
+  /// [DVSession] at all.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'id': id,
+        'userId': userId,
+        'tenant': tenant,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'lastSeenAt': lastSeenAt.toUtc().toIso8601String(),
+        if (device != null) 'device': device,
+        if (location != null) 'location': location,
+        'claims': claims,
+        'mfaSatisfiedAt': mfaSatisfiedAt?.toUtc().toIso8601String(),
+        'isCurrent': isCurrent,
+      };
+
+  /// A session a server described with [toJson].
+  factory DVSession.fromJson(Map<String, Object?> json) {
+    DateTime? time(Object? value) =>
+        value is String ? DateTime.tryParse(value)?.toUtc() : null;
+    final Object? claims = json['claims'];
+    return DVSession(
+      id: json['id']! as String,
+      userId: json['userId']! as String,
+      tenant: json['tenant'] as String? ?? DVTenants.defaultTenant,
+      createdAt: time(json['createdAt'])!,
+      lastSeenAt: time(json['lastSeenAt'])!,
+      device: json['device'] as String?,
+      location: json['location'] as String?,
+      claims: claims is Map
+          ? Map<String, Object?>.unmodifiable(Map<String, Object?>.from(claims))
+          : const <String, Object?>{},
+      mfaSatisfiedAt: time(json['mfaSatisfiedAt']),
+      isCurrent: json['isCurrent'] == true,
+    );
+  }
+
   DVSession _copy({
     String? id,
     DateTime? lastSeenAt,

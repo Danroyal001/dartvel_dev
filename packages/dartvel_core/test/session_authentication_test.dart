@@ -202,6 +202,50 @@ void main() {
       expect(resolved, isEmpty);
     });
 
+    test('refuses a session still waiting for its second factor, and keeps '
+        'its cookie so the factor can be presented', () async {
+      final DVIssuedSession pending = await onTenant(
+          'acme',
+          () => sessions.create('u-admin',
+              claims: const <String, Object?>{DVSession.mfaPendingClaim: true}));
+      expect(pending.session.mfaPending, isTrue);
+
+      for (final (String? authorization, String? cookie) in <(String?, String?)>[
+        ('Bearer ${pending.token}', null),
+        (null, '__Host-dv_session=${pending.token}'),
+      ]) {
+        final DVSessionAuthenticationResult result = await onTenant('acme',
+            () => auth.authenticate(authorization: authorization, cookie: cookie));
+        expect(result.principal, isNull);
+        expect(result.status, 401);
+        expect(result.challenge,
+            'Bearer error="insufficient_user_authentication"');
+        expect(result.clearCookie, isNull);
+      }
+      expect(resolved, isEmpty,
+          reason: 'a half-signed-in session must not reach the user');
+
+      final DVIssuedSession completed = await sessions.completeMfa(pending.token);
+      expect(completed.session.mfaPending, isFalse);
+      final DVSessionAuthenticationResult after = await onTenant('acme',
+          () => auth.authenticate(authorization: 'Bearer ${completed.token}'));
+      expect(after.principal?.userId, 'u-admin');
+    });
+
+    test('a session is described without its token, and read back', () async {
+      final DVIssuedSession issued = await onTenant(
+          'acme', () => sessions.create('u-admin', device: 'Pixel 9; Android 16'));
+      final Map<String, Object?> json = issued.session.toJson();
+      expect('$json', isNot(contains(issued.token)));
+      final DVSession read = DVSession.fromJson(json);
+      expect(read.id, issued.session.id);
+      expect(read.userId, 'u-admin');
+      expect(read.tenant, 'acme');
+      expect(read.device, 'Pixel 9; Android 16');
+      expect(read.createdAt, issued.session.createdAt);
+      expect(read.mfaSatisfiedAt, isNull);
+    });
+
     test('refuses a session whose user no longer exists', () async {
       final DVIssuedSession issued =
           await onTenant('acme', () => sessions.create('u-admin'));

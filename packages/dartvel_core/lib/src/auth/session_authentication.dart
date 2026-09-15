@@ -166,6 +166,12 @@ class DVSessionAuthentication {
 
   static const String _challenge = 'Bearer error="invalid_token"';
 
+  /// The challenge for a session still waiting for its second factor: RFC
+  /// 9470's step-up error, which says "present more", where invalid_token
+  /// would say "sign in again".
+  static const String mfaChallenge =
+      'Bearer error="insufficient_user_authentication"';
+
   static DVSessionAuthentication? _installed;
 
   /// The session stage this process runs, or null before one is installed.
@@ -267,6 +273,17 @@ class DVSessionAuthentication {
               .info('$code: a revoked session was presented and refused.');
         }
         return _refused(fromCookie);
+      }
+      if (session.mfaPending) {
+        // A password was right and the second factor has not been presented:
+        // this session proves less than the account requires, so it is not a
+        // caller on any route. Its cookie stays, because the second factor is
+        // presented with it.
+        return const DVSessionAuthenticationResult.refused(
+          401,
+          'Unauthorized',
+          challenge: mfaChallenge,
+        );
       }
       Object? user;
       final FutureOr<Object?> Function(DVSession)? resolve = resolveUser;
