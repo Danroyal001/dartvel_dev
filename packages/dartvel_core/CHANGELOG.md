@@ -1,5 +1,27 @@
 ## Unreleased
 
+- **One client address, and a header believed only from a trusted proxy.**
+  `DVClientAddress` resolves who a request came from: the connection's peer
+  address, unless the peer is in the configured trusted proxies, in which case
+  `X-Forwarded-For` (or `Forwarded`, when that is the configured header) is
+  walked from the right and the first hop that is not a trusted proxy is the
+  client. A hop that does not parse stops the walk and nothing left of it is
+  read; a request with no peer address has no client address, never a
+  header's. `DVCidr` ranges refuse what is not exactly a range, including
+  `10.0.0.1/8`. `DVClientAddress.fromConfiguration` reads the pubspec's list
+  plus `DARTVEL_TRUSTED_PROXIES`, and `DVClientAddress.install` sets the
+  process's resolver, which trusts no proxy until one is installed.
+- **Per-source limits count the client, not what it wrote.** The sign-in and
+  sign-up endpoints' `sourceOf` and `CommonMiddleware.rateLimit`'s default
+  identifier took the first `X-Forwarded-For` entry -- the rate limit also
+  `CF-Connecting-IP`, `X-Real-IP`, `Fastly-Client-IP`, `True-Client-IP` and
+  `Forwarded` -- so a client wrote a new one per request and was never
+  counted twice, and every request without one shared a bucket. Both use
+  `DVClientAddress` now; a request with no peer address counts as `unknown`.
+  The rate limit no longer reads `remoteAddress` or `ip` from a map-shaped
+  request; `peerAddress` is the key. `DVWaf.countryHeader` believes its
+  header only from a trusted proxy, and the country is otherwise unknown.
+
 - **`Request.peerAddress`, and addresses as values.** A request carries the
   address at the other end of its connection when the server that built it
   had one (`dartvel_shelf` sets it from the socket); null otherwise, and never
