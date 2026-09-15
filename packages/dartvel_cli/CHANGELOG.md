@@ -1,4 +1,29 @@
 ## Unreleased
+- **Generated models persist through `DVRecordTable`, so their tables can be
+  erased.** Generated `save()` was a delete then an insert with no version,
+  so a model's table had no `_dv_version` column: `dartvel privacy erase` and
+  `DV.Privacy.erase` refused every real application, a retention sweep could
+  not write at the version it read, history and capture never saw a change,
+  and two people saving one record both succeeded while one lost their edit.
+  `find`, `all`, `save` and `destroy` now go through a record table carrying
+  the tenant scope, the table the tenant resolves to, the sensitive fields and
+  the module's database. A model loaded from the database, or copied from one
+  with `copyWith`, is saved and destroyed at the version it was read and
+  refused with `DVConflictError` when the row has moved; one built by hand
+  has read nothing and replaces the row at the version it finds, as `save`
+  always has. Created and updated are reported from the write itself. Tables
+  carry `_dv_version INTEGER NOT NULL DEFAULT 1` and `_dv_deleted_at`, and
+  `.dart_tool/dartvel_schema.g.json` records their types, so `dartvel db
+  migrate` adds them to an existing table with the default rather than as
+  nullable TEXT -- a NULL version matches no conditional write, and every
+  sweep would skip those rows for ever -- and the plan classifies the change
+  through the adapter: instant on SQLite, MySQL 8 and PostgreSQL 11+,
+  blocking on PostgreSQL 10, where a production rehearsal refuses it without
+  an override. The statements written for PostgreSQL add both columns with
+  `ADD COLUMN IF NOT EXISTS`. `@DVModel(history: DVHistory(keep: ...))` is
+  read, refused when it cannot be, generated into the record table with
+  `model.history()`, and carried into `privacy.g.dart`, so an erasure
+  removes the log with the row instead of leaving every value it held.
 - **A generated backend authenticates API keys and OAuth tokens on every
   route.** With `dartvel.platformApi` declared, each route's lifecycle has an
   authentication stage inside the tenant scope and tracing and outside the

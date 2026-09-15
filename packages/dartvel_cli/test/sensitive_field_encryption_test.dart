@@ -42,18 +42,22 @@ String _member(String source, String signature) {
   return source.substring(start, end == -1 ? source.length : end);
 }
 
-/// The expressions bound to the INSERT, in column order.
+/// The expressions save() hands the record table to store, in column order.
 ///
-/// Split at bracket depth zero rather than matched as substrings: the
-/// plaintext `model.taxNumber` is a substring of the encrypted
+/// Each is the whole value of its entry rather than matched as a substring:
+/// the plaintext `model.taxNumber` is a substring of the encrypted
 /// `...encrypt('User', 'taxNumber', model.taxNumber)`, so a `contains` check
-/// cannot tell the safe emission from the unsafe one.
+/// over the body cannot tell the safe emission from the unsafe one.
 List<String> _insertBindings(String saveBody) {
   final Match? match = RegExp(
-    r"INSERT INTO .*?\)', <Object\?>\[(.*)\]\);",
+    r'_dvRecords\(\)\.write\(\s*<String, Object\?>\{(.*?)\n\s*\},',
+    dotAll: true,
   ).firstMatch(saveBody);
-  expect(match, isNotNull, reason: 'no INSERT statement in save()');
-  return _splitTopLevel(match!.group(1)!);
+  expect(match, isNotNull, reason: 'no record table write in save()');
+  return <String>[
+    for (final String entry in _splitTopLevel(match!.group(1)!))
+      if (entry.isNotEmpty) entry.substring(entry.indexOf(':') + 1).trim(),
+  ];
 }
 
 /// The expression the constructor is handed for [field] in `_fromRow`.

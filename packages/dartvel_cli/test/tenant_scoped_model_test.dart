@@ -84,38 +84,39 @@ void main() {
       // the read. Both together: the name alone would pass on a query with
       // no predicate, and the predicate alone would pass on one that reads
       // the shared table under schemaPerTenant.
-      expect(
-        generated,
-        contains("SELECT * FROM \${dvTenantTable('orders')} "
-            'WHERE dv_tenant = ?'),
-      );
-      expect(
-        generated,
-        contains('WHERE dv_tenant = ? AND id = ?'),
-      );
+      //
+      // Reads, writes and deletes go through the record table, which puts
+      // the scope's predicate on every statement it runs; that it does, for
+      // reads, updates, deletes and history, is record_history_test's
+      // "scoped to a tenant". What the generated model has to get right is
+      // handing it both.
+      final String records =
+          _member(generated, 'static DVRecordTable _dvRecords()');
+      expect(records, contains("table: dvTenantTable('orders')"));
+      expect(records, contains("scope: DVRecordScope('dv_tenant', "));
+      expect(_member(generated, 'static Future<core.List<Order>> all('),
+          contains('_dvRecords().all()'));
+      expect(_member(generated, 'static Future<Order?> find('),
+          contains('_dvRecords().read(id)'));
     });
 
     test('every write carries the current tenant', () async {
       final String generated = await _generate(_scoped);
 
-      // The insert has to store it or every read filters everything out,
-      // which is the failure that looks like an empty database.
-      expect(generated, contains('dv_tenant'));
-      expect(generated, contains('INSERT INTO'));
-      final int insertAt = generated.indexOf('INSERT INTO');
-      expect(
-        generated.substring(insertAt, insertAt + 200),
-        contains('dv_tenant'),
-      );
+      // The write has to store it or every read filters everything out,
+      // which is the failure that looks like an empty database. The scope
+      // fills the column on every write, so the model writes only through it
+      // and never with SQL of its own that could leave it out.
+      expect(_member(generated, 'static Future<Order> save('),
+          contains('_dvRecords().write('));
+      expect(generated, isNot(contains('INSERT INTO')));
     });
 
     test('a delete cannot reach another tenant\'s row', () async {
       final String generated = await _generate(_scoped);
-      expect(
-        generated,
-        contains("DELETE FROM \${dvTenantTable('orders')} "
-            'WHERE dv_tenant = ? AND id = ?'),
-      );
+      expect(_member(generated, 'static Future<void> destroy('),
+          contains('_dvRecords().delete('));
+      expect(generated, isNot(contains('DELETE FROM')));
     });
 
     test('the tenant bound is the current one, read at call time', () async {
@@ -218,4 +219,13 @@ class _Order {
       expect(generated, contains('dvRegisterTenantScopedTables(<String>{})'));
     });
   });
+}
+
+/// The body of one generated member, so an assertion about one path cannot
+/// be satisfied by another. Generated members are separated by a blank line.
+String _member(String source, String signature) {
+  final int start = source.indexOf(signature);
+  expect(start, isNot(-1), reason: 'no $signature in the generated model');
+  final int end = source.indexOf('\n\n', start);
+  return source.substring(start, end == -1 ? source.length : end);
 }

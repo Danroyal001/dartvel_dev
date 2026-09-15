@@ -17,6 +17,8 @@ import 'dart:io';
 
 import 'package:dartvel_cli/src/commands/db_command.dart';
 import 'package:dartvel_cli/src/generators/model_generator.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVHistory, DVRecord, DVRecordTable, SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -114,7 +116,7 @@ void main() {
       expect(createSql, isNot(contains('\$')));
       expect(createSql, contains('CREATE TABLE IF NOT EXISTS orders ('));
       for (final String column in columns) {
-        expect(createSql, contains('$column TEXT'));
+        expect(createSql, contains('$column '));
         expect(models, contains(column));
       }
       // And the model's own statement resolves its name for the tenant
@@ -340,6 +342,173 @@ class _Order {
 
       expect(report.added, contains('orders.note'));
       expect(report.needsTenant, isEmpty);
+    });
+  });
+
+  _recordVersionGroup();
+}
+
+const String _plainOrder = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Order {
+  final String id;
+  final String total;
+  const _Order({required this.id, required this.total});
+}
+''';
+
+// The privacy walk, change capture, record history and a generated save all
+// write a row only at the version they read. A table with no version column
+// cannot be written that way at all, and one whose rows hold a NULL version
+// is worse: `_dv_version = ?` never matches NULL, so every conditional write
+// against those rows conflicts, and a sweep skips them for ever while
+// reporting each run as contended.
+void _recordVersionGroup() {
+  group('record versions', () {
+    test('a model keeping history gets the table its history is written to',
+        () async {
+      // Without it the first save of the model fails: the record table
+      // writes the entry in the same step as the change, and a change whose
+      // entry cannot be written is rolled back (DV-HISTORY-005).
+      final Directory root = await _project('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(history: DVHistory(keep: Duration(days: 30)))
+class _Order {
+  final String id;
+  final String total;
+  const _Order({required this.id, required this.total});
+}
+''');
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+
+      expect(report.applied, contains('orders__history'));
+      final String file = p.join(root.path, 'app.db');
+      expect(
+        await dvSqliteColumns(file, 'orders__history'),
+        <String>[
+          'entry_id', 'record_key', 'record_version', 'actor', 'tenant',
+          'transaction_id', 'occurred_at', 'changes', 'deleted', 'restored',
+        ],
+      );
+      final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+      addTearDown(db.close);
+      final DVRecordTable orders = DVRecordTable(
+        table: 'orders',
+        key: 'id',
+        columns: const <String>['id', 'total'],
+        history: const DVHistory(keep: Duration(days: 30)),
+        database: db,
+      );
+      await orders.write(<String, Object?>{'id': '1', 'total': '10'});
+      expect(await orders.history('1'), hasLength(1));
+    });
+
+    test('a model keeping no history gets no history table', () async {
+      final Directory root = await _project(_plainOrder);
+      addTearDown(() => root.deleteSync(recursive: true));
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+      expect(report.applied, isNot(contains('orders__history')));
+    });
+
+    test(
+        'the statements written for PostgreSQL add the version to a table '
+        'that is already there', () async {
+      // CREATE TABLE IF NOT EXISTS changes nothing on an existing table, so
+      // a file holding only that would leave production unerasable.
+      final Directory root = await _project(_plainOrder);
+      addTearDown(() => root.deleteSync(recursive: true));
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(
+        'name: migrate_app\n'
+        'dartvel:\n'
+        '  database:\n'
+        '    provider: postgres\n',
+      );
+
+      await dvApplyMigrations(root.path);
+
+      final String sql = File(
+        p.join(root.path, '.dart_tool', 'dartvel_migration.sql'),
+      ).readAsStringSync();
+      expect(
+        sql,
+        contains('ALTER TABLE orders ADD COLUMN IF NOT EXISTS _dv_version '
+            'INTEGER NOT NULL DEFAULT 1;'),
+      );
+      expect(
+        sql,
+        contains('ALTER TABLE orders ADD COLUMN IF NOT EXISTS _dv_deleted_at '
+            'TEXT;'),
+      );
+    });
+
+    test('a generated table carries the record table\'s bookkeeping columns',
+        () async {
+      final Directory root = await _project(_plainOrder);
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      final Map<String, Object?> orders = ((jsonDecode(
+        File(p.join(root.path, '.dart_tool', 'dartvel_schema.g.json'))
+            .readAsStringSync(),
+      ) as Map<String, Object?>)['tables']! as List<Object?>)
+          .first as Map<String, Object?>;
+      expect((orders['columns']! as List<Object?>).cast<String>(),
+          containsAll(<String>['_dv_version', '_dv_deleted_at']));
+      expect(orders['createSql'],
+          contains('_dv_version INTEGER NOT NULL DEFAULT 1'));
+
+      await dvApplyMigrations(root.path);
+      expect(
+        await dvSqliteColumns(p.join(root.path, 'app.db'), 'orders'),
+        containsAll(<String>['_dv_version', '_dv_deleted_at']),
+      );
+    });
+
+    test(
+        'rows written before the column existed are at version one, and a '
+        'conditional write matches them', () async {
+      final Directory root = await _project(_plainOrder);
+      addTearDown(() => root.deleteSync(recursive: true));
+      final String file = p.join(root.path, 'app.db');
+      // The table the generator created before this change.
+      await dvSqliteExecute(file, 'CREATE TABLE orders (id TEXT, total TEXT)');
+      for (int i = 0; i < 3; i++) {
+        await dvSqliteExecute(
+            file, "INSERT INTO orders (id, total) VALUES ('$i', '10')");
+      }
+
+      final DVMigrationReport report = await dvApplyMigrations(root.path);
+
+      expect(report.added,
+          containsAll(<String>['orders._dv_version', 'orders._dv_deleted_at']));
+      expect(
+        await dvSqliteRows(file,
+            'SELECT COUNT(*) AS n FROM orders WHERE _dv_version = 1'),
+        <Map<String, Object?>>[
+          <String, Object?>{'n': 3},
+        ],
+      );
+
+      final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
+      addTearDown(db.close);
+      final DVRecordTable table = DVRecordTable(
+        table: 'orders',
+        key: 'id',
+        columns: const <String>['id', 'total'],
+        database: db,
+      );
+      final DVRecord read = (await table.read('1'))!;
+      expect(read.version, 1);
+      final DVRecord written = (await table.write(
+        <String, Object?>{'id': '1', 'total': '11'},
+        base: read,
+      ))
+          .record;
+      expect(written.version, 2);
     });
   });
 }
