@@ -49,6 +49,28 @@ class DVSecondFactorRefused implements Exception {
   String toString() => 'DVSecondFactorRefused: $message';
 }
 
+/// What second factors the signed-in person has.
+class DVSecondFactorStatus {
+  const DVSecondFactorStatus({required this.totp, required this.recoveryCodes});
+
+  /// Whether an authenticator app is active on the account.
+  final bool totp;
+
+  /// How many unspent recovery codes the account has.
+  final int recoveryCodes;
+
+  factory DVSecondFactorStatus.fromJson(Map<String, Object?> json, String path) {
+    final Object? totp = json['totp'];
+    final Object? codes = json['recoveryCodes'];
+    if (totp is! bool || codes is! int) throw DVSessionRequestFailed(200, path);
+    return DVSecondFactorStatus(totp: totp, recoveryCodes: codes);
+  }
+
+  @override
+  String toString() =>
+      'DVSecondFactorStatus(totp: $totp, recoveryCodes: $recoveryCodes)';
+}
+
 /// Where a native client keeps its session token.
 abstract interface class DVSessionTokenStore {
   Future<String?> read();
@@ -349,6 +371,82 @@ class DVSessionClient {
     return revoked;
   }
 
+  // --- this person's second factors -----------------------------------------
+
+  /// Whether the signed-in person has an authenticator, and how many unspent
+  /// recovery codes. A count: no endpoint answers a code twice.
+  Future<DVSecondFactorStatus> secondFactors() async {
+    const String path = DVAuthEndpoints.factorsPath;
+    return DVSecondFactorStatus.fromJson(
+        _decode(await _request('GET', path, bearer: _token), path), path);
+  }
+
+  /// Starts enrolling an authenticator app: the secret to show as a QR code
+  /// and as text. Nothing is active, and this device keeps none of it, until
+  /// [confirmTotpEnrollment] presents a code from the app.
+  Future<DVTotpEnrollment> beginTotpEnrollment() async {
+    const String path = DVAuthEndpoints.totpPath;
+    final Map<String, Object?> json =
+        _decode(await _request('POST', path, bearer: _token), path);
+    final Object? secret = json['secret'];
+    final Object? uri = json['uri'];
+    final Uri? parsed = uri is String ? Uri.tryParse(uri) : null;
+    if (secret is! String || parsed == null) {
+      throw const DVSessionRequestFailed(200, path);
+    }
+    return DVTotpEnrollment(secret: secret, uri: parsed);
+  }
+
+  /// Activates the authenticator being enrolled with a [code] from it. The
+  /// server rotates the session, and this device keeps the rotated one.
+  Future<void> confirmTotpEnrollment(String code) async {
+    const String path = DVAuthEndpoints.totpConfirmPath;
+    await _rotated(path, <String, Object?>{'code': code});
+  }
+
+  /// A new set of recovery codes, replacing every earlier one. The returned
+  /// codes are the only copy anywhere: they are not stored on this device.
+  ///
+  /// Throws [DVMfaRequired] when the session's second factor is not recent;
+  /// present one with [completeSecondFactor] and ask again.
+  Future<DVRecoveryCodes> regenerateRecoveryCodes() async {
+    const String path = DVAuthEndpoints.recoveryCodesPath;
+    final Map<String, Object?> json = await _rotated(path, null);
+    final Object? codes = json['recoveryCodes'];
+    if (codes is! List) throw const DVSessionRequestFailed(200, path);
+    return DVRecoveryCodes(
+      codes: List<String>.unmodifiable(<String>[
+        for (final Object? c in codes) '$c',
+      ]),
+      generatedAt: DateTime.tryParse('${json['generatedAt']}')?.toUtc() ??
+          DateTime.now().toUtc(),
+    );
+  }
+
+  /// Removes the authenticator and every recovery code, presenting a [code]
+  /// from the authenticator or one [recoveryCode] with the request.
+  Future<void> removeSecondFactor({String? code, String? recoveryCode}) async {
+    if (code == null && recoveryCode == null) {
+      throw ArgumentError(
+          'Removing a second factor takes a code or a recovery code.');
+    }
+    const String path = DVAuthEndpoints.removeFactorPath;
+    await _rotated(path, <String, Object?>{
+      if (code != null) 'code': code,
+      if (recoveryCode != null) 'recoveryCode': recoveryCode,
+    });
+  }
+
+  /// A POST whose answer carries the rotated session, which is adopted
+  /// before the rest of the answer is handed back.
+  Future<Map<String, Object?>> _rotated(
+      String path, Map<String, Object?>? body) async {
+    final Map<String, Object?> json = _decode(
+        await _request('POST', path, body: body, bearer: _token), path);
+    await _adopt(web ? null : json['token'] as String?, _sessionOf(json, path), path);
+    return json;
+  }
+
   // --- the wire --------------------------------------------------------------
 
   Future<DVAuthUser> _credentials(String path, Map<String, Object?> body) async {
@@ -467,6 +565,9 @@ class DVSessionClient {
         const DVVelocityRefusal(scope: 'server', retryAfter: Duration.zero),
       'challenge_failed' => const DVBotRefusal('the server refused the challenge'),
       'invalid_code' => const DVSecondFactorRefused(),
+      // Not a revoked session: the session is live and wants a code. It is
+      // kept, and the caller asks for one.
+      'mfa_required' => DVMfaRequired(DVMfa.required, current?.id ?? ''),
       _ => DVSessionRequestFailed(response.statusCode, path),
     };
   }

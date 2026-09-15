@@ -60,6 +60,11 @@ class DVAuthEndpoints {
   static const String sessionsPath = '/auth/sessions';
   static const String revokePath = '/auth/sessions/revoke';
   static const String revokeOthersPath = '/auth/sessions/revoke-others';
+  static const String factorsPath = '/auth/factors';
+  static const String totpPath = '/auth/factors/totp';
+  static const String totpConfirmPath = '/auth/factors/totp/confirm';
+  static const String recoveryCodesPath = '/auth/factors/recovery-codes';
+  static const String removeFactorPath = '/auth/factors/remove';
 
   /// Every path these endpoints are served under, below the API base path.
   static const List<String> paths = <String>[
@@ -71,6 +76,11 @@ class DVAuthEndpoints {
     sessionsPath,
     revokePath,
     revokeOthersPath,
+    factorsPath,
+    totpPath,
+    totpConfirmPath,
+    recoveryCodesPath,
+    removeFactorPath,
   ];
 
   /// Sent as `token` by a native client that keeps the session token itself.
@@ -95,20 +105,26 @@ class DVAuthEndpoints {
   static DVCredentialGuard? _credentials;
   static DVSecondFactors? _secondFactors;
   static Duration _secondFactorWindow = const Duration(minutes: 10);
+  static Duration _stepUpWindow = const Duration(minutes: 10);
 
   /// Makes these endpoints sign people in through [credentials], with
   /// [secondFactors] when accounts may have one.
   ///
   /// [secondFactorWindow] is how long a session issued by a password alone
-  /// may wait for its second factor before it is revoked.
+  /// may wait for its second factor before it is revoked. [stepUpWindow] is
+  /// how recently a second factor must have been presented for a session to
+  /// generate recovery codes -- what a stolen session would do first, to
+  /// keep the account after the session is revoked.
   static void install({
     required DVCredentialGuard credentials,
     DVSecondFactors? secondFactors,
     Duration secondFactorWindow = const Duration(minutes: 10),
+    Duration stepUpWindow = const Duration(minutes: 10),
   }) {
     _credentials = credentials;
     _secondFactors = secondFactors;
     _secondFactorWindow = secondFactorWindow;
+    _stepUpWindow = stepUpWindow;
   }
 
   /// Takes the installed provider away, for a test.
@@ -116,6 +132,7 @@ class DVAuthEndpoints {
     _credentials = null;
     _secondFactors = null;
     _secondFactorWindow = const Duration(minutes: 10);
+    _stepUpWindow = const Duration(minutes: 10);
   }
 
   /// Whether a provider is installed in this process.
@@ -354,6 +371,238 @@ class DVAuthEndpoints {
         return _json(200, <String, Object?>{'revoked': revoked});
       });
 
+  // --- the signed-in person's second factors ---------------------------------
+
+  /// `GET /auth/factors`: whether the signed-in person has an authenticator
+  /// and how many unspent recovery codes. A count, never a code.
+  static Future<Response> factors(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors == null) return _text(404, 'Not Found');
+        return _json(200, await _factorStatus(factors, principal.userId));
+      });
+
+  /// `POST /auth/factors/totp`: starts enrolling an authenticator app and
+  /// answers its secret and the `otpauth://` URI a QR code encodes.
+  ///
+  /// Nothing is active afterwards. Sign-in asks for no code until
+  /// [confirmTotp] proves the app holds the secret, so an enrollment
+  /// abandoned half way does not lock the account behind an app nobody set
+  /// up. Refused while an authenticator is active: replacing one is removing
+  /// it, which needs a second factor.
+  static Future<Response> beginTotp(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors == null) return _text(404, 'Not Found');
+        if (await factors.hasTotp(principal.userId)) return _factorExists();
+        final DVTotpEnrollment enrollment = await factors.beginTotp(
+          principal.userId,
+          account: await _accountName(principal),
+        );
+        return _json(200, <String, Object?>{
+          'secret': enrollment.secret,
+          'uri': enrollment.uri.toString(),
+        });
+      });
+
+  /// `POST /auth/factors/totp/confirm`: `code` from the app being enrolled.
+  /// Activates the authenticator and rotates the session with the factor
+  /// recorded, since the code just proved it.
+  static Future<Response> confirmTotp(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors == null) return _text(404, 'Not Found');
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final String? code = body.string('code');
+        if (code == null) {
+          return _error(400, 'invalid_request', 'A code is required.');
+        }
+        final Response? failed = await _presentFactor(
+          guard,
+          request,
+          principal.userId,
+          () => factors.confirmTotp(principal.userId, code),
+        );
+        if (failed != null) return failed;
+        final _Rotated? rotated =
+            await _rotate(request, factorPresented: true);
+        if (rotated == null) return _unauthenticated();
+        return _deliver(request, rotated.stage, rotated.issued, <String, Object?>{
+          'factors': await _factorStatus(factors, principal.userId),
+        }, bearer: rotated.bearer);
+      });
+
+  /// `POST /auth/factors/recovery-codes`: a new set of recovery codes,
+  /// replacing every earlier one, answered this once. Stored only as salted
+  /// HMACs, so no endpoint can show them again.
+  ///
+  /// Needs an active authenticator -- a recovery code recovers a second
+  /// factor -- and one presented within the step-up window: a stolen session
+  /// that could print itself recovery codes would keep the account after the
+  /// session was revoked.
+  static Future<Response> recoveryCodes(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors == null) return _text(404, 'Not Found');
+        if (!await factors.hasTotp(principal.userId)) return _noSecondFactor();
+        final DVMfa fresh = DVMfa.recent(_stepUpWindow);
+        if (!fresh.isSatisfiedBy(principal.session, DateTime.now().toUtc())) {
+          return stepUpRequired(fresh);
+        }
+        // Rotated first: a rotation that failed after the codes were replaced
+        // would have spent the old set and delivered nothing.
+        final _Rotated? rotated =
+            await _rotate(request, factorPresented: false);
+        if (rotated == null) return _unauthenticated();
+        final DVRecoveryCodes codes =
+            await factors.regenerateRecoveryCodes(principal.userId);
+        return _deliver(request, rotated.stage, rotated.issued, <String, Object?>{
+          'recoveryCodes': codes.codes,
+          'generatedAt': codes.generatedAt.toUtc().toIso8601String(),
+        }, bearer: rotated.bearer);
+      });
+
+  /// `POST /auth/factors/remove`: `code` from the authenticator, or one
+  /// `recoveryCode`, presented in this request. Removes the authenticator
+  /// and every recovery code, and rotates the session.
+  ///
+  /// A recent factor on the session is not enough: removing the second
+  /// factor is the one change that makes a stolen password sufficient again,
+  /// so it takes the factor itself.
+  static Future<Response> removeFactor(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors == null) return _text(404, 'Not Found');
+        if (!await factors.hasTotp(principal.userId)) return _noSecondFactor();
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final String? code = body.string('code');
+        final String? recoveryCode = body.string('recoveryCode');
+        if (code == null && recoveryCode == null) {
+          return _error(400, 'invalid_request',
+              'A code from the authenticator or a recovery code is required.');
+        }
+        final Response? failed = await _presentFactor(
+          guard,
+          request,
+          principal.userId,
+          () => code != null
+              ? factors.verifyTotp(principal.userId, code)
+              : factors.redeemRecoveryCode(principal.userId, recoveryCode!),
+        );
+        if (failed != null) return failed;
+        await factors.removeTotp(principal.userId);
+        await factors.removeRecoveryCodes(principal.userId);
+        final _Rotated? rotated =
+            await _rotate(request, factorPresented: true);
+        if (rotated == null) return _unauthenticated();
+        return _deliver(request, rotated.stage, rotated.issued, <String, Object?>{
+          'factors': await _factorStatus(factors, principal.userId),
+        }, bearer: rotated.bearer);
+      });
+
+  /// The refusal for a session whose second factor is missing or older than
+  /// [policy] allows (`DV-SESSION-001`): RFC 9470's
+  /// `insufficient_user_authentication`, with `max_age` when the policy has a
+  /// window, so a client asks for a code rather than for a sign-in.
+  static Response stepUpRequired(DVMfa policy) {
+    final Duration? within = policy.within;
+    DVObservability.logger
+        .info('DV-SESSION-001: a second factor is required and was not recent.');
+    return _json(
+      401,
+      <String, Object?>{
+        'error': 'mfa_required',
+        'code': 'DV-SESSION-001',
+        'message': 'A second factor is required.',
+        if (within != null) 'maxAge': within.inSeconds,
+      },
+      headers: <String, String>{
+        'www-authenticate': within == null
+            ? DVSessionAuthentication.mfaChallenge
+            : '${DVSessionAuthentication.mfaChallenge}, '
+                'max_age=${within.inSeconds}',
+      },
+    );
+  }
+
+  static Future<Map<String, Object?>> _factorStatus(
+    DVSecondFactors factors,
+    String userId,
+  ) async =>
+      <String, Object?>{
+        'totp': await factors.hasTotp(userId),
+        'recoveryCodes': await factors.remainingRecoveryCodes(userId),
+      };
+
+  /// What an authenticator app lists the account under: the address, when
+  /// the application's user or its provider can say what it is.
+  static Future<String> _accountName(DVSessionPrincipal principal) async {
+    final Object? user = principal.user;
+    if (user is AuthUser) return user.email;
+    final Object? provider = _credentials?.provider;
+    if (provider is DVAccountDirectory) {
+      final AuthUser? found = await provider.userById(principal.userId);
+      if (found != null) return found.email;
+    }
+    return principal.userId;
+  }
+
+  /// Checks a presented factor against the account's velocity limit, the
+  /// one guessing codes at sign-in counts against. Null when it verified.
+  static Future<Response?> _presentFactor(
+    DVCredentialGuard guard,
+    Request request,
+    String userId,
+    Future<bool> Function() verify,
+  ) async {
+    final String account = 'second-factor:$userId';
+    final String source = sourceOf(request);
+    final DVVelocityRefusal? locked =
+        await guard.velocity.check(account: account, source: source);
+    if (locked != null) return _velocity(locked);
+    if (!await verify()) {
+      await guard.velocity.recordFailure(account: account, source: source);
+      return _error(400, 'invalid_code', 'That code is not valid.');
+    }
+    await guard.velocity.recordSuccess(account: account);
+    return null;
+  }
+
+  /// Rotates the session [request] presented, recording a second factor
+  /// when [factorPresented]. Null when it no longer names a live session.
+  static Future<_Rotated?> _rotate(
+    Request request, {
+    required bool factorPresented,
+  }) async {
+    final DVSessionAuthentication stage = _stage();
+    final _Presented? presented = _presented(request, stage);
+    if (presented == null) return null;
+    final DVSessions sessions = DVSessionAuthentication.sessions;
+    final DVIssuedSession issued = factorPresented
+        ? await sessions.completeMfa(presented.token)
+        : await sessions.rotate(presented.token);
+    return _Rotated(stage, issued, bearer: !presented.fromCookie);
+  }
+
+  static Response _factorExists() => _error(409, 'factor_exists',
+      'This account already has an authenticator. Remove it first.');
+
+  static Response _noSecondFactor() => _error(
+      409, 'no_second_factor', 'This account has no second factor.');
+
   // --- issuing ---------------------------------------------------------------
 
   static Future<Response> _issue(Request request, AuthUser user) async {
@@ -391,13 +640,18 @@ class DVAuthEndpoints {
     });
   }
 
+  /// [bearer] is whether the session being replaced was presented as a
+  /// bearer token by something other than a browser: that client holds the
+  /// token itself, and a rotated one in a cookie would sign it out.
   static Response _deliver(
     Request request,
     DVSessionAuthentication stage,
     DVIssuedSession issued,
-    Map<String, Object?> fields,
-  ) {
-    final bool inBody = deliversToken(request);
+    Map<String, Object?> fields, {
+    bool bearer = false,
+  }) {
+    final bool inBody =
+        deliversToken(request) || (bearer && !isBrowser(request));
     return _json(
       200,
       <String, Object?>{
@@ -596,6 +850,17 @@ class _Presented {
 
   @override
   String toString() => '_Presented(fromCookie: $fromCookie)';
+}
+
+class _Rotated {
+  const _Rotated(this.stage, this.issued, {required this.bearer});
+
+  final DVSessionAuthentication stage;
+  final DVIssuedSession issued;
+  final bool bearer;
+
+  @override
+  String toString() => '_Rotated(${issued.session.id})';
 }
 
 class _Body {

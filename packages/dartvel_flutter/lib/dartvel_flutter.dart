@@ -5901,6 +5901,36 @@ class DVAuth {
   /// how many.
   Future<int> revokeOthers() async => _sessionClient.revokeOthers();
 
+  /// Whether this person has an authenticator app, and how many unspent
+  /// recovery codes.
+  Future<DVSecondFactorStatus> secondFactors() async =>
+      _sessionClient.secondFactors();
+
+  /// Starts enrolling an authenticator app: the secret and the `otpauth://`
+  /// URI to show as a QR code. Nothing is active until [confirmTotp].
+  Future<DVTotpEnrollment> enrollTotp() async =>
+      _sessionClient.beginTotpEnrollment();
+
+  /// Activates the authenticator being enrolled with a [code] from it.
+  Future<void> confirmTotp(String code) async =>
+      _sessionClient.confirmTotpEnrollment(code);
+
+  /// A new set of recovery codes, replacing every earlier one, to show once.
+  /// Throws [DVMfaRequired] when the second factor is not recent.
+  Future<DVRecoveryCodes> regenerateRecoveryCodes() async =>
+      _sessionClient.regenerateRecoveryCodes();
+
+  /// Removes the authenticator and every recovery code. Takes a [code] from
+  /// the authenticator or one [recoveryCode], presented with the request.
+  Future<void> removeSecondFactor({String? code, String? recoveryCode}) {
+    if (code == null && recoveryCode == null) {
+      throw ArgumentError(
+          'Removing a second factor takes a code or a recovery code.');
+    }
+    return _sessionClient.removeSecondFactor(
+        code: code, recoveryCode: recoveryCode);
+  }
+
   DVSessionClient get _sessionClient {
     final DVAuthProvider? provider = _provider ?? _defaultProvider;
     if (provider is DVSessionAuthProvider) return provider.client;

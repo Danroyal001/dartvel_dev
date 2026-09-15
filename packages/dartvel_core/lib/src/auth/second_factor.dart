@@ -592,6 +592,10 @@ class DVSecondFactors {
   /// Removes [userId]'s authenticator.
   Future<void> removeTotp(String userId) => store.removeTotp(userId);
 
+  /// Deletes every recovery code [userId] has, spent or not.
+  Future<void> removeRecoveryCodes(String userId) =>
+      store.replaceRecoveryCodes(userId, const <DVRecoveryCodeRecord>[]);
+
   /// Generates a fresh set of recovery codes, invalidating every earlier one.
   /// The returned codes are the only readable copy.
   Future<DVRecoveryCodes> regenerateRecoveryCodes(String userId) async {
