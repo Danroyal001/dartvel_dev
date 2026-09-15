@@ -1,4 +1,10 @@
 ## Unreleased
+- **The generated router serves `/oauth/consent` when
+  `dartvel.platformApi.oauth` is on.** The authorization endpoint sends a
+  person there, and the route renders `DV.Auth.OAuthConsentPage` with the
+  request's query, the generated backend's API base and the generated
+  client's headers. Without it every authorization ended on the
+  application's not-found page.
 - **Generated models persist through `DVRecordTable`, so their tables can be
   erased.** Generated `save()` was a delete then an insert with no version,
   so a model's table had no `_dv_version` column: `dartvel privacy erase` and

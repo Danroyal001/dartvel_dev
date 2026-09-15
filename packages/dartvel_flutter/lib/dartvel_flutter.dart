@@ -1,7 +1,7 @@
 library dartvel_flutter;
 
 import 'dart:async';
-import 'dart:convert' show jsonEncode;
+import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -42,6 +42,7 @@ import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/nav_link.dart' show DVLinkOpener;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
@@ -5866,6 +5867,206 @@ class DVAuth {
       _ProviderAuthPage(auth: this, provider: 'passkey');
   Widget SignInWithWeb3Page() =>
       _ProviderAuthPage(auth: this, provider: 'web3');
+
+  /// The screen a person answers a partner's OAuth request on, served at
+  /// `/oauth/consent` when `dartvel.platformApi.oauth` is on.
+  ///
+  /// [query] is the authorization request the provider's authorization
+  /// endpoint redirected here with, and [apiBase] the backend it lives on,
+  /// such as `https://app.example.com/api`. The page asks the backend to
+  /// describe the request, shows the client and each scope in the words its
+  /// declaration gave it, and approves or denies nothing until the person
+  /// presses a button. The answer is posted with [headers] -- the person's
+  /// own credentials -- and a CSRF token, and the redirect the backend
+  /// answers is opened with [open]. A refusal is shown and followed nowhere.
+  ///
+  /// [send] replaces the HTTP transport, for a test.
+  Widget OAuthConsentPage({
+    required Map<String, String> query,
+    required Uri apiBase,
+    Map<String, String> Function()? headers,
+    Future<DVHttpResponse> Function(DVHttpRequest request)? send,
+    void Function(String url)? open,
+  }) => _OAuthConsentPage(
+    query: query,
+    apiBase: apiBase,
+    headers: headers ?? () => const <String, String>{},
+    send: send ?? dvSendHttpRequest,
+    open: open ?? ((String url) => DVLinkOpener.open(url)),
+  );
+}
+
+class _OAuthConsentPage extends StatefulWidget {
+  const _OAuthConsentPage({
+    required this.query,
+    required this.apiBase,
+    required this.headers,
+    required this.send,
+    required this.open,
+  });
+
+  final Map<String, String> query;
+  final Uri apiBase;
+  final Map<String, String> Function() headers;
+  final Future<DVHttpResponse> Function(DVHttpRequest request) send;
+  final void Function(String url) open;
+
+  @override
+  State<_OAuthConsentPage> createState() => _OAuthConsentPageState();
+}
+
+class _OAuthConsentPageState extends State<_OAuthConsentPage> {
+  String? _client;
+  List<String> _descriptions = const <String>[];
+
+  /// Fixed text. Nothing the server answered is shown, since an error body
+  /// is not written for the person reading this screen.
+  String? _error;
+  bool _loading = true;
+  bool _busy = false;
+
+  Uri _endpoint(String path, [Map<String, String>? query]) {
+    String base = widget.apiBase.toString();
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    final Uri uri = Uri.parse('$base$path');
+    return query == null ? uri : uri.replace(queryParameters: query);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_describe());
+  }
+
+  Future<void> _describe() async {
+    try {
+      final DVHttpResponse response = await widget.send(
+        DVHttpRequest(
+          url: _endpoint('/oauth/authorize/request', widget.query),
+          method: 'GET',
+          headers: widget.headers(),
+        ),
+      );
+      if (response.statusCode != 200) {
+        throw const FormatException();
+      }
+      final Object? decoded = jsonDecode(response.body);
+      final Map<Object?, Object?> body = decoded is Map
+          ? decoded
+          : throw const FormatException();
+      final Object? client = body['client'];
+      final Object? scopes = body['scopes'];
+      if (client is! Map || scopes is! List) throw const FormatException();
+      if (!mounted) return;
+      setState(() {
+        _client = '${client['name']}';
+        _descriptions = <String>[
+          for (final Object? scope in scopes)
+            if (scope is Map) '${scope['description']}',
+        ];
+        _loading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _error = 'This authorization request cannot be answered.';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _answer(String decision) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final DVHttpResponse response = await widget.send(
+        DVHttpRequest(
+          url: _endpoint('/oauth/authorize'),
+          method: 'POST',
+          headers: <String, String>{
+            ...widget.headers(),
+            'content-type': 'application/x-www-form-urlencoded',
+            DVCSRF.headerName: const DVCSRF().token(),
+          },
+          body: utf8.encode(
+            Uri(
+              queryParameters: <String, String>{
+                ...widget.query,
+                'decision': decision,
+              },
+            ).query,
+          ),
+        ),
+      );
+      final Object? decoded = response.statusCode == 200
+          ? jsonDecode(response.body)
+          : null;
+      final Object? redirect = decoded is Map ? decoded['redirect_to'] : null;
+      if (redirect is! String || Uri.tryParse(redirect) == null) {
+        throw const FormatException();
+      }
+      widget.open(redirect);
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Your answer could not be sent. Sign in and try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _button(String key, String label, VoidCallback onPressed) =>
+      KeyedSubtree(
+        key: ValueKey<String>(key),
+        child: DVText(label).modifier(
+          const DVModifier()
+              .padding(12)
+              .rounded(8)
+              .backgroundColor(const Color(0xFF111827))
+              .color(Colors.white)
+              .onPressed(onPressed),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final String? error = _error;
+    final String? client = _client;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Material(
+          type: MaterialType.transparency,
+          child: DVBox.list(<Widget>[
+            if (_loading) const DVText('Loading the request...'),
+            if (error != null)
+              KeyedSubtree(
+                key: const ValueKey<String>('dv-oauth-consent-error'),
+                child: DVText(error),
+              ),
+            if (client != null) ...<Widget>[
+              DVText('$client would like to:'),
+              for (final String description in _descriptions)
+                DVText(description),
+              _button(
+                'dv-oauth-consent-approve',
+                'Allow',
+                () => unawaited(_answer('approve')),
+              ),
+              _button(
+                'dv-oauth-consent-deny',
+                'Deny',
+                () => unawaited(_answer('deny')),
+              ),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class DVAuthUser {

@@ -199,6 +199,20 @@ void main() {
     write(p.join(project.path, 'lib', 'flags', 'flags.dart'), _flags);
     write(p.join(project.path, 'lib', 'pages', 'checkout.page.dart'),
         _checkoutPage);
+    // A policy for the platform API's scope to name, so the scope registry
+    // and the OAuth consent route are generated and analyzed too.
+    write(p.join(project.path, 'lib', 'policies', 'account_policy.dart'), '''
+import 'package:dartvel_core/dartvel.dart';
+
+class AccountRecord {
+  const AccountRecord();
+}
+
+@DVPolicy(AccountRecord)
+class AccountRecordPolicy {
+  bool view(Object? user, AccountRecord account) => true;
+}
+''');
     write(p.join(project.path, 'pubspec.yaml'), '''
 name: generated_client_probe
 publish_to: none
@@ -213,6 +227,12 @@ dependencies:
     path: ${p.join(root, 'packages', 'dartvel_flutter')}
 dartvel:
   prodBackendHost: https://example.com
+  platformApi:
+    scopes:
+      accounts:read:
+        actions: [AccountRecord.view]
+        description: See your account
+    oauth: true
   memory:
     budget: 64MB
     segment: 16MB
