@@ -142,6 +142,61 @@ void main() {
     });
   });
 
+  group('what dartvel.server says about trusted proxies', () {
+    // Every per-source limit counts the client address, and a header naming
+    // a client is believed only from a proxy listed here. The silent failures
+    // are a list that did not reach the server -- every client behind the
+    // proxy counted as the proxy -- and a range the build accepted but the
+    // runtime could not read, or read as something wider.
+    test('a project that says nothing trusts no proxy', () {
+      final DVServerOptions options =
+          DVServerOptions.parse(YamlMap.wrap(<String, Object?>{}));
+      expect(options.trustedProxies, isEmpty);
+      expect(options.forwardedHeader, isNull);
+    });
+
+    test('the ranges and the header a project names are read', () {
+      final DVServerOptions options = DVServerOptions.parse(
+        _dv(<String, Object?>{
+          'trustedProxies': <String>['127.0.0.1/32', '::1', '10.0.0.0/8'],
+          'forwardedHeader': 'forwarded',
+        }),
+      );
+      expect(options.trustedProxies, <String>['127.0.0.1/32', '::1', '10.0.0.0/8']);
+      expect(options.forwardedHeader, 'forwarded');
+    });
+
+    test('a range that is not one is refused, naming it', () {
+      for (final Object bad in <Object>[
+        <String>['10.0.0.0/33'],
+        <String>['10.0.0.1/8'],
+        <String>['caddy'],
+        <Object>[8],
+        '10.0.0.0/8',
+        true,
+      ]) {
+        expect(
+          () => DVServerOptions.parse(
+              _dv(<String, Object?>{'trustedProxies': bad})),
+          throwsA(isA<FormatException>().having((FormatException e) => e.message,
+              'message', contains('dartvel.server.trustedProxies'))),
+          reason: '$bad',
+        );
+      }
+    });
+
+    test('a header no proxy writes is refused', () {
+      expect(
+        () => DVServerOptions.parse(_dv(<String, Object?>{
+          'trustedProxies': <String>['127.0.0.1'],
+          'forwardedHeader': 'x-real-ip',
+        })),
+        throwsA(isA<FormatException>().having((FormatException e) => e.message,
+            'message', contains('dartvel.server.forwardedHeader'))),
+      );
+    });
+  });
+
   group('what the generated backend actually serves with', () {
     Future<String> routesFor(String pubspec) async {
       final Directory root = await Directory.systemTemp.createTemp(
@@ -208,6 +263,56 @@ dartvel:
       expect(
         routes,
         contains('compression: compression ?? dartvelCompression'),
+      );
+    });
+
+    test('the trusted proxies reach the resolver the server installs',
+        () async {
+      // Emitted and installed, before serve: a list emitted into a constant
+      // nothing reads leaves every client behind the proxy counted as it.
+      final String routes = await routesFor('''
+name: server_options_app
+dartvel:
+  server:
+    trustedProxies: [127.0.0.1/32, "::1/128"]
+    forwardedHeader: forwarded
+''');
+
+      expect(
+        routes,
+        contains("const List<String> dartvelTrustedProxies = "
+            "<String>['127.0.0.1/32', '::1/128'];"),
+      );
+      expect(routes,
+          contains("const String? dartvelForwardedHeader = 'forwarded';"));
+      final int install = routes.indexOf(
+          'core.DVClientAddress.install(core.DVClientAddress.fromConfiguration('
+          'trustedProxies: dartvelTrustedProxies, '
+          'forwardedHeader: dartvelForwardedHeader, '
+          'environment: Platform.environment));');
+      expect(install, isNot(-1));
+      expect(install, lessThan(routes.indexOf('return dv.serve(')),
+          reason: 'installed before the first request can arrive');
+    });
+
+    test('a project that names no proxy trusts none', () async {
+      final String routes = await routesFor('name: server_options_app\n');
+      expect(routes,
+          contains('const List<String> dartvelTrustedProxies = <String>[];'));
+      expect(routes, contains('const String? dartvelForwardedHeader = null;'));
+      expect(routes, contains('core.DVClientAddress.install('));
+    });
+
+    test('a trusted proxy range the runtime cannot read stops the build',
+        () async {
+      await expectLater(
+        routesFor('''
+name: server_options_app
+dartvel:
+  server:
+    trustedProxies: [10.0.0.0/33]
+'''),
+        throwsA(isA<FormatException>()),
       );
     });
 

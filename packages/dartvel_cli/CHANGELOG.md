@@ -1,4 +1,14 @@
 ## Unreleased
+- **`dartvel.server.trustedProxies` names the proxies whose forwarded client
+  address is believed.** A list of ranges (`127.0.0.1/32`, `10.0.0.0/8`, or a
+  bare address), read by `dartvel routes` with the runtime's own parser, so a
+  range the server could not read -- or would read wider, like `10.0.0.1/8` --
+  stops the build naming the key. `dartvel.server.forwardedHeader` is
+  `x-forwarded-for` (the default) or `forwarded`, and nothing else. The
+  generated `startBackend` installs `DVClientAddress` from both, plus any
+  ranges in `DARTVEL_TRUSTED_PROXIES`, before the router is built, so every
+  per-source limit counts the connection's peer unless that peer is a listed
+  proxy. A project that names none trusts none.
 - **The generated backend serves second-factor enrollment.** `GET
   /auth/factors` and `POST /auth/factors/totp`, `/auth/factors/totp/confirm`,
   `/auth/factors/recovery-codes` and `/auth/factors/remove`, behind the
