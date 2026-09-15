@@ -1238,6 +1238,11 @@ const List<String> dartvelTrustedProxies = ${server.trustedProxiesSource};
 /// The header those proxies write, from `dartvel.server.forwardedHeader`.
 const String? dartvelForwardedHeader = ${server.forwardedHeaderSource};
 
+/// How many leading bits of an IPv6 client address are one source for every
+/// per-source limit, from `dartvel.server.ipv6SourcePrefix`. IPv4 is counted
+/// per address.
+const int dartvelIpv6SourcePrefix = ${server.ipv6SourcePrefix};
+
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
 /// the model's data. With [pageStore] -- any cache adapter, so Redis where
@@ -1341,7 +1346,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // client a trusted proxy reports. Before the router, so no request is
   // counted by the default that trusts no proxy; a range in
   // DARTVEL_TRUSTED_PROXIES that does not parse refuses the start.
-  core.DVClientAddress.install(core.DVClientAddress.fromConfiguration(trustedProxies: dartvelTrustedProxies, forwardedHeader: dartvelForwardedHeader, environment: Platform.environment));
+  core.DVClientAddress.install(core.DVClientAddress.fromConfiguration(trustedProxies: dartvelTrustedProxies, forwardedHeader: dartvelForwardedHeader, ipv6SourcePrefix: dartvelIpv6SourcePrefix, environment: Platform.environment));
   final router = buildBackendRouter();
   final bindHost = host ?? cfg.backendHost;
   final bindPort = port ?? processConfiguration.port;
