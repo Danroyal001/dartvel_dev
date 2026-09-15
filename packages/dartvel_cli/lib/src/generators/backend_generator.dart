@@ -2674,7 +2674,20 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       ..writeln('  bool catchUp = false,')
       ..writeln('  DateTime Function()? clock,')
       ..writeln('  DVScheduleLease? lease,')
-      ..writeln('}) {')
+      ..writeln('}) {');
+    if (backendCron.isEmpty) {
+      // No scheduler at all rather than one behind an isEmpty guard. The
+      // guard made it a no-op at run time, but a module's generated files
+      // are read for the capabilities it uses, and a scheduler written into
+      // the file read as cron -- so mounting a module that schedules nothing
+      // was refused for a grant nobody needed.
+      sb
+        ..writeln('  // The application declares no backend schedule.')
+        ..writeln('  return null;')
+        ..writeln('}');
+      return sb.toString();
+    }
+    sb
       ..writeln('  if (dartvelBackendCronEntries.isEmpty) return null;')
       // A schedule that throws is recorded as the cron process's crash, not
       // only appended to a list nothing in a served process reads.

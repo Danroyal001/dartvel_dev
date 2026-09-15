@@ -1,4 +1,16 @@
 ## Unreleased
+- **A project with a mounted module builds a second time.** `dartvel build`
+  checks each module's code against its grant before generating, and that
+  check reads the module's generated client too. Once the client existed,
+  two lines Dartvel writes into every one were read as the module's own:
+  `DV.registerRuntime(baseUrl: () => DartvelRuntime.baseUrl)` as egress to a
+  URL built at runtime, and the scheduler in `schedules.g.dart` as cron. So
+  the first build passed and every build after `dartvel routes` exited 78
+  with DV-MODULE-001, for a module that makes no outbound call and schedules
+  nothing. The runtime's own backend registration is no longer egress. The
+  same value passed to a declared host, or a registration pointed anywhere
+  else, is still unresolved. With no backend schedule, `schedules.g.dart` now
+  constructs no scheduler.
 - **The generated backend's body limits are enforced by the server, before
   the body is read.** `dartvel.server.maxBodyBytes` sets the largest body the
   native server reads for a route that declares no limit: 1 MiB by default.
