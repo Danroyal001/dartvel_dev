@@ -1,5 +1,21 @@
 ## Unreleased
 
+- **A request that cannot be read is answered, and no longer stops the
+  server.** `serve()` built each request inside the native callback and
+  outside every handler's try. A target `Uri.parse` refused, such as the
+  absolute form `GET http://host:1/ HTTP/1.1` or `OPTIONS *`, was never
+  answered, and its `FormatException` went unhandled in the root zone and
+  ended the process. Building the request is now guarded as a whole. A
+  malformed target is answered 400 (asterisk form, a percent sign that is not
+  an escape, escapes that do not decode as UTF-8), and any other failure there
+  or in dispatch is answered 500. Each is logged by a fixed reason or by the
+  error's type, never by the method, target, headers, body or the error's
+  message. The answer is fixed text. An absolute-form target is served as its
+  path and query, as a server must accept it. A request URL now names the
+  bound port rather than the requested one, which was `0` for `port: 0`. A
+  streamed response the native side has already given up on is no longer
+  listened to.
+
 - **A request knows the address its connection came from.** The native
   server passes each accepted socket's remote address across the FFI boundary,
   and `serve()` sets it as `Request.peerAddress`: a `DVPeerAddress` with the
