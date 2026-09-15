@@ -9,7 +9,13 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+import '../http/client_address.dart';
 import 'infra_manifest.dart';
+
+/// The address Caddy dials each backend instance on, and so the peer address
+/// every request reaches the backend from. One constant for both uses: the
+/// Caddyfile's upstreams and the trusted proxy the backend units name.
+const String _proxyUpstreamHost = '127.0.0.1';
 
 /// What the built backend binary honours when a unit starts it.
 ///
@@ -390,6 +396,15 @@ DVInfraDesiredState dvInfraDesiredState(
           // otherwise the cron unit ticks, or nothing does.
           if (capabilities.cronRole && (services.cron != null || i > 1))
             'DARTVEL_ROLE': 'web',
+          // Caddy is the only way in, so its address is the peer of every
+          // request: named here, the backend believes the client Caddy
+          // reports; not named, every client counts as Caddy and one
+          // per-source bucket holds the whole internet. Caddy sets
+          // X-Forwarded-For to the address it saw rather than appending to
+          // what the client sent, because this Caddyfile trusts no proxy in
+          // front of it.
+          if (manifest.proxy == 'caddy')
+            DVClientAddress.trustedProxiesVariable: '$_proxyUpstreamHost/32',
         },
         credentials: credentials,
       ),
@@ -506,7 +521,7 @@ String _caddyfile(String marker, DVInfraTls? tls, List<int> ports) {
   // the file says what it does, with passive health so a stopped instance
   // leaves the rotation and a request it refused is tried on another.
   b
-    ..writeln('\treverse_proxy ${ports.map((int p) => '127.0.0.1:$p').join(' ')} {')
+    ..writeln('\treverse_proxy ${ports.map((int p) => '$_proxyUpstreamHost:$p').join(' ')} {')
     ..writeln('\t\tlb_policy round_robin')
     ..writeln('\t\tlb_try_duration 5s')
     ..writeln('\t\tfail_duration 30s')

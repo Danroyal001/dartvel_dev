@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A provisioned host's backend believes the client Caddy reports.** With
+  `proxy: { adapter: caddy }`, every backend unit `dartvel infra` renders sets
+  `DARTVEL_TRUSTED_PROXIES` to the address Caddy dials it on, the same
+  constant the Caddyfile's upstreams are written from. Without it every
+  request reached the backend from Caddy's address, and every per-source
+  limit counted the whole internet as one client. A host with no proxy trusts
+  none. Units already provisioned are reported as drifted by `dartvel infra
+  check` until the next apply writes the new line.
+
 - **One client address, and a header believed only from a trusted proxy.**
   `DVClientAddress` resolves who a request came from: the connection's peer
   address, unless the peer is in the configured trusted proxies, in which case
