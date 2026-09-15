@@ -61,7 +61,9 @@ void main() {
       // Its own table, resolved the way an application resolves one --
       // dvTenantTable answers with the plain name unless a schema per tenant
       // is configured -- rather than through a module registration.
-      expect(source, contains("FROM \${dvTenantTable('orders')}"));
+      // Reads and writes go through a record table, which builds every
+      // statement from the name it is handed.
+      expect(source, contains("table: dvTenantTable('orders')"));
       expect(source, isNot(contains("_dvModule.table('orders')")),
           reason: 'nothing mounted this, and nothing will');
       expect(source, isNot(contains('DVModuleData')),
@@ -87,6 +89,9 @@ void main() {
       // Not `const DVDatabase()`: that is the application's connection, and
       // a database-isolated module's data is not in it.
       expect(source, isNot(contains('const DVDatabase().query')));
+      // And the record table every read and write goes through is handed
+      // the module's database, not left to default to the application's.
+      expect(source, contains('database: _dvModule.database,'));
     });
 
     test('every statement it generates goes through the same resolution',
@@ -100,9 +105,17 @@ void main() {
       // -- an application through dvTenantTable, because a schema per tenant
       // changes what the table is called, and a module through its own
       // registration. So what must never appear is the bare name.
-      final RegExp bare = RegExp(r'(FROM|INTO|UPDATE) orders\b');
-      final RegExp resolved =
-          RegExp(r"(FROM|INTO|UPDATE) \$\{(dvTenantTable|_dvModule\.table)\('orders'\)\}");
+      //
+      // Find, all, save and destroy no longer write SQL of their own: they
+      // hand the name to DVRecordTable, which builds SELECT, INSERT, UPDATE
+      // and DELETE from it, so the name it is handed is where the resolution
+      // has to be.
+      final RegExp bare = RegExp(
+          r"(FROM|INTO|UPDATE) orders\b|table: 'orders'",
+          caseSensitive: false);
+      final RegExp resolved = RegExp(
+          r"((FROM|INTO|UPDATE) \$\{(dvTenantTable|_dvModule\.table)\('orders'\)\}"
+          r"|table: (dvTenantTable|_dvModule\.table)\('orders'\))");
 
       final String application = await generate();
       // The patterns earn their keep on real output first. One that matched
