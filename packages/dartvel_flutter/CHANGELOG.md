@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`DV.Auth.OAuthConsentPage`.** The screen a person answers a partner's
+  OAuth request on, built from `DVBox` and `DVText`. It asks the backend to
+  describe the request, shows the client and each scope in the wording its
+  declaration gave it, and approves or denies nothing until a button is
+  pressed. The answer is a form POST with the person's own headers and a
+  CSRF token, and the redirect the backend answers is opened through
+  `DVLinkOpener`. A request the backend will not describe offers nothing to
+  approve, and a refused answer is shown and followed nowhere; neither shows
+  the server's error text.
+
 - **`DV.Crashes.installApplication` never takes the application down.** The
   generated runtime calls it from the router's constructor, before the first
   frame, so an exception there was an application that never drew. A

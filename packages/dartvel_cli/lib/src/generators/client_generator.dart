@@ -1327,11 +1327,34 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
               '${sitemapEntries.entries.map((en) => "  '${esc(en.key)}': ${en.value},").join('\n')}'
               '\n}';
 
+    // dartvel.platformApi.oauth: where the generated authorization endpoint
+    // sends a person to answer a partner's request. Without it the endpoint
+    // redirected to a path the router did not have, and every authorization
+    // ended on the application's not-found page.
+    final Object? platformApiDeclared = dv['platformApi'];
+    final bool servesOAuthConsent = platformApiDeclared is Map &&
+        platformApiDeclared['oauth'] != null &&
+        platformApiDeclared['oauth'] != false;
+    final oauthConsentRouteSrc = servesOAuthConsent
+        ? '''
+    GoRoute(
+      path: '/oauth/consent',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: DV.Auth.OAuthConsentPage(
+          query: Map<String, String>.from(state.uri.queryParameters),
+          apiBase: DartvelRuntime.api(''),
+          headers: () => DartvelClient.defaultHeaders,
+        ),
+      ),
+    ),'''
+        : '';
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
       modelRoutesSrc,
       homeWidgetRoutesSrc,
       moduleRoutesSrc,
+      oauthConsentRouteSrc,
     ]);
 
     final generatedPageWidgets = pageEntries.map((e) {
