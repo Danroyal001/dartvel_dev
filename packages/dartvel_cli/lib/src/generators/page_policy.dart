@@ -78,6 +78,34 @@ String dvPageMiddlewareGuard(List<String> keys) {
         }''';
 }
 
+/// The redirect body for a page that declares a second factor, or empty.
+///
+/// [mfa] is what [dvMfaFromSource] read with an empty prefix: `DVMfa.required`
+/// or `DVMfa.recent(Duration(milliseconds: n))`. Emitted as a call to one of
+/// two helpers rather than as a `DVMfa`, because the generated router imports
+/// dartvel_flutter and nothing else.
+String dvPageMfaGuard(String? mfa) {
+  if (mfa == null) return '';
+  final String call;
+  if (mfa == 'DVMfa.required') {
+    call = 'DVPageMfa.required(context, state)';
+  } else {
+    final RegExpMatch? recent =
+        RegExp(r'^DVMfa\.recent\(Duration\(milliseconds: (\d+)\)\)$')
+            .firstMatch(mfa);
+    if (recent == null) {
+      throw ArgumentError.value(mfa, 'mfa', 'is not what dvMfaFromSource reads');
+    }
+    call = 'DVPageMfa.recent(context, state, '
+        'const Duration(milliseconds: ${recent.group(1)}))';
+  }
+  return '''
+        {
+          final String? refusal = await $call;
+          if (refusal != null) return refusal;
+        }''';
+}
+
 /// Every guard a route runs, in the order it runs them.
 ///
 /// Declared middleware first, then the directory chain, then the page's own
@@ -95,12 +123,15 @@ String dvPageGuardChain({
   required List<String> directoryGuards,
   required String? policy,
   List<String> middleware = const <String>[],
+  String? mfa,
 }) {
   final String policyGuard = dvPagePolicyGuard(policy);
   final String middlewareGuard = dvPageMiddlewareGuard(middleware);
+  final String mfaGuard = dvPageMfaGuard(mfa);
   if (directoryGuards.isEmpty &&
       policyGuard.isEmpty &&
-      middlewareGuard.isEmpty) {
+      middlewareGuard.isEmpty &&
+      mfaGuard.isEmpty) {
     return '';
   }
 
@@ -112,6 +143,9 @@ String dvPageGuardChain({
     out.writeln('        { final r = await $guard.guard(context, state); '
         'if (r != null) return r; }');
   }
+  // The second factor before the policy, as the backend orders them: how
+  // much the session proves is settled before what the caller may do.
+  if (mfaGuard.isNotEmpty) out.writeln(mfaGuard);
   if (policyGuard.isNotEmpty) out.writeln(policyGuard);
   out
     ..writeln('        return null;')
@@ -178,6 +212,76 @@ String? dvBackendPolicyFromSource(String source) {
   final String? value = match?.group(1);
   if (value == null || value == 'null') return null;
   return value;
+}
+
+/// The second factor `@[annotation](mfa: ...)` in [source] declares, as the
+/// Dart expression generated code evaluates -- `core.DVMfa.required`, or
+/// `core.DVMfa.recent(Duration(milliseconds: n))` -- or null when it declares
+/// none. [prefix] is how the generated file names dartvel_core.
+///
+/// Read literally rather than resolved, like `policy:`, so the forms are the
+/// ones the specification writes: `DVMfa.required`, `DVMfa.none` and
+/// `DVMfa.recent(Duration(...))` with integer literals. Anything else -- a
+/// constant declared elsewhere, a computed window -- stops the build naming
+/// [rel]. Skipping it would generate the route unguarded, and the
+/// declaration somebody wrote to protect it would be the thing that did
+/// nothing.
+String? dvMfaFromSource(
+  String source, {
+  required String annotation,
+  required String rel,
+  String prefix = 'core.',
+}) {
+  final String? args = dvAnnotationArgs(source, annotation);
+  if (args == null) return null;
+  String? value;
+  for (final String argument in dvSplitArgs(args)) {
+    final RegExpMatch? named =
+        RegExp(r'^\s*mfa\s*:\s*(.*?)\s*$', dotAll: true).firstMatch(argument);
+    if (named != null) value = named.group(1);
+  }
+  if (value == null) return null;
+  final String bare = value
+      .replaceFirst(RegExp(r'^const\s+'), '')
+      .replaceFirst(RegExp(r'^core\.'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (bare == 'null' || bare == 'DVMfa.none') return null;
+  if (bare == 'DVMfa.required') return '${prefix}DVMfa.required';
+  final RegExpMatch? recent = RegExp(
+    r'^DVMfa\.recent\( ?(?:const )?Duration\(([^()]*)\) ?,? ?\)$',
+  ).firstMatch(bare);
+  if (recent != null) {
+    const Map<String, int> unit = <String, int>{
+      'days': 86400000,
+      'hours': 3600000,
+      'minutes': 60000,
+      'seconds': 1000,
+      'milliseconds': 1,
+    };
+    int total = 0;
+    bool readable = true;
+    for (final String part in recent.group(1)!.split(',')) {
+      if (part.trim().isEmpty) continue;
+      final RegExpMatch? field =
+          RegExp(r'^\s*([a-z]+)\s*:\s*(\d+)\s*$').firstMatch(part);
+      final int? scale = field == null ? null : unit[field.group(1)];
+      if (field == null || scale == null) {
+        readable = false;
+        break;
+      }
+      total += int.parse(field.group(2)!) * scale;
+    }
+    if (readable && total > 0) {
+      return '${prefix}DVMfa.recent(Duration(milliseconds: $total))';
+    }
+  }
+  throw StateError(
+    '$rel declares @$annotation(mfa: $value), which is not a second-factor '
+    'requirement Dartvel can read, so the route cannot be guarded. Write '
+    'DVMfa.required, or DVMfa.recent(Duration(minutes: 15)) with a literal '
+    'window.',
+  );
 }
 
 /// The middleware keys a `@DVUseMiddleware` source declares, in order.
