@@ -1,5 +1,24 @@
 ## Unreleased
 
+- **The application's own session is a caller.** `DVSessionAuthentication` is
+  the authentication stage for a session: a `Bearer dvs_...` token or the
+  `__Host-dv_session` cookie (`dv_session` in development) becomes
+  `DVSessionPrincipal.current` -- the session, its user id and tenant, the
+  application's user from `resolveUser`, and the membership in the
+  organization on the request's tenant -- and an injected `DVContext` carries
+  it as `context.session` and `context.user`, beside `context.apiPrincipal`.
+  A presented session that does not authenticate -- unknown, rotated away,
+  revoked, expired, issued on another tenant, or whose user `resolveUser` no
+  longer finds -- is one 401 with no reason in it, and one carried by the
+  cookie clears the cookie. The user and the membership are read on every
+  request rather than kept from sign-in, so a role changed mid-session applies
+  to the next request. Any other bearer token, an API key and an OAuth token
+  pass through untouched, and a session presented to a process that installed
+  no stage is a 503 rather than ignored. `DVSessions` tokens now start with
+  `dvs_`, a session records the tenant it was issued on (a `tenant` column in
+  `DVDatabaseSessionStore`), and `check(token, tenant:)` refuses one from
+  another tenant without recording its use.
+
 - **A GraphQL field runs under the policy of what it resolves through.**
   `DVGraphQLField(policy: 'Order.create')` is asked the way a backend
   function's route asks it -- scopes, then the registry, then `decide` --
