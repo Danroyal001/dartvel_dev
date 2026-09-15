@@ -221,6 +221,25 @@ class DVApiPrincipal implements DVScopedPrincipal {
   @override
   bool permits(String action) => actions.contains(action);
 
+  static const Symbol _zoneKey = #dartvelApiPrincipal;
+
+  /// The third-party caller the current request authenticated as, or null
+  /// for a request that presented no platform credential.
+  ///
+  /// A zone value rather than a field: a server has many requests in flight
+  /// and hands the isolate between them at every await, so a field would be
+  /// whichever caller arrived last.
+  static DVApiPrincipal? get current {
+    final Object? principal = Zone.current[_zoneKey];
+    return principal is DVApiPrincipal ? principal : null;
+  }
+
+  /// Runs [body] with [principal] as [current].
+  static Future<T> actingAs<T>(
+    DVApiPrincipal principal,
+    Future<T> Function() body,
+  ) => runZoned(body, zoneValues: <Object?, Object?>{_zoneKey: principal});
+
   /// Runs [body] on this principal's tenant, so every tenant filter below it
   /// is the one already there.
   Future<T> run<T>(FutureOr<T> Function() body) =>

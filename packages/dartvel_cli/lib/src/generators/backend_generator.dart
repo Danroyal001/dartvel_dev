@@ -5,6 +5,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashConfig,
         DVCrashSinkChoice,
+        DVPlatformApiConfig,
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
@@ -24,6 +25,7 @@ import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'openapi_generator.dart';
 import 'page_policy.dart';
+import 'platform_api_generator.dart';
 import 'policy_classes.dart';
 import 'route_utils.dart';
 
@@ -396,6 +398,17 @@ $openApiJson\'\'\';
     // The release a server's crash report names: the pubspec version, as the
     // client's does, so one release's reports from both ends group together.
     final String crashRelease = _dvCrashRelease(root);
+    // dartvel.platformApi: whether every route authenticates API keys and
+    // OAuth tokens, and whether this backend is an OAuth provider. Read with
+    // the parser the registry is generated from.
+    final DVPlatformApiConfig? platformApi = () {
+      final File pubspec = File(p.join(root, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return null;
+      final Object? doc = loadYaml(pubspec.readAsStringSync());
+      final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+      return dartvel is Map ? PlatformApiGenerator.read(dartvel) : null;
+    }();
+    final bool authenticates = platformApi != null;
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
@@ -428,7 +441,7 @@ import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAIT
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
-${backendImports.join('\n')}
+${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
 const String _dvOpenApiJson = r\'\'\'
@@ -494,7 +507,32 @@ dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(
         conv.utf8.encode('Not authorized (\$policy)')));
-
+${authenticates ? r'''
+/// The authentication stage: an API key or OAuth access token on the
+/// request becomes core.DVApiPrincipal.current for the rest of it, checked
+/// against the tenant the request resolved to. A request carrying neither is
+/// the application's own and runs unchanged. A refusal is fixed text with
+/// nothing of the credential in it, and is never cached.
+Future<dv.Response> _dvAuthenticated(
+  dv.Request req,
+  Future<dv.Response> Function() run,
+) async {
+  final core.DVApiAuthentication auth =
+      await core.DVPlatformApi.authenticateRequest(req.headers.get('authorization'));
+  if (auth.refused) {
+    return dv.Response(auth.status!,
+        headers: dv.Headers({
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store',
+          if (auth.challenge != null) 'www-authenticate': auth.challenge!,
+        }),
+        body: Stream<List<int>>.value(conv.utf8.encode(auth.message!)));
+  }
+  final core.DVApiPrincipal? principal = auth.principal;
+  if (principal == null) return run();
+  return core.DVApiPrincipal.actingAs(principal, run);
+}
+''' : ''}
 /// Runs a route's declared middleware around its handler.
 ///
 /// Both halves of this were missing. A refusal has to answer before the
@@ -588,25 +626,33 @@ ${backendEntries.map((e) {
       // at every await, so the next request to arrive decided what this
       // handler read from there -- and the query still returned rows, of
       // somebody else's tenant.
-      final bool inner = traces || chainKeys.isNotEmpty;
-      open.write(
-        inner
-            ? 'core.dvWithRequestTenant(req, () => '
-            : 'core.dvWithRequestTenant(req, () async {',
-      );
-      wrappers++;
-      if (traces) {
-        open.write('core.dvTraced(core.DVObservability.tracer, req, ');
+      //
+      // Each layer is a call taking the next as a closure, outermost first,
+      // and the last closure is the handler body. The authentication stage
+      // sits inside tracing, so a refused credential is still a traced
+      // request, and outside the declared chain, so a route's middleware
+      // runs knowing who is calling.
+      final List<(String, String)> layers = <(String, String)>[
+        ('core.dvWithRequestTenant(req, ', '()'),
+        if (traces)
+          ('core.dvTraced(core.DVObservability.tracer, req, ',
+              '(dv.Request req)'),
+        if (authenticates) ('_dvAuthenticated(req, ', '()'),
+        if (chainKeys.isNotEmpty)
+          (
+            '_dvGuarded(req, const <String>['
+                "${chainKeys.map((String k) => "'$k'").join(', ')}"
+                '], ',
+            '()'
+          ),
+      ];
+      for (int layer = 0; layer < layers.length; layer++) {
+        final (String call, String parameters) = layers[layer];
+        open
+          ..write(call)
+          ..write(parameters)
+          ..write(layer == layers.length - 1 ? ' async {' : ' => ');
         wrappers++;
-      }
-      if (chainKeys.isNotEmpty) {
-        if (traces) open.write('(dv.Request req) => ');
-        open.write('_dvGuarded(req, const <String>['
-            "${chainKeys.map((String k) => "'$k'").join(', ')}"
-            '], () async {');
-        wrappers++;
-      } else if (traces) {
-        open.write('(dv.Request req) async {');
       }
 
       // Always at least the tenant scope, so there is no unwrapped form of
@@ -615,8 +661,14 @@ ${backendEntries.map((e) {
       final String handlerClose = '  }${')' * wrappers});';
 
       final String policy = e['policy'] ?? '';
+      // A route that declares no policy action is one no scope can cover, so
+      // a request authenticated with an API key or OAuth token is refused
+      // there rather than run with a caller nothing checked.
       final String policyGate = policy.isEmpty
-          ? ''
+          ? (authenticates
+              ? '\n    if (core.DVApiPrincipal.current != null) '
+                  "return _dvPolicyForbidden('no declared policy action');"
+              : '')
           : "\n    if (!await _dvAllowed('$policy', req)) "
               "return _dvPolicyForbidden('$policy');";
 
@@ -725,7 +777,7 @@ $readBody
         }
       }
     } catch (e) { /* ignore body read errors */ }
-    if (!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();''';
+    if (${authenticates ? 'core.DVApiPrincipal.current == null && ' : ''}!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();''';
 
       // The policy gate, after the body is read so CSRF still runs first and
       // before the function is called. Emitted per route rather than wrapped
@@ -941,7 +993,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
   final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
   if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
-  configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
+  configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);${authenticates ? '''
+  // dartvel.platformApi: API keys and OAuth tokens authenticate on every
+  // route, over the database this process resolves on the first request
+  // that presents one -- an application may configure DV.Database after
+  // the server starts.
+  core.DVPlatformApi.install(dartvelPlatformApi!, database: () => const core.DVDatabase().configuredAdapter ?? stores.database);''' : ''}
   // Every @DVBackendCron schedule, registered and ticking. Nothing did this
   // before: the schedules were generated into a list and the only thing that
   // ever built a DVScheduler was the scheduler's own unit test, so a job
