@@ -64,8 +64,11 @@ void main() {
   test('a policy class registers its conventional methods', () async {
     final String content = await policiesFor(_postPolicy);
 
-    expect(content, contains("register('update'"));
-    expect(content, contains("register('delete'"));
+    // As declared answers, which an application's own register for the same
+    // action and resource wins over -- the server registers them the same way,
+    // so the client and the server answer an action alike.
+    expect(content, contains("registerDeclared('update'"));
+    expect(content, contains("registerDeclared('delete'"));
     expect(content, contains('PostPolicy'));
   });
 
@@ -100,7 +103,7 @@ class NotAPolicy {
 }
 ''');
 
-    expect(content, isNot(contains('register(')));
+    expect(content, isNot(contains('DVAuthAuthorization()')));
   });
 
   test('a policy whose method takes another type is refused', () async {

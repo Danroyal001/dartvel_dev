@@ -1844,7 +1844,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       _registrationsSource(
         library: 'dartvel_client_policies',
         function: 'dartvelRegisterPolicies',
-        registration: 'register',
+        // Declared, as on the server: an application's own register for the
+        // same action and resource wins on both sides, whichever ran first, so
+        // the client never shows an action the server refuses.
+        registration: 'registerDeclared',
         policies: policies,
       ),
     );
