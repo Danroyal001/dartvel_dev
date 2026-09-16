@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A deletion that waits, on the device.** `DV.Auth.deleteAccount` (and
+  `DVSessionClient.deleteAccount`) answers when a scheduled deletion erases
+  the account, or null for one erased at once. `DeletePage` says when, and
+  that signing in before then keeps the account, instead of saying it has
+  been deleted. `DVSessionClient.deletionCancelled` says whether the last
+  sign-in cancelled a deletion, and the sign-in page says so;
+  `DVAccountDeleted` is a sign-in refused because the window had closed, and
+  the page shows it as that.
+
 - **Changing the password from `DV.Auth.SecurityPage`.** `DV.Auth.changePassword`
   (and `DVSessionClient.changePassword`) sends the current and new password,
   with a code or recovery code when given, adopts the rotated session and

@@ -1,4 +1,15 @@
 ## Unreleased
+- **`dartvel.auth.deletionGraceDays`.** The number of days a deleted account
+  waits before it is erased, during which signing in cancels the deletion.
+  `account.g.dart` carries it as `dartvelAccountDeletionGrace`, and the
+  generated server installs it, registers the erasure job, and sweeps due
+  deletions on the schedule tick in the process that ticks the schedules
+  (and in a `cron` process); a `worker` registers the job too. `dartvel
+  routes` stops, naming the key, on anything but a whole number from 0 to
+  29: a window of thirty days or more would put every account erasure past
+  its own thirty-day deadline (DV-PRIVACY-004). Nothing declared keeps
+  deletion immediate.
+
 - **The generated backend serves `POST /auth/account/password`,** behind the
   authentication stage and CSRF-checked, and a backend function declaring
   that path stops the build.

@@ -29,6 +29,36 @@ class AccountGenerator {
     '/login',
   ];
 
+  /// The erasure deadline a deletion window has to fit inside: Data
+  /// Compliance's thirty days, measured from when the person asked.
+  static const int erasureDeadlineDays = 30;
+
+  /// How long `dartvel.auth.deletionGraceDays` in [dv] says a deleted account
+  /// waits before it is erased. Nothing declared is no window.
+  ///
+  /// Throws [StateError] naming the key for anything but a whole number of
+  /// days from 0 to 29. A window reaching the erasure's thirty-day deadline
+  /// would put every account erasure past it (DV-PRIVACY-004) by
+  /// construction.
+  static Duration readDeletionGrace(Map<Object?, Object?> dv) {
+    final Object? auth = dv['auth'];
+    if (auth is! Map || !auth.containsKey('deletionGraceDays')) {
+      return Duration.zero;
+    }
+    final Object? days = auth['deletionGraceDays'];
+    if (days is! int || days < 0) {
+      throw StateError('dartvel.auth.deletionGraceDays must be a whole number '
+          'of days, 0 or more, not "$days".');
+    }
+    if (days >= erasureDeadlineDays) {
+      throw StateError('dartvel.auth.deletionGraceDays is $days, and an '
+          'account erasure has a $erasureDeadlineDays-day deadline from when '
+          'the person asked (DV-PRIVACY-004): a window that long puts every '
+          'erasure past it. Use ${erasureDeadlineDays - 1} or fewer.');
+    }
+    return Duration(days: days);
+  }
+
   /// The account pages `dartvel.auth.pages` in [dv] asks to be served.
   ///
   /// Nothing declared serves every page at its default path. `pages: false`
@@ -109,24 +139,39 @@ class AccountGenerator {
   }
 
   /// Writes `lib/dartvel_client/account.g.dart` for the application called
-  /// [appName] -- the name a person sees in the subject of mail it sends.
-  static void generate({required String root, required String appName}) {
+  /// [appName] -- the name a person sees in the subject of mail it sends --
+  /// with the deletion window [deletionGrace].
+  static void generate({
+    required String root,
+    required String appName,
+    Duration deletionGrace = Duration.zero,
+  }) {
     final Directory out = Directory(p.join(root, 'lib', 'dartvel_client'))
       ..createSync(recursive: true);
-    File(p.join(out.path, 'account.g.dart'))
-        .writeAsStringSync(render(appName: appName));
+    File(p.join(out.path, 'account.g.dart')).writeAsStringSync(
+        render(appName: appName, deletionGrace: deletionGrace));
   }
 
   /// The source of `account.g.dart`.
-  static String render({required String appName}) {
+  static String render({
+    required String appName,
+    Duration deletionGrace = Duration.zero,
+  }) {
     final String name = _literal(appName);
     return '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
+
+import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
 
 /// The name mail about a person's account is sent under.
 const String dartvelAccountAppName = $name;
+
+/// How long a deleted account waits before it is erased --
+/// `dartvel.auth.deletionGraceDays`. Signing in within it cancels the
+/// deletion. Zero erases at once.
+const Duration dartvelAccountDeletionGrace = Duration(days: ${deletionGrace.inDays});
 
 /// The mail that carries the code confirming a new e-mail address, as the
 /// generated server sends it through `DV.Notifications.mail`.
@@ -148,10 +193,28 @@ DVMailMessage dartvelEmailVerificationMail(DVEmailVerification verification) =>
           'nothing changes until the code is entered.',
     );
 
-/// Installs what the generated server gives the account endpoints.
+/// Installs what the generated server gives the account endpoints: the
+/// verification mail, the deletion window, and the job that erases an
+/// account once its window closes.
 void configureDartvelBackendAccounts() {
   DVAuthEndpoints.useGeneratedEmailVerificationMail(dartvelEmailVerificationMail);
+  DVAuthEndpoints.useDeletionGracePeriod(dartvelAccountDeletionGrace);
+  // Only with a window: a worker with no job of the application's own to
+  // run still refuses to start.
+  if (dartvelAccountDeletionGrace > Duration.zero) {
+    DVAuthEndpoints.registerAccountErasureJob();
+  }
 }
+
+/// Erases the accounts whose deletion window has closed, every [every], in a
+/// process that ticks the schedules. Null when there is no window, since a
+/// deletion then erases at once.
+Timer? dartvelStartAccountDeletionSweep({required Duration every}) =>
+    dartvelAccountDeletionGrace == Duration.zero
+        ? null
+        : Timer.periodic(every, (Timer _) {
+            unawaited(DVAuthEndpoints.eraseDueDeletions());
+          });
 ''';
   }
 

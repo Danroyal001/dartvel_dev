@@ -72,6 +72,17 @@ class DVSecondFactorRefused implements Exception {
   String toString() => 'DVSecondFactorRefused: $message';
 }
 
+/// A sign-in refused because the account was deleted: its deletion's grace
+/// period ended, so signing in no longer cancels it.
+class DVAccountDeleted implements Exception {
+  const DVAccountDeleted();
+
+  String get message => 'This account has been deleted.';
+
+  @override
+  String toString() => 'DVAccountDeleted: $message';
+}
+
 /// What second factors the signed-in person has.
 class DVSecondFactorStatus {
   const DVSecondFactorStatus({required this.totp, required this.recoveryCodes});
@@ -318,6 +329,7 @@ class DVSessionClient {
             id: session.userId, provider: 'email', createdAt: session.createdAt);
     await _adopt(web ? null : json['token'] as String?, session, path);
     _pendingUser = null;
+    _deletionCancelled = json['deletionCancelled'] == true;
     return user;
   }
 
@@ -546,13 +558,16 @@ class DVSessionClient {
   /// [recoveryCode] when it has a second factor. Only once the server
   /// confirms is the session forgotten here; a refusal throws and leaves
   /// the device signed in.
-  Future<void> deleteAccount({
+  ///
+  /// Answers when the account will be erased, for a deletion waiting out the
+  /// project's grace period, and null for one erased at once.
+  Future<DateTime?> deleteAccount({
     required String password,
     String? code,
     String? recoveryCode,
   }) async {
     const String path = DVAuthEndpoints.deleteAccountPath;
-    _decode(
+    final Map<String, Object?> json = _decode(
         await _request('POST', path,
             body: <String, Object?>{
               'password': password,
@@ -565,7 +580,18 @@ class DVSessionClient {
     _pendingToken = null;
     _pendingUser = null;
     await _forget();
+    final Object? erasesAt = json['erasesAt'];
+    return json['scheduled'] == true && erasesAt is String
+        ? DateTime.tryParse(erasesAt)?.toUtc()
+        : null;
   }
+
+  bool _deletionCancelled = false;
+
+  /// Whether the last sign-in on this device cancelled a deletion the
+  /// account was waiting out, so a sign-in page can say so: a person who
+  /// asked for their account to be deleted is told signing in kept it.
+  bool get deletionCancelled => _deletionCancelled;
 
   /// A POST whose answer carries the rotated session, which is adopted
   /// before the rest of the answer is handed back.
@@ -594,6 +620,7 @@ class DVSessionClient {
     final String? token = web ? null : json['token'] as String?;
     // The server replaced whatever session this device presented.
     await _forget();
+    _deletionCancelled = json['deletionCancelled'] == true;
     if (json['mfaRequired'] == true) {
       _pendingToken = token;
       _pendingUser = user;
@@ -695,6 +722,7 @@ class DVSessionClient {
         const DVVelocityRefusal(scope: 'server', retryAfter: Duration.zero),
       'challenge_failed' => const DVBotRefusal('the server refused the challenge'),
       'invalid_code' => const DVSecondFactorRefused(),
+      'account_deleted' => const DVAccountDeleted(),
       // Not a revoked session: the session is live and wants a code. It is
       // kept, and the caller asks for one.
       'mfa_required' => DVMfaRequired(DVMfa.required, current?.id ?? ''),

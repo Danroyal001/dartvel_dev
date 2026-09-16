@@ -31,7 +31,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../dartvel.dart'
-    show DVMailAddress, DVMailMessage, DVNotificationMail, DVNotificationsService;
+    show
+        DVJobPayloadCodec,
+        DVJobPayloadCodecs,
+        DVMailAddress,
+        DVMailMessage,
+        DVNotificationMail,
+        DVNotificationsService,
+        DVQueues;
 import '../analytics/analytics_runtime.dart' show DVPrivacyRuntime;
 import '../edge/bot_protection.dart';
 import '../edge/credentials.dart';
@@ -41,6 +48,7 @@ import '../middleware/body_limit.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart' show DVErasureResult, DVPrivacy;
 import '../tenancy/tenants.dart';
+import 'account_deletions.dart';
 import 'account_mail.dart';
 import 'api_scopes.dart' show DVApiPrincipal;
 import 'auth.dart';
@@ -208,6 +216,207 @@ class DVAuthEndpoints {
             'until the code is entered.',
       );
 
+  /// The time deletion windows are measured by. A test moves it; nothing
+  /// else should.
+  static DateTime Function() clock = DateTime.now;
+
+  static Duration _deletionGrace = Duration.zero;
+  static DVAccountDeletionStore? _deletions;
+
+  /// How long a deleted account waits before it is erased, during which
+  /// signing in cancels the deletion. Zero erases at once.
+  static Duration get deletionGracePeriod => _deletionGrace;
+
+  /// Sets [deletionGracePeriod]: `dartvel.auth.deletionGraceDays`, installed
+  /// by the generated server. Survives [install].
+  static void useDeletionGracePeriod(Duration grace) {
+    if (grace.isNegative) {
+      throw ArgumentError.value(grace, 'grace', 'must not be negative');
+    }
+    _deletionGrace = grace;
+  }
+
+  /// The queue [DVAccountErasureJob] runs on.
+  static const String accountErasureQueue = 'dartvel-account-erasure';
+
+  /// How long an erasure may hold a deletion before a sweep takes it again,
+  /// for a process that stopped half way through one.
+  static const Duration staleErasureClaim = Duration(minutes: 30);
+
+  /// Registers [DVAccountErasureJob]'s codec and handler with `DVQueues`.
+  static void registerAccountErasureJob() {
+    const DVJobPayloadCodecs().register<DVAccountErasureJob>(
+      const DVJobPayloadCodec<DVAccountErasureJob>(
+        name: DVAccountErasureJob.codecName,
+        encode: DVAccountErasureJob.encode,
+        decode: DVAccountErasureJob.decode,
+      ),
+    );
+    const DVQueues().register<DVAccountErasureJob>(eraseScheduledAccount);
+  }
+
+  /// Queues an erasure for every deletion whose window has closed, and works
+  /// them here, answering how many completed.
+  ///
+  /// Worked by the process that queued them as well as by any worker on a
+  /// shared queue: a deployment with no worker for this queue would
+  /// otherwise hold every due erasure for ever. A failure is logged by type
+  /// and left for the next sweep; nothing about the person is logged.
+  static Future<int> eraseDueDeletions() async {
+    try {
+      final DVPrivacy? privacy = _configuredPrivacy();
+      if (privacy == null) return 0;
+      final DateTime now = clock().toUtc();
+      final List<DVAccountDeletion> due = await _deletionStore(privacy)
+          .due(now, staleBefore: now.subtract(staleErasureClaim));
+      if (due.isEmpty) return 0;
+      registerAccountErasureJob();
+      for (final DVAccountDeletion deletion in due) {
+        // One attempt per sweep: the sweep is the retry, and a job left to
+        // retry beside a new one would claim the same deletion twice.
+        await const DVQueues().dispatch<DVAccountErasureJob>(
+          DVAccountErasureJob(deletion.userId),
+          queue: accountErasureQueue,
+          maxAttempts: 1,
+        );
+      }
+      return await const DVQueues()
+          .work(queue: accountErasureQueue, maxJobs: due.length);
+    } on Object catch (error) {
+      DVObservability.logger.error(
+          'Due account deletions could not be erased (${error.runtimeType}); '
+          'the next sweep tries again.');
+      return 0;
+    }
+  }
+
+  /// Runs [job]: erases the account and removes it, when its deletion is
+  /// still scheduled and its window has closed.
+  ///
+  /// The deletion is claimed by compare-and-set first. A person who signed
+  /// in to cancel moved it to cancelled, and the claim finds nothing to take
+  /// -- however long the job waited in the queue. An erasure that cannot
+  /// reach an adapter (DV-PRIVACY-009) puts the deletion back and throws, so
+  /// the account stays until one completes.
+  static Future<void> eraseScheduledAccount(DVAccountErasureJob job) async {
+    final DVPrivacy? privacy = _configuredPrivacy();
+    if (privacy == null) {
+      throw StateError('An account erasure is due and DV.Privacy is not '
+          'configured in this process. Set DARTVEL_PRIVACY_KEY.');
+    }
+    final DVAccountDeletionStore store = _deletionStore(privacy);
+    final DVAccountDeletion? deletion = await store.find(job.userId);
+    if (deletion == null) return;
+    final DateTime now = clock().toUtc();
+    final DateTime? claimed = deletion.claimedAt;
+    final bool claimable = switch (deletion.state) {
+      DVAccountDeletionState.scheduled => !now.isBefore(deletion.dueAt),
+      DVAccountDeletionState.erasing =>
+        claimed != null && now.difference(claimed) >= staleErasureClaim,
+      _ => false,
+    };
+    if (!claimable) return;
+    if (!await store.move(job.userId,
+        from: deletion.state,
+        to: DVAccountDeletionState.erasing,
+        claimedAt: claimed,
+        newClaimedAt: now)) {
+      return;
+    }
+    try {
+      final Object? provider = _credentials?.provider;
+      if (provider is! DVAccountProvider) {
+        throw StateError('An account erasure is due and no DVAccountProvider '
+            'is installed with DVAuthEndpoints.install in this process.');
+      }
+      final DVErasureResult erasure = await privacy.erase(
+        subject: job.userId,
+        reason: 'The account holder deleted their account.',
+        requestedAt: deletion.requestedAt,
+        requestedBy: job.userId,
+        runBy: 'DVAuthEndpoints.eraseScheduledAccount',
+      );
+      if (!erasure.complete) {
+        throw StateError('The account erasure could not reach '
+            '${erasure.unreached.join(', ')} (DV-PRIVACY-009).');
+      }
+      await _removeAccount(provider, job.userId);
+      await store.move(job.userId,
+          from: DVAccountDeletionState.erasing,
+          to: DVAccountDeletionState.erased,
+          claimedAt: now);
+    } on Object {
+      await store.move(job.userId,
+          from: DVAccountDeletionState.erasing,
+          to: DVAccountDeletionState.scheduled,
+          claimedAt: now);
+      rethrow;
+    }
+  }
+
+  static DVPrivacy? _configuredPrivacy() =>
+      _privacy ?? (DVPrivacyRuntime.isConfigured ? DVPrivacyRuntime.current : null);
+
+  static DVAccountDeletionStore _deletionStore(DVPrivacy privacy) {
+    final DVAccountDeletionStore? existing = _deletions;
+    if (existing != null && identical(existing.database, privacy.database)) {
+      return existing;
+    }
+    return _deletions = DVAccountDeletionStore(privacy.database);
+  }
+
+  /// What signing in does to a deletion request: null to carry on, with
+  /// [cancelled] set when a scheduled deletion was cancelled, or the refusal
+  /// for an account whose window has closed.
+  ///
+  /// Only a [complete] sign-in cancels -- one with its second factor, where
+  /// the account has one. A password alone is what somebody else may hold.
+  static Future<(Response?, bool)> _deletionAtSignIn(
+    String userId, {
+    required bool complete,
+  }) async {
+    final DVPrivacy? privacy = _configuredPrivacy();
+    if (privacy == null) return (null, false);
+    final DVAccountDeletionStore store = _deletionStore(privacy);
+    final DVAccountDeletion? deletion = await store.find(userId);
+    if (deletion == null) return (null, false);
+    switch (deletion.state) {
+      case DVAccountDeletionState.cancelled:
+        return (null, false);
+      case DVAccountDeletionState.erasing:
+      case DVAccountDeletionState.erased:
+        return (_accountDeleted(), false);
+      case DVAccountDeletionState.scheduled:
+        if (!clock().toUtc().isBefore(deletion.dueAt)) {
+          return (_accountDeleted(), false);
+        }
+        if (!complete) return (null, false);
+        final bool cancelled = await store.move(userId,
+            from: DVAccountDeletionState.scheduled,
+            to: DVAccountDeletionState.cancelled);
+        // Lost to an erasure claiming it at this moment.
+        if (!cancelled) return (_accountDeleted(), false);
+        return (null, true);
+    }
+  }
+
+  static Response _accountDeleted() => _error(
+      403, 'account_deleted', 'This account has been deleted.');
+
+  static Future<void> _removeAccount(DVAccountProvider provider, String userId) async {
+    final DVSecondFactors? factors = _secondFactors;
+    if (factors != null) {
+      await factors.removeTotp(userId);
+      await factors.removeRecoveryCodes(userId);
+    }
+    await _verificationTokens.store.delete(_emailTargetKey(userId));
+    await provider.deleteAccount(userId);
+    final DVSessions sessions = DVSessionAuthentication.sessions;
+    for (final DVSession session in await sessions.list(userId)) {
+      await sessions.revoke(session.id);
+    }
+  }
+
   /// Whether a provider is installed in this process.
   static bool get installed => _credentials != null;
 
@@ -329,10 +538,17 @@ class DVAuthEndpoints {
           return _error(400, 'invalid_code', 'That code is not valid.');
         }
         await guard.velocity.recordSuccess(account: account);
+        final (Response? deleted, bool deletionCancelled) =
+            await _deletionAtSignIn(session.userId, complete: true);
+        if (deleted != null) {
+          await sessions.revoke(session.id);
+          return deleted;
+        }
         final DVIssuedSession completed =
             await sessions.completeMfa(presented.token);
         return _deliver(request, stage, completed, <String, Object?>{
           'mfaRequired': false,
+          if (deletionCancelled) 'deletionCancelled': true,
         });
       });
 
@@ -871,8 +1087,7 @@ class DVAuthEndpoints {
         // account without the erasure removes the row a person signs in with
         // and keeps everything else about them -- the deletion Data Compliance
         // says an account deletion must not be -- and answers as if it worked.
-        final DVPrivacy? privacy = _privacy ??
-            (DVPrivacyRuntime.isConfigured ? DVPrivacyRuntime.current : null);
+        final DVPrivacy? privacy = _configuredPrivacy();
         if (privacy == null) return _erasureNotConfigured();
         final _Body body = await _body(request);
         final Response? refused = body.refused;
@@ -918,6 +1133,33 @@ class DVAuthEndpoints {
           );
           if (failed != null) return failed;
         }
+        final Duration grace = _deletionGrace;
+        if (grace > Duration.zero) {
+          // The window the project configured. The person's sessions end now
+          // -- a deletion somebody asked for is not an account to keep using
+          // -- and the account and its data stay until the window closes,
+          // when a sweep erases them. Signing in before then cancels.
+          final DateTime now = clock().toUtc();
+          final DateTime dueAt = now.add(grace);
+          await _deletionStore(privacy)
+              .schedule(userId, requestedAt: now, dueAt: dueAt);
+          await _verificationTokens.store.delete(_emailTargetKey(userId));
+          final DVSessions sessions = DVSessionAuthentication.sessions;
+          for (final DVSession session in await sessions.list(userId)) {
+            await sessions.revoke(session.id);
+          }
+          final DVSessionAuthentication stage = _stage();
+          return _json(
+            202,
+            <String, Object?>{
+              'scheduled': true,
+              'erasesAt': dueAt.toIso8601String(),
+            },
+            headers: <String, String>{
+              'set-cookie': stage.cookie.clearHeader(development: stage.development),
+            },
+          );
+        }
         final DVErasureResult erasure = await privacy.erase(
           subject: userId,
           reason: 'The account holder deleted their account.',
@@ -935,16 +1177,7 @@ class DVAuthEndpoints {
             'unreached': erasure.unreached,
           });
         }
-        if (factors != null) {
-          await factors.removeTotp(userId);
-          await factors.removeRecoveryCodes(userId);
-        }
-        await _verificationTokens.store.delete(_emailTargetKey(userId));
-        await provider.deleteAccount(userId);
-        final DVSessions sessions = DVSessionAuthentication.sessions;
-        for (final DVSession session in await sessions.list(userId)) {
-          await sessions.revoke(session.id);
-        }
+        await _removeAccount(provider, userId);
         final DVSessionAuthentication stage = _stage();
         return _json(
           200,
@@ -1118,6 +1351,11 @@ class DVAuthEndpoints {
     final DVSessions sessions = DVSessionAuthentication.sessions;
     final DVSecondFactors? factors = _secondFactors;
     final bool mfaRequired = factors != null && await factors.hasTotp(user.id);
+    // A deletion waiting out its window: signing in within it cancels, once
+    // the sign-in is complete; after it the account is gone.
+    final (Response? deleted, bool deletionCancelled) =
+        await _deletionAtSignIn(user.id, complete: !mfaRequired);
+    if (deleted != null) return deleted;
 
     // A session this device already carried is replaced, not left live
     // beside the new one.
@@ -1145,6 +1383,7 @@ class DVAuthEndpoints {
         if (user.name != null) 'name': user.name,
       },
       'mfaRequired': mfaRequired,
+      if (deletionCancelled) 'deletionCancelled': true,
     });
   }
 
