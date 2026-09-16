@@ -106,7 +106,7 @@ jobs:
           for attempt in $(seq 1 20); do
             sleep 3
             WID=$(xwininfo -root -tree 2>/dev/null \
-              | awk '$2 == "\"dartvel_example\":" { print $1; exit }')
+              | grep -m1 '"Oakline Coffee":' | awk '{ print $1 }')
             if [ -n "$WID" ]; then
               xwininfo -id "$WID" | grep -E "Width|Height" || true
               import -window "$WID" /tmp/diag/linux-gui.png || continue
