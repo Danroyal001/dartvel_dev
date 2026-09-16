@@ -24,3 +24,13 @@ bool _isLoopback(String host) {
   final String h = host.toLowerCase();
   return h == 'localhost' || h == '127.0.0.1' || h == '::1' || h == '[::1]';
 }
+
+/// The machine a paired development build's dev server runs on, or null.
+///
+/// Set by the development build's session once it has paired, so a backend
+/// configured as `localhost` is reached on the machine running `dartvel dev`
+/// rather than on the phone. Never set in a profile or release build, which
+/// has no session.
+abstract final class DVDevServerHost {
+  static String? current;
+}

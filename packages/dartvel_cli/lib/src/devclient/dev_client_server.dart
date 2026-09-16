@@ -8,6 +8,7 @@
 /// before it.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,12 +26,19 @@ class DVDevClientBundleServer {
     this.pairing,
     this._signer,
     this._branch,
+    this._onDevice,
   );
 
   final HttpServer _server;
   final String _root;
   final String _branch;
   final DVDevClientSigner _signer;
+  final void Function(DVDevClientDevice device)? _onDevice;
+
+  /// Local connections waiting for their device to open a stream, by id.
+  final Map<int, Socket> _waitingStreams = <int, Socket>{};
+  int _streamId = 0;
+  final Set<DVDevClientDevice> _devices = <DVDevClientDevice>{};
 
   /// What the link a device scans carries.
   final DVDevClientPairing pairing;
@@ -50,6 +58,7 @@ class DVDevClientBundleServer {
     InternetAddress? address,
     int port = 8787,
     String? advertisedHost,
+    void Function(DVDevClientDevice device)? onDevice,
   }) async {
     final HttpServer server = await HttpServer.bind(
       address ?? InternetAddress.anyIPv4,
@@ -69,14 +78,36 @@ class DVDevClientBundleServer {
       pairing,
       signer,
       branch,
+      onDevice,
     );
     server.listen(bundles._handle);
     return bundles;
   }
 
-  Future<void> close() => _server.close(force: true);
+  Future<void> close() async {
+    for (final DVDevClientDevice device in _devices.toList()) {
+      await device.close();
+    }
+    for (final Socket waiting in _waitingStreams.values) {
+      waiting.destroy();
+    }
+    _waitingStreams.clear();
+    await _server.close(force: true);
+  }
+
+  bool _authorized(HttpRequest request) {
+    final String? header = request.headers.value('authorization');
+    final String? presented = header != null && header.startsWith('Bearer ')
+        ? header.substring('Bearer '.length)
+        : null;
+    return DVDevClientPairing.tokenMatches(presented, pairing.token);
+  }
 
   Future<void> _handle(HttpRequest request) async {
+    if (request.uri.path == dvDevClientTunnelPath) {
+      await _tunnel(request);
+      return;
+    }
     final HttpResponse response = request.response;
     try {
       if (request.uri.path != dvDevClientBundlePath) {
@@ -148,6 +179,185 @@ class DVDevClientBundleServer {
     }
   }
 
+  /// A development build's tunnel connection: `role=control` once per device,
+  /// `role=stream` once for each connection made to that device's loopback
+  /// port.
+  ///
+  /// Either way the token is checked first and the answer carries a proof
+  /// over the device's nonce, which the device verifies against the key in
+  /// its pairing link before it sends a byte.
+  Future<void> _tunnel(HttpRequest request) async {
+    final HttpResponse response = request.response;
+    Future<void> refuse(int status, String message) async {
+      response.statusCode = status;
+      response.write(message);
+      await response.close();
+    }
+
+    if (!_authorized(request)) {
+      await refuse(HttpStatus.unauthorized, 'Not paired with this dev server.');
+      return;
+    }
+    final String nonce = request.uri.queryParameters['nonce'] ?? '';
+    // 32 random bytes is 43 characters of base64url. Anything shorter is not
+    // a challenge worth signing.
+    if (!RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(nonce)) {
+      await refuse(HttpStatus.badRequest, 'The tunnel needs a random nonce.');
+      return;
+    }
+    final String role = request.uri.queryParameters['role'] ?? '';
+    Socket? waiting;
+    if (role == 'stream') {
+      final int? id = int.tryParse(request.uri.queryParameters['id'] ?? '');
+      waiting = id == null ? null : _waitingStreams.remove(id);
+      if (waiting == null) {
+        await refuse(HttpStatus.notFound, 'No stream was asked for with that id.');
+        return;
+      }
+    } else if (role != 'control') {
+      await refuse(HttpStatus.badRequest, 'A tunnel is a control or a stream.');
+      return;
+    }
+
+    response.statusCode = HttpStatus.switchingProtocols;
+    response.headers
+      ..set('connection', 'Upgrade')
+      ..set('upgrade', dvDevClientTunnelProtocol)
+      ..set('x-dartvel-proof', dvDevClientTunnelProof(_signer, nonce));
+    final Socket socket = await response.detachSocket(writeHeaders: true);
+
+    if (waiting != null) {
+      _pipe(waiting, socket);
+      return;
+    }
+    await _control(socket);
+  }
+
+  Future<void> _control(Socket socket) async {
+    final StreamIterator<String> lines = StreamIterator<String>(
+      utf8.decoder.bind(socket).transform(const LineSplitter()),
+    );
+    void refuse(String message) {
+      socket.write('refused ${message.replaceAll('\n', ' ')}\n');
+      unawaited(socket.flush().whenComplete(socket.destroy));
+    }
+
+    final String hello;
+    try {
+      if (!await lines.moveNext().timeout(const Duration(seconds: 10))) {
+        socket.destroy();
+        return;
+      }
+      hello = lines.current;
+    } on Object {
+      socket.destroy();
+      return;
+    }
+
+    final String vmService;
+    final DVDevClientManifest shell;
+    try {
+      final Object? decoded = jsonDecode(hello);
+      if (decoded is! Map) throw const FormatException('not an object');
+      final Object? path = decoded['vmService'];
+      if (path is! String || !RegExp(r'^/[A-Za-z0-9_=-]*/?$').hasMatch(path)) {
+        throw const FormatException('no VM service path');
+      }
+      vmService = path.endsWith('/') ? path : '$path/';
+      shell = DVDevClientManifest.fromJson(
+        (decoded['manifest'] as Map<Object?, Object?>).cast<String, Object?>(),
+      );
+    } on Object catch (error) {
+      refuse('The device\'s hello did not parse: $error');
+      return;
+    }
+
+    final DVDevClientManifest project;
+    try {
+      project = dvProjectDevClientManifest(_root, shell.target);
+    } on DVDevClientProjectException catch (error) {
+      refuse(error.message);
+      return;
+    }
+    final DVDevClientRefusal? refusal = dvDevClientCompatibility(
+      shell: shell,
+      bundle: project,
+    );
+    if (refusal != null) {
+      refuse(refusal.toString());
+      return;
+    }
+
+    final ServerSocket local = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final DVDevClientDevice device = DVDevClientDevice._(
+      debugUrl: Uri(
+        scheme: 'http',
+        host: InternetAddress.loopbackIPv4.address,
+        port: local.port,
+        path: vmService,
+      ),
+      manifest: shell,
+      address: socket.remoteAddress.address,
+    );
+    final Set<int> mine = <int>{};
+    device._onClose = () async {
+      await local.close();
+      for (final int id in mine) {
+        _waitingStreams.remove(id)?.destroy();
+      }
+      socket.destroy();
+      _devices.remove(device);
+    };
+    _devices.add(device);
+
+    local.listen((Socket client) {
+      final int id = ++_streamId;
+      mine.add(id);
+      _waitingStreams[id] = client;
+      socket.write('open $id\n');
+      // A device that never opens the stream leaves nothing half-connected.
+      Timer(const Duration(seconds: 15), () {
+        if (_waitingStreams.remove(id) != null) client.destroy();
+      });
+    });
+
+    // Anything the device says after its hello is ignored; the connection
+    // ending is the device going away.
+    unawaited(() async {
+      try {
+        while (await lines.moveNext()) {}
+      } on Object {
+        // A reset is the device going away too.
+      }
+      await device.close();
+    }());
+
+    _onDevice?.call(device);
+  }
+
+  void _pipe(Socket a, Socket b) {
+    void link(Socket from, Socket to) {
+      from.listen(
+        (List<int> data) {
+          try {
+            to.add(data);
+          } on Object {
+            from.destroy();
+          }
+        },
+        onDone: to.destroy,
+        onError: (Object _) => to.destroy(),
+        cancelOnError: true,
+      );
+    }
+
+    link(a, b);
+    link(b, a);
+  }
+
   List<Object?> _pages() {
     final Directory directory = Directory(p.join(_root, dvDevClientPagesDir));
     if (!directory.existsSync()) return const <Object?>[];
@@ -177,5 +387,37 @@ class DVDevClientBundleServer {
       );
     }
     return document;
+  }
+}
+
+/// A development build connected to this dev server.
+class DVDevClientDevice {
+  DVDevClientDevice._({
+    required this.debugUrl,
+    required this.manifest,
+    required this.address,
+  });
+
+  /// Where the device's Dart VM service is reached from this machine: a
+  /// loopback port that leads through the tunnel. `flutter attach
+  /// --debug-url` takes it as it is.
+  final Uri debugUrl;
+
+  /// The binding manifest the device's build recorded.
+  final DVDevClientManifest manifest;
+
+  /// The device's address, for telling devices apart in the log.
+  final String address;
+
+  final Completer<void> _closed = Completer<void>();
+  Future<void> Function()? _onClose;
+
+  /// Completes when the device disconnects or [close] is called.
+  Future<void> get closed => _closed.future;
+
+  Future<void> close() async {
+    if (_closed.isCompleted) return;
+    await _onClose?.call();
+    if (!_closed.isCompleted) _closed.complete();
   }
 }

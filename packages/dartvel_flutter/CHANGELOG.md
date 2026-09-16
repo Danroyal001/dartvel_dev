@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`DVDevClientSession`** (in `package:dartvel_flutter/dev_client.dart`)
+  hands a development build's Dart VM service URI to the tunnel `dartvel
+  build android --profile development` writes. It never throws, and reports
+  why when there is nothing to pair.
+
 - **A form's edited model saves at the version its record was read.**
   `DVForm` rebuilt the model it returns from JSON, which carried no read
   version, so a save of it replaced the row whatever had changed since. It
