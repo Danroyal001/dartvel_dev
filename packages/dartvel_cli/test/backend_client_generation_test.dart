@@ -366,4 +366,48 @@ Future<Map<String, bool>> _pay(
       root.deleteSync(recursive: true);
     }
   });
+
+  test('an async function returning a map is typed without a mapper', () async {
+    // The return type was converted with its Future still on it, so no
+    // Future<...> matched a known shape and every async function's typed
+    // wrapper demanded a fromJson, even for a String or a JSON map.
+    final root = await Directory.systemTemp.createTemp('dartvel_future_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'greet.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<Map<String, Object?>> _greeting(String name) async =>
+    <String, Object?>{'greeting': name};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'future_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final client = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
+      ).readAsStringSync();
+      final String wrapper = client
+          .split('\n')
+          .firstWhere((String line) => line.contains(' greeting({'));
+      expect(wrapper, isNot(contains('fromJson')));
+      expect(client, contains('return Map<String, Object?>.from(r.data'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
