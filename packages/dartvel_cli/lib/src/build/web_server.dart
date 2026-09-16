@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -312,50 +312,18 @@ Handler dvWebServerHandler({
           return Response(dvAdminHiddenStatus,
               body: '', headers: dvAdminHiddenHeaders);
         case DVAdminRequest.serve:
-          final String root = adminRoot ?? p.join(webRoot, '__admin');
-          final String rest = path.substring(admin.path.length);
-          final String relative =
-              rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
-          // A Uri does not normalise dot segments on its own, so this was
-          // joined onto the admin root and opened as it arrived:
-          // /__studio/../../secrets read a file outside the directory the
-          // admin is served from, and on a deployment that directory sits
-          // inside the build output next to everything else the server can
-          // reach. Refused with the same nothing everything else here
-          // answers with, rather than an error naming what was attempted.
-          String decoded;
-          try {
-            // Decoded before it is normalised, so %2e%2e is the same two dots
-            // to this check as it is to any proxy in front of it. An invalid
-            // escape is not a filename either.
-            decoded = Uri.decodeComponent(relative);
-          } on ArgumentError {
+          // Which file, with what type, and refusing a path that climbs out
+          // of the admin root: dartvel_core's, the same resolution the
+          // web-server binary serves the dashboard with. A refused path is
+          // answered with the same nothing as a hidden admin, rather than an
+          // error naming what was attempted.
+          final DVAdminAsset? asset = dvAdminAsset(
+              adminRoot ?? p.join(webRoot, '__admin'), admin, path);
+          if (asset == null) {
             return Response(dvAdminHiddenStatus,
                 body: '', headers: dvAdminHiddenHeaders);
           }
-          final String normalized = p.normalize(decoded.replaceAll('\\', '/'));
-          if (normalized.startsWith('..') ||
-              normalized.startsWith('/') ||
-              p.isAbsolute(normalized)) {
-            return Response(dvAdminHiddenStatus,
-                body: '', headers: dvAdminHiddenHeaders);
-          }
-          final File asset = File(p.join(root, normalized));
-          if (asset.existsSync()) {
-            return Response.ok(asset.readAsBytesSync(), headers: <String, String>{
-              'content-type': _adminContentType(normalized),
-            });
-          }
-          // The admin is one application with its own routes, so anything
-          // under the mount that is not a file is its shell -- the same
-          // rule the site itself follows one branch down.
-          final File shell = File(p.join(root, 'index.html'));
-          if (!shell.existsSync()) {
-            return Response(dvAdminHiddenStatus,
-                body: '', headers: dvAdminHiddenHeaders);
-          }
-          return Response.ok(shell.readAsStringSync(),
-              headers: <String, String>{'content-type': 'text/html; charset=utf-8'});
+          return Response.ok(asset.bytes, headers: asset.headers);
         case DVAdminRequest.notTheAdmin:
           break;
       }
@@ -504,26 +472,4 @@ Handler dvWebServerHandler({
     );
         },
       );
-}
-
-/// The content type for a file the admin serves.
-///
-/// A short table rather than a package: the admin is one Flutter web build
-/// and these are the kinds it is made of. Serving main.dart.js as
-/// text/plain would leave a blank page and a console error about a MIME
-/// type, which reads as a broken admin rather than a missing line here.
-String _adminContentType(String relative) {
-  final String name = relative.toLowerCase();
-  if (name.endsWith('.html')) return 'text/html; charset=utf-8';
-  if (name.endsWith('.js') || name.endsWith('.mjs')) {
-    return 'text/javascript; charset=utf-8';
-  }
-  if (name.endsWith('.css')) return 'text/css; charset=utf-8';
-  if (name.endsWith('.json')) return 'application/json; charset=utf-8';
-  if (name.endsWith('.wasm')) return 'application/wasm';
-  if (name.endsWith('.png')) return 'image/png';
-  if (name.endsWith('.svg')) return 'image/svg+xml';
-  if (name.endsWith('.woff2')) return 'font/woff2';
-  if (name.endsWith('.ttf')) return 'font/ttf';
-  return 'application/octet-stream';
 }
