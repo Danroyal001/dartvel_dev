@@ -56,6 +56,10 @@ const Map<String, String> kDocsSummaries = <String, String>{
   'honesty': 'how to check what is built',
 };
 
+/// Whether [id] is counted as a step in the contents. Links and the closing
+/// check are read alongside the steps rather than as one of them.
+bool dvDocsStepIsNumbered(String id) => id != 'honesty' && id != 'links';
+
 /// Puts [id]'s step at the top of the screen.
 ///
 /// Flutter has no fragment navigation, so a contents entry cannot be an
@@ -118,7 +122,13 @@ Widget _docsContents(BuildContext context) => Section(
           for (final String id in kDocsOrder)
             DocsContentsLine(
               id: id,
-              number: kDocsOrder.indexOf(id) + 1,
+              // Counted among the numbered steps only, so an unnumbered entry
+              // does not leave a gap after it.
+              number: kDocsOrder
+                      .take(kDocsOrder.indexOf(id))
+                      .where(dvDocsStepIsNumbered)
+                      .length +
+                  1,
             ),
         ], spacing: 2),
       ],
@@ -135,7 +145,7 @@ Widget _docsContentsLine(
   // The last step is not a step: it is the thing to read before trusting any
   // of the others, and numbering it nine put it at the end of a queue rather
   // than beside the rest.
-  final bool numbered = id != 'honesty' && id != 'links';
+  final bool numbered = dvDocsStepIsNumbered(id);
   final String label = kDocsTitles[id] ?? id;
 
   return DVBox(
