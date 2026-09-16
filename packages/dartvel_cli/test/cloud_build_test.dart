@@ -90,6 +90,34 @@ void main() {
     expect(uploaded.containsKey('.env'), isFalse);
   });
 
+  test('an application inside a repository sends the repository, and says where the app is', () async {
+    Future<void> git(List<String> args) async {
+      final ProcessResult r = await Process.run('git', args, workingDirectory: root.path);
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    }
+
+    final Directory app = Directory(p.join(root.path, 'apps', 'shop'))..createSync(recursive: true);
+    File(p.join(app.path, 'pubspec.yaml')).writeAsStringSync('name: shop\n');
+    File(p.join(app.path, 'build', 'web', 'main.dart.js'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('output');
+    File(p.join(root.path, 'packages', 'core', 'lib', 'core.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('// sibling');
+    File(p.join(root.path, '.gitignore')).writeAsStringSync('secret.txt\n');
+    File(p.join(root.path, 'secret.txt')).writeAsStringSync('ignored');
+    await git(<String>['init', '-q']);
+
+    expect(await builder().run(DVCloudBuildRequest(root: app.path, target: 'web')), 0,
+        reason: logs.join('\n'));
+
+    expect(cloud.spec!.app, 'apps/shop');
+    final Iterable<String> sent = cloud.sourceEntries!.keys;
+    expect(sent, containsAll(<String>['apps/shop/pubspec.yaml', 'packages/core/lib/core.dart']));
+    expect(sent, isNot(contains('secret.txt')));
+    expect(sent.where((String k) => k.contains('/build/')), isEmpty);
+  });
+
   test('prints the build log as it arrives and downloads every artifact', () async {
     cloud.artifacts = <String, List<int>>{
       'app-release.apk': utf8.encode('an apk'),
