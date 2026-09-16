@@ -5,6 +5,8 @@
 // hold Dartvel's tabs to it. Each tab keeps its own stack and its widgets'
 // state while another is shown, and back -- the Android button and the iOS
 // edge swipe -- pops inside the tab on screen before it does anything else.
+import 'dart:async';
+
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -190,6 +192,54 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  testWidgets('a deep link to a selectable page over another builds both', (
+    WidgetTester tester,
+  ) async {
+    // The page underneath is covered, so it is not laid out, and its selection
+    // area asked its text for sizes: the deep link threw.
+    final GoRouter router = GoRouter(
+      initialLocation: '/list/1',
+      routes: dvConfigRoutes(<DVRouteNode>[
+        DVRoute(
+          path: '/list',
+          builder: (BuildContext context, DVRouteState state) =>
+              const DVPageShell(
+                spec: DVPageScaffoldSpec(),
+                child: Column(children: <Widget>[Text('the list'), Counter()]),
+              ),
+          routes: <DVRouteNode>[
+            DVRoute(
+              path: ':item',
+              builder: (BuildContext context, DVRouteState state) =>
+                  const DVPageShell(
+                    spec: DVPageScaffoldSpec(),
+                    child: Center(child: Text('detail')),
+                  ),
+            ),
+          ],
+        ),
+      ], transition: PageTransitionSpec.none),
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('detail'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('inbox taps 0'));
+    await tester.pumpAndSettle();
+
+    // Covered again and uncovered: the page keeps its state across the
+    // selection switching off and on.
+    unawaited(router.push<void>('/list/2'));
+    await tester.pumpAndSettle();
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('inbox taps 1'), findsOneWidget);
   });
 
   testWidgets('the iOS edge swipe pops inside the tab first', (
