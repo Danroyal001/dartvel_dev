@@ -46,15 +46,12 @@ class DevCommand extends Command<void> {
       ..addOption('web-port', help: 'Port for the Flutter web-server device')
       ..addFlag('verbose',
           abbr: 'v', defaultsTo: false, help: 'Verbose output')
-      ..addFlag('dev-client',
-          defaultsTo: false,
-          negatable: false,
-          help: 'Pair development builds (dartvel build android --profile '
-              'development) over the network: print a QR code to scan, and '
-              'hot reload every paired device on save. With no -d, no local '
-              'app is started.')
-      ..addOption('dev-client-port',
-          defaultsTo: '8787', help: 'Port the dev-client bundles are served on');
+      ..addOption('pairing-port',
+          defaultsTo: '8787',
+          help: 'Port development builds pair on. dartvel dev always serves '
+              'pairing: it prints a QR code to scan with a development build '
+              '(dartvel build <target> --profile development) and hot reloads '
+              'every paired device on save.');
   }
 
   @override
@@ -118,55 +115,49 @@ Future<void> main() async {
     final flutterArgs = <String>['run'];
     final explicitDevice = (argResults?['device'] as String?) ??
         Platform.environment['DARTVEL_DEVICE'];
-    String? deviceOpt = explicitDevice;
-    // With --dev-client the app runs on the paired phones. A local app as
-    // well is asked for with -d; picking one unasked would install over the
-    // development build on a connected Android device.
-    final devClientMode = argResults?['dev-client'] == true;
-    final runLocalApp = !devClientMode ||
-        (explicitDevice != null && explicitDevice.isNotEmpty);
+    // Pairing is always served, so a development build can pair whether or
+    // not anything is connected here. The local app runs as it always did
+    // when there is a device to run it on; with none, pairing is the loop.
+    final config = await DartvelConfig.load(Directory(root));
+    final attached = <DVDevClientAttach>{};
+    final DVDevClientBundleServer? devClient =
+        await _startDevClient(root, attached);
 
-    if (runLocalApp && (deviceOpt == null || deviceOpt.isEmpty)) {
+    String? deviceOpt = explicitDevice;
+    if (deviceOpt == null || deviceOpt.isEmpty) {
+      List<Map<String, Object?>> detected = const <Map<String, Object?>>[];
       try {
         final proc = await Process.run('flutter', ['devices', '--machine'],
             runInShell: true);
-        if ((proc.stdout as String).toString().trim().isNotEmpty) {
-          final list = jsonDecode(proc.stdout as String) as List<Object?>;
-          if (list.isEmpty) {
-            Logger.log(
-                '[dev] No devices found. You can pass -d chrome, -d linux, etc.');
-          } else if (list.length == 1) {
-            final id = (list.first as Map)['id']?.toString() ?? '';
-            if (id.isNotEmpty) {
-              deviceOpt = id;
-            }
-          } else {
-            Logger.log('Multiple devices detected. Select a device:');
-            for (var i = 0; i < list.length; i++) {
-              final m = list[i] as Map;
-              final id = (m['id'] ?? '').toString();
-              final name = (m['name'] ?? '').toString();
-              final plat = (m['targetPlatform'] ?? '').toString();
-              Logger.log('  [${i + 1}] $name • $id • $plat');
-            }
-            stdout.write('Enter number or device id (default 1): ');
-            final sel = stdin.readLineSync()?.trim() ?? '';
-            if (sel.isEmpty) {
-              deviceOpt = (list.first as Map)['id']?.toString();
-            } else {
-              final n = int.tryParse(sel);
-              if (n != null && n >= 1 && n <= list.length) {
-                deviceOpt = (list[n - 1] as Map)['id']?.toString();
-              } else {
-                // assume user typed device id
-                deviceOpt = sel;
-              }
-            }
-          }
+        final out = (proc.stdout as String).toString().trim();
+        if (out.isNotEmpty) {
+          detected = <Map<String, Object?>>[
+            for (final Object? d in jsonDecode(out) as List<Object?>)
+              if (d is Map) d.cast<String, Object?>(),
+          ];
         }
       } catch (_) {}
+      bool interactive = false;
+      try {
+        interactive = stdin.hasTerminal;
+      } catch (_) {}
+      deviceOpt = dvDevLocalDevice(
+        named: null,
+        detected: detected,
+        interactive: interactive,
+        choose: _chooseDevice,
+      );
+      if (deviceOpt == null) {
+        Logger.log(detected.isEmpty
+            ? '[dev] No device to run the app on here; serving pairing. Pass '
+                '-d chrome, -d linux, etc. to run one as well.'
+            : '[dev] Several devices and no terminal to choose one at; '
+                'serving pairing. Pass -d to run the app on one as well.');
+      }
     }
-    if ((explicitDevice == null || explicitDevice.isEmpty) &&
+    final runLocalApp = deviceOpt != null && deviceOpt.isNotEmpty;
+    if (runLocalApp &&
+        (explicitDevice == null || explicitDevice.isEmpty) &&
         _shouldUseWebServerByDefault(deviceOpt)) {
       deviceOpt = 'web-server';
       Logger.log(
@@ -299,20 +290,15 @@ Future<void> main() async {
       if (runLocalApp) {
         flutterP = await _spawn('flutter', flutterArgs, 'flutter',
             extraEnv: flutterEnv.isEmpty ? null : flutterEnv);
-      } else {
-        Logger.log('No local app: the app runs on the devices that pair. '
-            'Pass -d to run one here as well.');
       }
     } catch (_) {
       Logger.log(
           'WARN: failed to start Flutter app. Ensure Flutter SDK is installed.');
     }
 
-    final attached = <DVDevClientAttach>{};
-
     // Wire stdin to Flutter for hot reload commands, and r/R to every paired
     // device.
-    if (flutterP != null || devClientMode) {
+    if (flutterP != null || devClient != null) {
       try {
         stdin.listen((data) {
           try {
@@ -330,13 +316,6 @@ Future<void> main() async {
           }
         });
       } catch (_) {}
-    }
-
-    final config = await DartvelConfig.load(Directory(root));
-
-    DVDevClientBundleServer? devClient;
-    if (argResults?['dev-client'] == true) {
-      devClient = await _startDevClient(root, attached);
     }
 
     // Keep generated code, the app, the backend and the Rust runtime in step
@@ -389,16 +368,14 @@ Future<void> main() async {
       },
     );
 
-    // Keep running until one exits
-    await Future.any([
-      if (buildRunnerP != null) buildRunnerP.exitCode,
-      // Serving devices is reason enough to keep running: a backend that
-      // failed to compile is restarted by the next save, and the paired
-      // devices are still worth reloading meanwhile.
-      if (backP != null && devClient == null) backP!.exitCode,
-      if (flutterP != null) flutterP.exitCode,
-      if (devClient != null) Completer<int>().future,
-    ].whereType<Future<int>>());
+    await dvDevWaitForExit(
+      buildRunner: buildRunnerP?.exitCode,
+      backend: backP?.exitCode,
+      localApp: flutterP?.exitCode,
+      pairing: devClient != null,
+      interrupted: ProcessSignal.sigint.watch().first,
+      log: Logger.log,
+    );
 
     for (final subscription in watchSubscriptions) {
       await subscription.cancel();
@@ -426,7 +403,7 @@ Future<void> main() async {
         ..writeAsStringSync(dvDevelopmentEntrypointSource(package: name));
     }
     final port =
-        int.tryParse(argResults?['dev-client-port'] as String? ?? '') ?? 8787;
+        int.tryParse(argResults?['pairing-port'] as String? ?? '') ?? 8787;
     String branch = 'HEAD';
     try {
       final result = await Process.run(
@@ -459,14 +436,36 @@ Future<void> main() async {
           }
         },
       );
-      Logger.log('Dev client: serving $branch on port ${server.port}.');
+      Logger.log('Pairing: serving $branch on port ${server.port}.');
       _printQr('Scan with the camera on a device running a development build:',
           server.pairing.link.toString());
       return server;
     } catch (error) {
-      Logger.log('WARN: the dev-client server did not start: $error');
+      Logger.log('WARN: pairing did not start, so no development build '
+          'can pair with this run: $error');
       return null;
     }
+  }
+
+  /// Asks at the terminal which of [devices] to run the app on.
+  static String? _chooseDevice(List<Map<String, Object?>> devices) {
+    Logger.log('Multiple devices detected. Select a device:');
+    for (var i = 0; i < devices.length; i++) {
+      final m = devices[i];
+      final id = (m['id'] ?? '').toString();
+      final name = (m['name'] ?? '').toString();
+      final plat = (m['targetPlatform'] ?? '').toString();
+      Logger.log('  [${i + 1}] $name • $id • $plat');
+    }
+    stdout.write('Enter number or device id (default 1): ');
+    final sel = stdin.readLineSync()?.trim() ?? '';
+    if (sel.isEmpty) return devices.first['id']?.toString();
+    final n = int.tryParse(sel);
+    if (n != null && n >= 1 && n <= devices.length) {
+      return devices[n - 1]['id']?.toString();
+    }
+    // Assume the user typed a device id.
+    return sel;
   }
 
   /// A heading, a QR code and the link, unprefixed so the code stays square.
@@ -638,6 +637,63 @@ Future<void> main() async {
       await socket?.close();
     }
   }
+}
+
+/// The device `dartvel dev` runs the local app on, or null for none.
+///
+/// [named] is `-d` or DARTVEL_DEVICE and wins. Otherwise the one device
+/// [detected] is used, as `flutter run` would; several are chosen from with
+/// [choose] at a terminal, and with nobody to ask none is picked -- a prompt
+/// read from a pipe waits forever, and a guess can install over the
+/// development build paired on a connected phone. With no device at all the
+/// answer is null and pairing is what `dartvel dev` serves.
+String? dvDevLocalDevice({
+  required String? named,
+  required List<Map<String, Object?>> detected,
+  required bool interactive,
+  String? Function(List<Map<String, Object?>> devices)? choose,
+}) {
+  if (named != null && named.isNotEmpty) return named;
+  if (detected.isEmpty) return null;
+  if (detected.length == 1) {
+    final String id = (detected.first['id'] ?? '').toString();
+    return id.isEmpty ? null : id;
+  }
+  if (!interactive || choose == null) return null;
+  final String? chosen = choose(detected);
+  return chosen == null || chosen.isEmpty ? null : chosen;
+}
+
+/// Waits for `dartvel dev` to be over.
+///
+/// While [pairing] is served it runs until [interrupted]: the local app
+/// quitting or a backend that failed to compile leaves paired devices still
+/// worth reloading, and the next save restarts the backend. Without pairing
+/// it ends as it always did, when build_runner, the backend or the local app
+/// exits.
+Future<void> dvDevWaitForExit({
+  Future<int>? buildRunner,
+  Future<int>? backend,
+  Future<int>? localApp,
+  required bool pairing,
+  required Future<void> interrupted,
+  void Function(String line)? log,
+}) async {
+  if (pairing) {
+    unawaited(localApp?.then((int code) {
+      log?.call('[dev] the local app exited ($code); still serving paired '
+          'development builds. Ctrl+C to stop.');
+    }));
+    await interrupted;
+    return;
+  }
+  final List<Future<Object?>> ends = <Future<Object?>>[
+    if (buildRunner != null) buildRunner,
+    if (backend != null) backend,
+    if (localApp != null) localApp,
+  ];
+  if (ends.isEmpty) return;
+  await Future.any(<Future<Object?>>[...ends, interrupted]);
 }
 
 /// What a change under a watched path has to set off.

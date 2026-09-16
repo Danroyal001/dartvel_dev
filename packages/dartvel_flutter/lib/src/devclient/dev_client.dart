@@ -485,7 +485,7 @@ class _PairingForm extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text('Scan the QR code `dartvel dev --dev-client` prints, '
+            const Text('Scan the QR code `dartvel dev` prints, '
                 'or paste its dartvel-dev:// link.'),
             TextField(
               controller: controller,

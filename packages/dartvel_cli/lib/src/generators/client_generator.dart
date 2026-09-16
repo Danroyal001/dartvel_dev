@@ -928,7 +928,7 @@ class DartvelRuntime {
       final u = Uri.parse(url);
       final host = (u.host).toLowerCase();
       final isLocal = host == 'localhost' || host == '127.0.0.1';
-      // A development build paired with `dartvel dev --dev-client` reaches
+      // A development build paired with `dartvel dev` reaches
       // the backend on the machine running it, not on the phone.
       final paired = DVDevServerHost.current;
       if (!kReleaseMode && isLocal && paired != null) {

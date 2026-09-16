@@ -1,4 +1,4 @@
-// The dev server's half of the dev client: what `dartvel dev --dev-client`
+// The dev server's half of the dev client: what `dartvel dev`
 // serves, to whom, and whether what it serves is the current build.
 //
 // Over a real socket, because the failures worth catching are about what goes

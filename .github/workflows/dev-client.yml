@@ -1,6 +1,6 @@
 name: Dev client
 
-# A development build on a device, paired with `dartvel dev --dev-client`.
+# A development build on a device, paired with `dartvel dev`.
 #
 # Android: an emulator installs `dartvel build android --profile development`,
 # pairs by the dartvel-dev:// link the dev server prints, shows an edit made

@@ -1,5 +1,5 @@
 /// The dev client on a real Android emulator: pair a development build with
-/// `dartvel dev --dev-client`, see the application's own page, edit it, and
+/// `dartvel dev`, see the application's own page, edit it, and
 /// see the edit without reinstalling.
 ///
 /// Run by the "Dev client" workflow inside android-emulator-runner, which runs
@@ -182,8 +182,7 @@ Future<void> main() async {
       'run',
       'dartvel_cli:dartvel',
       'dev',
-      '--dev-client',
-      '--dev-client-port',
+      '--pairing-port',
       '8787',
     ], workingDirectory: _example);
     for (final Stream<List<int>> stream in <Stream<List<int>>>[
@@ -208,6 +207,16 @@ Future<void> main() async {
       return link != null;
     }, within: const Duration(minutes: 5));
     if (link == null) throw StateError('no pairing link was printed');
+    // Pairing is always on, and on this runner flutter lists the emulator,
+    // Linux and Chrome, so with no terminal to choose at dartvel dev must run
+    // no local app: one on the emulator would install over the development
+    // build being paired.
+    if (!devLines.any((String l) => l.contains('serving pairing'))) {
+      failures.add(
+        'dartvel dev did not say it was serving pairing with no '
+        'local app; it may have started one on the emulator',
+      );
+    }
 
     final String emulatorLink = dvLinkForHost(link!, '10.0.2.2');
     stdout.writeln('== pairing with $emulatorLink');
@@ -287,7 +296,9 @@ Future<void> main() async {
     stderr.writeln(stack);
   } finally {
     try {
-      File('$_diag/devclient-logcat.log').writeAsStringSync(await _flutterLog());
+      File(
+        '$_diag/devclient-logcat.log',
+      ).writeAsStringSync(await _flutterLog());
     } on Object {
       // Diagnostics only.
     }
