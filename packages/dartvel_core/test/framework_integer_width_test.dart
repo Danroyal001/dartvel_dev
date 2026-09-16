@@ -125,6 +125,17 @@ void main() {
       expect(read.columns, <String>['created_at', 'revoked_at']);
     });
 
+    test('reads a schema-qualified table, as a tenant schema names it', () {
+      // A record table's name may be `tenant.orders`, and the stores built
+      // on one name their own tables after it.
+      final ({String table, List<String> columns}) read = dvBigIntColumnsIn(
+        'CREATE TABLE IF NOT EXISTS acme.orders__clock (record_key TEXT, '
+        'at_micros BIGINT)',
+      );
+      expect(read.table, 'acme.orders__clock');
+      expect(read.columns, <String>['at_micros']);
+    });
+
     test('refuses DDL it cannot read rather than widening nothing', () {
       expect(
         () => dvBigIntColumnsIn('CREATE TABLE (x BIGINT)'),
