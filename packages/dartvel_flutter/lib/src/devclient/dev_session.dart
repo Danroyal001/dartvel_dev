@@ -2,10 +2,11 @@
 ///
 /// The development entrypoint calls [DVDevClientSession.start] before the
 /// application's own `main`. It hands this app's Dart VM service URI to the
-/// native code the build wrote -- Java on Android over JNI, Objective-C on iOS
-/// and macOS over FFI -- which holds the pairing link and runs the tunnel the
-/// dev server reaches the VM service through. The tunnel is native because a
-/// hot restart kills every Dart isolate, and the restart travels over it.
+/// native code the build wrote -- Java on Android over JNI; Objective-C on iOS
+/// and macOS, and C++ on Linux, over FFI -- which holds the pairing link and
+/// runs the tunnel the dev server reaches the VM service through. The tunnel
+/// is native because a hot restart kills every Dart isolate, and the restart
+/// travels over it.
 library;
 
 import 'dart:developer' as developer;
@@ -22,7 +23,8 @@ abstract final class DVDevClientSession {
   /// form. The CLI's tests assert it is the same string the build uses.
   static const String androidClass = 'dev/dartvel/devclient/DartvelDevClient';
 
-  /// The C functions `dartvel build ios|macos --profile development` writes.
+  /// The C functions `dartvel build ios|macos|linux --profile development`
+  /// writes.
   /// The CLI's tests assert they are the names the build uses.
   static const String appleVmServiceSymbol = 'dartvel_dev_client_vm_service';
   static const String appleServerHostSymbol = 'dartvel_dev_client_server_host';
@@ -45,9 +47,13 @@ abstract final class DVDevClientSession {
     if (kReleaseMode || kProfileMode) {
       return 'not a development build, so there is nothing to pair';
     }
-    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+    if (kIsWeb ||
+        !(Platform.isAndroid ||
+            Platform.isIOS ||
+            Platform.isMacOS ||
+            Platform.isLinux)) {
       return 'no dev client on this platform; a development build pairs on '
-          'Android, iOS and macOS';
+          'Android, iOS, macOS and Linux';
     }
     // The VM service can still be starting when main runs; waited for
     // briefly rather than reported missing.
@@ -60,7 +66,7 @@ abstract final class DVDevClientSession {
       return 'this build is running without a Dart VM service, so dartvel dev '
           'cannot reload it';
     }
-    if (!Platform.isAndroid) return _startApple(vmService);
+    if (!Platform.isAndroid) return _startNative(vmService);
     final JClass client;
     try {
       client = JClass.forName(androidClass);
@@ -87,11 +93,11 @@ abstract final class DVDevClientSession {
     }
   }
 
-  static String _startApple(Uri vmService) {
+  static String _startNative(Uri vmService) {
     final DynamicLibrary process = DynamicLibrary.process();
     if (!process.providesSymbol(appleVmServiceSymbol)) {
       return 'the tunnel is not in this build (no $appleVmServiceSymbol). It '
-          'is written by `dartvel build ios|macos --profile development`; an '
+          'is written by `dartvel build ios|macos|linux --profile development`; an '
           'app built with plain `flutter build` does not have it.';
     }
     final Pointer<Utf8> Function(Pointer<Utf8>) start = process
