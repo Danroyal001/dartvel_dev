@@ -406,6 +406,7 @@ class ClientGenerator {
       );
     }
 
+    final tabsLayouts = <_TabsLayout>[];
     // Import all layouts and build map by directory
     for (var j = 0; j < layoutFiles.length; j++) {
       final abs = layoutFiles[j].path;
@@ -415,6 +416,23 @@ class ClientGenerator {
         'package:$pkgName/',
       );
       final src = await File(abs).readAsString();
+      // A tabs layout is the shell its folder's pages render inside, not a
+      // wrapper around each of them.
+      final tabs = RegExp(
+        r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelTabsLayout\b',
+      ).firstMatch(src);
+      if (tabs != null) {
+        final alias = 'l$j';
+        layoutImports.add("import '$importPath' as $alias;");
+        tabsLayouts.add(_TabsLayout(
+          dir: p.dirname(rel).replaceAll('\\', '/'),
+          rel: rel,
+          alias: alias,
+          className: tabs.group(1)!,
+          tabs: _declaredTabs(src, rel),
+        ));
+        continue;
+      }
       final m = RegExp(
         r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+DartvelLayout',
       ).firstMatch(src);
@@ -471,6 +489,19 @@ class ClientGenerator {
       }
       exit(41);
     }
+
+    // Each page's DVRoutes member, decided once: the tabs below name pages by
+    // it, and the typed targets are written from it.
+    final pageTargetNames =
+        _pageTargetNames(pageEntries.map((e) => e.route));
+    final tabsShells = <_TabsShell>[
+      for (final layout in tabsLayouts)
+        _tabsShell(layout, pageEntries, pageTargetNames),
+    ];
+    final pagesInTabs = <_PageEntry>{
+      for (final shell in tabsShells)
+        for (final branch in shell.branches) ...branch.pages,
+    };
 
     // Guards: scan for _guard.dart files and build a dir->alias map
     final guardImports = <String>[];
@@ -1133,11 +1164,18 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
         .join('\n');
 
 
-    final routesSrc = pageEntries
-        .map(
-          (e) => '''
+    // One page's route. [path] is relative when the page is nested under
+    // another inside a tab; [pushed] pages take the platform's push, which is
+    // what carries the iOS back swipe.
+    String pageRouteSrc(
+      _PageEntry e, {
+      String? path,
+      bool pushed = false,
+      String children = '',
+    }) =>
+        '''
     GoRoute(
-      path: '${esc(e.route)}',
+      path: '${esc(path ?? e.route)}',
 ${guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa)}      pageBuilder: (context, state) {
         final params = Map<String, String>.from(state.pathParameters);
         final query  = Map<String, String>.from(state.uri.queryParameters);
@@ -1215,24 +1253,56 @@ ${(() {
           defaults: _defaultSeo,
           child: loaderWrapped,
         );
-        final spec = ${e.isFunctional ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
+${pushed && e.isFunctional ? '' : '''        final spec = ${e.isFunctional ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
             : page.transition'''};
-        final layoutWrapped = ${wrapWithLayouts(e.directory, 'seoWrapped')};
+'''}        final layoutWrapped = ${wrapWithLayouts(e.directory, 'seoWrapped')};
         final pageShellWrapped = DVPageShell(
           spec: page.pageScaffold,
           child: layoutWrapped,
         );
-        return dvTransitionPage(
+${!pushed ? '' : e.isFunctional ? '        // Pushed inside a stack: the platform\'s push, with its back swipe.\n        return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n' : '        if (page.transition == const PageTransitionSpec()) {\n          return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n        }\n'}${pushed && e.isFunctional ? '' : '''        return dvTransitionPage(
           key: state.pageKey,
           child: pageShellWrapped,
           spec: spec,
         );
-      },
+'''}      },${children.isEmpty ? '' : '\n      routes: <RouteBase>[\n$children\n      ],'}
     )
-  ''',
-        )
-        .join(',\n');
+  ''';
+
+    // A page in a tab, with the pages pushed over it inside its routes.
+    String tabPageSrc(_TabsBranch branch, _PageEntry e) {
+      final parent = branch.parentOf(e);
+      final kids = <_PageEntry>[
+        for (final other in branch.pages)
+          if (identical(branch.parentOf(other), e)) other,
+      ];
+      return pageRouteSrc(
+        e,
+        path: parent == null
+            ? e.route
+            : e.route.substring(
+                parent.route == '/' ? 1 : parent.route.length + 1),
+        pushed: parent != null,
+        children: kids.map((k) => tabPageSrc(branch, k)).join(',\n'),
+      );
+    }
+
+    final routesSrc = <String>[
+      for (final e in pageEntries)
+        if (!pagesInTabs.contains(e)) pageRouteSrc(e),
+      // A tabs folder: one StatefulShellRoute, a branch per tab, and its
+      // layout building the frame around them.
+      for (final shell in tabsShells)
+        '''
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, shell) =>
+          ${shell.layout.alias}.${shell.layout.className}(shell: dvShellNavigation(shell)),
+      branches: <StatefulShellBranch>[
+${shell.branches.map((b) => '        StatefulShellBranch(routes: <RouteBase>[\n${tabPageSrc(b, b.root)}\n        ]),').join('\n')}
+      ],
+    )''',
+    ].join(',\n');
 
     // What each route can fetch and show before you go there. DVNavLink
     // cannot know how to build a route; the router does, so it says.
@@ -1689,12 +1759,43 @@ const List<DVAccountPageEntry> dartvelAccountPages = $accountEntriesSrc;
 /// nothing, and takes the project's defaults.
 const Map<String, DVPageSitemap> dartvelSitemapEntries = $sitemapEntriesSrc;
 
-GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
+/// What the routes need before the first one is built, whichever router
+/// they end up in.
+void _dartvelSetUp(List<String> arguments) {
   configureDartvelRuntime(arguments: arguments);
   // What each route can fetch and show before you go there, so DVNavLink can
   // preload a destination on hover and preview it on a rest. The link cannot
   // know how to build a route; the router does.
 $routeCapabilities
+$signInRouteAssignment
+$semanticsCall
+$pageMiddlewareInstall
+}
+
+/// Every route this application serves, in one list ordered so a static
+/// route is matched before a parameter route that would hide it, whichever
+/// source either came from.
+List<RouteBase> _dartvelRouteList() => dvOrderGoRoutes(<RouteBase>[
+$allRoutesWithConfig
+    ]);
+
+/// This application's routes, for an application that keeps its own
+/// GoRouter: `GoRouter(routes: [...hostRoutes, ...dartvelRoutes(at: '/app')])`,
+/// then `DVNavigation.attach(router)`.
+///
+/// [at] is `/` to sit beside the host's routes, or a prefix to sit under.
+/// DV.Navigation places Dartvel's targets under it and leaves the host's
+/// paths alone. The host's router keeps its own top-level redirect, error
+/// page and URL strategy; the ones createDartvelRouter sets are not applied.
+List<RouteBase> dartvelRoutes({String at = '/', List<String> arguments = const <String>[]}) {
+  _dartvelSetUp(arguments);
+  return dvMountRoutes(_dartvelRouteList(), at: at);
+}
+
+GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
+  _dartvelSetUp(arguments);
+  // This application owns the router, so nothing is mounted under a prefix.
+  dvResetMount();
   // Path URLs on the web, not the hash Flutter defaults to.
   //
   // Without this, /docs never reaches the router: the browser asks for the
@@ -1705,15 +1806,12 @@ $routeCapabilities
   //
   // It needs the server to serve index.html for unknown paths, which is what
   // the .htaccess and dartvel deploy configuration do.
-  dvUsePathUrlStrategy();$signInRouteAssignment
-$semanticsCall
-$pageMiddlewareInstall
-  final router = GoRouter(
-    // One list, ordered so a static route is matched before a parameter
-    // route that would hide it, whichever source either came from.
-    routes: dvOrderGoRoutes(<RouteBase>[
-$allRoutesWithConfig
-    ]),
+  dvUsePathUrlStrategy();
+  // A DVRouter rather than a GoRouter: while the first location's guards
+  // are still deciding, it paints a pending view where go_router paints
+  // nothing, so a deep link onto a guarded page is never a blank screen.
+  final router = DVRouter(
+    routes: _dartvelRouteList(),
     redirect: _globalRedirect,
     // A route with no compiled page may still be a Studio page: builder
     // documents are data, so saving one publishes it without a rebuild.
@@ -1752,7 +1850,7 @@ ${(() {
       for (final e in pageEntries) {
         final routePath = e.route;
         final cleanPath = routePath.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), '');
-        final name = _routeTargetName(cleanPath);
+        final name = pageTargetNames[routePath]!;
 
         final paramRegex = RegExp(r':([A-Za-z0-9_]+)');
         final params =
@@ -1760,19 +1858,16 @@ ${(() {
 
         // Two routes reducing to one identifier emit the same member twice,
         // which fails to compile with no indication of which routes collided.
-        final previous = claimed[name];
-        if (previous != null && previous != routePath) {
-          throw StateError(
-            'Routes $previous and $routePath both generate DVRoutes.$name. '
-            'Rename one of the page directories so the typed targets differ.',
-          );
-        }
         claimed[name] = routePath;
 
         // The name this target had before it was camel-cased, kept for one
         // release so code already written against it still compiles. It is
         // the name the lint rejects, hence the ignore beside it.
-        final legacy = _legacyRouteTargetName(cleanPath);
+        // Only for a name derived from the path: a detail page named beside its
+        // list has no older name, and the path-derived one is the list's.
+        final legacy = name == _routeTargetName(cleanPath)
+            ? _legacyRouteTargetName(cleanPath)
+            : name;
         if (params.isEmpty) {
           sbRoutes
               .writeln("  static const $name = DVRouteTarget('$routePath');");
@@ -3965,4 +4060,201 @@ class _WidgetParameter {
 
   /// A context is handed over by build rather than by the caller.
   bool get isBuildContext => type == 'BuildContext';
+}
+
+/// Each page route's `DVRoutes` member name.
+///
+/// Derived from the path with its parameters dropped, so `/blog/:id` is
+/// `blog`. Where that collides with another page -- `/feed` and `/feed/:post`
+/// both reduce to `feed`, which is the shape of every list and its detail
+/// page -- the route with parameters takes its parameters on the end:
+/// `feedPost`. That used to stop the build, which made a detail page under
+/// its own list impossible to write. Routes without parameters claim their
+/// names first, so the list keeps the short one whichever file sorts first.
+///
+/// Two routes still left with one name stop the build, naming both.
+Map<String, String> _pageTargetNames(Iterable<String> routes) {
+  final List<String> unique = routes.toSet().toList();
+  int count(String route) => ':'.allMatches(route).length;
+  final List<int> counts = unique.map(count).toSet().toList()..sort();
+  // Grouped rather than sorted: List.sort promises no stability, and file
+  // order is what decides between two routes with as many parameters.
+  final List<String> ordered = <String>[
+    for (final int n in counts)
+      for (final String route in unique)
+        if (count(route) == n) route,
+  ];
+  final Map<String, String> names = <String, String>{};
+  final Map<String, String> claimed = <String, String>{};
+  for (final String route in ordered) {
+    final List<String> params = RegExp(r':([A-Za-z0-9_]+)')
+        .allMatches(route)
+        .map((Match m) => m[1]!)
+        .toList();
+    final String base =
+        _routeTargetName(route.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), ''));
+    String name = base;
+    if (claimed.containsKey(name) && params.isNotEmpty) {
+      name = base +
+          params
+              .map((String p) => _routeTargetName(p))
+              .map((String p) => p[0].toUpperCase() + p.substring(1))
+              .join();
+    }
+    final String? previous = claimed[name];
+    if (previous != null) {
+      throw StateError(
+        'DV-ROUTE-002: Routes $previous and $route both generate '
+        'DVRoutes.$name. Rename one of the page directories so the typed '
+        'targets differ.',
+      );
+    }
+    claimed[name] = route;
+    names[route] = name;
+  }
+  return names;
+}
+
+/// A `_layout.dart` whose class extends `DartvelTabsLayout`.
+class _TabsLayout {
+  const _TabsLayout({
+    required this.dir,
+    required this.rel,
+    required this.alias,
+    required this.className,
+    required this.tabs,
+  });
+
+  final String dir;
+  final String rel;
+  final String alias;
+  final String className;
+
+  /// The `DVRoutes` members its `tabs` list names, in order.
+  final List<String> tabs;
+}
+
+/// A tabs layout with its folder's pages sorted into branches.
+class _TabsShell {
+  const _TabsShell(this.layout, this.branches);
+
+  final _TabsLayout layout;
+  final List<_TabsBranch> branches;
+}
+
+class _TabsBranch {
+  const _TabsBranch(this.root, this.pages);
+
+  /// The page that opens the tab.
+  final _PageEntry root;
+
+  /// Every page in the tab, the root included, parents before children.
+  final List<_PageEntry> pages;
+
+  /// The page [page] is pushed over, or null for the root.
+  _PageEntry? parentOf(_PageEntry page) {
+    _PageEntry? parent;
+    for (final _PageEntry other in pages) {
+      if (identical(other, page)) continue;
+      if (!_extendsPath(page.route, other.route)) continue;
+      if (parent == null || other.route.length > parent.route.length) {
+        parent = other;
+      }
+    }
+    return parent;
+  }
+}
+
+/// Whether [path] is under [parent], segment by segment.
+bool _extendsPath(String path, String parent) =>
+    parent == '/' ? path != '/' : path.startsWith('$parent/');
+
+/// The `DVRoutes` members a tabs layout's `static const tabs` list names.
+List<String> _declaredTabs(String source, String rel) {
+  final RegExpMatch? list = RegExp(
+    r'static\s+const\s+(?:List\s*<\s*DVRouteTarget\s*>\s+)?tabs\s*=\s*'
+    r'(?:const\s*)?(?:<\s*DVRouteTarget\s*>\s*)?\[([^\]]*)\]',
+  ).firstMatch(source);
+  if (list == null) {
+    throw StateError(
+      'DV-ROUTE-005: $rel extends DartvelTabsLayout and declares no '
+      '`static const List<DVRouteTarget> tabs = <DVRouteTarget>[...]`. '
+      'The tabs are the pages that open each one, in order, named by their '
+      'DVRoutes targets.',
+    );
+  }
+  final List<String> entries = list
+      .group(1)!
+      .split(',')
+      .map((String s) => s.trim())
+      .where((String s) => s.isNotEmpty)
+      .toList();
+  return <String>[
+    for (final String entry in entries)
+      RegExp(r'^DVRoutes\.([A-Za-z_][A-Za-z0-9_]*)$').firstMatch(entry)?[1] ??
+          (throw StateError(
+            'DV-ROUTE-005: $rel names the tab `$entry`, which is not a '
+            'DVRoutes member without parameters.',
+          )),
+  ];
+}
+
+/// The branches of [layout]: one per tab, holding every page in the layout's
+/// folder whose path is the tab's or extends it.
+_TabsShell _tabsShell(
+  _TabsLayout layout,
+  List<_PageEntry> pages,
+  Map<String, String> names,
+) {
+  final List<_PageEntry> inFolder = <_PageEntry>[
+    for (final _PageEntry e in pages)
+      if (e.directory == layout.dir || e.directory.startsWith('${layout.dir}/'))
+        e,
+  ];
+  if (layout.tabs.isEmpty) {
+    throw StateError('DV-ROUTE-005: ${layout.rel} names no tabs.');
+  }
+  final List<_PageEntry> roots = <_PageEntry>[
+    for (final String tab in layout.tabs)
+      inFolder.firstWhere(
+        (_PageEntry e) => names[e.route] == tab && !e.route.contains(':'),
+        orElse: () => throw StateError(
+          'DV-ROUTE-005: ${layout.rel} names the tab DVRoutes.$tab, which is '
+          'not a page without parameters in ${layout.dir}. A tab opens on a '
+          'page in the tabs folder.',
+        ),
+      ),
+  ];
+  final List<List<_PageEntry>> branches = <List<_PageEntry>>[
+    for (final _PageEntry root in roots) <_PageEntry>[root],
+  ];
+  for (final _PageEntry e in inFolder) {
+    if (roots.contains(e)) continue;
+    // The tab whose path this page extends most closely.
+    int best = -1;
+    for (int i = 0; i < roots.length; i++) {
+      if (!_extendsPath(e.route, roots[i].route)) continue;
+      if (best == -1 || roots[i].route.length > roots[best].route.length) {
+        best = i;
+      }
+    }
+    if (best == -1) {
+      throw StateError(
+        'DV-ROUTE-005: ${e.route} is in ${layout.dir} and under none of the '
+        'tabs ${layout.rel} names. Every page in a tabs folder belongs to the '
+        'tab whose path it extends; move the page out of the folder or add '
+        'its tab.',
+      );
+    }
+    branches[best].add(e);
+  }
+  for (final List<_PageEntry> branch in branches) {
+    // Parents before children, so a nested route is written inside its
+    // parent's `routes:`.
+    branch.sort((_PageEntry a, _PageEntry b) =>
+        '/'.allMatches(a.route).length.compareTo('/'.allMatches(b.route).length));
+  }
+  return _TabsShell(layout, <_TabsBranch>[
+    for (int i = 0; i < roots.length; i++) _TabsBranch(roots[i], branches[i]),
+  ]);
 }

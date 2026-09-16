@@ -1461,6 +1461,12 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-ROUTE-005',
+      reason: 'a tabs layout names a tab that is not a page in its folder, or '
+          'a page in its folder belongs to no tab',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-CDC-001',
       reason: 'a destination refused a batch; delivery is retrying',
       level: 'warning',

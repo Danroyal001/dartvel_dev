@@ -155,6 +155,47 @@ import '../dartvel_client/dartvel_client.dart';
 Widget _accountPage(BuildContext context) => const DVText('Account');
 ''';
 
+/// A tabs folder: the layout that builds the frame, a list and the detail
+/// page pushed over it inside one tab, and a second tab.
+const String _tabsLayout = '''
+import 'package:flutter/material.dart';
+
+import '../../dartvel_client/dartvel_client.dart';
+
+class AppTabs extends DartvelTabsLayout {
+  const AppTabs({super.key, required super.shell});
+
+  static const List<DVRouteTarget> tabs = <DVRouteTarget>[
+    DVRoutes.feed,
+    DVRoutes.saved,
+  ];
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: shell,
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: shell.currentIndex,
+      onDestinationSelected: shell.goBranch,
+      destinations: const <Widget>[
+        NavigationDestination(icon: Icon(Icons.list), label: 'Feed'),
+        NavigationDestination(icon: Icon(Icons.bookmark), label: 'Saved'),
+      ],
+    ),
+  );
+}
+''';
+
+String _tabPage(String name, String depth) => """
+import 'package:flutter/widgets.dart';
+
+import '${depth}dartvel_client/dartvel_client.dart';
+
+@DVPage(title: '$name')
+@pragma('vm:entry-point')
+Widget _${name}Page(BuildContext context) =>
+    DVNavLink(to: DVRoutes.feedPost(post: '1'), child: const DVText('$name'));
+""";
+
 /// Config routes beside the pages: every node type, a typed redirect to a
 /// page's target, a typed link to a config route's, and an adopted GoRoute.
 /// Analyzed with the rest, so the import, the spread and the targets the
@@ -202,12 +243,12 @@ final List<DVRouteNode> routes = <DVRouteNode>[
             shell,
     branches: <DVShellBranch>[
       DVShellBranch(
-        initialLocation: DVRoutes.feed,
+        initialLocation: DVRoutes.stream,
         routes: <DVRouteNode>[
           DVRoute(
-            path: '/feed',
+            path: '/stream',
             builder: (BuildContext context, DVRouteState state) =>
-                const DVText('Feed'),
+                const DVText('Stream'),
           ),
         ],
       ),
@@ -265,6 +306,14 @@ void main() {
         _guardedPage);
     write(p.join(project.path, 'lib', 'backend', 'ping.dart'), _backendFunction);
     write(p.join(project.path, 'lib', 'routes.dart'), _configRoutes);
+    write(p.join(project.path, 'lib', 'pages', '(tabs)', '_layout.dart'),
+        _tabsLayout);
+    write(p.join(project.path, 'lib', 'pages', '(tabs)', 'feed', 'index.page.dart'),
+        _tabPage('feed', '../../../'));
+    write(p.join(project.path, 'lib', 'pages', '(tabs)', 'feed', '[post].page.dart'),
+        _tabPage('feedPost', '../../../'));
+    write(p.join(project.path, 'lib', 'pages', '(tabs)', 'saved.page.dart'),
+        _tabPage('saved', '../../'));
     write(p.join(project.path, 'lib', 'flags', 'flags.dart'), _flags);
     write(p.join(project.path, 'lib', 'pages', 'checkout.page.dart'),
         _checkoutPage);
@@ -429,7 +478,9 @@ dependency_overrides:
 
     expect(router, contains('dv_config.routes,'));
     expect(router, contains("static DVRouteTarget order({required String id})"));
-    expect(router, contains("static const feed = DVRouteTarget('/feed');"));
+    expect(router, contains('dvShellNavigation(shell)'));
+    expect(router, contains('List<RouteBase> dartvelRoutes('));
+    expect(router, contains('final router = DVRouter('));
   });
 
   test('the second-factor gate, its challenge route and the step-up are in '
