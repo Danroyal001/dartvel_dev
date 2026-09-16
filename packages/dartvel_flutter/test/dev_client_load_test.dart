@@ -6,7 +6,8 @@
 // crash when somebody taps the button calling a plugin it does not have.
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVDiagnostics;
+import 'package:dartvel_core/dartvel.dart'
+    show DVDiagnostics, dvDevClientServerContext;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/dev_client.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,6 +47,13 @@ void main() {
   int status = 200;
   final List<HttpRequest> seen = <HttpRequest>[];
 
+  Future<void> answer(HttpRequest request) async {
+    seen.add(request);
+    request.response.statusCode = status;
+    request.response.write(respond(request));
+    await request.response.close();
+  }
+
   Future<String?> storedTitle() async {
     final document = await const DVPageStore().load('/about');
     return document?.title;
@@ -59,19 +67,20 @@ void main() {
     status = 200;
 
     signer = DVDevClientSigner.generate();
-    server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    // Over TLS with the certificate for the pairing key, as dartvel dev
+    // serves it.
+    server = await HttpServer.bindSecure(
+      InternetAddress.loopbackIPv4,
+      0,
+      dvDevClientServerContext(signer.certificate()),
+    );
     pairing = DVDevClientPairing(
-      server: Uri.parse('http://${server.address.host}:${server.port}'),
+      server: Uri.parse('https://${server.address.host}:${server.port}'),
       branch: 'feature/checkout',
       publicKey: signer.publicKey,
       token: DVDevClientPairing.newToken(),
     );
-    server.listen((HttpRequest request) async {
-      seen.add(request);
-      request.response.statusCode = status;
-      request.response.write(respond(request));
-      await request.response.close();
-    });
+    server.listen(answer);
   });
 
   tearDown(() async {
@@ -93,6 +102,26 @@ void main() {
         requires: requires,
         sequence: sequence,
       );
+
+  test('a server holding another key is never sent the token', () async {
+    respond = (_) => sealed('From an impostor');
+    final impostor = DVDevClientSigner.generate();
+    await server.close(force: true);
+    server = await HttpServer.bindSecure(
+      InternetAddress.loopbackIPv4,
+      pairing.server.port,
+      dvDevClientServerContext(impostor.certificate()),
+    );
+    server.listen(answer);
+    final client = DVDevClient(pairing: pairing, shell: shell);
+
+    final load = await client.load();
+
+    expect(load.outcome, DVDevClientOutcome.unreachable, reason: load.message);
+    expect(load.code, 'DV-DEVCLIENT-001');
+    expect(seen, isEmpty);
+    expect(await storedTitle(), isNull);
+  });
 
   test('a sealed bundle from the paired server is applied', () async {
     respond = (_) => sealed('From the branch');
@@ -244,7 +273,7 @@ void main() {
     await gone.close(force: true);
     final client = DVDevClient(
       pairing: DVDevClientPairing(
-        server: Uri.parse('http://127.0.0.1:$port'),
+        server: Uri.parse('https://127.0.0.1:$port'),
         branch: 'feature/checkout',
         publicKey: signer.publicKey,
         token: pairing.token,
@@ -273,9 +302,15 @@ void main() {
   group('OTA page bundles with a signing key', () {
     // The same envelope and the same check, reached through DV.Updates.
     late Uri endpoint;
-    setUp(() {
-      endpoint = Uri.parse('http://${server.address.host}:${server.port}/p');
+    late HttpServer plain;
+    setUp(() async {
+      // OTA page bundles come from wherever the application publishes them,
+      // over ordinary http(s); only pairing is pinned.
+      plain = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      plain.listen(answer);
+      endpoint = Uri.parse('http://${plain.address.host}:${plain.port}/p');
     });
+    tearDown(() => plain.close(force: true));
 
     test('a sealed bundle is applied', () async {
       respond = (_) => signer.seal(

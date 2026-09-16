@@ -32,6 +32,7 @@ import 'package:pointycastle/export.dart';
 import '../notifications/web_push.dart'
     show DVWebPushKeyPair, dvWebPushBase64Decode, dvWebPushBase64Encode;
 import '../notifications/web_push_vapid.dart' show dvWebPushSignEs256;
+import 'dev_client_certificate.dart';
 
 /// The format both the envelope and the statement inside it name.
 const String dvSignedBundleFormat = 'dartvel-bundle-v1';
@@ -241,6 +242,14 @@ class DVDevClientSigner {
   /// The uncompressed P-256 point a pairing link carries.
   Uint8List get publicKey => Uint8List.fromList(_pair.publicKey);
 
+  /// A self-signed TLS certificate for [publicKey], which a dev server
+  /// presents so a device can pin its connection to the key in its link.
+  DVDevClientCertificate certificate({DateTime? now}) => dvDevClientCertificate(
+    publicKey: _pair.publicKey,
+    privateKey: _pair.privateKey,
+    now: now,
+  );
+
   /// A raw `r||s` ES256 signature over [message].
   Uint8List sign(List<int> message) =>
       dvWebPushSignEs256(message, _pair.privateKey);
@@ -448,11 +457,13 @@ class DVDevClientPairing {
     final Map<String, String> q = link.queryParameters;
 
     final Uri? server = Uri.tryParse(q['server'] ?? '');
-    if (server == null ||
-        !(server.scheme == 'http' || server.scheme == 'https') ||
-        server.host.isEmpty) {
+    if (server == null || server.scheme != 'https' || server.host.isEmpty) {
+      // A dev server is reached over TLS pinned to the link's key. Over http
+      // the token would cross the network in the clear, and anything that
+      // saw it could read every page the server serves.
       throw const FormatException(
-        'A pairing link names an http or https dev server.',
+        'A pairing link names an https dev server. Scan the code a current '
+        '`dartvel dev` prints.',
       );
     }
     final String branch = q['branch'] ?? '';
