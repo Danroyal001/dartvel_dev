@@ -325,7 +325,7 @@ Widget _phoneLoop(BuildContext context) => const Section(
     CodeBlock(<String>[
       r'$ dartvel build android --profile development',
       r'$ dartvel dev',
-      '[dartvel] Dev client: serving main on port 8787.',
+      '[dartvel] Pairing: serving main on port 8787.',
       '[dartvel] Scan with the camera on a device running a development build:',
       '# the QR code and its dartvel-dev://pair link print here',
     ]),
@@ -345,10 +345,11 @@ Widget _phoneLoop(BuildContext context) => const Section(
   ],
 );
 
-/// DV.Updates on Shorebird's updater. The proof is the OTA updates workflow:
-/// a release built with Shorebird's engine, a patch published into
-/// DVShorebirdPatchSource, and the relaunched app running the patch, with no
-/// Shorebird account. The section is Partial in spec-status, and says so.
+/// DV.Updates on Shorebird's updater, with the web-server binary as the patch
+/// source. The proof is the OTA updates workflow: dartvel updates release and
+/// patch with --patch-source into a running binary, and the relaunched app
+/// running the patch, with no Shorebird account. The section is Partial in
+/// spec-status because iOS is not supported, and says so.
 @DVFunctionalWidget()
 Widget _otaUpdates(BuildContext context) => const Section(
   tint: true,
@@ -357,24 +358,24 @@ Widget _otaUpdates(BuildContext context) => const Section(
     Heading('Push a Dart fix to installed apps without waiting for store '
         'review.'),
     CodeBlock(<String>[
-      'final DVUpdateInfo update = await DV.Updates.check();',
-      'if (update.available) {',
-      '  await DV.Updates.apply(update: update); // runs on the next launch',
-      '}',
+      '# shorebird.yaml: base_url: https://shop.example.com/updates',
+      r'$ dartvel updates release --platform android --patch-source https://shop.example.com/updates',
+      '# fix the bug, then',
+      r'$ dartvel updates patch --platform android --patch-source https://shop.example.com/updates',
     ]),
     Bullets(<String>[
-      'check, apply and rollback call the Shorebird updater built into your '
-          'release.',
-      'Host patches on your own server with DVShorebirdPatchSource. You need '
-          'no Shorebird account for it.',
+      'Your web-server binary serves the patches, so you need no Shorebird '
+          'account.',
+      'DV.Updates.check(), apply() and rollback() let the app choose when a '
+          'patch installs.',
       'Staged rollout, pinned versions and skipped versions are decided in '
           'one check.',
     ]),
     Objection(
       'Is it finished?',
-      'Partly. On Android, CI builds a release, publishes a patch to '
-          'DVShorebirdPatchSource and relaunches into the patch. On iOS the '
-          'release carries the updater, and no patch has run on a device yet.',
+      'On Android, yes: CI releases an app, patches it into a running '
+          'web-server binary and relaunches it into the patch. iOS is not '
+          'supported yet.',
     ),
   ],
 );
@@ -470,8 +471,8 @@ Widget _expoComparison(BuildContext context) => const Section(
       ),
       SiteCard(
         'Over-the-air updates',
-        'DV.Updates on Shorebird\'s updater, with a patch source you host. '
-            'Proven on an Android emulator in CI.',
+        'dartvel updates patch --patch-source publishes into your own '
+            'web-server binary. Proven on an Android emulator in CI.',
       ),
       SiteCard(
         'Cloud builds',
