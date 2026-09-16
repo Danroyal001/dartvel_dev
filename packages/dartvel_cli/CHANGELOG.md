@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **A backend function's body keeps its file's imports.** A private
+  `@DVBackendFunction` is lowered out of its file, and the routes file it
+  was lowered into imported nothing of the application's, so the first
+  `jsonEncode`, relative helper or `as` prefix a body used stopped the whole
+  backend compiling. Each function is now written into a library of its own
+  with its source file's imports, relative ones rewritten. An import that
+  reaches Flutter is left out, since a server cannot compile it.
+- **`dartvel create`'s backend compiles.** The scaffold's two functions were
+  named `handler`, which the generator reads as a raw handler taking the
+  request, and took none. They are `@DVBackendFunction()` functions now.
+
 - **An Android development build hot reloads over the network.**
   `dartvel build android --profile development` writes a small tunnel into
   the debug source set and builds from an entrypoint that starts it. Scanning

@@ -60,10 +60,10 @@ Pattern _marker(String stage, String function) => switch (stage) {
   'csrf' => '_dvValidateCsrf(',
   'policy' => '_dvAllowed(',
   'context' => 'core.DVContext(',
-  // The generator calls a typed function through a per-route helper
-  // (`_dvBackendFn0()`) or the library prefix (`f0.name(...)`).
+  // The generator calls a typed function through the library it lowered it
+  // into (`bf0.dvBackendFn0()`) or the source's prefix (`f0.name(...)`).
   'function' => RegExp(
-    'await (?:_dvBackendFn\\d+|f\\d+\\.$function|f\\d+\\.handler)\\(',
+    'await (?:bf\\d+\\.dvBackendFn\\d+|f\\d+\\.$function|f\\d+\\.handler)\\(',
   ),
   _ when stage.startsWith('middleware:') =>
     "'${stage.substring('middleware:'.length)}'",

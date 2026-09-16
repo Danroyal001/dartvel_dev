@@ -32,9 +32,15 @@ Future<String> generateRoutesFor(String functionSource) async {
     apiBasePath: '/api',
   );
 
-  return File(
-    p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
-  ).readAsStringSync();
+  // The routes, and the library each lowered function is written into.
+  return <String>[
+    File(p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'))
+        .readAsStringSync(),
+    for (final FileSystemEntity lowered
+        in Directory(p.join(root.path, '.dart_tool')).listSync())
+      if (p.basename(lowered.path).startsWith('dartvel_backend_fn'))
+        (lowered as File).readAsStringSync(),
+  ].join('\n');
 }
 
 const String _imports = "import 'package:dartvel_core/dartvel.dart';\n";
@@ -95,7 +101,7 @@ void main() {
         '}\n'
         "String decorate(String value) => 'ok \$value';\n");
 
-    expect(routes, contains('f0.decorate(input)'));
+    expect(routes, contains('dvSource.decorate(input)'));
   });
 
   test('a multi-line expression body works', () async {
