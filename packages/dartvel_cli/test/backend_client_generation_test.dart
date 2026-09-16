@@ -317,4 +317,53 @@ Future<int> total(int a, int b) async => a + b;
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a comment in the parameter list stays out of the generated code',
+      () async {
+    // A comment beside a parameter is ordinary Dart. The parameter list was
+    // copied as text and split on commas, so "// injected" became part of
+    // the next parameter's type and swallowed the rest of its line: the
+    // generated client did not compile, and nothing but a compile saw it,
+    // because generated files are excluded from analysis.
+    final root = await Directory.systemTemp.createTemp('dartvel_comment_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'pay.post.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<Map<String, bool>> _pay(
+  DVContext context, // injected, never sent by the client
+  String orderId, /* the order */
+  int cents,
+) async =>
+    <String, bool>{'ok': true};
+''');
+
+      await BackendGenerator.generate(
+        root: root.path,
+        backendDir: 'lib/backend',
+        pkgName: 'comment_app',
+        buildId: 'test-build',
+        backendHost: '127.0.0.1',
+        backendPort: 3000,
+        apiBasePath: '/api',
+      );
+
+      final client = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
+      ).readAsStringSync();
+      expect(client, isNot(contains('injected')));
+      expect(client, isNot(contains('the order')));
+      expect(client, contains('pay({ required String orderId, required int cents,'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }

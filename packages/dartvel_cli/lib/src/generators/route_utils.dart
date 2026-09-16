@@ -173,8 +173,11 @@ class RouteUtils {
 
   static void extractParams(String rawFull, Function(String, String) onParam,
       {Function(String)? onNamed}) {
-    if (rawFull.contains('{') && onNamed != null) onNamed('1');
-    final raw = rawFull.replaceAll(RegExp(r'[\{\}\[\]]'), '');
+    // Comments first: a `// note` beside a parameter otherwise becomes part
+    // of the next parameter's type once the list is split on commas.
+    final String uncommented = stripComments(rawFull);
+    if (uncommented.contains('{') && onNamed != null) onNamed('1');
+    final raw = uncommented.replaceAll(RegExp(r'[\{\}\[\]]'), '');
     final parts =
         raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
 
@@ -194,5 +197,46 @@ class RouteUtils {
       if (nameTok.isEmpty) continue;
       onParam(nameTok, typeTok);
     }
+  }
+  /// [source] without its `//` and `/* */` comments. Quoted strings are kept
+  /// whole, so a default value such as 'https://example.com' survives.
+  static String stripComments(String source) {
+    final StringBuffer out = StringBuffer();
+    int i = 0;
+    String? quote;
+    while (i < source.length) {
+      final String c = source[i];
+      if (quote != null) {
+        out.write(c);
+        if (c == r'\' && i + 1 < source.length) {
+          out.write(source[i + 1]);
+          i += 2;
+          continue;
+        }
+        if (c == quote) quote = null;
+        i++;
+        continue;
+      }
+      if (c == "'" || c == '"') {
+        quote = c;
+        out.write(c);
+        i++;
+        continue;
+      }
+      if (source.startsWith('//', i)) {
+        final int end = source.indexOf('\n', i);
+        i = end == -1 ? source.length : end;
+        continue;
+      }
+      if (source.startsWith('/*', i)) {
+        final int end = source.indexOf('*/', i + 2);
+        i = end == -1 ? source.length : end + 2;
+        out.write(' ');
+        continue;
+      }
+      out.write(c);
+      i++;
+    }
+    return out.toString();
   }
 }
