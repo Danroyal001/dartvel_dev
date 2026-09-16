@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`dartvel dev` prints a QR code a phone can scan.** With the web-server
+  device it prints the LAN address of the preview and a QR code of it, and
+  with `--dev-client` a QR code of the `dartvel-dev://` pairing link, which
+  was printed as text only. The LAN address is chosen by interface: the old
+  choice took the first private address, which on a Linux machine with Docker
+  can be `docker0`, unreachable from any phone. A web server bound to loopback
+  says so instead of printing an address that cannot work. The QR encoder is
+  Dart, in the CLI, and is checked module for module against an independent
+  encoder's output.
+
 - **Breaking: `dartvel build <target> --profile development|profile|release`
   is the one way to say the mode.** `--profile` was a flag for Flutter's
   profile mode beside a `--release` flag that defaulted to true, so a debug

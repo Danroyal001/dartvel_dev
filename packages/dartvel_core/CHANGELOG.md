@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`dvDevBackendUrl`.** A development web build opened from a phone on the
+  LAN called the backend at `localhost`, which on the phone has nothing on it.
+  The generated runtime now reaches a loopback backend at the host the page
+  was served from, in debug and profile web builds only.
+
 - **`DVProcessStores.install(fallback:)`** names the store to use when
   `DATABASE_URL` is not set. A web-server binary passes its SQLite file,
   which opening creates. `DATABASE_URL` still wins.

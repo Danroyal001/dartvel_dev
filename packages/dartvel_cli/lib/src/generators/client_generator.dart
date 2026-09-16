@@ -620,7 +620,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
@@ -887,7 +887,9 @@ class DartvelRuntime {
   static bool _emulatorNoteShown = false;
 
   static String _adjustDevHost(String url) {
-    if (kIsWeb) return url;
+    // A phone that opened the preview from `dartvel dev` on the LAN has no
+    // backend on its own localhost; the machine that served the page does.
+    if (kIsWeb) return kReleaseMode ? url : dvDevBackendUrl(url, page: Uri.base);
     try {
       final u = Uri.parse(url);
       final host = (u.host).toLowerCase();
