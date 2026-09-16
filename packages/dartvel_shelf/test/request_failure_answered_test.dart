@@ -63,6 +63,12 @@ Future<Exchange> exchange(int port, List<int> request,
       if (!closed.isCompleted) closed.complete(true);
     },
   );
+  // A server that refuses the request can close while it is still being
+  // written. That write then fails with a broken pipe on socket.done, which
+  // is the connection closing, not the test failing, so it counts as closed.
+  socket.done.then((_) {}, onError: (Object _) {
+    if (!closed.isCompleted) closed.complete(true);
+  });
   socket.add(request);
   final bool wasClosed = await closed.future
       .timeout(within, onTimeout: () => false);
