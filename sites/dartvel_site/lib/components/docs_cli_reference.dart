@@ -664,6 +664,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     options: <String>[
       '    --dry-run     Print the command that would run, and run nothing.',
       '    --artifact    The file to upload, when it is not where the build puts it.',
+      '    --cloud       Build and publish on this repository\'s own GitHub Actions, in one run of the workflow dartvel build --cloud writes. With --dry-run the run prints the upload instead of making it. Firebase only for now: Play needs an app bundle and App Store Connect a signed IPA, and dartvel build makes neither yet.',
     ],
   ),
   DocsCliCommand(

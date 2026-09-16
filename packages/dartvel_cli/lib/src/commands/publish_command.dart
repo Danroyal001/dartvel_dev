@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cloud/cloud_build.dart';
 import '../devclient/dev_client_artifact.dart';
 import '../publish/publish_plan.dart';
 import '../utils/logger.dart';
@@ -29,7 +30,7 @@ class PublishCommand extends Command<void> {
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
   /// by every suite in the process.
-  PublishCommand({PublishProcessRun? processRun, this._root})
+  PublishCommand({PublishProcessRun? processRun, this._root, this._cloud})
       : _processRun = processRun ?? _defaultRun {
     argParser
       ..addFlag('dry-run',
@@ -37,7 +38,15 @@ class PublishCommand extends Command<void> {
           negatable: false,
           help: 'Print the command that would run, and run nothing.')
       ..addOption('artifact',
-          help: 'The file to upload, when it is not where the build puts it.');
+          help: 'The file to upload, when it is not where the build puts it.')
+      ..addFlag('cloud',
+          defaultsTo: false,
+          negatable: false,
+          help: 'Build and publish on this repository\'s own GitHub Actions, '
+              'in one run of the workflow dartvel build --cloud writes. With '
+              '--dry-run the run prints the upload instead of making it. '
+              'Firebase only for now: Play needs an app bundle and App Store '
+              'Connect a signed IPA, and dartvel build makes neither yet.');
   }
 
   static Future<ProcessResult> _defaultRun(
@@ -51,6 +60,7 @@ class PublishCommand extends Command<void> {
 
   final PublishProcessRun _processRun;
   final String? _root;
+  final DVCloudBuild? _cloud;
 
   @override
   final String name = 'publish';
@@ -73,6 +83,11 @@ class PublishCommand extends Command<void> {
 
     final String store = rest.first;
     final String root = _root ?? Directory.current.path;
+
+    if (argResults?['cloud'] == true) {
+      exitCode = await _publishInTheCloud(store, root);
+      return;
+    }
     final DVPublishPlan plan = dvPublishPlan(
       store: store,
       root: root,
@@ -151,6 +166,55 @@ class PublishCommand extends Command<void> {
       return;
     }
     Logger.log('✅ Published to $store.');
+  }
+
+  /// What each store is built from in the cloud, and why a store is not.
+  static const Map<String, String> _cloudTargets = <String, String>{
+    'firebase': 'android',
+  };
+
+  static const Map<String, String> _cloudRefusals = <String, String>{
+    'play': 'Google Play takes an app bundle, and dartvel build android '
+        'writes an APK. Build the bundle and run dartvel publish play where '
+        'it is.',
+    'appstore': 'App Store Connect takes a signed IPA, and dartvel build ios '
+        'builds without code signing. Signing on the runner is designed and '
+        'not built.',
+    'testflight': 'TestFlight takes a signed IPA, and dartvel build ios '
+        'builds without code signing. Signing on the runner is designed and '
+        'not built.',
+  };
+
+  Future<int> _publishInTheCloud(String store, String root) async {
+    final String? refusal = _cloudRefusals[store];
+    if (refusal != null) {
+      Logger.log('❌ Cannot publish to $store from the cloud yet. $refusal');
+      return 78; // EX_CONFIG
+    }
+    final String? target = _cloudTargets[store];
+    if (target == null) {
+      Logger.log('❌ "$store" is not a store Dartvel publishes to. The ones it '
+          'knows are ${dvPublishStores.join(', ')}.');
+      return 64; // EX_USAGE
+    }
+    // The declaration is checked here, where a refusal costs nothing, rather
+    // than on a runner after the build.
+    final DVPublishPlan plan =
+        dvPublishPlan(store: store, root: root, host: 'linux');
+    if (!plan.ok) {
+      Logger.log('❌ Cannot publish to $store:');
+      for (final String problem in plan.problems) {
+        Logger.log('   $problem');
+      }
+      return 78; // EX_CONFIG
+    }
+    return (_cloud ?? DVCloudBuild()).run(DVCloudBuildRequest(
+      root: root,
+      target: target,
+      profile: 'release',
+      publish: store,
+      dryRun: argResults?['dry-run'] == true,
+    ));
   }
 
   static bool _isOnPath(String executable) {
