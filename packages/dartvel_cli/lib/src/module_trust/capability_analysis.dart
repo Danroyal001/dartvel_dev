@@ -222,7 +222,10 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
       } else {
         egress.add(host);
       }
-      final Object? bearer = body['bearerSecret'];
+      // auth.bearer, the shape DVHttp.readConfig reads. bearerSecret is the
+      // constructor's name for it and was never a pubspec key.
+      final Object? auth = body['auth'];
+      final Object? bearer = auth is Map ? auth['bearer'] : null;
       if (bearer is String && bearer.isNotEmpty) secrets.add(bearer);
     }
   }
