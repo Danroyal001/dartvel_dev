@@ -1,151 +1,41 @@
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Cloud — Dartvel', showAppBar: false)
+@DVPage(title: 'Dartvel Cloud and Studio Pro', showAppBar: false)
 @pragma('vm:entry-point')
 Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
   child: DVBox.list(<Widget>[
     Section(
       children: <Widget>[
-        Eyebrow('COMING SOON'),
-        Heading('Dartvel Cloud.', level: 1),
-        Body(
-          'Deploy a Dartvel application without assembling the runtime '
-          'around it. Nothing here is available yet, and this page says so '
-          'rather than collecting sign-ups for something that does not '
-          'exist.',
-          width: 640,
-        ),
-        Body(
-          'Everything Dartvel does today runs on infrastructure you '
-          'already have. dartvel build produces the artifact and dartvel '
-          'deploy pushes it; Cloud is meant to remove that step, not to '
-          'become the only way to run one.',
-          width: 640,
-        ),
+        Eyebrow('DARTVEL CLOUD'),
+        Heading('Dartvel Cloud does not exist yet.', level: 1),
+        Bullets(<String>[
+          'There is no sign-up and nothing to buy.',
+          'You can deploy a Dartvel app to your own host today.',
+        ]),
       ],
     ),
     Section(
       tint: true,
       children: <Widget>[
-        Eyebrow('WHAT IT IS MEANT TO BE'),
+        Eyebrow('PLANNED'),
+        Heading('What Cloud is meant to do.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
-            'One command',
-            'dartvel deploy, with the backend, the database, the queues '
-                'and the static build going out together.',
+            'One deploy command',
+            'dartvel deploy ships the backend, database, queues and web build '
+                'together.',
+            built: false,
           ),
           SiteCard(
-            'The runtime as it is built',
-            'The same Axum and Tokio server the CLI runs locally, rather '
-                'than a different one you discover in production.',
+            'The runtime you run locally',
+            'The same Axum and Tokio server that dartvel dev starts.',
+            built: false,
           ),
           SiteCard(
-            'Durable work included',
-            'Jobs and queues run where the app runs, so background work '
-                'is not a second piece of infrastructure to stand up.',
-          ),
-          SiteCard(
-            'Not a lock-in',
-            'Self-hosting stays a supported path. Cloud is the '
-                'convenience, not the requirement.',
-          ),
-        ], spacing: 16),
-      ],
-    ),
-    Section(
-      children: <Widget>[
-        Eyebrow('ADVANCED STUDIO — IN PRO'),
-        Heading('Design in Figma. Ship as Dart.'),
-        Body(
-          'Studio\'s page builder is free forever. Pro adds what only '
-          'starts mattering when more than one person touches the '
-          'application — and one thing that matters on day one: import.',
-          width: 640,
-        ),
-        DVBox.wrapLine(<Widget>[
-          SiteCard(
-            'Figma import',
-            'Paste a file URL. Every top-level frame becomes a page you '
-                'can open in the builder and export as an ordinary @DVPage. '
-                'Auto-layout, type, shadows and image fits all survive the '
-                'crossing, and a Figma component arrives as a component with '
-                'its instances intact.',
-            built: true,
-          ),
-          SiteCard(
-            'Icons, and images that keep working',
-            'An icon is vector paths and carries no image, so Figma is '
-                'asked to render each one and the picture is kept — the '
-                'difference between a design that arrives with everything but '
-                'its icons and one that arrives. Every image is downloaded '
-                'rather than linked, because Figma\'s URLs expire and a '
-                'design imported today would show broken pictures a fortnight '
-                'from now.',
-            built: true,
-          ),
-          SiteCard(
-            'Screens that behave',
-            'A frame placed by hand keeps its coordinates, relative to '
-                'the frame it sits in rather than the artboard it was drawn '
-                'on. A screen taller than the phone it was drawn on scrolls, '
-                'measured from Figma\'s own absolute positions rather than '
-                'guessed at.',
-            built: true,
-          ),
-          SiteCard(
-            'Or a project on disk',
-            'The imported pages go live in the running application '
-                'without a rebuild — or come out as a Flutter project you '
-                'own: each page the file its route names, each image an asset '
-                'in the repository, with the pubspec lines that make it '
-                'build.',
-            built: true,
-          ),
-          SiteCard(
-            'Workflow builder',
-            'Backend functions composed visually as a step tree that runs '
-                'directly and exports to a plain @DVBackendFunction, so the '
-                'builder can be dropped at any time.',
-            built: true,
-          ),
-          SiteCard(
-            'Reusable components',
-            'Save any node on a page as a named component, place it on '
-                'other pages, and push a change to every instance across '
-                'every page — each instance stays an ordinary node you can '
-                'still style on its own.',
-            built: true,
-          ),
-          SiteCard(
-            'Revision history',
-            'Every save of every page kept, numbered, timestamped and '
-                'attributed, and any of them restorable with one tap — the '
-                'restore is a revision too, so history never loses a state. '
-                '',
-            built: true,
-          ),
-          SiteCard(
-            'Multi-user editing',
-            'Two people on one page see each other\'s edits as they '
-                'happen, with who is here and what they have selected shown '
-                'as presence. Viewers follow and cannot type; editors edit; '
-                'every change is written to an audit trail with who did it. '
-                '',
-            built: true,
-          ),
-          SiteCard(
-            'Approval',
-            'A page published by an editor waits for an approver before '
-                'it goes live; approving writes it, rejecting says why, and '
-                'both are in the audit trail. An approver\'s own publish goes '
-                'straight through.',
-            built: true,
-          ),
-          SiteCard(
-            'Enterprise SSO',
-            'SAML, SCIM provisioning and directory sync for your team, '
-                'enforced org-wide.',
+            'Jobs included',
+            'Queues and background jobs run next to the app, with no second '
+                'service to set up.',
             built: false,
           ),
         ], spacing: 16),
@@ -153,22 +43,73 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
     ),
     Section(
       children: <Widget>[
-        Eyebrow('IN THE MEANTIME'),
-        Heading('It already deploys anywhere.'),
-        Body(
-          'dartvel build web produces static output for any host — this '
-          'site is that output. The backend builds to a binary with the '
-          'Rust runtime linked in, so it runs wherever you can run a '
-          'process.',
-          width: 640,
-        ),
-        CodeBlock(<String>[
-          'dartvel build web       # static output',
-          'dartvel build linux     # the app, with the runtime linked in',
-          'dartvel deploy          # to a host you configure',
+        Eyebrow('STUDIO PRO'),
+        Heading('Import a Figma file as pages you can edit and export.'),
+        Bullets(<String>[
+          'Every top-level frame becomes a page in the builder.',
+          'Export each page as an ordinary @DVPage file in your repository.',
+          'Pro lives in the private dartvel_enterprise repository.',
         ]),
         DVBox.wrapLine(<Widget>[
-          GhostLink('Read the docs', '/docs'),
+          SiteCard(
+            'Figma import',
+            'Auto-layout, type, shadows, gradients and icons come through. '
+                'Images are downloaded, so they survive Figma\'s expiring URLs.',
+            built: true,
+          ),
+          SiteCard(
+            'Reusable components',
+            'Save a node as a component and push a change to every instance '
+                'on every page.',
+            built: true,
+          ),
+          SiteCard(
+            'Revision history',
+            'Every save is numbered and attributed. Restore any of them in one '
+                'tap.',
+            built: true,
+          ),
+          SiteCard(
+            'Multi-user editing and approval',
+            'See each other\'s edits live. An approver signs off before a page '
+                'goes live.',
+            built: true,
+          ),
+          SiteCard(
+            'Workflow builder',
+            'Compose a backend function visually and export it as a plain '
+                '@DVBackendFunction.',
+            built: true,
+          ),
+          SiteCard(
+            'Enterprise SSO',
+            'SAML, SCIM provisioning and directory sync for your team.',
+            built: false,
+          ),
+        ], spacing: 16),
+        Objection(
+          'Do I need Pro to build pages visually?',
+          'No. The builder with drag and drop, undo and code export is free.',
+        ),
+        GhostLink('See what the free Studio does', '/features'),
+      ],
+    ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        Eyebrow('TODAY'),
+        Heading('Deploy to your own host now.'),
+        CodeBlock(<String>[
+          'dartvel build web            # static files for any web host',
+          'dartvel deploy --functions   # a container, Cloud Run or Lambda artifact per function',
+        ]),
+        Objection(
+          'Will I be locked in to Cloud?',
+          'No. You can deploy without it today, and self-hosting stays '
+              'supported.',
+        ),
+        DVBox.wrapLine(<Widget>[
+          PrimaryLink('Create your first app', '/docs'),
           GhostLink('See what works today', '/features'),
         ], spacing: 12),
       ],
