@@ -316,7 +316,8 @@ dartvel:
 
       expect(routes, contains('const int dartvelMaxBodyBytes = 65536;'));
       expect(routes, contains('maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes'));
-      expect(routes, contains('routeBodyLimits: router.bodyLimits'));
+      expect(routes, contains('routeBodyLimits: <dv.DVRouteBodyLimit>['));
+      expect(routes, contains('    ...router.bodyLimits,\n  ]);'));
     });
 
     test('a project that sets no body limit gets the runtime default', () {
