@@ -139,7 +139,7 @@ jobs:
           exec > >(tee -a /tmp/diag/android-build.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
-          dart run dartvel_cli:dartvel build android --no-release
+          dart run dartvel_cli:dartvel build android --profile development
           flutter build apk --debug -t integration_test/app_key_custody_probe.dart
           ls -la build/app/outputs/flutter-apk/
 
