@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **A global can be registered again after the scope that read it is
+  disposed.** Starting an application twice in one process, as every
+  integration test of the real entrypoint does, made `DV.global` write to
+  the first run's disposed `ProviderContainer` and throw. A global also no
+  longer keeps the first value it was registered with in a scope created
+  later.
+
 - **The dev client pairs over TLS, and on iOS, macOS and Linux.** The bundle
   loader trusts only a server presenting the pairing key, and the session
   hands the VM service to the native tunnel over FFI on iOS, macOS and
