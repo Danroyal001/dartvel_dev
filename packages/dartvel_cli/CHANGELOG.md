@@ -22,6 +22,11 @@
   By default it only prints each line before and after. `--apply` writes
   them, and writes nothing if any file changed after the plan was made.
 
+- **The semantics capture leaves out routes behind sign-in.** A guarded page
+  shows a signed-out browser nothing of its own, and the scaffold's account
+  pages waited on a session check against the production API: every web and
+  web-server build of a new project died on "Navigation Timeout Exceeded".
+
 - **Only a `handler` that takes the request is a raw handler.** A backend
   function file whose `handler` took the client's arguments, or none, was
   called with the request anyway, and the server binary failed to compile on
