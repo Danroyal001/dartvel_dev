@@ -134,7 +134,8 @@ const String dvServerBinaryEntrypoint = r'''
 // The web-server binary's entry point. It carries the native server library
 // and the web app inside itself, keeps its data in dartvel_data beside
 // itself (DARTVEL_DATA_DIR moves it), and uses SQLite there unless
-// DATABASE_URL names another database.
+// DATABASE_URL names another database. Patches a self-hosted Shorebird patch
+// source is given go in dartvel_data/updates.
 import 'dart:io';
 
 import 'package:dartvel_core/binary_payload.dart';
@@ -173,6 +174,10 @@ Future<void> main(List<String> arguments) async {
     await gen.dartvelMain(
       arguments,
       webRoot: webRoot,
+      // Where a self-hosted Shorebird patch source keeps what is published
+      // to it, when shorebird.yaml says this server is one.
+      updatesRoot: Platform.environment['DARTVEL_UPDATES_DIR'] ??
+          '$data${separator}updates',
       defaultDatabase: core.DVDatabaseConnection(
         engine: core.DVDatabaseEngine.sqlite,
         database: database,

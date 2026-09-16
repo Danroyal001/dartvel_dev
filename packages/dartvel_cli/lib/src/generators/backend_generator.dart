@@ -22,6 +22,7 @@ import 'package:yaml/yaml.dart';
 
 import '../build/graphql_options.dart';
 import '../build/server_options.dart';
+import '../updates/shorebird_config.dart';
 import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
@@ -691,6 +692,12 @@ $openApiJson\'\'\';
     // before anything is served.
     final String tenancyConfiguration = _dvTenancyConfiguration(root);
     final String? csp = _dvContentSecurityPolicy(root);
+    // shorebird.yaml: a base_url naming anything but Shorebird's service
+    // says the patches come from this application's own server.
+    final String? patchSourcePrefix = dvPatchSourcePrefix(root);
+    final String patchSourceLiteral = patchSourcePrefix == null
+        ? 'null'
+        : "'${esc(patchSourcePrefix)}'";
     final String cspAssignment = csp == null
         ? ''
         : "\n  core.DVMiddlewareSettings.contentSecurityPolicy = "
@@ -1399,6 +1406,11 @@ const int dartvelIpv6SourcePrefix = ${server.ipv6SourcePrefix};
 /// bodyLimit or uploadLimit, and the crash endpoint, register their own.
 const int dartvelMaxBodyBytes = ${server.maxBodyBytes};
 
+/// Where this server answers the Shorebird updater, from the path of
+/// shorebird.yaml's base_url, or null when the project's patches do not come
+/// from its own server. `dartvel updates patch --patch-source` publishes here.
+const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
+
 /// Starts the backend. With [spaRoot], the built site is served beside the
 /// API and each page assembled on request from the web-server manifest and
 /// the model's data. With [pageStore] -- any cache adapter, so Redis where
@@ -1423,7 +1435,11 @@ const int dartvelMaxBodyBytes = ${server.maxBodyBytes};
 /// [maxBodyBytes] overrides `dartvel.server.maxBodyBytes`. Each route's own
 /// limit is read from `DVBodyLimits` when the router is built here, so set
 /// those before calling this.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase}) async {
+///
+/// [updatesRoot] is where the Shorebird patch source keeps patches when
+/// [dartvelPatchSourcePrefix] is set: DARTVEL_UPDATES_DIR when null, else
+/// .dartvel/updates. It publishes only with DARTVEL_UPDATES_TOKEN set.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot}) async {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -1544,7 +1560,24 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // what an application gets when it says nothing here, which is what
   // every generated entrypoint does.
   await dartvelPrivacyStarted;
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: router.bodyLimits);
+  // The Shorebird patch source, ahead of the application's routes, when
+  // shorebird.yaml says patches come from this server. A request that is not
+  // the updater's or a publish falls through to the application unread.
+  final String? patchPrefix = dartvelPatchSourcePrefix;
+  final core.DVShorebirdPatchSource? patchSource = patchPrefix == null
+      ? null
+      : core.DVShorebirdPatchSource(
+          updatesRoot ?? Platform.environment['DARTVEL_UPDATES_DIR'] ?? '.dartvel\${Platform.pathSeparator}updates',
+          publishToken: Platform.environment['DARTVEL_UPDATES_TOKEN'],
+        );
+  final Future<dv.Response> Function(dv.Request) handler = patchSource == null
+      ? router.call
+      : (dv.Request request) async => await patchSource.respond(request, prefix: patchPrefix!) ?? await router.call(request);
+  return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+    // A patch is larger than a request body usually is.
+    if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
+    ...router.bodyLimits,
+  ]);
 }
 
 /// The schedule timer this process started, so a stopped process stops it.
@@ -1633,12 +1666,12 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
-Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase}) async {
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot}) async {
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
     case core.DVProcessRole.web:
-      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase);
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot);
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();
