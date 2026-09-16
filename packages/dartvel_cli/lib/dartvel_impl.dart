@@ -51,53 +51,7 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final runner = DartvelCommandRunner('dartvel', 'The Dartvel CLI tool.')
-    ..addCommand(InitCommand())
-    ..addCommand(AdoptCommand())
-    ..addCommand(DoctorCommand())
-    ..addCommand(DevCommand())
-    // run and start are aliases in DevCommand
-    ..addCommand(RoutesCommand())
-    ..addCommand(InspectCommand())
-    ..addCommand(AnalyzeCommand())
-    ..addCommand(McpCommand())
-    ..addCommand(BuildCommand())
-    ..addCommand(ArtifactCommand())
-    ..addCommand(CaptureCommand())
-    ..addCommand(WebosCommand())
-    ..addCommand(SpecCommand())
-    ..addCommand(FlagsCommand())
-    ..addCommand(ExplainCommand())
-    ..addCommand(DocsCommand())
-    ..addCommand(EngineCommand())
-    ..addCommand(EnsurePathCommand())
-    ..addCommand(DeployCommand())
-    ..addCommand(InfraCommand())
-    ..addCommand(PublishCommand())
-    ..addCommand(ImportCommand())
-    ..addCommand(PreviewCommand())
-    ..addCommand(PrerenderCommand())
-    ..addCommand(PrivacyCommand())
-    ..addCommand(PluginCommand())
-    ..addCommand(ModulesCommand())
-    ..addCommand(UpdatesCommand())
-    ..addCommand(QueueCommand())
-    ..addCommand(CacheCommand())
-    ..addCommand(KeyCommand())
-    ..addCommand(DbCommand())
-    ..addCommand(GenerateCommand())
-    ..addCommand(I18nCommand())
-    ..addCommand(LogsCommand())
-    ..addCommand(TracesCommand())
-    ..addCommand(MetricsCommand())
-    ..addCommand(AiCommand())
-    ..addCommand(AdminCommand())
-    ..addCommand(DevtoolsCommand())
-    ..addCommand(ShCommand())
-    ..addCommand(TaskCommand())
-    ..addCommand(TestCommand())
-    ..addCommand(UpdateCommand())
-    ..addCommand(VersionCommand());
+  final runner = dartvelCommandRunner();
 
   try {
     await runner.run(args);
@@ -112,3 +66,57 @@ Future<void> main(List<String> args) async {
     }
   }
 }
+
+/// Every command the CLI has, in the order `dartvel --help` lists them.
+///
+/// A function so the table can be read without running a command. The
+/// site builds its CLI reference from it, and a reference typed out by hand
+/// goes stale the first time a command is added.
+DartvelCommandRunner dartvelCommandRunner() =>
+    DartvelCommandRunner('dartvel', 'The Dartvel CLI tool.')
+      ..addCommand(InitCommand())
+      ..addCommand(AdoptCommand())
+      ..addCommand(DoctorCommand())
+      ..addCommand(DevCommand())
+      // run and start are aliases in DevCommand
+      ..addCommand(RoutesCommand())
+      ..addCommand(InspectCommand())
+      ..addCommand(AnalyzeCommand())
+      ..addCommand(McpCommand())
+      ..addCommand(BuildCommand())
+      ..addCommand(ArtifactCommand())
+      ..addCommand(CaptureCommand())
+      ..addCommand(WebosCommand())
+      ..addCommand(SpecCommand())
+      ..addCommand(FlagsCommand())
+      ..addCommand(ExplainCommand())
+      ..addCommand(DocsCommand())
+      ..addCommand(EngineCommand())
+      ..addCommand(EnsurePathCommand())
+      ..addCommand(DeployCommand())
+      ..addCommand(InfraCommand())
+      ..addCommand(PublishCommand())
+      ..addCommand(ImportCommand())
+      ..addCommand(PreviewCommand())
+      ..addCommand(PrerenderCommand())
+      ..addCommand(PrivacyCommand())
+      ..addCommand(PluginCommand())
+      ..addCommand(ModulesCommand())
+      ..addCommand(UpdatesCommand())
+      ..addCommand(QueueCommand())
+      ..addCommand(CacheCommand())
+      ..addCommand(KeyCommand())
+      ..addCommand(DbCommand())
+      ..addCommand(GenerateCommand())
+      ..addCommand(I18nCommand())
+      ..addCommand(LogsCommand())
+      ..addCommand(TracesCommand())
+      ..addCommand(MetricsCommand())
+      ..addCommand(AiCommand())
+      ..addCommand(AdminCommand())
+      ..addCommand(DevtoolsCommand())
+      ..addCommand(ShCommand())
+      ..addCommand(TaskCommand())
+      ..addCommand(TestCommand())
+      ..addCommand(UpdateCommand())
+      ..addCommand(VersionCommand());
