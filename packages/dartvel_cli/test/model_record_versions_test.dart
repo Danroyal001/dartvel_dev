@@ -73,6 +73,30 @@ class _Order {
 }
 ''';
 
+const String _invoice = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(softDelete: true)
+@pragma('vm:entry-point')
+class _Invoice {
+  final String id;
+  final String number;
+  const _Invoice({required this.id, required this.number});
+}
+''';
+
+const String _tally = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(version: false)
+@pragma('vm:entry-point')
+class _Tally {
+  final String id;
+  final int count;
+  const _Tally({required this.id, required this.count});
+}
+''';
+
 /// Runs inside the generated project, against the SQLite file the outer test
 /// migrated and later erases.
 const String _writes = r'''
@@ -244,6 +268,69 @@ void main() {
     expect(error, isA<DVConflictError>());
   });
 
+  test('a soft-deleted invoice is marked, hidden, found withDeleted, and restored', () async {
+    final List<DVModelChangeKind> kinds = <DVModelChangeKind>[];
+    final sub = Invoice.changes.listen((DVModelChange<Invoice> c) => kinds.add(c.kind));
+
+    await const Invoice(id: 'i1', number: 'INV-1').save();
+    await const Invoice(id: 'i2', number: 'INV-2').save();
+    await (await Invoice.find('i1'))!.destroy();
+
+    expect(await Invoice.find('i1'), isNull);
+    expect((await Invoice.all()).map((Invoice i) => i.id), <String>['i2']);
+    expect((await Invoice.withDeleted.find('i1'))!.number, 'INV-1');
+    expect((await Invoice.withDeleted.all()).map((Invoice i) => i.id).toSet(), <String>{'i1', 'i2'});
+    // Marked, not removed.
+    final List<Map<String, Object?>> row =
+        await db.query("SELECT _dv_deleted_at FROM invoices WHERE id = 'i1'");
+    expect(row.single['_dv_deleted_at'], isNotNull);
+
+    final Invoice restored = await Invoice.restore('i1');
+    expect(restored.number, 'INV-1');
+    expect((await Invoice.find('i1'))!.number, 'INV-1');
+    await Future<void>.delayed(Duration.zero);
+    expect(kinds, <DVModelChangeKind>[
+      DVModelChangeKind.created,
+      DVModelChangeKind.created,
+      DVModelChangeKind.deleted,
+      DVModelChangeKind.restored,
+    ]);
+    // The restored model was read at the version the restore wrote.
+    await restored.copyWith(number: 'INV-1b').save();
+    await sub.cancel();
+  });
+
+  test('a model declared version: false writes without a version check', () async {
+    await const Tally(id: 't', count: 1).save();
+    final Tally stale = (await Tally.find('t'))!;
+    await const Tally(id: 't', count: 2).save();
+    await stale.copyWith(count: 3).save();
+    expect((await Tally.find('t'))!.count, 3);
+  });
+
+  test('revert puts an order back as a new change, checked like any write', () async {
+    await const Order(id: 'rev', userId: '7', note: 'one').save();
+    await (await Order.find('rev'))!.copyWith(note: 'two').save();
+    final Order read = (await Order.find('rev'))!;
+    final List<DVHistoryEntry> log = await read.history();
+    expect(log, hasLength(2));
+
+    // Built by hand, it read nothing, so it cannot revert either.
+    await expectLater(
+      const Order(id: 'rev', userId: '7', note: 'two').revert(to: log.first),
+      throwsA(isA<DVConflictError>()),
+    );
+
+    final DVRevertResult result = await read.revert(to: log.first);
+    expect(result.unrestored, isEmpty);
+    expect((await Order.find('rev'))!.note, 'one');
+    expect(await (await Order.find('rev'))!.history(), hasLength(3));
+
+    // `read` was read before the revert moved the row.
+    await expectLater(read.revert(to: log.last), throwsA(isA<DVConflictError>()));
+    expect((await Order.find('rev'))!.note, 'one');
+  });
+
   test('history records the generated writes', () async {
     final Order order = (await Order.find('o1'))!;
     final List<DVHistoryEntry> log = await order.history();
@@ -306,6 +393,8 @@ void main() {
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _page);
     write(p.join(project.path, 'lib', 'models', 'user.dart'), _user);
     write(p.join(project.path, 'lib', 'models', 'order.dart'), _order);
+    write(p.join(project.path, 'lib', 'models', 'invoice.dart'), _invoice);
+    write(p.join(project.path, 'lib', 'models', 'tally.dart'), _tally);
     write(p.join(project.path, 'test', 'writes_test.dart'), _writes);
     write(p.join(project.path, 'pubspec.yaml'), '''
 name: model_versions_probe
@@ -437,6 +526,12 @@ dependency_overrides:
       'a model the writer created saves again at the version it wrote':
           'success',
       'an edit made in the generated form saves at the version it read':
+          'success',
+      'a soft-deleted invoice is marked, hidden, found withDeleted, and restored':
+          'success',
+      'a model declared version: false writes without a version check':
+          'success',
+      'revert puts an order back as a new change, checked like any write':
           'success',
       'history records the generated writes': 'success',
       'an order moved to someone else between the walk and its write is not '
