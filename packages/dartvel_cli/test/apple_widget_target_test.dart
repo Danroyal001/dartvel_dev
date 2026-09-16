@@ -277,6 +277,42 @@ void main() {
       expect(out, contains('group.com.example.shop.dartvelwidgets'));
     });
 
+    test('its configurations read Flutter\'s generated build settings, so its '
+        'Info.plist has a version', () {
+      // The Info.plist says $(FLUTTER_BUILD_NAME) and $(FLUTTER_BUILD_NUMBER),
+      // which only Flutter's generated xcconfig defines. Without it both are
+      // empty, and a simulator refuses to install the whole application:
+      // "Failed to create app extension placeholder ... Invalid placeholder
+      // attributes".
+      final String out = _spliced();
+
+      final String? id = RegExp(
+        '([0-9A-F]{24}) /\\* ${RegExp.escape(dvAppleWidgetXcconfigFile)} '
+        '\\*/ = \\{isa = PBXFileReference;',
+      ).firstMatch(out)?.group(1);
+      expect(id, isNotNull, reason: 'a file reference to the xcconfig');
+      for (final String name in <String>['Debug', 'Release', 'Profile']) {
+        final String? configuration = RegExp(
+          '\\t\\t${RegExp.escape(dvAppleWidgetIdPrefix)}[0-9A-F]+ /\\* $name '
+          '\\*/ = \\{.*?\\n\\t\\t\\};',
+          dotAll: true,
+        ).firstMatch(out)?.group(0);
+        expect(
+          configuration,
+          contains('baseConfigurationReference = $id'),
+          reason: name,
+        );
+      }
+      expect(
+        dvAppleWidgetXcconfig('ios'),
+        contains('"../Flutter/Generated.xcconfig"'),
+      );
+      expect(
+        dvAppleWidgetXcconfig('macos'),
+        contains('"../Flutter/ephemeral/Flutter-Generated.xcconfig"'),
+      );
+    });
+
     test('its bundle id is under the application\'s, as Apple requires', () {
       // An extension whose identifier is not prefixed by the containing
       // app's is rejected at submission, months after it built.

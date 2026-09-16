@@ -1790,6 +1790,8 @@ class BuildCommand extends Command<void> {
           .writeAsStringSync(dvAppleHomeWidgetInfoPlist());
       File(p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'))
           .writeAsStringSync(dvAppleHomeWidgetEntitlements(group));
+      File(p.join(extension.path, dvAppleWidgetXcconfigFile))
+          .writeAsStringSync(dvAppleWidgetXcconfig(platform));
     }
 
     // The application's own half of the group. Without it the app writes to
