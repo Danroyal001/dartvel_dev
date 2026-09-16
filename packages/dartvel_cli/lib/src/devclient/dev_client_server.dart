@@ -319,7 +319,9 @@ class DVDevClientBundleServer {
     };
     _devices.add(device);
 
+    _quiet(socket);
     local.listen((Socket client) {
+      _quiet(client);
       final int id = ++_streamId;
       mine.add(id);
       _waitingStreams[id] = client;
@@ -344,7 +346,18 @@ class DVDevClientBundleServer {
     _onDevice?.call(device);
   }
 
+  /// A socket's failures -- a write to a peer that reset, most often flutter
+  /// attach restarting -- answered by closing it, rather than left on its done
+  /// future, where an unhandled one ends `dartvel dev` and every pairing.
+  static void _quiet(Socket socket) {
+    unawaited(socket.done.then<void>((_) {}, onError: (Object _) {
+      socket.destroy();
+    }));
+  }
+
   void _pipe(Socket a, Socket b) {
+    _quiet(a);
+    _quiet(b);
     void link(Socket from, Socket to) {
       from.listen(
         (List<int> data) {
