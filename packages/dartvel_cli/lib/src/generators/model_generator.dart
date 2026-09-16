@@ -1148,8 +1148,13 @@ class ModelGenerator {
           sb.writeln('  /// One call rather than a generated screen: the model');
           sb.writeln('  /// supplies list, blank, save, delete and its own');
           sb.writeln('  /// form, and DVModelAdmin is the screen around them.');
-          sb.writeln('  static Widget Admin() {');
+          sb.writeln('  ///');
+          sb.writeln('  /// Each action is asked of the model\'s policy about [as],');
+          sb.writeln('  /// the application\'s own user, or DV.Auth.currentUser when');
+          sb.writeln('  /// it is null, and one the policy refuses is not offered.');
+          sb.writeln('  static Widget Admin({Object? as}) {');
           sb.writeln('    return DVModelAdmin<$className>(');
+          sb.writeln('      as: as,');
           sb.writeln("      title: '$className',");
           sb.writeln('      load: all,');
           sb.writeln('      save: save,');
