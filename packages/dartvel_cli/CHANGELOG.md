@@ -5,6 +5,13 @@
   with, instead of a copy of its own. `DVAdminMount`, `dvAdminFor` and the
   hidden status and headers are re-exported from where they were.
 
+- **`dartvel publish firebase --cloud` builds and uploads in one run on the
+  repository's own Actions.** The declaration is checked locally before the
+  dispatch, and `--dry-run` makes the runner print the upload instead of
+  making it. `play`, `appstore` and `testflight` are refused with the reason:
+  Play takes an app bundle and `dartvel build android` writes an APK, and App
+  Store Connect takes a signed IPA and `dartvel build ios` does not sign.
+
 - **A web application registers the browser bindings.** The generated
   `registerPlatformBindings()` returned on the web before registering
   anything, and `DVWebBindings.register()` was called only by the
