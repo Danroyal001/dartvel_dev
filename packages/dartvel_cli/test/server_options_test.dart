@@ -284,6 +284,9 @@ dartvel:
         contains(
           "const dv.CorsOptions? dartvelConfiguredCors = "
           "dv.CorsOptions(origins: <String>['https://app.example.com'], "
+          // A credentialed policy answers the headers the generated client
+          // sends (cors_credentials_test).
+          "headers: <String>['content-type', 'x-dartvel-csrf-token'], "
           'allowCredentials: true);',
         ),
       );

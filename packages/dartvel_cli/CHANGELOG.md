@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A web build on another origin than its API stays signed in.** The
+  generated runtime names its backend's origin for credentials in a browser,
+  before the session client's first call. On the server,
+  `dartvel.server.cors.allowCredentials` is refused with no origins, with
+  `methods`, `headers` or `exposeHeaders` set to `any`, or with a plain `http`
+  origin off the loopback, and a credentialed policy answers the
+  `content-type` and `x-dartvel-csrf-token` headers the generated client
+  sends, so a sign-in's preflight passes.
+
 - **A deletion left scheduled when `dartvel.auth.deletionGraceDays` is removed
   is still carried out.** The generated account sweep only ran while a window
   was declared, so a person who asked for deletion under one was kept for

@@ -11,10 +11,14 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'browser_client_unsupported.dart'
+    if (dart.library.js_interop) 'browser_client_web.dart' as browser;
+import 'credentialed_origins.dart';
 import 'pinned_connect_unsupported.dart'
     if (dart.library.io) 'pinned_connect_io.dart' as pinned;
 import 'protocol.dart';
 
+export 'credentialed_origins.dart';
 export 'protocol.dart';
 
 class DVHttpRequest {
@@ -251,8 +255,18 @@ class DVPackageHttpTransport implements DVHttpTransport {
 /// script, so this reports the capability and leaves [DVHttpResponse.protocol]
 /// null: claiming a protocol it cannot observe would be a guess dressed as a
 /// measurement.
+///
+/// A request to an origin named in [DVCredentialedOrigins] is sent with
+/// `credentials: 'include'`, so the session cookie reaches an API on another
+/// origin; every other request keeps the browser's same-origin default.
 class DVBrowserHttpTransport implements DVHttpTransport {
-  const DVBrowserHttpTransport();
+  const DVBrowserHttpTransport({this.clientFor = browser.dvBrowserHttpClient});
+
+  /// Makes the client for one request. A test records what it was asked.
+  final http.Client Function({required bool withCredentials}) clientFor;
+
+  http.Client _clientFor(DVHttpRequest request) => clientFor(
+      withCredentials: DVCredentialedOrigins.includes(request.url));
 
   @override
   String get name => 'fetch';
@@ -266,15 +280,16 @@ class DVBrowserHttpTransport implements DVHttpTransport {
 
   @override
   Future<DVHttpResponse> send(DVHttpRequest request) =>
-      _sendWithPackageHttp(request);
+      _sendWithPackageHttp(request, _clientFor(request));
 
   @override
   Future<DVHttpStreamedResponse> stream(DVHttpRequest request) =>
-      _streamWithPackageHttp(request);
+      _streamWithPackageHttp(request, _clientFor(request));
 }
 
-Future<DVHttpResponse> _sendWithPackageHttp(DVHttpRequest request) async {
-  final client = http.Client();
+Future<DVHttpResponse> _sendWithPackageHttp(DVHttpRequest request,
+    [http.Client? using]) async {
+  final client = using ?? http.Client();
   try {
     final outgoing = http.Request(request.method, request.url)
       ..headers.addAll(request.headers)
@@ -298,9 +313,9 @@ Future<DVHttpResponse> _sendWithPackageHttp(DVHttpRequest request) async {
 /// [dvSendHttpRequest], which waits for the whole body: a stream that never
 /// ends would never return. The client stays open until the body completes,
 /// so a caller that abandons the stream must cancel its subscription.
-Future<DVHttpStreamedResponse> _streamWithPackageHttp(
-    DVHttpRequest request) async {
-  final client = http.Client();
+Future<DVHttpStreamedResponse> _streamWithPackageHttp(DVHttpRequest request,
+    [http.Client? using]) async {
+  final client = using ?? http.Client();
   try {
     final outgoing = http.Request(request.method, request.url)
       ..headers.addAll(request.headers)
