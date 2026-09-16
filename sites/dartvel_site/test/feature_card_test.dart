@@ -103,6 +103,25 @@ void main() {
     );
   });
 
+  testWidgets('a partial card names what is missing beside what works', (
+    WidgetTester tester,
+  ) async {
+    // A card that showed only the working half would claim more than the
+    // index does, which is the one thing this page must not do.
+    await pump(tester, _twoHalves);
+
+    expect(find.text('Missing'), findsOneWidget);
+    expect(find.text('IPadOS, Tizen and webOS.'), findsNothing);
+    expect(find.text('iPadOS, Tizen and webOS.'), findsOneWidget);
+  });
+
+  testWidgets('and a card with nothing missing says nothing about it', (
+    WidgetTester tester,
+  ) async {
+    await pump(tester, _short);
+    expect(find.text('Missing'), findsNothing);
+  });
+
   testWidgets('nothing on a card claims there is more behind it', (
     WidgetTester tester,
   ) async {
