@@ -149,19 +149,25 @@ Widget _docsContentsLine(
   final String label = kDocsTitles[id] ?? id;
 
   return DVBox(
-    DVBox.wrapLine(<Widget>[
+    // The number keeps its own column, so a title and summary that wrap on a
+    // phone wrap under the title rather than back under the number.
+    DVBox.row(<Widget>[
       DVText(numbered ? '$number' : '•').modifier(const DVModifier()
           .fontSize(13)
           .fontWeight(FontWeight.w700)
           .color(palette.faint)
           .width(22)),
-      DVText(label).modifier(const DVModifier()
-          .fontSize(15)
-          .fontWeight(FontWeight.w600)
-          .color(palette.accent)),
-      DVText(kDocsSummaries[id] ?? '')
-          .modifier(const DVModifier().fontSize(14).color(palette.muted)),
-    ], spacing: 10),
+      Expanded(
+        child: DVBox.wrapLine(<Widget>[
+          DVText(label).modifier(const DVModifier()
+              .fontSize(15)
+              .fontWeight(FontWeight.w600)
+              .color(palette.accent)),
+          DVText(kDocsSummaries[id] ?? '')
+              .modifier(const DVModifier().fontSize(14).color(palette.muted)),
+        ], spacing: 10, crossAlign: DVCrossAlign.center),
+      ),
+    ], spacing: 10, crossAlign: DVCrossAlign.start),
     const DVModifier()
         .paddingSymmetric(vertical: 7)
         .semanticButton()
@@ -380,6 +386,6 @@ Widget _honesty() => const Section(
         DVBox.wrapLine(<Widget>[
           PrimaryLink('Check what works today', '/features'),
           ExternalLink('Read spec-status.json', kSpecStatusUrl),
-        ], spacing: 20),
+        ], spacing: 20, crossAlign: DVCrossAlign.center),
       ],
     );

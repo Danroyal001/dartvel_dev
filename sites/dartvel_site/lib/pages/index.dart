@@ -375,7 +375,7 @@ Widget _honest(BuildContext context) => const Section(
     DVBox.wrapLine(<Widget>[
       PrimaryLink('Check what works today', '/features'),
       ExternalLink('Read spec-status.json', kSpecStatusUrl),
-    ], spacing: 20),
+    ], spacing: 20, crossAlign: DVCrossAlign.center),
   ],
 );
 
