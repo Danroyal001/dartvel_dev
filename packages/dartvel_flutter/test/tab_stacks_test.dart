@@ -1,0 +1,168 @@
+// A navigation stack per tab that keeps its state.
+//
+// go_router's two most-reacted issues are multiple stacks (#99126) and
+// keeping their state (#99124); StatefulShellRoute is the answer, and these
+// hold Dartvel's tabs to it. Each tab keeps its own stack and its widgets'
+// state while another is shown, and back -- the Android button and the iOS
+// edge swipe -- pops inside the tab on screen before it does anything else.
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class Counter extends StatefulWidget {
+  const Counter({super.key});
+
+  @override
+  State<Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<Counter> {
+  int taps = 0;
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+    onPressed: () => setState(() => taps++),
+    child: Text('inbox taps $taps'),
+  );
+}
+
+List<DVRouteNode> tabs() => <DVRouteNode>[
+  DVStatefulShellRoute(
+    builder:
+        (
+          BuildContext context,
+          DVRouteState state,
+          DVShellNavigation shell,
+        ) => Scaffold(
+          body: shell,
+          bottomNavigationBar: Row(
+            children: <Widget>[
+              TextButton(
+                onPressed: () => shell.goBranch(0),
+                child: Text('feed tab${shell.currentIndex == 0 ? ' *' : ''}'),
+              ),
+              TextButton(
+                onPressed: () => shell.goBranch(1),
+                child: Text('inbox tab${shell.currentIndex == 1 ? ' *' : ''}'),
+              ),
+            ],
+          ),
+        ),
+    branches: <DVShellBranch>[
+      DVShellBranch(
+        routes: <DVRouteNode>[
+          DVRoute(
+            path: '/feed',
+            builder: (BuildContext context, DVRouteState state) =>
+                const Center(child: Text('feed list')),
+            routes: <DVRouteNode>[
+              DVRoute(
+                path: ':post',
+                builder: (BuildContext context, DVRouteState state) =>
+                    Center(child: Text('post ${state.params['post']}')),
+              ),
+            ],
+          ),
+        ],
+      ),
+      DVShellBranch(
+        routes: <DVRouteNode>[
+          DVRoute(
+            path: '/inbox',
+            builder: (BuildContext context, DVRouteState state) =>
+                const Center(child: Counter()),
+          ),
+        ],
+      ),
+    ],
+  ),
+];
+
+Future<GoRouter> pump(WidgetTester tester) async {
+  final GoRouter router = GoRouter(
+    initialLocation: '/feed',
+    routes: dvOrderGoRoutes(
+      dvConfigRoutes(
+        tabs(),
+        // The project default a page gets. A route pushed inside a stack takes
+        // the platform's push instead, which is what carries the iOS swipe.
+        transition: PageTransitionSpec.none,
+      ),
+    ),
+  );
+  addTearDown(router.dispose);
+  DVNavigation.attach(router);
+  await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  await tester.pumpAndSettle();
+  return router;
+}
+
+void main() {
+  tearDown(DVNavigation.detach);
+
+  testWidgets('each tab keeps its own stack and its state', (
+    WidgetTester tester,
+  ) async {
+    await pump(tester);
+    DV.Navigation.navigate(const DVRouteTarget('/feed/7'));
+    await tester.pumpAndSettle();
+    expect(find.text('post 7'), findsOneWidget);
+
+    await tester.tap(find.text('inbox tab'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('inbox taps 0'));
+    await tester.pumpAndSettle();
+    expect(find.text('inbox taps 1'), findsOneWidget);
+
+    // Back to the feed tab: still on the post it was left on.
+    await tester.tap(find.text('feed tab'));
+    await tester.pumpAndSettle();
+    expect(find.text('post 7'), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/feed/7');
+
+    // And the inbox kept its count while it was hidden.
+    await tester.tap(find.text('inbox tab'));
+    await tester.pumpAndSettle();
+    expect(find.text('inbox taps 1'), findsOneWidget);
+  });
+
+  testWidgets('the Android back button pops inside the tab first', (
+    WidgetTester tester,
+  ) async {
+    await pump(tester);
+    DV.Navigation.navigate(const DVRouteTarget('/feed/7'));
+    await tester.pumpAndSettle();
+
+    final bool handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(handled, isTrue);
+    expect(find.text('feed list'), findsOneWidget);
+    expect(find.text('feed tab *'), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/feed');
+  });
+
+  testWidgets('the iOS edge swipe pops inside the tab first', (
+    WidgetTester tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await pump(tester);
+      DV.Navigation.navigate(const DVRouteTarget('/feed/7'));
+      await tester.pumpAndSettle();
+      expect(find.text('post 7'), findsOneWidget);
+
+      final TestGesture swipe = await tester.startGesture(const Offset(2, 300));
+      await swipe.moveBy(const Offset(500, 0));
+      await swipe.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('post 7'), findsNothing);
+      expect(find.text('feed list'), findsOneWidget);
+      expect(find.text('feed tab *'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+}
