@@ -7,6 +7,7 @@
 // written the same way, on a machine with no server to catch it.
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/src/database/framework_tables.dart';
 import 'package:test/test.dart';
 
@@ -35,6 +36,8 @@ List<String> narrowDeclarations(String source) => <String>[
 ];
 
 void main() {
+  _columnTypes();
+
   group('the scan', () {
     test('finds a narrow timestamp in DDL and in a generator column', () {
       expect(
@@ -167,4 +170,218 @@ void main() {
       );
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Column types.
+//
+// SQLite takes `CREATE TABLE t (id, value)` and gives every column BLOB
+// affinity. PostgreSQL and MySQL refuse the statement outright -- "syntax
+// error at end of input" -- so a store written that way passed every local
+// suite and could not make its table on a server at all. MySQL also refuses a
+// TEXT column in a key, and PostgreSQL reads REAL as a 4-bit-short float4
+// that keeps seven significant digits.
+
+/// Every `CREATE TABLE` in [source] whose column list is spelled out in
+/// string literals, as `line: problem`. A column list built at run time --
+/// `($columns)` -- is not readable here, and dvEnsureFrameworkTable checks
+/// it when the statement runs.
+List<String> columnTypeProblems(String source) {
+  final List<String> found = <String>[];
+  final List<String> lines = source.split('\n');
+  for (final (int index, String line) in lines.indexed) {
+    if (line.trimLeft().startsWith('//')) continue;
+    for (final RegExpMatch match in RegExp('CREATE TABLE').allMatches(line)) {
+      final int offset =
+          lines
+              .take(index)
+              .fold<int>(0, (int n, String l) => n + l.length + 1) +
+          match.start;
+      final String? ddl = dvLiteralStatementAt(source, offset);
+      if (ddl == null) continue;
+      for (final String problem in dvFrameworkTableProblems(ddl)) {
+        found.add('${index + 1}: $problem');
+      }
+    }
+  }
+  return found;
+}
+
+void _columnTypes() {
+  group('dvFrameworkTableProblems', () {
+    test('names a column with no type, and a table constraint is not one', () {
+      expect(
+        dvFrameworkTableProblems(
+          'CREATE TABLE IF NOT EXISTS t (id VARCHAR(64), value, seq NOT NULL, '
+          'PRIMARY KEY (id))',
+        ),
+        <String>['t.value has no type', 't.seq has no type'],
+      );
+    });
+
+    test('names TEXT in a key, which MySQL refuses', () {
+      expect(
+        dvFrameworkTableProblems(
+          'CREATE TABLE t (id TEXT PRIMARY KEY, a TEXT NOT NULL, '
+          'b VARCHAR(64), n BIGINT, UNIQUE (a, b, n))',
+        ),
+        <String>['t.id is TEXT in a key', 't.a is TEXT in a key'],
+      );
+    });
+
+    test('names REAL and FLOAT, which are float4 somewhere', () {
+      expect(
+        dvFrameworkTableProblems(
+          'CREATE TABLE t (amount REAL NOT NULL, rate FLOAT, '
+          'total DOUBLE PRECISION)',
+        ),
+        <String>['t.amount is REAL', 't.rate is FLOAT'],
+      );
+    });
+
+    test('passes a table every server can make', () {
+      expect(
+        dvFrameworkTableProblems(
+          'CREATE TABLE IF NOT EXISTS dv_jobs (id VARCHAR(255) PRIMARY KEY, '
+          'payload TEXT NOT NULL, created_at BIGINT NOT NULL, '
+          'amount DOUBLE PRECISION, UNIQUE (id, created_at))',
+        ),
+        isEmpty,
+      );
+    });
+  });
+
+  group('dvEnsureFrameworkTable', () {
+    test('refuses an untyped column before running anything', () async {
+      final MemoryDVDatabaseAdapter memory = MemoryDVDatabaseAdapter();
+      await expectLater(
+        dvEnsureFrameworkTable(memory, 'CREATE TABLE t (id TEXT, value)'),
+        throwsA(isA<DVFrameworkTableError>()),
+      );
+      // Not made: a table that exists would make the next call succeed.
+      await memory.execute('CREATE TABLE t (id TEXT)');
+    });
+  });
+
+  group('the source scan', () {
+    test('reads a statement split across literals, and skips a built one', () {
+      expect(
+        columnTypeProblems(
+          '  await db.execute(\n'
+          "    'CREATE TABLE IF NOT EXISTS \$table (id TEXT, '\n"
+          "    'value, amount REAL)',\n"
+          '  );\n'
+          "  await db.execute('CREATE TABLE IF NOT EXISTS \$t (\$columns)');\n"
+          '  // CREATE TABLE t (untyped) in a comment\n'
+          "  help: 'sqflite CREATE TABLE statements under lib/.';\n",
+        ),
+        <String>[r'2: $table.value has no type', r'2: $table.amount is REAL'],
+      );
+    });
+
+    test('no package makes a table a server refuses', () {
+      final Directory packages = Directory('..').absolute;
+      final List<String> found = <String>[];
+      var statements = 0;
+      for (final FileSystemEntity entity in packages.listSync()) {
+        final Directory lib = Directory('${entity.path}/lib');
+        if (entity is! Directory || !lib.existsSync()) continue;
+        for (final FileSystemEntity file in lib.listSync(recursive: true)) {
+          if (file is! File || !file.path.endsWith('.dart')) continue;
+          final String source = file.readAsStringSync();
+          statements += 'CREATE TABLE'.allMatches(source).length;
+          for (final String hit in columnTypeProblems(source)) {
+            found.add('${file.path}:$hit');
+          }
+        }
+      }
+      // A scan that found no statements would pass.
+      expect(statements, greaterThan(30));
+      expect(found, isEmpty);
+    });
+  });
+}
+
+/// The SQL of the statement whose string literal holds [offset], read across
+/// the adjacent literals it is split into, up to the parenthesis that closes
+/// its column list. Interpolations are kept as written. Null when the
+/// statement ends before a column list opens: prose that mentions
+/// `CREATE TABLE`.
+String? dvLiteralStatementAt(String source, int offset) {
+  // The quote this literal opened with.
+  var start = offset;
+  while (start > 0 && source[start - 1] != "'" && source[start - 1] != '"') {
+    if (source[start - 1] == '\n') {
+      // A multi-line literal: the statement starts in the ''' above it.
+      final int triple = source.lastIndexOf("'''", start);
+      if (triple < 0 || start - triple > 200) return null;
+      start = triple + 3;
+      break;
+    }
+    start--;
+  }
+  if (start == 0) return null;
+  final String char = source[start - 1];
+  String? quote = start >= 3 && source.substring(start - 3, start) == char * 3
+      ? char * 3
+      : char;
+
+  final StringBuffer out = StringBuffer();
+  var depth = 0;
+  var opened = false;
+  var i = offset;
+  while (i < source.length) {
+    final String c = source[i];
+    if (quote != null) {
+      if (source.startsWith(quote, i)) {
+        i += quote.length;
+        quote = null;
+      } else if (c == r'\') {
+        out.write(source.substring(i, (i + 2).clamp(0, source.length)));
+        i += 2;
+      } else if (c == r'$' && i + 1 < source.length && source[i + 1] == '{') {
+        // Skipped whole, quotes and parentheses inside it included, and kept
+        // as an empty interpolation: its value is only known at run time.
+        var braces = 0;
+        i++;
+        do {
+          if (source[i] == '{') braces++;
+          if (source[i] == '}') braces--;
+          i++;
+        } while (braces > 0 && i < source.length);
+        out.write(r'${}');
+      } else {
+        out.write(c);
+        if (c == '(') {
+          depth++;
+          opened = true;
+        } else if (c == ')') {
+          depth--;
+          if (opened && depth == 0) {
+            final String sql = out.toString();
+            return RegExp(
+                  r'^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?[^\s(,]+\s*\(',
+                ).hasMatch(sql)
+                ? sql
+                : null;
+          }
+        }
+        i++;
+      }
+    } else if (c == ';') {
+      return null;
+    } else if (source.startsWith('//', i)) {
+      final int end = source.indexOf('\n', i);
+      i = end < 0 ? source.length : end;
+    } else if (source.startsWith("'''", i) || source.startsWith('"""', i)) {
+      quote = source.substring(i, i + 3);
+      i += 3;
+    } else if (c == "'" || c == '"') {
+      quote = c;
+      i++;
+    } else {
+      i++;
+    }
+  }
+  return null;
 }
