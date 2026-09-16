@@ -11,6 +11,7 @@
 // - a replay that goes out with an empty body;
 // - a retry re-signed with a key that was rotated out.
 import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -92,6 +93,7 @@ void main() {
     DVHttp.reset();
     DVWebhooks.reset();
     const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+    const DVDatabase().configure(MemoryDVDatabaseAdapter());
     DVSecrets.reset();
     DVSecrets.configure(<String, String>{
       'WEBHOOK_KEY_A_V1': 'first-key-for-a',
@@ -118,6 +120,7 @@ void main() {
   tearDown(() {
     DVHttp.reset();
     DVWebhooks.reset();
+    const DVDatabase().unconfigure();
     DVSecrets.reset();
   });
 
@@ -211,7 +214,7 @@ void main() {
           everyElement('hooks.acme.test'),
           reason: 'the metadata service must never be asked for anything');
       final DVWebhookDelivery delivery =
-          const DVWebhooks().delivery(sent.single.id)!;
+          (await const DVWebhooks().delivery(sent.single.id))!;
       expect(delivery.state, DVWebhookDeliveryState.refused);
       expect(delivery.lastError, contains('DV-WEBHOOK-002'));
     });
@@ -236,7 +239,7 @@ void main() {
       expect(wire.requests.map((DVHttpRequest r) => r.connectAddress).toList(),
           <String>['93.184.216.34', '93.184.216.36'],
           reason: 'each hop connects to the address its own check approved');
-      expect(const DVWebhooks().delivery(sent.single.id)!.state,
+      expect((await const DVWebhooks().delivery(sent.single.id))!.state,
           DVWebhookDeliveryState.delivered);
     });
 
@@ -265,7 +268,7 @@ void main() {
 
       expect(connectedTo, <String>['93.184.216.34'],
           reason: 'loopback passed no check and must never be connected to');
-      expect(const DVWebhooks().delivery(sent.single.id)!.state,
+      expect((await const DVWebhooks().delivery(sent.single.id))!.state,
           DVWebhookDeliveryState.delivered);
     });
 
@@ -281,7 +284,7 @@ void main() {
       await const DVWebhooks().drainAll();
 
       expect(wire.requests, isEmpty);
-      expect(const DVWebhooks().delivery(sent.single.id)!.state,
+      expect((await const DVWebhooks().delivery(sent.single.id))!.state,
           DVWebhookDeliveryState.refused);
     });
   });
@@ -443,7 +446,7 @@ void main() {
       final Future<void> draining = const DVWebhooks().drainAll();
       await _settle();
 
-      final List<DVWebhookDelivery> forB = const DVWebhooks().deliveries(b.id);
+      final List<DVWebhookDelivery> forB = (await const DVWebhooks().deliveries(b.id));
       expect(forB.single.state, DVWebhookDeliveryState.delivered,
           reason: 'beta must not wait for acme\'s endpoint to answer');
 
@@ -465,7 +468,7 @@ void main() {
       await const DVWebhooks().emit('order.shipped', <String, Object?>{'id': 2});
       await const DVWebhooks().drainAll();
 
-      final List<DVWebhookDelivery> all = const DVWebhooks().deliveries(s.id);
+      final List<DVWebhookDelivery> all = (await const DVWebhooks().deliveries(s.id));
       expect(all.first.state, DVWebhookDeliveryState.deadLettered);
       expect(all.first.attempts, 3);
       expect(all.first.lastStatus, 503);
@@ -483,7 +486,7 @@ void main() {
       await const DVWebhooks().drainAll();
 
       expect(wire.requests, hasLength(3));
-      expect(const DVWebhooks().subscription(s.id)!.disabled, isTrue);
+      expect((await const DVWebhooks().subscription(s.id))!.disabled, isTrue);
       expect(disabled.map((DVWebhookSubscription d) => d.id), <String>[s.id]);
 
       await const DVWebhooks().emit('order.shipped', <String, Object?>{'id': 2});
@@ -523,9 +526,9 @@ void main() {
           .emit('order.shipped', <String, Object?>{'id': 6});
       await const DVWebhooks().drainAll();
       now = now.add(const Duration(days: 31));
-      expect(const DVWebhooks().purgeExpiredPayloads(), 1);
+      expect((await const DVWebhooks().purgeExpiredPayloads()), 1);
 
-      final DVWebhookDelivery kept = const DVWebhooks().delivery(sent.single.id)!;
+      final DVWebhookDelivery kept = (await const DVWebhooks().delivery(sent.single.id))!;
       expect(kept.payload, isNull);
       expect(kept.state, DVWebhookDeliveryState.delivered);
       expect(kept.lastStatus, 200);
@@ -553,6 +556,135 @@ void main() {
 
       await expectLater(const DVWebhooks().replay(sent.single.id),
           throwsA(isA<DVWebhookReplayRefusedException>()));
+    });
+  });
+  group('the record survives a restart', () {
+    late Directory dir;
+    late String path;
+    SqliteDVDatabaseAdapter? open;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('dv_webhooks_restart_');
+      path = '${dir.path}/app.db';
+    });
+
+    tearDown(() {
+      open?.close();
+      open = null;
+      dir.deleteSync(recursive: true);
+    });
+
+    /// Starts a process against the database file: nothing carried over but
+    /// the file, and whatever queue [durableQueue] says there is.
+    void boot({required bool durableQueue}) {
+      open?.close();
+      final SqliteDVDatabaseAdapter database = SqliteDVDatabaseAdapter.file(path);
+      open = database;
+      DVWebhooks.reset();
+      const DVDatabase().configure(database);
+      const DVQueues().useAdapter(durableQueue
+          ? DVDatabaseQueueAdapter(database)
+          : DVInMemoryQueueAdapter());
+      DVWebhooks.clock = () => now;
+      DVWebhooks.resolveHost = (String host) async => dns[host] ?? <String>[];
+      const DVWebhooks()
+        ..declare(const DVWebhookEvent('order.shipped'))
+        ..declare(const DVWebhookEvent('customer.updated'));
+    }
+
+    for (final bool durableQueue in <bool>[true, false]) {
+      test(
+          'a delivery that failed before the restart is retried after it, as '
+          'the same delivery and still ahead of the next '
+          '(${durableQueue ? 'queue in the database' : 'queue lost with the process'})',
+          () async {
+        boot(durableQueue: durableQueue);
+        final _Wire before = _Wire((_, __) => _reply(500));
+        DVHttp.transport = before.send;
+        final DVWebhookSubscription s =
+            await subscribe('https://hooks.acme.test/in');
+        final List<DVWebhookDelivery> first = await const DVWebhooks()
+            .emit('order.shipped', <String, Object?>{'id': 1});
+        await const DVWebhooks()
+            .emit('order.shipped', <String, Object?>{'id': 2});
+        await const DVWebhooks().drainOnce(s.id);
+        expect(before.requests, hasLength(1));
+
+        boot(durableQueue: durableQueue);
+        final _Wire after = _Wire((_, __) => _reply(200));
+        DVHttp.transport = after.send;
+
+        final DVWebhookSubscription? kept =
+            (await const DVWebhooks().subscription(s.id));
+        expect(kept?.url, Uri.parse('https://hooks.acme.test/in'));
+        expect(kept?.consecutiveFailures, 1);
+
+        await const DVWebhooks().drainAll();
+
+        expect(
+            after.requests
+                .map((DVHttpRequest r) =>
+                    (_body(r)['data'] as Map<String, Object?>)['id'])
+                .toList(),
+            <Object?>[1, 2]);
+        expect(_header(after.requests.first, 'dartvel-webhook-id'),
+            first.single.id);
+        final List<DVWebhookDelivery> all = (await const DVWebhooks().deliveries(s.id));
+        expect(all.map((DVWebhookDelivery d) => d.state), <DVWebhookDeliveryState>[
+          DVWebhookDeliveryState.delivered,
+          DVWebhookDeliveryState.delivered,
+        ]);
+        expect(all.first.attempts, 2,
+            reason: 'the attempt before the restart still counts');
+      });
+    }
+
+    test('resume queues what every endpoint is still owed, for a process '
+        'starting up with an empty queue', () async {
+      boot(durableQueue: false);
+      DVHttp.transport = _Wire((_, __) => _reply(500)).send;
+      final DVWebhookSubscription s =
+          await subscribe('https://hooks.acme.test/in');
+      await const DVWebhooks().emit('order.shipped', <String, Object?>{'id': 1});
+      await const DVWebhooks().emit('order.shipped', <String, Object?>{'id': 2});
+
+      boot(durableQueue: false);
+      expect(await const DVQueues().pending('dv.webhooks.${s.id}'), isEmpty);
+      await const DVWebhooks().resume();
+      expect(await const DVQueues().pending('dv.webhooks.${s.id}'), hasLength(2),
+          reason: 'one job per delivery still owed');
+      await const DVWebhooks().resume();
+      expect(await const DVQueues().pending('dv.webhooks.${s.id}'), hasLength(2),
+          reason: 'resuming twice does not send anything twice');
+    });
+
+    test('a payload kept before the restart can be replayed after it, and a '
+        'purged one is still refused', () async {
+      boot(durableQueue: true);
+      final _Wire wire = _Wire((_, __) => _reply(200));
+      DVHttp.transport = wire.send;
+      await subscribe('https://hooks.acme.test/in');
+      final List<DVWebhookDelivery> sent = await const DVWebhooks()
+          .emit('order.shipped', <String, Object?>{'id': 5});
+      final List<DVWebhookDelivery> old = await const DVWebhooks()
+          .emit('order.shipped', <String, Object?>{'id': 6});
+      await const DVWebhooks().drainAll();
+
+      boot(durableQueue: true);
+      DVHttp.transport = wire.send;
+      expect((await const DVWebhooks().delivery(sent.single.id))?.payload,
+          contains('"id":5'));
+      await const DVWebhooks().replay(sent.single.id);
+      await const DVWebhooks().drainAll();
+      expect(_body(wire.requests.last)['data'], <String, Object?>{'id': 5});
+
+      now = now.add(const Duration(days: 31));
+      boot(durableQueue: true);
+      expect((await const DVWebhooks().purgeExpiredPayloads()), 2);
+      boot(durableQueue: true);
+      expect((await const DVWebhooks().delivery(old.single.id))?.payload, isNull);
+      expect((await const DVWebhooks().delivery(old.single.id))?.state,
+          DVWebhookDeliveryState.delivered);
     });
   });
 }
