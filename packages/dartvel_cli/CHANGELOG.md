@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`dartvel build server` compiles the backend into one file.** It writes
+  `build/server`, the file `dartvel deploy`'s image runs as `/app/server`
+  and `dartvel infra`'s units start as `/opt/<app>/server`, and which nothing
+  produced: `dartvel deploy --target server` asked for a platform that did
+  not exist. The build generates the backend, embeds dartvel_shelf's native
+  server library for the host, and runs `dart compile exe`, so the binary
+  starts with nothing beside it. A host with no prebuilt library is skipped
+  with the path that was looked for, before anything is generated.
+
 - **`@DVModel(version: false)`, `@DVModel(softDelete: true)`, restore and
   revert are generated.** `version: false` writes without a version check.
   `softDelete: true` makes `destroy()` mark the row, which `find` and `all`

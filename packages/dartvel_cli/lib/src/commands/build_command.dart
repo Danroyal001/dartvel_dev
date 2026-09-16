@@ -52,6 +52,7 @@ import '../build/render_backends.dart';
 import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
+import '../build/server_binary.dart';
 import '../build/web_server.dart';
 import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
@@ -126,6 +127,14 @@ const webServerBuildPlatforms = <String>[
   'web-server',
 ];
 
+/// The backend compiled to one executable file, build/server.
+///
+/// The monolith: the file `dartvel deploy`'s image runs as /app/server and
+/// `dartvel infra`'s units start as /opt/<app>/server.
+const serverBinaryBuildPlatforms = <String>[
+  'server',
+];
+
 /// Browser extension bundles. These are Flutter web output plus a generated
 /// manifest and background script, not a separate embedder.
 const browserExtensionBuildPlatforms = <String>[
@@ -152,6 +161,9 @@ const buildPlatformArguments = <String>[
   // static web build and a server one, since they are two answers to the
   // same question and the second would overwrite the first.
   ...webServerBuildPlatforms,
+  // Not in allBuildPlatforms either: a backend binary is a deployment
+  // artifact, and `--platform all` builds the clients.
+  ...serverBinaryBuildPlatforms,
   'tpk',
   'sony-elinux-iso',
   'sony-elinux-img',
@@ -423,6 +435,9 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
   switch (platform) {
     case 'web':
     case 'web-server':
+    // dart compile exe builds for the host it runs on. Whether the native
+    // server library exists for that host is asked in the preflight.
+    case 'server':
     case 'android':
     case 'fireos':
       return true;
@@ -823,6 +838,18 @@ class BuildCommand extends Command<void> {
         continue;
       }
 
+      if (p == 'server') {
+        switch (await _buildServerBinary(root)) {
+          case _PlatformBuildResult.succeeded:
+            break;
+          case _PlatformBuildResult.skipped:
+            skipped += 1;
+          case _PlatformBuildResult.failed:
+            failures += 1;
+        }
+        continue;
+      }
+
       if (p == 'sony-elinux') {
         final result = await _buildELinuxBundle(
           root: root,
@@ -1039,6 +1066,37 @@ class BuildCommand extends Command<void> {
       Logger.log('❌ $platform build failed');
       return _PlatformBuildResult.failed;
     }
+  }
+
+  /// Compiles the generated backend into build/server with its native
+  /// server library inside.
+  Future<_PlatformBuildResult> _buildServerBinary(String root) async {
+    Logger.log('');
+    Logger.log('🔨 Building the backend into one file...');
+    final host = dvHostServerLibrary();
+    final DVServerLibraryLookup lookup =
+        dvLocateServerLibrary(root, subdir: host.subdir, name: host.name);
+    if (lookup.file == null) {
+      Logger.log('⚠️  ${lookup.problem} Skipping...');
+      return _PlatformBuildResult.skipped;
+    }
+    final DVServerBinaryResult result = await dvBuildServerBinary(
+      root: root,
+      library: lookup.file!,
+      run: (String executable, List<String> arguments,
+              {String? workingDirectory}) =>
+          _processRun(executable, arguments,
+              workingDirectory: workingDirectory, runInShell: true),
+    );
+    for (final String line in result.lines) {
+      Logger.log('   $line');
+    }
+    if (!result.ok) {
+      Logger.log('❌ server build failed');
+      return _PlatformBuildResult.failed;
+    }
+    Logger.log('✅ server build successful');
+    return _PlatformBuildResult.succeeded;
   }
 
   /// Builds embedded/television targets through their dedicated Flutter
@@ -3222,6 +3280,23 @@ class BuildCommand extends Command<void> {
   /// support is checked first, because offering to install Xcode on Linux
   /// would be nonsense.
   Future<bool> _preflight(String platform, {bool? autoInstall}) async {
+    // Before anything is generated: a server binary embeds dartvel_shelf's
+    // library for this host, and without one there is nothing to embed.
+    if (platform == 'server') {
+      final host = dvHostServerLibrary();
+      final DVServerLibraryLookup lookup = dvLocateServerLibrary(
+        _projectRoot,
+        subdir: host.subdir,
+        name: host.name,
+      );
+      if (lookup.file == null) {
+        Logger.log('');
+        Logger.log('🔨 Checking server...');
+        Logger.log('⚠️  ${lookup.problem} Skipping...');
+        return false;
+      }
+    }
+
     // An embedder that only runs on one host is still unavailable elsewhere,
     // even though embedded targets are otherwise exempt from the host check.
     final embedderHost = embeddedHostRequirement(platform);
