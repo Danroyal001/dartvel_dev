@@ -1408,7 +1408,8 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     // scaled to two instances is two processes ticking.
     _dartvelScheduleTimer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease ?? stores.scheduleLeaseFor(processConfiguration));
     // Accounts whose deletion window has closed, erased through DVQueues.
-    // Null when dartvel.auth.deletionGraceDays declares no window.
+    // Ticks with no window declared too: a deletion scheduled under one the
+    // project has since removed still falls due.
     _dartvelAccountSweepTimer?.cancel();
     _dartvelAccountSweepTimer = dartvelStartAccountDeletionSweep(every: scheduleTick);
     // Retention swept daily and open erasures run before their deadline,

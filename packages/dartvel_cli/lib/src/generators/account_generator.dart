@@ -206,14 +206,17 @@ void configureDartvelBackendAccounts() {
 }
 
 /// Erases the accounts whose deletion window has closed, every [every], in a
-/// process that ticks the schedules. Null when there is no window, since a
-/// deletion then erases at once.
-Timer? dartvelStartAccountDeletionSweep({required Duration every}) =>
-    dartvelAccountDeletionGrace == Duration.zero
-        ? null
-        : Timer.periodic(every, (Timer _) {
-            unawaited(DVAuthEndpoints.eraseDueDeletions());
-          });
+/// process that ticks the schedules.
+///
+/// Started with no window as well. A deletion a person asked for under a
+/// window the project has since removed is still scheduled, for the erasesAt
+/// they were given, and a sweep that only ran while a window was declared
+/// would keep their account for ever. With nothing scheduled a tick finds
+/// nothing and does nothing.
+Timer dartvelStartAccountDeletionSweep({required Duration every}) =>
+    Timer.periodic(every, (Timer _) {
+      unawaited(DVAuthEndpoints.eraseDueDeletions());
+    });
 ''';
   }
 

@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **A deletion left scheduled when `dartvel.auth.deletionGraceDays` is removed
+  is still carried out.** The generated account sweep only ran while a window
+  was declared, so a person who asked for deletion under one was kept for
+  ever once the project removed it. The sweep now ticks either way, and such a
+  deletion is erased at the `erasesAt` the person was given -- not cancelled,
+  which only the person may do by signing in, and not brought forward.
+
 - **The generated server starts DV.Privacy's background work.** Where
   `DARTVEL_PRIVACY_KEY` is set, a web process creates the privacy walk's own
   tables and registers its erasure and retention jobs before it serves; a
