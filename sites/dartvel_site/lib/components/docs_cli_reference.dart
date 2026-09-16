@@ -485,8 +485,19 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'key',
-    description: 'The application key: generate, rotate or inspect it in the platform key store.',
+    description: 'The application key in the platform key store, and cloud build credentials in the repository\'s secrets.',
     subcommands: <DocsCliCommand>[
+      DocsCliCommand(
+        name: 'cloud',
+        description: 'Set the credentials cloud builds sign and publish with as the repository\'s Actions secrets.',
+        options: <String>[
+          '    --android-keystore=<file>            The upload keystore release builds are signed with. Its password is read from DARTVEL_ANDROID_KEYSTORE_PASSWORD, and the key\'s from DARTVEL_ANDROID_KEY_PASSWORD when it differs.',
+          '    --android-key-alias                  The alias of the key in that keystore.',
+          '    --firebase-service-account=<file>    A service account JSON key that dartvel publish firebase uploads with.',
+          '    --repo=<owner/name>                  The repository whose secrets are set. Defaults to the origin remote.',
+          '    --dry-run                            Name the secrets that would be set, and set none.',
+        ],
+      ),
       DocsCliCommand(
         name: 'generate',
         description: 'Generate the application key. Refuses if one exists.',
