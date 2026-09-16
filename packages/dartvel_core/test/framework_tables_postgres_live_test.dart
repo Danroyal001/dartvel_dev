@@ -832,6 +832,54 @@ void main() {
     expect(await workflow.history('/about'), isNotEmpty);
   });
 
+  group('a meter table an earlier release made with a REAL amount', () {
+    const String before =
+        'CREATE TABLE dv_w64_meter_records (dv_tenant TEXT NOT NULL, '
+        'meter TEXT NOT NULL, idempotency_key TEXT NOT NULL, '
+        'amount REAL NOT NULL, at_us BIGINT NOT NULL, '
+        'period_start_us BIGINT NOT NULL, period_end_us BIGINT NOT NULL, '
+        'UNIQUE (dv_tenant, meter, period_start_us, idempotency_key))';
+
+    DVMeterRecord record(String key) => DVMeterRecord(
+      tenant: 't1',
+      meter: 'gb_hours',
+      idempotencyKey: key,
+      amount: 123456.789,
+      at: now,
+      period: DVMeterPeriod.calendarMonth(now),
+    );
+
+    test('is widened to DOUBLE PRECISION when it is empty', () async {
+      await db.execute(before);
+      const DVDatabase().configure(db);
+      await DVDatabaseMeterStore(
+        table: 'dv_w64_meter_records',
+      ).add(record('k'));
+      expect(
+        (await columnTypes('dv_w64_meter_records'))['amount'],
+        'double precision',
+      );
+    });
+
+    test('with rows in it keeps working, and is not rewritten', () async {
+      await db.execute(before);
+      await db.execute(
+        'INSERT INTO dv_w64_meter_records (dv_tenant, meter, idempotency_key, '
+        'amount, at_us, period_start_us, period_end_us) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        <Object?>['t0', 'gb_hours', 'old', 1.5, 1, 1, 2],
+      );
+      const DVDatabase().configure(db);
+      expect(
+        await DVDatabaseMeterStore(
+          table: 'dv_w64_meter_records',
+        ).add(record('k')),
+        isTrue,
+      );
+      expect((await columnTypes('dv_w64_meter_records'))['amount'], 'real');
+    });
+  });
+
   group('a table created by an earlier release', () {
     // The statement this release's session store used, verbatim.
     const String before =

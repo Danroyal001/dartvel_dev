@@ -352,13 +352,16 @@ class DVDatabasePromotionLedger implements DVPromotionLedger {
   Future<void> _ensureTables() => _ready ??= () async {
         await dvEnsureFrameworkTable(
           db,
-          'CREATE TABLE IF NOT EXISTS $redemptionsTable (promotion_id TEXT NOT '
-          'NULL, order_id TEXT NOT NULL, customer_key TEXT NOT NULL, '
+          'CREATE TABLE IF NOT EXISTS $redemptionsTable ('
+          'promotion_id VARCHAR(255) NOT NULL, order_id VARCHAR(255) NOT NULL, '
+          'customer_key TEXT NOT NULL, '
           'redeemed_at_us BIGINT NOT NULL, PRIMARY KEY (promotion_id, order_id))',
         );
-        await db.execute(
-          'CREATE TABLE IF NOT EXISTS $countersTable (promotion_id TEXT NOT '
-          'NULL, scope TEXT NOT NULL, redeemed INTEGER NOT NULL, '
+        await dvEnsureFrameworkTable(
+          db,
+          'CREATE TABLE IF NOT EXISTS $countersTable ('
+          'promotion_id VARCHAR(255) NOT NULL, scope VARCHAR(255) NOT NULL, '
+          'redeemed INTEGER NOT NULL, '
           'PRIMARY KEY (promotion_id, scope))',
         );
       }();

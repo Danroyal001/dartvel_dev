@@ -25,6 +25,7 @@ import 'package:crypto/crypto.dart' as crypto;
 
 import '../crypto/field_cipher.dart';
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 
 /// The HMAC a TOTP code is derived with.
 enum DVTotpAlgorithm { sha1, sha256, sha512 }
@@ -351,11 +352,13 @@ class DVDatabaseSecondFactorStore implements DVSecondFactorStore {
   Future<void>? _ready;
 
   Future<void> _ensure() => _ready ??= () async {
-        await adapter.execute(
+        await dvEnsureFrameworkTable(
+          adapter,
           'CREATE TABLE IF NOT EXISTS $_totpTable ('
           'user_id TEXT, secret TEXT, confirmed INTEGER, last_step INTEGER)',
         );
-        await adapter.execute(
+        await dvEnsureFrameworkTable(
+          adapter,
           'CREATE TABLE IF NOT EXISTS $_codesTable ('
           'user_id TEXT, salt TEXT, hash TEXT)',
         );

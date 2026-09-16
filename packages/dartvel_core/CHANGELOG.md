@@ -7,6 +7,22 @@
   affinity on SQLite. An exact `NUMERIC` would add nothing, since amounts are
   Dart `num`s and are aggregated as doubles once read.
 
+- **A framework table a server would refuse is refused everywhere.**
+  `dvEnsureFrameworkTable` now checks its statement before running it, on
+  every adapter, and throws `DVFrameworkTableError` for a column with no
+  type, a `TEXT` column in a primary key or unique constraint (MySQL cannot
+  index one without a prefix length), or a `REAL`/`FLOAT` column (four bytes
+  on PostgreSQL or MySQL). The in-memory and SQLite suites now catch what only
+  a server used to. A test scans every package's `lib` for such a
+  `CREATE TABLE`. It found the database queue's `id`, purchase grants and
+  notification claims, promotion redemptions and counters, and the meter
+  table's keys, which are `VARCHAR` now. The second-factor, crash report and
+  3D scene stores make their tables through it too. A column declared
+  `DOUBLE PRECISION` is widened from `real` or `float` the way a `BIGINT` is
+  widened from `integer`. Unlike an integer, a table of 4-byte floats that
+  already holds rows was accepting every write, so it is logged as a warning
+  and left as it is rather than stopped.
+
 - **Every framework table can be created on PostgreSQL and MySQL.** Change
   capture, record history's log, the analytics outbox, identity and event
   tables, consent, agreements, privacy tombstones and erasure requests, the

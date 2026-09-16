@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../http/client_address.dart';
 import '../observability/logging.dart';
 import 'crash_config.dart';
@@ -56,7 +57,8 @@ class DVDatabaseCrashReportRepository implements DVCrashReportRepository {
   Future<void> ensureSchema() async {
     if (_schema) return;
     // app_release rather than release, which MySQL reserves.
-    await database.execute(
+    await dvEnsureFrameworkTable(
+      database,
       'CREATE TABLE IF NOT EXISTS $table ('
       'id VARCHAR(128) PRIMARY KEY, '
       'install_id VARCHAR(128) NOT NULL, '

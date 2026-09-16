@@ -2074,7 +2074,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
     if (_initialized) return;
     await dvEnsureFrameworkTable(database, '''
       CREATE TABLE IF NOT EXISTS $tableName (
-        id TEXT PRIMARY KEY,
+        id VARCHAR(255) PRIMARY KEY,
         queue TEXT NOT NULL,
         payload_name TEXT NOT NULL,
         payload TEXT NOT NULL,

@@ -36,8 +36,8 @@ class DVDatabasePurchaseLedger implements DVPurchaseLedger {
   Future<void> _ensureTables() => _ready ??= () async {
         await dvEnsureFrameworkTable(
           db,
-          'CREATE TABLE IF NOT EXISTS $grantsTable (store TEXT NOT NULL, '
-          'original_transaction_id TEXT NOT NULL, '
+          'CREATE TABLE IF NOT EXISTS $grantsTable (store VARCHAR(64) NOT NULL, '
+          'original_transaction_id VARCHAR(255) NOT NULL, '
           'transaction_id TEXT NOT NULL, customer_key TEXT NOT NULL, '
           'product_id TEXT NOT NULL, store_product_id TEXT NOT NULL, '
           'purchased_at_us BIGINT NOT NULL, not_after_us BIGINT, '
@@ -47,8 +47,9 @@ class DVDatabasePurchaseLedger implements DVPurchaseLedger {
         );
         await dvEnsureFrameworkTable(
           db,
-          'CREATE TABLE IF NOT EXISTS $notificationsTable (store TEXT NOT NULL, '
-          'notification_id TEXT NOT NULL, claimed_at_us BIGINT NOT NULL, '
+          'CREATE TABLE IF NOT EXISTS $notificationsTable ('
+          'store VARCHAR(64) NOT NULL, notification_id VARCHAR(255) NOT NULL, '
+          'claimed_at_us BIGINT NOT NULL, '
           'PRIMARY KEY (store, notification_id))',
         );
       }();
