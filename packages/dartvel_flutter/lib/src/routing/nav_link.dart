@@ -22,7 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
-import '../../dartvel_flutter.dart' show DV, DVRouteTarget;
+import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget;
 import 'link_interception.dart' show DVPressedLink;
 import 'route_prefetch.dart' show DVRoutePrefetch;
 
@@ -385,7 +385,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     String normal(String path) => path.length > 1 && path.endsWith('/')
         ? path.substring(0, path.length - 1)
         : path;
-    return normal(current) == normal(widget.to.path);
+    return normal(current) == normal(DVNavigation.locationOf(widget.to));
   }
 
   void _removePreview() {
@@ -408,7 +408,8 @@ class _DVNavLinkState extends State<DVNavLink> {
     // The browser opens a tab on a middle or modified click by itself, and
     // opening a second one is not a second intention.
     if (DVLinkOpener.browserFollowsAnchors) return;
-    final String destination = widget.externalUrl ?? widget.to.path;
+    final String destination =
+        widget.externalUrl ?? DVNavigation.locationOf(widget.to);
     final void Function(String)? override = widget.openInNewTab;
     if (override != null) {
       override(destination);
@@ -465,7 +466,9 @@ class _DVNavLinkState extends State<DVNavLink> {
       // On the web this link is also an anchor, and the browser will send a
       // click when the button comes up. The record lets the interceptor know
       // that click has already been followed.
-      if (widget.externalUrl == null) DVPressedLink.record(widget.to.path);
+      if (widget.externalUrl == null) {
+        DVPressedLink.record(DVNavigation.locationOf(widget.to));
+      }
       _activate();
     }
   }
@@ -476,7 +479,9 @@ class _DVNavLinkState extends State<DVNavLink> {
       // A screen reader should hear a link and its destination, not a piece
       // of tappable text.
       link: true,
-      linkUrl: Uri.tryParse(widget.externalUrl ?? widget.to.path),
+      linkUrl: Uri.tryParse(
+        widget.externalUrl ?? DVNavigation.locationOf(widget.to),
+      ),
       label: widget.semanticLabel,
       // An explicit label replaces the child's text rather than being read
       // before it. Without this a screen reader announces both -- "Read more
