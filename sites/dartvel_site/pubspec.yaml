@@ -57,11 +57,10 @@ dartvel:
     curve: easeInOut
 
   seo:
-    title: "Dartvel — Flutter, full stack"
+    title: "Dartvel: a Flutter app and its backend in one Dart project"
     description: >-
-      Write pages, models, backend functions, UI and business logic. Routing,
-      clients, serialization, forms, admin and the server are generated,
-      compiled or served.
+      Annotate a class and a function. Dartvel generates the routes, forms,
+      typed client and API server for your Flutter app.
     siteUrl: https://dartvel.dev
     siteName: Dartvel
 
@@ -83,7 +82,7 @@ dartvel:
     enabled: true
     name: Dartvel
     shortName: Dartvel
-    description: Flutter, full stack.
+    description: A Flutter app and its backend in one Dart project.
     themeColor: "#2F6BFF"
     backgroundColor: "#FFFFFF"
 

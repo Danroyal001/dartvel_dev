@@ -462,7 +462,8 @@ Widget _siteButton(
 }
 
 @DVFunctionalWidget()
-Widget _externalLink(BuildContext context, String label, String url) =>
+Widget _externalLink(BuildContext context, String label, String url,
+        {bool onDark = false}) =>
     DVNavLink.external(
       url,
       // It was styled text with no handler: the url argument was never used,
@@ -470,7 +471,7 @@ Widget _externalLink(BuildContext context, String label, String url) =>
       child: DVText(label).modifier(const DVModifier()
           .fontSize(14)
           .fontWeight(FontWeight.w600)
-          .color(Palette.of(context).accent)),
+          .color(onDark ? const Color(0xFF7AA2F7) : Palette.of(context).accent)),
     );
 
 /// A feature record, drawn as the two things it says rather than one block.
@@ -569,4 +570,64 @@ Widget _siteRecordLabel(BuildContext context,
       .letterSpacing(0.8)
       .color(which == 'accent' ? palette.accent : palette.muted)
       .semanticHeading(3));
+}
+
+/// The worry a reader has at this point, answered, right before the button.
+///
+/// A call to action with nothing in front of it asks somebody to click while
+/// they are still wondering whether they should. The question is set in ink so
+/// a skimmer finds it, and the answer is one or two short sentences.
+@DVFunctionalWidget()
+Widget _objection(
+  BuildContext context,
+  String question,
+  String answer, {
+  bool onDark = false,
+}) {
+  final Palette palette = Palette.of(context);
+  return DVBox.list(<Widget>[
+    DVText(question).modifier(const DVModifier()
+        .fontSize(16)
+        .fontWeight(FontWeight.w700)
+        .color(onDark ? const Color(0xFFF2F5FC) : palette.ink)
+        .lineHeight(1.4)),
+    DVText(answer).modifier(const DVModifier()
+        .fontSize(16)
+        .color(onDark ? const Color(0xFF9AA6C4) : palette.muted)
+        .lineHeight(1.55)
+        .maxWidth(600)),
+  ], spacing: 4, crossAlign: DVCrossAlign.start);
+}
+
+/// A short list, for the points a skimmer reads instead of a paragraph.
+///
+/// A Row with a Flexible, because a bullet whose second line wraps back under
+/// the dot is not a list any more, and DVBox has no flexible child.
+@DVFunctionalWidget()
+Widget _bullets(BuildContext context, List<String> items, {bool onDark = false}) {
+  final Palette palette = Palette.of(context);
+  final Color text = onDark ? const Color(0xFFC9D3EA) : palette.ink;
+  final Color dot = onDark ? const Color(0xFF7AA2F7) : palette.accent;
+  return DVBox.list(<Widget>[
+    for (final String item in items)
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(top: 9, right: 12),
+            child: DVBox(
+              const SizedBox(width: 6, height: 6),
+              const DVModifier().backgroundColor(dot).rounded(3),
+            ),
+          ),
+          Flexible(
+            child: DVText(item).modifier(const DVModifier()
+                .fontSize(16)
+                .color(text)
+                .lineHeight(1.5)
+                .maxWidth(620)),
+          ),
+        ],
+      ),
+  ], spacing: 10, crossAlign: DVCrossAlign.start);
 }
