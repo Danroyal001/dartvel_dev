@@ -25,6 +25,7 @@ on:
       - packages/dartvel_flutter/lib/src/devclient/**
       - packages/dartvel_flutter/lib/src/updates/**
       - tool/ci/android_dev_client_check.dart
+      - tool/ci/ios_dev_client_check.dart
       - .github/workflows/dev-client.yml
 
 concurrency:
@@ -101,3 +102,79 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: dev-client-android, path: /tmp/diag/, if-no-files-found: warn }
+
+  # iOS: the same loop on a simulator. The link is opened with `simctl
+  # openurl`, which is the URL scheme the development Info.plist declares, and
+  # the Objective-C tunnel pairs over TLS pinned to the key in the link. See
+  # tool/ci/ios_dev_client_check.dart. A physical iPhone does not start a
+  # debug build from the home screen without a debugger attached; the
+  # simulator has no such limit.
+  ios-simulator:
+    name: iOS simulator — pair, edit, hot reload
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the development app for the simulator
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ios-devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build ios --profile development --simulator
+          app=build/ios/iphonesimulator/Runner.app
+          test -d "$app"
+          # What the development profile writes, and that Xcode can read it.
+          test -f ios/Runner/DartvelDevClient.m
+          plutil -lint ios/Runner.xcodeproj/project.pbxproj ios/Runner/Info-Development.plist
+          /usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Info.plist" | grep -q dartvel-dev
+          # The tunnel is compiled in, where Dart's FFI lookup can find it.
+          found=""
+          for image in "$app/Runner" "$app/Runner.debug.dylib"; do
+            [ -f "$image" ] && nm -gU "$image" | grep -q _dartvel_dev_client_vm_service && found="$image"
+          done
+          test -n "$found" || { echo "::error::dartvel_dev_client_vm_service is not exported"; exit 1; }
+          echo "tunnel exported from $found"
+
+      - name: The macOS development build compiles the same tunnel
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/macos-devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          dart run dartvel_cli:dartvel build macos --profile development
+          app=$(find build/macos/Build/Products/Debug -maxdepth 1 -name '*.app' | head -1)
+          test -n "$app"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Contents/Info.plist" | grep -q dartvel-dev
+          codesign -d --entitlements - "$app" 2>/dev/null | grep -q network.client
+          nm -gU "$app"/Contents/MacOS/* 2>/dev/null | grep -q _dartvel_dev_client_vm_service
+
+      # Flutter's attach compiles with the flutter-tester device's toolchain;
+      # fetched here rather than halfway through the device step's timeout.
+      - name: Precache the tester artifacts
+        run: flutter precache --macos
+
+      - name: Pair, edit and reload on a simulator
+        id: run
+        continue-on-error: true
+        timeout-minutes: 40
+        run: dart tool/ci/ios_dev_client_check.dart
+
+      - name: The simulator agreed
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/ios-devclient-verdict.txt \
+            || { echo "no verdict: the simulator check did not finish"; exit 1; }
+          cat /tmp/diag/ios-devclient-verdict.txt
+          head -1 /tmp/diag/ios-devclient-verdict.txt | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dev-client-ios, path: /tmp/diag/, if-no-files-found: warn }
