@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`dartvel migrate-code` rewrites deprecated Dartvel names.** It rewrites
+  `DVStyleModifier` to `DVModifier`, `.styleModifier(` to `.modifier(`,
+  `DV.Storage` to `DV.FileStorage`, `@DVSearchable` and
+  `@DVSensitiveModelField` to their `@DVModel` forms, and the three `Debug*`
+  providers to the `Local*` ones. It reads tokens, not text, so it leaves
+  names in strings and comments alone and still rewrites code inside an
+  interpolation. It skips the generated client, `build` and `.dart_tool`.
+  By default it only prints each line before and after. `--apply` writes
+  them, and writes nothing if any file changed after the plan was made.
+
 - **Only a `handler` that takes the request is a raw handler.** A backend
   function file whose `handler` took the client's arguments, or none, was
   called with the request anyway, and the server binary failed to compile on
