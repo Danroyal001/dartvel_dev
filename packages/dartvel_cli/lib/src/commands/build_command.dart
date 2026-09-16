@@ -1058,6 +1058,8 @@ class BuildCommand extends Command<void> {
     final DVServerBinaryResult result = await dvBuildServerBinary(
       root: root,
       library: lookup.file!,
+      // Everything the web-server build wrote, carried inside the binary.
+      webRoot: p.join(root, 'build', 'web'),
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
