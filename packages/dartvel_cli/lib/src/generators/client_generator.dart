@@ -651,7 +651,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
@@ -925,6 +925,12 @@ class DartvelRuntime {
       final u = Uri.parse(url);
       final host = (u.host).toLowerCase();
       final isLocal = host == 'localhost' || host == '127.0.0.1';
+      // A development build paired with `dartvel dev --dev-client` reaches
+      // the backend on the machine running it, not on the phone.
+      final paired = DVDevServerHost.current;
+      if (!kReleaseMode && isLocal && paired != null) {
+        return u.replace(host: paired).toString();
+      }
       final onAndroid = defaultTargetPlatform == TargetPlatform.android;
       if (onAndroid && isLocal) {
         final updated = u.replace(host: '10.0.2.2').toString();

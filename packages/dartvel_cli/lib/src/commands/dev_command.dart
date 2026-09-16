@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
 
 import '../config/dartvel_config.dart';
+import '../devclient/android_dev_client.dart';
+import '../devclient/dev_client_attach.dart';
 import '../devclient/dev_client_server.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
@@ -47,8 +49,10 @@ class DevCommand extends Command<void> {
       ..addFlag('dev-client',
           defaultsTo: false,
           negatable: false,
-          help: 'Serve signed page bundles to a paired dev-client shell and '
-              'print the pairing link.')
+          help: 'Pair development builds (dartvel build android --profile '
+              'development) over the network: print a QR code to scan, and '
+              'hot reload every paired device on save. With no -d, no local '
+              'app is started.')
       ..addOption('dev-client-port',
           defaultsTo: '8787', help: 'Port the dev-client bundles are served on');
   }
@@ -115,8 +119,14 @@ Future<void> main() async {
     final explicitDevice = (argResults?['device'] as String?) ??
         Platform.environment['DARTVEL_DEVICE'];
     String? deviceOpt = explicitDevice;
+    // With --dev-client the app runs on the paired phones. A local app as
+    // well is asked for with -d; picking one unasked would install over the
+    // development build on a connected Android device.
+    final devClientMode = argResults?['dev-client'] == true;
+    final runLocalApp = !devClientMode ||
+        (explicitDevice != null && explicitDevice.isNotEmpty);
 
-    if (deviceOpt == null || deviceOpt.isEmpty) {
+    if (runLocalApp && (deviceOpt == null || deviceOpt.isEmpty)) {
       try {
         final proc = await Process.run('flutter', ['devices', '--machine'],
             runInShell: true);
@@ -286,27 +296,47 @@ Future<void> main() async {
         flutterEnv = await flutterEnvOverrides();
         await resetFlutterLinuxBuildArtifacts(root, flutterEnv);
       }
-      flutterP = await _spawn('flutter', flutterArgs, 'flutter',
-          extraEnv: flutterEnv.isEmpty ? null : flutterEnv);
+      if (runLocalApp) {
+        flutterP = await _spawn('flutter', flutterArgs, 'flutter',
+            extraEnv: flutterEnv.isEmpty ? null : flutterEnv);
+      } else {
+        Logger.log('No local app: the app runs on the devices that pair. '
+            'Pass -d to run one here as well.');
+      }
     } catch (_) {
       Logger.log(
           'WARN: failed to start Flutter app. Ensure Flutter SDK is installed.');
     }
 
-    // Wire stdin to Flutter for hot reload commands
-    if (flutterP != null) {
-      stdin.listen((data) {
-        try {
-          flutterP!.stdin.add(data);
-        } catch (_) {}
-      });
+    final attached = <DVDevClientAttach>{};
+
+    // Wire stdin to Flutter for hot reload commands, and r/R to every paired
+    // device.
+    if (flutterP != null || devClientMode) {
+      try {
+        stdin.listen((data) {
+          try {
+            flutterP?.stdin.add(data);
+          } catch (_) {}
+          final typed = utf8.decode(data, allowMalformed: true);
+          if (typed.contains('R')) {
+            for (final a in attached) {
+              unawaited(a.reload(full: true, reason: 'dartvel dev: R'));
+            }
+          } else if (typed.contains('r')) {
+            for (final a in attached) {
+              unawaited(a.reload(reason: 'dartvel dev: r'));
+            }
+          }
+        });
+      } catch (_) {}
     }
 
     final config = await DartvelConfig.load(Directory(root));
 
     DVDevClientBundleServer? devClient;
     if (argResults?['dev-client'] == true) {
-      devClient = await _startDevClient(root);
+      devClient = await _startDevClient(root, attached);
     }
 
     // Keep generated code, the app, the backend and the Rust runtime in step
@@ -331,6 +361,9 @@ Future<void> main() async {
         try {
           flutterP?.stdin.write('r');
         } catch (_) {}
+        for (final a in attached) {
+          unawaited(a.reload());
+        }
       },
       restartBackend: () async {
         Logger.log('[dev] restarting backend...');
@@ -359,12 +392,19 @@ Future<void> main() async {
     // Keep running until one exits
     await Future.any([
       if (buildRunnerP != null) buildRunnerP.exitCode,
-      if (backP != null) backP!.exitCode,
+      // Serving devices is reason enough to keep running: a backend that
+      // failed to compile is restarted by the next save, and the paired
+      // devices are still worth reloading meanwhile.
+      if (backP != null && devClient == null) backP!.exitCode,
       if (flutterP != null) flutterP.exitCode,
+      if (devClient != null) Completer<int>().future,
     ].whereType<Future<int>>());
 
     for (final subscription in watchSubscriptions) {
       await subscription.cancel();
+    }
+    for (final a in attached.toList()) {
+      await a.stop();
     }
     await devClient?.close();
   }
@@ -373,7 +413,18 @@ Future<void> main() async {
   ///
   /// A failure to start is reported and the loop carries on: the app on
   /// this machine does not need it.
-  Future<DVDevClientBundleServer?> _startDevClient(String root) async {
+  Future<DVDevClientBundleServer?> _startDevClient(
+      String root, Set<DVDevClientAttach> attached) async {
+    // What attach is given with -t, so a hot restart comes back through the
+    // tunnel. The same file the development build was built from; written
+    // here too, because the build may have run on another machine.
+    final Object? declared = readPubspecYaml(root)?['name'];
+    final name = declared is String && declared.isNotEmpty ? declared : null;
+    if (name != null) {
+      File(p.join(root, dvDevelopmentEntrypoint))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(dvDevelopmentEntrypointSource(package: name));
+    }
     final port =
         int.tryParse(argResults?['dev-client-port'] as String? ?? '') ?? 8787;
     String branch = 'HEAD';
@@ -385,7 +436,29 @@ Future<void> main() async {
     } catch (_) {}
     try {
       final server = await DVDevClientBundleServer.start(
-          root: root, branch: branch, port: port);
+        root: root,
+        branch: branch,
+        port: port,
+        onDevice: (device) async {
+          final tag = 'device ${device.address}';
+          Logger.log('[$tag] paired (${device.manifest.target}); attaching...');
+          try {
+            final attach = await DVDevClientAttach.start(
+              debugUrl: device.debugUrl,
+              root: root,
+              log: (line) => stdout.writeln('[$tag] $line'),
+            );
+            attached.add(attach);
+            unawaited(attach.exitCode.then((_) {
+              attached.remove(attach);
+              Logger.log('[$tag] detached');
+            }));
+            unawaited(device.closed.then((_) => attach.stop()));
+          } catch (error) {
+            Logger.log('[$tag] flutter attach did not start: $error');
+          }
+        },
+      );
       Logger.log('Dev client: serving $branch on port ${server.port}.');
       _printQr('Scan with the camera on a device running a development build:',
           server.pairing.link.toString());

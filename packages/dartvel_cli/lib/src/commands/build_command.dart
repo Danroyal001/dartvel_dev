@@ -10,6 +10,7 @@ import '../build/admin_mount.dart';
 import '../build/image_variants_build.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVDevClientManifest,
         DVHomeWidgetSpec,
         DVBuildLifecycle,
         DVImageVariants,
@@ -63,6 +64,8 @@ import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 import '../build/build_profile.dart';
+import '../devclient/android_dev_client.dart';
+import '../devclient/dev_client_project.dart';
 
 // Re-exported: DVRenderBackend moved beside the other build helpers so the
 // client generator can name it without importing a command, and every caller
@@ -523,6 +526,9 @@ class BuildCommand extends Command<void> {
 
   final String? _root;
 
+  /// The profile of the build being run, set once `run` has parsed it.
+  DVBuildProfile _profile = DVBuildProfile.release;
+
   /// The project being built, read once per use rather than cached, so a
   /// command constructed before the CLI knows its directory still builds the
   /// directory it is run in.
@@ -571,6 +577,7 @@ class BuildCommand extends Command<void> {
 
     final buildProfile = DVBuildProfile.parse(argResults?['profile'] as String);
     final isRelease = buildProfile == DVBuildProfile.release;
+    _profile = buildProfile;
     final target = argResults?['target'] as String?;
     final formatFlag = argResults?['format'] as String?;
     final deviceProfile = argResults?['device-profile'] as String?;
@@ -912,6 +919,13 @@ class BuildCommand extends Command<void> {
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
+    // A development build pairs with `dartvel dev --dev-client`: the tunnel,
+    // the activity a scanned link opens, and the entrypoint that starts it.
+    if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
+      if (!_writeAndroidDevClient(_projectRoot, target)) {
+        return _PlatformBuildResult.failed;
+      }
+    }
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
     // start, and a splash written after that ships in the next build.
@@ -923,7 +937,11 @@ class BuildCommand extends Command<void> {
     final args = resolveFlutterBuildArguments(
       platform: platform,
       buildMode: buildMode,
-      target: target,
+      target: dvDevelopmentBuildTarget(
+        platform: platform,
+        profile: _profile,
+        target: target,
+      ),
       splitPerAbi: splitPerAbi,
       buildNumber: buildNumber,
       buildName: buildName,
@@ -1297,6 +1315,48 @@ class BuildCommand extends Command<void> {
     final File source = File(p.join(root, dvAndroidContextProviderPath));
     source.parent.createSync(recursive: true);
     source.writeAsStringSync(dvAndroidContextProviderSource());
+  }
+
+  /// Writes what an Android development build needs to pair with `dartvel
+  /// dev --dev-client`, or says why it cannot and returns false.
+  ///
+  /// The Java goes into the debug source set, so the profile and release
+  /// builds of the same project never compile it.
+  bool _writeAndroidDevClient(String root, String? target) {
+    final DVDevClientManifest manifest;
+    try {
+      manifest = dvProjectDevClientManifest(root, 'android');
+    } on DVDevClientProjectException catch (error) {
+      Logger.log('❌ ${error.message}');
+      return false;
+    }
+    final Object? name = readPubspecYaml(root)?['name'];
+    if (name is! String || name.isEmpty) {
+      Logger.log('❌ pubspec.yaml names no package, so the development '
+          'entrypoint cannot import the application.');
+      return false;
+    }
+    final File manifestFile = File(p.join(root, dvAndroidDebugManifestPath));
+    final String? before =
+        manifestFile.existsSync() ? manifestFile.readAsStringSync() : null;
+    final Map<String, String> files = <String, String>{
+      dvAndroidDebugManifestPath: dvAndroidDevClientDebugManifest(before),
+      dvAndroidDevTunnelPath: dvAndroidDevTunnelSource(),
+      dvAndroidDevClientPath: dvAndroidDevClientSource(manifest),
+      dvAndroidDevPairActivityPath: dvAndroidDevPairActivitySource(),
+      dvDevelopmentEntrypoint: dvDevelopmentEntrypointSource(
+        package: name,
+        target: target ?? 'lib/main.dart',
+      ),
+    };
+    for (final MapEntry<String, String> file in files.entries) {
+      File(p.join(root, file.key))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(file.value);
+    }
+    Logger.log('   Development build: pairs with `dartvel dev --dev-client` '
+        '(${manifest.bindings.length} bindings recorded).');
+    return true;
   }
 
   /// The Activity the permission dialog, the camera and the picker come back

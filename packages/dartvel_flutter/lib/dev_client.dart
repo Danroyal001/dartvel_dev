@@ -26,3 +26,4 @@ export 'package:dartvel_core/dartvel.dart'
         dvSignedBundleFormat;
 
 export 'src/devclient/dev_client.dart';
+export 'src/devclient/dev_session.dart';

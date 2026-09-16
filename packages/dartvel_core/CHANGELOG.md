@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Dev-client tunnel primitives.** `dvDevClientTunnelPath`,
+  `dvDevClientTunnelProtocol`, `dvDevClientTunnelProof` and
+  `dvDevClientTunnelProofValid`, the challenge a dev server signs so a
+  development build sends nothing to a server without its paired key; and
+  `DVDevServerHost`, the dev machine a paired build reaches its backend on.
+
 - **`dvDevBackendUrl`.** A development web build opened from a phone on the
   LAN called the backend at `localhost`, which on the phone has nothing on it.
   The generated runtime now reaches a loopback backend at the host the page
