@@ -31,6 +31,21 @@ import 'platform_api_generator.dart';
 import 'policy_classes.dart';
 import 'route_utils.dart';
 
+/// Whether a `handler(...)` parameter list is a raw handler's: one positional
+/// parameter that is the request, typed as one or left untyped.
+bool _takesOnlyTheRequest(String parameters) {
+  final String list = RouteUtils.stripComments(parameters)
+      .trim()
+      .replaceAll(RegExp(r',\s*$'), '');
+  if (list.isEmpty || list.contains(RegExp(r'[{\[,]'))) return false;
+  final List<String> tokens =
+      list.split(RegExp(r'\s+')).where((String t) => t.isNotEmpty).toList();
+  if (tokens.length == 1) return true;
+  final String type = tokens.sublist(0, tokens.length - 1).join(' ');
+  final String bare = type.replaceAll('?', '').split('.').last;
+  return bare == 'Request' || bare == 'RequestType' || bare == 'dynamic';
+}
+
 class BackendGenerator {
   /// `dartvel.crashes`, read with the parser the runtime uses, so a value the
   /// runtime could not honour fails the build here too.
@@ -341,7 +356,14 @@ class BackendGenerator {
           r'^\s*(?:[A-Za-z_][\w<>, ?]*\s+)?handler\s*\(([^)]*)\)\s*'
           r'(?:async\*?|sync\*)?\s*(?:=>|\{)',
           multiLine: true);
-      final hasHandler = regHandler.hasMatch(src);
+      // Only a handler that takes the request is one: the router calls it
+      // with the request. `handler()` and `handler({name, email})` were
+      // taken for raw handlers too, and the routes called `f0.handler(req)`,
+      // which does not compile. Those fall through to the typed search below
+      // and are called with their arguments.
+      final RegExpMatch? handlerMatch = regHandler.firstMatch(src);
+      final hasHandler = handlerMatch != null &&
+          _takesOnlyTheRequest(handlerMatch.group(1) ?? '');
       final baseWhole = p.basenameWithoutExtension(rel); // e.g., hello.get
       final baseNameOnly = baseWhole.contains('.')
           ? baseWhole.substring(0, baseWhole.lastIndexOf('.'))

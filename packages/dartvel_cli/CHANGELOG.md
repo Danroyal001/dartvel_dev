@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Only a `handler` that takes the request is a raw handler.** A backend
+  function file whose `handler` took the client's arguments, or none, was
+  called with the request anyway, and the server binary failed to compile on
+  "Too many positional arguments" in a generated file. Such a handler is now
+  called with its arguments, like any other function in the file.
+
 - **`dartvel build web-server` writes one file that is the whole
   deployment.** `build/server` carries the backend, the native server
   library and the web app (shell, code and assets) inside itself. Copied
