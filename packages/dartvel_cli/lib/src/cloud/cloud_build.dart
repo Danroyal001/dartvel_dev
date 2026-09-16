@@ -16,6 +16,7 @@ import 'package:dartvel_core/cloud.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../utils/qr_code.dart';
 import 'cloud_client.dart';
 import 'source_archive.dart';
 
@@ -189,6 +190,11 @@ class DVCloudBuilder {
           '${p.relative(out.path, from: root)}');
       if (build.installUrl != null) {
         _log('📲 Install on a device: ${build.installUrl}');
+        // Scanned from the screen by the phone the build is for.
+        dvQrTerminalLines(
+          DVQrCode.encodeText(build.installUrl!),
+          ansi: stdout.hasTerminal && stdout.supportsAnsiEscapes,
+        ).forEach(_log);
       }
       return 0;
     } on DVCloudException catch (error) {
