@@ -197,4 +197,29 @@ void main() {
       expect(sqs.calls.single.action, 'PurgeQueue');
     });
   });
+  group('the tenant', () {
+    // The worker runs a job as the tenant it was dispatched under, so a
+    // message that dropped it would run as no tenant at all.
+    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant) async {
+      await adapter.enqueue('mail', const _Welcome('u1'), tenant: tenant);
+      sqs.replies.add(<String, Object?>{
+        'Messages': <Object?>[
+          <String, Object?>{
+            'MessageId': 'm-1',
+            'ReceiptHandle': 'r-1',
+            'Body': sqs.calls.last.body['MessageBody'],
+          },
+        ],
+      });
+      return adapter.reserve('mail');
+    }
+
+    test('travels in the message and comes back on the envelope', () async {
+      expect((await roundTrip('acme'))!.tenant, 'acme');
+    });
+
+    test('a job with none comes back with none', () async {
+      expect((await roundTrip(null))!.tenant, isNull);
+    });
+  });
 }

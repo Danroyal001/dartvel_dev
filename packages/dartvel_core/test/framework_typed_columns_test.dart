@@ -188,6 +188,9 @@ const Map<String, String> _dynamicSites = <String, String>{
       'column takes columnType; run below.',
   'dartvel_core/lib/src/metering/meters.dart':
       'The meter store interpolates one typed constant twice; run below.',
+  'dartvel_core/lib/src/database/framework_tables.dart':
+      'dvEnsureFrameworkColumns refuses a column with no SQL type before it '
+      'writes one; run in framework_added_columns_test.',
   'dartvel_core/lib/src/schema/schema_change.dart':
       "A change's description, for people. Nothing executes it.",
   'dartvel_cli/lib/src/generators/record_columns.dart':

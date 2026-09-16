@@ -203,4 +203,23 @@ void main() {
       expect(await adapter.flush('mail'), 4);
     });
   });
+  group('the tenant', () {
+    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant) async {
+      await adapter.enqueue('mail', const _Welcome('u1'), tenant: tenant);
+      channel.waiting.add(DVAmqpMessage(
+        deliveryTag: 7,
+        body: channel.published.last.body,
+        redelivered: false,
+      ));
+      return adapter.reserve('mail');
+    }
+
+    test('travels in the message and comes back on the envelope', () async {
+      expect((await roundTrip('acme'))!.tenant, 'acme');
+    });
+
+    test('a job with none comes back with none', () async {
+      expect((await roundTrip(null))!.tenant, isNull);
+    });
+  });
 }

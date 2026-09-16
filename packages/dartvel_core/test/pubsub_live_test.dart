@@ -96,12 +96,14 @@ void main() {
   });
 
   test('a published job comes back from the subscription', () async {
-    await adapter.enqueue(queue, const LivePing('hello'));
+    await adapter.enqueue(queue, const LivePing('hello'), tenant: 'acme');
 
     final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
 
     expect(job, isNotNull, reason: 'it was published, so it must pull back');
     expect(job!.payloadType, LivePing);
+    // The worker runs it as this tenant, so the topic has to carry it.
+    expect(job.tenant, 'acme');
 
     // Acknowledged before leaving. An unacknowledged message returns once the
     // ack deadline passes, and it then turns up in the next test as a job

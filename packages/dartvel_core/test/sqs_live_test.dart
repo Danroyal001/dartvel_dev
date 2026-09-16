@@ -164,7 +164,7 @@ void main() {
   });
 
   test('a job survives the round trip through a real queue', () async {
-    await adapter.enqueue(queue, const LiveWelcome('u-live'));
+    await adapter.enqueue(queue, const LiveWelcome('u-live'), tenant: 'acme');
 
     final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
 
@@ -172,6 +172,8 @@ void main() {
     // By type, not by cast: a decoded payload is wrapped, and payloadType is
     // what routes it to a handler.
     expect(job!.payloadType, LiveWelcome);
+    // The worker runs it as this tenant, so the queue has to carry it.
+    expect(job.tenant, 'acme');
 
     // Deleted before leaving. A reserved message returns once its visibility
     // timeout passes and then appears in a later test as a job that should

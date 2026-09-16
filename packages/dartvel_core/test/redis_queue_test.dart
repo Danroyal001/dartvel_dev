@@ -185,4 +185,13 @@ void main() async {
     expect(reserved, isNotNull);
     expect(reserved!.payloadType, Ping);
   });
+  test('the tenant a job was dispatched under comes back to the worker',
+      () async {
+    await adapter.enqueue<Ping>('mail', const Ping('a'), tenant: 'acme');
+    await adapter.enqueue<Ping>('mail', const Ping('b'));
+
+    final first = await adapter.reserve('mail');
+    final second = await adapter.reserve('mail');
+    expect(<String?>[first!.tenant, second!.tenant], <String?>['acme', null]);
+  });
 }
