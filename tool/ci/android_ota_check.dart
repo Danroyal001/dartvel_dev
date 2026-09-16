@@ -1,27 +1,28 @@
 /// OTA on a real Android emulator: a release built with Shorebird's engine
 /// checks for a patch through `DV.Updates`, applies it, and is the patch on
-/// the next launch -- served by Dartvel's own patch source, with no Shorebird
-/// account.
+/// the next launch -- served by the example's own web-server binary, with no
+/// Shorebird account.
 ///
 /// Run by the "OTA updates" workflow inside android-emulator-runner, which
 /// runs each line of its script as its own `sh -c`, so everything is here.
 /// The step is continue-on-error; the verdict is written to a file a later
 /// step reads.
 ///
-/// Expects, from the build step: /tmp/ota/release.apk, /tmp/ota/patch.bin
-/// (the diff from the release's libapp.so to the patched one) and
-/// /tmp/ota/patched.sha256.
+/// Expects, from the earlier steps: /tmp/ota/release.apk, made by `dartvel
+/// updates release --patch-source`, and the web-server binary running from
+/// /tmp/ota-server on port 9090, into which `dartvel updates patch
+/// --patch-source` published the patch.
 ///
 /// Imports are `dart:` only.
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 const String _package = 'com.example.dartvel_example';
 const String _diag = '/tmp/diag';
 const String _ota = '/tmp/ota';
+const String _store = '/tmp/ota-server/dartvel_data/updates';
 const String _appId = 'dartvel-example-ota';
 
 Future<String> _adb(List<String> args) async {
@@ -84,8 +85,6 @@ Future<void> _launch() => _adb(<String>[
 Future<void> main() async {
   Directory(_diag).createSync(recursive: true);
   final List<String> failures = <String>[];
-  Process? server;
-  final IOSink serverLog = File('$_diag/ota-server.log').openWrite();
 
   try {
     await _adb(<String>['install', '-r', '$_ota/release.apk']);
@@ -95,8 +94,12 @@ Future<void> main() async {
       'package',
       _package,
     ]);
-    final String? name = RegExp(r'versionName=(\S+)').firstMatch(package)?.group(1);
-    final String? code = RegExp(r'versionCode=(\d+)').firstMatch(package)?.group(1);
+    final String? name = RegExp(
+      r'versionName=(\S+)',
+    ).firstMatch(package)?.group(1);
+    final String? code = RegExp(
+      r'versionCode=(\d+)',
+    ).firstMatch(package)?.group(1);
     if (name == null || code == null) {
       throw StateError('dumpsys did not report the installed version');
     }
@@ -104,48 +107,21 @@ Future<void> main() async {
     final String release = '$name+$code';
     stdout.writeln('== installed release $release');
 
-    final ProcessResult published = await Process.run('dart', <String>[
-      'run',
-      'tool/ci/ota_patch_server.dart',
-      'publish',
-      '$_ota/store',
-      _appId,
-      release,
-      'android',
-      'x86_64',
-      '$_ota/patch.bin',
-      File('$_ota/patched.sha256').readAsStringSync().trim(),
-    ]);
-    stdout.writeln('${published.stdout}${published.stderr}');
-    if (published.exitCode != 0) throw StateError('publishing the patch failed');
-
-    server = await Process.start('dart', <String>[
-      'run',
-      'tool/ci/ota_patch_server.dart',
-      'serve',
-      '$_ota/store',
-      '9090',
-    ]);
-    final List<String> served = <String>[];
-    for (final Stream<List<int>> s in <Stream<List<int>>>[
-      server.stdout,
-      server.stderr,
-    ]) {
-      s.transform(utf8.decoder).transform(const LineSplitter()).listen((
-        String line,
-      ) {
-        served.add(line);
-        serverLog.writeln(line);
-        stdout.writeln('[patch source] $line');
-      });
+    // Published for the release this device reports, or the device will never
+    // be offered it: the updater asks by versionName+versionCode, and dartvel
+    // updates computed the release from the pubspec.
+    final File published = File(
+      '$_store/$_appId/$release/android/x86_64/1/patch.bin',
+    );
+    if (!published.existsSync()) {
+      throw StateError(
+        'no patch 1 for release $release in the binary\'s store: '
+        '${Directory(_store).existsSync() ? Directory(_store).listSync(recursive: true).map((e) => e.path).join(', ') : 'no store'}',
+      );
     }
-    if (!await _waitFor(
-      'the patch source is listening',
-      () async => served.any((String l) => l.startsWith('patch source on')),
-      within: const Duration(minutes: 3),
-    )) {
-      throw StateError('the patch source did not start');
-    }
+    stdout.writeln(
+      '== patch 1 for $release is published (${published.lengthSync()} bytes)',
+    );
 
     await _adb(<String>['logcat', '-c']);
     await _launch();
@@ -175,12 +151,6 @@ Future<void> main() async {
     if (!installed || !afterApply.contains('OTA-PROBE apply installed')) {
       failures.add('the patch was not installed through DV.Updates');
     }
-    if (!served.any((String l) => l.contains('/api/v1/patches/check'))) {
-      failures.add('the device never asked the Dartvel patch source');
-    }
-    if (!served.any((String l) => l.startsWith('GET /updates/patches/'))) {
-      failures.add('the device never downloaded the patch');
-    }
     await _screenshot('ota-1-release');
 
     await _adb(<String>['shell', 'am', 'force-stop', _package]);
@@ -208,15 +178,12 @@ Future<void> main() async {
     try {
       // Everything, not only the flutter tag: the engine and the updater log
       // there too, but a refused socket or a crash may not.
-      File('$_diag/ota-logcat-full.log').writeAsStringSync(
-        await _adb(<String>['logcat', '-d']),
-      );
+      File(
+        '$_diag/ota-logcat-full.log',
+      ).writeAsStringSync(await _adb(<String>['logcat', '-d']));
     } on Object {
       // Diagnostics only.
     }
-    server?.kill();
-    await serverLog.flush();
-    await serverLog.close();
     final File verdict = File('$_diag/ota-verdict.txt')
       ..writeAsStringSync(
         failures.isEmpty ? 'passed\n' : 'failed\n${failures.join('\n')}\n',
