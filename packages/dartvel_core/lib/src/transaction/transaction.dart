@@ -318,6 +318,34 @@ class DVTransactionRunner {
   }
 }
 
+/// Runs the after-commit work [context] collected, in the order it was added.
+///
+/// For a context handed to a backend function, which is made per request and
+/// is not a [DVTransactionRunner] transaction: the generated handler calls
+/// this once the function has returned, so `afterCommit` there means what it
+/// means inside `DV.transaction`.
+Future<void> dvCommitContext(DVContext context) async {
+  for (final FutureOr<void> Function() callback in context.pendingAfterCommit) {
+    await callback();
+  }
+}
+
+/// Runs [context]'s compensations in reverse order, going on past a failure,
+/// and returns the failures. The generated handler calls it when a backend
+/// function that was handed [context] throws.
+Future<List<Object>> dvCompensateContext(DVContext context) async {
+  final List<Object> failures = <Object>[];
+  for (final FutureOr<void> Function() compensate
+      in context.pendingCompensations.reversed) {
+    try {
+      await compensate();
+    } catch (error) {
+      failures.add(error);
+    }
+  }
+  return failures;
+}
+
 /// What a transaction's zone carries: its context, and whether it is still
 /// open to the work that finds it there.
 class _DVTransactionScope {

@@ -1067,6 +1067,7 @@ $routeClose''';
               '\n    final _dvCtx = core.DVContext(requestLifecycle: '
               '_dvLifecycle);'
               '\n    _dvLifecycle.set(core.DVRequestLifecycle.executing);'
+              '\n    var _dvCommitted = false;'
           : '';
       // After the function returns and before the response is encoded. Not
       // completed: the body may be a stream this handler no longer owns, and
@@ -1075,9 +1076,21 @@ $routeClose''';
       final String contextDone = injectsContext
           ? '\n      _dvLifecycle.set('
               'core.DVRequestLifecycle.preparingResponse);'
+              // The hooks the function registered on its context. The context
+              // is per request and not a DV.transaction, so without this
+              // afterCommit and compensate filled lists nothing read. Marked
+              // committed first: after-commit work that throws cannot undo a
+              // function that already succeeded.
+              '\n      _dvCommitted = true;'
+              '\n      await core.dvCommitContext(_dvCtx);'
           : '';
       final String contextFailed = injectsContext
           ? '      _dvLifecycle.set(core.DVRequestLifecycle.failed);'
+              '\n      if (!_dvCommitted) {'
+              '\n        for (final _dvFailure in await core.dvCompensateContext(_dvCtx)) {'
+              "\n          stderr.writeln('[dartvel backend] compensation failed: \$_dvFailure');"
+              '\n        }'
+              '\n      }'
           : '';
       // The declared body limit, enforced where the body is read.
       //
