@@ -6,42 +6,172 @@ import '../dartvel_client/dartvel_client.dart';
 Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
   child: DVBox.list(<Widget>[
     Section(
+      glow: true,
       children: <Widget>[
         Eyebrow('DARTVEL CLOUD'),
-        Heading('Dartvel Cloud does not exist yet.', level: 1),
+        Heading('Ship to iPhone and Android without owning a Mac.', level: 1),
         Bullets(<String>[
-          'There is no sign-up and nothing to buy.',
-          'You can deploy a Dartvel app to your own host today.',
+          'You run one command, and your app builds on our machines.',
+          'Signing keys, store uploads and OTA patches live in the same place.',
+          'Cloud is not open yet. Every cloud build will be on a paid plan.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel build ios --cloud   # builds on a macOS worker, lands in build/cloud/ios',
         ]),
       ],
     ),
     Section(
       tint: true,
       children: <Widget>[
-        Eyebrow('PLANNED'),
-        Heading('What Cloud is meant to do.'),
+        Eyebrow('CLOUD BUILDS'),
+        Heading('Build iOS, Android, macOS and Windows from any computer.'),
+        Bullets(<String>[
+          'You watch the build log in your terminal while it runs.',
+          'Your files download into build/cloud and are checked against their '
+              'SHA-256 before they are kept.',
+        ]),
+        CodeBlock(<String>[
+          'export DARTVEL_CLOUD_TOKEN=...',
+          'dartvel build android --cloud --profile development',
+          'dartvel build macos --cloud',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
+        Eyebrow('SUBMIT'),
+        Heading('Build and upload to testers in one step.'),
+        Bullets(<String>[
+          'Firebase App Distribution comes first.',
+          'Google Play and the App Store follow once dartvel build makes app '
+              'bundles and signed iOS builds.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel publish firebase --cloud',
+        ]),
+      ],
+    ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        Eyebrow('UPDATES'),
+        Heading('Push a fix to phones without waiting for store review.'),
+        Bullets(<String>[
+          'Cloud serves your patches, and devices check for them without a '
+              'token.',
+          'You can also serve patches from your own web-server binary, for '
+              'free.',
+        ]),
+        CodeBlock(<String>[
+          'DARTVEL_UPDATES_TOKEN=\$DARTVEL_CLOUD_TOKEN \\',
+          '  dartvel updates patch --patch-source https://cloud.dartvel.dev/updates/<account>/<app>',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
+        Eyebrow('CREDENTIALS'),
+        Heading('Keep your keystore and signing keys off your laptop.'),
+        Bullets(<String>[
+          'Each key is sealed for one app, and only the machine building that '
+              'app opens it.',
+          'Passwords go in through standard input, so they stay out of your '
+              'shell history.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel key cloud android-keystore upload.jks',
+          'printf %s "\$KEYSTORE_PASSWORD" | dartvel key cloud android-keystore-password -',
+          'dartvel key cloud   # lists what is kept, never the values',
+        ]),
+      ],
+    ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        Eyebrow('INTERNAL DISTRIBUTION'),
+        Heading('Send testers a link and a QR code.'),
+        Bullets(<String>[
+          'A development build prints an install page and a QR code your '
+              'tester scans.',
+          'Android installs this way. iOS test installs need signed builds '
+              'first.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel build android --cloud --profile development',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
+        Eyebrow('HOSTING'),
+        Heading('Run your web-server binary on Cloud.'),
+        Bullets(<String>[
+          'Today you run that one file on any Linux host for free, with SQLite '
+              'created beside it.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel build web-server   # one binary: web app, admin Studio, SQLite on first run',
+        ]),
+      ],
+    ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        Eyebrow('WORKFLOWS'),
+        Heading('Chain the build and the upload in one run.'),
+        Bullets(<String>[
+          'A cloud build publishes when it succeeds.',
+          'Runs on every push are planned.',
+        ]),
+        CodeBlock(<String>[
+          'dartvel publish firebase --cloud --dry-run   # the worker prints the upload',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
+        Eyebrow('WHERE IT STANDS'),
+        Heading('What exists today and what is still planned.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
-            'One deploy command',
-            'dartvel deploy ships the backend, database, queues and web build '
-                'together.',
+            'The --cloud options',
+            'dartvel build, publish and key cloud pack your app, follow the '
+                'log and download the result.',
+            built: true,
+          ),
+          SiteCard(
+            'Hosted build machines',
+            'The service and its workers are written and run in our CI. No '
+                'machines take customer builds yet.',
             built: false,
           ),
           SiteCard(
-            'The runtime you run locally',
-            'The same Axum and Tokio server that dartvel dev starts.',
+            'Managed iOS signing',
+            'Certificates and profiles issued from your App Store Connect key, '
+                'tested against a stand-in for Apple.',
             built: false,
           ),
           SiteCard(
-            'Jobs included',
-            'Queues and background jobs run next to the app, with no second '
-                'service to set up.',
+            'Store upload from Cloud',
+            'Firebase first, then Google Play and the App Store.',
+            built: false,
+          ),
+          SiteCard(
+            'OTA patches on Cloud',
+            'A patch source for each app, with your Cloud token to publish.',
+            built: false,
+          ),
+          SiteCard(
+            'Hosting and a dashboard',
+            'Your web-server binary on a domain, and one place to see builds, '
+                'releases and crashes.',
             built: false,
           ),
         ], spacing: 16),
       ],
     ),
     Section(
+      tint: true,
       children: <Widget>[
         Eyebrow('STUDIO PRO'),
         Heading('Import a Figma file as pages you can edit and export.'),
@@ -95,18 +225,18 @@ Widget _cloudPage(BuildContext context) => const SingleChildScrollView(
       ],
     ),
     Section(
-      tint: true,
       children: <Widget>[
         Eyebrow('TODAY'),
-        Heading('Deploy to your own host now.'),
+        Heading('Build, publish and patch from your own machine for free.'),
         CodeBlock(<String>[
-          'dartvel build web            # static files for any web host',
-          'dartvel deploy --functions   # a container, Cloud Run or Lambda artifact per function',
+          'dartvel build android --profile release',
+          'dartvel publish firebase',
+          'dartvel updates patch --patch-source https://your-server.example/updates',
         ]),
         Objection(
-          'Will I be locked in to Cloud?',
-          'No. You can deploy without it today, and self-hosting stays '
-              'supported.',
+          'Will I need Cloud to ship my app?',
+          'No. Local builds, store uploads, OTA from your own binary and '
+              'hosting your app yourself stay free, and Cloud never gates them.',
         ),
         DVBox.wrapLine(<Widget>[
           PrimaryLink('Create your first app', '/docs'),
