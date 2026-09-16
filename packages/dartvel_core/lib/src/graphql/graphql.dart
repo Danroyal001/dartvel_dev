@@ -13,6 +13,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
+import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/api_scopes.dart';
 import '../auth/backend_policy.dart';
 import '../auth/session_authentication.dart';
@@ -90,6 +91,21 @@ Future<String?> _dvFieldRefusal(
   return await DVBackendPolicy.allowsAction(policy, 'graphql/${field.name}')
       ? null
       : 'Not authorized ($policy)';
+}
+
+/// A resolver's refusal: the policy for [action] did not allow it.
+///
+/// Thrown by [DVGraphQL.authorizeModel] from inside a resolver, and reported
+/// by the executor as the field refusal it is -- the same message and the
+/// same `FORBIDDEN` code a field's declared policy produces.
+class DVGraphQLForbidden implements Exception {
+  const DVGraphQLForbidden(this.action);
+
+  /// The `Resource.action` that was refused.
+  final String action;
+
+  @override
+  String toString() => 'Not authorized ($action)';
 }
 
 /// A registered object type.
@@ -185,6 +201,39 @@ class DVGraphQL {
   static void registerSubscription(DVGraphQLField field) {
     _subscriptions[field.name] = field;
     _schemaChanged();
+  }
+
+  /// Refuses with [DVGraphQLForbidden] unless the policy for [action], named
+  /// as `Resource.action`, allows it on [resource].
+  ///
+  /// What a generated model's resolvers call before they read or write, so a
+  /// mutation sent past the UI is asked the question the UI's button was.
+  /// Who is asked about is the request's caller when a server authenticated
+  /// one -- an API key or OAuth token, whose scopes still narrow the answer,
+  /// or the session's user -- and [user] otherwise, which the generated client
+  /// passes as `DV.Auth.currentUser`.
+  ///
+  /// Asked through `canAction`, so it is never a cast: an action nothing
+  /// registered is refused, a caller or resource the policy was not written
+  /// for is refused and says why once, and a policy that throws has not said
+  /// yes.
+  static Future<void> authorizeModel(
+    String action, {
+    Object? resource,
+    Object? user,
+  }) async {
+    bool allowed;
+    try {
+      final Object? caller = DVBackendPolicy.callerFor(action) ?? user;
+      allowed = await const DVAuthAuthorization()
+          .canAction(caller, action, resource: resource);
+    } catch (error) {
+      DVObservability.logger.warn(
+        'The policy for $action threw, so it refused: $error',
+      );
+      allowed = false;
+    }
+    if (!allowed) throw DVGraphQLForbidden(action);
   }
 
   /// Drops every registration, and puts the limits and the persisted-query
@@ -866,6 +915,8 @@ class _ExecutionContext {
       errors.add(<String, Object?>{
         'message': '$error',
         'path': <Object?>[selection.alias],
+        if (error is DVGraphQLForbidden)
+          'extensions': <String, Object?>{'code': 'FORBIDDEN'},
       });
       return null;
     }

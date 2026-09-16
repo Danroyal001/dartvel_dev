@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`DVGraphQL.authorizeModel` and `DVGraphQLForbidden`.** A resolver asks
+  the policy for `Resource.action` on the record it would touch, through
+  `canAction`, and is refused with `DVGraphQLForbidden` unless it allows. The
+  caller is the request's API key, OAuth token or session user when a server
+  authenticated one, and the `user` it is handed otherwise. An action nothing
+  registered, a caller or resource the policy was not written for, and a
+  policy that throws all refuse. The executor reports the refusal as
+  `Not authorized (Resource.action)` with the `FORBIDDEN` code a declared
+  field policy already used.
+
+
 - **Webhook subscriptions, deliveries and payloads are kept in
   `DV.Database`.** They were maps in process memory, so a restart lost every
   subscription, the record of every delivery, and every retry still owed.

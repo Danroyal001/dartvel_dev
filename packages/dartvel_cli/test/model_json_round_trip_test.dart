@@ -180,6 +180,72 @@ void main() {
     expect(admin, contains('as: as,'));
   });
 
+  group('the generated GraphQL fields ask the model\'s policy', () {
+    /// The registration of the GraphQL field [name], up to the next one.
+    String fieldOf(String generated, String name) {
+      final int start = generated.indexOf("    '$name',");
+      expect(start, greaterThan(-1), reason: 'no GraphQL field $name');
+      final int end = generated.indexOf('  ));', start);
+      return generated.substring(start, end);
+    }
+
+    /// Everything in [body] before [marker], which must be there.
+    String before(String body, String marker) {
+      final int at = body.indexOf(marker);
+      expect(at, greaterThan(-1), reason: 'no $marker in $body');
+      return body.substring(0, at);
+    }
+
+    const String caller = 'user: const DVAuth().currentUser';
+
+    test('the list asks viewAny before it reads', () async {
+      final String field = fieldOf(await generate(_model), 'posts');
+      expect(
+        before(field, 'Post.all()'),
+        contains("DVGraphQL.authorizeModel('Post.viewAny', $caller)"),
+      );
+    });
+
+    test('a record is asked view about itself before it is returned',
+        () async {
+      final String field = fieldOf(await generate(_model), 'post');
+      expect(
+        before(field, 'toPublicJson()'),
+        contains(
+            "DVGraphQL.authorizeModel('Post.view', resource: model, $caller)"),
+      );
+    });
+
+    test('save asks update about the stored record, create about a new one',
+        () async {
+      final String field = fieldOf(await generate(_model), 'savePost');
+      final String asked = before(field, 'Post.save(');
+      // Ownership is judged on what exists, as the admin judges it: the
+      // arguments must not be able to make somebody else's record editable.
+      expect(asked, contains("Post.find('\${candidate.id}')"));
+      expect(
+        asked,
+        contains("DVGraphQL.authorizeModel('Post.update', "
+            'resource: stored, $caller)'),
+      );
+      expect(
+        asked,
+        contains("DVGraphQL.authorizeModel('Post.create', "
+            'resource: candidate, $caller)'),
+      );
+    });
+
+    test('delete asks delete about the stored record before destroying it',
+        () async {
+      final String field = fieldOf(await generate(_model), 'deletePost');
+      expect(
+        before(field, 'Post.destroy('),
+        contains("DVGraphQL.authorizeModel('Post.delete', "
+            'resource: model, $caller)'),
+      );
+    });
+  });
+
   test('an application with no models still gets registerDartvelModels', () async {
     // The generated dartvel_runtime.dart imports and calls
     // registerDartvelModels() unconditionally, so the no-models stub must

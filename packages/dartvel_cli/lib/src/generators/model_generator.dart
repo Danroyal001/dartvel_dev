@@ -1712,25 +1712,40 @@ class ModelGenerator {
           }
           sb.writeln('    ],');
           sb.writeln('  ));');
+          // Every resolver asks the model's policy before it reads or writes,
+          // as the admin asks before it offers an action: a mutation sent past
+          // the UI must meet the question the UI's button did. Asked about
+          // the request's caller when a server authenticated one, and
+          // DV.Auth.currentUser otherwise; a model no policy answers refuses.
+          const String caller = 'user: const DVAuth().currentUser';
           sb.writeln('  DVGraphQL.registerQuery(DVGraphQLField(');
           sb.writeln("    '$tableName',");
           sb.writeln("    '[$className!]!',");
-          sb.writeln('    resolve: (args, parent) async =>');
-          sb.writeln('        (await $className.all())');
+          sb.writeln('    resolve: (args, parent) async {');
           sb.writeln(
-            '            .map(($className m) => m.toPublicJson())',
+            "      await DVGraphQL.authorizeModel('$className.viewAny', $caller);",
           );
-          sb.writeln('            .toList(),');
+          sb.writeln('      return (await $className.all())');
+          sb.writeln(
+            '          .map(($className m) => m.toPublicJson())',
+          );
+          sb.writeln('          .toList();');
+          sb.writeln('    },');
           sb.writeln('  ));');
           sb.writeln('  DVGraphQL.registerQuery(DVGraphQLField(');
           sb.writeln("    '$singular',");
           sb.writeln("    '$className',");
           sb.writeln("    args: const <String, String>{'$keyField': 'String!'},");
-          sb.writeln('    resolve: (args, parent) async =>');
+          sb.writeln('    resolve: (args, parent) async {');
           sb.writeln(
-            "        (await $className.find(args['$keyField'] as String))",
+            "      final model = await $className.find(args['$keyField'] as String);",
           );
-          sb.writeln('            ?.toPublicJson(),');
+          sb.writeln('      if (model == null) return null;');
+          sb.writeln(
+            "      await DVGraphQL.authorizeModel('$className.view', resource: model, $caller);",
+          );
+          sb.writeln('      return model.toPublicJson();');
+          sb.writeln('    },');
           sb.writeln('  ));');
 
           // save<Model>: public fields as arguments; sensitive fields take
@@ -1756,13 +1771,29 @@ class ModelGenerator {
             sb.writeln("      '${f['name']}': '${sdlType(f)}',");
           }
           sb.writeln('    },');
-          sb.writeln('    resolve: (args, parent) async =>');
+          sb.writeln('    resolve: (args, parent) async {');
           // Runtime argument values: never const, whatever the source
           // class's constructor is.
+          sb.writeln('      final candidate = $className($constructorArgs);');
+          // An update is asked about the stored record, not the arguments:
+          // ownership is judged on what exists, so sending somebody else's
+          // value must not make their record editable.
           sb.writeln(
-            '        (await $className.save($className($constructorArgs)))',
+            "      final stored = await $className.find('\${candidate.$keyField}');",
           );
-          sb.writeln('            .toPublicJson(),');
+          sb.writeln('      if (stored != null) {');
+          sb.writeln(
+            "        await DVGraphQL.authorizeModel('$className.update', resource: stored, $caller);",
+          );
+          sb.writeln('      } else {');
+          sb.writeln(
+            "        await DVGraphQL.authorizeModel('$className.create', resource: candidate, $caller);",
+          );
+          sb.writeln('      }');
+          sb.writeln(
+            '      return (await $className.save(candidate)).toPublicJson();',
+          );
+          sb.writeln('    },');
           sb.writeln('  ));');
           sb.writeln('  DVGraphQL.registerMutation(DVGraphQLField(');
           sb.writeln("    'delete$className',");
@@ -1773,6 +1804,9 @@ class ModelGenerator {
             "      final model = await $className.find(args['$keyField'] as String);",
           );
           sb.writeln('      if (model == null) return false;');
+          sb.writeln(
+            "      await DVGraphQL.authorizeModel('$className.delete', resource: model, $caller);",
+          );
           sb.writeln('      await $className.destroy(model);');
           sb.writeln('      return true;');
           sb.writeln('    },');
