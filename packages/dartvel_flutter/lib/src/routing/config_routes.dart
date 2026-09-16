@@ -20,6 +20,7 @@ library dartvel_flutter.routing.config_routes;
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show dvOrderRoutes;
+import 'package:flutter/material.dart' show MaterialPage;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -212,6 +213,47 @@ class DVShellNavigation extends StatelessWidget {
   Widget build(BuildContext context) => _shell;
 }
 
+/// A [DVShellNavigation] over go_router's shell, for the generated router.
+DVShellNavigation dvShellNavigation(StatefulNavigationShell shell) =>
+    DVShellNavigation._(shell);
+
+/// A `_layout.dart` that makes its folder tabs: a stack per tab, each keeping
+/// its pages and their state while another tab is shown.
+///
+/// The tabs are named, in order, by a static list of the pages that open
+/// each one, which the build reads:
+///
+/// ```dart
+/// class AppTabs extends DartvelTabsLayout {
+///   const AppTabs({super.key, required super.shell});
+///
+///   static const List<DVRouteTarget> tabs = <DVRouteTarget>[
+///     DVRoutes.feed,
+///     DVRoutes.saved,
+///   ];
+///
+///   @override
+///   Widget build(BuildContext context) => Scaffold(
+///         body: shell,
+///         bottomNavigationBar: NavigationBar(
+///           selectedIndex: shell.currentIndex,
+///           onDestinationSelected: shell.goBranch,
+///           destinations: const <Widget>[...],
+///         ),
+///       );
+/// }
+/// ```
+///
+/// Every page in the folder belongs to the tab whose path it extends, and is
+/// pushed over the page whose path it extends in turn: `/feed/:post` over
+/// `/feed`, inside the feed tab.
+abstract class DartvelTabsLayout extends StatelessWidget {
+  const DartvelTabsLayout({super.key, required this.shell});
+
+  /// The tabs: place it where the tab content goes.
+  final DVShellNavigation shell;
+}
+
 /// [nodes] as `go_router` routes, for the generated router.
 ///
 /// Each screen is given what a page is given that does not come from a
@@ -285,10 +327,11 @@ class _Convert {
     required String parentPath,
     required bool guarded,
     GoRouterRedirect? inherited,
+    bool pushed = false,
   }) {
     switch (node) {
       case DVRoute():
-        return _route(node, parentPath, guarded, inherited);
+        return _route(node, parentPath, guarded, inherited, pushed);
       case DVShellRoute():
         final bool inside = guarded || node.redirect != null;
         return ShellRoute(
@@ -331,13 +374,14 @@ class _Convert {
   List<RouteBase> _children(
     List<DVRouteNode> nodes,
     String parentPath,
-    bool guarded,
-  ) => dvOrderGoRoutes(<RouteBase>[
+    bool guarded, {
+    bool pushed = false,
+  }) => dvOrderGoRoutes(<RouteBase>[
     for (final DVRouteNode child in nodes)
       if (child is DVGoRoutes)
         ...child.routes
       else
-        node(child, parentPath: parentPath, guarded: guarded),
+        node(child, parentPath: parentPath, guarded: guarded, pushed: pushed),
   ]);
 
   GoRoute _route(
@@ -345,6 +389,7 @@ class _Convert {
     String parentPath,
     bool guarded,
     GoRouterRedirect? inherited,
+    bool pushed,
   ) {
     final String full = _join(parentPath, route.path);
     final bool covered = guarded || route.redirect != null;
@@ -364,26 +409,34 @@ class _Convert {
       redirect: _redirect(inherited, route.redirect),
       pageBuilder: (BuildContext context, GoRouterState state) {
         final DVRouteState routeState = DVRouteState._of(state);
-        return dvTransitionPage<void>(
-          key: state.pageKey,
-          spec: spec,
-          child: DartvelSeo(
-            props: SeoProps(title: route.title),
-            defaults: seo,
-            child: DartvelRouteState(
-              params: routeState.params,
-              query: routeState.query,
-              child: DVPageLifecycleHost(
-                child: Builder(
-                  builder: (BuildContext context) =>
-                      route.builder(context, routeState),
-                ),
+        final Widget page = DartvelSeo(
+          props: SeoProps(title: route.title),
+          defaults: seo,
+          child: DartvelRouteState(
+            params: routeState.params,
+            query: routeState.query,
+            child: DVPageLifecycleHost(
+              child: Builder(
+                builder: (BuildContext context) =>
+                    route.builder(context, routeState),
               ),
             ),
           ),
         );
+        // A route pushed over its parent takes the platform's push, unless it
+        // named a transition of its own. That page is what carries the iOS
+        // edge swipe back; a custom transition page has no gesture at all, so
+        // a detail screen inside a tab could only be left by a button.
+        if (pushed && route.transition == null) {
+          return MaterialPage<void>(key: state.pageKey, child: page);
+        }
+        return dvTransitionPage<void>(
+          key: state.pageKey,
+          spec: spec,
+          child: page,
+        );
       },
-      routes: _children(route.routes, full, covered),
+      routes: _children(route.routes, full, covered, pushed: true),
     );
   }
 }
