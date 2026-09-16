@@ -2632,7 +2632,10 @@ class BuildCommand extends Command<void> {
   Future<void> _captureSemantics(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
-    final routes = await _pagesToGenerate(root);
+    final routes = dvRoutesToCapture(
+      routes: await _pagesToGenerate(root),
+      guarded: dvGuardedRoutes(_routerSource(root)),
+    );
     if (routes.isEmpty) return;
 
     Logger.log('   Reading the semantics tree for ${routes.length} routes...');

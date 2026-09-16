@@ -101,4 +101,29 @@ void main() {
       expect(dvVerifyCapture(captured: 0, expected: 4).ok, isFalse);
     });
   });
+
+  group('which routes are captured', () {
+    // A route behind sign-in shows a signed-out browser nothing of its own:
+    // it redirects to sign in, or waits on a session check against the
+    // application's API. `dartvel create`'s account pages waited on
+    // https://api.shop.com, the page never went quiet, and every build of a
+    // new project died on "Navigation Timeout Exceeded". A guarded page's
+    // content is not the crawler's to see either, so it is not captured.
+    test('a guarded route is left out', () {
+      expect(
+        dvRoutesToCapture(
+          routes: <String>['/', '/account/profile', '/login', '/docs'],
+          guarded: <String>{'/account/profile'},
+        ),
+        <String>['/', '/login', '/docs'],
+      );
+    });
+
+    test('with nothing guarded every route is captured', () {
+      expect(
+        dvRoutesToCapture(routes: <String>['/', '/docs'], guarded: <String>{}),
+        <String>['/', '/docs'],
+      );
+    });
+  });
 }
