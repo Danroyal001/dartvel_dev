@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **An erasure on a tenant-scoped table stays on the row's tenant.** The walk
+  reads such a table whole, and a key is unique only on its tenant, but it
+  deleted or anonymized by key and version alone and purged history by key
+  alone. Erasing a subject's order `o1` on one tenant deleted another
+  tenant's order `o1` at the same version, belonging to somebody else, and
+  removed that record's history. The write, the reread after a conflict and
+  the history purge now match the row's `dv_tenant` as well.
+
 - **`DVModel.version` and `DVModel.softDelete`.** `@DVModel(version: false,
   softDelete: true)`, read by `dartvel routes`.
 
