@@ -15,6 +15,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
 
+import '../utils/lan_address.dart';
 import 'dev_client_project.dart';
 
 class DVDevClientBundleServer {
@@ -54,12 +55,7 @@ class DVDevClientBundleServer {
       address ?? InternetAddress.anyIPv4,
       port,
     );
-    final String host =
-        advertisedHost ??
-        dvDevClientAdvertisedHost(<InternetAddress>[
-          for (final NetworkInterface i in await NetworkInterface.list())
-            ...i.addresses,
-        ]);
+    final String host = advertisedHost ?? await dvDetectLanHost();
     final DVDevClientSigner signer = DVDevClientSigner.generate();
     final DVDevClientPairing pairing = DVDevClientPairing(
       server: Uri(scheme: 'http', host: host, port: server.port),
