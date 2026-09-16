@@ -100,4 +100,23 @@ void main() {
     await pumpDocs(tester);
     expect(find.text('9'), findsNothing);
   });
+
+  testWidgets('the numbered steps count without a gap', (
+    WidgetTester tester,
+  ) async {
+    // Links is unnumbered too, and its place in the order used to be counted
+    // anyway, so the list read 5, then a bullet, then 7.
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(child: DocsContents()))));
+    final int numbered = kDocsOrder.where(dvDocsStepIsNumbered).length;
+    Finder shown(String text) => find.descendant(
+        of: find.byType(DocsContentsLine, skipOffstage: false),
+        matching: find.text(text, skipOffstage: false));
+    expect(find.byType(DocsContentsLine, skipOffstage: false),
+        findsNWidgets(kDocsOrder.length));
+    for (int n = 1; n <= numbered; n++) {
+      expect(shown('$n'), findsOneWidget, reason: 'step $n is shown');
+    }
+    expect(shown('${numbered + 1}'), findsNothing);
+  });
 }
