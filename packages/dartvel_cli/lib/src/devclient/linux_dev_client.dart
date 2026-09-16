@@ -278,6 +278,10 @@ class Connection {
     socket_ = g_socket_client_connect_to_host(client_, host.c_str(), static_cast<guint16>(port),
                                               cancellable_, &error);
     if (socket_ == nullptr) return TakeError(error, "the connection failed");
+    // The client's timeout is for connecting. Left on the socket it ends
+    // every read that waits longer: an idle control connection, and the VM
+    // service stream between reloads.
+    g_socket_set_timeout(g_socket_connection_get_socket(socket_), 0);
     if (pin == nullptr) {
       stream_ = G_IO_STREAM(g_object_ref(socket_));
       return std::string();
