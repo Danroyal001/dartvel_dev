@@ -29,9 +29,22 @@ import 'mysql.dart';
 import 'postgres.dart';
 
 final RegExp _createTable = RegExp(
-  r'^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(',
+  r'^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?'
+  r'((?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*)\s*\(',
   caseSensitive: false,
 );
+
+final RegExp _sqlType = RegExp(
+  r'^[A-Za-z][A-Za-z0-9_]*(?: [A-Za-z][A-Za-z0-9_]*)*'
+  r'(?:\(\d+(?:, ?\d+)?\))?$',
+);
+
+/// Whether [type] reads as a SQL column type -- `TEXT`, `BIGINT`,
+/// `DOUBLE PRECISION`, `VARCHAR(255)`, `NUMERIC(12, 2)` -- and nothing else.
+///
+/// A type an application hands the framework is written into DDL, so it is
+/// checked rather than trusted, as an identifier is.
+bool dvIsSqlType(String type) => _sqlType.hasMatch(type);
 
 final RegExp _bigIntColumn = RegExp(
   r'(?:^|[(,])\s*([A-Za-z_][A-Za-z0-9_]*)\s+BIGINT\b',
@@ -118,17 +131,25 @@ Future<void> dvEnsureFrameworkTable(
   if (!mysql && adapter is! DVPostgresDatabaseAdapter) return;
 
   // Unquoted identifiers are folded to lower case by PostgreSQL, and the
-  // framework's are lower case already.
+  // framework's are lower case already. A qualified name is looked up in its
+  // own schema -- on MySQL, its own database.
   final String table = wanted.table.toLowerCase();
+  final int dot = table.indexOf('.');
+  final String? schema = dot < 0 ? null : table.substring(0, dot);
   final Set<String> columns = wanted.columns
       .map((String c) => c.toLowerCase())
       .toSet();
   final List<Map<String, Object?>> catalogue = await adapter.query(
     'SELECT column_name AS name, data_type AS type, is_nullable AS nullable '
     'FROM information_schema.columns '
-    'WHERE table_schema = ${mysql ? 'DATABASE()' : 'current_schema()'} '
+    'WHERE table_schema = '
+    '${schema != null
+        ? '?'
+        : mysql
+        ? 'DATABASE()'
+        : 'current_schema()'} '
     'AND table_name = ?',
-    <Object?>[table],
+    <Object?>[?schema, table.substring(dot + 1)],
   );
   final List<({String name, String type, bool nullable})> narrow =
       <({String name, String type, bool nullable})>[
