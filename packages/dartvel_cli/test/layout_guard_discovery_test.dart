@@ -25,6 +25,7 @@ Future<Directory> _project(Map<String, String> files) async {
 void main() {
   rootGuardTests();
   generatedRouterGuardTests();
+  nestedLayoutOrderTests();
 
   group('layout and guard discovery', () {
     test('finds a nested layout and a guard', () async {
@@ -180,6 +181,74 @@ void rootGuardTests() {
           discoverLayouts(root: root.path, pagesDir: 'lib/pages'),
           hasLength(2),
         );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+  });
+}
+
+// A nested layout belongs inside its parent's. The chain was built root first
+// and then wrapped outward, so the deepest layout ended up outermost: a docs
+// sidebar under lib/pages/docs/_layout.dart drew around the site header from
+// the root layout, and the header scrolled inside the sidebar's content area.
+void nestedLayoutOrderTests() {
+  group('nested layouts in the generated router', () {
+    test('the root layout wraps the nested one', () async {
+      final root = await _project({
+        'lib/pages/docs/intro.dart':
+            "import 'package:dartvel_core/dartvel.dart';\n"
+            '@DVPage()\nWidget _intro() => const Placeholder();\n',
+        'lib/pages/_layout.dart':
+            'class RootLayout extends DartvelLayout {}\n',
+        'lib/pages/docs/_layout.dart':
+            'class DocsLayout extends DartvelLayout {}\n',
+      });
+      try {
+        Directory('${root.path}/lib/dartvel_client').createSync(recursive: true);
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'shop',
+          buildId: 'b',
+          modules: const <DVModuleMount>[],
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://example.com',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'app',
+          seoTitle: 'app',
+          seoDesc: 'app',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'none',
+          durationMs: 200,
+          curve: 'linear',
+          normalizeTrailing: true,
+          notFoundRedirect: '/',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap(),
+        );
+
+        final String router =
+            File('${root.path}/lib/dartvel_client/router.g.dart')
+                .readAsStringSync();
+        final String wrapped = RegExp(r'final layoutWrapped = ([^;]+);')
+            .firstMatch(router)!
+            .group(1)!;
+        final String rootAlias = RegExp(r"_layout\.dart' as (l\d+);")
+            .allMatches(router)
+            .map((Match m) => m.group(0)!)
+            .firstWhere((String s) => !s.contains('docs/'))
+            .split(' as ')
+            .last
+            .replaceAll(';', '');
+        expect(wrapped, startsWith('$rootAlias.RootLayout(child: '));
+        expect(wrapped, contains('.DocsLayout(child: seoWrapped)'));
       } finally {
         root.deleteSync(recursive: true);
       }
