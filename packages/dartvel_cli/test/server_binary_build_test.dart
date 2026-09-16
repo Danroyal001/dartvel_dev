@@ -1,14 +1,14 @@
-// `dartvel build server`: the backend as one executable file.
+// The backend as one executable file, which `dartvel build web-server` writes.
 //
 // The specification's monolith is a single native backend binary, and every
 // piece around it already assumed one: dartvel infra's units start
 // /opt/<app>/server, and the image dartvel deploy writes copies build/ and
-// runs /app/server. Nothing produced that file. `dartvel deploy --target
-// server` asked `dartvel build --platform server`, which was not a platform.
+// runs /app/server. Nothing produced that file.
 //
-// So this runs the real command on a real project, then copies the one file
-// it wrote into an empty directory, starts it there and asks it for a backend
-// function. A binary that still needs the project beside it -- the package's
+// So this generates a real project's backend, compiles it the way the
+// web-server build does, then copies the one file into an empty directory,
+// starts it there and asks it for a backend function.
+// A binary that still needs the project beside it -- the package's
 // native library, the generated sources -- passes a check on the file and
 // fails this.
 @Timeout(Duration(minutes: 15))
@@ -102,24 +102,28 @@ Future<String> _ping() async => 'pong from one file';
     }
   });
 
-  test('dartvel build server writes one file that serves the backend alone',
-      () async {
-    final ProcessResult built = await Process.run(
+  test('the compiled backend is one file that serves alone', () async {
+    final ProcessResult generated = await Process.run(
       Platform.resolvedExecutable,
-      <String>[
-        'run',
-        'dartvel_cli:dartvel',
-        'build',
-        'server',
-        '--no-auto-install',
-      ],
+      <String>['run', 'dartvel_cli:dartvel', 'routes'],
       workingDirectory: project.path,
-    ).timeout(const Duration(minutes: 10));
-    expect(built.exitCode, 0, reason: '${built.stdout}\n${built.stderr}');
+    ).timeout(const Duration(minutes: 5));
+    expect(generated.exitCode, 0,
+        reason: '${generated.stdout}\n${generated.stderr}');
 
+    final DVServerBinaryResult built = await dvBuildServerBinary(
+      root: project.path,
+      library: library,
+      dart: Platform.resolvedExecutable,
+      run: (String executable, List<String> arguments,
+              {String? workingDirectory}) =>
+          Process.run(executable, arguments,
+              workingDirectory: workingDirectory),
+    );
+    expect(built.ok, isTrue, reason: built.lines.join('\n'));
     final File binary = File(p.join(project.path, 'build', 'server'));
-    expect(binary.existsSync(), isTrue, reason: '${built.stdout}');
-    expect('${built.stdout}', contains('build/server'));
+    expect(built.binary?.path, binary.path);
+    expect(built.lines.first, contains('build/server'));
 
     // Alone: an empty directory, with nothing of the project or the package.
     final Directory elsewhere =

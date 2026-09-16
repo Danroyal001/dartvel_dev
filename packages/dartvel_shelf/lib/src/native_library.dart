@@ -67,7 +67,7 @@ Future<({ffi.DynamicLibrary library, String origin})>
     throw StateError(
       'dartvel: the native server library is not in this program. A compiled '
       'backend carries it inside the binary, and this one was compiled '
-      'without it: build the backend with `dartvel build server`, which '
+      'without it: build the backend with `dartvel build web-server`, which '
       'embeds ${location.subdir}/${location.name}.',
     );
   }
