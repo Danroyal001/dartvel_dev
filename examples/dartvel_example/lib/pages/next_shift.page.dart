@@ -12,11 +12,18 @@
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 
+import '../components/shop_ui.dart';
+import '../theme/palette.dart';
 import '../widgets/next_shift.dart';
 
 @DVPage(title: 'Next shift', showAppBar: true)
 @pragma('vm:entry-point')
-Widget _nextShiftPage(BuildContext context) => DVBox(
-      const NextShiftWidget(),
-      const DVModifier().align(Alignment.center),
-    );
+Widget _nextShiftPage(BuildContext context) => ShopScroll(children: <Widget>[
+      const PageHeading(
+        'Home screen widget',
+        subtitle: 'The roasters see their next shift on their home screen. '
+            'The same widget, drawn in the app:',
+      ),
+      const DVBox(NextShiftWidget())
+          .modifier(cardStyle(Palette.of(context), padding: 20).maxWidth(320)),
+    ]);

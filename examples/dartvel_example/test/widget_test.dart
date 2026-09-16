@@ -1,30 +1,29 @@
-import 'package:flutter/widgets.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_example/shop/cart.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:dartvel_example/main.dart';
+import 'shop_test_support.dart';
 
 void main() {
-  testWidgets('Dartvel showcase renders generated app shell',
+  testWidgets('the app opens on the shop, and adding a coffee fills the bag',
       (WidgetTester tester) async {
-    await tester.pumpWidget(createDartvelExampleApp());
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));
+    await pumpShop(tester, physical: const Size(1280, 900), ratio: 1);
 
-    expect(find.text('Dartvel Platform Showcase'), findsOneWidget);
-    expect(find.text('State & Signals'), findsOneWidget);
-    expect(find.text('AI, Observability & Logging'), findsOneWidget);
-    expect(find.text('Local counter signal value: 0'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
-      find.text('Increment Counter Signal'),
-      260,
-      scrollable: find.byType(Scrollable).first,
+    expect(find.text('This week’s coffee'), findsOneWidget);
+    expect(find.text('The shelf'), findsOneWidget);
+    // Seeded from the store, not written into the page.
+    expect(find.byKey(const Key('coffee-night-shift-decaf')), findsOneWidget);
+    // No debug banner in a screenshot of the demo.
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).debugShowCheckedModeBanner,
+      isFalse,
     );
-    await tester.tap(find.text('Increment Counter Signal'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('Local counter signal value: 1'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('add-huila')));
+    await settle(tester);
+    expect(DV.global<Cart>().quantityOf('huila'), 1);
+    expect(find.text('Huila is in your bag'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
   });
 }

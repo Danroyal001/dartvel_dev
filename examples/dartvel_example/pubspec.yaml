@@ -1,6 +1,6 @@
 
 name: dartvel_example
-description: Example app using dartvel v0.1
+description: Oakline Coffee, a small coffee shop built with Dartvel.
 version: 0.0.2
 publish_to: "none"
 
@@ -151,9 +151,9 @@ dartvel:
     locales: [en-US, fr-FR]
 
   webSeoDefaults:
-    siteName: Dartvel Demo
-    defaultTitle: Dartvel Demo
-    defaultDescription: A demo of dartvel pages with SEO + transitions.
+    siteName: Oakline Coffee
+    defaultTitle: Oakline Coffee
+    defaultDescription: Small-batch coffee, roasted on Tuesday and at your door by Friday. A Dartvel demo.
     defaultImage: assets/og_default.png
     twitterHandle: "@dartvel_demo"
 

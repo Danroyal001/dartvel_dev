@@ -26,8 +26,8 @@ import 'dart:io';
 const String _example = 'examples/dartvel_example';
 const String _package = 'com.example.dartvel_example';
 const String _diag = '/tmp/diag';
-const String _page = '$_example/lib/pages/index.page.dart';
-const String _anchor = 'return DVBox.list([';
+const String _page = '$_example/lib/pages/(tabs)/index.page.dart';
+const String _anchor = 'return ShopScroll(children: <Widget>[';
 
 String _marker(String n) => 'DEVCLIENT-EDIT-$n';
 
@@ -167,7 +167,7 @@ Future<void> main() async {
     // Whether this emulator exposes Flutter's text to uiautomator at all. If
     // not, the flutter log is the evidence and the dump is not held against
     // the run.
-    final bool uiReadable = asBuilt.contains('About');
+    final bool uiReadable = asBuilt.contains('Oakline');
     stdout.writeln('== the accessibility tree is readable: $uiReadable');
     if (asBuilt.contains(_marker('ONE'))) {
       failures.add('the marker was on screen before any edit');

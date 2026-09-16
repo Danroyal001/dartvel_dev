@@ -22,7 +22,7 @@ class NextShiftWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const DVBox.list(<Widget>[
-        DVText('Tomorrow, 09:00'),
-        DVText('Front of house'),
+        DVText('Tomorrow, 07:00'),
+        DVText('Roastery floor'),
       ]);
 }

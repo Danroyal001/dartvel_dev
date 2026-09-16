@@ -1,21 +1,50 @@
 import 'package:flutter/material.dart';
 
+import '../../components/shop_ui.dart';
 import '../../dartvel_client/dartvel_client.dart';
+import '../../shop/cart.dart';
+import '../../shop/saved.dart';
 
+/// The coffees someone bookmarked, kept while they browse the other tabs.
 @DVPage(title: 'Saved')
 @pragma('vm:entry-point')
 Widget _savedPage(BuildContext context) => (() {
-      // Kept while the Library tab is on screen: each tab's pages stay built.
-      final saves = context.signal(0);
-      return DVBox.list([
-        const DVText('Saved')
-            .modifier(const DVModifier().fontSize(24.0).semanticHeading(1)),
-        DVText('Saved ${saves.value} times'),
-        TextButton(
-          key: const Key('save-button'),
-          onPressed: () => saves.value = saves.value + 1,
-          child: const Text('Save'),
+      final SavedCoffees saved = context.global<SavedCoffees>();
+
+      return ShopScroll(children: <Widget>[
+        const PageHeading('Saved',
+            subtitle: 'Coffees you want to come back to.'),
+        WatchModels<Product>(
+          watch: Product.watch,
+          builder: (BuildContext context, List<Product>? coffees) {
+            if (coffees == null) return const LoadingTiles(count: 2);
+            final List<Product> mine = <Product>[
+              for (final Product c in coffees)
+                if (saved.contains(c.slug)) c,
+            ];
+            if (mine.isEmpty) {
+              return EmptyState(
+                icon: Icons.bookmark_border,
+                title: 'Nothing saved yet',
+                message: 'Tap Save for later on a coffee and it will wait '
+                    'for you here.',
+                action: FilledButton(
+                  onPressed: () => DV.Navigation.navigate(DVRoutes.index),
+                  child: const Text('Browse coffee'),
+                ),
+              );
+            }
+            return ResponsiveGrid(children: <Widget>[
+              for (final Product coffee in mine)
+                CoffeeCard(
+                  coffee,
+                  onOpen: () => DV.Navigation.navigate(
+                    DVRoutes.coffee(slug: coffee.slug),
+                  ),
+                  onAdd: () => updateCart((Cart cart) => cart.add(coffee.slug)),
+                ),
+            ]);
+          },
         ),
-      ], spacing: 12)
-          .modifier(const DVModifier().padding(24));
+      ]);
     })();

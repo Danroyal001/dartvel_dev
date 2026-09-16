@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import 'dartvel_client/dartvel_client.dart';
 import 'screens/config_screens.dart';
+import 'shop/account.dart';
 
 final List<DVRouteNode> routes = <DVRouteNode>[
   DVRoute(
@@ -17,7 +18,7 @@ final List<DVRouteNode> routes = <DVRouteNode>[
   ),
   DVRoute(
     path: '/team',
-    title: 'Team',
+    title: 'The roasters',
     builder: (BuildContext context, DVRouteState state) => const TeamScreen(),
     routes: <DVRouteNode>[
       DVRoute(
@@ -29,21 +30,30 @@ final List<DVRouteNode> routes = <DVRouteNode>[
       ),
     ],
   ),
-  // Signed-out visitors are sent to the About page, a file route, by its
-  // typed target.
+  // Checkout and the staff screens need somebody signed in. A signed-out
+  // visitor is sent to sign in, with the way back in the query.
   DVShellRoute(
     // Async, as a session check is: a deep link here shows the pending view
     // while it decides, never a blank screen.
     redirect: (BuildContext context, DVRouteState state) async {
-      await Future<void>.delayed(const Duration(milliseconds: 1500));
-      return DV.Auth.currentUser == null ? DVRoutes.about : null;
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      return currentAccount.signedIn
+          ? null
+          : DVRouteTarget('/sign-in?from=${Uri.encodeQueryComponent(state.path)}');
     },
     builder: (BuildContext context, DVRouteState state, Widget child) =>
-        AdminFrame(child: child),
+        SignedInFrame(child: child),
     routes: <DVRouteNode>[
+      DVRoute(
+        path: '/checkout',
+        title: 'Checkout',
+        builder: (BuildContext context, DVRouteState state) =>
+            const CheckoutScreen(),
+      ),
       DVRoute(
         path: '/admin/reports',
         name: 'adminReports',
+        title: 'Manage the shop',
         builder: (BuildContext context, DVRouteState state) =>
             const ReportsScreen(),
       ),
