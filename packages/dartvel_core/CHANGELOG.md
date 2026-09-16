@@ -1,5 +1,22 @@
 ## Unreleased
 
+- **Account deletion waits out a grace period the project configures.** With
+  `DVAuthEndpoints.useDeletionGracePeriod` set, a confirmed deletion answers
+  202 with `erasesAt`, ends every session of the person at once, and records
+  the request in `dv_account_deletions` beside the erasure's own database;
+  the account and its data stay until the window closes. Signing in within
+  it -- completely, with the second factor where there is one -- cancels
+  the deletion and says `deletionCancelled`; signing in after it is 403
+  `account_deleted`. `DVAuthEndpoints.eraseDueDeletions` queues a
+  `DVAccountErasureJob` on `accountErasureQueue` for each deletion whose
+  window closed and works them, and `eraseScheduledAccount` runs one: it
+  claims the deletion by compare-and-set, so a person who cancelled -- even
+  after the job was queued -- has nothing erased; runs the erasure with the
+  deadline measured from the request; and on an adapter it could not reach
+  puts the deletion back, keeps the account, and throws. A claim older than
+  `staleErasureClaim` is taken again. With no window, deletion erases at once
+  as before.
+
 - **`DVAuthEndpoints.changePassword`, `POST /auth/account/password`.** Takes
   `currentPassword` and `newPassword`, checked through the credential guard so
   a wrong current password counts as one at sign-in does. On an account with

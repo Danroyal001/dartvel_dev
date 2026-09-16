@@ -65,6 +65,7 @@ Future<void> generate({
   // or a path that is not one would otherwise be skipped into a route the
   // application believes it configured.
   AccountGenerator.readPages(dv);
+  final accountDeletionGrace = AccountGenerator.readDeletionGrace(dv);
 
   // Every model's privacy declaration, before anything is written. A
   // sensitive field no subject path reaches (DV-PRIVACY-001) is a table an
@@ -222,10 +223,12 @@ Future<void> generate({
   );
 
   // What the generated server gives the account endpoints: the mail an
-  // address change sends, under the name a person knows the application by.
+  // address change sends, under the name a person knows the application by,
+  // and how long a deleted account waits before it is erased.
   AccountGenerator.generate(
     root: root,
     appName: seoSiteName.isNotEmpty ? seoSiteName : pkgName,
+    deletionGrace: accountDeletionGrace,
   );
 
   // The scope registry, rate plans and OAuth settings, which the client and

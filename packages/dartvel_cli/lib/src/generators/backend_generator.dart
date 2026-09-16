@@ -653,7 +653,7 @@ import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartve
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
-import 'package:$pkgName/dartvel_client/account.g.dart' show configureDartvelBackendAccounts;
+import 'package:$pkgName/dartvel_client/account.g.dart' show configureDartvelBackendAccounts, dartvelStartAccountDeletionSweep;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies;
@@ -1396,6 +1396,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     // Claimed in the shared database when there is one: a whole deployment
     // scaled to two instances is two processes ticking.
     _dartvelScheduleTimer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease ?? stores.scheduleLeaseFor(processConfiguration));
+    // Accounts whose deletion window has closed, erased through DVQueues.
+    // Null when dartvel.auth.deletionGraceDays declares no window.
+    _dartvelAccountSweepTimer?.cancel();
+    _dartvelAccountSweepTimer = dartvelStartAccountDeletionSweep(every: scheduleTick);
   } else if (dartvelBackendCronEntries.isNotEmpty) {
     stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
   }
@@ -1416,6 +1420,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
 
 /// The schedule timer this process started, so a stopped process stops it.
 Timer? _dartvelScheduleTimer;
+
+/// The account deletion sweep this process started, likewise.
+Timer? _dartvelAccountSweepTimer;
 
 bool _dartvelServerCrashesInstalled = false;
 
@@ -1493,6 +1500,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();
+      _dartvelAccountSweepTimer?.cancel();
       await handle.stop();
     case core.DVProcessRole.worker:
       // The same start a web process makes, less what only serving needs: a
@@ -1507,6 +1515,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       // deployment's processes share. Neither was here, because the jobs
       // file imported dartvel_flutter, so every worker refused to start.
       registerDartvelJobs();
+      // The account erasure job, for a worker given its queue.
+      configureDartvelBackendAccounts();
       core.DVProcessStores.install();
       if (!const core.DVQueues().adapterConfigured) {
         throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker has no queue adapter: DATABASE_URL is not set, so no queue is shared with the processes that dispatch jobs, and this worker would never receive one.');
@@ -1535,6 +1545,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelAITools();
       // A schedule may dispatch a job, and that job has to reach the worker.
       registerDartvelJobs();
+      // The account deletion sweep ticks where the schedules do.
+      configureDartvelBackendAccounts();
       final core.DVProcessStores stores = core.DVProcessStores.install();
       // Each occurrence claimed in the shared database, so a second cron
       // process fires nothing twice. With none shared this throws rather than
@@ -1547,9 +1559,11 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       }
       final core.DVProcessHealth? cronHealth = await _dartvelServeHealth(process);
       final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: lease);
+      final Timer? accountSweep = dartvelStartAccountDeletionSweep(every: scheduleTick);
       stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
       await stopped;
       timer?.cancel();
+      accountSweep?.cancel();
       await cronHealth?.close();
   }
 }

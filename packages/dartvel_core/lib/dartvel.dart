@@ -43,6 +43,7 @@ export 'src/analytics/consent.dart';
 export 'src/analytics/local_database.dart';
 export 'src/analytics/product_analytics.dart';
 export 'src/annotations/annotations.dart';
+export 'src/auth/account_deletions.dart';
 export 'src/auth/account_mail.dart';
 export 'src/auth/api_keys.dart';
 export 'src/auth/api_scopes.dart';

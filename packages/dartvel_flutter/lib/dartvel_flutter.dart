@@ -6022,7 +6022,7 @@ class DVAuth {
   /// [password], and a [code] or [recoveryCode] when there is a second
   /// factor, then hands the person to the project's Data Compliance erasure
   /// where one is configured. The device signs out once the server confirms.
-  Future<void> deleteAccount({
+  Future<DateTime?> deleteAccount({
     required String password,
     required bool confirmed,
     String? code,
@@ -6032,9 +6032,15 @@ class DVAuth {
       throw ArgumentError.value(
           confirmed, 'confirmed', 'Deleting an account needs explicit confirmation');
     }
+    // When the account will be erased, for a deletion waiting out the
+    // project's grace period -- signing in before then keeps it -- and null
+    // for one erased at once.
     return _sessionClient
         .deleteAccount(password: password, code: code, recoveryCode: recoveryCode)
-        .then((_) => _currentUser = null);
+        .then((DateTime? erasesAt) {
+      _currentUser = null;
+      return erasesAt;
+    });
   }
 
   /// Changes the password. The server checks [currentPassword], breach-checks
@@ -6440,6 +6446,9 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
   /// Fixed text chosen here. Nothing a server or provider said is shown.
   String? _error;
 
+  /// Whether this sign-in cancelled a deletion the account was waiting out.
+  bool _deletionCancelled = false;
+
   @override
   void dispose() {
     _email.dispose();
@@ -6465,8 +6474,11 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
           password: _password.text,
         );
       }
+      _deletionCancelled = DVSessionClient.installed?.deletionCancelled ?? false;
     } on DVMfaRequired {
       _awaitingCode = true;
+    } on DVAccountDeleted catch (refusal) {
+      error = refusal.message;
     } on AuthException catch (refusal) {
       error = refusal.failure == AuthFailure.invalidCredentials
           ? AuthException.invalidCredentials.message
@@ -6515,6 +6527,12 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 ),
                 keyboardType: TextInputType.number,
                 autofillHints: const <String>[AutofillHints.oneTimeCode],
+              ),
+            if (_deletionCancelled)
+              const KeyedSubtree(
+                key: ValueKey<String>('dv-auth-deletion-cancelled'),
+                child: DVText('Your account is no longer being deleted: '
+                    'signing in cancelled it.'),
               ),
             if (error != null)
               KeyedSubtree(
@@ -7349,6 +7367,9 @@ class _DeletePageState extends State<_DeletePage> {
   bool _hasFactor = false;
   bool _busy = false;
   bool _done = false;
+
+  /// When a deletion waiting out the grace period erases the account.
+  DateTime? _erasesAt;
   String? _error;
 
   @override
@@ -7398,7 +7419,7 @@ class _DeletePageState extends State<_DeletePage> {
     String? error;
     try {
       final bool isCode = RegExp(r'^\d{6,8}$').hasMatch(code);
-      await widget.auth.deleteAccount(
+      _erasesAt = await widget.auth.deleteAccount(
         password: password,
         confirmed: true,
         code: code.isEmpty || !isCode ? null : code,
@@ -7423,6 +7444,17 @@ class _DeletePageState extends State<_DeletePage> {
   Widget build(BuildContext context) {
     final String? error = _error;
     if (_done) {
+      final DateTime? erasesAt = _erasesAt;
+      if (erasesAt != null) {
+        return _dvAccountFrame(<Widget>[
+          _dvAccountKeyed(
+            'dv-delete-scheduled',
+            DVText('Your account will be deleted on ${_dvAccountTime(erasesAt)}, '
+                'with the data held about you, and you have been signed out '
+                'everywhere. Sign in before then to keep it.'),
+          ),
+        ]);
+      }
       return _dvAccountFrame(<Widget>[
         _dvAccountKeyed(
             'dv-delete-done', const DVText('Your account has been deleted.')),
