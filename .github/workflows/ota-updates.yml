@@ -82,6 +82,15 @@ jobs:
           sed -i 's|^    - assets/$|    - assets/\n    - shorebird.yaml|' pubspec.yaml
           grep -n 'shorebird.yaml' pubspec.yaml
 
+          # A release manifest has no INTERNET permission -- Flutter's template
+          # puts it in the debug and profile manifests only -- and without it
+          # the updater's socket is refused, which it reports as a network
+          # error. The first run failed exactly so.
+          manifest=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$manifest" \
+            || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$manifest"
+          grep -n 'android.permission.INTERNET' "$manifest"
+
           $SB pub get
           probe=integration_test/app_updates_probe.dart
           $SB build apk --release --target-platform android-x64 -t "$probe"
