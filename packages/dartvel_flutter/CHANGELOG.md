@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **The dev client pairs over TLS, and on iOS, macOS and Linux.** The bundle
+  loader trusts only a server presenting the pairing key, and the session
+  hands the VM service to the native tunnel over FFI on iOS, macOS and
+  Linux as it does over JNI on Android. A `dartvel-dev://pair` link is never
+  treated as a route.
+
 - **A page with a grid can be covered by another route.** Selection beneath a
   covering route was switched off by removing the selection registrar, which
   rebuilt every child of a lazy grid or list into a different widget outside

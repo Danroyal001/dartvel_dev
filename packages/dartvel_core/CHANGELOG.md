@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`DVShorebirdPatchSource` answers `Request`/`Response`, and publishes.**
+  `respond()` serves the updater's check, downloads and events in the shape a
+  Dartvel server answers in, builds download URLs from the host the device
+  used, and adds publish and rollback endpoints that answer only a source
+  given a `publishToken` and a request bearing it.
+
+- **Dev-client TLS.** `DVDevClientSigner.certificate()` is a self-signed
+  certificate for the pairing key, `dvCertificateP256PublicKey` reads a
+  certificate's key by structure, and `dvDevClientHttpClient` and
+  `dvDevClientSecureConnect` trust only a server presenting the key a
+  pairing names. A pairing link must name an https server.
+
 - **`package:dartvel_core/cloud.dart` is the Dartvel Cloud protocol.** The
   build spec, build, artifact, event stream and refusal types the CLI and the
   hosted Cloud service share, with no `dart:io`. A spec for a target no worker
