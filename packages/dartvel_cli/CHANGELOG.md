@@ -22,6 +22,11 @@
   Flutter developer makes, rather than a separate artifact built from a
   generated entrypoint with no application code in it.
 
+- **A comment in a backend function's parameter list no longer breaks the
+  generated client.** The list was split on commas as text, so
+  `DVContext context, // injected` made the comment part of the next
+  parameter's type and `functions.g.dart` failed to compile.
+
 - **A function page's `.loading.dart` and `.error.dart` are used.** They were
   imported for class pages only, while `dartvel create` writes
   `index.loading.dart` and `index.error.dart` beside a function page, so every
