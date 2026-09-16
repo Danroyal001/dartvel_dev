@@ -64,7 +64,7 @@ void main() {
     // wrong length, or a varint written the wrong way is rejected here rather
     // than silently stored.
     final DVJobEnvelope<LiveKafkaJob> job =
-        await adapter.enqueue(queue, const LiveKafkaJob('hello'));
+        await adapter.enqueue(queue, const LiveKafkaJob('hello'), tenant: 'acme');
 
     expect(job.id, endsWith('@0'), reason: 'the first record is at offset 0');
   });
@@ -86,6 +86,8 @@ void main() {
 
     expect(read, isNotNull, reason: 'it was produced, so it must be readable');
     expect(read!.payloadType, LiveKafkaJob);
+    // The worker runs it as this tenant, so the record has to carry it.
+    expect(read.tenant, 'acme');
   });
 
   test('completing moves the committed offset past it', () async {

@@ -28,6 +28,7 @@ import 'src/preview/preview_secrets.dart' show dvPreviewEnvironment;
 import 'src/preview/process_environment.dart' show dvProcessEnvironment;
 import 'src/scene3d/scene3d.dart' show DV3DDegradation, DVSceneFake;
 import 'src/scheduling/cron.dart';
+import 'src/schema/schema_change.dart' show DVAddColumn;
 import 'src/search/search_tuning.dart';
 import 'src/tenancy/tenants.dart';
 
@@ -1750,6 +1751,14 @@ class DVJobEnvelope<TPayload> {
   final DVJobState state;
   final String? lastError;
 
+  /// The tenant the job was dispatched under, or null for none.
+  ///
+  /// The worker runs the handler as this tenant, so DV.Database, the cache
+  /// and every tenant-scoped model resolve what they resolved in the request
+  /// that dispatched it. Null runs as [DVTenants.defaultTenant] -- never as
+  /// whatever the worker process, or the job before it, was set to.
+  final String? tenant;
+
   const DVJobEnvelope({
     required this.id,
     required this.queue,
@@ -1762,6 +1771,7 @@ class DVJobEnvelope<TPayload> {
     required this.attempts,
     required this.state,
     this.lastError,
+    this.tenant,
   });
 
   DVJobEnvelope<TPayload> copyWith({
@@ -1781,17 +1791,25 @@ class DVJobEnvelope<TPayload> {
       attempts: attempts ?? this.attempts,
       state: state ?? this.state,
       lastError: lastError ?? this.lastError,
+      tenant: tenant,
     );
   }
 }
 
 abstract class DVQueueAdapter {
+  /// Stores [payload] on [queue].
+  ///
+  /// [tenant] is the tenant the job was dispatched under, and an adapter
+  /// stores it and hands it back on the envelope [reserve] returns. Dropping
+  /// it is not a smaller feature: the worker would run the job as no tenant,
+  /// which reads nothing on a scoped table and writes rows nobody can see.
   Future<DVJobEnvelope<TPayload>> enqueue<TPayload>(
     String queue,
     TPayload payload, {
     int priority,
     int maxAttempts,
     Duration backoff,
+    String? tenant,
   });
 
   Future<DVJobEnvelope<DVJobPayload>?> reserve(String queue);
@@ -1821,6 +1839,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
     int priority = 0,
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
+    String? tenant,
   }) async {
     final envelope = DVJobEnvelope<TPayload>(
       id: 'job-${DateTime.now().microsecondsSinceEpoch}-${_sequence++}',
@@ -1833,6 +1852,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       createdAt: DateTime.now(),
       attempts: 0,
       state: DVJobState.queued,
+      tenant: tenant,
     );
     final stored = DVJobEnvelope<DVJobPayload>(
       id: envelope.id,
@@ -1845,6 +1865,7 @@ class DVInMemoryQueueAdapter implements DVQueueAdapter {
       createdAt: envelope.createdAt,
       attempts: envelope.attempts,
       state: envelope.state,
+      tenant: envelope.tenant,
     );
     (_pending[queue] ??= []).add(stored);
     _pending[queue]!.sort((a, b) => b.priority.compareTo(a.priority));
@@ -2084,9 +2105,16 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
         created_at BIGINT NOT NULL,
         attempts INTEGER NOT NULL,
         state TEXT NOT NULL,
-        last_error TEXT
+        last_error TEXT,
+        tenant TEXT
       )
     ''');
+    // A table an earlier release made has no tenant column, and CREATE TABLE
+    // IF NOT EXISTS leaves it that way. Its rows were dispatched with no
+    // tenant recorded, so they run with none.
+    await dvEnsureFrameworkColumns(database, <DVAddColumn>[
+      DVAddColumn(tableName, 'tenant', type: 'TEXT'),
+    ]);
     _initialized = true;
   }
 
@@ -2097,6 +2125,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
     int priority = 0,
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
+    String? tenant,
   }) async {
     await initialize();
     final codec = DVJobPayloadCodecs._byType[TPayload];
@@ -2118,12 +2147,13 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
       createdAt: DateTime.now(),
       attempts: 0,
       state: DVJobState.queued,
+      tenant: tenant,
     );
 
     await database.execute(
       'INSERT INTO $tableName (id, queue, payload_name, payload, priority, '
-      'max_attempts, backoff_ms, created_at, attempts, state, last_error) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+      'max_attempts, backoff_ms, created_at, attempts, state, last_error, '
+      'tenant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)',
       <Object?>[
         envelope.id,
         queue,
@@ -2135,6 +2165,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
         envelope.createdAt.millisecondsSinceEpoch,
         0,
         DVJobState.queued.name,
+        tenant,
       ],
     );
     return envelope;
@@ -2287,6 +2318,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
       attempts: row['attempts'] as int,
       state: state,
       lastError: row['last_error'] as String?,
+      tenant: row['tenant'] as String?,
     );
   }
 }
@@ -2426,7 +2458,19 @@ class DVQueues {
       priority: priority,
       maxAttempts: maxAttempts,
       backoff: backoff,
+      tenant: _dispatchTenant(),
     );
+  }
+
+  /// The tenant a job dispatched now belongs to, or null for none.
+  ///
+  /// Read from [DVTenants.currentTenant] rather than only from a scope: a
+  /// single-tenant deployment sets the process tenant and every query it
+  /// makes runs as that, so its jobs have to as well. The default tenant is
+  /// recorded as none, which is what it is.
+  static String? _dispatchTenant() {
+    final String tenant = const DVTenants().currentTenant;
+    return tenant == DVTenants.defaultTenant ? null : tenant;
   }
 
   Future<int> work({
@@ -2448,7 +2492,15 @@ class DVQueues {
         continue;
       }
       try {
-        await handler.invoke(envelope.payload);
+        // Inside the job's own tenant, always. A zone rather than setting
+        // the process tenant: the handler awaits, and anything set
+        // process-wide would reach whatever else runs in the isolate. A job
+        // with none runs as the default tenant rather than as the worker's,
+        // or the previous job's, or the scope work() was called from.
+        await const DVTenants().withTenant(
+          envelope.tenant ?? DVTenants.defaultTenant,
+          () => handler.invoke(envelope.payload),
+        );
         await _adapter.complete(envelope.id);
         completed++;
       } catch (error, stackTrace) {

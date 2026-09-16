@@ -337,6 +337,41 @@ void main() {
     );
   });
 
+  test('a jobs table an earlier release made gains the tenant column, and '
+      'keeps its jobs', () async {
+    // The table exactly as the release before the tenant column made it,
+    // with a job in it: a column added to the DDL alone would exist on every
+    // fresh install and on no upgraded one, and the first dispatch would fail.
+    await db.execute(
+      'CREATE TABLE dv_w64_jobs (id VARCHAR(255) PRIMARY KEY, '
+      'queue TEXT NOT NULL, payload_name TEXT NOT NULL, payload TEXT NOT NULL, '
+      'priority INTEGER NOT NULL, max_attempts INTEGER NOT NULL, '
+      'backoff_ms BIGINT NOT NULL, created_at BIGINT NOT NULL, '
+      'attempts INTEGER NOT NULL, state TEXT NOT NULL, last_error TEXT)',
+    );
+    await db.execute(
+      'INSERT INTO dv_w64_jobs (id, queue, payload_name, payload, priority, '
+      'max_attempts, backoff_ms, created_at, attempts, state) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      <Object?>[
+        'job-old', 'mail', _pingCodec.name, '{"to":"old"}', 0, 3, 30000, 1,
+        0, 'queued',
+      ],
+    );
+    final DVDatabaseQueueAdapter queue = DVDatabaseQueueAdapter(
+      db,
+      tableName: 'dv_w64_jobs',
+    );
+
+    await queue.enqueue('mail', const _Ping('new'), tenant: 'acme');
+
+    expect((await columnTypes('dv_w64_jobs'))['tenant'], 'text');
+    final DVJobEnvelope<dynamic>? old = await queue.reserve('mail');
+    final DVJobEnvelope<dynamic>? fresh = await queue.reserve('mail');
+    expect(<String?>[old!.id, old.tenant], <String?>['job-old', null]);
+    expect(fresh!.tenant, 'acme');
+  });
+
   test('a purchase grant and its notification claim are stored', () async {
     final DVFakeStoreAdapter play = DVFakeStoreAdapter(
       DVStore.play,

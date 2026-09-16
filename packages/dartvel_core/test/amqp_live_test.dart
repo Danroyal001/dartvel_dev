@@ -61,7 +61,7 @@ void main() {
   });
 
   test('a job published persistently comes back', () async {
-    await adapter.enqueue(queue, const LiveJob('hello'));
+    await adapter.enqueue(queue, const LiveJob('hello'), tenant: 'acme');
 
     final DVJobEnvelope<DVJobPayload>? job = await adapter.reserve(queue);
 
@@ -69,6 +69,8 @@ void main() {
     // By type, not by cast: a decoded payload is wrapped, and payloadType is
     // what routes it to a handler.
     expect(job!.payloadType, LiveJob);
+    // The worker runs it as this tenant, so the broker has to carry it.
+    expect(job.tenant, 'acme');
   });
 
   test('acknowledging it means it is not delivered again', () async {

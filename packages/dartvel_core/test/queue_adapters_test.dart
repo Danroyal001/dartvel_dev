@@ -161,6 +161,35 @@ void main() {
         expect(await queue.flush('mail'), greaterThan(0));
         expect(await queue.pending('mail'), isEmpty);
       });
+
+      test('keeps the tenant through a failure, a dead letter and a retry',
+          () async {
+        // Each of those rebuilds the envelope, and one that forgot the
+        // tenant would run the retry as nobody.
+        final job = await queue.enqueue(
+          'mail',
+          const SendWelcomeEmail('a'),
+          maxAttempts: 2,
+          tenant: 'acme',
+        );
+        expect(job.tenant, 'acme');
+        expect((await queue.pending('mail')).single.tenant, 'acme');
+
+        expect((await queue.reserve('mail'))!.tenant, 'acme');
+        await queue.fail(job.id, 'boom', StackTrace.empty);
+        expect((await queue.reserve('mail'))!.tenant, 'acme');
+        await queue.fail(job.id, 'boom', StackTrace.empty);
+        expect((await queue.deadLetters('mail')).single.tenant, 'acme');
+
+        await queue.retry(job.id);
+        expect((await queue.reserve('mail'))!.tenant, 'acme');
+      });
+
+      test('a job with no tenant has none', () async {
+        await queue.enqueue('mail', const SendWelcomeEmail('a'));
+
+        expect((await queue.reserve('mail'))!.tenant, isNull);
+      });
     });
   }
 

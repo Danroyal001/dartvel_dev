@@ -403,3 +403,128 @@ const Set<String> _narrowTypes = <String>{
 
 /// 4-byte floats: PostgreSQL's `real`, MySQL's `float`.
 const Set<String> _narrowFloats = <String>{'real', 'float'};
+
+/// Adds each of [columns] to its framework table where the table does not
+/// have it yet.
+///
+/// `CREATE TABLE IF NOT EXISTS` leaves a table an earlier release made
+/// exactly as it was, so a column added to a framework table's DDL exists on
+/// every fresh install and on no upgraded one, and the first write naming it
+/// fails on exactly the deployments that have data. Call this after
+/// [dvEnsureFrameworkTable] with the columns added since the table first
+/// shipped.
+///
+/// Each column is checked as [dvEnsureFrameworkTable] checks a CREATE TABLE,
+/// on every adapter. Missing ones are classified by the schema planner with
+/// the adapter's own rules, and the cost of a change that holds the table is
+/// its rows, as for widening: on an empty table it runs, on a table with rows
+/// it does not, and a StateError carries the plan and the statement. A
+/// nullable column with no default is instant on every server the planner
+/// knows, so that is what a column added later should be.
+///
+/// Where the column already is, nothing runs, however often this is called.
+/// The in-memory adapter is skipped: its tables live only in the process that
+/// created them, from the current DDL, so no earlier release made one.
+Future<void> dvEnsureFrameworkColumns(
+  DVDatabaseAdapter adapter,
+  List<DVAddColumn> columns,
+) async {
+  for (final DVAddColumn column in columns) {
+    final String statement = _addColumnSql(column);
+    final List<String> problems = <String>[
+      ...dvFrameworkTableProblems(
+        'CREATE TABLE ${column.table} (${column.column} ${column.type})',
+      ),
+    ];
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(column.column) ||
+        !RegExp(
+          r'^(?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*$',
+        ).hasMatch(column.table)) {
+      problems.add(
+        '${column.table}.${column.column} is not a plain identifier',
+      );
+    }
+    if (!dvIsSqlType(column.type)) {
+      problems.add('${column.table}.${column.column} has no usable type');
+    }
+    if (problems.isNotEmpty) throw DVFrameworkTableError(statement, problems);
+  }
+  if (adapter is MemoryDVDatabaseAdapter) return;
+
+  final List<DVAddColumn> missing = <DVAddColumn>[
+    for (final DVAddColumn column in columns)
+      if (!await _hasColumn(adapter, column.table, column.column)) column,
+  ];
+  if (missing.isEmpty) return;
+
+  final DVSchemaPlan plan = await const DVSchemaPlanner().planFor(
+    adapter,
+    missing,
+  );
+  for (final DVSchemaPlanStep step in plan.steps) {
+    final DVAddColumn column = step.change as DVAddColumn;
+    final String statement = _addColumnSql(column);
+    if (step.changeClass == DVSchemaChangeClass.blocking) {
+      final List<Map<String, Object?>> counted = await adapter.query(
+        'SELECT COUNT(*) AS n FROM ${column.table}',
+      );
+      final int rows = int.parse('${counted.single['n']}');
+      if (rows > 0) {
+        throw StateError(
+          '${column.table} was created by an earlier release without '
+          '${column.column}, which this release writes. Adding it holds the '
+          'table, and it has $rows row${rows == 1 ? '' : 's'}, so it has not '
+          'been run here.\n'
+          '${plan.describe()}'
+          'Schedule it:\n  $statement',
+        );
+      }
+    }
+    await adapter.execute(statement);
+  }
+}
+
+String _addColumnSql(DVAddColumn column) =>
+    'ALTER TABLE ${column.table} ADD COLUMN ${column.column} ${column.type}'
+    '${column.nullable ? '' : ' NOT NULL'}'
+    '${column.defaultSql == null ? '' : ' DEFAULT ${column.defaultSql}'}';
+
+/// Whether [table] has [column], asked of the catalogue where the server has
+/// one this knows, and of the table itself otherwise.
+Future<bool> _hasColumn(
+  DVDatabaseAdapter adapter,
+  String table,
+  String column,
+) async {
+  final String name = table.toLowerCase();
+  final int dot = name.indexOf('.');
+  final String? schema = dot < 0 ? null : name.substring(0, dot);
+  final String bare = name.substring(dot + 1);
+  final bool mysql = adapter is DVMySqlDatabaseAdapter;
+  if (mysql || adapter is DVPostgresDatabaseAdapter) {
+    final List<Map<String, Object?>> rows = await adapter.query(
+      'SELECT column_name AS name FROM information_schema.columns '
+      'WHERE table_schema = '
+      '${schema != null
+          ? '?'
+          : mysql
+          ? 'DATABASE()'
+          : 'current_schema()'} '
+      'AND table_name = ?',
+      <Object?>[?schema, bare],
+    );
+    return rows.any(
+      (Map<String, Object?> row) =>
+          '${row['name']}'.toLowerCase() == column.toLowerCase(),
+    );
+  }
+  try {
+    // SQLite and anything else: naming the column is the question. A
+    // statement that fails for any reason reads as missing, and the ALTER
+    // that follows says what is actually wrong if it is not.
+    await adapter.query('SELECT $column FROM $table LIMIT 1');
+    return true;
+  } on Object {
+    return false;
+  }
+}
