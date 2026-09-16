@@ -126,13 +126,13 @@ int _check() {
   // the same untruth this check exists for: a number on the page that is not
   // the number.
   final File docs =
-      File('${root.path}/sites/dartvel_site/lib/pages/docs.dart');
+      File('${root.path}/sites/dartvel_site/lib/pages/docs/index.dart');
   final int frozen = (decoded['sections']! as List)
       .where((Object? e) =>
           e is Map && e['stability'] == 'Contract' && e['status'] != 'Shipped')
       .length;
   if (!docs.existsSync()) {
-    problems.add('docs.dart not found');
+    problems.add('docs/index.dart not found');
   } else {
     final RegExpMatch? f =
         RegExp(r"'([A-Za-z-]+) sections are a frozen public contract")
