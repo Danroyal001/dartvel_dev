@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Files can travel inside a compiled executable.** `DVBinaryPayload`
+  (`package:dartvel_core/binary_payload.dart`) splices named sections into
+  a `dart compile exe` binary and reads them back from the running one.
+  Bytes appended after the binary stop it starting, because the runtime
+  finds its snapshot through a trailer at the end of its own file, so the
+  sections go between the runtime and the snapshot and the trailer is
+  rewritten. `dvPackFiles` and `dvUnpackFiles` carry a directory as one
+  section, and `dvExtractFiles` writes it once per build into a directory
+  named by its content.
+
 - **`DVRecordTable.prune` logs `DV-HISTORY-004`** with the table, how many
   entries it removed and the declared retention, when it removed any.
 
