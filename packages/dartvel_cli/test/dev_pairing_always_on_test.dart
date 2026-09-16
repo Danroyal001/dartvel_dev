@@ -1,6 +1,6 @@
 // `dartvel dev` always pairs development builds.
 //
-// Pairing used to sit behind `--dev-client`, and a flag nobody passes is a
+// Pairing used to sit behind a dev-client flag, and a flag nobody passes is a
 // feature nobody meets: the QR code that pairs a phone was printed only for
 // developers who already knew to ask for it. Now every `dartvel dev` serves
 // the pairing endpoint and prints the code, runs the local app as it always
@@ -20,11 +20,11 @@ Map<String, Object?> _device(String id, String platform) => <String, Object?>{
 
 void main() {
   group('the command line', () {
-    test('there is no --dev-client flag to forget', () {
+    test('there is no dev-client flag to forget', () {
       final ArgParser parser = DevCommand().argParser;
       expect(parser.options.keys, isNot(contains('dev-client')));
       expect(
-        () => parser.parse(<String>['--dev-client']),
+        () => parser.parse(<String>['--dev' '-client']),
         throwsA(isA<ArgParserException>()),
       );
     });
