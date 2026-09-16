@@ -1034,7 +1034,10 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
           .map((d) => layoutMapByDir[d]!)
           .toList();
       var expr = innerExpr;
-      for (final m in chain) {
+      // Deepest first, so each layout wraps the ones below it and the root
+      // layout is outermost. Wrapping root first put a nested layout around
+      // the root one: a docs sidebar drew around the site header.
+      for (final m in chain.reversed) {
         final idx = m['i']!;
         final cls = m['class']!;
         expr = 'l$idx.$cls(child: $expr)';
