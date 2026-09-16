@@ -11,6 +11,7 @@ import 'src/ai/ai.dart';
 import 'src/auth/api_scopes.dart';
 import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
+import 'src/database/framework_tables.dart';
 import 'src/billing/invoice.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/outbound.dart';
@@ -2071,7 +2072,7 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
 
   Future<void> initialize() async {
     if (_initialized) return;
-    await database.execute('''
+    await dvEnsureFrameworkTable(database, '''
       CREATE TABLE IF NOT EXISTS $tableName (
         id TEXT PRIMARY KEY,
         queue TEXT NOT NULL,
@@ -2079,8 +2080,8 @@ class DVDatabaseQueueAdapter implements DVQueueAdapter {
         payload TEXT NOT NULL,
         priority INTEGER NOT NULL,
         max_attempts INTEGER NOT NULL,
-        backoff_ms INTEGER NOT NULL,
-        created_at INTEGER NOT NULL,
+        backoff_ms BIGINT NOT NULL,
+        created_at BIGINT NOT NULL,
         attempts INTEGER NOT NULL,
         state TEXT NOT NULL,
         last_error TEXT

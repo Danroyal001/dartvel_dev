@@ -14,6 +14,7 @@ import 'dart:async';
 import '../../dartvel.dart' show DVCronEntry;
 import '../cache/adapters.dart' show DVAtomicCacheAdapter;
 import '../database/adapter.dart' show DVDatabaseAdapter;
+import '../database/framework_tables.dart';
 import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
 
@@ -95,7 +96,8 @@ final class DVDatabaseScheduleLease implements DVScheduleLease {
   @override
   Future<bool> claim(String task, DateTime occurrence) async {
     if (!_initialized) {
-      await database.execute(
+      await dvEnsureFrameworkTable(
+        database,
         'CREATE TABLE IF NOT EXISTS $tableName ('
         'lease_key VARCHAR(255) PRIMARY KEY, '
         'claimed_at BIGINT NOT NULL, '
