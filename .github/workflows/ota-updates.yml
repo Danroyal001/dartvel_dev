@@ -2,13 +2,15 @@ name: OTA updates
 
 # DV.Updates in a real release build, end to end, with no Shorebird account.
 #
-# The release is built with Shorebird's Flutter fork at the Flutter version
-# Dartvel pins (flutter_release/3.44.5), whose engine carries the open-source
-# updater; its shorebird.yaml points base_url at Dartvel's own patch source
-# (DVShorebirdPatchSource). The patch is the same app with one string changed,
-# diffed with Shorebird's published patch tool for that engine revision. On an
-# emulator the release checks, applies through DV.Updates, and is the patch on
-# the next launch. See tool/ci/android_ota_check.dart.
+# Everything a project would run: the example's shorebird.yaml points base_url
+# at its own web-server binary (`dartvel build web-server`), which serves the
+# Shorebird patch source because base_url names it. `dartvel updates release
+# --patch-source` builds the release with Shorebird's Flutter at the version
+# Dartvel pins and keeps its compiled Dart; the probe string is changed; and
+# `dartvel updates patch --patch-source` builds again, diffs with Shorebird's
+# patch tool for that engine, and publishes into the running binary with its
+# token. On an emulator the release checks, applies through DV.Updates, and is
+# the patch on the next launch. See tool/ci/android_ota_check.dart.
 #
 # Repository secrets are empty, so Shorebird's hosted service is not used and
 # cannot be: this is the self-hosted path.
@@ -20,9 +22,11 @@ on:
     paths:
       - packages/dartvel_core/lib/src/updates/**
       - packages/dartvel_flutter/lib/src/updates/**
+      - packages/dartvel_cli/lib/src/updates/**
+      - packages/dartvel_cli/lib/src/commands/updates_command.dart
+      - packages/dartvel_cli/lib/src/build/server_binary.dart
       - examples/dartvel_example/integration_test/app_updates_probe.dart
       - tool/ci/android_ota_check.dart
-      - tool/ci/ota_patch_server.dart
       - .github/workflows/ota-updates.yml
 
 concurrency:
@@ -31,14 +35,14 @@ concurrency:
 
 jobs:
   android-emulator:
-    name: Android — release, patch, relaunch
+    name: Android — release, patch into the web-server binary, relaunch
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
-      SHOREBIRD_FLUTTER_BRANCH: flutter_release/3.44.5
+      DARTVEL_UPDATES_TOKEN: ci-ota-token-not-a-secret
     steps:
       - name: Open the diagnostics directory
-        run: mkdir -p /tmp/diag /tmp/ota
+        run: mkdir -p /tmp/diag
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
@@ -55,68 +59,74 @@ jobs:
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
 
-      - name: Shorebird's Flutter at Dartvel's version
+      - name: Point the example's updates at its own server
+        working-directory: examples/dartvel_example
         run: |
           set -euo pipefail
-          git clone --filter=tree:0 -b "$SHOREBIRD_FLUTTER_BRANCH" \
-            https://github.com/shorebirdtech/flutter /tmp/sbflutter
-          # Shorebird's engine artifacts, not Google's: the updater is in them.
-          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
-          /tmp/sbflutter/bin/flutter --version
-          echo "engine: $(cat /tmp/sbflutter/bin/internal/engine.version)"
-
-      - name: Build the release and the patch
-        run: |
-          set -euo pipefail
-          exec > >(tee -a /tmp/diag/ota-build.log) 2>&1
-          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
-          SB=/tmp/sbflutter/bin/flutter
-          cd examples/dartvel_example
-          flutter pub get
-          dart run dartvel_cli:dartvel routes
-
           # The patch source is the dev machine as the emulator sees it, and
           # DV.Updates decides when to check, so the engine must not.
           printf 'app_id: dartvel-example-ota\nbase_url: http://10.0.2.2:9090/updates\nauto_update: false\n' \
             > shorebird.yaml
           sed -i 's|^    - assets/$|    - assets/\n    - shorebird.yaml|' pubspec.yaml
           grep -n 'shorebird.yaml' pubspec.yaml
-
           # A release manifest has no INTERNET permission -- Flutter's template
-          # puts it in the debug and profile manifests only -- and without it
-          # the updater's socket is refused, which it reports as a network
-          # error. The first run failed exactly so.
+          # puts it in the debug and profile manifests only. dartvel updates
+          # release refuses a manifest without it.
           manifest=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$manifest" \
             || sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$manifest"
           grep -n 'android.permission.INTERNET' "$manifest"
 
-          $SB pub get
-          probe=integration_test/app_updates_probe.dart
-          $SB build apk --release --target-platform android-x64 -t "$probe"
-          cp build/app/outputs/flutter-apk/app-release.apk /tmp/ota/release.apk
-          unzip -p /tmp/ota/release.apk lib/x86_64/libapp.so > /tmp/ota/release-libapp.so
-          unzip -l /tmp/ota/release.apk | grep -E 'libflutter|libapp|shorebird' || true
+      - name: Build the web-server binary and start it
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/web-server-build.log) 2>&1
+          flutter pub get
+          dart run dartvel_cli:dartvel build web-server --no-auto-install
+          test -x build/server
+          # Alone, as it is deployed: a copy in a directory of its own.
+          mkdir -p /tmp/ota-server
+          cp build/server /tmp/ota-server/server
+          (cd /tmp/ota-server && DARTVEL_PORT=9090 nohup ./server > /tmp/diag/web-server.log 2>&1 &)
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+              -H 'content-type: application/json' \
+              -d '{"app_id":"dartvel-example-ota","release_version":"0+0","platform":"android","arch":"x86_64"}' \
+              http://127.0.0.1:9090/updates/api/v1/patches/check || true)
+            [ "$code" = 200 ] && break
+            sleep 2
+          done
+          echo "patch check answered $code"
+          test "$code" = 200
 
+      - name: Release with dartvel updates release
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ota-release.log) 2>&1
+          dart run dartvel_cli:dartvel updates release --platform android \
+            --patch-source http://127.0.0.1:9090/updates \
+            -- --target-platform android-x64 -t integration_test/app_updates_probe.dart
+          mkdir -p /tmp/ota
+          cp build/app/outputs/flutter-apk/app-release.apk /tmp/ota/release.apk
+          ls -R .dartvel/updates/releases
+
+      - name: Patch with dartvel updates patch, into the running binary
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ota-patch.log) 2>&1
+          probe=integration_test/app_updates_probe.dart
           sed -i "s/'OTA-PROBE-ONE';/'OTA-PROBE-TWO';/" "$probe"
           grep -q "'OTA-PROBE-TWO';" "$probe"
-          $SB build apk --release --target-platform android-x64 -t "$probe"
-          unzip -p build/app/outputs/flutter-apk/app-release.apk lib/x86_64/libapp.so \
-            > /tmp/ota/patched-libapp.so
-          if cmp -s /tmp/ota/release-libapp.so /tmp/ota/patched-libapp.so; then
-            echo "::error::the patch build produced the same libapp.so"; exit 1
-          fi
+          dart run dartvel_cli:dartvel updates patch --platform android \
+            --patch-source http://127.0.0.1:9090/updates \
+            -- --target-platform android-x64 -t "$probe"
+          find /tmp/ota-server/dartvel_data/updates -type f | tee /tmp/diag/published.txt
+          grep -q 'x86_64/1/patch.bin$' /tmp/diag/published.txt
 
-          engine=$(cat /tmp/sbflutter/bin/internal/engine.version)
-          curl -fsSL -o /tmp/ota/patch-tool.zip \
-            "https://storage.googleapis.com/download.shorebird.dev/shorebird/$engine/patch-linux-x64.zip"
-          unzip -o /tmp/ota/patch-tool.zip -d /tmp/ota/patch-tool
-          chmod +x /tmp/ota/patch-tool/patch
-          /tmp/ota/patch-tool/patch /tmp/ota/release-libapp.so /tmp/ota/patched-libapp.so /tmp/ota/patch.bin
-          sha256sum /tmp/ota/patched-libapp.so | cut -d' ' -f1 > /tmp/ota/patched.sha256
-          ls -la /tmp/ota
-
-      - name: Resolve the repository for the patch source
+      - name: Resolve the repository for the device check
         run: dart pub get
 
       - name: Release, patch and relaunch on an emulator
@@ -138,6 +148,10 @@ jobs:
             || { echo "no verdict: the device check did not finish"; exit 1; }
           cat /tmp/diag/ota-verdict.txt
           head -1 /tmp/diag/ota-verdict.txt | grep -qx passed
+
+      - name: Stop the server
+        if: always()
+        run: pkill -f /tmp/ota-server/server || true
 
       - uses: actions/upload-artifact@v4
         if: always()
