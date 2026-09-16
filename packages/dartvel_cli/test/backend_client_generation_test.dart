@@ -465,4 +465,68 @@ Future<String> _getHello(String name) async => name;
       root.deleteSync(recursive: true);
     }
   });
+
+  group('a function named handler', () {
+    // The router calls a raw handler with the request. A handler written
+    // with the client's arguments, or with none, was taken for one anyway:
+    // the routes called `f0.handler(req)`, and the server binary failed to
+    // compile on "Too many positional arguments" inside a generated file,
+    // with nothing pointing at the function. Only a handler that takes the
+    // request is a raw handler; any other is called with its arguments.
+    Future<String> routesFor(String source) async {
+      final root = await Directory.systemTemp.createTemp('dartvel_handler_');
+      try {
+        Directory(p.join(root.path, '.dart_tool')).createSync();
+        Directory(p.join(root.path, 'lib', 'dartvel_client'))
+            .createSync(recursive: true);
+        Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+            .createSync(recursive: true);
+        File(p.join(root.path, 'lib', 'backend', 'functions', 'contact.dart'))
+            .writeAsStringSync(source);
+        await BackendGenerator.generate(
+          root: root.path,
+          backendDir: 'lib/backend',
+          pkgName: 'handler_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          apiBasePath: '/api',
+        );
+        return File(
+          p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+        ).readAsStringSync();
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    }
+
+    test('with named arguments is called with them', () async {
+      final String routes = await routesFor('''
+Future<Map<String, Object?>> handler(
+    {required String name, required String email}) async {
+  return <String, Object?>{'name': name, 'email': email};
+}
+''');
+      expect(routes, isNot(contains('handler(req)')));
+      expect(routes, contains('f0.handler(name: '));
+      expect(routes, contains(', email: '));
+    });
+
+    test('with no parameters is called with none', () async {
+      final String routes = await routesFor('''
+Map<String, Object?> handler() => <String, Object?>{'status': 'ok'};
+''');
+      expect(routes, isNot(contains('handler(req)')));
+      expect(routes, contains('f0.handler()'));
+    });
+
+    test('that takes the request is still a raw handler', () async {
+      final String routes = await routesFor('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<ResponseType> handler(RequestType req) async => Res.notFound('no');
+''');
+      expect(routes, contains('f0.handler(req)'));
+    });
+  });
 }
