@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`package:dartvel_core/cloud.dart` is the Dartvel Cloud protocol.** The
+  build spec, build, artifact, event stream and refusal types the CLI and the
+  hosted Cloud service share, with no `dart:io`. A spec for a target no worker
+  builds, a profile or store that does not exist, or a project name that is a
+  path is refused when it is read. Artifact names that climb out of their
+  directory are refused. A 402, or the code `plan_required`, is a refusal that
+  names the plans page: every cloud build needs a paid plan.
+
 - **`DVAdminServer` serves the admin dashboard from the backend.** The mount
   (`DVAdminMount`), the decision (`dvAdminFor`) and the file resolution
   (`dvAdminAsset`: the mount root is `index.html`, a path that climbs out of
