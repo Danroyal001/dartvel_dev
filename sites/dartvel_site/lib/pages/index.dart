@@ -395,6 +395,8 @@ Widget _startNow(BuildContext context) => const Section(
       'Your pages are Flutter widgets and your code stays in your repository. '
           'Dartvel is MIT licensed, so you can fork it.',
     ),
-    PrimaryLink('Create your first app', '/docs'),
+    // In a row, as the other buttons are: directly in the section's column
+    // it stretched to the full width of the page.
+    DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', '/docs')]),
   ],
 );
