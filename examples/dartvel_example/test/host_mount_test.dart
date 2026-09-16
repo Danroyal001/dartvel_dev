@@ -4,6 +4,7 @@
 // router mounts: pages, config routes and tabs, under a prefix. The host
 // keeps its routes, and DV.Navigation lands Dartvel's targets under /app.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_example/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,7 @@ void main() {
   testWidgets('mounted at /app beside the host\'s own routes', (
     WidgetTester tester,
   ) async {
+    configureDartvelExample();
     final GoRouter host = GoRouter(
       initialLocation: '/profile',
       routes: <RouteBase>[
@@ -45,20 +47,20 @@ void main() {
     // A config route, by its typed target, under the prefix.
     DV.Navigation.navigate(DVRoutes.settings);
     await settle(tester);
-    expect(find.text('A config route. Tab: general'), findsOneWidget);
+    expect(find.text('Showing general settings'), findsOneWidget);
     expect(DV.Navigation.currentPath, '/app/settings');
 
     // A nested config route.
-    DV.Navigation.navigate(DVRoutes.teamMember(member: 'linus'));
+    DV.Navigation.navigate(DVRoutes.teamMember(member: 'lucia'));
     await settle(tester);
-    expect(find.text('Profile of linus'), findsOneWidget);
-    expect(DV.Navigation.currentPath, '/app/team/linus');
+    expect(find.text('Packing and customer care'), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/app/team/lucia');
 
     // A file route inside the tabs.
-    DV.Navigation.navigate(DVRoutes.libraryBook(book: 'dune'));
+    DV.Navigation.navigate(DVRoutes.coffee(slug: 'nyeri'));
     await settle(tester);
-    expect(find.text('Reading dune'), findsOneWidget);
-    expect(DV.Navigation.currentPath, '/app/library/dune');
+    expect(find.byKey(const Key('add-to-bag')), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/app/coffee/nyeri');
 
     // The host's route, through the same DV.Navigation.
     DV.Navigation.navigate(const DVRouteTarget('/profile'));

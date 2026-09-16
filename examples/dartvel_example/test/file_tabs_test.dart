@@ -1,10 +1,11 @@
 // Tabs from files through the example's real generated router.
 //
-// lib/pages/(tabs) has a DartvelTabsLayout naming /library and /saved, and
-// /library/:book beside the list. Each tab keeps its own stack and its
-// state, and back -- the iOS edge swipe and the Android button -- pops inside
-// the tab on screen before anything else.
+// lib/pages/(tabs) has a DartvelTabsLayout naming /, /orders, /saved and
+// /account, with /coffee/:slug and /cart beside the shop. Each tab keeps its
+// own stack and its state, and back -- the iOS edge swipe and the Android
+// button -- pops inside the tab on screen before anything else.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_example/main.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,55 +25,54 @@ void main() {
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     try {
+      configureDartvelExample();
       final GoRouter router = createDartvelRouter();
       addTearDown(router.dispose);
-      router.go('/library');
+      router.go('/');
       await tester.pumpWidget(
         ProviderScope(child: MaterialApp.router(routerConfig: router)),
       );
       await settle(tester);
-      expect(find.text('Book dune'), findsOneWidget);
+      expect(find.byKey(const Key('coffee-huila')), findsOneWidget);
 
-      // A detail page, pushed inside the Library tab.
-      DV.Navigation.navigate(DVRoutes.libraryBook(book: 'dune'));
+      // A coffee, pushed inside the Shop tab.
+      DV.Navigation.navigate(DVRoutes.coffee(slug: 'huila'));
       await settle(tester);
-      expect(find.text('Reading dune'), findsOneWidget);
+      expect(find.byKey(const Key('add-to-bag')), findsOneWidget);
 
-      // The iOS edge swipe goes back to the list, still in the tab.
+      // The iOS edge swipe goes back to the shelf, still in the tab.
       final TestGesture swipe = await tester.startGesture(const Offset(2, 300));
       await swipe.moveBy(const Offset(500, 0));
       await swipe.up();
       await settle(tester);
-      expect(find.text('Reading dune'), findsNothing);
-      expect(find.text('Book dune'), findsOneWidget);
-      expect(DV.Navigation.currentPath, '/library');
+      expect(find.byKey(const Key('add-to-bag')), findsNothing);
+      expect(find.byKey(const Key('coffee-huila')), findsOneWidget);
+      expect(DV.Navigation.currentPath, '/');
 
-      // Into the book again, then over to the Saved tab and save twice.
-      DV.Navigation.navigate(DVRoutes.libraryBook(book: 'emma'));
+      // Into a coffee again, then over to Saved and save it from nowhere:
+      // Saved shows what the Shop tab's page saved.
+      DV.Navigation.navigate(DVRoutes.coffee(slug: 'nyeri'));
+      await settle(tester);
+      await tester.ensureVisible(find.byKey(const Key('save-coffee')));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('save-coffee')));
       await settle(tester);
       await tester.tap(find.text('Saved').last);
       await settle(tester);
-      await tester.tap(find.byKey(const Key('save-button')));
-      await tester.tap(find.byKey(const Key('save-button')));
-      await settle(tester);
-      expect(find.text('Saved 2 times'), findsOneWidget);
+      expect(DV.Navigation.currentPath, '/saved');
+      expect(find.byKey(const Key('coffee-nyeri')), findsOneWidget);
 
-      // Back to Library: still on the book it was left on.
-      await tester.tap(find.text('Library').last);
+      // Back to Shop: still on the coffee it was left on.
+      await tester.tap(find.text('Shop').last);
       await settle(tester);
-      expect(find.text('Reading emma'), findsOneWidget);
-      expect(DV.Navigation.currentPath, '/library/emma');
+      expect(find.byKey(const Key('add-to-bag')), findsOneWidget);
+      expect(DV.Navigation.currentPath, '/coffee/nyeri');
 
       // The Android back button pops inside the tab too.
       expect(await tester.binding.handlePopRoute(), isTrue);
       await settle(tester);
-      expect(find.text('Book emma'), findsOneWidget);
-      expect(DV.Navigation.currentPath, '/library');
-
-      // And Saved kept its count while Library was on screen.
-      await tester.tap(find.text('Saved').last);
-      await settle(tester);
-      expect(find.text('Saved 2 times'), findsOneWidget);
+      expect(find.byKey(const Key('coffee-nyeri')), findsOneWidget);
+      expect(DV.Navigation.currentPath, '/');
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }

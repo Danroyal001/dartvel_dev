@@ -1,9 +1,10 @@
 // A deep link straight to a page pushed inside a tab.
 //
-// The tab's stack is built whole: the book page on top and the library list
-// under it, covered. Both are selectable pages, and a covered page is not
-// laid out -- which the selection area asked the size of anyway.
+// The tab's stack is built whole: the coffee on top and the shelf under it,
+// covered. Both are selectable pages, and a covered page is not laid out --
+// which the selection area asked the size of anyway.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_example/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,21 +18,23 @@ Future<void> settle(WidgetTester tester) async {
 void main() {
   tearDown(DVNavigation.detach);
 
-  testWidgets('opens on the book, with the list under it to go back to', (
+  testWidgets('opens on the coffee, with the shelf under it to go back to', (
     WidgetTester tester,
   ) async {
+    configureDartvelExample();
     final GoRouter router = createDartvelRouter();
     addTearDown(router.dispose);
-    router.go('/library/ulysses');
+    router.go('/coffee/yirgacheffe');
     await tester.pumpWidget(
       ProviderScope(child: MaterialApp.router(routerConfig: router)),
     );
     await settle(tester);
 
-    expect(find.text('Reading ulysses'), findsOneWidget);
+    expect(find.text('Add to bag · \$19.00'), findsOneWidget);
     expect(DV.Navigation.canGoBack, isTrue);
     DV.Navigation.back<void>();
     await settle(tester);
-    expect(find.text('Book ulysses'), findsOneWidget);
+    expect(find.byKey(const Key('coffee-yirgacheffe')), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/');
   });
 }
