@@ -8167,11 +8167,23 @@ class DV {
     final key = _DVGlobalKey(namespace, T);
     if (instance != null) {
       _globals[key] = instance as Object;
-      final provider = _globalProviders[key];
-      if (provider != null && container != null) {
-        container!.read(provider.notifier).state = instance;
-      } else if (provider == null) {
-        _globalProviders[key] = StateProvider<Object?>((ref) => instance);
+      // The provider reads the registry rather than closing over this
+      // instance, so a container created later starts from the newest value
+      // instead of the first one ever registered.
+      final provider = _globalProviders.putIfAbsent(
+        key,
+        () => StateProvider<Object?>((ref) => _globals[key]),
+      );
+      final ProviderContainer? live = container;
+      if (live != null) {
+        try {
+          live.read(provider.notifier).state = instance;
+        } on StateError {
+          // The scope that container belonged to has been disposed: an
+          // application started again in the same process. The next scope
+          // to read a global sets its own container, and reads the registry.
+          container = null;
+        }
       }
       return instance;
     }
