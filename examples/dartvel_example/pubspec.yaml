@@ -73,6 +73,22 @@ dartvel:
     typoTolerance: true
     highlightPre: "<mark>"
     highlightPost: "</mark>"
+  # App Links and Universal Links. The build writes both verification
+  # documents under build/web/.well-known from the route index, puts the
+  # intent filter in the Android manifest and the applinks: domains in the
+  # iOS entitlements; `dartvel doctor --target android,ios` checks what the
+  # domain really serves. The identifiers here are the example's own, and the
+  # fingerprint is a placeholder: a real one is keytool's SHA256 line for the
+  # release key, or the Play signing certificate with playAppSigning.
+  deepLinks:
+    domains: [example.dartvel.dev]
+    android:
+      package: com.example.dartvel_example
+      fingerprints:
+        - "14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:16:A0:83:42:E6:1D:BE:A8:8A:04:96:B2:3F:CF:44:E5"
+    ios:
+      appId: ABCDE12345.com.example.dartvelExample
+    exclude: [/admin/**]
   backendHost: 0.0.0.0
   backendPort: 3000
   devBackendHost: http://localhost:3000

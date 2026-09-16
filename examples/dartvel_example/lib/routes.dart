@@ -32,8 +32,12 @@ final List<DVRouteNode> routes = <DVRouteNode>[
   // Signed-out visitors are sent to the About page, a file route, by its
   // typed target.
   DVShellRoute(
-    redirect: (BuildContext context, DVRouteState state) =>
-        DV.Auth.currentUser == null ? DVRoutes.about : null,
+    // Async, as a session check is: a deep link here shows the pending view
+    // while it decides, never a blank screen.
+    redirect: (BuildContext context, DVRouteState state) async {
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      return DV.Auth.currentUser == null ? DVRoutes.about : null;
+    },
     builder: (BuildContext context, DVRouteState state, Widget child) =>
         AdminFrame(child: child),
     routes: <DVRouteNode>[
