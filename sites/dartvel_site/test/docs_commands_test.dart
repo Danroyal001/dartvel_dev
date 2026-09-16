@@ -1,4 +1,5 @@
-// Every dartvel command the docs pages show exists, with the flags shown.
+// Every dartvel command the site shows exists, with the flags shown: the docs
+// pages, and the home, features and cloud pages, which sell the same commands.
 //
 // Checked against dartvelCommandRunner(), the table `dartvel --help` prints,
 // so a command renamed or a flag removed fails here before a reader types it.
@@ -53,7 +54,11 @@ List<String> checkCommand(CommandRunner<void> runner, String line) {
   final ArgParser parser = command!.argParser;
   if (command.name == 'build' && i < tokens.length && !tokens[i].startsWith('-')) {
     final List<String> targets = parser.options['platform']!.allowed!;
-    if (!targets.contains(tokens[i])) {
+    // "dartvel build runs the SDK you have" is a sentence about the command,
+    // and a word after it with more prose following is not a target anyone
+    // types. A lone wrong word, or one followed by flags, still is.
+    final bool prose = tokens.skip(i + 1).where((String t) => !t.startsWith('-')).length >= 2;
+    if (!targets.contains(tokens[i]) && !prose) {
       problems.add('"$line": build has no target "${tokens[i]}"');
     }
   }
@@ -85,7 +90,7 @@ void main() {
   final CommandRunner<void> runner = dartvelCommandRunner();
   final List<Literal> literals = <Literal>[
     for (final FileSystemEntity e
-        in Directory('lib/pages/docs').listSync(recursive: true))
+        in Directory('lib/pages').listSync(recursive: true))
       if (e is File && e.path.endsWith('.dart'))
         ...literalsIn(e.path, e.readAsStringSync()),
   ];
@@ -99,24 +104,33 @@ void main() {
     expect(checkCommand(runner, 'dartvel frobnicate'), hasLength(1));
     expect(checkCommand(runner, 'dartvel db migrate --no-such-flag'), hasLength(1));
     expect(checkCommand(runner, 'dartvel build playstation'), hasLength(1));
+    expect(checkCommand(runner, 'dartvel build playstation --profile release'),
+        hasLength(1));
+    expect(checkCommand(runner, 'dartvel build runs code generation for you.'),
+        isEmpty);
   });
 
-  test('every command on a docs page exists with its flags', () {
+  test('every command on a site page exists with its flags', () {
     // Prose such as "the dartvel command" names no command, so a word after
-    // dartvel counts only when it is a command or the line starts with it.
+    // dartvel counts only when it is a command, or the line is typed at a
+    // "\$ " prompt, or (on a docs page) the literal starts with it. The home
+    // page's terminal also shows what the CLI prints, such as "dartvel
+    // backend listening on", which is output and not a command.
     final List<String> problems = <String>[
       for (final Literal literal in literals)
         for (final String line in commandLines(literal.text))
           if (runner.commands.containsKey(line.split(RegExp(r'\s+'))[1]
                   .replaceAll(RegExp(r'[^a-z-]'), '')) ||
-              literal.text.trimLeft().startsWith(line))
+              literal.text.contains('\$ $line') ||
+              (literal.file.contains('/docs/') &&
+                  literal.text.trimLeft().startsWith(line)))
             for (final String p in checkCommand(runner, line))
               '${literal.file}:${literal.line} $p',
     ];
     expect(problems, isEmpty, reason: problems.join('\n'));
   });
 
-  test('no docs page uses a retired spelling', () {
+  test('no site page uses a retired spelling', () {
     final List<String> hits = <String>[
       for (final Literal literal in literals)
         for (final MapEntry<String, String> r in _retired.entries)

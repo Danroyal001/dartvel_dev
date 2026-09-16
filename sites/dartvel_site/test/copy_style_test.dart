@@ -172,6 +172,8 @@ List<Literal> siteCopy() => <Literal>[
     ];
 
 void main() {
+  structureTests();
+
   test('the scanner joins adjacent literals and skips comments', () {
     final List<Literal> literals = literalsIn('x.dart', '''
 // A comment, not copy.
@@ -229,5 +231,145 @@ const b = "one";
                 '"${literal.text.length > 90 ? '${literal.text.substring(0, 90)}...' : literal.text}"',
     ];
     expect(hits, isEmpty, reason: '\n${hits.join('\n')}\n${hits.length} hit(s)');
+  });
+}
+
+// The owner's copy rules that are structure, not wording: one to three
+// bullets in a section, one list of them per section, and the reader's
+// objection answered before a button asks for the click. They apply to the
+// pages that sell (the home, features and cloud pages); a docs page is a
+// reference and is held to the wording rules above only.
+
+/// The marketing pages: every page file directly under lib/pages.
+List<File> marketingPages() => <File>[
+      for (final FileSystemEntity e in Directory('lib/pages').listSync()
+        ..sort((a, b) => a.path.compareTo(b.path)))
+        if (e is File &&
+            e.path.endsWith('.dart') &&
+            !e.path.split('/').last.startsWith('_') &&
+            !e.path.contains('.error.') &&
+            !e.path.contains('.loading.'))
+          e,
+    ];
+
+/// The offset just past the bracket that closes the one at [open], skipping
+/// strings and comments so a bracket in copy does not count.
+int closingBracket(String source, int open) {
+  final String opener = source[open];
+  final String closer = opener == '[' ? ']' : ')';
+  int depth = 0;
+  int i = open;
+  while (i < source.length) {
+    final String c = source[i];
+    if (source.startsWith('//', i)) {
+      i = source.indexOf('\n', i);
+      if (i < 0) return source.length;
+      continue;
+    }
+    if (c == "'" || c == '"') {
+      int j = i + 1;
+      while (j < source.length && source[j] != c) {
+        if (source[j] == r'\') j++;
+        j++;
+      }
+      i = j + 1;
+      continue;
+    }
+    if (c == opener) depth++;
+    if (c == closer) {
+      depth--;
+      if (depth == 0) return i + 1;
+    }
+    i++;
+  }
+  return source.length;
+}
+
+/// How many items each `Bullets([...])` in [source] holds, with the line it
+/// starts on.
+List<(int line, int items)> bulletLists(String source) => <(int, int)>[
+      for (final Match m in RegExp(r'\bBullets\(').allMatches(source))
+        () {
+          final int listOpen = source.indexOf('[', m.end);
+          final int listClose = closingBracket(source, listOpen);
+          final int items = literalsIn('', source.substring(listOpen, listClose)).length;
+          return ('\n'.allMatches(source.substring(0, m.start)).length + 1, items);
+        }(),
+    ];
+
+/// [source] cut into sections: each piece starts at a `Section(` or at a
+/// `@DVFunctionalWidget()`, which on these pages is one section's function.
+List<String> sectionsOf(String source) {
+  final List<int> starts = <int>[
+    0,
+    for (final Match m
+        in RegExp(r'\bSection\(|@DVFunctionalWidget\(\)').allMatches(source))
+      m.start,
+    source.length,
+  ];
+  return <String>[
+    for (int i = 0; i + 1 < starts.length; i++)
+      source.substring(starts[i], starts[i + 1]),
+  ];
+}
+
+/// Problems with the structure of one page's [source].
+List<String> structureProblems(String file, String source) => <String>[
+      for (final (int line, int items) list in bulletLists(source))
+        if (list.$2 < 1 || list.$2 > 3)
+          '$file:${list.$1}  ${list.$2} bullets; a section takes one to three',
+      for (final String section in sectionsOf(source))
+        if (RegExp(r'\bBullets\(').allMatches(section).length > 1)
+          '$file  a section has '
+              '${RegExp(r'\bBullets\(').allMatches(section).length} bullet '
+              'lists; one idea per section is one list',
+      for (final String section in sectionsOf(source))
+        for (final Match cta in RegExp(r'\bPrimaryLink\(').allMatches(section))
+          if (!section.substring(0, cta.start).contains('Objection('))
+            '$file  a PrimaryLink with no Objection before it in its section: '
+                '${section.substring(cta.start, (cta.start + 60).clamp(0, section.length))}',
+    ];
+
+void structureTests() {
+  test('the structure checks fire on a sample of each fault', () {
+    expect(structureProblems('x', '''
+Section(children: <Widget>[
+  Bullets(<String>['one', 'two', 'three', 'four']),
+])'''), hasLength(1));
+    expect(structureProblems('x', '''
+Section(children: <Widget>[
+  Bullets(<String>['one']),
+  Bullets(<String>['two']),
+])'''), hasLength(1));
+    expect(structureProblems('x', '''
+Section(children: <Widget>[
+  PrimaryLink('Create your first app', '/docs'),
+  Objection('Too late?', 'Yes.'),
+])'''), hasLength(1));
+    // A list whose items are split across lines and carry brackets in the
+    // copy is still three items, and an objection first is fine.
+    expect(structureProblems('x', '''
+Section(children: <Widget>[
+  Bullets(onDark: true, <String>[
+    'Post.Form(...) [validates] '
+        'input.',
+    'two',
+    'three',
+  ]),
+  Objection('Worried?', 'No need.'),
+  PrimaryLink('Create your first app', '/docs'),
+])'''), isEmpty);
+  });
+
+  test('marketing pages keep one to three bullets, one list a section, '
+      'and an objection before each primary button', () {
+    final List<File> pages = marketingPages();
+    expect(pages.map((File f) => f.path.split('/').last),
+        containsAll(<String>['index.dart', 'features.dart', 'cloud.dart']));
+    final List<String> problems = <String>[
+      for (final File page in pages)
+        ...structureProblems(page.path, page.readAsStringSync()),
+    ];
+    expect(problems, isEmpty, reason: problems.join('\n'));
   });
 }
