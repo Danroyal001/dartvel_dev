@@ -391,6 +391,32 @@ void main() {
       expect(find.text('the docs page'), findsNothing);
     });
 
+    testWidgets('a link to the page you are on previews nothing',
+        (WidgetTester tester) async {
+      // The preview is the live page. Of the page already on screen it shows
+      // nothing new, and it builds that page a second time: a page holding
+      // GlobalKeys loses its keyed content to the copy, which on the docs
+      // site left the page showing its contents and then its footer.
+      DVRoutePreviews.register(
+        '/',
+        (BuildContext context) => const Text('this page again'),
+      );
+      await pump(
+        tester,
+        const DVNavLink(to: DVRouteTarget('/'), child: DVText('Home')),
+      );
+
+      final gesture =
+          await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+
+      await gesture.moveTo(tester.getCenter(find.text('Home')));
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(find.text('this page again'), findsNothing);
+    });
+
     testWidgets('a long press shows it where there is no pointer',
         (WidgetTester tester) async {
       // Touch. The reason this is not simply a hover feature.
