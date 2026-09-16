@@ -127,3 +127,7 @@ String? dvSdkFloorRefusal({
       'newer. Its own pub refused to solve, which is the toolchain saying it '
       'cannot build this project -- there is nothing to fix here.';
 }
+
+/// The Flutter every Dartvel application needs, as the scaffold's README
+/// states it. A test holds the two together.
+const String dvFlutterFloor = '3.44.0';

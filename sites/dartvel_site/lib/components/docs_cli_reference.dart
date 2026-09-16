@@ -820,6 +820,13 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
+    name: 'upgrade',
+    description: 'Plan upgrading this project to this CLI\'s Dartvel release.',
+    options: <String>[
+      '    --plan    Report what the upgrade changes across the toolchain, dependencies, source, generated code, protocol, database, modules, plugins and deployment. Writes nothing.',
+    ],
+  ),
+  DocsCliCommand(
     name: 'version',
     description: 'Print the current version of Dartvel CLI.',
   ),

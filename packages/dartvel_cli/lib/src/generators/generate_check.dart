@@ -7,7 +7,11 @@ import 'routes_generator.dart' as routes;
 
 /// What `dartvel generate --check` found.
 class DVGenerateCheckResult {
-  const DVGenerateCheckResult({required this.stale, required this.unstable});
+  const DVGenerateCheckResult({
+    required this.stale,
+    required this.unstable,
+    this.lineChanges = const <String, (int, int)>{},
+  });
 
   /// DV-GEN-001: paths that running the generator would change, add or
   /// remove. Forward slashes, relative to the project, sorted.
@@ -16,6 +20,12 @@ class DVGenerateCheckResult {
   /// DV-GEN-002: paths that came out different from two generations of the
   /// same input, at two different locations.
   final List<String> unstable;
+
+  /// For each stale path, the lines regenerating would add and remove, as
+  /// `(added, removed)`. A file only one side has counts all its lines on
+  /// that side. Counted as a multiset of lines rather than a minimal edit
+  /// script, so a moved line is one added and one removed.
+  final Map<String, (int, int)> lineChanges;
 
   bool get ok => stale.isEmpty && unstable.isEmpty;
 }
@@ -58,8 +68,17 @@ Future<DVGenerateCheckResult> dvGenerateCheck(
     await generate(first.path);
     await generate(second.path);
 
+    final List<String> stale =
+        _differences(project, first, skip: _notCompared);
     return DVGenerateCheckResult(
-      stale: _differences(project, first, skip: _notCompared),
+      stale: stale,
+      lineChanges: <String, (int, int)>{
+        for (final String path in stale)
+          path: _lineChanges(
+            File(p.join(project.path, path)),
+            File(p.join(first.path, path)),
+          ),
+      },
       unstable: _differences(first, second, skip: const <String>{}),
     );
   } finally {
@@ -124,4 +143,31 @@ bool _sameBytes(File a, File b) {
     if (x[i] != y[i]) return false;
   }
   return true;
+}
+
+(int, int) _lineChanges(File before, File after) {
+  List<String> lines(File f) {
+    if (!f.existsSync()) return const <String>[];
+    try {
+      return f.readAsLinesSync();
+    } on FormatException {
+      return const <String>[];
+    }
+  }
+
+  final Map<String, int> remaining = <String, int>{};
+  for (final String line in lines(before)) {
+    remaining[line] = (remaining[line] ?? 0) + 1;
+  }
+  int added = 0;
+  for (final String line in lines(after)) {
+    final int count = remaining[line] ?? 0;
+    if (count > 0) {
+      remaining[line] = count - 1;
+    } else {
+      added++;
+    }
+  }
+  final int removed = remaining.values.fold(0, (int a, int b) => a + b);
+  return (added, removed);
 }
