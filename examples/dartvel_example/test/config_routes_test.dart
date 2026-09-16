@@ -59,6 +59,8 @@ void main() {
     // A guarded config route: nobody is signed in, so the shell's redirect
     // sends the visitor to the About page instead.
     DV.Navigation.navigate(DVRoutes.adminReports);
+    // The guard is async and takes a moment, as a session check would.
+    await tester.pump(const Duration(milliseconds: 1600));
     await settle(tester);
     expect(find.text('Reports'), findsNothing);
     expect(DV.Navigation.currentPath, '/about');
