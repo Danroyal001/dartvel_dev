@@ -525,6 +525,7 @@ library dartvel_client;
 
 export 'package:dartvel_core/dartvel.dart';
 export 'package:dartvel_flutter/dartvel_flutter.dart';
+export 'account.g.dart';
 export 'config.g.dart';
 export 'dartvel_config.g.dart';
 export 'dartvel_runtime.dart';

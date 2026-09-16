@@ -646,6 +646,7 @@ import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartve
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
+import 'package:$pkgName/dartvel_client/account.g.dart' show configureDartvelBackendAccounts;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies;
@@ -1350,6 +1351,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
   if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
   configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
+  // The account endpoints send an address change's code through
+  // DV.Notifications.mail in the generated template, and delete an account
+  // through the DV.Privacy just configured -- each refused, naming what to
+  // configure, where this process has no mail or no DARTVEL_PRIVACY_KEY.
+  configureDartvelBackendAccounts();
   // The application's own sessions authenticate on every route. Over this
   // process's database when it has one, so a session outlives a restart and
   // is seen by every web process; in memory otherwise. An application that

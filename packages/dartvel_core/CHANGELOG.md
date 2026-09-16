@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **An address change and an account deletion work without application
+  wiring, and refuse when they cannot.** `DVAuthEndpoints` used to send a
+  verification code only through a `sendEmailVerification` the application
+  passed to `install`, and to delete an account with or without a `DVPrivacy`
+  -- removing the row a person signs in with, erasing nothing, and answering
+  200. Now, with nothing passed, a code goes through `DV.Notifications.mail`
+  from `DV.Notifications.useMailSender`, built by
+  `install(emailVerificationMail:)`, else the template the generated server
+  installs with `useGeneratedEmailVerificationMail`, else
+  `defaultEmailVerificationMail`; and deletion runs the `DV.Privacy` the
+  generated server configures. Without a mail provider or a sender the change
+  is 503 `mail_not_configured`, naming what to configure, before a code is
+  minted. A send that throws is 503 and leaves no pending address. Without an
+  erasure, deletion is 503 `erasure_not_configured` naming
+  `DARTVEL_PRIVACY_KEY`, checked before the password is; an erasure that could
+  not reach an adapter (DV-PRIVACY-009) is 503 `erasure_incomplete` with the
+  account and its sessions intact, so asking again finishes the walk.
+  `DVEmailVerification` is what a template gets: the sender, the new address,
+  the code and how long it works. `DVNotificationMail.isConfigured` and
+  `DVNotificationsService.mailSender` say whether a mail could leave.
+
 - **A route declares the largest body it reads.** `Router.get`, `post`,
   `put`, `delete`, `head` and `any` take `maxBodyBytes`, and
   `Router.bodyLimits` lists every route in dispatch order with the limit it
