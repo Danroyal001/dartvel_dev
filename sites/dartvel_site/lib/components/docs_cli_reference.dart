@@ -533,6 +533,13 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
+    name: 'migrate-code',
+    description: 'Rewrite deprecated Dartvel names in this project to their replacements (a dry run unless --apply).',
+    options: <String>[
+      '    --apply    Write the rewrites. Without it nothing is written.',
+    ],
+  ),
+  DocsCliCommand(
     name: 'modules',
     description: 'Inspect mounted modules, publish a signed module, and pin what is mounted.',
     subcommands: <DocsCliCommand>[
