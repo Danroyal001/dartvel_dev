@@ -30,6 +30,24 @@ void main() {
           calls, <String>['dart run dartvel_cli:dartvel build --platform all']);
     });
 
+    test('the server target builds web-server, the build that writes the '
+        'backend executable', () async {
+      // It asked for `build --platform server`, which is not a platform, so a
+      // server deploy stopped at the build with a usage error.
+      final calls = <String>[];
+
+      await _runDeploy(
+        <String>['deploy', '--target', 'server'],
+        processRun: (executable, arguments, {runInShell = false}) async {
+          calls.add('$executable ${arguments.join(' ')}');
+          return ProcessResult(1, 0, '', '');
+        },
+      );
+
+      expect(calls.first,
+          'dart run dartvel_cli:dartvel build --platform web-server');
+    });
+
     test('vercel deployment failure sets exit code', () async {
       await _runDeploy(
         <String>['deploy', '--no-build', '--provider', 'vercel'],
