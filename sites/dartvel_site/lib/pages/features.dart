@@ -342,9 +342,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'OTA Updates',
     'DV.Updates',
     'Present: DV.Updates.check, apply and rollback run on the Shorebird '
-        'updater. Patches can come from your own host through '
-        'DVShorebirdPatchSource, and CI patches an Android release that way '
-        'with no Shorebird account. Absent: a patch applied on iOS.',
+        'updater. Patches publish into your own web-server binary with dartvel '
+        'updates patch --patch-source, and CI patches an Android release that '
+        'way with no Shorebird account. Absent: iOS.',
   ),
   (
     'Protocol Versioning and Client Compatibility',
