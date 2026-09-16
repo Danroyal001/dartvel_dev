@@ -8714,6 +8714,10 @@ class _DVPageShellState extends State<DVPageShell> {
   final FocusNode _selectionFocusNode =
       FocusNode(skipTraversal: true, debugLabel: 'DVPageShell selection');
 
+  /// Keeps the page's own state when selection is switched off beneath a
+  /// covering route and on again when it is uncovered.
+  final GlobalKey _contentKey = GlobalKey(debugLabel: 'DVPageShell content');
+
   DVPageScaffoldSpec get spec => widget.spec;
   Widget get child => widget.child;
 
@@ -8819,6 +8823,13 @@ class _DVPageShellState extends State<DVPageShell> {
     // and a page declaring selectable: true is stating a preference rather
     // than overruling the device it is running on.
     final bool selectable = spec.selectable && !dvKioskBlocksTextSelection;
+    // A page covered by another route is not laid out, and a selection area
+    // over it asked its text for sizes it did not have: a deep link to a page
+    // pushed over another -- a book over its library, inside a tab -- threw
+    // while building the page underneath. Selection there is off until the
+    // page is on top again. The key keeps the page's state across the switch.
+    final bool onTop = ModalRoute.of(context)?.isCurrent ?? true;
+    final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
     final content = selectable
         ? SelectionArea(
             // skipTraversal, because a SelectionArea is focusable and would
@@ -8827,9 +8838,9 @@ class _DVPageShellState extends State<DVPageShell> {
             // subsequent one was off by one. It still takes focus when a
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
-            child: body,
+            child: onTop ? keyed : SelectionContainer.disabled(child: keyed),
           )
-        : body;
+        : keyed;
     final Widget framed = spec.safeArea ? SafeArea(child: content) : content;
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
       return framed;
