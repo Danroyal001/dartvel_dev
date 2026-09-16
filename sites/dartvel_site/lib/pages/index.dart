@@ -18,6 +18,7 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         HeroSection(),
         Proof(),
         BackendProof(),
+        OneFileBackend(),
         ImportApi(),
         Targets(),
         ExpoComparison(),
@@ -269,9 +270,48 @@ Widget _backendProof(BuildContext context) => const Section(
   ],
 );
 
+/// The web-server build as a PocketBase-style deploy: one file, SQLite made
+/// on the first run. Every line in the terminal is what the binary printed
+/// when it was copied alone into /tmp/shop and started, and the size is the
+/// measured size of that file.
+@DVFunctionalWidget()
+Widget _oneFileBackend(BuildContext context) => const Section(
+  tint: true,
+  children: <Widget>[
+    Eyebrow('ONE-FILE BACKEND'),
+    Heading('Ship your app and its database as one 30 MB file.'),
+    CodeBlock(<String>[
+      r'$ dartvel build web-server',
+      'build/server (29.9 MB): the backend, the web app and the native '
+          'server, in one file.',
+      '',
+      r'$ ./server',
+      'dartvel: no DATABASE_URL, creating SQLite database /tmp/shop/dartvel_data/data.db',
+      'dartvel: created table notes',
+      'dartvel backend listening on http://0.0.0.0:3000/api',
+    ]),
+    Bullets(<String>[
+      'Copy one file to a Linux server and run it. The first run creates '
+          'the SQLite file and your tables.',
+      'The web app, the API and the pages rendered on request all come '
+          'from that file.',
+      'Set DATABASE_URL to PostgreSQL when one file is no longer enough.',
+    ]),
+    Objection(
+      'Why not use PocketBase?',
+      'PocketBase is also one file, and you extend it in Go or JavaScript. '
+          'Dartvel keeps your backend in Dart beside your Flutter app, with '
+          'a typed client generated for it. PocketBase ships an admin '
+          'dashboard in its file, and this binary has none yet.',
+    ),
+    DVBox.wrapLine(<Widget>[
+      PrimaryLink('Build your one-file backend', '/docs'),
+    ]),
+  ],
+);
+
 @DVFunctionalWidget()
 Widget _importApi(BuildContext context) => const Section(
-  tint: true,
   children: <Widget>[
     Eyebrow('EXISTING APIS'),
     Heading('Already have an API? Import its spec.'),
