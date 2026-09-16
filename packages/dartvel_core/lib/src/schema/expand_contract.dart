@@ -533,7 +533,9 @@ final class DVSchemaEvolutionStore {
 
   Future<void> _prepare() async {
     if (_prepared) return;
-    await database.execute('CREATE TABLE IF NOT EXISTS $_table (id, state)');
+    await database.execute(
+      'CREATE TABLE IF NOT EXISTS $_table (id TEXT, state TEXT)',
+    );
     _prepared = true;
   }
 

@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **Every framework table can be created on PostgreSQL and MySQL.** Change
+  capture, record history's log, the analytics outbox, identity and event
+  tables, consent, agreements, privacy tombstones and erasure requests, the
+  offline store, schema backfills and expand/contract state, organizations,
+  API keys, the OAuth provider and content versions declared columns with no
+  type. SQLite accepts that; PostgreSQL and MySQL refuse it at `CREATE TABLE`
+  with a syntax error, so none of those surfaces could start against a
+  server. Each column now has the type of what is written to it -- `TEXT`
+  for ids, JSON and ISO-8601 times, `BIGINT` for sequences, microsecond
+  clocks and the capture write order, `INTEGER` for versions, counts and
+  flags -- which SQLite reads with the same affinity the values already had.
+  `DVRecordTable` takes `types:`, checked against its columns, and makes its
+  bookkeeping columns as `dartvel db migrate` does; its history table is
+  always typed. A table with no `types:` is still untyped and still
+  SQLite-only. `DVWarehouseSink` takes `columnType:`, since a capture carries
+  column names and not types. A backfill's chunk boundaries are stored as
+  JSON, so a numeric key reads back as a number rather than as text that
+  compares greater than every number. `dvEnsureFrameworkTable` reads a
+  schema-qualified table name. The `postgres` job runs every one of these
+  stores against the server.
+
 - **The framework's tables hold 64-bit timestamps on PostgreSQL and MySQL.**
   Sessions, account deletions, the database queue, purchase grants and
   notification claims, meter records and reports, and promotion redemptions

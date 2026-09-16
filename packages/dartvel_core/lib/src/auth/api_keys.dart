@@ -188,6 +188,21 @@ class DVApiKeys {
         'rotated_from',
         'rotated_to',
       ],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'secret_hash': 'TEXT',
+        'name': 'TEXT',
+        'organization_id': 'TEXT',
+        'tenant': 'TEXT',
+        'scopes': 'TEXT',
+        'rate_plan': 'TEXT',
+        'created_by': 'TEXT',
+        'created_at': 'TEXT',
+        'expires_at': 'TEXT',
+        'revoked_at': 'TEXT',
+        'rotated_from': 'TEXT',
+        'rotated_to': 'TEXT',
+      },
       // History records that the hash was written, never the hash: a change
       // log is a second copy of the table with a different lifetime.
       sensitive: const <String>{'secret_hash'},

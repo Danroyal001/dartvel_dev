@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../diagnostics/diagnostics.dart';
 import '../observability/logging.dart';
 
@@ -381,9 +382,11 @@ class DVConsent {
   final List<void Function(DVConsentChange change)> _listeners =
       <void Function(DVConsentChange change)>[];
 
-  Future<void> ensureSchema() => database.execute(
-        'CREATE TABLE IF NOT EXISTS $table (id, seq, install_id, user_id, '
-        'policy_version, asked, answers, prompt, recorded_at)',
+  Future<void> ensureSchema() => dvEnsureFrameworkTable(
+        database,
+        'CREATE TABLE IF NOT EXISTS $table (id TEXT, seq BIGINT, '
+        'install_id TEXT, user_id TEXT, policy_version TEXT, asked TEXT, '
+        'answers TEXT, prompt TEXT, recorded_at TEXT)',
       );
 
   /// Reads the latest choice for this install. A choice made under another

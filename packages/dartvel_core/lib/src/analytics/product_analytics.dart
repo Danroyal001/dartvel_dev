@@ -15,6 +15,7 @@ import 'dart:convert';
 
 import '../../dartvel.dart' show DVJobEnvelope, DVQueues;
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../flags/flags.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart';
@@ -171,9 +172,9 @@ class DVAnalyticsDatabaseStore implements DVAnalyticsErasableSink {
   String get name => DVAnalytics.storeName;
 
   Future<void> ensureSchema() => database.execute(
-        'CREATE TABLE IF NOT EXISTS $table (id, name, category, user_id, '
-        'anonymous_id, session_id, occurred_at, policy_version, properties, '
-        'tenant)',
+        'CREATE TABLE IF NOT EXISTS $table (id TEXT, name TEXT, '
+        'category TEXT, user_id TEXT, anonymous_id TEXT, session_id TEXT, '
+        'occurred_at TEXT, policy_version TEXT, properties TEXT, tenant TEXT)',
       );
 
   @override
@@ -370,6 +371,11 @@ class DVAnalytics {
   static const String outboxTable = 'dv_analytics_outbox';
   static const String identityTable = 'dv_analytics_identity';
 
+  /// The identity table, made here and by the analytics runtime, which reads
+  /// the install id before a pipeline exists.
+  static const String identityTableSql =
+      'CREATE TABLE IF NOT EXISTS $identityTable (id TEXT, value TEXT)';
+
   final DVConsent consent;
   final DVDatabaseAdapter database;
   final DVAnalyticsSink store;
@@ -404,12 +410,13 @@ class DVAnalytics {
       name.toLowerCase().replaceAll('_', '');
 
   Future<void> ensureSchema() async {
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $outboxTable (seq, sink, event_id, category, '
-      'user_id, anonymous_id, record)',
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $outboxTable (seq BIGINT, sink TEXT, '
+      'event_id TEXT, category TEXT, user_id TEXT, anonymous_id TEXT, '
+      'record TEXT)',
     );
-    await database
-        .execute('CREATE TABLE IF NOT EXISTS $identityTable (id, value)');
+    await database.execute(identityTableSql);
     final DVAnalyticsSink s = store;
     if (s is DVAnalyticsDatabaseStore) await s.ensureSchema();
     final List<Map<String, Object?>> last = await database

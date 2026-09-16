@@ -235,8 +235,7 @@ class DVAnalyticsRuntime {
   }
 
   static Future<String> _installId(DVDatabaseAdapter db) async {
-    await db.execute('CREATE TABLE IF NOT EXISTS ${DVAnalytics.identityTable} '
-        '(id, value)');
+    await db.execute(DVAnalytics.identityTableSql);
     final List<Map<String, Object?>> rows = await db.query(
         'SELECT value FROM ${DVAnalytics.identityTable} WHERE id = ?',
         <Object?>[installIdKey]);

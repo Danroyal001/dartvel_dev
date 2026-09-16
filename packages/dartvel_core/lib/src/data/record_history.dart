@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart' show dvIsSqlType;
 import '../transaction/transaction.dart';
 import 'change_capture.dart';
 
@@ -310,9 +311,11 @@ class DVRecordTable {
     this.softDelete = false,
     this.capture,
     this.scope,
+    Map<String, String>? types,
     DVDatabaseAdapter? database,
   })  : historyPolicy = history,
         columns = List<String>.unmodifiable(columns),
+        types = types == null ? null : Map<String, String>.unmodifiable(types),
         sensitive = Set<String>.unmodifiable(sensitive),
         unique = Set<String>.unmodifiable(unique),
         _database = database {
@@ -341,6 +344,23 @@ class DVRecordTable {
         throw ArgumentError.value(name, 'field', 'is not one of the columns');
       }
     }
+    final Map<String, String>? declared = this.types;
+    if (declared != null) {
+      for (final String column in columns) {
+        final String? type = declared[column];
+        if (type == null) {
+          throw ArgumentError.value(column, 'types', 'declares no type for it');
+        }
+        if (!dvIsSqlType(type)) {
+          throw ArgumentError.value(type, 'types', 'is not a SQL type');
+        }
+      }
+      for (final String name in declared.keys) {
+        if (!columns.contains(name)) {
+          throw ArgumentError.value(name, 'types', 'is not one of the columns');
+        }
+      }
+    }
     capture?.track(this);
   }
 
@@ -357,6 +377,15 @@ class DVRecordTable {
   final String table;
   final String key;
   final List<String> columns;
+
+  /// The SQL type of each column, or null to declare none.
+  ///
+  /// PostgreSQL and MySQL refuse a column with no type, so a table made on a
+  /// server needs them. Each type has to describe the values actually
+  /// written: SQLite applies the declared type's affinity, and a `TEXT`
+  /// column hands back `'1'` for a stored `1`, which every later diff reports
+  /// as a change that did not happen.
+  final Map<String, String>? types;
 
   /// Fields recorded as changed, never as values.
   final Set<String> sensitive;
@@ -406,18 +435,29 @@ class DVRecordTable {
 
   /// Creates the table, and its history table when history is enabled.
   ///
-  /// Columns carry no declared type. SQLite would otherwise apply a type
-  /// affinity and hand back `'1'` for a stored `1`, and every diff after that
-  /// would report a change that did not happen.
+  /// With [types] the columns take them, and the bookkeeping columns the
+  /// types `dartvel db migrate` gives a generated model's. Without, nothing
+  /// is declared, which SQLite and the in-memory adapter accept and
+  /// PostgreSQL and MySQL refuse. The history table is the framework's own
+  /// shape, and is always typed as the migration types it.
   Future<void> ensureSchema() async {
+    final Map<String, String>? declared = types;
+    final List<String> definitions = declared == null
+        ? _storedColumns
+        : <String>[
+            for (final String column in columns) '$column ${declared[column]}',
+            '$versionColumn INTEGER NOT NULL DEFAULT 1',
+            '$deletedColumn TEXT',
+          ];
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $table (${_storedColumns.join(', ')})',
+      'CREATE TABLE IF NOT EXISTS $table (${definitions.join(', ')})',
     );
     if (historyPolicy != null) {
       await database.execute(
-        'CREATE TABLE IF NOT EXISTS $historyTable (entry_id, record_key, '
-        'record_version, actor, tenant, transaction_id, occurred_at, changes, '
-        'deleted, restored)',
+        'CREATE TABLE IF NOT EXISTS $historyTable (entry_id TEXT, '
+        'record_key TEXT, record_version INTEGER, actor TEXT, tenant TEXT, '
+        'transaction_id TEXT, occurred_at TEXT, changes TEXT, '
+        'deleted INTEGER, restored INTEGER)',
       );
     }
   }

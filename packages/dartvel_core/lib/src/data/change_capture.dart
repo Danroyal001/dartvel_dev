@@ -24,6 +24,7 @@ import 'dart:math' as math;
 
 import '../../dartvel.dart' show DVJobEnvelope, DVQueues;
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart';
 import '../tenancy/tenants.dart';
@@ -390,26 +391,35 @@ class DVCapture {
   Future<void> _publishing = Future<void>.value();
 
   Future<void> ensureSchema() async {
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $logTable (change_id, change_seq, model, '
-      'record_key, operation, record_version, tenant, transaction_id, '
-      'occurred_at, write_order, published_at, row_values, redacted, erased, '
-      'purged)',
+    // Sequences and the write order are 64 bits: the log outlives any 32-bit
+    // count, and the write order is microseconds times a thousand. Keys, rows
+    // and times are JSON or ISO-8601 text; flags are 0 or 1.
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $logTable (change_id TEXT, '
+      'change_seq BIGINT, model TEXT, record_key TEXT, operation TEXT, '
+      'record_version INTEGER, tenant TEXT, transaction_id TEXT, '
+      'occurred_at TEXT, write_order BIGINT, published_at TEXT, '
+      'row_values TEXT, redacted TEXT, erased INTEGER, purged INTEGER)',
+    );
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $stateTable (id TEXT, '
+      'allocated_through BIGINT, published_through BIGINT, '
+      'pruned_through BIGINT, lease_until TEXT)',
     );
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $stateTable (id, allocated_through, '
-      'published_through, pruned_through, lease_until)',
+      'CREATE TABLE IF NOT EXISTS $schemaTable (model TEXT, columns TEXT)',
     );
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $schemaTable (model, columns)',
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $checkpointTable (consumer TEXT, '
+      'change_seq BIGINT, updated_at TEXT)',
     );
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $checkpointTable (consumer, change_seq, '
-      'updated_at)',
-    );
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $backfillTable (consumer, model, '
-      'through_seq, after_key, rows_done, done)',
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $backfillTable (consumer TEXT, model TEXT, '
+      'through_seq BIGINT, after_key TEXT, rows_done BIGINT, done INTEGER)',
     );
     final List<Map<String, Object?>> state = await database.query(
       'SELECT id FROM $stateTable WHERE id = ?',
@@ -1416,24 +1426,38 @@ class DVCaptureConsumer {
 /// a delete treated as a new record, erasures that no in-flight change can
 /// undo, and idempotent schema evolution. Rows land as they were written;
 /// there is no transformation.
+///
+/// A capture carries column names, not types, so the type a destination
+/// column is added with comes from [columnType]. Without it columns are added
+/// with none, which SQLite and the in-memory adapter accept and PostgreSQL
+/// and MySQL refuse.
 class DVWarehouseSink implements DVCaptureSink {
-  DVWarehouseSink({required this.database, this.name = 'warehouse'});
+  DVWarehouseSink({
+    required this.database,
+    this.name = 'warehouse',
+    this.columnType,
+  });
 
   static const String tombstoneTable = 'dv_warehouse_tombstones';
 
+  /// The sink's own columns. Sequences and incarnations are 64 bits, as in
+  /// the log they come from.
   static const List<String> _meta = <String>[
-    '_dv_key',
-    '_dv_version',
-    '_dv_seq',
-    '_dv_incarnation',
-    '_dv_change_id',
-    '_dv_tenant',
-    '_dv_transaction_id',
-    '_dv_occurred_at',
-    '_dv_backfilled',
+    '_dv_key TEXT',
+    '_dv_version INTEGER',
+    '_dv_seq BIGINT',
+    '_dv_incarnation BIGINT',
+    '_dv_change_id TEXT',
+    '_dv_tenant TEXT',
+    '_dv_transaction_id TEXT',
+    '_dv_occurred_at TEXT',
+    '_dv_backfilled BIGINT',
   ];
 
   final DVDatabaseAdapter database;
+
+  /// The SQL type [column] of [model] is added with, e.g. `TEXT` or `BIGINT`.
+  final String Function(String model, String column)? columnType;
 
   @override
   final String name;
@@ -1443,11 +1467,14 @@ class DVWarehouseSink implements DVCaptureSink {
   bool get deduplicates => true;
 
   Future<void> _ensureTables(String model) async {
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $tombstoneTable (model, record_key, '
-      'record_version, change_seq, incarnation, erased)',
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $tombstoneTable (model TEXT, '
+      'record_key TEXT, record_version INTEGER, change_seq BIGINT, '
+      'incarnation BIGINT, erased INTEGER)',
     );
-    await database.execute(
+    await dvEnsureFrameworkTable(
+      database,
       'CREATE TABLE IF NOT EXISTS ${_checkIdentifier(model)} '
       '(${_meta.join(', ')})',
     );
@@ -1472,8 +1499,12 @@ class DVWarehouseSink implements DVCaptureSink {
       }
       final bool exists = await _hasColumn(change.model, column);
       if (change.phase == DVCaptureSchemaPhase.expand && !exists) {
-        await database.execute(
-            'ALTER TABLE ${change.model} ADD COLUMN $column');
+        final String? type = columnType?.call(change.model, column);
+        if (type != null && !dvIsSqlType(type)) {
+          throw ArgumentError.value(type, 'columnType', 'is not a SQL type');
+        }
+        await database.execute('ALTER TABLE ${change.model} ADD COLUMN '
+            '$column${type == null ? '' : ' $type'}');
       } else if (change.phase == DVCaptureSchemaPhase.contract && exists) {
         await database.execute(
             'ALTER TABLE ${change.model} DROP COLUMN $column');

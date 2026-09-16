@@ -148,11 +148,13 @@ class DVAgreements {
   /// year's version after the configuration has moved on.
   Future<void> ensureSchema() async {
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $table (id, agreement, version, actor, '
-      'tenant, accepted_at)',
+      'CREATE TABLE IF NOT EXISTS $table (id TEXT, agreement TEXT, '
+      'version TEXT, actor TEXT, tenant TEXT, accepted_at TEXT)',
     );
     await database.execute(
-        'CREATE TABLE IF NOT EXISTS $versionsTable (agreement, version)');
+      'CREATE TABLE IF NOT EXISTS $versionsTable (agreement TEXT, '
+      'version TEXT)',
+    );
     for (final DVAgreement a in agreements) {
       final List<Map<String, Object?>> known = await database.query(
         'SELECT version FROM $versionsTable WHERE agreement = ? AND version = ?',

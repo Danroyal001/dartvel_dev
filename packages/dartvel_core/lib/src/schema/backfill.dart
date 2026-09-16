@@ -313,11 +313,13 @@ final class DVBackfill {
   Future<void> _prepare() async {
     if (_prepared) return;
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $_chunks (backfill, chunk, first_key, '
-      'last_key, row_count, state, ever_matched)',
+      'CREATE TABLE IF NOT EXISTS $_chunks (backfill TEXT, chunk INTEGER, '
+      'first_key TEXT, last_key TEXT, row_count INTEGER, state TEXT, '
+      'ever_matched INTEGER)',
     );
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $_state (backfill, paused, complete)',
+      'CREATE TABLE IF NOT EXISTS $_state (backfill TEXT, paused INTEGER, '
+      'complete INTEGER)',
     );
     final List<Map<String, Object?>> existing = await database.query(
       'SELECT backfill FROM $_state WHERE backfill = ?',
@@ -371,7 +373,7 @@ final class DVBackfill {
         : await database.query(
             'SELECT $key, $source FROM $table WHERE $key > ? '
             'ORDER BY $key LIMIT ?',
-            <Object?>[last.single['last_key'], chunkSize],
+            <Object?>[_decodeKey(last.single['last_key']), chunkSize],
           );
     if (rows.isEmpty) {
       await _setState('complete', true);
@@ -402,8 +404,8 @@ final class DVBackfill {
       <Object?>[
         id,
         chunk.index,
-        chunk.first,
-        chunk.last,
+        jsonEncode(chunk.first),
+        jsonEncode(chunk.last),
         chunk.rows,
         chunk.state,
         0,
@@ -457,6 +459,15 @@ final class DVBackfill {
     }
   }
 
+  /// A chunk boundary as it was read from the table.
+  ///
+  /// Keys are stored as JSON in a text column. A key column may hold numbers
+  /// or text, and a text column on its own would hand back `'10'` for `10`:
+  /// on SQLite that key then compares greater than every number, so the next
+  /// chunk would find no rows and the backfill would stop with rows uncopied.
+  static Object? _decodeKey(Object? stored) =>
+      stored == null ? null : jsonDecode('$stored');
+
   /// Every recorded chunk and whether the backfill is complete.
   Future<DVBackfillProgress> progress() async {
     final Map<String, Object?> state = await _readState();
@@ -471,8 +482,8 @@ final class DVBackfill {
         for (final Map<String, Object?> row in rows)
           DVBackfillChunk(
             index: (row['chunk']! as num).toInt(),
-            first: row['first_key'],
-            last: row['last_key'],
+            first: _decodeKey(row['first_key']),
+            last: _decodeKey(row['last_key']),
             rows: (row['row_count']! as num).toInt(),
             state: '${row['state']}',
             everMatched: _truthy(row['ever_matched']),

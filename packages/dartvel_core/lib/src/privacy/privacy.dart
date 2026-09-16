@@ -462,6 +462,19 @@ class DVPrivacy {
       'kept',
       'complete',
     ],
+    types: const <String, String>{
+      'id': 'TEXT',
+      'kind': 'TEXT',
+      'subject': 'TEXT',
+      'reason': 'TEXT',
+      'requested_by': 'TEXT',
+      'run_by': 'TEXT',
+      'requested_at': 'TEXT',
+      'completed_at': 'TEXT',
+      'covered': 'TEXT',
+      'kept': 'INTEGER',
+      'complete': 'INTEGER',
+    },
     history: const DVHistory(keep: Duration(days: 3650)),
     versioned: false,
     database: database,
@@ -506,7 +519,8 @@ class DVPrivacy {
   Future<void> ensureSchema() async {
     await requests.ensureSchema();
     await database.execute(
-      'CREATE TABLE IF NOT EXISTS $tombstoneTable (subject, erased_at)',
+      'CREATE TABLE IF NOT EXISTS $tombstoneTable (subject TEXT, '
+      'erased_at TEXT)',
     );
   }
 

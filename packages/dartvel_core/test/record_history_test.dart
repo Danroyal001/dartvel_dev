@@ -70,6 +70,88 @@ Map<String, Object?> _order(String id,
     };
 
 void main() {
+  group('declared column types', () {
+    // PostgreSQL and MySQL refuse a column with no type, so a table the
+    // framework makes for itself says what each column holds.
+    DVRecordTable typed(DVDatabaseAdapter database,
+            {Map<String, String>? types}) =>
+        DVRecordTable(
+          table: 'orders',
+          key: 'id',
+          columns: const <String>['id', 'quantity', 'note'],
+          history: const DVHistory(),
+          types: types ??
+              const <String, String>{
+                'id': 'TEXT',
+                'quantity': 'INTEGER',
+                'note': 'TEXT',
+              },
+          database: database,
+        );
+
+    test('are written into the table and its history', () async {
+      final List<String> statements = <String>[];
+      final _RacingAdapter recording =
+          _RacingAdapter(SqliteDVDatabaseAdapter.memory())
+            ..before = (String sql) async => statements.add(sql);
+      await typed(recording).ensureSchema();
+      expect(statements, <String>[
+        'CREATE TABLE IF NOT EXISTS orders (id TEXT, quantity INTEGER, '
+            'note TEXT, _dv_version INTEGER NOT NULL DEFAULT 1, '
+            '_dv_deleted_at TEXT)',
+        'CREATE TABLE IF NOT EXISTS orders__history (entry_id TEXT, '
+            'record_key TEXT, record_version INTEGER, actor TEXT, tenant TEXT, '
+            'transaction_id TEXT, occurred_at TEXT, changes TEXT, '
+            'deleted INTEGER, restored INTEGER)',
+      ]);
+    });
+
+    test('hand back on SQLite exactly what was written', () async {
+      final DVRecordTable orders = typed(SqliteDVDatabaseAdapter.memory());
+      await orders.ensureSchema();
+      final DVRecord first = (await orders.write(
+        <String, Object?>{'id': 'o1', 'quantity': 2, 'note': '10'},
+      )).record;
+      final DVRecord second = (await orders.write(
+        <String, Object?>{'id': 'o1', 'quantity': 2, 'note': '10'},
+        base: first,
+      )).record;
+      expect(second.version, 1, reason: 'nothing changed');
+      expect((await orders.read('o1'))!.values,
+          <String, Object?>{'id': 'o1', 'quantity': 2, 'note': '10'});
+      expect(await orders.history('o1'), hasLength(1));
+    });
+
+    test('must name every column, and only columns', () {
+      final MemoryDVDatabaseAdapter memory = MemoryDVDatabaseAdapter();
+      expect(
+        () => typed(memory,
+            types: const <String, String>{'id': 'TEXT', 'quantity': 'INTEGER'}),
+        throwsArgumentError,
+      );
+      expect(
+        () => typed(memory, types: const <String, String>{
+          'id': 'TEXT',
+          'quantity': 'INTEGER',
+          'note': 'TEXT',
+          'extra': 'TEXT',
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('are refused when they are not a type', () {
+      expect(
+        () => typed(MemoryDVDatabaseAdapter(), types: const <String, String>{
+          'id': 'TEXT',
+          'quantity': 'INTEGER); DROP TABLE users; --',
+          'note': 'TEXT',
+        }),
+        throwsArgumentError,
+      );
+    });
+  });
+
   for (final _Adapter adapter in _adapters) {
     group('on ${adapter.$1}', () {
       late DVDatabaseAdapter database;

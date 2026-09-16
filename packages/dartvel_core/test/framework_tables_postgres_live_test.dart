@@ -57,7 +57,144 @@ const List<String> _tables = <String>[
   'dv_w64_meter_reports',
   'dv_w64_redemptions',
   'dv_w64_counters',
+  // Names the stores below fix for themselves.
+  'dv_capture_log',
+  'dv_capture_state',
+  'dv_capture_schemas',
+  'dv_capture_checkpoints',
+  'dv_capture_backfills',
+  'dv_warehouse_tombstones',
+  'dv_analytics_outbox',
+  'dv_analytics_identity',
+  'dv_analytics_events',
+  'dv_consent_records',
+  'dv_agreement_acceptances',
+  'dv_agreement_versions',
+  'dv_privacy_tombstones',
+  'dv_privacy_requests',
+  'dv_privacy_requests__history',
+  'dv_schema_backfill_chunks',
+  'dv_schema_backfill_state',
+  'dv_schema_evolution',
+  'dv_w64_orders',
+  'dv_w64_orders__history',
+  'dv_w64_device',
+  'dv_w64_device__mutations',
+  'dv_w64_device__server',
+  'dv_w64_orders__applied',
+  'dv_w64_orders__clock',
+  'dv_organizations',
+  'dv_organizations__history',
+  'dv_org_memberships',
+  'dv_org_memberships__history',
+  'dv_org_invitations',
+  'dv_org_domains',
+  'dv_org_domains__history',
+  'dv_api_keys',
+  'dv_api_keys__history',
+  'dv_oauth_clients',
+  'dv_oauth_clients__history',
+  'dv_oauth_codes',
+  'dv_oauth_grants',
+  'dv_oauth_grants__history',
+  'dv_oauth_tokens',
+  'dv_oauth_consents',
+  'dv_oauth_consents__history',
+  'dartvel_content_versions',
+  'dartvel_content_versions__history',
 ];
+
+/// Runs every statement with [schema] first on the search path, so a
+/// warehouse table named after a model does not collide with the model.
+class _InSchema implements DVDatabaseAdapter {
+  _InSchema(this.inner, this.schema);
+
+  final DVDatabaseAdapter inner;
+  final String schema;
+
+  Future<void> _path() => inner.execute('SET search_path TO $schema, public');
+
+  @override
+  Future<List<Map<String, Object?>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) async {
+    await _path();
+    try {
+      return await inner.query(sql, params);
+    } finally {
+      await inner.execute('SET search_path TO public');
+    }
+  }
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) async {
+    await _path();
+    try {
+      return await inner.execute(sql, params);
+    } finally {
+      await inner.execute('SET search_path TO public');
+    }
+  }
+}
+
+/// A destination that keeps what it is handed.
+class _Collected implements DVCaptureSink {
+  final List<DVCapturedChange> changes = <DVCapturedChange>[];
+
+  @override
+  String get name => 'collected';
+
+  @override
+  bool get deduplicates => true;
+
+  @override
+  Future<void> write(DVCaptureBatch batch) async =>
+      changes.addAll(batch.changes);
+
+  @override
+  Future<void> evolve(DVCaptureSchemaChange change) async {}
+
+  @override
+  Future<void> erase(List<DVCapturedChange> changes) async {}
+
+  @override
+  Future<void> backfillComplete(
+    String model,
+    int throughSequence, {
+    String? tenant,
+  }) async {}
+}
+
+class _Step extends DVAnalyticsEvent {
+  const _Step(this.name);
+  @override
+  final String name;
+  @override
+  DVConsentCategory get category => _product;
+  @override
+  Map<String, Object?> get properties => const <String, Object?>{'n': 1};
+}
+
+const DVConsentCategory _product = DVConsentCategory('product');
+
+final DVConsentPolicy _policy = DVConsentPolicy(
+  version: '2026-09-01',
+  categories: const <DVConsentDeclaration>[
+    DVConsentDeclaration(DVConsentCategory.essential, required: true),
+    DVConsentDeclaration(_product),
+  ],
+);
+
+final DVApiScopes _apiScopes = DVApiScopes(const <String, List<String>>{
+  'orders:read': <String>['Order.view'],
+});
+
+class _Page {
+  const _Page(this.route, this.title);
+  final String route;
+  final String title;
+}
 
 void main() {
   final String? port = io.Platform.environment['DARTVEL_TEST_POSTGRES_PORT'];
@@ -290,6 +427,388 @@ void main() {
     );
     await ledger.redeem(_once, customerKey: 'alice', orderId: 'o1', at: now);
     expect(await ledger.redeemedFor('once', 'o1'), isTrue);
+  });
+
+  // Each store below declared its columns with no type, which SQLite accepts
+  // and PostgreSQL and MySQL refuse at CREATE TABLE: none of them could make
+  // its tables on a server at all.
+
+  test('the change-capture log takes a change and delivers it', () async {
+    final DVCapture capture = DVCapture(
+      database: db,
+      retention: const Duration(days: 7),
+    );
+    await capture.ensureSchema();
+    final DVRecordTable orders = DVRecordTable(
+      table: 'dv_w64_orders',
+      key: 'id',
+      columns: const <String>['id', 'quantity'],
+      database: db,
+    );
+    await capture.record(
+      table: orders,
+      operation: DVCaptureOp.insert,
+      key: 'o1',
+      version: 1,
+      values: const <String, Object?>{'id': 'o1', 'quantity': 3},
+    );
+
+    final _Collected sink = _Collected();
+    await capture.consumer('wh', sink: sink).deliverOnce();
+    expect(sink.changes, hasLength(1));
+    expect(sink.changes.single.key, 'o1');
+    expect(sink.changes.single.version, 1);
+    expect(sink.changes.single.values['quantity'], 3);
+    expect(sink.changes.single.sequence, await capture.head());
+    expect(
+      await capture.consumer('wh', sink: sink).checkpoint(),
+      await capture.head(),
+    );
+  });
+
+  test('a typed record table keeps its history and feeds a warehouse', () async {
+    final DVCapture capture = DVCapture(
+      database: db,
+      retention: const Duration(days: 7),
+    );
+    await capture.ensureSchema();
+    final DVRecordTable orders = DVRecordTable(
+      table: 'dv_w64_orders',
+      key: 'id',
+      columns: const <String>['id', 'quantity', 'note'],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'quantity': 'BIGINT',
+        'note': 'TEXT',
+      },
+      history: const DVHistory(),
+      softDelete: true,
+      capture: capture,
+      database: db,
+    );
+    await orders.ensureSchema();
+    final DVRecord first = (await orders.write(<String, Object?>{
+      'id': 'o1',
+      'quantity': 5000000000,
+      'note': '10',
+    })).record;
+    await orders.write(<String, Object?>{
+      'id': 'o1',
+      'quantity': 5000000001,
+      'note': '10',
+    }, base: first);
+    await orders.delete('o1');
+
+    final DVRecord read = (await orders.read('o1', withDeleted: true))!;
+    expect(read.version, 3);
+    expect(read.deletedAt, isNotNull);
+    expect(read.values['quantity'], 5000000001);
+    final List<DVHistoryEntry> history = await orders.history('o1');
+    expect(history.map((DVHistoryEntry e) => e.version), <int>[1, 2, 3]);
+    expect(history.last.deleted, isTrue);
+    expect(history[1].changes['quantity']!.to, 5000000001);
+
+    // The warehouse table is named after the model, so it lives beside the
+    // source in a schema of its own.
+    await db.execute('DROP SCHEMA IF EXISTS dv_w64_wh CASCADE');
+    await db.execute('CREATE SCHEMA dv_w64_wh');
+    try {
+      final DVDatabaseAdapter inWarehouse = _InSchema(db, 'dv_w64_wh');
+      final DVWarehouseSink sink = DVWarehouseSink(
+        database: inWarehouse,
+        columnType: (String model, String column) =>
+            column == 'quantity' ? 'BIGINT' : 'TEXT',
+      );
+      await orders.restore('o1');
+      await capture.consumer('wh', sink: sink).deliverOnce();
+      final List<Map<String, Object?>> rows = await db.query(
+        'SELECT _dv_key, _dv_version, quantity, note FROM dv_w64_wh.dv_w64_orders',
+      );
+      expect(rows, <Map<String, Object?>>[
+        <String, Object?>{
+          '_dv_key': 'o1',
+          '_dv_version': 4,
+          'quantity': 5000000001,
+          'note': '10',
+        },
+      ]);
+    } finally {
+      await db.execute('DROP SCHEMA IF EXISTS dv_w64_wh CASCADE');
+    }
+  });
+
+  test('an offline store replays onto a typed record table', () async {
+    DVRecordTable table(String name) => DVRecordTable(
+      table: name,
+      key: 'id',
+      columns: const <String>['id', 'quantity'],
+      types: const <String, String>{'id': 'TEXT', 'quantity': 'BIGINT'},
+      database: db,
+    );
+    final DVOfflineStore device = DVOfflineStore(
+      table: table('dv_w64_device'),
+      policy: const DVOffline(strategy: DVConflict.lastWriteWins),
+    );
+    await device.ensureSchema();
+    await device.write(<String, Object?>{'id': 'o1', 'quantity': 1});
+    await device.write(<String, Object?>{'id': 'o1', 'quantity': 5000000000});
+    expect(await device.pending(), hasLength(2));
+
+    final DVRecordTableRemote server = DVRecordTableRemote(
+      table('dv_w64_orders'),
+      strategy: DVConflict.lastWriteWins,
+    );
+    await server.ensureSchema();
+    await device.replay(server);
+    expect(await device.pending(), isEmpty);
+    expect((await server.table.read('o1'))!.values['quantity'], 5000000000);
+
+    // The same mutation twice is applied once.
+    final DVOfflineStore reopened = DVOfflineStore(
+      table: table('dv_w64_device'),
+      policy: const DVOffline(strategy: DVConflict.lastWriteWins),
+    );
+    await reopened.ensureSchema();
+    expect(await reopened.pending(), isEmpty);
+  });
+
+  test('consent is recorded and read back', () async {
+    final DVConsent consent = DVConsent(
+      policy: _policy,
+      database: db,
+      installId: 'install-1',
+      clock: () => now,
+    );
+    await consent.ensureSchema();
+    await consent.load();
+    expect(
+      await consent.record(<DVConsentCategory, bool>{_product: true}),
+      isTrue,
+    );
+    await consent.record(<DVConsentCategory, bool>{_product: false});
+
+    final List<DVConsentRecord> records = await consent.records();
+    expect(records.map((DVConsentRecord r) => r.seq), <int>[1, 2]);
+    expect(records.last.answers['product'], isFalse);
+    expect(records.last.recordedAt, now);
+  });
+
+  test('an analytics event goes through the outbox to the store', () async {
+    final DVConsent consent = DVConsent(
+      policy: _policy,
+      database: db,
+      installId: 'install-1',
+      clock: () => now,
+    );
+    await consent.ensureSchema();
+    await consent.load();
+    await consent.record(<DVConsentCategory, bool>{_product: true});
+    final DVAnalyticsDatabaseStore store = DVAnalyticsDatabaseStore(
+      database: db,
+    );
+    final DVAnalytics analytics = DVAnalytics(
+      consent: consent,
+      database: db,
+      store: store,
+      clock: () => now,
+    );
+    await analytics.ensureSchema();
+    expect((await analytics.track(const _Step('opened'))).accepted, isTrue);
+    await analytics.flush();
+
+    final List<DVAnalyticsRecord> events = await store.events();
+    expect(events.map((DVAnalyticsRecord e) => e.name), <String>['opened']);
+    expect(events.single.properties['n'], 1);
+
+    // A second pipeline over the same database keeps the anonymous id.
+    final DVAnalytics again = DVAnalytics(
+      consent: consent,
+      database: db,
+      store: store,
+      clock: () => now,
+    );
+    await again.ensureSchema();
+    expect(again.anonymousId, analytics.anonymousId);
+  });
+
+  test('an agreement acceptance is recorded with its version', () async {
+    final DVAgreements agreements = DVAgreements(
+      agreements: <DVAgreement>[
+        DVAgreement(id: 'terms', version: '2026-09-01', route: '/terms'),
+      ],
+      database: db,
+      clock: () => now,
+    );
+    await agreements.ensureSchema();
+    await agreements.accept('terms', actor: 'ada');
+
+    final List<DVAcceptance> read = await agreements.acceptances(actor: 'ada');
+    expect(read.single.version, '2026-09-01');
+    expect(await agreements.needsAcceptance('terms', actor: 'ada'), isFalse);
+  });
+
+  test('an erasure leaves its tombstone and its request record', () async {
+    final DVPrivacy privacy = DVPrivacy(
+      models: const <DVPrivacyModel>[],
+      database: db,
+      signingKey: List<int>.generate(32, (int i) => i),
+      now: () => now,
+    );
+    await privacy.ensureSchema();
+    await privacy.erase(subject: 'ada', reason: 'asked');
+
+    expect(
+      await db.query('SELECT subject FROM dv_privacy_tombstones'),
+      <Map<String, Object?>>[
+        <String, Object?>{'subject': privacy.pseudonym('ada')},
+      ],
+    );
+    expect(await privacy.requests.all(), hasLength(1));
+  });
+
+  test('a backfill records its chunks and its state', () async {
+    await db.execute(
+      'CREATE TABLE dv_w64_orders (id BIGINT PRIMARY KEY, total TEXT, '
+      'total_next BIGINT)',
+    );
+    for (int i = 1; i <= 3; i++) {
+      await db.execute(
+        'INSERT INTO dv_w64_orders (id, total) VALUES (?, ?)',
+        <Object?>[i, '${i * 10}'],
+      );
+    }
+    final DVBackfill backfill = DVBackfill(
+      database: db,
+      id: 'orders.total',
+      table: 'dv_w64_orders',
+      key: 'id',
+      source: 'total',
+      target: 'total_next',
+      convert: (Object? total) => int.parse('$total'),
+      chunkSize: 2,
+    );
+    await backfill.pause();
+    expect(await backfill.paused, isTrue);
+    await backfill.resume();
+    await backfill.run();
+
+    final DVBackfillProgress progress = await backfill.progress();
+    expect(progress.complete, isTrue);
+    expect(progress.chunks.map((DVBackfillChunk c) => c.first), <Object?>[
+      1,
+      3,
+    ]);
+    expect(progress.chunks.map((DVBackfillChunk c) => c.last), <Object?>[2, 3]);
+    expect(
+      await db.query('SELECT total_next FROM dv_w64_orders ORDER BY id'),
+      <Map<String, Object?>>[
+        <String, Object?>{'total_next': 10},
+        <String, Object?>{'total_next': 20},
+        <String, Object?>{'total_next': 30},
+      ],
+    );
+  });
+
+  test('a schema evolution is saved and loaded', () async {
+    final DVSchemaEvolutionStore store = DVSchemaEvolutionStore(db);
+    final DVSchemaEvolution evolution = DVSchemaEvolution.expand(
+      id: 'orders.total',
+      release: 'r1',
+      at: now,
+      expandProtocol: 8,
+      verificationWindow: const Duration(hours: 1),
+    );
+    await store.save(evolution);
+    await store.save(evolution);
+    expect((await store.load('orders.total'))!.phase, evolution.phase);
+  });
+
+  test('an organization, a member and an API key are stored', () async {
+    final DVOrganizations orgs = DVOrganizations(
+      database: db,
+      clock: () => now,
+    );
+    await orgs.ensureSchema();
+    final DVOrganization acme = await orgs.create(
+      name: 'Acme',
+      tenant: 'acme',
+      ownerId: 'ada',
+    );
+    expect((await orgs.find(acme.id))!.name, 'Acme');
+    expect(await orgs.members(acme.id), hasLength(1));
+
+    final DVApiKeys keys = DVApiKeys(
+      database: db,
+      scopes: _apiScopes,
+      organizations: orgs,
+      clock: () => now,
+    );
+    await keys.ensureSchema();
+    final DVIssuedApiKey issued = await keys.issue(
+      organization: acme,
+      scopes: const <String>['orders:read'],
+    );
+    expect(await keys.find(issued.key.id), isNotNull);
+    expect(await keys.audit(issued.key.id), hasLength(1));
+  });
+
+  test('an OAuth client is registered', () async {
+    final DVOAuthProvider oauth = DVOAuthProvider(
+      database: db,
+      scopes: _apiScopes,
+      clock: () => now,
+    );
+    await oauth.ensureSchema();
+    await oauth.registerClient(
+      name: 'Partner',
+      redirectUris: const <String>['https://partner.example/cb'],
+      scopes: const <String>['orders:read'],
+      public: true,
+    );
+    final List<Map<String, Object?>> clients = await db.query(
+      'SELECT name, public FROM dv_oauth_clients',
+    );
+    expect(clients.single['name'], 'Partner');
+    expect(clients.single['public'], 1);
+  });
+
+  test('a content draft is stored with its history', () async {
+    const DVAuthAuthorization authorization = DVAuthAuthorization();
+    for (final String action in DVContentAction.all) {
+      authorization.register<String, _Page>(
+        action,
+        (String _, _Page _) => true,
+      );
+    }
+    final DVContentWorkflow<_Page> workflow = DVContentWorkflow<_Page>(
+      kind: 'page',
+      database: db,
+      encode: (_Page page) => <String, Object?>{
+        'route': page.route,
+        'title': page.title,
+      },
+      decode: (Map<String, Object?> json) =>
+          _Page('${json['route']}', '${json['title']}'),
+      documentId: (_Page page) => page.route,
+      actorId: (Object? user) => user! as String,
+      clock: () => now,
+    );
+    await workflow.ensureSchema();
+    final DVContentVersion<_Page> draft = await workflow.draft(
+      const _Page('/about', 'About'),
+      as: 'ada',
+    );
+    final DVContentVersion<_Page> edited = await workflow.edit(
+      draft,
+      const _Page('/about', 'About us'),
+      as: 'ada',
+    );
+    expect(edited.revision, 2);
+    expect(
+      (await workflow.versions('/about')).single.document.title,
+      'About us',
+    );
+    expect(await workflow.history('/about'), isNotEmpty);
   });
 
   group('a table created by an earlier release', () {
