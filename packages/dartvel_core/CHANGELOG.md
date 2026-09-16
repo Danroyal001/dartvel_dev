@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **`DVRecordTable.prune` logs `DV-HISTORY-004`** with the table, how many
+  entries it removed and the declared retention, when it removed any.
+
 - **An erasure on a tenant-scoped table stays on the row's tenant.** The walk
   reads such a table whole, and a key is unique only on its tenant, but it
   deleted or anonymized by key and version alone and purged history by key

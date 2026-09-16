@@ -12,6 +12,8 @@ import 'dart:math' as math;
 
 import '../database/adapter.dart';
 import '../database/framework_tables.dart' show dvIsSqlType;
+import '../observability/logging.dart' show DVLogLevel;
+import '../observability/observability.dart' show DVObservability;
 import '../transaction/transaction.dart';
 import 'change_capture.dart';
 
@@ -761,10 +763,27 @@ class DVRecordTable {
     final Duration? keep = historyPolicy?.keep;
     if (keep == null) return 0;
     final String cutoff = _stamp((now ?? DateTime.now()).subtract(keep));
-    return database.execute(
+    final int removed = await database.execute(
       'DELETE FROM $historyTable WHERE occurred_at < ?',
       <Object?>[cutoff],
     );
+    if (removed > 0) {
+      // A change log that shrinks is evidence leaving the system, so it
+      // leaves a line saying how much and under which declaration.
+      DVObservability.log(
+        'Removed $removed history entries from $table older than the '
+        'declared retention of ${keep.inDays} days.',
+        level: DVLogLevel.info,
+        code: 'DV-HISTORY-004',
+        context: <String, Object?>{
+          'table': table,
+          'removed': removed,
+          'keepDays': keep.inDays,
+          'before': cutoff,
+        },
+      );
+    }
+    return removed;
   }
 
   // --- writes ---------------------------------------------------------------
