@@ -17,10 +17,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVDeepLinks, dvDeepLinkCovers;
+import 'package:dartvel_core/dartvel.dart'
+    show DVDeepLinkConfig, dvDeepLinkCovers;
 import 'package:path/path.dart' as p;
 
-export 'package:dartvel_core/dartvel.dart' show DVDeepLinks;
+export 'package:dartvel_core/dartvel.dart' show DVDeepLinkConfig;
 
 const String _assetLinks = 'assetlinks.json';
 const String _aasa = 'apple-app-site-association';
@@ -30,7 +31,7 @@ const String _aasa = 'apple-app-site-association';
 /// that stopped pointing at the application stops claiming it.
 int dvWriteDeepLinkFiles({
   required String webDir,
-  required DVDeepLinks? links,
+  required DVDeepLinkConfig? links,
   required List<String> routes,
   required Set<String> guarded,
 }) {
@@ -65,7 +66,7 @@ const String _markEnd = '            <!-- dartvel.deepLinks: end -->';
 /// Marked, so a second build replaces the block rather than adding a second.
 String dvAndroidDeepLinkManifest(
   String manifest,
-  DVDeepLinks? links, {
+  DVDeepLinkConfig? links, {
   required List<String> paths,
 }) {
   final RegExp block = RegExp(
@@ -122,7 +123,7 @@ const String _domainsKey = 'com.apple.developer.associated-domains';
 
 /// [entitlements] naming [links]'s domains as `applinks:`, or without the
 /// key when [links] declares no iOS app.
-String dvIosAssociatedDomains(String entitlements, DVDeepLinks? links) {
+String dvIosAssociatedDomains(String entitlements, DVDeepLinkConfig? links) {
   final RegExp existing = RegExp(
     '\\n?[ \\t]*<key>${RegExp.escape(_domainsKey)}</key>\\s*<array>.*?</array>',
     dotAll: true,
@@ -193,7 +194,7 @@ Future<String?> dvAndroidSigningFingerprint(String root) async {
 /// declared Play certificate is the one that matters. Returns one finding
 /// per problem, each opening with its DV-LINKS code.
 Future<List<String>> dvCheckDeepLinks({
-  required DVDeepLinks links,
+  required DVDeepLinkConfig links,
   required Set<String> targets,
   required List<String> routes,
   required Set<String> guarded,
