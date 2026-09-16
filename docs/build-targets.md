@@ -45,13 +45,13 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `windows` | ✅ Builds | **Verified on a Windows runner**, artifact downloaded and inspected rather than inferred: `dartvel_example.exe` (89 KB, PE32+ executable GUI x86-64), `dartvel_shelf.dll` (7.2 MB, the Rust runtime), `flutter_windows.dll`, `data/`. Run [32587129093](https://github.com/Danroyal001/dartvel_dev/actions/runs/32587129093). Took eight attempts and **seven bugs** — two earlier runs had burned 257 and 226 minutes in silence. Four of the seven were not Windows quirks but silent corruption on every platform, exposed only because a Windows path forced the issue: `esc` never escaped backslashes; `routeFromRel` normalised separators with a doubled backslash and stripped its prefix before normalising; the same doubled-backslash fault sat in six more sites across two packages; and four glob patterns were built with `p.join`, where the separator is always `/` and a backslash is the escape character. See [Windows](#windows) |
 | `macos` | ✅ Builds | **Verified on a macOS runner**, artifact downloaded and inspected: `dartvel_example.app/Contents/MacOS/dartvel_example` is a **Mach-O universal binary (x86_64 + arm64)**, with `dartvel_shelf.framework` — the Rust runtime — bundled into `Contents/Frameworks`. Run [32602765861](https://github.com/Danroyal001/dartvel_dev/actions/runs/32602765861). The 41-minute silence was never Flutter: the native asset hook buffered its output, so a long C compile was indistinguishable from a wedge. Bounding and streaming it turned the hang into a visible failure, which turned out to be **cc-rs invoked with no `-isysroot`** — `SDKROOT` was unset, so every C crate (`ring`, `zstd-sys`, `aws-lc-sys`) failed to find its headers. The hook now asks `xcrun` for the SDK path, chosen from the target rather than the host. `aws-lc-rs` was also dropped: it is rustls's default provider, this crate uses `ring`, and it was compiling a large C codebase for nothing on every platform. See [macOS](#macos) |
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel_dev/actions/runs/31554165981) |
-| `tvos` | ✅ Builds | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). See [tvOS](#tvos) |
+| `tvos` | ✅ Builds and **runs** (simulator, debug) | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). Installed on an Apple TV simulator, launched and photographed in run [35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988): the screenshot shows the example's home page reporting `Platform: tvos` and `Device: tv`. Device (signed) builds are not verified. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
 | `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
 | `webos` | ✅ App runs in a Wayland window on ARM under emulation; not run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
-| `chrome-extension` | ✅ Builds | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. See [Browser extensions](#browser-extensions) |
+| `chrome-extension` | ✅ Builds and **runs** | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. Loaded unpacked in Chrome and its page photographed rendering the example in run [35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988). See [Browser extensions](#browser-extensions) |
 | `firefox-extension` | ✅ Builds and **runs** | `build/firefox-extension`: the same bundle with an event-page `background.scripts` manifest — verified to differ from the Chromium one, not copy it |
 
 Flutter has **no desktop cross-compilation**. A Windows desktop build requires
@@ -975,25 +975,33 @@ The build command is `flutter-tvos build tvos`, **not** `flutter build ios`.
 Device builds are AOT and require a configured Xcode signing team;
 `--simulator --debug` is the only unsigned path, which is what CI can use.
 
-**Not yet demonstrated, but further along than that sounds.** On a macOS
-runner the fork clones, bootstraps, and precaches its own engine cleanly —
-all six tvOS engine variants (`tvos-debug-sim-arm64` through
+On a macOS runner the fork clones, bootstraps, and precaches its own engine
+cleanly: all six tvOS engine variants (`tvos-debug-sim-arm64` through
 `tvos-host-release`) fetch in about 15 seconds, confirming the origin-signed
 artifacts for 3.44.8 genuinely exist. `flutter-tvos doctor` then reports
 Flutter 3.44.8 from the fork's own checkout.
 
-The build stops at the next wall:
-
-```
-Running build hooks...This project is not configured for tvOS.
-To fix this problem, create a new project by running `flutter-tvos create <app-dir>`.
-```
-
 `examples/dartvel_example` has no `tvos/` directory, exactly as it has no
-`tizen/`. Rather than making that a manual prerequisite the way Tizen's is
-(step 1 below), `dartvel build` now generates a missing platform scaffold
-through the embedder's own `create` (`d0874755`, covering tizen, sony-elinux,
-webos and tvos). That path has not been executed on a runner yet.
+`tizen/`, and calling the embedder directly stops at "This project is not
+configured for tvOS." Rather than making that a manual prerequisite the way
+Tizen's is (step 1 below), `dartvel build` generates a missing platform
+scaffold through the embedder's own `create` (`d0874755`, covering tizen,
+sony-elinux, webos and tvos).
+
+**Runs on a simulator (debug).** In run
+[35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988)
+`dartvel build tvos --simulator` wrote the scaffold ("Created tvOS-only
+project"), finished the Xcode build and produced
+`build/tvos/Debug-appletvsimulator/Runner.app`. The job installed it on an
+Apple TV simulator, launched it and took a screenshot. The screenshot shows
+the example's home page reporting `Platform: tvos` and `Device: tv`, so the
+`DARTVEL_PLATFORM=tvos` define reaches the running app. A signed device build
+has not been run.
+
+Before that run the job never reached the embedder. `dartvel build` refused
+the example with exit 78 at the module trust gate. It read two lines of the
+`notes` module's generated client as the module's own egress and cron, and
+that was fixed in `94877d65`.
 
 **Any earlier "passing" tvOS build was not one.** Until `b25b025a` the CLI
 mapped `tvos` onto the iOS toolchain and ran `flutter build ios --no-codesign`,
@@ -1027,6 +1035,15 @@ Verified 2026-08-15 against `examples/dartvel_example`: both bundles build,
 carry all four artifacts a browser needs to load them unpacked
 (`index.html`, `main.dart.js`, `manifest.json`, `background.js`), share one CSP
 with no `unsafe-eval` or `unsafe-inline`, and drop Flutter's service worker.
+
+Loaded and run in run
+[35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988):
+the Chrome build unpacked into Chrome and the Firefox build into Firefox
+Developer Edition. Each screenshot shows the extension page rendering the
+example's home page. Before `94877d65` both jobs failed in their build step
+with exit 78. The module trust gate refused the example after `dartvel
+routes` had generated the `notes` module's client, so they never got as far
+as a browser.
 
 Two things applications should know. The generated background script resolves
 `globalThis.browser ?? globalThis.chrome` rather than being emitted per target,
