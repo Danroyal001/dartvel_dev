@@ -255,6 +255,24 @@ void main() {
       }
     });
 
+    test('a service keeps its data where systemd lets it write', () {
+      // ProtectSystem=strict makes /opt read-only, and the binary's default
+      // data directory is beside it: the SQLite file it creates on its first
+      // run could not be written. The state directory can.
+      final DVInfraDesiredState state = desired(production());
+      for (final String id in <String>[
+        'shop-backend-1.service',
+        'shop-worker-default-1.service',
+        'shop-cron.service',
+      ]) {
+        final String unit = state.byId(id)!.content!;
+        expect(unit, contains('ProtectSystem=strict'), reason: id);
+        expect(unit, contains('StateDirectory=shop'), reason: id);
+        expect(unit, contains('Environment=DARTVEL_DATA_DIR=/var/lib/shop'),
+            reason: id);
+      }
+    });
+
     test('each backend instance gets its own port, and the proxy knows all',
         () {
       final DVInfraDesiredState state = desired(production());
