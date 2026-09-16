@@ -1,5 +1,24 @@
 ## Unreleased
 
+- **The framework's tables hold 64-bit timestamps on PostgreSQL and MySQL.**
+  Sessions, account deletions, the database queue, purchase grants and
+  notification claims, meter records and reports, and promotion redemptions
+  declared their millisecond and microsecond timestamps -- and the queue's
+  `backoff_ms` and a meter report's `quantity` -- as `INTEGER`, which is 64
+  bits on SQLite and 32 on PostgreSQL and MySQL. Every write to them failed on
+  a server with `value out of range for type integer`, so signing in could not
+  work against PostgreSQL. They are `BIGINT` now. The adapters are unchanged:
+  they pass DDL through, and rewriting `INTEGER` in them would change
+  applications' own DDL and break SQLite's `INTEGER PRIMARY KEY`. A table an
+  earlier release already created keeps its types under `CREATE TABLE IF NOT
+  EXISTS`, so each store now makes its table through `dvEnsureFrameworkTable`,
+  which asks the catalogue for columns left 32 bits wide, classifies widening
+  them through the schema planner, and runs it on an empty table -- which
+  every such table is, since no write to it could succeed. A table with rows
+  is not rewritten: the store throws a `StateError` carrying the plan and the
+  `ALTER TABLE` to schedule. A new `postgres` job in the Tests workflow runs
+  the stores against a PostgreSQL service.
+
 - **Account deletion waits out a grace period the project configures.** With
   `DVAuthEndpoints.useDeletionGracePeriod` set, a confirmed deletion answers
   202 with `erasesAt`, ends every session of the person at once, and records

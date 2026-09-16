@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 
 /// Storage behind `DV.Cache`. Expiry is the adapter's responsibility: a read
 /// of an expired key must behave exactly like a read of a missing key.
@@ -109,7 +110,7 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
   /// first use; call it eagerly at boot to surface schema errors early.
   Future<void> initialize() async {
     if (_initialized) return;
-    await database.execute('''
+    await dvEnsureFrameworkTable(database, '''
       CREATE TABLE IF NOT EXISTS $tableName (
         cache_key VARCHAR(255) PRIMARY KEY,
         value TEXT NOT NULL,
