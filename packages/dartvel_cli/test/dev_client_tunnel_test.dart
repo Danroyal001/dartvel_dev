@@ -33,14 +33,13 @@ class RawTunnel {
   final Stream<List<int>> rest;
 
   static Future<RawTunnel> open(
-    int port, {
+    DVDevClientPairing pairing, {
     required String query,
     String? token,
   }) async {
-    final Socket socket = await Socket.connect(
-      InternetAddress.loopbackIPv4,
-      port,
-    );
+    // Over TLS pinned to the link's key, as the device connects.
+    final int port = pairing.server.port;
+    final Socket socket = await dvDevClientSecureConnect(pairing);
     socket.write(
       'GET $dvDevClientTunnelPath?$query HTTP/1.1\r\n'
       'Host: 127.0.0.1:$port\r\n'
@@ -127,7 +126,7 @@ void main() {
 
   Future<RawTunnel> control({List<String>? bindings}) async {
     final RawTunnel tunnel = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=control&nonce=${nonce()}',
       token: server.pairing.token,
     );
@@ -142,7 +141,7 @@ void main() {
 
   test('without the pairing token there is no tunnel', () async {
     final RawTunnel tunnel = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=control&nonce=${nonce()}',
       token: 'not-the-token',
     );
@@ -155,7 +154,7 @@ void main() {
   test('the server proves it holds the key the device paired with', () async {
     final String challenge = nonce();
     final RawTunnel tunnel = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=control&nonce=$challenge',
       token: server.pairing.token,
     );
@@ -193,7 +192,7 @@ void main() {
 
   test('a challenge that is too short to be random is refused', () async {
     final RawTunnel tunnel = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=control&nonce=abc',
       token: server.pairing.token,
     );
@@ -224,7 +223,7 @@ void main() {
     final String id = open.substring('open '.length);
 
     final RawTunnel stream = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=stream&id=$id&nonce=${nonce()}',
       token: server.pairing.token,
     );
@@ -268,7 +267,7 @@ void main() {
 
   test('a hello that is not JSON is refused and no device appears', () async {
     final RawTunnel device = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=control&nonce=${nonce()}',
       token: server.pairing.token,
     );
@@ -283,7 +282,7 @@ void main() {
 
   test('a stream nobody asked for is refused', () async {
     final RawTunnel stream = await RawTunnel.open(
-      server.port,
+      server.pairing,
       query: 'role=stream&id=999&nonce=${nonce()}',
       token: server.pairing.token,
     );

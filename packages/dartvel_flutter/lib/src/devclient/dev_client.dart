@@ -9,20 +9,20 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show HttpClient, HttpClientRequest, HttpClientResponse;
 
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
         DVDevClientPairing,
         DVDevClientRefusal,
-        DVHttpRequest,
-        DVHttpResponse,
         DVSignedBundle,
         DVSignedBundleException,
         dvDevClientCompatibility,
+        dvDevClientHttpClient,
         dvDevClientShellMarker,
-        dvDevClientUnreachable,
-        dvSendHttpRequest;
+        dvDevClientUnreachable;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart'
@@ -121,19 +121,30 @@ class DVDevClient {
     final Uri source = pairing.bundleUri(shell.target);
     final String where = '${source.host}:${source.port}';
 
-    final DVHttpResponse response;
+    // Over TLS pinned to the pairing key: a server without it fails the
+    // handshake before the token is written, and nothing on the network
+    // reads the token or the pages.
+    final ({int statusCode, String body}) response;
+    final HttpClient http = dvDevClientHttpClient(pairing);
     try {
-      response = await dvSendHttpRequest(DVHttpRequest(
-        url: source,
-        method: 'GET',
-        headers: <String, String>{'authorization': 'Bearer ${pairing.token}'},
-      )).timeout(timeout);
+      response = await () async {
+        final HttpClientRequest request = await http.getUrl(source);
+        request.headers.set('authorization', 'Bearer ${pairing.token}');
+        final HttpClientResponse answer = await request.close();
+        return (
+          statusCode: answer.statusCode,
+          body: await utf8.decodeStream(answer),
+        );
+      }()
+          .timeout(timeout);
     } on Object catch (error) {
       return DVDevClientLoad(
         DVDevClientOutcome.unreachable,
         'Could not reach the dev server at $where: $error',
         code: dvDevClientUnreachable,
       );
+    } finally {
+      http.close(force: true);
     }
 
     if (response.statusCode == 401 || response.statusCode == 403) {

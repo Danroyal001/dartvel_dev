@@ -19,7 +19,7 @@ Map<String, Object?> _pages(String text) => <String, Object?>{
 };
 
 Uri _link({
-  String server = 'http://192.168.1.20:8787',
+  String server = 'https://192.168.1.20:8787',
   String branch = 'feature/checkout',
   String? key,
   String? token,
@@ -307,7 +307,7 @@ void main() {
 
     test('a link round-trips', () {
       final DVDevClientPairing pairing = DVDevClientPairing(
-        server: Uri.parse('http://192.168.1.20:8787'),
+        server: Uri.parse('https://192.168.1.20:8787'),
         branch: 'feature/checkout',
         publicKey: signer.publicKey,
         token: token,
@@ -315,7 +315,7 @@ void main() {
 
       final DVDevClientPairing parsed = DVDevClientPairing.parse(pairing.link);
 
-      expect(parsed.server, Uri.parse('http://192.168.1.20:8787'));
+      expect(parsed.server, Uri.parse('https://192.168.1.20:8787'));
       expect(parsed.branch, 'feature/checkout');
       expect(parsed.publicKey, signer.publicKey);
       expect(parsed.token, token);

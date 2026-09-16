@@ -241,7 +241,11 @@ void main() {
       final List<String> output = await device(forged);
 
       await _until(
-        () => output.any((String line) => line.contains('proof')),
+        // Refused at the TLS handshake, before the token is sent: the
+        // certificate is not for the key in this link.
+        () => output.any(
+          (String line) => line.contains('key this device was paired with'),
+        ),
         within: const Duration(seconds: 20),
       );
       // The device never sent its hello, so the server has no device for it.

@@ -69,7 +69,8 @@ void main() {
       port: 0,
       advertisedHost: '127.0.0.1',
     );
-    http = HttpClient();
+    // Pinned to the link's key, as a device is.
+    http = dvDevClientHttpClient(server.pairing);
   });
 
   tearDown(() async {
@@ -119,6 +120,35 @@ void main() {
       'dartvel_flutter@0.4.0',
       'plugin:jni',
     ]);
+  });
+
+  test('pairing is served over TLS only: the link names https, and a '
+      'plaintext request bearing the token is never answered with pages', () async {
+    expect(server.pairing.server.scheme, 'https');
+
+    // What a device sniffing the LAN would need the server to accept: the
+    // token in the clear.
+    final Socket plain = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      server.port,
+    );
+    final Uri uri = server.pairing.bundleUri('android');
+    plain.write(
+      'GET ${uri.path}?${uri.query} HTTP/1.1\r\n'
+      'Host: 127.0.0.1:${server.port}\r\n'
+      'Authorization: Bearer ${server.pairing.token}\r\n'
+      'Connection: close\r\n\r\n',
+    );
+    final List<int> answer = <int>[];
+    await plain
+        .listen(answer.addAll, onError: (Object _) {})
+        .asFuture<void>()
+        .timeout(const Duration(seconds: 5), onTimeout: () {})
+        .catchError((Object _) {});
+    plain.destroy();
+    final String text = latin1.decode(answer);
+    expect(text, isNot(startsWith('HTTP/1.1')));
+    expect(text, isNot(contains('About us')));
   });
 
   test('no token gets nothing, and no hint of the content', () async {
