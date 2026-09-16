@@ -18,13 +18,15 @@ Widget _shopPage(BuildContext context) => (() {
       final int bagCount = context.global<Cart>().count;
 
       return ShopScroll(children: <Widget>[
-        ShopTopBar(bagCount: bagCount),
-        PageHeading(
-          account.signedIn
-              ? 'Good to see you, ${account.firstName}'
-              : 'This week’s coffee',
-          subtitle: 'Roasted on Tuesday, at your door by Friday. '
-              'Shipping is free over \$30.',
+        ShopTopBar(
+          bagCount: bagCount,
+          heading: PageHeading(
+            account.signedIn
+                ? 'Good to see you, ${account.firstName}'
+                : 'This week’s coffee',
+            subtitle: 'Roasted on Tuesday, at your door by Friday. '
+                'Shipping is free over \$30.',
+          ),
         ),
         const CoffeeClubBanner(),
         DVBox.list([
