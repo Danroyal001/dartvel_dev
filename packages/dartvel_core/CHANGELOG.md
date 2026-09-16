@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **A meter amount keeps its precision on PostgreSQL.** `dv_meter_records`
+  declared `amount REAL`, which PostgreSQL stores in four bytes: a gauge
+  reading of 16777217.25 came back as 16777218, with no error. It is
+  `DOUBLE PRECISION` now, eight bytes on every server and the same REAL
+  affinity on SQLite. An exact `NUMERIC` would add nothing, since amounts are
+  Dart `num`s and are aggregated as doubles once read.
+
 - **Every framework table can be created on PostgreSQL and MySQL.** Change
   capture, record history's log, the analytics outbox, identity and event
   tables, consent, agreements, privacy tombstones and erasure requests, the

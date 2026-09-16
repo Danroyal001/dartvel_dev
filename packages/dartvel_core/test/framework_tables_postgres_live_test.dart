@@ -398,6 +398,27 @@ void main() {
       hasLength(1),
     );
 
+    // A gauge's reading as Dart holds it. REAL is four bytes on PostgreSQL,
+    // which keeps seven digits and would store 16777216 for this.
+    await records.add(
+      DVMeterRecord(
+        tenant: 't1',
+        meter: 'storage_gb',
+        idempotencyKey: 'k2',
+        amount: 16777217.25,
+        at: now,
+        period: period,
+      ),
+    );
+    expect(
+      (await records.recordsIn(
+        tenant: 't1',
+        meter: 'storage_gb',
+        period: period,
+      )).single.amount,
+      16777217.25,
+    );
+
     final DVDatabaseMeterReportQueue reports = DVDatabaseMeterReportQueue(
       table: 'dv_w64_meter_reports',
     );
