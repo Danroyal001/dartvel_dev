@@ -18,34 +18,14 @@
 /// somewhere nobody is guessing.
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVAdminMount;
+
+// The mount itself is dartvel_core's, where the generated backend that serves
+// it can reach it. Reading it out of pubspec.yaml stays here.
+export 'package:dartvel_core/dartvel.dart' show DVAdminMount;
+
 /// The default, and only the default.
 const String dvAdminDefaultPath = '/__studio';
-
-/// Everything below the mount belongs to the admin.
-class DVAdminMount {
-  const DVAdminMount({
-    required this.path,
-    required this.enabled,
-    required this.requiresAuth,
-  });
-
-  /// The mount, with no trailing slash.
-  final String path;
-
-  /// Whether the backend serves it at all.
-  final bool enabled;
-
-  /// Whether a request has to be authenticated before it sees anything.
-  ///
-  /// Not a setting of its own. An admin reachable without a sign-in on a
-  /// deployed application is the whole of the risk here, and making that
-  /// optional is offering somebody a way to get it wrong on the one
-  /// question where being wrong is expensive.
-  final bool requiresAuth;
-
-  /// Whether [route] is the admin's rather than the application's.
-  bool owns(String route) => route == path || route.startsWith('$path/');
-}
 
 /// What `dartvel.admin` says, against what the build is.
 ///

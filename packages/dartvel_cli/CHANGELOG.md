@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`dartvel preview` resolves admin files with dartvel_core's
+  `dvAdminAsset`**, the same code the web-server binary serves the dashboard
+  with, instead of a copy of its own. `DVAdminMount`, `dvAdminFor` and the
+  hidden status and headers are re-exported from where they were.
+
 - **A web application registers the browser bindings.** The generated
   `registerPlatformBindings()` returned on the web before registering
   anything, and `DVWebBindings.register()` was called only by the
