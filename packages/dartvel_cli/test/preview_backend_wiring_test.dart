@@ -247,11 +247,16 @@ Future<String> _ping() async => 'pong';
 
     expect(probe['mailSent'], 2, reason: 'production mail is sent');
     expect(probe['queue'], 'default');
+    // DATABASE_URL's own database, untouched by the preview wiring. The
+    // generated backend makes DATABASE_URL DV.Database when the application
+    // configured none, so a backend function can query it; what must not
+    // happen outside a preview is the switch to the preview's database.
     expect(
       probe['database'],
-      isNull,
-      reason: 'production\'s database is the application\'s to configure',
+      'shop',
+      reason: 'production runs on the database DATABASE_URL names',
     );
+    expect(probe['database'], isNot(id.database));
     final Map<String, Object?> ping = probe['ping']! as Map<String, Object?>;
     expect(ping['status'], 200);
     expect(ping['robots'], isNull);
