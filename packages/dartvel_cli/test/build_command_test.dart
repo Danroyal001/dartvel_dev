@@ -10,6 +10,26 @@ import 'package:yaml/yaml.dart';
 
 void main() {
   group('resolveFlutterBuildArguments', () {
+    test('an iOS simulator build asks Flutter for the simulator, unsigned', () {
+      // A development build a simulator can install. --no-codesign is for
+      // device builds; a simulator app is never signed.
+      final args = resolveFlutterBuildArguments(
+        platform: 'ios',
+        buildMode: '--debug',
+        simulator: true,
+      );
+      expect(args, containsAllInOrder(<String>['build', 'ios', '--debug']));
+      expect(args, contains('--simulator'));
+      expect(args, isNot(contains('--no-codesign')));
+
+      final device = resolveFlutterBuildArguments(
+        platform: 'ios',
+        buildMode: '--debug',
+      );
+      expect(device, isNot(contains('--simulator')));
+      expect(device, contains('--no-codesign'));
+    });
+
     test('uses supported web flags for current Flutter SDKs', () {
       final args = resolveFlutterBuildArguments(
         platform: 'web',

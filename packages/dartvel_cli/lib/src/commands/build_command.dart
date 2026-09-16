@@ -66,6 +66,7 @@ import '../utils/toolchain.dart';
 import '../build/build_profile.dart';
 import '../cloud/cloud_build.dart';
 import '../devclient/android_dev_client.dart';
+import '../devclient/apple_dev_client.dart';
 import '../devclient/dev_client_project.dart';
 
 // Re-exported: DVRenderBackend moved beside the other build helpers so the
@@ -501,9 +502,9 @@ class BuildCommand extends Command<void> {
       ..addFlag('simulator',
           defaultsTo: false,
           negatable: false,
-          help: 'Build for a simulator rather than a device (tvOS). Device '
-              'builds are AOT and need a configured Xcode signing team, so '
-              'this is the only unsigned path.')
+          help: 'Build for a simulator rather than a device (iOS, tvOS). '
+              'On tvOS device builds are AOT and need a configured Xcode '
+              'signing team, so this is the only unsigned path.')
       ..addOption('build-timeout',
           help: 'Minutes before a stalled build is killed (0 disables). '
               'A build that stops producing output is the failure mode worth '
@@ -856,6 +857,7 @@ class BuildCommand extends Command<void> {
                       obfuscate: obfuscate && isRelease,
                       treeShakeIcons: treeShakeIcons,
                       deviceProfile: deviceProfile,
+                      simulator: simulator,
                     );
       switch (result) {
         case _PlatformBuildResult.succeeded:
@@ -896,6 +898,7 @@ class BuildCommand extends Command<void> {
     String? buildName,
     bool obfuscate = false,
     bool treeShakeIcons = false,
+    bool simulator = false,
     Duration? timeout,
     String? deviceProfile,
   }) async {
@@ -949,9 +952,15 @@ class BuildCommand extends Command<void> {
     // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
     if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
-      if (!_writeAndroidDevClient(_projectRoot, target)) {
-        return _PlatformBuildResult.failed;
-      }
+      final bool written = platform == 'ios' || platform == 'macos'
+          ? _writeAppleDevClient(_projectRoot, platform, target)
+          : _writeAndroidDevClient(_projectRoot, target);
+      if (!written) return _PlatformBuildResult.failed;
+    } else if (platform == 'ios' || platform == 'macos') {
+      // A profile or release build of a project that was built for
+      // development: the tunnel and the development Info.plist come back out
+      // of the Xcode project, so nothing of them can reach this build.
+      _stripAppleDevClient(_projectRoot, platform);
     }
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
@@ -975,6 +984,7 @@ class BuildCommand extends Command<void> {
       obfuscate: obfuscate,
       treeShakeIcons: treeShakeIcons,
       deviceProfile: deviceProfile,
+      simulator: simulator,
       // Before the build, because the app is handed the list as a
       // compile-time value: which images have variants, and how wide each is.
       imageVariants: _imageVariants(_projectRoot, platform),
@@ -1392,6 +1402,75 @@ class BuildCommand extends Command<void> {
     Logger.log('   Development build: pairs with `dartvel dev` '
         '(${manifest.bindings.length} bindings recorded).');
     return true;
+  }
+
+  /// Writes what an iOS or macOS development build needs to pair with
+  /// `dartvel dev`, or says why it cannot and returns false.
+  ///
+  /// The tunnel, the development Info.plist carrying the dartvel-dev scheme
+  /// and, on macOS, entitlements that let the sandbox connect out -- each
+  /// wired into the Debug configuration of the Xcode project only.
+  bool _writeAppleDevClient(String root, String platform, String? target) {
+    final DVDevClientManifest manifest;
+    try {
+      manifest = dvProjectDevClientManifest(root, platform);
+    } on DVDevClientProjectException catch (error) {
+      Logger.log('❌ ${error.message}');
+      return false;
+    }
+    final Object? name = readPubspecYaml(root)?['name'];
+    if (name is! String || name.isEmpty) {
+      Logger.log('❌ pubspec.yaml names no package, so the development '
+          'entrypoint cannot import the application.');
+      return false;
+    }
+    final File project =
+        File(p.join(root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
+    final File info = File(p.join(root, platform, 'Runner', 'Info.plist'));
+    if (!project.existsSync() || !info.existsSync()) {
+      Logger.log('❌ $platform/Runner.xcodeproj or $platform/Runner/Info.plist '
+          'is not there, so a development build has nowhere to put the '
+          'tunnel. Run flutter create --platforms=$platform . first.');
+      return false;
+    }
+    final Map<String, String> files = <String, String>{
+      p.join(platform, 'Runner', dvAppleDevTunnelFile):
+          dvAppleDevTunnelSource(manifest),
+      p.join(platform, dvAppleDevelopmentInfoPlistPath):
+          dvAppleDevelopmentInfoPlist(info.readAsStringSync()),
+      dvDevelopmentEntrypoint: dvDevelopmentEntrypointSource(
+        package: name,
+        target: target ?? 'lib/main.dart',
+      ),
+    };
+    if (platform == 'macos') {
+      final File debug =
+          File(p.join(root, platform, 'Runner', 'DebugProfile.entitlements'));
+      if (debug.existsSync()) {
+        files[p.join(platform, dvMacosDevelopmentEntitlementsPath)] =
+            dvMacosDevelopmentEntitlements(debug.readAsStringSync());
+      }
+    }
+    for (final MapEntry<String, String> file in files.entries) {
+      File(p.join(root, file.key))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(file.value);
+    }
+    final String before = project.readAsStringSync();
+    final String after = dvApplePbxprojWithDevClient(before, enabled: true);
+    if (after != before) project.writeAsStringSync(after);
+    Logger.log('   Development build: pairs with `dartvel dev` '
+        '(${manifest.bindings.length} bindings recorded).');
+    return true;
+  }
+
+  void _stripAppleDevClient(String root, String platform) {
+    final File project =
+        File(p.join(root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) return;
+    final String before = project.readAsStringSync();
+    final String after = dvApplePbxprojWithDevClient(before, enabled: false);
+    if (after != before) project.writeAsStringSync(after);
   }
 
   /// The Activity the permission dialog, the camera and the picker come back
@@ -3880,6 +3959,7 @@ List<String> resolveFlutterBuildArguments({
   bool treeShakeIcons = false,
   String? deviceProfile,
   DVImageVariants? imageVariants,
+  bool simulator = false,
 }) {
   final command = switch (platform) {
     'android' || 'fireos' => 'apk',
@@ -3930,7 +4010,9 @@ List<String> resolveFlutterBuildArguments({
     args.add('--split-per-abi');
   }
   if (platform == 'ios') {
-    args.add('--no-codesign');
+    // A simulator app is never signed; a device build is built unsigned and
+    // signed where it is distributed.
+    args.add(simulator ? '--simulator' : '--no-codesign');
   }
 
   return List<String>.unmodifiable(args);

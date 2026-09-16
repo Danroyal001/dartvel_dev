@@ -730,10 +730,11 @@ String dvAndroidDevClientDebugManifest(String? manifest) {
 
 /// Platforms whose development build carries the dev client.
 ///
-/// Android only: the tunnel is Java. An iOS debug build cannot run from the
-/// home screen without a debugger attached, which is why iOS syncs code as
-/// OTA patches instead.
-const Set<String> dvDevClientPlatforms = <String>{'android'};
+/// Android's tunnel is Java; iOS's and macOS's are Objective-C (see
+/// apple_dev_client.dart). A debug build on a physical iPhone does not start
+/// from the home screen without a debugger attached, so there it pairs when
+/// launched from Xcode or `flutter run`; the simulator has no such limit.
+const Set<String> dvDevClientPlatforms = <String>{'android', 'ios', 'macos'};
 
 /// The entrypoint `flutter build` is given for [platform] under [profile]:
 /// the development entrypoint for a development build that carries the dev
