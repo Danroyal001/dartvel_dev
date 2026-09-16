@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **`dartvel infra` units give the web-server binary a writable data
+  directory.** They set `DARTVEL_DATA_DIR=/var/lib/<app>`, the state
+  directory systemd makes writable, because `ProtectSystem=strict` makes
+  `/opt/<app>` read-only and the binary's SQLite file could not be created
+  beside it.
+
 - **`DVShorebirdPatchSource`: a patch source for Shorebird's updater that
   Dartvel serves.** The updater in Shorebird's engine asks
   `<base_url>/api/v1/patches/check`, with `base_url` read from

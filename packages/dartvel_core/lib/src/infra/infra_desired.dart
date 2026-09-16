@@ -570,7 +570,11 @@ String _serviceUnit({
     ..writeln('User=$appName')
     ..writeln('Group=$appName')
     ..writeln('WorkingDirectory=/opt/$appName')
-    ..writeln('ExecStart=/opt/$appName/server');
+    ..writeln('ExecStart=/opt/$appName/server')
+    // The binary keeps its data beside itself by default, and
+    // ProtectSystem=strict makes /opt read-only: the SQLite file a first run
+    // creates goes in the state directory systemd makes writable.
+    ..writeln('Environment=DARTVEL_DATA_DIR=/var/lib/$appName');
   for (final MapEntry<String, String> e in environment.entries) {
     b.writeln('Environment=${e.key}=${e.value}');
   }
