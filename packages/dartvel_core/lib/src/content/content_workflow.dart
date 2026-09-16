@@ -537,6 +537,7 @@ class DVContentWorkflow<T> {
          table: table,
          key: 'id',
          columns: _columns,
+         types: _types,
          history: const DVHistory(),
          database: database,
        ) {
@@ -578,6 +579,20 @@ class DVContentWorkflow<T> {
     'note',
     'moved_at',
   ];
+
+  /// Text, but for the three counters: a version's number, its revision and
+  /// the revision that was approved.
+  static final Map<String, String> _types = <String, String>{
+    for (final String column in _columns)
+      column:
+          const <String>{
+            'number',
+            'revision',
+            'approved_revision',
+          }.contains(column)
+          ? 'INTEGER'
+          : 'TEXT',
+  };
 
   static const List<String> _scheduleColumns = <String>[
     'scheduled_at',

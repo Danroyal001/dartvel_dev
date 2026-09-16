@@ -297,6 +297,13 @@ class DVOrganizations {
         'created_at',
         'closed_at',
       ],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'name': 'TEXT',
+        'tenant': 'TEXT',
+        'created_at': 'TEXT',
+        'closed_at': 'TEXT',
+      },
       history: const DVHistory(),
       database: database,
     );
@@ -314,6 +321,17 @@ class DVOrganizations {
         'last_active_at',
         'invited_by',
       ],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'organization_id': 'TEXT',
+        'tenant': 'TEXT',
+        'user_id': 'TEXT',
+        'email': 'TEXT',
+        'role': 'TEXT',
+        'joined_at': 'TEXT',
+        'last_active_at': 'TEXT',
+        'invited_by': 'TEXT',
+      },
       history: const DVHistory(),
       database: database,
     );
@@ -330,6 +348,16 @@ class DVOrganizations {
         'created_at',
         'expires_at',
       ],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'organization_id': 'TEXT',
+        'email': 'TEXT',
+        'role': 'TEXT',
+        'invited_by': 'TEXT',
+        'channel': 'TEXT',
+        'created_at': 'TEXT',
+        'expires_at': 'TEXT',
+      },
       versioned: false,
       database: database,
     );
@@ -343,6 +371,13 @@ class DVOrganizations {
         'role',
         'verified_at',
       ],
+      types: const <String, String>{
+        'id': 'TEXT',
+        'organization_id': 'TEXT',
+        'domain': 'TEXT',
+        'role': 'TEXT',
+        'verified_at': 'TEXT',
+      },
       history: const DVHistory(),
       database: database,
     );
