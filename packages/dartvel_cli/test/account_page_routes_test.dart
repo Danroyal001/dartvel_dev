@@ -189,7 +189,8 @@ void main() {
       'account/profile.dart': _page('profile', '@DVPage()'),
     }));
     final String routeList = router.substring(
-        router.indexOf('routes: ['), router.indexOf('redirect: _globalRedirect'));
+        router.indexOf('routes: dvOrderGoRoutes('),
+        router.indexOf('redirect: _globalRedirect'));
     expect(RegExp("path: '/account/profile'").allMatches(routeList), hasLength(1));
     expect(router, isNot(contains('DV.Auth.ProfilePage()')));
     expect(_entries(router), contains('profile /account/profile'));

@@ -17,6 +17,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvGeneratePublicEnvLibrary;
 
 import 'account_generator.dart';
+import 'config_routes.dart';
 import 'annotation_args.dart';
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
@@ -136,7 +137,16 @@ class ClientGenerator {
     /// binary does not contain.
     Set<DVRenderBackend>? renderBackends,
     required YamlMap dv,
+
+    /// What the routes file declares, when the caller has already read and
+    /// checked it. Read here otherwise.
+    DVConfigRoutes? configRoutes,
   }) async {
+    final DVConfigRoutes config =
+        configRoutes ?? DVConfigRoutes.read(root: root, dv: dv);
+    if (config.errors.isNotEmpty) {
+      throw StateError(config.errors.join('\n'));
+    }
     // dartvel.crashes, checked before anything is written, with the parser
     // the runtime uses at startup. Refused at startup is too late: the
     // application is on a device, and its crash reporting goes down with the
@@ -979,6 +989,8 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
       ...pageImports,
       ...layoutImports,
       ...guardImports,
+      // The routes file, whose top-level `routes` the router mounts.
+      if (config.exists) "import '${config.importUri(pkgName)}' as dv_config;",
       // Where a home widget declared as a class lives. Not deferred and not
       // aliased: the route names the type directly, and the file is the
       // application's own rather than a page whose loading this splits.
@@ -1359,7 +1371,9 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     final accountPages = AccountGenerator.readPages(dv);
     final servedAccountPages = <AccountPageRoute>[
       for (final page in accountPages)
-        if (!pageEntries.any((e) => e.route == page.path)) page,
+        if (!pageEntries.any((e) => e.route == page.path) &&
+            !config.routes.any((r) => r.path == page.path))
+          page,
     ];
     final guardedRoutes = <String>{
       for (final e in pageEntries)
@@ -1367,6 +1381,10 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
           e.route,
       for (final page in servedAccountPages)
         if (page.requiresSession) page.path,
+      // A config route behind a redirect, or behind the application guard,
+      // which covers config routes as it covers pages.
+      for (final r in config.routes)
+        if (r.guarded || guardMapByDir.containsKey(pagesDir)) r.path,
     };
     final guardedRoutesSrc = guardedRoutes.isEmpty
         ? '<String>[]'
@@ -1460,6 +1478,20 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
       oauthConsentRouteSrc,
       secondFactorRouteSrc,
       accountRoutesSrc,
+    ]);
+    // Config routes after the generated ones; dvOrderGoRoutes decides where
+    // each is matched. The root guard is the application's, so it covers
+    // them as it covers every page.
+    final String? rootGuard = guardMapByDir[pagesDir];
+    final allRoutesWithConfig = dvJoinRouteBlocks(<String>[
+      allRoutes,
+      if (config.exists)
+        '''
+    ...dvConfigRoutes(
+      dv_config.routes,
+      seo: _defaultSeo,
+      transition: _projectDefaultTransition,
+${rootGuard == null ? '' : '      inheritedRedirect: $rootGuard.guard,\n'}    ),''',
     ]);
 
     final generatedPageWidgets = pageEntries.map((e) {
@@ -1675,9 +1707,11 @@ $routeCapabilities
 $semanticsCall
 $pageMiddlewareInstall
   final router = GoRouter(
-    routes: [
-$allRoutes
-    ],
+    // One list, ordered so a static route is matched before a parameter
+    // route that would hide it, whichever source either came from.
+    routes: dvOrderGoRoutes(<RouteBase>[
+$allRoutesWithConfig
+    ]),
     redirect: _globalRedirect,
     // A route with no compiled page may still be a Studio page: builder
     // documents are data, so saving one publishes it without a rebuild.
@@ -1764,6 +1798,35 @@ ${(() {
           }
         }
       }
+      // Config routes, on the same class: one typed surface whichever source
+      // a route came from.
+      for (final DVConfigRoute r in config.routes) {
+        final params = RegExp(r':([A-Za-z0-9_]+)')
+            .allMatches(r.path)
+            .map((m) => m.group(1)!)
+            .toList();
+        final name = r.name ??
+            _routeTargetName(r.path.replaceAll(RegExp(r'/:[A-Za-z0-9_]+'), ''));
+        final previous = claimed[name];
+        if (previous != null) {
+          throw StateError(
+            'DV-ROUTE-002: $previous and ${r.path} (${r.source}) both generate '
+            'DVRoutes.$name. Give the config route a name: of its own, '
+            "such as name: '${name}Detail'.",
+          );
+        }
+        claimed[name] = r.path;
+        if (params.isEmpty) {
+          sbRoutes.writeln("  static const $name = DVRouteTarget('${r.path}');");
+        } else {
+          var interpPath = r.path;
+          for (final p in params) {
+            interpPath = interpPath.replaceFirst(':$p', '\$$p');
+          }
+          sbRoutes.writeln(
+              "  static DVRouteTarget $name({${params.map((p) => 'required String $p').join(', ')}}) => DVRouteTarget('$interpPath');");
+        }
+      }
       sbRoutes.writeln('}');
       // A manifest as well as the typed targets: DVRoutes is static consts,
       // which nothing can enumerate, so the admin's route explorer would have
@@ -1808,6 +1871,18 @@ ${(() {
           }
           sbRoutes.writeln('  ),');
         }
+      }
+      for (final DVConfigRoute r in config.routes) {
+        final params = RegExp(r':([A-Za-z0-9_]+)')
+            .allMatches(r.path)
+            .map((match) => "'${match.group(1)!}'")
+            .join(', ');
+        sbRoutes.writeln('  DVRouteInfo(');
+        sbRoutes.writeln("    path: '${r.path}',");
+        sbRoutes.writeln("    page: '${r.name ?? r.path}',");
+        sbRoutes.writeln("    directory: '${config.file}',");
+        sbRoutes.writeln('    parameters: <String>[$params],');
+        sbRoutes.writeln('  ),');
       }
       sbRoutes.writeln('];');
       return sbRoutes.toString();
