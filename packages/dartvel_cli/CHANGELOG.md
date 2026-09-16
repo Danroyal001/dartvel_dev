@@ -1,4 +1,14 @@
 ## Unreleased
+- **The account pages build for the web, and the gate lands on a page.** The
+  generated router also serves `DV.Auth.SignInWithEmailAndPasswordPage` at
+  `dartvel.auth.pages.signIn` (default `/login`), passing it `from`, and sets
+  `dvSignInRoute` to that path. The account routes shipped redirecting a
+  signed-out person to `/login` in applications that had no page there, and
+  `dartvel build web` refused both the site and the example: the audit read
+  the not-found page each gated route landed on, and the sign-up page, and
+  found no heading. An application with its own page at the sign-in path
+  keeps it. `/login` is no longer a reserved path.
+
 - **`dartvel.auth.deletionGraceDays`.** The number of days a deleted account
   waits before it is erased, during which signing in cancels the deletion.
   `account.g.dart` carries it as `dartvelAccountDeletionGrace`, and the

@@ -18,15 +18,14 @@ class AccountGenerator {
     AccountPageRoute('sessions', 'SessionsPage', '/account/sessions', requiresSession: true),
     AccountPageRoute('delete', 'DeletePage', '/account/delete', requiresSession: true),
     AccountPageRoute('signUp', 'SignUpPage', '/sign-up', requiresSession: false),
+    AccountPageRoute('signIn', 'SignInWithEmailAndPasswordPage', '/login', requiresSession: false),
   ];
 
-  /// Paths the generated router or runtime already means something else by:
-  /// the second-factor challenge, the OAuth consent page and sign-in, where a
-  /// page behind sign-in would redirect to itself.
+  /// Paths the generated router already serves something else at: the
+  /// second-factor challenge and the OAuth consent page.
   static const List<String> reserved = <String>[
     '/second-factor',
     '/oauth/consent',
-    '/login',
   ];
 
   /// The erasure deadline a deletion window has to fit inside: Data

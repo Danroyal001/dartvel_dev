@@ -1411,10 +1411,16 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     GoRoute(
       path: '${esc(page.path)}',
 ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.requireSession(context, state),\n' : ''}      pageBuilder: (context, state) => NoTransitionPage<void>(
-        child: Scaffold(body: SafeArea(child: DV.Auth.${page.widget}())),
+        child: Scaffold(body: SafeArea(child: DV.Auth.${page.widget}(${page.key == 'signIn' ? "from: state.uri.queryParameters['from']" : ''}))),
       ),
     ),''')
         .join('\n');
+    // Where the gate sends somebody signed out: the sign-in page's path,
+    // whether generated or the application's own at that path.
+    final signInPage = accountPages.where((page) => page.key == 'signIn');
+    final signInRouteAssignment = signInPage.isEmpty
+        ? ''
+        : "\n  dvSignInRoute = '${esc(signInPage.first.path)}';";
     final accountEntriesSrc = accountPages.isEmpty
         ? '<DVAccountPageEntry>[]'
         : '<DVAccountPageEntry>[\n${accountPages.map((page) => "  DVAccountPageEntry(DVAccountPage.${page.key}, DVRouteTarget('${esc(page.path)}')),").join('\n')}\n]';
@@ -1638,7 +1644,7 @@ $routeCapabilities
   //
   // It needs the server to serve index.html for unknown paths, which is what
   // the .htaccess and dartvel deploy configuration do.
-  dvUsePathUrlStrategy();
+  dvUsePathUrlStrategy();$signInRouteAssignment
 $semanticsCall
 $pageMiddlewareInstall
   final router = GoRouter(

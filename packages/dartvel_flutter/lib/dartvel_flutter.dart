@@ -5960,7 +5960,11 @@ class DVAuth {
     _currentUser = await operation;
   }
 
-  Widget SignInWithEmailAndPasswordPage() => _EmailPasswordAuthPage(auth: this);
+  /// Signing in with an e-mail address and a password. Once signed in it goes
+  /// to [from] when that is a path in this application -- where the generated
+  /// account pages' gate was sending the person -- and stays otherwise.
+  Widget SignInWithEmailAndPasswordPage({String? from}) =>
+      _EmailPasswordAuthPage(auth: this, from: from);
 
   /// The second-factor challenge: a code from the authenticator app, or one
   /// recovery code, for this device's live session.
@@ -6427,7 +6431,8 @@ extension DVFlutterTestHarness on DVTestHarness {
 
 class _EmailPasswordAuthPage extends StatefulWidget {
   final DVAuth auth;
-  const _EmailPasswordAuthPage({required this.auth});
+  final String? from;
+  const _EmailPasswordAuthPage({required this.auth, this.from});
 
   @override
   State<_EmailPasswordAuthPage> createState() => _EmailPasswordAuthPageState();
@@ -6475,6 +6480,11 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
         );
       }
       _deletionCancelled = DVSessionClient.installed?.deletionCancelled ?? false;
+      final String? from = widget.from;
+      final GoRouter? router = DVNavigation._router;
+      if (!_awaitingCode && from != null && router != null) {
+        router.go(DVPageMfa.safeReturn(from));
+      }
     } on DVMfaRequired {
       _awaitingCode = true;
     } on DVAccountDeleted catch (refusal) {
@@ -6506,6 +6516,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
         child: Material(
           type: MaterialType.transparency,
           child: DVBox.list([
+            _dvAccountHeading('Sign in to your account'),
             if (!_awaitingCode) ...<Widget>[
               TextField(
                 key: const ValueKey<String>('dv-auth-email'),
@@ -6694,6 +6705,11 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
 /// The account pages' shared frame: a column of at most 440 logical pixels,
 /// scrolled when it is taller than the window, so no page overflows at any
 /// window size.
+/// What names an account page: its one level 1 heading, which a screen reader
+/// announces and `dartvel build web` refuses a page without.
+Widget _dvAccountHeading(String text) =>
+    DVText(text).modifier(const DVModifier().semanticHeading(1));
+
 Widget _dvAccountFrame(List<Widget> children) => LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) =>
           SingleChildScrollView(
@@ -6936,6 +6952,7 @@ class _SecurityPageState extends State<_SecurityPage> {
     final List<String>? codes = _codes;
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
+      _dvAccountHeading('Security'),
       const DVText('Authenticator app'),
       if (status == null && error == null) const DVText('Loading...'),
       if (status != null)
@@ -7102,6 +7119,7 @@ class _SessionsPageState extends State<_SessionsPage> {
     final List<DVSession>? sessions = _sessions;
     final String? error = _error;
     return _dvAccountFrame(<Widget>[
+      _dvAccountHeading('Devices'),
       const DVText('Where you are signed in'),
       if (sessions == null && error == null) const DVText('Loading...'),
       if (sessions != null)
@@ -7204,7 +7222,7 @@ class _SignUpPageState extends State<_SignUpPage> {
       ]);
     }
     return _dvAccountFrame(<Widget>[
-      const DVText('Create an account'),
+      _dvAccountHeading('Create an account'),
       TextField(
         key: const ValueKey<String>('dv-signup-name'),
         controller: _name,
@@ -7304,7 +7322,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     final String? error = _error;
     final String? pending = account?.pendingEmail;
     return _dvAccountFrame(<Widget>[
-      const DVText('Profile'),
+      _dvAccountHeading('Profile'),
       if (account == null && error == null) const DVText('Loading...'),
       if (account != null) ...<Widget>[
         if (account.name != null) DVText(account.name!),
@@ -7461,7 +7479,7 @@ class _DeletePageState extends State<_DeletePage> {
       ]);
     }
     return _dvAccountFrame(<Widget>[
-      const DVText('Delete your account'),
+      _dvAccountHeading('Delete your account'),
       const DVText(
           'This deletes your account and the data held about you, and signs '
           'you out everywhere. It cannot be undone.'),

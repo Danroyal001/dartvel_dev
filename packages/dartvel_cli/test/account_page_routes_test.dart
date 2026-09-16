@@ -122,6 +122,12 @@ void main() {
     });
     expect(_route(router, '/sign-up'), contains('DV.Auth.SignUpPage()'));
     expect(_route(router, '/sign-up'), isNot(contains('redirect')));
+    // Where the gate sends somebody signed out, so it lands on a page: an
+    // application with no sign-in page of its own sent them to not-found.
+    expect(_route(router, '/login'),
+        contains("DV.Auth.SignInWithEmailAndPasswordPage(from: state.uri.queryParameters['from'])"));
+    expect(_route(router, '/login'), isNot(contains('redirect')));
+    expect(router, contains("dvSignInRoute = '/login';"));
     expect(_route(router, '/'), isNot(contains(_gate)));
     expect(_entries(router), <String>[
       'profile /account/profile',
@@ -129,6 +135,7 @@ void main() {
       'sessions /account/sessions',
       'delete /account/delete',
       'signUp /sign-up',
+      'signIn /login',
     ]);
     expect(_guarded(router), containsAll(pages.keys));
     expect(_guarded(router), isNot(contains('/sign-up')));
@@ -138,17 +145,21 @@ void main() {
       'page out', () async {
     final String router = _router(await _generate(
       <String, String>{'index.dart': _page('home', '@DVPage()')},
-      auth: '{security: /settings/security, delete: false, signUp: /join}',
+      auth: '{security: /settings/security, delete: false, signUp: /join, signIn: /enter}',
     ));
     expect(_route(router, '/settings/security'), contains(_gate));
     expect(router, isNot(contains("path: '/account/security'")));
     expect(router, isNot(contains('DV.Auth.DeletePage()')));
     expect(_route(router, '/join'), contains('DV.Auth.SignUpPage()'));
+    expect(_route(router, '/enter'), contains('DV.Auth.SignInWithEmailAndPasswordPage('));
+    expect(router, contains("dvSignInRoute = '/enter';"));
+    expect(router, isNot(contains("path: '/login'")));
     expect(_entries(router), <String>[
       'profile /account/profile',
       'security /settings/security',
       'sessions /account/sessions',
       'signUp /join',
+      'signIn /enter',
     ]);
   });
 
@@ -163,10 +174,12 @@ void main() {
       'SessionsPage',
       'DeletePage',
       'SignUpPage',
+      'SignInWithEmailAndPasswordPage',
     ]) {
-      expect(router, isNot(contains('DV.Auth.$widget()')));
+      expect(router, isNot(contains('DV.Auth.$widget(')));
     }
     expect(_entries(router), isEmpty);
+    expect(router, isNot(contains('dvSignInRoute =')));
   });
 
   test('a page the application put at the same path is the application\'s',
@@ -180,6 +193,16 @@ void main() {
     expect(RegExp("path: '/account/profile'").allMatches(routeList), hasLength(1));
     expect(router, isNot(contains('DV.Auth.ProfilePage()')));
     expect(_entries(router), contains('profile /account/profile'));
+  });
+
+  test('an application with its own sign-in page keeps it, and the gate sends '
+      'people there', () async {
+    final String router = _router(await _generate(<String, String>{
+      'index.dart': _page('home', '@DVPage()'),
+      'login.dart': _page('login', '@DVPage()'),
+    }));
+    expect(router, isNot(contains('DV.Auth.SignInWithEmailAndPasswordPage(')));
+    expect(router, contains("dvSignInRoute = '/login';"));
   });
 
   group('a declaration the generator cannot honour stops the build, naming the '
