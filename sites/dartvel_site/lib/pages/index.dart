@@ -274,9 +274,11 @@ Widget _backendProof(BuildContext context) => const Section(
 );
 
 /// The web-server build as a PocketBase-style deploy: one file, SQLite made
-/// on the first run. Every line in the terminal is what the binary printed
-/// when it was copied alone into /tmp/shop and started, and the size is the
-/// measured size of that file.
+/// on the first run in dartvel_data beside the executable, the way PocketBase
+/// keeps pb_data beside its own. Every line in the terminal is what the binary
+/// printed when it was copied alone into a directory and started, shown at
+/// the /srv path a server would keep it under, and the size is the measured
+/// size of that file.
 @DVFunctionalWidget()
 Widget _oneFileBackend(BuildContext context) => const Section(
   tint: true,
@@ -288,17 +290,18 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'build/server (29.9 MB): the backend, the web app and the native '
           'server, in one file.',
       '',
-      r'$ ./server',
-      'dartvel: no DATABASE_URL, creating SQLite database /tmp/shop/dartvel_data/data.db',
+      r'$ cd /srv/shop && ./server',
+      'dartvel: no DATABASE_URL, creating SQLite database /srv/shop/dartvel_data/data.db',
       'dartvel: created table notes',
       'dartvel backend listening on http://0.0.0.0:3000/api',
     ]),
     Bullets(<String>[
       'Copy one file to a Linux x64 server and run it. The first run creates '
-          'the SQLite file and your tables.',
+          'your tables.',
+      'The database lives in dartvel_data next to the binary, so you back up '
+          'one folder.',
       'The web app, the API and the pages rendered on request all come '
           'from that file.',
-      'Set DATABASE_URL to PostgreSQL when one file is no longer enough.',
     ]),
     Objection(
       'Why not use PocketBase?',
