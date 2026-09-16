@@ -47,6 +47,12 @@ Widget _indexPage(BuildContext context) => (() {
             to: DVRoutes.team,
             child: DVText('Team'),
           ),
+          // Tabs from files, under lib/pages/(tabs).
+          DVNavLink(
+            key: Key('link-library'),
+            to: DVRoutes.library,
+            child: DVText('Library'),
+          ),
         ], spacing: 12),
         ShowcaseHero(
           DV.Platform.currentPlatform,
