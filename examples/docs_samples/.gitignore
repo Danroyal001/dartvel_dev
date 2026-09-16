@@ -1,0 +1,27 @@
+# Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Environment
+.env
+.env.local
+
+# Generated
+lib/dartvel_client/
+.dartvel/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+/lib/dartvel_client/
+/.dart_tool/dartvel_backend.g.dart
+/.dart_tool/dartvel_backend_routes.g.dart
+/.dartvel/

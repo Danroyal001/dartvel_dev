@@ -1,0 +1,15 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    # Dartvel generation inputs are private declarations nothing here calls.
+    unused_element: ignore
+    # A page file named [id].dart is a route parameter.
+    file_names: ignore
+  exclude:
+    - "lib/dartvel_client/**"
+    - ".dart_tool/**"
+
+linter:
+  rules:
+    - avoid_print

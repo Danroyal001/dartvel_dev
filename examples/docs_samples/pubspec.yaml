@@ -1,0 +1,122 @@
+# Every Dart sample on the dartvel.dev docs pages, compiled.
+#
+# The site shows the regions marked `// docs:start <name>` and `// docs:end`
+# in these files, copied by sites/dartvel_site/tool/docs_samples.dart, and a
+# site test fails when the copy differs. CI generates this project's client
+# and analyzes it, so a sample that stops compiling fails the build.
+name: docs_samples
+description: The code samples on the Dartvel docs site, compiled.
+publish_to: "none"
+version: 0.0.1
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  dio: ^5.5.0
+  dartvel_core: ^0.5.0
+  dartvel_shelf: ^0.6.0
+  dartvel_flutter: ^0.5.0
+  flutter_web_plugins:
+    sdk: flutter
+
+dev_dependencies:
+  yaml: ^3.1.2
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0
+  dartvel_cli: ^0.5.0
+
+dependency_overrides:
+  dartvel_core:
+    path: ../../packages/dartvel_core
+  dartvel_shelf:
+    path: ../../packages/dartvel_shelf
+  dartvel_flutter:
+    path: ../../packages/dartvel_flutter
+  dartvel_cli:
+    path: ../../packages/dartvel_cli
+
+flutter:
+  uses-material-design: true
+
+dartvel:
+  backendHost: 0.0.0.0
+  backendPort: 3000
+  devBackendHost: http://localhost:3000
+  prodBackendHost: https://api.example.com
+  pagesDir: lib/pages
+  backendDir: lib/backend
+  apiBasePath: /api
+  envFiles: [.env, .env.local]
+
+  # docs:start yaml-http
+  http:
+    hosts:
+      paystack:
+        baseUrl: https://api.paystack.co
+        timeout: 10s
+        retries: { attempts: 2, backoff: exponential }
+  # docs:end
+
+  # docs:start yaml-cors
+  server:
+    cors:
+      origins: [https://app.example.com]
+      allowCredentials: true
+      methods: [GET, POST]
+  # docs:end
+
+  # docs:start yaml-auth-pages
+  auth:
+    pages:
+      delete: false
+      signIn: /sign-in
+    deletionGraceDays: 14
+  # docs:end
+
+  # docs:start yaml-tenancy
+  tenancy:
+    isolation: shared-database
+    source: subdomain
+  # docs:end
+
+  # docs:start yaml-graphql
+  api:
+    graphql:
+      maxDepth: 8
+      introspection: authenticated
+      persistedQueries: prefer
+  # docs:end
+
+  # docs:start yaml-platform-api
+  platformApi:
+    scopes:
+      orders:read: [Order.view]
+      orders:write: [Order.update]
+    ratePlans:
+      standard: { maxRequests: 600, window: 1m }
+    requireExpiry: true
+    oauth: true
+  # docs:end
+
+  # docs:start yaml-infra
+  infra:
+    production:
+      hosts: [app1.example.com, app2.example.com]
+      ssh: { user: deploy, knownHosts: infra/known_hosts }
+      proxy: { adapter: caddy }
+      tls:
+        domains: [example.com]
+        acme: { email: ops@example.com }
+      services:
+        backend: { instances: 2 }
+        workers: { queues: [default, mail], instances: 1 }
+        cron: { enabled: true }
+      database:
+        adapter: postgres
+        backup: { schedule: "0 2 * * *", retain: 30d }
+  # docs:end
