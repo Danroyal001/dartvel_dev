@@ -77,6 +77,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVModel3DRejected,
         DVModel3DValidation,
         DVQuat,
+        // Routing: thrown by the generated router when no route order works.
+        DVRouteOrderException,
         DVRay,
         DVScene3D,
         DVSceneAsset,
@@ -692,6 +694,7 @@ export 'src/platform/webcrypto_key_store_io.dart'
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
+export 'src/routing/config_routes.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_mfa.dart';
