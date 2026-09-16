@@ -7,6 +7,17 @@
   browser bindings threw "not registered" in every web build. It now
   registers them on the web and still skips the native classes there.
 
+- **`dartvel build <target> --cloud` builds on the repository's own GitHub
+  Actions.** iOS and macOS go to a macOS runner, so a Linux or Windows machine
+  can build them. The command writes `.github/workflows/dartvel-cloud.yml`,
+  refuses to dispatch until the copy on the branch is the one it writes,
+  dispatches it with `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, prints each
+  step as it changes, and unzips the artifact into `build/cloud/<target>`.
+  It exits 77 with no token and 78 with no GitHub remote, a detached HEAD or a
+  workflow that is not pushed. `GITHUB_API_URL` points it at GitHub Enterprise
+  Server. The Flutter the runner uses is `dartvel.cloud.flutter`, or the local
+  one.
+
 - **`dartvel upgrade --plan` says what upgrading to this CLI's release
   changes, and changes nothing.** It checks the SDK constraint and the
   installed Dart and Flutter against the floors, each Dartvel package's

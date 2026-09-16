@@ -94,6 +94,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --[no-]tree-shake-icons      Tree shake icons',
       '                                 (defaults to on)',
       '    --[no-]auto-install          Install missing build tools without prompting. Defaults to prompting when interactive, and to installing in CI. Use --no-auto-install to require a pre-provisioned toolchain.',
+      '    --cloud                      Build on this repository\'s own GitHub Actions instead of this machine: iOS and macOS on a macOS runner, whatever the host. Writes .github/workflows/dartvel-cloud.yml, dispatches it with GH_TOKEN or gh\'s login, follows the run and downloads the artifact into build/cloud/<target>.',
     ],
   ),
   DocsCliCommand(
