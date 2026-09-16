@@ -715,6 +715,8 @@ export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
+export 'src/updates/shorebird_updates.dart'
+    show DVShorebirdNative, DVShorebirdUpdates;
 export 'src/widgets/home_widgets.dart';
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';

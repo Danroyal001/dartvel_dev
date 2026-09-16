@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`DV.Updates` works on a Shorebird build.** `updates.check`,
+  `updates.apply` and `updates.rollback` are bound to the Shorebird updater's
+  C API over FFI (`DynamicLibrary.process()`, on Android and iOS alike), each
+  call on its own isolate because the updater blocks on the network. `check`
+  reports a downloadable patch, or one downloaded and waiting for a restart;
+  `apply` installs it for the next launch and throws with the updater's
+  message on a failed download or a patch that does not verify; `rollback`
+  runs the check that applies a rollback published for the release and says
+  so when none was. On an engine without the updater nothing is registered
+  and `DVShorebirdUpdates.lastFailure` says why. Until now nothing registered
+  these names, so `DV.Updates.check()` threw in every application.
+
 - **`DVDevClientSession`** (in `package:dartvel_flutter/dev_client.dart`)
   hands a development build's Dart VM service URI to the tunnel `dartvel
   build android --profile development` writes. It never throws, and reports
