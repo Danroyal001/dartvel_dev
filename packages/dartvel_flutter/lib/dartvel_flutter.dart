@@ -701,6 +701,7 @@ export 'src/routing/page_mfa.dart';
 export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
+export 'src/routing/router.dart';
 export 'src/routing/url_strategy.dart';
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
