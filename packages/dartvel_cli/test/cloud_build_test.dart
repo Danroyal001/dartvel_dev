@@ -130,6 +130,9 @@ void main() {
     final String out = logs.join('\n');
     expect(out, contains('Running Gradle task'));
     expect(out, contains('https://cloud.example/i/b_1'));
+    // And as a QR code a phone can scan off the terminal.
+    final int link = logs.indexWhere((String l) => l.contains('https://cloud.example/i/b_1'));
+    expect(logs.skip(link + 1).where((String l) => l.contains('█')), hasLength(greaterThan(10)));
     final String dir = p.join(root.path, 'build', 'cloud', 'android');
     expect(File(p.join(dir, 'app-release.apk')).readAsStringSync(), 'an apk');
     expect(File(p.join(dir, 'Runner.app', 'Info.plist')).readAsStringSync(), 'plist');
