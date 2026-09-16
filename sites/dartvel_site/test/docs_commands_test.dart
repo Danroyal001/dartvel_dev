@@ -77,10 +77,11 @@ List<String> checkCommand(CommandRunner<void> runner, String line) {
 }
 
 /// Every command line in [literal]: text starting "dartvel " at the start of
-/// a line or after a space, running to the end of that line.
+/// a line or after a space, running to the end of that line or of its
+/// sentence, so prose naming two commands is read as two.
 Iterable<String> commandLines(String literal) sync* {
-  for (final String line in literal.split('\n')) {
-    for (final Match m in RegExp(r'(?:^|\s)(dartvel [a-z-][^\n]*)').allMatches(line)) {
+  for (final String sentence in literal.split(RegExp(r'\n|\.\s'))) {
+    for (final Match m in RegExp(r'(?:^|\s)(dartvel [a-z-][^\n]*)').allMatches(sentence)) {
       yield m[1]!;
     }
   }
@@ -108,6 +109,11 @@ void main() {
         hasLength(1));
     expect(checkCommand(runner, 'dartvel build runs code generation for you.'),
         isEmpty);
+    expect(
+        commandLines('dartvel build web-server writes a file. dartvel deploy '
+            '--functions writes the rest.'),
+        <String>['dartvel build web-server writes a file',
+            'dartvel deploy --functions writes the rest.']);
   });
 
   test('every command on a site page exists with its flags', () {
