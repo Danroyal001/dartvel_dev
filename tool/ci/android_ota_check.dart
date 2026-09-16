@@ -205,6 +205,15 @@ Future<void> main() async {
     failures.add('the check stopped: $error');
     stderr.writeln(stack);
   } finally {
+    try {
+      // Everything, not only the flutter tag: the engine and the updater log
+      // there too, but a refused socket or a crash may not.
+      File('$_diag/ota-logcat-full.log').writeAsStringSync(
+        await _adb(<String>['logcat', '-d']),
+      );
+    } on Object {
+      // Diagnostics only.
+    }
     server?.kill();
     await serverLog.flush();
     await serverLog.close();
