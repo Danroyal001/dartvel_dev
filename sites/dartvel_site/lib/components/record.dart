@@ -139,3 +139,19 @@ String siteLead(String body) {
   // summary.
   return lead[0].toUpperCase() + lead.substring(1);
 }
+
+/// The one line a card shows under its lead: the first thing it lacks.
+///
+/// Empty when the record names nothing missing. A partial section's card that
+/// showed only what works would be the page claiming more than the index does.
+String siteGap(String body) {
+  final List<String> paragraphs = siteRecordParts(body).absent;
+  if (paragraphs.isEmpty) return '';
+  final String gap = paragraphs.first.split(_sentenceBreak).first.trim();
+  if (gap.isEmpty) return '';
+  // "the image." opens with a capital; "iPadOS and Tizen." is a name and
+  // keeps the case it was written in.
+  final bool name = gap.length > 1 && gap[1].toUpperCase() == gap[1] &&
+      gap[1].toLowerCase() != gap[1];
+  return name ? gap : gap[0].toUpperCase() + gap.substring(1);
+}

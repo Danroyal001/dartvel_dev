@@ -56,7 +56,9 @@ void main() {
       await tester.pumpWidget(routed(const FeaturesPageGeneratedPage()));
       await tester.pumpAndSettle();
 
-      final Finder heading = find.text('Thirty-six shipped sections.');
+      // The number moves with the index, and tool/site_features_check.dart holds
+      // it to the index. What this asserts is that the heading is on screen.
+      final Finder heading = find.textContaining(' shipped sections.');
       expect(heading, findsOneWidget);
       expect(visibility(tester, heading), 1,
           reason: 'the heading is in the tree and not on the screen');

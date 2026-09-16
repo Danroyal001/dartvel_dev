@@ -48,6 +48,13 @@ class Figure {
   final String label;
 }
 
+/// Where the site's claims can be checked: what each spec section has built,
+/// and what each build target has been verified to produce.
+const String kSpecStatusUrl =
+    'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json';
+const String kBuildTargetsUrl =
+    'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/build-targets.md';
+
 /// The reading column every band shares.
 const double kColumn = 1040;
 

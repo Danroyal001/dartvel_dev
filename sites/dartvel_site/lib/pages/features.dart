@@ -5,10 +5,11 @@ import '../components/site.dart';
 
 /// Every section the repository records as Shipped, and nothing else.
 ///
-/// The list is taken from docs/spec-status.json, which is checked by a tool
-/// that fails when a section claims to be built and the evidence it names does
-/// not exist. A marketing page that listed more than that would be the first
-/// place the project stopped being honest.
+/// The list follows docs/spec-status.json, and tool/site_features_check.dart
+/// fails CI when the two disagree. Each body is a summary of that record in
+/// a sentence or two; a section that names something missing says so after
+/// "Absent:", and the card shows it.
+///
 /// Public because the page body is lowered into the generated router,
 /// which reaches a page's public symbols through its import and cannot see
 /// a private one at all.
@@ -16,571 +17,607 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'UI',
     'DVBox and DVText',
-    'One layout primitive with a fluent modifier chain. DVBox.list, .row, '
-        '.grid and .wrapLine for collections; DVBox(child) for a single one.',
+    'One layout primitive with a modifier chain. DVBox.list, .row, .grid and '
+        '.wrapLine take collections, and DVBox(child) takes one child.',
   ),
   (
     'Styling',
     'Fluent modifiers',
-    'padding, rounded, colour, typography, shadows, tap targets and '
-        'semantics on one chain, built on Mix. Rotation takes degrees '
-        'rather than radians, so the number a designer reads in Figma is '
-        'the number in the source. blur and backdropBlur are separate '
-        'methods, because one softens the box and the other softens '
-        'whatever shows through it. The chain reaches text as well as boxes '
-        'now, and a rounded box clips what is inside it -- both were '
-        'accepted and ignored before, which is how every circular avatar '
-        'came through as a square photograph.',
+    'Padding, corners, colour, type, shadows, blur and rotation in degrees, '
+        'on one chain built on Mix.',
+  ),
+  (
+    'Pages',
+    '@DVPage',
+    'A private annotated function becomes a page. It can have a block body or '
+        'an expression body.',
   ),
   (
     'Routing',
     'File-based pages',
-    'A file under lib/pages is a route. Navigation is typed against generated '
-        'targets, so a moved page is a compile error rather than a 404.',
+    'A file under lib/pages is a route. Links are typed, so moving a page '
+        'breaks the build at every link to it.',
   ),
   (
     'State',
     'Signals',
-    'context.signal, signal(context, value), reactive models and DV.global. '
-        'Operating on signals returns a signal, so a + b and stock > 0 track '
-        'their sources without a separate computed type.',
+    'context.signal, reactive models and DV.global. price * quantity returns '
+        'a signal that tracks both.',
   ),
   (
     'Models',
     '@DVModel',
-    'One annotated class generates the typed client, serialization, the form, '
-        'the table, the admin surface and the sync. Which meant that reading the '
-        'annotation wrongly cost all of them at once, and it was read wrongly in '
-        'two ways. The pattern that finds a model stopped at the first closing '
-        'bracket, so a string argument containing one -- a schema type of '
-        'Product (beta), say -- ended the annotation early and the model was not '
-        'found at all: no class, no table, no admin row, no graph node, on a '
-        'build that succeeded. Six separate parsers carried that pattern, and a '
-        'model one of them misses while another finds it is a table in the '
-        'database with no row anywhere else. The same scan now skips strings and '
-        'comments, because an annotation written about in a paragraph is not an '
-        'annotation -- this page describes one further down, and a parser that '
-        'took the first one it saw in the file read the paragraph.',
+    'One annotated class generates the typed client, serialization, form, '
+        'table and admin.',
   ),
   (
     'Forms',
     'DVForm<T>',
-    'Inputs, validation and error surfaces derived from the model, so a field '
-        'added to the model appears in the form.',
+    'Inputs, validation and error messages come from the model\'s fields.',
   ),
   (
     'Backend',
     '@DVBackendFunction',
-    'A Dart function becomes an endpoint, served by an Axum and Tokio runtime '
-        'in Rust reached over FFI, with the client generated alongside it.',
+    'A Dart function becomes an HTTP endpoint with a generated typed client.',
   ),
   (
     'Streaming Functions',
     'Server-sent events',
-    'A backend function that returns a stream is served as SSE, with a typed '
-        'client that consumes it.',
+    'Return a Stream and the function is served as SSE, with a typed client '
+        'that reads it.',
+  ),
+  (
+    'Queues, Jobs, and Signals',
+    'DV.Jobs and DV.Queues',
+    'Seven queue adapters, from in-memory to Kafka. The network adapters are '
+        'tested against real brokers in CI. Absent: a completed job state.',
   ),
   (
     'Authorization',
     'DV.Auth.authorization',
-    'Policies over models, functions and pages, enforced before the '
-        'handler runs rather than inside it, and default-deny: a policy '
-        'nobody registered answers no. A page declares one through '
-        '@DVPage(policy:), and a page whose application has configured '
-        'nothing to answer it is refused rather than opened. Policy classes '
-        'are consulted now -- the specification\'s own headline example '
-        'compiled and was never read. Absent: a generated admin still draws '
-        'New and Delete without asking first.',
+    'Typed policies over models, functions and pages. A policy nobody '
+        'registered answers no.',
   ),
   (
-    'Theme',
-    'Light and dark',
-    'A themed surface that follows the system by default. This site runs on '
-        'it — switch your appearance and it follows.',
+    'Authentication',
+    'Passkeys, SAML, LDAP, Web3',
+    'WebAuthn passkeys, SAML 2.0, LDAP and Sign-In with Ethereum. LDAP runs '
+        'against a real server in CI. Absent: biometric sign-in.',
+  ),
+  (
+    'Database',
+    'SQLite by default',
+    'Zero-config SQLite locally, plus Postgres and MySQL with TLS. dartvel db '
+        'migrate runs migrations on SQLite and writes the SQL for the others.',
+  ),
+  (
+    'APIs',
+    'dartvel import openapi',
+    'Import an OpenAPI spec or a Postman collection as models and typed '
+        'functions.',
   ),
   (
     'Model Sync and Presence',
     'Built on models and signals',
-    'Generated sync, subscriptions, presence and fanout. There is no '
-        'DV.Realtime namespace, deliberately: it is models, signals and queues.',
-  ),
-  (
-    'SEO',
-    'Head tags, prerendering and a sitemap that says something',
-    'dartvel build web writes the title, description, canonical, Open '
-        'Graph and Twitter tags from configuration, and prerendered routes '
-        'carry semantic content for crawlers. The sitemap leaves out routes '
-        'the router guards; it used to publish every private one, because '
-        'it read path literals and a pattern cannot see the guard three '
-        'lines under it. A page tunes its own entry with @DVPage(sitemap:), '
-        'the project sets the defaults under dartvel.seo.sitemap, and a '
-        'priority outside 0 to 1 is refused rather than clamped, since a '
-        'crawler discards the whole entry.',
-  ),
-  (
-    'AI',
-    'DV.AI, and tools a provider can call',
-    'A local adapter, structured outputs and embeddings, with provider '
-        'extension points. A function marked as an AI tool is registered with a '
-        'handler now, which it was not: the generated list carried a name, a '
-        'description and a file path, so an assistant could read that a function '
-        'existed and had no way to run it. Each tool gets a JSON Schema, because '
-        'every provider requires one, and an argument of the wrong type is '
-        'refused by name rather than coerced -- a tool that quietly received 0 '
-        'for a number it could not read would run and be wrong, which is the '
-        'thing a schema exists to prevent.',
-  ),
-  (
-    'CSRF Protection',
-    'On by default',
-    'Token issue and verification wired through the request pipeline rather '
-        'than left to the application.',
-  ),
-  (
-    'Reversible Transactions',
-    'DV.transaction',
-    'context.afterCommit and context.compensate, so a failure unwinds what '
-        'ran rather than leaving it half-applied.',
-  ),
-  (
-    'Background and Durable Work',
-    '@DVJob and DV.Queues',
-    'Durable jobs and queues. background: true and durable: true on a backend '
-        'function are sugar that compiles onto the same layer.',
-  ),
-  (
-    'Authentication',
-    'Four ways in',
-    'WebAuthn assertions, SAML 2.0 built against signature wrapping rather '
-        'than around it, LDAP over BER, and Sign-In with Ethereum bound to a '
-        'nonce, a domain and a clock.',
-  ),
-  (
-    'Cache',
-    'Rendezvous hashing',
-    'Keys spread across several servers. Adding or removing a node moves only '
-        'that node’s share — with a modulo it moves almost everything, and the '
-        'cache empties without reporting anything.',
+    'Generated sync, subscriptions and presence for your models. Absent: a '
+        'restored change event, since nothing restores a deleted model yet.',
   ),
   (
     'File Storage',
     'S3, Azure Blob, GCS',
-    'Verified against Azurite and fake-gcs-server in CI, not against fakes. '
-        'Azure signs the encoded path, which only a real server will tell you.',
+    'One storage API over three object stores. Azure and GCS run against '
+        'Azurite and fake-gcs-server in CI.',
   ),
   (
-    'Search',
-    'Meilisearch, OpenSearch, Algolia',
-    'With highlights and facet counts, which an engine returns only when the '
-        'query asks. Run against real Meilisearch and OpenSearch in CI.',
+    'Cache',
+    'Distributed cache',
+    'Keys spread across servers by rendezvous hashing. Adding a node moves '
+        'only that node\'s share of keys.',
   ),
   (
-    'APIs',
-    'Flat-buffer envelope',
-    'Form-data whose fields are binary buffers, so an int stays an int. Over '
-        'text multipart the type is gone by the time a parameter is decoded.',
+    'SEO',
+    'Head tags and a sitemap',
+    'dartvel build web writes title, description, canonical and Open Graph '
+        'tags. The sitemap leaves out guarded routes.',
   ),
   (
-    'Admin, Devtools, and Scaffolding',
-    'dartvel inspect, dartvel mcp',
-    'One versioned graph of routes, models, functions and jobs, each '
-        'carrying the source it came from. --json is a serialization of it, '
-        'and dartvel mcp serves it to a coding agent. The dashboard is '
-        'served by the backend at a path the project chooses rather than a '
-        'constant -- a fixed admin path is most of why wp-admin is the most '
-        'scanned URL on the internet. It is guarded, absent from a release '
-        'build unless asked for, and answers a signed-out request exactly '
-        'as a route that does not exist, since a 401 where the rest of the '
-        'site answers 404 tells a scanner the host has one.',
+    'PWA',
+    'Installable and offline',
+    'dartvel build web writes the manifest, icons and service worker. A write '
+        'made offline replays in order, tested in Chrome on every push.',
   ),
   (
-    'Pages',
-    'Every annotation',
-    '@DVPage, @DVFunctionalWidget, @DVBackendFunction and @DVJob.handler all '
-        'take a block body. No more one-line wrappers around a public helper.',
-  ),
-  (
-    'Queues, Jobs, and Signals',
-    'DV.Jobs and DVQueues',
-    'Typed job payloads with retries, backoff, dead letters and idempotency '
-        'keys. Signals stay context.signal and reactive models; cross-client '
-        'delivery rides model sync rather than a second event system.',
-  ),
-  (
-    'Database',
-    'SQLite by default, and migrations that run',
-    'Zero-config SQLite with WAL for local work, in-memory for tests, '
-        'Postgres and MySQL with TLS, and one adapter API in front of all '
-        'of them. Migrations execute now: dartvel db migrate used to print '
-        'a line per model, say they were synced successfully, and run '
-        'nothing at all. For Postgres or MySQL it writes the statements out '
-        'and says it did not run them, because the CLI has no connection to '
-        'a managed database. A table that already has rows is left alone '
-        'rather than half migrated.',
+    'AI',
+    'DV.AI',
+    'A local adapter, structured outputs, embeddings and provider extension '
+        'points. A function marked as an AI tool gets a JSON Schema and a '
+        'handler.',
   ),
   (
     'Testing',
     'dartvel test',
-    'Fake auth, queues, mail, storage, AI and windowing, generated model '
-        'factories, and a build that fails on an accessibility regression instead '
-        'of warning about one.',
+    'Fakes for auth, queues, mail, storage and AI, plus generated model '
+        'factories.',
   ),
   (
-    'Data Import, Export, and Reporting',
-    'Order.Import.csv',
-    'Generated CSV, NDJSON and Excel import and export per model. Resumable '
-        'imports are chunked onto the queue with the header carried on every '
-        'chunk, so a worker can always rebuild a row.',
-  ),
-  (
-    'Deployment',
-    'dartvel deploy',
-    'Web and server targets to Firebase, Vercel, Netlify, Cloudflare or a '
-        'custom host from one command, with the backend compiled to its Rust '
-        'runtime and the client to its target.',
-  ),
-  (
-    'CLI',
-    'One tool',
-    'create, dev, build, doctor, inspect, explain, i18n, queue, cache and sh. '
-        'build runs generation for you; doctor says what each target can '
-        'actually do; explain looks up any diagnostic code. The shell is part of '
-        'it: a typed surface for project tasks, commands as values and results '
-        'as values, reachable from Dart, from dartvel task and from dartvel sh.',
-  ),
-  (
-    'Backend Function Request Lifecycle',
-    'context.lifecycle.request',
-    'Every call moves through received, decoding, authenticating, validating, '
-        'authorized, executing, committing and encoding as a read-only signal, '
-        'with trace, tenant and idempotency IDs carried the whole way.',
-  ),
-  (
-    'Static Web Generation',
-    'dartvel build web',
-    'Per-route HTML built from the semantics tree a real browser produced, '
-        'sitemap.xml and robots.txt, a service worker and install prompt, and a '
-        'build that fails when a page would ship with nothing to see.',
-  ),
-  (
-    'Fast Navigation',
-    'Every page its own bundle, fetched before the tap',
-    'Each page compiles to a deferred bundle of its own, and its prerendered '
-        'HTML names that bundle in its head, so a page opened directly '
-        'downloads it alongside the app instead of after the app boots. A '
-        'link fetches the page it points at once it has sat on screen for '
-        '300 ms, or as soon as a pointer reaches it -- the code, the '
-        'prerendered HTML and the images the page opens with -- and a mouse '
-        'follows the link when the button goes down. This site had three of '
-        'its four pages compiled into the main bundle, because the generator '
-        'copied every page body into the router; it builds nine parts now, '
-        'each fetched only by the pages that use it. The renderer gets the '
-        'same treatment: every page opens the connection to where CanvasKit '
-        'lives and starts its 7 MB download while the HTML is still being '
-        'read, picking the variant Flutter\'s loader will pick, so the loader '
-        'finds it already arriving instead of asking for it second.',
-  ),
-  (
-    'Launch Splash',
-    'No white screen, on any platform',
-    'dartvel build writes a splash in the application\'s colour, with its '
-        'icon, into the web shell and every prerendered page, Android\'s '
-        'launch theme and the Android 12 splash that ignores it, the iOS '
-        'launch storyboard, and the macOS and Linux windows. Windows needs '
-        'nothing: its window appears on the first frame. With nothing '
-        'configured it takes the PWA background colour, and dark mode gets a '
-        'dark one instead of white. On the web the application covers it the '
-        'moment it paints. A launch screen somebody designed is left alone '
-        'unless dartvel.splash.overwrite says otherwise.',
+    'Search',
+    'Meilisearch, OpenSearch, Algolia',
+    'Queries with highlights and facet counts. Meilisearch and OpenSearch run '
+        'live in CI. Absent: a live Algolia test, since it has no local server.',
   ),
   (
     'Internationalization and Localization',
     'Typed keys, CLDR plurals',
-    'Translation keys are typed and extracted to ARB; plurals follow CLDR, '
-        'not English. Locale negotiation reads the path, a stored preference and '
-        'Accept-Language in that order, with a per-tenant default; mail and '
-        'notification templates render in the recipient\'s language, and every '
-        'prerendered page carries hreflang.',
-  ),
-  (
-    'Dartvel Studio',
-    'Visual builder, exports to code',
-    'Pages built from the same widgets the application renders, on a '
-        'canvas that draws them the way the page will. Styling travels to '
-        'the canvas and behaviour does not, because a canvas that navigates '
-        'away when you tap the card you are editing is worse than one that '
-        'shows it unstyled. Drag-and-drop, an inspector, undo, mobile-first '
-        'breakpoints, and one-click export to an ordinary @DVPage whose '
-        'source is handed to the analyzer in CI. Pro adds components, '
-        'revision history, multi-user editing, roles and approval before a '
-        'page goes live -- and Figma import, where frames become pages, '
-        'prototype links become navigation, and auto-layout, gradients, '
-        'blurs, strokes and icons all survive the crossing.',
+    'Translation keys are typed and extracted to ARB. Plurals follow CLDR '
+        'rules for each language.',
   ),
   (
     'Accessibility',
-    'Audited at release, driveable by a switch',
-    'dartvel build web audits the semantics tree a real browser produced and '
-        'fails on a nameless control, an empty heading or a skipped level, unless '
-        'waived with a written reason. Generated tables navigate by keyboard and '
-        'announce cells; contrast and tap targets are checked against published '
-        'minimums; motion follows the platform\'s reduced-motion setting. Kiosk '
-        'and embedded pages are driveable by one or two switches, auto-scan, or a '
-        'remote\'s D-pad, and a kiosk\'s key block never covers the keys '
-        'accessibility needs.',
+    'Audited at build time',
+    'dartvel build web fails on a control with no name, an empty heading or a '
+        'skipped heading level.',
   ),
   (
-    'PWA',
-    'Installable, offline, and it keeps your writes',
-    'dartvel build web writes the manifest, the icons from web/icon.png, the '
-        'offline page and a service worker that caches assets and keeps an '
-        'outbox: a write made while the network is gone is answered 202 and '
-        'replayed, in order, once it is back. That last part is proven in a '
-        'real Chrome on every push, not read off the generator. The install '
-        'prompt asks the browser now, and did not: it returned a value only a '
-        'test could set, so it reported an acceptance whatever the person at the '
-        'screen chose and then marked the application installed -- which hides '
-        'the button, so an application somebody declined could never be '
-        'installed from inside it again. The binding that opens the browser\'s '
-        'own dialog was written and called by nothing at all, so tapping Install '
-        'opened nothing. It waits for the answer now, because the browser only '
-        'opens the dialog when asked and reports the choice afterwards.',
+    'Dartvel Studio',
+    'Visual page builder',
+    'Drag and drop, an inspector, undo and export to an ordinary @DVPage. '
+        'Figma import, history and multi-user editing are in the paid Pro tier.',
+  ),
+  (
+    'Admin, Devtools, and Scaffolding',
+    'dartvel inspect, dartvel mcp',
+    'One graph of your routes, models, functions and jobs. dartvel mcp serves '
+        'it to a coding agent.',
+  ),
+  (
+    'Deployment',
+    'dartvel deploy',
+    'dartvel deploy --functions writes a Lambda, Cloud Run, container, Fly, '
+        'Railway or bare-metal artifact per function. Absent: pushing it to the '
+        'cloud with your credentials.',
+  ),
+  (
+    'CLI',
+    'One tool',
+    'create, dev, build, doctor, inspect, explain and sh. dartvel build runs '
+        'code generation for you.',
+  ),
+  (
+    'CSRF Protection',
+    'On by default',
+    'Every state-changing request is checked for a CSRF token.',
+  ),
+  (
+    'Backend Function Request Lifecycle',
+    'context.lifecycle.request',
+    'Each call reports its current stage as a read-only signal. Absent: a '
+        'completed state, because a streamed response may still be sending.',
+  ),
+  (
+    'Reversible Transactions',
+    'DV.transaction',
+    'context.afterCommit and context.compensate undo what ran when a later '
+        'step fails.',
+  ),
+  (
+    'Background and Durable Work',
+    '@DVJob',
+    'background: true and durable: true on a backend function compile onto '
+        'the job queue.',
+  ),
+  (
+    'Static Web Generation',
+    'dartvel build web',
+    'One HTML page per route, with head tags, structured data and text a '
+        'crawler can read.',
+  ),
+];
+
+/// Partly built: what works, then what is missing after "Absent:". The
+/// checker holds this list to the index's Partial sections exactly.
+const List<(String, String, String)> partial = <(String, String, String)>[
+  (
+    'Project Structure',
+    'dartvel: in pubspec.yaml',
+    'Present: default paths, per-key overrides and a Dart config file. '
+        'Absent: glob patterns, so pages cannot live in two directories.',
+  ),
+  (
+    'Record History and Optimistic Concurrency',
+    'Versioned writes',
+    'Present: a generated model saves at the version it read and is refused '
+        'when the row moved. Absent: generated restore and revert.',
+  ),
+  (
+    'Outbound HTTP',
+    'DV.Http',
+    'Present: declared hosts with timeouts, retries, a circuit breaker and a '
+        'test fake, and an undeclared URL is refused. Absent: provider adapters '
+        'built on it.',
   ),
   (
     'Scheduling',
-    'Cron on both sides, and it runs now',
-    'Five-field cron parsed the way cron actually reads it, '
-        'day-of-month OR day-of-week, with nextAfter for the next tick and '
-        'a scheduler that dispatches onto the queue rather than running '
-        'inline. A served backend registers every declared schedule and '
-        'ticks; an application with none starts no timer. A schedule says '
-        'for itself whether the periods missed while the process was down '
-        'are run when it comes back. On a phone it ticks only while the '
-        'application is in front of somebody, and ticks once immediately on '
-        'return.',
-  ),
-];
-
-/// Half built: what is present and what is absent, in the repository's own
-/// words. The checker holds this list to the index's Partial sections exactly.
-const List<(String, String, String)> partial = <(String, String, String)>[
-  (
-    'Generated Model Pages',
-    'Model.Page(...), wearing its own icon',
-    'Public pages from a model, with .async, .signal and .fromId. '
-        'Static paths come from the model rather than a route written out '
-        'as a string. A model page wears its own favicon now: a model '
-        'declares one, a module\'s models carry the module\'s, and '
-        'dartvel.seo.favicon is the application\'s. Absent: the resized, '
-        'content-hashed derivative of the featured image, since pointing an '
-        'icon straight at a photograph serves several hundred kilobytes as '
-        'thirty-two pixels.',
-  ),
-  (
-    'Lifecycle Signals',
-    'Five of six change',
-    'DV.lifecycle.app and .build, context.lifecycle.page, .request and '
-        '.transaction. Application code observes them; it does not assign '
-        'them. Five of the six move -- the request signal on a backend '
-        'function that asks for a context, the page signal on every '
-        'generated route, and the application signal reporting what the '
-        'platform gives it, where hidden counts as backgrounded and '
-        'inactive counts as nothing. Absent: the states belonging to a data '
-        'fetch or a route transition, and anything that advances the build '
-        'signal.',
+    'Cron on client and server',
+    'Present: declared schedules are registered and tick in a served backend '
+        'and in the app. Absent: a per-target report of how often each can run.',
   ),
   (
     'Middleware',
-    'Ten run, tracing wraps, two guard the body, five say why not',
-    'Ten middlewares run in the order declared, wrapped around the '
-        'handler, with the request lifecycle observable as a signal. The '
-        'nineteen keys did nothing until recently: the annotation had one '
-        'reader, a check that the name was spelled correctly, which then '
-        'dropped the list. Body and upload limits are checked where the '
-        'body is read instead, because by the time a chain has anything to '
-        'say the body is already in memory. dartvel.server configures CORS '
-        'and compression for the whole server. The remaining five fail the '
-        'build naming what to use instead.',
+    '@DVUseMiddleware',
+    'Present: nine built-in middlewares run in the order you declare. Absent: '
+        'page middleware that preloads data or sets SEO context.',
   ),
   (
-    'Multi-tenancy',
-    'All three strategies, and a shared database that filters',
-    'Present: the current tenant is resolved from the configured source '
-        'and held in a zone, so it follows async work instead of leaking '
-        'between concurrent requests. Generated model queries filter by it '
-        '-- a column, a predicate on every read, the tenant written into '
-        'every write, and a delete that cannot reach another tenant\'s row, '
-        'all arriving together because any one of them alone looks exactly '
-        'like the feature working. All three strategies do something now; '
-        'schema-per-tenant and database-per-tenant used to produce exactly '
-        'the shared strategy\'s queries against exactly the same database. '
-        'A raw query the application writes itself is checked too. Absent: '
-        'creating the per-tenant schemas, which needs a list of tenants the '
-        'build does not have.',
+    'Edge Security',
+    'GraphQL limits and WAF rules',
+    'Present: GraphQL depth and cost budgets on by default, and persisted '
+        'queries. Absent: generated clients that send query hashes.',
   ),
   (
-    'Sensitive Model Fields',
-    '@DVModel.sensitiveField(); encrypted: true refused',
-    'Excluded from logs, AI context, traces, analytics, public serialization, '
-        'search, generated pages, tables and admin by default. Reaching a client '
-        'takes an explicit policy. encrypted: true is not implemented: there is '
-        'no server-side field-encryption key surface yet, so a field declaring '
-        'it fails generation, naming the model and field, rather than being '
-        'stored as plaintext under a flag that says otherwise.',
+    'Sessions and Account Management',
+    'Sessions, MFA, recovery codes',
+    'Present: hashed session tokens, TOTP second factors and sign-in endpoints. '
+        'Absent: passkeys as a second factor.',
   ),
   (
-    'App store publishing',
-    'One command to a store, and every refusal before the upload',
-    'Present: dartvel publish takes a built application to Google Play, App Store Connect, TestFlight or Firebase App Distribution, declared once in pubspec.yaml. The work is an upload of a binary that took minutes to produce, so every refusal comes before it: a track nobody publishes to is refused rather than corrected to the nearest, credentials that were never declared are refused rather than left to a tool that stops to ask a pipeline with nobody to answer, and App Store Connect is refused off macOS at the start rather than with "command not found" at the end of a long build. --dry-run shows what Dartvel would do to a store account before it does it, and the upload uploads and nothing else. Absent: the stores are driven through their own tools rather than their APIs, so a machine without one is told to install it; nothing has been published from CI, which needs an account and a signing identity; and metadata, screenshots and staged rollouts are deliberately left alone.',
-  ),
-  (
-    'Home Widgets',
-    'Generated pages, packaged on Android and on Apple',
-    'Present: @DVHomeWidget on any widget generates a page at '
-        '/widgets/<id> and packages it for the home screen -- an '
-        'AppWidgetProvider, layout and receiver on Android, and a WidgetKit '
-        'bundle with its own entitlements and an Xcode target on iOS and '
-        'macOS. Both draw the platform\'s own views rather than the Flutter '
-        'tree, because a home screen is composed in the launcher\'s process '
-        'and that cannot host a Flutter engine; what crosses is data, '
-        'written through DVHomeWidgets.publish. A tap deep-links back into '
-        'the application. Absent: an immediate refresh on Apple, since '
-        'WidgetCenter is Swift-only.',
-  ),
-  (
-    'Modules',
-    'Mounted, with their routes, a verified manifest and their deployment modes',
-    'Present: a module is a whole Dartvel application that a parent '
-        'mounts. The build takes the module\'s own route base off and puts '
-        'the mount point on, generates it before the parent, and serves its '
-        'pages from the parent\'s router -- in the route index, in the '
-        'sitemap, reachable as DV.Modules.<id>. A federated module '
-        'publishes a signed manifest that the parent verifies before '
-        'mounting, so a replayed version, a colliding route or an untrusted '
-        'key is refused by name. Shell, auth, theme and data modes each '
-        'apply at run time. Absent: the exports block, which is read by '
-        'nothing -- named rather than half-built, because what a list of '
-        'models governs is ambiguous and guessing would enforce something '
-        'nobody chose.',
+    'Theme',
+    'DV.Theme.mode',
+    'Present: light, dark and system switching. Absent: design tokens, fonts '
+        'from config and Figma variable import.',
   ),
   (
     'Platform',
-    'Runtime APIs everywhere; Linux bindings behind most names',
-    'Present: the platform and screen APIs, FFI/JNI binding registration, and on Linux the bindings for clipboard, window, notifications, shortcuts, menus, printing, dialogs, kiosk keys and the device APIs. Absent: the names with no host API to reach on each platform -- 32 on Linux, 24 on web, 33 on Windows, 33 on macOS, 30 on iOS -- many of which do not apply there at all.',
+    'DV.Platform',
+    'Present: native bindings through FFI and jnigen, 63 on Linux and 36 on '
+        'Android. Absent: most bindings on iOS, which has 7.',
+  ),
+  (
+    'Schema Evolution',
+    'Online migrations',
+    'Present: a planner that classifies blocking changes per database version '
+        'and runs resumable backfills. Absent: MongoDB, ClickHouse and BigQuery.',
+  ),
+  (
+    'Platform API: Keys, Scopes and OAuth Provider',
+    'API keys and OAuth',
+    'Present: scoped API keys and an OAuth provider with PKCE. Absent: a '
+        'generated ApiKey model.',
+  ),
+  (
+    'Outbound Webhooks',
+    'DVWebhooks',
+    'Present: signed deliveries that survive a restart and refuse private '
+        'addresses. Absent: generated subscriptions and model events.',
+  ),
+  (
+    'Offline-First Models',
+    'DVOfflineStore',
+    'Present: a local store with an ordered mutation log that replays on '
+        'reconnect. Absent: @DVModel(offline:) and an IndexedDB store on web.',
   ),
   (
     'Mail and Notifications',
-    'Every channel; SMTP against a real server, push not yet',
-    'Present: email, in-app, push and web push with a VAPID signature pinned to the published P-256 vectors, local and test providers, and templates rendered in the recipient\'s language. The SMTP provider is exercised against a real SMTP server in a container, with the source of what arrived read back -- which is the only way to see the half of this that is accepted and wrong, and it found two things. A subject with an accent in it went down the wire as raw UTF-8 in a header that has to be ASCII: the server took it, and the clients that do not guess the encoding show it as mojibake to whoever was sent it. The body declared no transfer encoding, which means seven-bit, which it was not. Both are fixed and both are now checked against a server rather than against a connection this repository wrote. Absent: no provider has been exercised against a real APNS or push service.',
+    'DV.Notifications.mail',
+    'Present: email, in-app, push and web push. SMTP is tested against a real '
+        'server. Absent: a test against a real APNS or push service.',
+  ),
+  (
+    'Media Pipeline',
+    'Image variants',
+    'Present: resized image variants for web builds. Absent: uploads, AVIF and '
+        'video.',
+  ),
+  (
+    'Media Playback and Capture',
+    'DVBox.video',
+    'Present: player and capture state as signals, with Linux audio. Absent: '
+        'playback backends for Android, iOS, macOS, Windows and web.',
+  ),
+  (
+    'Multi-tenancy',
+    'tenantScoped: true',
+    'Present: tenant resolution and filtered reads and writes on generated '
+        'models. Absent: the tenant does not travel with a queued job.',
+  ),
+  (
+    'Organizations, Membership and Invitations',
+    'DVOrganizations',
+    'Present: typed roles, invitations and seats in dartvel_core. Absent: '
+        'generated models and the accept-invitation page.',
+  ),
+  (
+    'Feature Flags and Staged Rollout',
+    'DVFlags',
+    'Present: typed flags with percentage rollout and targeting. Absent: '
+        'publishing flag rules per environment.',
   ),
   (
     'OTA Updates',
-    'Staged across a fleet, but not native patches',
-    'Present: page bundles ship as data through DV.Updates and need no native patching, on named channels, and a staged rollout decides from the device and the version rather than at random -- so a device asked twice is answered the same. One question is asked and answered in one place: the channel\'s offer, the device\'s place in the rollout, a pinned version, a skipped one and a kiosk\'s maintenance window, so a check says whether to apply now, why not when not, and when it will be, and applying something the check held back is refused with the reason rather than quietly skipped. Absent: Shorebird-backed native patch application.',
+    'dartvel updates',
+    'Present: release, patch and rollback commands and staged rollout rules. '
+        'Absent: DV.Updates.check() throws in a real app, since no platform '
+        'binds it.',
   ),
   (
-    'Billing',
-    'Stripe and Paddle, and a price that is a price',
-    'Present: checkout for a plan\'s configured price, and webhooks '
-        'believed only when their own signature matches in constant time '
-        'within five minutes. @DVModel(billable: true, nativePrice: 100) '
-        'carries that price now and carried nothing before. A price needs '
-        'three things to mean anything: a currency, a rule for what the '
-        'integer counts -- a hundred yen is a hundred yen -- and a '
-        'conversion that refuses rather than returning the same number '
-        'under a different code. Absent: App Store and Play Billing '
-        'purchases, and the rates themselves, which the application '
-        'supplies.',
+    'Protocol Versioning and Client Compatibility',
+    'dartvel.protocol.lock',
+    'Present: a protocol lockfile and a handshake that refuses clients outside '
+        'the window. Absent: generated clients that send the protocol header.',
   ),
   (
-    'Desktop, Embedded, and Qt-Critical Capabilities',
-    'Built on Linux, and most of it on Windows and macOS',
-    'Present on Linux: global shortcuts, the application menu, '
-        'printing, system dialogs, file associations, deep links, the '
-        'device and fleet APIs, and startup measured phase by phase. '
-        'Present on Windows and macOS, each proven on its own runner: '
-        'shortcuts delivered by id, the application menu, the tray and its '
-        'menu, and the device APIs. Drag and drop, the tray and serial '
-        'ports work on all three. NFC through neard and Bluetooth through '
-        'BlueZ are present on Linux, including writing a tag and pairing a '
-        'device -- the fussy part being that nearly every way those go '
-        'wrong still reports success.',
-  ),
-  (
-    'Kiosk Mode',
-    'Policy, clock, windows and desktop enforcement; mobile and embedded per target',
-    'Present: the policy, state machine and enforcement matrix, checked '
-        'by dartvel doctor. Device- and display-scope kiosks, a session '
-        'clock on DV.lifecycle.kiosk, and native enforcement per target -- '
-        'lock task on Android, proved on an emulator with Android\'s own '
-        'dumpsys as the second opinion; key blocking and pointer '
-        'confinement on Linux; hot keys on Windows; presentation options on '
-        'macOS; Fullscreen, Keyboard Lock and Pointer Lock in a browser. '
-        'Text selection, the clipboard, cursor hiding and screen dimming '
-        'are enforced in Dart. Whatever a platform refuses is reported '
-        'unenforced rather than passed over, because a kiosk that could not '
-        'hold and says nothing reads exactly like one that did. Absent: '
-        'iPadOS, Tizen and webOS, and the three things a rule written in '
-        'Dart cannot reach -- the system clipboard, the cursor outside the '
-        'application\'s own surface, and the backlight.',
-  ),
-  (
-    'Terminal Rendering',
-    'A backend you opt into at build time',
-    'Present: the terminal backend is linked only when asked for, through the dartvel_cli_flt fork; the terminal\'s size as a signal, read again on every resize; and launch negotiation wired into main -- --tui, no display with both backends, and the hand-off to the terminal runner beside the GUI binary. A Dartvel application renders in a terminal, verified in a pty: it could not before, because the bundle build reads a compiler configuration for a project\'s build hooks that nothing wrote where it looks, so the job proving the terminal had been rendering the embedder\'s own sample instead. Absent: the fork\'s own renderer, Kitty with an ANSI fallback, and a distributable runner.',
-  ),
-  (
-    'Multi-Window',
-    'Windows, displays and the single-instance launch',
-    'Present: window identity as canonical URL, display enumeration on '
-        'all three desktops, the exit policy, owned windows, honest '
-        'modality, the single-instance launch that opens what the app was '
-        'started with and hands a later launch to the first process, '
-        'workspace restore, tear-out, display-scope kiosk windows, and a '
-        'measured performance contract that dartvel analyze performance '
-        'reads. The shared store reads its own tuning now: four numbers the '
-        'specification documents and the build had never read, so a project '
-        'that asked for a 64Kb spill threshold got 32. Absent: pollMs and '
-        'sweepAfter, which have nothing behind them at all, and the three '
-        'web and Android keys.',
-  ),
-  (
-    'Tab Workspaces',
-    'Tabs that tear out, hand over between windows and persist',
-    'Present: the tab strip, reorder, tear-out gated on capability, the empty-window rule, duplicate tabs, deduplication by route, a switcher on TV and watch, persistence scoped to the tenant and the user that drops routes that no longer resolve, and a re-dock that hands the tab over instead of rebuilding it -- the element moves between workspaces in one frame, so what was half typed, where the list had been scrolled to and the controllers behind them are the same objects on the other side. Absent: the drag cannot leave a window. The OS holds the pointer in the window it went down in and Flutter routes the whole drag to that view, so no strip elsewhere ever sees it; a cross-window move is an action on the tab menu instead, and tear-out into a brand-new window still builds the route from scratch.',
-  ),
-  (
-    'Secrets and Environments',
-    'Declared, rotated, and kept where the platform keeps keys',
-    'Present: the declaration manifest and its analyze rule, rotation hooks, dartvel key generate | rotate | status, and the application key in the Secret Service on Linux, DPAPI on Windows, the Keychain on macOS and a non-extractable WebCrypto key on the web, with a file only the user can read as the fallback. Absent: the Android Keystore.',
-  ),
-  (
-    'Web Server Rendering',
-    'Pages assembled on request, from the route\'s data',
-    'Present: the request pipeline the spec describes, given a resolver for the route\'s data -- route resolved with its parameters, page data resolved by the declared mode (awaited, cached, stale-while-revalidate, or deferred to the client), visibility checked with 404 and 401, the head and JSON-LD structured data generated from the data, the page\'s favicon, crawler-visible text, the Flutter bootstrap, and streaming that sends the head first. The resolver is generated from the application\'s models: a public model page is its row\'s title, content, image and published flag, read from the database when the page is asked for, hidden when unpublished. The kept pages can live in a shared cache, so a second server serves what the first resolved, and a page\'s schema.org type is the one its model declares.',
-  ),
-  (
-    'Embedded, Television, and Extension Build Targets',
-    'Builds that exist; devices that have not run them',
-    'Present: tizen and vscode build. Absent: neither has been run; fuchsia\'s engine does not build at Flutter 3.44.5; webOS and Sony eLinux ship a Dart below the 3.12 floor, so their embedders cannot resolve the example.',
+    'AI Operations',
+    'Versioned prompts',
+    'Present: fingerprinted prompts, a prompt lockfile, budgets and evals. '
+        'Absent: a generator for @DVPrompt, so prompts are registered by hand.',
   ),
   (
     'Monitoring and Observability',
-    'Metrics and health are real; logs are not',
-    'Present: DVMetrics renders Prometheus text exposition and every server answers GET /metrics with it; dartvel metrics reads that endpoint and says so when nothing answers or nothing has been recorded yet, rather than printing a sample. DVHealth backs GET /health with real checks on a deadline. Tracing carries W3C Trace Context across the request boundary, with sampling decided from the trace id alone so a distributed request is not resampled at every hop. Absent: there is no log sink anywhere in the runtime, so DV.log and DV.ObservabilityAndLogging.event do not exist and nothing an application logs goes anywhere -- dartvel logs says so plainly instead of printing invented lines. Spans are captured but only into an in-process list nothing exports or serves, so dartvel traces has nothing to read either. Profiling, performance analysis, error reporting, and structured, AI-readable diagnostics are all unbuilt too.',
+    'GET /metrics, GET /health',
+    'Present: Prometheus metrics and health checks on every server. Absent: '
+        'a log sink, so nothing an app logs goes anywhere.',
+  ),
+  (
+    'Distributed Tracing',
+    'W3C Trace Context',
+    'Present: trace context across requests, with consistent sampling. '
+        'Absent: an OTLP exporter, so no span reaches a collector.',
+  ),
+  (
+    'Crash Reporting and Release Health',
+    'DV.Crashes',
+    'Present: Dart and web errors recorded and sent on the next launch. '
+        'Absent: native crash handlers on JVM, iOS and Windows.',
+  ),
+  (
+    'Alerting, SLOs and Status Pages',
+    'DVServiceLevel, DVAlerting',
+    'Present: error budgets, burn-rate alerts and PagerDuty delivery. Absent: '
+        'incidents as a generated model.',
+  ),
+  (
+    'Product Analytics and Consent',
+    'DVAnalytics, DVConsent',
+    'Present: typed events that drop what consent denies. Absent: generated '
+        'page-view and model events.',
+  ),
+  (
+    'Semantic Search and Embeddings',
+    'DVSemanticIndex',
+    'Present: keyword, semantic and hybrid search with tenant filtering. '
+        'Absent: a pgvector or hosted vector adapter.',
+  ),
+  (
+    'Billing',
+    'Stripe and Paddle',
+    'Present: checkout and signed webhooks for Stripe and Paddle. Absent: a '
+        'test against either live service.',
+  ),
+  (
+    'Purchases and Entitlements',
+    'DVPurchases',
+    'Present: server-side receipt checks and a grants ledger. Absent: real App '
+        'Store and Play adapters.',
+  ),
+  (
+    'Usage Metering and Quotas',
+    'DVMeters',
+    'Present: per-tenant counters, limits and billing reports. Absent: the '
+        '@DVMeter annotation and generated accessors.',
+  ),
+  (
+    'Commerce: Tax, Promotions, Disputes and Payouts',
+    'DVTax, promotions',
+    'Present: tax, promotion, dispute and payout rules, tested against fakes. '
+        'Absent: a test against a live provider.',
+  ),
+  (
+    'Desktop, Embedded, and Qt-Critical Capabilities',
+    'Tray, menus, drag and drop',
+    'Present: tray, menus, shortcuts and drag and drop on Linux, Windows and '
+        'macOS. Absent: images and HTML on the clipboard.',
+  ),
+  (
+    'Platform Memory',
+    'DV.Memory',
+    'Present: preallocated memory arenas shared across isolates. Absent: a test in a '
+        'real browser.',
+  ),
+  (
+    'Compute: Workers and Native Offload',
+    'DV.Workers',
+    'Present: a bounded isolate pool on native and web workers on web. '
+        'Absent: a build-time check for captures a worker cannot send.',
+  ),
+  (
+    'Kiosk Mode',
+    'DVKiosk',
+    'Present: kiosk policy and native enforcement on Android, Linux, Windows, '
+        'macOS and web. Absent: enforcement on iPadOS, Tizen and webOS.',
+  ),
+  (
+    'Terminal Rendering',
+    'dartvel build linux-cli',
+    'Present: terminal size as a signal and launch negotiation. Absent: the '
+        'renderer and a distributable runner.',
+  ),
+  (
+    '3D Scenes',
+    'DVBox.scene',
+    'Present: a scene document, scene graph and ray picking. Absent: a GPU '
+        'renderer, so every target shows the poster.',
+  ),
+  (
+    'XR: Spatial Presentation',
+    'Volumes and immersive spaces',
+    'Present: spatial window kinds, anchors and a session driven by the '
+        'device. Absent: a WebGL2 renderer.',
+  ),
+  (
+    'Multi-Window',
+    'DVWindows',
+    'Present: display lists on all three desktops, single-instance launch and '
+        'workspace restore. Absent: tear-out.',
+  ),
+  (
+    'Tab Workspaces',
+    'DVTab',
+    'Present: tab strips with reorder, persistence and a TV switcher. Absent: '
+        'dragging a tab between real OS windows.',
+  ),
+  (
+    'Content Workflow',
+    'DVContentWorkflow',
+    'Present: draft, review, approve and publish with an audit trail. Absent: '
+        'theme and translation content in the workflow.',
+  ),
+  (
+    'Data Import, Export, and Reporting',
+    'Order.Import.csv',
+    'Present: CSV, NDJSON and Excel import and export per model. Absent: PDF '
+        'export.',
+  ),
+  (
+    'Change Data Capture and Warehouse Sync',
+    'DVCapture',
+    'Present: an ordered change log with checkpoints for consumers. Absent: '
+        '@DVModel(capture: true).',
+  ),
+  (
+    'Secrets and Environments',
+    'dartvel key',
+    'Present: the app key in the Keychain, DPAPI, Secret Service and WebCrypto. '
+        'Absent: Vault and KMS adapters.',
+  ),
+  (
+    'Server Provisioning',
+    'dartvel infra',
+    'Present: a server rendered from pubspec.yaml into systemd units, Caddy '
+        'and a firewall. Absent: fixing package drift, which it only reports.',
+  ),
+  (
+    'Backend Release Management',
+    'Canary and blue-green',
+    'Present: release gates that roll back on a regression. Absent: dartvel ci '
+        'init.',
+  ),
+  (
+    'Preview Environments',
+    'dartvel.preview',
+    'Present: per-branch preview identities and secret checks. Absent: an '
+        'adapter that hosts a preview.',
+  ),
+  (
+    'Dev Client',
+    'dartvel dev --dev-client',
+    'Present: signed page bundles loaded onto a paired device. Absent: a shell '
+        'built and installed on a real device.',
+  ),
+  (
+    'Package Structure',
+    'dartvel_dev',
+    'Present: the barrels under dartvel_dev. Absent: DV.Rust beyond one '
+        'integer type.',
+  ),
+  (
+    'Home Widgets',
+    '@DVHomeWidget',
+    'Present: generated widget pages packaged for Android and WidgetKit. '
+        'Absent: a check that the Swift compiles in Xcode.',
+  ),
+  (
+    'The Golden Path',
+    'create to deploy',
+    'Present: create, dev, generate, db migrate, test, build and deploy. '
+        'Absent: dartvel upgrade.',
+  ),
+  (
+    'Adoption',
+    'dartvel init',
+    'Present: dartvel init adds Dartvel to an existing Flutter project and '
+        'changes nothing else. Absent: adding dartvel_cli as a dev dependency.',
+  ),
+  (
+    'Lifecycle Signals',
+    'DV.lifecycle',
+    'Present: app, build, page, request, transaction and kiosk signals. '
+        'Absent: loading and route-transition states.',
+  ),
+  (
+    'Modules',
+    'DV.Modules',
+    'Present: a module is a whole Dartvel app mounted under a path. Absent: '
+        'module exports of pages, functions and models.',
+  ),
+  (
+    'Module Distribution and Trust',
+    'dartvel.module.lock',
+    'Present: signed module packages pinned by digest and key. Absent: a '
+        'revocation feed beyond a local key list.',
+  ),
+  (
+    'Generated Model Pages',
+    'Model.Page(...)',
+    'Present: public pages per model with .async, .signal and .fromId. '
+        'Absent: resized favicons on server-rendered pages.',
+  ),
+  (
+    'Error, Empty, and Loading States',
+    'page.loading.dart',
+    'Present: loading and error companions for each page. Absent: '
+        'page-level error boundaries and generated status pages.',
+  ),
+  (
+    'Sensitive Model Fields',
+    '@DVModel.sensitiveField()',
+    'Present: kept out of logs, search and the admin, and encrypted: true '
+        'seals the field. Absent: re-encrypting rows when a key rotates.',
+  ),
+  (
+    'Data Compliance and Lifecycle',
+    'DVPrivacy',
+    'Present: erasure, export and retention sweeps with signed receipts. '
+        'Absent: retention schedules set per deployment.',
+  ),
+  (
+    'Web Server Rendering',
+    'dartvel build web-server',
+    'Present: pages rendered on request from model data, with head tags and '
+        'streaming. Absent: Flutter widgets rendered to HTML.',
+  ),
+  (
+    'Embedded, Television, and Extension Build Targets',
+    'Tizen, webOS, eLinux',
+    'Present: Tizen and VS Code builds. Absent: webOS, Sony eLinux and Fuchsia, '
+        'whose embedders ship a Dart below 3.12.',
+  ),
+  (
+    'Unified Development, Transparency, and Contracts',
+    'dartvel inspect, dartvel explain',
+    'Present: inspectors for routes, models, functions and jobs. Absent: '
+        'module, transaction and schema inspectors.',
+  ),
+  (
+    'Generated Code Determinism',
+    'dartvel generate --check',
+    'Present: identical inputs give byte-identical output. Absent: dart format '
+        'on generated files.',
+  ),
+  (
+    'Documentation Generation',
+    'dartvel docs',
+    'Present: a static docs site built from your project graph. Absent: running it '
+        'as part of build or dev.',
+  ),
+  (
+    'App Store Publishing and Privacy Manifests',
+    'dartvel publish',
+    'Present: dartvel publish uploads a build to Play, App Store Connect or '
+        'TestFlight. Absent: generated privacy manifests.',
   ),
 ];
 
-// Tuned, so the whole chain runs on a real project rather than only in a
-// test: the annotation, the constant the generator writes into the
-// router, the build that reads it back, and the <priority> and
-// <changefreq> in build/web/sitemap.xml that CI then asserts.
-//
-// This file also describes the annotation in prose, a few hundred lines
-// up, which is the shape that broke the parser once: it searched for the
-// first @DVPage( in the file and found the paragraph.
 @DVPage(
-  title: 'Features — Dartvel',
+  title: 'Dartvel features: what ships and what is partial',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.8,
@@ -588,125 +625,86 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
 )
 @pragma('vm:entry-point')
-Widget _featuresPage(BuildContext context) => SingleChildScrollView(
+Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
   child: DVBox.list(<Widget>[
-    const Section(
+    Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Thirty-six shipped sections.', level: 1),
-        // Two sentences that were one forty-five word sentence with a
-        // clause chain, and a second that said "partial" three times.
-        Body(
-          'This is the repository’s own record, not a roadmap. A checker '
-          'reads it on every build and fails the build when a section '
-          'claims to be built and the evidence it names is not there.',
-          width: 620,
-        ),
-        Body(
-          'Twenty-one more are half done. Each says what is missing, '
-          'next to what already works.',
-          width: 620,
-        ),
+        Heading('Thirty-three shipped sections.', level: 1),
+        Bullets(<String>[
+          'Sixty-six more are partial, and each card says what is missing.',
+          'Every card summarises an entry in docs/spec-status.json.',
+          'CI fails when this page and that file disagree.',
+        ]),
+        ExternalLink('Read spec-status.json', kSpecStatusUrl),
       ],
     ),
     Section(
       tint: true,
       children: <Widget>[
-        // A grid where there is room. Twenty-one full-width rows
-        // separated by hairlines is a list to scroll past rather than a
-        // set of things to compare, and every one of them looked the
-        // same as the last.
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final int columns = constraints.maxWidth >= 900 ? 2 : 1;
-            if (columns == 1) {
-              return DVBox.list(<Widget>[
-                for (final (String area, String surface, String body) f
-                    in shipped)
-                  FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-              ], spacing: 14);
-            }
-            const double gap = 18;
-            final double width =
-                (constraints.maxWidth - gap * (columns - 1)) / columns;
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: <Widget>[
-                for (final (String area, String surface, String body) f
-                    in shipped)
-                  SizedBox(
-                    width: width,
-                    child: FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-                  ),
-              ],
-            );
-          },
-        ),
+        Eyebrow('SHIPPED'),
+        Heading('Shipped, each backed by tests in the repo.', level: 2),
+        FeatureGrid(items: shipped),
       ],
     ),
     Section(
       children: <Widget>[
-        const Eyebrow('HALF BUILT'),
-        const Heading(
-          'What is partial, and what is missing from it.',
-          level: 2,
-        ),
-        const Body(
-          'Each of these has real code behind it and a named gap. The '
-          'gap is written next to the work, in the repository’s words, '
-          'and the same tool holds this list to the index.',
-          width: 660,
-        ),
-        DVBox.list(<Widget>[
-          for (final (String area, String surface, String body) f in partial)
-            FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-        ], spacing: 14),
+        Eyebrow('PARTIAL'),
+        Heading('Partly built, with the gap named.', level: 2),
+        FeatureGrid(items: partial),
       ],
     ),
     Section(
       tint: true,
       children: <Widget>[
-        const Eyebrow('THE FULL RECORD'),
-        const Heading(
-          'Every section, in the repository’s own words.',
-          level: 2,
+        Eyebrow('START'),
+        Heading('Try the shipped parts in a new app.'),
+        Objection(
+          'Can I rely on a partial section?',
+          'Only on the part its card lists as working. Read its entry in '
+              'spec-status.json first.',
         ),
-        const Body(
-          'The cards above are summaries. This is the record they summarise: '
-          'what each section does, and where it says a thing is missing, what '
-          'is missing and why.',
-          width: 660,
-        ),
-        DVBox.list(<Widget>[
-          for (final (String area, String surface, String body) f in shipped)
-            SiteRecordEntry(area: f.$1, surface: f.$2, body: f.$3),
-          for (final (String area, String surface, String body) f in partial)
-            SiteRecordEntry(area: f.$1, surface: f.$2, body: f.$3),
-        ], spacing: 34),
+        PrimaryLink('Create your first app', '/docs'),
       ],
     ),
-    const SiteFooter(),
+    SiteFooter(),
   ], spacing: 0),
 );
 
-/// How much of a record a card shows before it is folded.
-///
-/// Four lines is about forty words, which is the first two sentences of every
-/// one of these -- and the first two sentences are the summary, because they
-/// were written as one.
-const int kFeatureRecordLines = 4;
+/// A grid where there is room, one column where there is not.
+@DVFunctionalWidget()
+Widget _featureGrid(
+  BuildContext context, {
+  required List<(String, String, String)> items,
+}) =>
+    LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final int columns = constraints.maxWidth >= 900 ? 2 : 1;
+        if (columns == 1) {
+          return DVBox.list(<Widget>[
+            for (final (String area, String surface, String body) f in items)
+              FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+          ], spacing: 14);
+        }
+        const double gap = 18;
+        final double width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: <Widget>[
+            for (final (String area, String surface, String body) f in items)
+              SizedBox(
+                width: width,
+                child: FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+              ),
+          ],
+        );
+      },
+    );
 
-/// A lower bound on how wide one character can be, at the size a record is
-/// set in.
-///
-/// Deliberately under any real glyph: it is used to work out how much text
-/// could possibly fit on a line, and guessing low there means measuring a
-/// little more than necessary rather than cutting a record short.
-const double kNarrowestGlyph = 3;
-
-/// One shipped capability: the area, the surface you actually type, and what
-/// it does.
+/// One capability: the area, the surface you actually type, what works and,
+/// when the record names one, what is missing.
 @DVFunctionalWidget()
 Widget _featureRow(
   BuildContext context, {
@@ -715,56 +713,50 @@ Widget _featureRow(
   required String body,
 }) {
   final Palette palette = Palette.of(context);
+  final String gap = siteGap(body);
   return DVBox(
     DVBox.list(<Widget>[
-      // A wrapping line rather than a row. The chip carries an API name and
-      // some of them are long: in a fixed row the pair overflowed its card by
-      // a few pixels at one width and by forty at another, and an overflow
-      // clips in release with nothing to say it did.
+      // A wrapping line: the chip carries an API name and some are long.
       DVBox.wrapLine(<Widget>[
         DVText(area).modifier(
           const DVModifier()
               .fontSize(17)
               .fontWeight(FontWeight.w700)
               .color(palette.ink)
-              // Level 2, not 3: these sit directly under the page's h1 and
-              // nothing on the page is an h2, so 3 skipped a level and a
-              // reader navigating by heading was told they had missed one.
-              // Without any level at all they were twenty-one paragraphs, so
-              // the page had a title and no structure under it -- for a screen
-              // reader moving by heading and for the crawler-visible HTML
-              // alike.
-              .semanticHeading(2),
+              .semanticHeading(3),
         ),
         SiteChip(surface),
       ], spacing: 10),
-      // One sentence, and the record lives further down the page.
-      //
-      // This card used to carry the whole thing: six thousand characters at
-      // first, then five hundred, then five hundred in paragraphs with
-      // headings. Every version was a wall, because the problem was never the
-      // formatting -- a card in a grid of thirty-six is a summary, and a
-      // summary is one line. Laravel gives each of its products a name and
-      // about a dozen words and puts the rest in the docs.
+      // One sentence. Three lines at most, so one long opening cannot make
+      // its card taller than the row it sits in.
       DVText(siteLead(body)).modifier(
         const DVModifier()
             .fontSize(15)
             .color(palette.muted)
             .lineHeight(1.6)
-            // Three, so one record opening with a long sentence cannot make
-            // its card taller than the row it sits in. The whole sentence is
-            // in the record below; this is the bound on the summary.
             .maxLines(3)
             .overflow(TextOverflow.ellipsis),
       ),
+      if (gap.isNotEmpty)
+        DVBox.list(<Widget>[
+          const DVText('Missing').modifier(const DVModifier()
+              .fontSize(12)
+              .fontWeight(FontWeight.w700)
+              .letterSpacing(0.8)
+              .color(palette.faint)),
+          DVText(gap).modifier(
+            const DVModifier()
+                .fontSize(15)
+                .color(palette.muted)
+                .lineHeight(1.6)
+                .maxLines(3)
+                .overflow(TextOverflow.ellipsis),
+          ),
+        ], spacing: 4, crossAlign: DVCrossAlign.start),
     ], spacing: 10),
     const DVModifier()
-        // No height: a wrap gives its children unbounded height, so
-        // double.infinity here collapsed every card and the section rendered
-        // empty. Cards size to their content instead.
+        // No height: a wrap gives its children unbounded height.
         .paddingOnly(left: 20, top: 18, right: 20, bottom: 20)
-        // page, not surface: the section this sits on is tinted with surface,
-        // so a card in the same colour is an invisible card.
         .backgroundColor(palette.page)
         .rounded(12)
         .border(Border.all(color: palette.rule)),
