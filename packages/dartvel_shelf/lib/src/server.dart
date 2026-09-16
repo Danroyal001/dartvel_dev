@@ -793,6 +793,11 @@ void _configureBodyLimits(gen.DartvelShelfBindings api, int maxBodyBytes,
 }
 
 String getMimeType(String path) {
+  // iOS refuses the Universal Links document as anything but JSON, and its
+  // name has no extension to say so.
+  if (p.basename(path) == 'apple-app-site-association') {
+    return 'application/json';
+  }
   final ext = p.extension(path).toLowerCase();
   switch (ext) {
     case '.html':
