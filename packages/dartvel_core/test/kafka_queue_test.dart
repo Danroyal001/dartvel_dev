@@ -195,4 +195,17 @@ void main() {
       expect(await adapter.reserve('mail'), isNull);
     });
   });
+  group('the tenant', () {
+    test('travels in the record and comes back on the envelope', () async {
+      await adapter.enqueue('mail', const _Ping('a'), tenant: 'acme');
+
+      expect((await adapter.reserve('mail'))!.tenant, 'acme');
+    });
+
+    test('a job with none comes back with none', () async {
+      await adapter.enqueue('mail', const _Ping('a'));
+
+      expect((await adapter.reserve('mail'))!.tenant, isNull);
+    });
+  });
 }

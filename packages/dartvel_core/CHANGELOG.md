@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **A job runs as the tenant it was dispatched under.** `DVJobEnvelope.tenant`
+  records the tenant current when `DV.Jobs.dispatch` ran, or null for none.
+  Every adapter stores it and reads it back: in-memory, database (a nullable
+  `tenant` column, added to a table an earlier release made), Redis, SQS,
+  RabbitMQ, Pub/Sub and Kafka. `DVQueues.work`, and so the worker, runs each
+  handler inside `withTenant` for it, so `DV.Database`, tenant-scoped models
+  and the per-tenant schema or database resolve what the request resolved. A
+  job with no tenant runs as the default tenant, never as the worker's process
+  tenant or the previous job's. `DVQueueAdapter.enqueue` takes `tenant:`; an
+  adapter written outside this package has to accept and store it.
+  `dvEnsureFrameworkColumns` adds a column a later release declared to a
+  framework table that predates it, through the schema planner.
+
 - **A browser client sends its credentials to an API on another origin, and
   only to origins named exactly.** `DVCredentialedOrigins.allow` names one
   origin; the browser transport sends a request to it with

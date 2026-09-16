@@ -196,4 +196,28 @@ void main() {
           'projects/demo/subscriptions/mail-sub:seek');
     });
   });
+  group('the tenant', () {
+    Future<DVJobEnvelope<DVJobPayload>?> roundTrip(String? tenant) async {
+      await adapter.enqueue('mail', const _Ping('hello'), tenant: tenant);
+      final Map<Object?, Object?> sent = (pubsub.calls.last.body['messages']!
+          as List<Object?>).single! as Map<Object?, Object?>;
+      pubsub.replies.add(<String, Object?>{
+        'receivedMessages': <Object?>[
+          <String, Object?>{
+            'ackId': 'a-1',
+            'message': <String, Object?>{'messageId': 'm-1', 'data': sent['data']},
+          },
+        ],
+      });
+      return adapter.reserve('mail');
+    }
+
+    test('travels in the message and comes back on the envelope', () async {
+      expect((await roundTrip('acme'))!.tenant, 'acme');
+    });
+
+    test('a job with none comes back with none', () async {
+      expect((await roundTrip(null))!.tenant, isNull);
+    });
+  });
 }
