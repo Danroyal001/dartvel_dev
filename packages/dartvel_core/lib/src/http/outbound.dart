@@ -173,87 +173,176 @@ class DVHttpHostConfig {
   final int? maxConcurrent;
 
   /// Reads one entry of the `dartvel.http.hosts` block.
+  ///
+  /// Strict, because the generator and the running application both read the
+  /// block through this and a key it skipped would be a setting the pubspec
+  /// states and nothing applies: `retry:` for `retries:` builds, runs, and
+  /// retries on the default policy. Anything not understood throws an
+  /// [ArgumentError] naming the key.
   factory DVHttpHostConfig.fromConfig(String name, Map<String, Object?> map) {
+    final String at = 'dartvel.http.hosts.$name';
+    _onlyKeys(at, map, const <String>{
+      'baseUrl',
+      'auth',
+      'headers',
+      'timeout',
+      'retries',
+      'circuitBreaker',
+      'pool',
+    });
+
     final Object? baseUrl = map['baseUrl'];
     if (baseUrl is! String || baseUrl.isEmpty) {
-      throw ArgumentError('dartvel.http.hosts.$name needs a baseUrl.');
+      throw ArgumentError('$at needs a baseUrl.');
+    }
+    final Uri? parsed = Uri.tryParse(baseUrl);
+    if (parsed == null ||
+        (parsed.scheme != 'https' && parsed.scheme != 'http') ||
+        parsed.host.isEmpty ||
+        parsed.hasQuery ||
+        parsed.hasFragment) {
+      throw ArgumentError('$at.baseUrl "$baseUrl" is not an absolute http or '
+          'https URL with no query or fragment.');
     }
 
     String? bearer;
-    final Object? auth = map['auth'];
-    if (auth is Map) {
+    final Map<Object?, Object?>? auth = _block(at, map, 'auth');
+    if (auth != null) {
       for (final MapEntry<Object?, Object?> entry in auth.entries) {
         if (entry.key == 'bearer') {
-          bearer = '${entry.value}';
+          if (entry.value is! String || (entry.value! as String).isEmpty) {
+            throw ArgumentError('$at.auth.bearer names a secret, and '
+                '"${entry.value}" is not a name.');
+          }
+          bearer = entry.value! as String;
         } else {
           // Refused rather than ignored: an auth scheme that silently does
           // nothing sends unauthenticated requests and says nothing about it.
           throw ArgumentError(
-              'dartvel.http.hosts.$name.auth.${entry.key} is not a supported '
-              'auth scheme; bearer is.');
+              '$at.auth.${entry.key} is not a supported auth scheme; bearer '
+              'is.');
         }
       }
     }
 
     DVHttpRetryPolicy retries = const DVHttpRetryPolicy();
-    final Object? retry = map['retries'];
-    if (retry is Map) {
+    final Map<Object?, Object?>? retry = _block(at, map, 'retries');
+    if (retry != null) {
+      _onlyKeys('$at.retries', retry,
+          const <String>{'attempts', 'delay', 'backoff', 'jitter'});
+      final Object? backoff = retry['backoff'] ?? 'exponential';
+      if (backoff != 'exponential' && backoff != 'constant') {
+        throw ArgumentError('$at.retries.backoff "$backoff" is not a backoff; '
+            'use exponential or constant.');
+      }
+      final Object? jitter = retry['jitter'] ?? true;
+      if (jitter is! bool) {
+        throw ArgumentError('$at.retries.jitter must be true or false, not '
+            '"$jitter".');
+      }
       retries = DVHttpRetryPolicy(
-        attempts: _int(retry['attempts'], 3),
-        baseDelay: _duration(retry['delay'], const Duration(milliseconds: 200)),
-        exponential: '${retry['backoff'] ?? 'exponential'}' == 'exponential',
-        jitter: retry['jitter'] is bool ? retry['jitter']! as bool : true,
+        attempts: _int('$at.retries.attempts', retry['attempts'], 3, min: 1),
+        baseDelay: _duration('$at.retries.delay', retry['delay'],
+            const Duration(milliseconds: 200)),
+        exponential: backoff == 'exponential',
+        jitter: jitter,
       );
     }
 
     DVHttpBreakerPolicy? breaker;
-    final Object? circuit = map['circuitBreaker'];
-    if (circuit is Map) {
+    final Map<Object?, Object?>? circuit = _block(at, map, 'circuitBreaker');
+    if (circuit != null) {
+      _onlyKeys('$at.circuitBreaker', circuit, const <String>{
+        'failureRate',
+        'window',
+        'cooldown',
+        'minimumRequests',
+      });
+      final Object? rate = circuit['failureRate'] ?? 0.5;
+      if (rate is! num || rate <= 0 || rate > 1) {
+        throw ArgumentError('$at.circuitBreaker.failureRate must be a share '
+            'above 0 and at most 1, not "$rate".');
+      }
       breaker = DVHttpBreakerPolicy(
-        failureRate: circuit['failureRate'] is num
-            ? (circuit['failureRate']! as num).toDouble()
-            : 0.5,
-        window: _duration(circuit['window'], const Duration(seconds: 30)),
-        cooldown: _duration(circuit['cooldown'], const Duration(seconds: 60)),
-        minimumRequests: _int(circuit['minimumRequests'], 5),
+        failureRate: rate.toDouble(),
+        window: _duration('$at.circuitBreaker.window', circuit['window'],
+            const Duration(seconds: 30)),
+        cooldown: _duration('$at.circuitBreaker.cooldown', circuit['cooldown'],
+            const Duration(seconds: 60)),
+        minimumRequests: _int('$at.circuitBreaker.minimumRequests',
+            circuit['minimumRequests'], 5,
+            min: 1),
       );
     }
 
-    final Object? pool = map['pool'];
-    final Object? headers = map['headers'];
+    int? maxConcurrent;
+    final Map<Object?, Object?>? pool = _block(at, map, 'pool');
+    if (pool != null) {
+      _onlyKeys('$at.pool', pool, const <String>{'maxConcurrent'});
+      if (pool['maxConcurrent'] != null) {
+        maxConcurrent =
+            _int('$at.pool.maxConcurrent', pool['maxConcurrent'], 0, min: 1);
+      }
+    }
+
+    final Map<Object?, Object?>? headers = _block(at, map, 'headers');
     return DVHttpHostConfig(
       baseUrl: baseUrl,
       bearerSecret: bearer,
-      headers: headers is Map
-          ? <String, String>{
+      headers: headers == null
+          ? const <String, String>{}
+          : <String, String>{
               for (final MapEntry<Object?, Object?> e in headers.entries)
                 '${e.key}': '${e.value}',
-            }
-          : const <String, String>{},
-      timeout: _duration(map['timeout'], const Duration(seconds: 30)),
+            },
+      timeout: _duration(
+          '$at.timeout', map['timeout'], const Duration(seconds: 30)),
       retries: retries,
       breaker: breaker,
-      maxConcurrent: pool is Map && pool['maxConcurrent'] != null
-          ? _int(pool['maxConcurrent'], 0)
-          : null,
+      maxConcurrent: maxConcurrent,
     );
   }
 }
 
-int _int(Object? value, int fallback) {
-  if (value is int) return value;
-  if (value is String) return int.tryParse(value) ?? fallback;
-  return fallback;
+/// Throws naming the first key of [map] outside [allowed].
+void _onlyKeys(String at, Map<Object?, Object?> map, Set<String> allowed) {
+  for (final Object? key in map.keys) {
+    if (allowed.contains(key)) continue;
+    throw ArgumentError('$at.$key is not a key Dartvel reads; the keys here '
+        'are ${(allowed.toList()..sort()).join(', ')}.');
+  }
+}
+
+/// The map under [key], null when absent, and an error when it is anything
+/// else -- `retries: 3` is not a retry policy.
+Map<Object?, Object?>? _block(
+    String at, Map<Object?, Object?> map, String key) {
+  final Object? value = map[key];
+  if (value == null) return null;
+  if (value is Map) return value;
+  throw ArgumentError('$at.$key must be a map, not "$value".');
+}
+
+int _int(String at, Object? value, int fallback, {required int min}) {
+  if (value == null) return fallback;
+  final int? parsed =
+      value is int ? value : (value is String ? int.tryParse(value) : null);
+  if (parsed == null || parsed < min) {
+    throw ArgumentError('$at must be a whole number of at least $min, not '
+        '"$value".');
+  }
+  return parsed;
 }
 
 /// `10s`, `500ms`, `2m`, `1h`, or a bare number of seconds.
-Duration _duration(Object? value, Duration fallback) {
+Duration _duration(String at, Object? value, Duration fallback) {
   if (value == null) return fallback;
   if (value is num) return Duration(milliseconds: (value * 1000).round());
   final RegExpMatch? match =
       RegExp(r'^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h)?\s*$').firstMatch('$value');
   if (match == null) {
-    throw ArgumentError('"$value" is not a duration; use 500ms, 10s, 2m or 1h.');
+    throw ArgumentError(
+        '$at "$value" is not a duration; use 500ms, 10s, 2m or 1h.');
   }
   final double amount = double.parse(match.group(1)!);
   final int millis = switch (match.group(2)) {
@@ -583,19 +672,36 @@ class DVHttp {
 
   /// Declares every host in a `dartvel.http` block.
   void declareFromConfig(Map<String, Object?> http) {
-    final Object? hosts = http['hosts'];
-    if (hosts is! Map) return;
+    // Read whole before any of it is declared, so a block with one bad host
+    // does not leave the good ones before it half-installed.
+    readConfig(http).forEach(declare);
+  }
+
+  /// Reads and checks a `dartvel.http` block into its hosts, declaring
+  /// nothing. The generator checks a pubspec with this before it writes a
+  /// file, and the application declares with the same reader at startup, so
+  /// the two cannot disagree about what the block says.
+  ///
+  /// Throws an [ArgumentError] naming the first key it does not understand.
+  static Map<String, DVHttpHostConfig> readConfig(Map<Object?, Object?> http) {
+    _onlyKeys('dartvel.http', http, const <String>{'hosts'});
+    final Map<Object?, Object?>? hosts = _block('dartvel.http', http, 'hosts');
+    final Map<String, DVHttpHostConfig> out = <String, DVHttpHostConfig>{};
+    if (hosts == null) return out;
     for (final MapEntry<Object?, Object?> entry in hosts.entries) {
+      final String name = '${entry.key}';
+      if (!RegExp(r'^[A-Za-z][A-Za-z0-9_-]*$').hasMatch(name)) {
+        throw ArgumentError('dartvel.http.hosts."$name" is not a host name; a '
+            'name starts with a letter and holds letters, digits, _ and -.');
+      }
       final Object? value = entry.value;
       if (value is! Map) {
-        throw ArgumentError('dartvel.http.hosts.${entry.key} must be a map.');
+        throw ArgumentError('dartvel.http.hosts.$name must be a map.');
       }
-      declare(
-        '${entry.key}',
-        DVHttpHostConfig.fromConfig(
-            '${entry.key}', value.cast<String, Object?>()),
-      );
+      out[name] =
+          DVHttpHostConfig.fromConfig(name, value.cast<String, Object?>());
     }
+    return out;
   }
 
   /// The declared host [name]. Throws `DV-HTTP-001` when there is none.
