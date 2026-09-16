@@ -1,4 +1,4 @@
-// How `dartvel dev --dev-client` drives `flutter attach` for a paired device.
+// How `dartvel dev` drives `flutter attach` for a paired device.
 //
 // Flutter's own attach, pointed at the loopback URL the tunnel gives, and
 // driven over its --machine protocol. The device is attached as the hidden

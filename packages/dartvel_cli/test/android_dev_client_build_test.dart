@@ -1,5 +1,5 @@
 // What `dartvel build android --profile development` writes into a project so
-// the build pairs with `dartvel dev --dev-client`.
+// the build pairs with `dartvel dev`.
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/build_profile.dart';
