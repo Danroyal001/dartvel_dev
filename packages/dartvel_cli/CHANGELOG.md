@@ -14,6 +14,18 @@
   standard input and are never stored or printed; `--dry-run` names the
   secrets and sets none.
 
+- **The web-server binary serves the admin dashboard.** `dartvel build
+  web-server` wrote the dashboard into build/web/__admin and then left it out
+  of build/server, because every web file the binary carries is served to
+  anybody, so the one file that is the deployment had no admin. The binary now
+  carries it as sections of its own (`admin`, and `admin.mount` with the path
+  and whether a sign-in is required), writes it to dartvel_data/.admin rather
+  than under the web root, and the generated backend serves it at the mount
+  through dartvel_core's `DVAdminServer`. A release build still carries a
+  dashboard only when `dartvel.admin.enabled: true`, and serves it only to a
+  signed-in session; anybody else gets what a route that does not exist gets.
+  `startBackend` and `dartvelMain` take `admin` and `adminRoot`.
+
 - **`dartvel preview` resolves admin files with dartvel_core's
   `dvAdminAsset`**, the same code the web-server binary serves the dashboard
   with, instead of a copy of its own. `DVAdminMount`, `dvAdminFor` and the
