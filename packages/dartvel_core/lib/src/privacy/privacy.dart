@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../../dartvel.dart';
+import '../database/framework_tables.dart' show dvEnsureFrameworkTable;
 
 enum _DVSubjectKind { self, field, through }
 
@@ -376,6 +377,36 @@ class DVPrivacyErasureRequest {
   final DateTime? requestedAt;
   final String? requestedBy;
   final String? runBy;
+
+  /// The name the request is stored under in a durable queue.
+  static const String codecName = 'dartvel.privacy.erasure';
+
+  /// Stores [request]. A subject that is a string, a number or a boolean
+  /// keeps its type: an integer key read back as a string is compared as a
+  /// string by some databases and matches no row.
+  static Map<String, Object?> encode(DVPrivacyErasureRequest request) {
+    final Object subject = request.subject;
+    return <String, Object?>{
+      'subject': subject is String || subject is num || subject is bool
+          ? subject
+          : '$subject',
+      'reason': request.reason,
+      'requestedAt': request.requestedAt?.toUtc().toIso8601String(),
+      'requestedBy': request.requestedBy,
+      'runBy': request.runBy,
+    };
+  }
+
+  static DVPrivacyErasureRequest decode(Map<String, Object?> json) {
+    final Object? at = json['requestedAt'];
+    return DVPrivacyErasureRequest(
+      subject: json['subject'] ?? '',
+      reason: '${json['reason']}',
+      requestedAt: at is String ? DateTime.parse(at) : null,
+      requestedBy: json['requestedBy'] as String?,
+      runBy: json['runBy'] as String?,
+    );
+  }
 }
 
 /// The payload of a retention sweep queued on [DVQueues].
@@ -384,6 +415,36 @@ class DVPrivacyRetentionRequest {
 
   final int batchSize;
   final int? maxBatches;
+
+  /// The name the request is stored under in a durable queue.
+  static const String codecName = 'dartvel.privacy.retention';
+
+  static Map<String, Object?> encode(DVPrivacyRetentionRequest request) =>
+      <String, Object?>{
+        'batchSize': request.batchSize,
+        'maxBatches': request.maxBatches,
+      };
+
+  static DVPrivacyRetentionRequest decode(Map<String, Object?> json) =>
+      DVPrivacyRetentionRequest(
+        batchSize: (json['batchSize'] as num?)?.toInt() ?? 500,
+        maxBatches: (json['maxBatches'] as num?)?.toInt(),
+      );
+}
+
+/// What a deadline check found and did: [open] erasures requested and not
+/// yet completed, [overdue] of them past the deadline, and the [results] of
+/// the ones it ran.
+class DVErasureDeadlines {
+  const DVErasureDeadlines({
+    required this.open,
+    required this.overdue,
+    required this.results,
+  });
+
+  final int open;
+  final int overdue;
+  final List<DVErasureResult> results;
 }
 
 /// Erasure, export and retention over a set of declared models.
@@ -444,6 +505,12 @@ class DVPrivacy {
   final DateTime Function() _now;
 
   static const String tombstoneTable = 'dv_privacy_tombstones';
+
+  /// Erasures requested and not yet completed, one row per subject, keyed by
+  /// pseudonym. It holds the subject's id because running the erasure needs
+  /// it, which is what the queued job holds too; the row goes when an
+  /// erasure of the subject completes.
+  static const String openErasuresTable = 'dv_privacy_open_erasures';
 
   /// Every export and erasure, through Record History, by pseudonym.
   late final DVRecordTable requests = DVRecordTable(
@@ -516,11 +583,21 @@ class DVPrivacy {
     return findings;
   }
 
+  /// Creates the walk's own tables: the request log, the tombstone log and
+  /// the open erasures. The generated server runs it at start.
   Future<void> ensureSchema() async {
     await requests.ensureSchema();
-    await database.execute(
+    await dvEnsureFrameworkTable(
+      database,
       'CREATE TABLE IF NOT EXISTS $tombstoneTable (subject TEXT, '
       'erased_at TEXT)',
+    );
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $openErasuresTable ('
+      'id VARCHAR(64) PRIMARY KEY, subject TEXT NOT NULL, '
+      'reason TEXT NOT NULL, requested_by TEXT, '
+      'requested_at VARCHAR(40) NOT NULL)',
     );
   }
 
@@ -726,6 +803,14 @@ class DVPrivacy {
       kept: kept.length,
       complete: unreached.isEmpty,
     );
+    // An erasure an adapter missed stays open, so the deadline check runs it
+    // again rather than the request being forgotten half done.
+    if (unreached.isEmpty) {
+      await database.execute(
+        'DELETE FROM $openErasuresTable WHERE id = ?',
+        <Object?>[ref.pseudonym],
+      );
+    }
 
     return DVErasureResult._(
       deleted: deleted,
@@ -1185,14 +1270,36 @@ class DVPrivacy {
   /// Results of erasures run from the queue, most recent last.
   final List<DVErasureResult> jobResults = <DVErasureResult>[];
 
-  /// Registers the erasure and retention handlers on the durable job layer.
-  void registerJobs(DVQueues queues) {
+  /// Registers the erasure and retention handlers on the durable job layer,
+  /// with the codecs a queue shared between processes stores them under.
+  void registerJobs(DVQueues queues) => registerJobsFor(queues, () => this);
+
+  /// As [registerJobs], running each job on the [DVPrivacy] [privacy] returns
+  /// when it runs -- so a process whose configuration changes after start,
+  /// an adapter installed late, runs its jobs on the current one.
+  static void registerJobsFor(DVQueues queues, DVPrivacy Function() privacy) {
+    const DVJobPayloadCodecs()
+      ..register<DVPrivacyErasureRequest>(
+        const DVJobPayloadCodec<DVPrivacyErasureRequest>(
+          name: DVPrivacyErasureRequest.codecName,
+          encode: DVPrivacyErasureRequest.encode,
+          decode: DVPrivacyErasureRequest.decode,
+        ),
+      )
+      ..register<DVPrivacyRetentionRequest>(
+        const DVJobPayloadCodec<DVPrivacyRetentionRequest>(
+          name: DVPrivacyRetentionRequest.codecName,
+          encode: DVPrivacyRetentionRequest.encode,
+          decode: DVPrivacyRetentionRequest.decode,
+        ),
+      );
     queues
       ..register<DVPrivacyErasureRequest>((
         DVPrivacyErasureRequest request,
       ) async {
-        jobResults.add(
-          await erase(
+        final DVPrivacy current = privacy();
+        current.jobResults.add(
+          await current.erase(
             subject: request.subject,
             reason: request.reason,
             requestedAt: request.requestedAt,
@@ -1204,7 +1311,7 @@ class DVPrivacy {
       ..register<DVPrivacyRetentionRequest>((
         DVPrivacyRetentionRequest request,
       ) async {
-        await sweepRetention(
+        await privacy().sweepRetention(
           batchSize: request.batchSize,
           maxBatches: request.maxBatches,
         );
@@ -1212,21 +1319,97 @@ class DVPrivacy {
   }
 
   /// Queues an erasure; a worker runs it.
+  ///
+  /// The request is recorded as open first, so an erasure whose job is lost
+  /// -- an in-process queue that did not survive a restart, a job
+  /// dead-lettered -- is still run by [checkErasureDeadlines]. A second
+  /// request for a subject already open keeps the first one's time: the
+  /// deadline runs from when the person first asked.
   Future<DVJobEnvelope<DVPrivacyErasureRequest>> requestErasure({
     required Object subject,
     required String reason,
     String? requestedBy,
     DVQueues queues = const DVQueues(),
     String queue = 'default',
-  }) => queues.dispatch<DVPrivacyErasureRequest>(
-    DVPrivacyErasureRequest(
-      subject: subject,
-      reason: reason,
-      requestedAt: _now(),
-      requestedBy: requestedBy,
-    ),
-    queue: queue,
-  );
+  }) async {
+    final DVPrivacySubjectRef ref = _ref(subject);
+    DateTime requestedAt = _now();
+    final List<Map<String, Object?>> open = await database.query(
+      'SELECT requested_at FROM $openErasuresTable WHERE id = ?',
+      <Object?>[ref.pseudonym],
+    );
+    if (open.isEmpty) {
+      await database.execute(
+        'INSERT INTO $openErasuresTable '
+        '(id, subject, reason, requested_by, requested_at) '
+        'VALUES (?, ?, ?, ?, ?)',
+        <Object?>[
+          ref.pseudonym,
+          jsonEncode(
+            DVPrivacyErasureRequest.encode(
+              DVPrivacyErasureRequest(subject: subject, reason: reason),
+            )['subject'],
+          ),
+          reason,
+          requestedBy,
+          requestedAt.toUtc().toIso8601String(),
+        ],
+      );
+    } else {
+      requestedAt = DateTime.parse('${open.single['requested_at']}');
+    }
+    return queues.dispatch<DVPrivacyErasureRequest>(
+      DVPrivacyErasureRequest(
+        subject: subject,
+        reason: reason,
+        requestedAt: requestedAt,
+        requestedBy: requestedBy,
+      ),
+      queue: queue,
+    );
+  }
+
+  /// Runs every open erasure requested more than [staleAfter] ago.
+  ///
+  /// The generated server schedules this. A request younger than
+  /// [staleAfter] is left to the job it queued. An older one has lost its job
+  /// or is waiting behind a queue nobody works, and is run here: erasure is
+  /// idempotent, so a job that does turn up later erases nothing more. One
+  /// past [deadline] reports `DV-PRIVACY-004` as it runs. An erasure an
+  /// adapter could not reach stays open and is run again next time.
+  Future<DVErasureDeadlines> checkErasureDeadlines({
+    Duration staleAfter = const Duration(days: 1),
+  }) async {
+    final DateTime now = _now();
+    final List<Map<String, Object?>> open = await database.query(
+      'SELECT id, subject, reason, requested_by, requested_at '
+      'FROM $openErasuresTable',
+    );
+    int overdue = 0;
+    final List<DVErasureResult> results = <DVErasureResult>[];
+    for (final Map<String, Object?> row in open) {
+      final DateTime requestedAt = DateTime.parse('${row['requested_at']}');
+      final Duration age = now.difference(requestedAt);
+      if (age > deadline) overdue++;
+      if (age < staleAfter) continue;
+      final Object? subject = jsonDecode('${row['subject']}');
+      if (subject == null) continue;
+      results.add(
+        await erase(
+          subject: subject,
+          reason: '${row['reason']}',
+          requestedAt: requestedAt,
+          requestedBy: row['requested_by'] as String?,
+          runBy: 'dartvel:deadline-check',
+        ),
+      );
+    }
+    return DVErasureDeadlines(
+      open: open.length,
+      overdue: overdue,
+      results: List<DVErasureResult>.unmodifiable(results),
+    );
+  }
 
   // --- records --------------------------------------------------------------
 
