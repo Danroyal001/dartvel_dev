@@ -103,16 +103,29 @@ void main() {
       'DVMacosBindings',
       'DVIosBindings',
       'DVAndroidBindings',
+      'DVWebBindings',
     ]) {
       expect(imported, contains(name), reason: name);
     }
   });
 
-  test('the web never sees it', () {
-    // dart:ffi is not available there, and the conditional export already
-    // resolves each class to a stub -- but the call must still be guarded so
-    // a web build does not pay for four stubs' worth of code either.
-    expect(runtime, contains('if (kIsWeb) return;'));
+  test('the web registers the browser bindings and none of the native ones',
+      () {
+    // This test used to assert only `if (kIsWeb) return;`, and that return was
+    // the bug: DVWebBindings.register() was called from nowhere but the
+    // framework's own tests, so in every web application DV.Platform.clipboard
+    // threw "not registered" and the site's Copy buttons copied nothing.
+    // The native classes are still skipped there: dart:ffi is not available,
+    // and a web build should not pay for their stubs.
+    final int start = runtime.indexOf('void registerPlatformBindings()');
+    final String body =
+        runtime.substring(start, runtime.indexOf('\n}\n', start));
+    final int web = body.indexOf('if (kIsWeb) {');
+    expect(web, greaterThan(-1), reason: body);
+    final String webBranch = body.substring(web, body.indexOf('}', web));
+    expect(webBranch, contains('DVWebBindings.register()'));
+    expect(webBranch, contains('return;'));
+    expect(webBranch, isNot(contains('DVLinuxBindings')));
   });
 
   test('it dispatches on the running platform, once', () {

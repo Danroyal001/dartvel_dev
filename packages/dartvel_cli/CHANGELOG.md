@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **A web application registers the browser bindings.** The generated
+  `registerPlatformBindings()` returned on the web before registering
+  anything, and `DVWebBindings.register()` was called only by the
+  framework's own tests, so `DV.Platform.clipboard`, sharing and the other
+  browser bindings threw "not registered" in every web build. It now
+  registers them on the web and still skips the native classes there.
+
 - **`dartvel upgrade --plan` says what upgrading to this CLI's release
   changes, and changes nothing.** It checks the SDK constraint and the
   installed Dart and Flutter against the floors, each Dartvel package's
