@@ -23,10 +23,11 @@ class DVSourceArchive {
   final int fileCount;
 }
 
-/// The project at [root] zipped into a temporary file the caller deletes.
-Future<DVSourceArchive> dvPackSource(String root) async {
+/// The source at [root] zipped into a temporary file the caller deletes.
+/// [app] is the application's directory inside it.
+Future<DVSourceArchive> dvPackSource(String root, {String app = '.'}) async {
   final List<String> paths = (await _gitFiles(root) ?? _walk(root))
-      .where((String path) => !dvCloudSourceExcluded(path))
+      .where((String path) => !dvCloudSourceExcluded(path, app: app))
       .where((String path) => FileSystemEntity.typeSync(p.join(root, path), followLinks: false) ==
           FileSystemEntityType.file)
       .toList()

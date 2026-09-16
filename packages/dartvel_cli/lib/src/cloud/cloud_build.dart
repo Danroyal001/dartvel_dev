@@ -121,7 +121,7 @@ class DVCloudBuilder {
           '${dvCloudTargets.keys.join(', ')}.');
       return 64;
     }
-    final String root = p.normalize(p.absolute(request.root));
+    final String root = p.normalize(Directory(p.absolute(request.root)).resolveSymbolicLinksSync());
     final String? project = dvCloudProjectName(root);
     if (project == null) {
       _log('❌ $root has no pubspec.yaml naming a package, and a cloud build is '
@@ -131,7 +131,14 @@ class DVCloudBuilder {
     final DVCloudAccess? access = DVCloudAccess.resolve(_environment, request.token, _log);
     if (access == null) return 77;
 
-    final DVSourceArchive archive = await dvPackSource(root);
+    // A repository is sent whole, so a path dependency on a sibling package
+    // resolves on the worker as it does here.
+    final String? top = await _gitTop(root);
+    final String source = top ?? root;
+    final String app = top == null
+        ? '.'
+        : p.posix.joinAll(p.split(p.relative(root, from: top)));
+    final DVSourceArchive archive = await dvPackSource(source, app: app);
     final DVCloudClient client = DVCloudClient(access.url, access.token);
     try {
       _log('📦 Sending ${archive.fileCount} files '
@@ -143,6 +150,7 @@ class DVCloudBuilder {
           profile: request.profile,
           publish: request.publish,
           dryRun: request.dryRun,
+          app: app,
         ),
         archive.file,
       );
@@ -224,6 +232,18 @@ class DVCloudBuilder {
       await Future<void>.delayed(retryDelay);
     }
     return null;
+  }
+
+  static Future<String?> _gitTop(String root) async {
+    try {
+      final ProcessResult r = await Process.run(
+          'git', <String>['rev-parse', '--show-toplevel'],
+          workingDirectory: root);
+      final String top = '${r.stdout}'.trim();
+      return r.exitCode == 0 && top.isNotEmpty ? p.normalize(Directory(top).resolveSymbolicLinksSync()) : null;
+    } on ProcessException {
+      return null;
+    }
   }
 
   static String _size(int bytes) => bytes < 1024 * 1024

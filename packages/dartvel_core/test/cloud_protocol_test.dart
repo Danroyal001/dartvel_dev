@@ -25,8 +25,10 @@ void main() {
         profile: 'development',
         publish: 'testflight',
         dryRun: true,
+        app: 'apps/shop',
       );
       final DVCloudBuildSpec back = DVCloudBuildSpec.fromJson(spec.toJson());
+      expect(back.app, 'apps/shop');
       expect(back.project, 'shop');
       expect(back.target, 'ios');
       expect(back.profile, 'development');
@@ -49,7 +51,12 @@ void main() {
           throwsFormatException);
       expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'publish': 'itch'})),
           throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'app': '../elsewhere'})),
+          throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'app': '/abs'})),
+          throwsFormatException);
       expect(DVCloudBuildSpec.fromJson(json(<String, Object?>{})).publish, isNull);
+      expect(DVCloudBuildSpec.fromJson(json(<String, Object?>{})).app, '.');
     });
   });
 
@@ -150,12 +157,20 @@ void main() {
         'lib/main.dart',
         'lib/build.dart',
         'lib/pages/build/index.dart',
+        'examples/shop/lib/pages/build/index.dart',
         '.env.example',
         'pubspec.yaml',
         'android/app/src/main/AndroidManifest.xml',
       ]) {
-        expect(dvCloudSourceExcluded(path), isFalse, reason: path);
+        expect(dvCloudSourceExcluded(path, app: 'examples/shop'), isFalse, reason: path);
       }
+    });
+
+    test('an application inside a repository has its own build output left out', () {
+      expect(dvCloudSourceExcluded('examples/shop/build/web/index.html', app: 'examples/shop'), isTrue);
+      expect(dvCloudSourceExcluded('examples/shop/android/app/build/x', app: 'examples/shop'), isTrue);
+      expect(dvCloudSourceExcluded('examples/shop/ios/build/x', app: 'examples/shop'), isTrue);
+      expect(dvCloudSourceExcluded('packages/core/lib/build.dart', app: 'examples/shop'), isFalse);
     });
   });
 

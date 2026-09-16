@@ -101,9 +101,16 @@ class DVCloudBuildSpec {
     this.profile = 'release',
     this.publish,
     this.dryRun = false,
+    this.app = '.',
   });
 
   final String project;
+
+  /// The application's directory inside the uploaded source, `.` when the
+  /// source is the application. A repository is sent whole when the
+  /// application is inside one, so a path dependency on a sibling package
+  /// resolves on the worker as it does here.
+  final String app;
   final String target;
   final String profile;
 
@@ -119,6 +126,7 @@ class DVCloudBuildSpec {
         'profile': profile,
         if (publish != null) 'publish': publish,
         if (dryRun) 'dryRun': true,
+        if (app != '.') 'app': app,
       };
 
   factory DVCloudBuildSpec.fromJson(Map<String, Object?> json) {
@@ -139,7 +147,12 @@ class DVCloudBuildSpec {
     if (publish != null && !dvCloudStores.contains(publish)) {
       throw FormatException('"$publish" is not a store Dartvel publishes to.');
     }
+    final String app = json['app'] == null ? '.' : _string(json, 'app');
+    if (app != '.' && !DVCloudArtifact.isSafeName(app)) {
+      throw FormatException('"$app" is not a directory inside the source.');
+    }
     return DVCloudBuildSpec(
+      app: app,
       project: project,
       target: target,
       profile: profile,
@@ -363,12 +376,27 @@ const Set<String> _alwaysExcluded = <String>{
 /// Secrets and Environments exists to keep off other machines; signing and
 /// store credentials go to the Cloud credential store instead.
 /// `.env.example` is a template and is kept.
-bool dvCloudSourceExcluded(String path) {
+///
+/// [app] is the application's directory within the source, whose own
+/// `build/` is output as the source root's is.
+bool dvCloudSourceExcluded(String path, {String app = '.'}) {
   final List<String> parts = path.split('/').where((String s) => s.isNotEmpty).toList();
   if (parts.isEmpty) return true;
   if (parts.any(_alwaysExcluded.contains)) return true;
   if (parts.first == 'build') return true;
-  if (_platformDirectories.contains(parts.first) && parts.contains('build')) return true;
+  final List<String> appParts = app.split('/').where((String s) => s.isNotEmpty && s != '.').toList();
+  if (appParts.isNotEmpty &&
+      parts.length > appParts.length &&
+      parts.take(appParts.length).join('/') == appParts.join('/') &&
+      parts[appParts.length] == 'build') {
+    return true;
+  }
+  for (int i = 1; i < parts.length; i++) {
+    if (parts[i] == 'build' && _platformDirectories.contains(parts[i - 1])) return true;
+    if (i >= 2 && parts[i] == 'build' && parts[i - 1] == 'app' && parts[i - 2] == 'android') {
+      return true;
+    }
+  }
   final String name = parts.last;
   if ((name == '.env' || name.startsWith('.env.')) && name != '.env.example') return true;
   return false;
