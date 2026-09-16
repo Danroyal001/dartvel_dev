@@ -583,11 +583,15 @@ asynchronously.
 ### Typed navigation
 
 Every config route gets a member on the same generated `DVRoutes` the pages
-do. Its name comes from the path exactly as a page's does (`/settings` is
-`DVRoutes.settings`, `/orders/:id` is `DVRoutes.orders(id: ...)`), and
-`name:` replaces it when the derived one collides or reads badly — the
-`/orders/:id` above is `DVRoutes.order(id: '42')`. `name:` is an identifier,
-not a path, so it repeats nothing.
+do. Its name comes from the path with the parameters dropped, as a page's does
+(`/settings` is `DVRoutes.settings`, `/team/:member` alone is
+`DVRoutes.team(member: ...)`), and `name:` replaces it. A config route that
+collides with another -- `/orders` and `/orders/:id` both reduce to `orders`
+-- is `DV-ROUTE-002` until one says `name:`, because the file that declares
+it is the place to choose; the `/orders/:id` above is
+`DVRoutes.order(id: '42')`. A page has no `name:`, so a page beside its list
+takes its parameters on the end instead (Tabs, below). `name:` is an
+identifier, not a path, so it repeats nothing.
 
 ```dart
 DVBox(DVText('Settings')).onPressed(DV.Navigation.to(DVRoutes.settings));
