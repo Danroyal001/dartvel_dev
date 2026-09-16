@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
 import 'record_history.dart';
@@ -249,9 +250,14 @@ class DVRecordTableRemote implements DVOfflineRemote {
   Future<void> ensureSchema() async {
     await table.ensureSchema();
     await _database.execute(
-        'CREATE TABLE IF NOT EXISTS $appliedTable (mutation_id, outcome)');
-    await _database
-        .execute('CREATE TABLE IF NOT EXISTS $clockTable (record_key, at_micros)');
+      'CREATE TABLE IF NOT EXISTS $appliedTable (mutation_id TEXT, '
+      'outcome TEXT)',
+    );
+    await dvEnsureFrameworkTable(
+      _database,
+      'CREATE TABLE IF NOT EXISTS $clockTable (record_key TEXT, '
+      'at_micros BIGINT)',
+    );
   }
 
   @override
@@ -481,12 +487,15 @@ class DVOfflineStore {
 
   Future<void> ensureSchema() async {
     await table.ensureSchema();
-    await _database.execute(
-      'CREATE TABLE IF NOT EXISTS $logTable '
-      '(seq, mutation_id, op, record_key, payload, state, rejection)',
+    await dvEnsureFrameworkTable(
+      _database,
+      'CREATE TABLE IF NOT EXISTS $logTable (seq BIGINT, mutation_id TEXT, '
+      'op TEXT, record_key TEXT, payload TEXT, state TEXT, rejection TEXT)',
     );
     await _database.execute(
-        'CREATE TABLE IF NOT EXISTS $serverTable (record_key, version, payload)');
+      'CREATE TABLE IF NOT EXISTS $serverTable (record_key TEXT, '
+      'version INTEGER, payload TEXT)',
+    );
     final List<Map<String, Object?>> last = await _database
         .query('SELECT seq FROM $logTable ORDER BY seq DESC LIMIT 1');
     _sequence = last.isEmpty ? 0 : (last.first['seq']! as num).toInt();

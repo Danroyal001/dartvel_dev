@@ -109,9 +109,10 @@ const List<DVRecordColumn> dvRecordColumns = <DVRecordColumn>[
 /// The columns of a model's history table, in the order [DVRecordTable]
 /// writes an entry.
 ///
-/// Typed, where the record table's own `ensureSchema` leaves them untyped,
-/// because the migration is also written out for PostgreSQL, which requires
-/// a type. A model declaring `history:` writes its entry in the same step as
+/// Typed, because the migration is also written out for PostgreSQL, which
+/// requires a type, and typed exactly as `DVRecordTable.ensureSchema` makes
+/// the same table: two shapes for one log is how one of them comes to be
+/// wrong. A model declaring `history:` writes its entry in the same step as
 /// the change and rolls the change back when the entry cannot be written
 /// (`DV-HISTORY-005`), so a migration that made the table and not its log
 /// would leave the model unable to save anything at all.
