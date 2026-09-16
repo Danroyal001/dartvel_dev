@@ -640,7 +640,7 @@ jobs:
       # Dartvel's and a Flutter build writes none of them.
       - name: Build the site
         working-directory: sites/dartvel_site
-        run: dart run dartvel_cli:dartvel build web --release
+        run: dart run dartvel_cli:dartvel build web --profile release
 
       - name: The build produced something to ship
         working-directory: sites/dartvel_site
@@ -782,7 +782,7 @@ jobs:
       # and the prerendered pages, in one command. An audit finding fails it.
       - name: Build for the web
         working-directory: examples/dartvel_example
-        run: dart run dartvel_cli:dartvel build web --release
+        run: dart run dartvel_cli:dartvel build web --profile release
 
   spec:
     name: spec-status index

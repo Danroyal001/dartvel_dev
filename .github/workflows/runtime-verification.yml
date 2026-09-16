@@ -725,7 +725,7 @@ jobs:
           # APK with none of them -- which is what the guards below caught
           # the first time this ran. It also runs generation, so the separate
           # routes call is not needed.
-          dart run dartvel_cli:dartvel build android --no-release
+          dart run dartvel_cli:dartvel build android --profile development
           ls -la build/app/outputs/flutter-apk/
 
           # What the kiosk declaration was supposed to write. A build that
@@ -1478,7 +1478,7 @@ jobs:
         working-directory: sites/dartvel_site
         run: |
           set -euo pipefail
-          # dartvel build defaults to --release, and a release build serves
+          # dartvel build defaults to --profile release, and a release build serves
           # the admin only when the project asked for one. An application
           # deployed by somebody who never read this must not acquire an
           # admin endpoint out of convenience.
@@ -1495,7 +1495,7 @@ jobs:
           # A development build, which is the case that gets the dashboard
           # with no configuration at all -- and the one a developer meets
           # first.
-          dart run dartvel_cli:dartvel build web-server --no-release
+          dart run dartvel_cli:dartvel build web-server --profile development
 
           # Written by the build. Everything around the admin -- the mount,
           # the hidden answer, the file serving -- was built and working

@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Breaking: `dartvel build <target> --profile development|profile|release`
+  is the one way to say the mode.** `--profile` was a flag for Flutter's
+  profile mode beside a `--release` flag that defaulted to true, so a debug
+  build was spelled `--no-release` and a command could say both. It is now an
+  option: `development` is a Flutter debug (JIT) build, `profile` and
+  `release` are Flutter's own, and `release` is the default. `--release` and
+  `--no-release` are gone and are usage errors. `dartvel build dev-client
+  --target android|ios` is gone too: a development shell is
+  `dartvel build android --profile development`, the same debug build any
+  Flutter developer makes, rather than a separate artifact built from a
+  generated entrypoint with no application code in it.
+
 - **A function page's `.loading.dart` and `.error.dart` are used.** They were
   imported for class pages only, while `dartvel create` writes
   `index.loading.dart` and `index.error.dart` beside a function page, so every
