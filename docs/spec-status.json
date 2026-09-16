@@ -109,9 +109,15 @@
       "evidence": [
         "packages/dartvel_core/lib/src/data/record_history.dart",
         "packages/dartvel_core/test/record_history_test.dart",
-        "packages/dartvel_core/test/transaction_id_test.dart"
+        "packages/dartvel_core/test/transaction_id_test.dart",
+        "packages/dartvel_cli/test/model_record_versions_test.dart",
+        "packages/dartvel_flutter/test/form_edit_test.dart",
+        "examples/dartvel_example/test/graphql_models_test.dart",
+        "examples/dartvel_example/test/model_sync_test.dart",
+        "packages/dartvel_core/test/privacy_test.dart",
+        "packages/dartvel_core/test/model_annotations_test.dart"
       ],
-      "absent": "The runtime is built (DVRecordTable: versioned conditional writes refused with DVConflictError and every DVConflict strategy, opt-in history with sensitive fields recorded as changed and never as values, revert that adds a change and keeps every entry between, soft delete with restore refused on a held unique field, compensation inside DV.transaction, and DVContext.transactionId). Generated models use it: find, all, save and destroy go through DVRecordTable, a loaded or copied model is saved and destroyed at the version it read and refused with DVConflictError when the row moved, and @DVModel(history: DVHistory(keep:)) writes the log with model.history(). Absent: @DVModel(version:, softDelete:) and a generated restore or revert; a model built by hand rather than read replaces the row at its current version instead of being refused, which the section's refusal of a write with no read version does not allow; the build-time DV-HISTORY-002 check and the DV-HISTORY-004 log line have nothing that emits them; generated form reload-and-merge; the Studio history view; pointing history at a separate adapter; scheduled retention jobs; field encryption inside DVRecordTable, which generated models apply before the write, so an encrypted field changes version on every save; history lookups under a tenant scope are by the recorded tenant, but an erasure purges a key's history across tenants; and database-level atomic transactions."
+      "absent": "The runtime is built (DVRecordTable: versioned conditional writes refused with DVConflictError and every DVConflict strategy, opt-in history with sensitive fields recorded as changed and never as values, revert that adds a change and keeps every entry between, soft delete with restore refused on a held unique field, compensation inside DV.transaction, and DVContext.transactionId). Generated models use it: find, all, save and destroy go through DVRecordTable. A loaded or copied model is saved and destroyed at the version it read and refused with DVConflictError when the row moved. A model built by hand is refused with DV-HISTORY-001 over a row that exists, which is left unchanged, unless the call says save(onConflict: DVConflict.lastWriteWins). A model that created its row saves again at the version it wrote. DVForm's edited model keeps the read of the model it edits through registerDVModelReadCarrier, so the generated admin saves at that version. GraphQL types carry dvVersion, and saveX refuses an update of a stored record that does not send it back. @DVModel(history: DVHistory(keep:)) writes the log with model.history() and model.revert(to:), which is refused for a model that read nothing. @DVModel(version: false) writes without a version check. @DVModel(softDelete: true) makes destroy mark the row, which find and all skip; Model.withDeleted.find and all read it, and Model.restore(id) brings it back and publishes DVModelChangeKind.restored. DVRecordTable.prune logs DV-HISTORY-004 when it removes entries. An erasure on a tenant-scoped table deletes, anonymizes and purges history only on the erased row's tenant. Absent: the build-time DV-HISTORY-002 check; generated form reload-and-merge; the Studio history view; pointing history at a separate adapter; scheduled retention jobs, so nothing in a generated application calls prune; a unique-field declaration on generated models, so a generated restore never meets DV-HISTORY-006; soft-deleted rows left out of search indexes and sync beyond find and all; a generated revert run inside its own DV.transaction; field encryption inside DVRecordTable, which generated models apply before the write, so an encrypted field changes version on every save; and database-level atomic transactions. Where the section and the code disagree: the section writes invoice.delete(), and the generated method is destroy(); the section names no override for a write with no read version, so DVConflict.lastWriteWins, from its own vocabulary, is it; GraphQL's dvVersion checks the version only, and the conflict's base is the stored row rather than what the client read; a subject is named by id alone, so on a tenant-scoped model an erasure reaches the subject's rows on every tenant, which is right when one id names one person across tenants and wrong when ids are issued per tenant."
     },
     {
       "section": "Forms",
@@ -451,9 +457,10 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_core/test/model_sync_test.dart",
-        "packages/dartvel_core/test/presence_test.dart"
+        "packages/dartvel_core/test/presence_test.dart",
+        "packages/dartvel_cli/test/model_record_versions_test.dart"
       ],
-      "absent": "Absent: DVModelChangeKind.restored, which nothing publishes. A watcher handling it will never see that branch taken, because nothing in the framework restores a deleted model -- there is no soft delete to restore from. Named rather than published on some change that merely resembles one."
+      "absent": "Absent: nothing named here. DVModelChangeKind.restored is published by the generated Model.restore(id) of a @DVModel(softDelete: true) model, and only when the record it restores was deleted."
     },
     {
       "section": "Offline-First Models",
