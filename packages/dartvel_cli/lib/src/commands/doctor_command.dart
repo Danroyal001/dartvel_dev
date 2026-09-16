@@ -58,16 +58,14 @@ class DoctorCommand extends Command<void> {
     argParser.addFlag(
       'modules',
       negatable: false,
-      help:
-          'Verify every module pin (digest, signing key, publisher, '
+      help: 'Verify every module pin (digest, signing key, publisher, '
           'version) and compare what each module uses against what this '
           'application grants.',
     );
     argParser.addMultiOption(
       'target',
       allowed: doctorTargets,
-      help:
-          'Validate the toolchain for an embedded, TV or extension build '
+      help: 'Validate the toolchain for an embedded, TV or extension build '
           'target, or, for android and ios, the deep-link verification '
           'documents the declared domains serve. Comma-separate several: '
           '--target android,ios.',
@@ -82,10 +80,8 @@ class DoctorCommand extends Command<void> {
   void _checkModuleTrust(String root) {
     final DVModuleCheck check = DVModuleCheck.trust(root);
     if (check.lines.isEmpty) {
-      Logger.log(
-        '[+] Every mounted module verifies against its pin and uses '
-        'only what it is granted.',
-      );
+      Logger.log('[+] Every mounted module verifies against its pin and uses '
+          'only what it is granted.');
       return;
     }
     for (final String line in check.lines) {
@@ -153,8 +149,7 @@ class DoctorCommand extends Command<void> {
     } else {
       Logger.log('[-] Not in a Dartvel project');
       Logger.log(
-        '    Run this command in a project directory for additional checks',
-      );
+          '    Run this command in a project directory for additional checks');
     }
 
     Logger.log('');
@@ -169,10 +164,11 @@ class DoctorCommand extends Command<void> {
     Logger.log('Flutter Doctor Output');
     Logger.log('==================================================\n');
     try {
-      final flutterDoctorProcess = await Process.start('flutter', [
-        'doctor',
-        '-v',
-      ], runInShell: true);
+      final flutterDoctorProcess = await Process.start(
+        'flutter',
+        ['doctor', '-v'],
+        runInShell: true,
+      );
       await stdout.addStream(flutterDoctorProcess.stdout);
       await stderr.addStream(flutterDoctorProcess.stderr);
       await flutterDoctorProcess.exitCode;
@@ -188,38 +184,33 @@ class DoctorCommand extends Command<void> {
     Logger.log('Dartvel Doctor — deep links: ${targets.join(', ')}');
     Logger.log('==================================================\n');
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
-    final Object? document = pubspec.existsSync()
-        ? loadYaml(pubspec.readAsStringSync())
-        : null;
+    final Object? document =
+        pubspec.existsSync() ? loadYaml(pubspec.readAsStringSync()) : null;
     final Object? dartvel = document is Map ? document['dartvel'] : null;
     final DVDeepLinkConfig? links;
     try {
-      links = DVDeepLinkConfig.parse(
-        dartvel is Map ? dartvel['deepLinks'] : null,
-      );
+      links = DVDeepLinkConfig.parse(dartvel is Map ? dartvel['deepLinks'] : null);
     } on FormatException catch (error) {
       Logger.log('[!] ${error.message}');
       exitCode = 1;
       return;
     }
     if (links == null || links.domains.isEmpty) {
-      Logger.log(
-        '[-] dartvel.deepLinks declares no domains; nothing to check.',
-      );
+      Logger.log('[-] dartvel.deepLinks declares no domains; nothing to check.');
       return;
     }
     final List<String> missing = links.missingIdentifiers(targets);
     for (final String error in missing) {
       Logger.log('[!] $error');
     }
-    final File router = File(
-      p.join(root, 'lib', 'dartvel_client', 'router.g.dart'),
-    );
+    final File router =
+        File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
     final String source = router.existsSync() ? router.readAsStringSync() : '';
     final List<String> routes = <String>{
       for (final RegExpMatch m in RegExp("path: '(/[^']*)'").allMatches(source))
         m.group(1)!,
-    }.toList()..sort();
+    }.toList()
+      ..sort();
     final List<String> findings = await dvCheckDeepLinks(
       links: links,
       targets: targets,
@@ -233,10 +224,8 @@ class DoctorCommand extends Command<void> {
       Logger.log('[!] $finding');
     }
     if (missing.isEmpty && findings.isEmpty) {
-      Logger.log(
-        '[+] ${links.domains.join(', ')} serve verification documents '
-        'that name this application and cover its routes.',
-      );
+      Logger.log('[+] ${links.domains.join(', ')} serve verification documents '
+          'that name this application and cover its routes.');
       return;
     }
     // DV-LINKS-004 is a warning; the rest fail.
@@ -271,9 +260,8 @@ class DoctorCommand extends Command<void> {
       // The script the build runs, so doctor and build agree about what has
       // to be present. Reporting a different file answers a different
       // question from "can this target build".
-      'fuchsia' =>
-        '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
-            '/dartvel_fuchsia/$fuchsiaAppBuildScript',
+      'fuchsia' => '${dartvelToolchainRoot(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '')}'
+          '/dartvel_fuchsia/$fuchsiaAppBuildScript',
       'vscode' => 'npm',
       // A browser extension is Flutter web output plus a generated manifest,
       // so the web toolchain is the whole requirement.
@@ -292,16 +280,17 @@ class DoctorCommand extends Command<void> {
       Logger.log('\n[+] Target $target looks ready to build.');
     } else {
       Logger.log('[!] $target $label: $executable not found on PATH');
-      Logger.log(switch (target) {
-        'vscode' =>
-          '    Install Node.js/npm before running `dartvel build vscode`.',
-        'chrome-extension' || 'firefox-extension' =>
-          '    Install Flutter with web support before running '
+      Logger.log(
+        switch (target) {
+          'vscode' =>
+            '    Install Node.js/npm before running `dartvel build vscode`.',
+          'chrome-extension' || 'firefox-extension' =>
+            '    Install Flutter with web support before running '
+                '`dartvel build $target`.',
+          _ => '    Install the $target Flutter embedder before running '
               '`dartvel build $target`.',
-        _ =>
-          '    Install the $target Flutter embedder before running '
-              '`dartvel build $target`.',
-      });
+        },
+      );
     }
 
     if (target == 'sony-elinux') {
@@ -340,9 +329,8 @@ class DoctorCommand extends Command<void> {
 
   Future<bool> _checkFlutterSDK() async {
     try {
-      final result = await Process.run('flutter', [
-        '--version',
-      ], runInShell: true);
+      final result =
+          await Process.run('flutter', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final lines = result.stdout.toString().split('\n');
         final version = lines.isNotEmpty ? lines.first.trim() : 'installed';
@@ -386,9 +374,8 @@ class DoctorCommand extends Command<void> {
 
   Future<void> _checkShorebird() async {
     try {
-      final result = await Process.run('shorebird', [
-        '--version',
-      ], runInShell: true);
+      final result =
+          await Process.run('shorebird', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final version = result.stdout.toString().trim();
         Logger.log('[+] Shorebird: $version');
@@ -402,9 +389,8 @@ class DoctorCommand extends Command<void> {
 
   Future<void> _checkCodemagic() async {
     try {
-      final result = await Process.run('codemagic', [
-        '--version',
-      ], runInShell: true);
+      final result =
+          await Process.run('codemagic', ['--version'], runInShell: true);
       if (result.exitCode == 0) {
         final version = result.stdout.toString().trim();
         Logger.log('[+] Codemagic CLI: $version');
@@ -433,11 +419,7 @@ class DoctorCommand extends Command<void> {
       return true;
     }
 
-    final DVKioskCheck check = DVKioskCheck.run(
-      dartvel,
-      _configuredTargets(),
-      root: Directory.current.path,
-    );
+    final DVKioskCheck check = DVKioskCheck.run(dartvel, _configuredTargets(), root: Directory.current.path);
     if (check.lines.isNotEmpty) {
       Logger.log('');
       for (final String line in check.lines) {
@@ -459,10 +441,10 @@ class DoctorCommand extends Command<void> {
     // dartvel.memory against each device profile's declared RAM, and
     // touchPages against the platforms that refuse it.
     final Object? platforms = dartvel is Map ? dartvel['platforms'] : null;
-    final DVMemoryCheck memory = DVMemoryCheck.run(dartvel, <String>[
-      if (platforms is List)
-        for (final Object? p in platforms) '$p',
-    ]);
+    final DVMemoryCheck memory = DVMemoryCheck.run(
+      dartvel,
+      <String>[if (platforms is List) for (final Object? p in platforms) '$p'],
+    );
     if (memory.lines.isNotEmpty) {
       Logger.log('');
       for (final String line in memory.lines) {
@@ -493,10 +475,11 @@ class DoctorCommand extends Command<void> {
 
     try {
       final Object? loaded = loadYaml(
-        File(p.join(Directory.current.path, 'pubspec.yaml')).readAsStringSync(),
-      );
+          File(p.join(Directory.current.path, 'pubspec.yaml'))
+              .readAsStringSync());
       final Object? dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
-      final Object? platforms = dartvel is Map ? dartvel['platforms'] : null;
+      final Object? platforms =
+          dartvel is Map ? dartvel['platforms'] : null;
       if (platforms is! List) return const <DVKioskTarget>[];
       return <DVKioskTarget>[
         for (final Object? entry in platforms)
@@ -511,10 +494,8 @@ class DoctorCommand extends Command<void> {
     final cwd = Directory.current.path;
     final pubspec = File(p.join(cwd, 'pubspec.yaml'));
     final content = await pubspec.readAsString();
-    final hasDartvelConfig = RegExp(
-      r'^dartvel:\s*$',
-      multiLine: true,
-    ).hasMatch(content);
+    final hasDartvelConfig =
+        RegExp(r'^dartvel:\s*$', multiLine: true).hasMatch(content);
     final hasFlutterDependency =
         content.contains('flutter:') || content.contains('sdk: flutter');
 
@@ -530,12 +511,15 @@ class DoctorCommand extends Command<void> {
       Logger.log('[!] Flutter dependency not found in pubspec.yaml');
     }
 
-    final expectedDirs = ['lib/pages', 'lib/backend/functions', 'lib/models'];
+    final expectedDirs = [
+      'lib/pages',
+      'lib/backend/functions',
+      'lib/models',
+    ];
     for (final dir in expectedDirs) {
       final exists = Directory(p.join(cwd, dir)).existsSync();
       Logger.log(
-        '${exists ? '[+]' : '[!]'} $dir ${exists ? 'exists' : 'missing'}',
-      );
+          '${exists ? '[+]' : '[!]'} $dir ${exists ? 'exists' : 'missing'}');
     }
 
     final env = File(p.join(cwd, '.env'));
@@ -543,8 +527,7 @@ class DoctorCommand extends Command<void> {
       Logger.log('[+] .env present');
     } else {
       Logger.log(
-        '[-] .env not present; runtime configuration will use defaults',
-      );
+          '[-] .env not present; runtime configuration will use defaults');
     }
   }
 }
