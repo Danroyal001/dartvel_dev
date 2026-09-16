@@ -1,6 +1,6 @@
 /// `dartvel key generate | rotate | status`: the application key, in the
 /// platform key store and never the repo. `dartvel key cloud`: signing and
-/// store credentials, into the repository's Actions secrets.
+/// store credentials, kept in Dartvel Cloud.
 ///
 /// Generated per install and per user. `generate` refuses to replace a key
 /// that exists -- a replaced key is every encrypted store on the machine
@@ -9,16 +9,17 @@
 /// held and its fingerprint, never the key.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
-import 'package:path/path.dart' as p;
+import 'package:dartvel_core/cloud.dart';
 import 'package:dartvel_core/dartvel.dart' hide Platform;
+import 'package:path/path.dart' as p;
 
-import '../cloud/github_repository.dart';
+import '../cloud/cloud_build.dart';
+import '../cloud/cloud_client.dart';
 import '../utils/logger.dart';
 
 class DVKeyResult {
@@ -110,7 +111,7 @@ class KeyCommand extends Command<void> {
 
   @override
   final String description =
-      'The application key in the platform key store, and cloud build credentials in the repository\'s secrets.';
+      'The application key in the platform key store, and signing credentials in Dartvel Cloud.';
 
   KeyCommand({KeyCloudCommand? cloud}) {
     addSubcommand(cloud ?? KeyCloudCommand());
@@ -181,81 +182,53 @@ class _KeySubcommand extends Command<void> {
   }
 }
 
-/// Sets one Actions secret on [repo]; the exit code of doing so.
-typedef DVSecretSetter = Future<int> Function(String name, String value, String repo);
-
-/// `dartvel key cloud`: the credentials a cloud build signs and publishes
-/// with, set as the repository's encrypted Actions secrets.
+/// `dartvel key cloud [<name> <file>|-] [--delete]`: the credentials Dartvel
+/// Cloud builds sign and publish with, kept in its credential store under
+/// this project.
 ///
-/// Dartvel holds no signing key and no store credential, and this does not
-/// change that: the values go from the files named here to GitHub through
-/// `gh secret set`, on standard input so they are never in a process list,
-/// and are neither stored nor printed. What is printed is the secret names,
-/// which are what `.github/workflows/dartvel-cloud.yml` reads.
+/// A value goes to the service once, from a file or from standard input so a
+/// password is never an argument, and is not printed or kept here. With no
+/// name the command lists the credentials the project has set, by name, and
+/// the names it can set. The names are the protocol's own list, so the CLI
+/// and the service agree on what a keystore is called.
 class KeyCloudCommand extends Command<void> {
   KeyCloudCommand({
     this._root,
     Map<String, String>? environment,
     void Function(String message)? log,
-    Future<String?> Function(String dir)? remote,
-    DVSecretSetter? setSecret,
+    Future<List<int>> Function()? readStdin,
   })  : _environment = environment ?? Platform.environment,
         _log = log ?? Logger.log,
-        _remote = remote ?? _originRemote,
-        _setSecret = setSecret ?? _ghSecretSet {
+        _readStdin = readStdin ?? _stdinBytes {
     argParser
-      ..addOption('android-keystore',
-          valueHelp: 'file',
-          help: 'The upload keystore release builds are signed with. Its '
-              'password is read from DARTVEL_ANDROID_KEYSTORE_PASSWORD, and '
-              'the key\'s from DARTVEL_ANDROID_KEY_PASSWORD when it differs.')
-      ..addOption('android-key-alias', help: 'The alias of the key in that keystore.')
-      ..addOption('firebase-service-account',
-          valueHelp: 'file',
-          help: 'A service account JSON key that dartvel publish firebase '
-              'uploads with.')
-      ..addOption('repo',
-          valueHelp: 'owner/name',
-          help: 'The repository whose secrets are set. Defaults to the origin remote.')
-      ..addFlag('dry-run',
-          negatable: false,
-          help: 'Name the secrets that would be set, and set none.');
+      ..addFlag('delete',
+          negatable: false, help: 'Remove the named credential from Dartvel Cloud.')
+      ..addOption('cloud-token',
+          help: 'The Dartvel Cloud token. Defaults to DARTVEL_CLOUD_TOKEN, '
+              'which keeps it out of shell history.');
   }
 
   final String? _root;
   final Map<String, String> _environment;
   final void Function(String) _log;
-  final Future<String?> Function(String dir) _remote;
-  final DVSecretSetter _setSecret;
+  final Future<List<int>> Function() _readStdin;
 
   @override
   final String name = 'cloud';
 
   @override
   final String description =
-      'Set the credentials cloud builds sign and publish with as the repository\'s Actions secrets.';
+      'Keep a signing or store credential in Dartvel Cloud for this project, or list them.';
 
-  static Future<String?> _originRemote(String dir) async {
-    try {
-      final ProcessResult r = await Process.run('git', <String>['remote', 'get-url', 'origin'],
-          workingDirectory: dir);
-      return r.exitCode == 0 ? '${r.stdout}'.trim() : null;
-    } on ProcessException {
-      return null;
+  @override
+  String get invocation => 'dartvel key cloud [<name> <file>|-] [--delete]';
+
+  static Future<List<int>> _stdinBytes() async {
+    final List<int> bytes = <int>[];
+    await for (final List<int> chunk in stdin) {
+      bytes.addAll(chunk);
     }
-  }
-
-  static Future<int> _ghSecretSet(String name, String value, String repo) async {
-    final Process process = await Process.start(
-        'gh', <String>['secret', 'set', name, '--repo', repo],
-        runInShell: Platform.isWindows);
-    process.stdin.write(value);
-    await process.stdin.close();
-    await process.stdout.drain<void>();
-    final String error = await utf8.decodeStream(process.stderr);
-    final int code = await process.exitCode;
-    if (code != 0) stderr.write(error);
-    return code;
+    return bytes;
   }
 
   @override
@@ -263,81 +236,79 @@ class KeyCloudCommand extends Command<void> {
     exitCode = await _run();
   }
 
+  String _known() => <String>[
+        for (final MapEntry<String, String> c in dvCloudCredentials.entries)
+          '   ${c.key.padRight(40)}${c.value}',
+      ].join('\n');
+
   Future<int> _run() async {
     final String root = _root ?? Directory.current.path;
-    final String? keystore = argResults!['android-keystore'] as String?;
-    final String? alias = argResults!['android-key-alias'] as String?;
-    final String? firebase = argResults!['firebase-service-account'] as String?;
+    final List<String> rest = argResults!.rest;
+    final bool delete = argResults!['delete'] == true;
+    final String? credential = rest.isEmpty ? null : rest.first;
 
-    if (keystore == null && firebase == null) {
-      _log('❌ Name something to set: --android-keystore or --firebase-service-account.');
+    if (credential != null && !dvCloudIsCredentialName(credential)) {
+      _log('❌ "$credential" is not a credential Dartvel Cloud keeps. These are:\n${_known()}');
       return 64;
     }
-    if (keystore != null && (alias == null || alias.trim().isEmpty)) {
-      _log('❌ --android-keystore needs --android-key-alias, the key in it to sign with.');
+    if (credential != null && !delete && rest.length != 2) {
+      _log('❌ Name the file to read it from, or - for standard input: '
+          'dartvel key cloud $credential <file>');
       return 64;
     }
 
-    File resolve(String path) => File(p.isAbsolute(path) ? path : p.join(root, path));
-    for (final String? path in <String?>[keystore, firebase]) {
-      if (path != null && !resolve(path).existsSync()) {
-        _log('❌ There is nothing at $path.');
-        return 66;
+    List<int>? value;
+    if (credential != null && !delete) {
+      if (rest[1] == '-') {
+        value = await _readStdin();
+      } else {
+        final File file = File(p.isAbsolute(rest[1]) ? rest[1] : p.join(root, rest[1]));
+        if (!file.existsSync()) {
+          _log('❌ There is nothing at ${rest[1]}.');
+          return 66;
+        }
+        value = file.readAsBytesSync();
+      }
+      if (value.isEmpty) {
+        _log('❌ $credential would be empty, so it was not sent.');
+        return 65;
       }
     }
 
-    final Map<String, String> secrets = <String, String>{};
-    if (keystore != null) {
-      final String? storePassword = _environment['DARTVEL_ANDROID_KEYSTORE_PASSWORD'];
-      if (storePassword == null || storePassword.isEmpty) {
-        _log('❌ Set DARTVEL_ANDROID_KEYSTORE_PASSWORD to the keystore\'s password. '
-            'It is read from the environment so it is not in your shell history.');
-        return 78;
-      }
-      secrets['DARTVEL_ANDROID_KEYSTORE_BASE64'] = base64.encode(resolve(keystore).readAsBytesSync());
-      secrets['DARTVEL_ANDROID_KEYSTORE_PASSWORD'] = storePassword;
-      secrets['DARTVEL_ANDROID_KEY_ALIAS'] = alias!.trim();
-      final String? keyPassword = _environment['DARTVEL_ANDROID_KEY_PASSWORD'];
-      if (keyPassword != null && keyPassword.isNotEmpty) {
-        secrets['DARTVEL_ANDROID_KEY_PASSWORD'] = keyPassword;
-      }
+    final String? project = dvCloudProjectName(root);
+    if (project == null) {
+      _log('❌ There is no pubspec.yaml naming a package here, and credentials are kept under that name.');
+      return 78;
     }
-    if (firebase != null) {
-      secrets['DARTVEL_FIREBASE_SERVICE_ACCOUNT'] = resolve(firebase).readAsStringSync();
-    }
+    final DVCloudAccess? access =
+        DVCloudAccess.resolve(_environment, argResults!['cloud-token'] as String?, _log);
+    if (access == null) return 77;
 
-    String? repo = argResults!['repo'] as String?;
-    if (repo == null) {
-      final String? remote = await _remote(root);
-      final DVGitHubRepository? parsed =
-          remote == null ? null : DVGitHubRepository.fromRemote(remote);
-      if (parsed == null) {
-        _log('❌ No GitHub remote named origin here. Pass --repo owner/name.');
-        return 78;
+    final DVCloudClient client = DVCloudClient(access.url, access.token);
+    try {
+      if (credential == null) {
+        final List<String> names = await client.credentials(project);
+        _log(names.isEmpty
+            ? 'No credentials are kept for $project.'
+            : 'Kept for $project: ${names.join(', ')}');
+        _log('Credentials Dartvel Cloud keeps:\n${_known()}');
+        return 0;
       }
-      repo = parsed.host == 'github.com' ? parsed.slug : '${parsed.host}/${parsed.slug}';
-    }
-
-    if (argResults!['dry-run'] == true) {
-      _log('Would set on $repo: ${secrets.keys.join(', ')}');
+      if (delete) {
+        await client.deleteCredential(project, credential);
+        _log('🗑️  Removed $credential from $project.');
+        return 0;
+      }
+      await client.putCredential(project, credential, value!);
+      _log('🔐 Kept $credential for $project in Dartvel Cloud.');
       return 0;
+    } on DVCloudException catch (error) {
+      return dvCloudRefusalExit(error.refusal, _log);
+    } on DVCloudUnreachable catch (error) {
+      _log('❌ $error');
+      return 69;
+    } finally {
+      client.close();
     }
-    for (final MapEntry<String, String> secret in secrets.entries) {
-      final int code;
-      try {
-        code = await _setSecret(secret.key, secret.value, repo);
-      } on ProcessException {
-        _log('❌ gh is not installed, and the secrets are set with it: '
-            'gh secret set encrypts each value with the repository\'s key. '
-            'Install it from https://cli.github.com and run gh auth login.');
-        return 69;
-      }
-      if (code != 0) {
-        _log('❌ gh secret set ${secret.key} --repo $repo exited $code.');
-        return code;
-      }
-      _log('🔐 Set ${secret.key} on $repo.');
-    }
-    return 0;
   }
 }

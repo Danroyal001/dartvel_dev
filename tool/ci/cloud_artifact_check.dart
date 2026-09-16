@@ -1,5 +1,5 @@
-/// Checks what `dartvel build <target> --cloud` downloaded is the thing a
-/// build of that target makes, rather than that a directory exists.
+/// Checks that a directory holds what a build of a target makes, rather than
+/// that it exists: what `dartvel build <target> --cloud` downloaded, for one.
 ///
 ///   dart tool/ci/cloud_artifact_check.dart android examples/basic_app/build/cloud/android
 ///   dart tool/ci/cloud_artifact_check.dart ios examples/basic_app/build/cloud/ios
