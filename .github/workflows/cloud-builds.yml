@@ -1,0 +1,92 @@
+name: Cloud builds
+
+# `dartvel build <target> --cloud` and `dartvel publish firebase --cloud`, run
+# the way a project runs them: from a Linux machine, against this repository's
+# own Actions. Each job runs the command in examples/basic_app, which
+# dispatches .github/workflows/dartvel-cloud.yml, follows that run and unzips
+# its artifact into build/cloud/<target>. The artifact is then checked for
+# what a build of that target is -- an APK with a manifest, dex and compiled
+# Dart; a Runner.app with a Mach-O executable -- rather than for a directory.
+#
+# The iOS job is the one that matters: this runner is Ubuntu and the build
+# happens on a macOS runner it dispatched. The build is unsigned
+# (`dartvel build ios` passes --no-codesign), because this repository holds no
+# Apple signing identity.
+#
+# GITHUB_TOKEN can dispatch a workflow_dispatch run, which is the one event it
+# is allowed to start; actions: write is what that needs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/dartvel_cli/lib/src/cloud/**
+      - packages/dartvel_cli/lib/src/commands/publish_command.dart
+      - .github/workflows/dartvel-cloud.yml
+      - .github/workflows/cloud-builds.yml
+      - tool/ci/cloud_artifact_check.dart
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cloud-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cloud:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'dartvel build android --cloud', args: 'build android --cloud', check: android }
+          - { name: 'dartvel build ios --cloud', args: 'build ios --cloud', check: ios }
+          - { name: 'dartvel publish firebase --cloud --dry-run', args: 'publish firebase --cloud --dry-run', check: android }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      # dart run compiles the CLI, and dartvel_shelf's build hook compiles the
+      # Rust runtime and runs cbindgen over it.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+
+      - name: Resolve dependencies
+        working-directory: examples/basic_app
+        run: flutter pub get
+
+      - name: dartvel ${{ matrix.args }}
+        working-directory: examples/basic_app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          set -o pipefail
+          # shellcheck disable=SC2086
+          dart run dartvel_cli:dartvel $ARGS 2>&1 | tee "$RUNNER_TEMP/cloud.log"
+
+      - name: Check the downloaded artifact
+        env:
+          CHECK: ${{ matrix.check }}
+        run: |
+          ls -laR "examples/basic_app/build/cloud/$CHECK" | head -40
+          dart tool/ci/cloud_artifact_check.dart "$CHECK" "examples/basic_app/build/cloud/$CHECK"
+
+      - name: The dispatched run's URL
+        if: always()
+        run: |
+          grep -E 'actions/runs/[0-9]+' "$RUNNER_TEMP/cloud.log" | head -1 >> "$GITHUB_STEP_SUMMARY" || true

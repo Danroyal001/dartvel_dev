@@ -106,6 +106,15 @@ void main() {
       expect((upload['with'] as YamlMap)['if-no-files-found'], 'error');
     });
 
+    test('the copy this repository dispatches is the one the generator writes', () {
+      // cloud-builds.yml dispatches it, and the command refuses while the
+      // pushed copy differs; this says so in the test run instead.
+      final String pin = '${((loadYaml(File('../../examples/basic_app/pubspec.yaml').readAsStringSync()) as YamlMap)['dartvel'] as YamlMap)['cloud']['flutter']}';
+      expect(File('../../$dvCloudWorkflowPath').readAsStringSync(),
+          dvCloudWorkflow(flutterVersion: pin),
+          reason: 'regenerate .github/workflows/dartvel-cloud.yml with dvCloudWorkflow');
+    });
+
     test('signs Android from repository secrets and says so when there are none', () {
       final YamlMap signing =
           steps.firstWhere((YamlMap s) => '${s['name']}'.contains('Android signing'));
