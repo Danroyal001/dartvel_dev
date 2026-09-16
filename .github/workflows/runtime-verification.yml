@@ -63,7 +63,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build libgtk-3-dev clang cmake \
-            pkg-config xvfb imagemagick x11-apps
+            pkg-config xvfb imagemagick x11-apps x11-utils
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -95,9 +95,24 @@ jobs:
           # window is captured until it has more than a couple of colours in
           # it, or until the patience runs out and the blank one is kept as
           # the evidence it is.
+          #
+          # The application's window, not the screen. There is no window
+          # manager here, so the window opens at its default 1280x720 in the
+          # corner of a 1280x900 screen, and a photograph of the root window
+          # showed the bottom 180 pixels as black -- which read as the app
+          # failing to paint the lower part of its window, and was only the X
+          # root around it. The root is kept as the fallback so a window that
+          # never mapped still leaves evidence.
           for attempt in $(seq 1 20); do
             sleep 3
-            import -window root /tmp/diag/linux-gui.png || continue
+            WID=$(xwininfo -root -tree 2>/dev/null \
+              | awk '$2 == "\"dartvel_example\":" { print $1; exit }')
+            if [ -n "$WID" ]; then
+              xwininfo -id "$WID" | grep -E "Width|Height" || true
+              import -window "$WID" /tmp/diag/linux-gui.png || continue
+            else
+              import -window root /tmp/diag/linux-gui.png || continue
+            fi
             colours=$(identify -format '%k' /tmp/diag/linux-gui.png 2>/dev/null || echo 0)
             echo "attempt $attempt: $colours colours"
             if [ "${colours:-0}" -gt 8 ]; then break; fi
