@@ -108,6 +108,45 @@ class DVGraphQLForbidden implements Exception {
   String toString() => 'Not authorized ($action)';
 }
 
+/// The parts of a GraphQL-over-HTTP body the executor reads. Anything of the
+/// wrong shape is absent rather than cast, so a malformed body is refused by
+/// the executor rather than thrown from here.
+class _DVGraphQLRequest {
+  const _DVGraphQLRequest({
+    required this.query,
+    this.variables,
+    this.operationName,
+    this.hash,
+  });
+
+  factory _DVGraphQLRequest.of(Object? body) {
+    if (body is! Map) return const _DVGraphQLRequest(query: '');
+    final Object? query = body['query'];
+    final Object? variables = body['variables'];
+    final Object? operationName = body['operationName'];
+    final Object? extensions = body['extensions'];
+    final Object? persisted =
+        extensions is Map ? extensions['persistedQuery'] : null;
+    final Object? hash = persisted is Map ? persisted['sha256Hash'] : null;
+    return _DVGraphQLRequest(
+      query: query is String ? query : '',
+      variables: variables is Map
+          ? <String, Object?>{
+              for (final MapEntry<Object?, Object?> entry in variables.entries)
+                '${entry.key}': entry.value,
+            }
+          : null,
+      operationName: operationName is String ? operationName : null,
+      hash: hash is String ? hash : null,
+    );
+  }
+
+  final String query;
+  final Map<String, Object?>? variables;
+  final String? operationName;
+  final String? hash;
+}
+
 /// A registered object type.
 class DVGraphQLObjectType {
   final String name;
@@ -201,6 +240,43 @@ class DVGraphQL {
   static void registerSubscription(DVGraphQLField field) {
     _subscriptions[field.name] = field;
     _schemaChanged();
+  }
+
+  /// Runs a decoded GraphQL-over-HTTP request body: `query`, `variables`,
+  /// `operationName`, and the persisted-query hash at
+  /// `extensions.persistedQuery.sha256Hash`.
+  ///
+  /// What the generated `/graphql` route calls. A hash has to reach
+  /// [persistedQueries] for it to mean anything: sent alone it names the
+  /// document to run, and sent beside a document it must be that document's
+  /// hash. A body that is not an object is an empty request.
+  static Future<Map<String, Object?>> executeRequest(
+    Object? body, {
+    bool authenticated = false,
+  }) {
+    final _DVGraphQLRequest request = _DVGraphQLRequest.of(body);
+    return execute(
+      request.query,
+      variables: request.variables,
+      operationName: request.operationName,
+      persistedQueryHash: request.hash,
+      authenticated: authenticated,
+    );
+  }
+
+  /// [executeRequest] for a subscription, as `/graphql/stream` reads it.
+  static Stream<Map<String, Object?>> subscribeRequest(
+    Object? body, {
+    bool authenticated = false,
+  }) {
+    final _DVGraphQLRequest request = _DVGraphQLRequest.of(body);
+    return subscribe(
+      request.query,
+      variables: request.variables,
+      operationName: request.operationName,
+      persistedQueryHash: request.hash,
+      authenticated: authenticated,
+    );
   }
 
   /// Refuses with [DVGraphQLForbidden] unless the policy for [action], named

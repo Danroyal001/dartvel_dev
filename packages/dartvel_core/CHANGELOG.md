@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`DVGraphQL.executeRequest` and `subscribeRequest`.** They run a decoded
+  GraphQL-over-HTTP body, including the persisted-query hash at
+  `extensions.persistedQuery.sha256Hash`, which the generated route never
+  passed. A hash sent alone runs the document the manifest holds for it. A
+  hash sent beside a document has to match it under `prefer` and `require`.
+  A body that is not an object counts as an empty request.
+  `DVPersistedQueries.withMode` changes the mode and keeps the manifest.
+
 - **`DVGraphQL.authorizeModel` and `DVGraphQLForbidden`.** A resolver asks
   the policy for `Resource.action` on the record it would touch, through
   `canAction`, and is refused with `DVGraphQLForbidden` unless it allows. The

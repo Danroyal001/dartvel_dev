@@ -148,6 +148,15 @@ class DVPersistedQueries {
     }
   }
 
+  DVPersistedQueries._withDocuments(this.mode, Map<String, String> documents)
+      : _documents = Map<String, String>.of(documents);
+
+  /// The same manifest enforced as [mode]: how the generated backend applies
+  /// `dartvel.api.graphql.persistedQueries` without discarding documents the
+  /// application loaded.
+  DVPersistedQueries withMode(DVPersistedQueryMode mode) =>
+      DVPersistedQueries._withDocuments(mode, _documents);
+
   final DVPersistedQueryMode mode;
   final Map<String, String> _documents;
 
