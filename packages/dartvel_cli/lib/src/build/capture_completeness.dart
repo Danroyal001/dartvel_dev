@@ -85,3 +85,19 @@ DVCaptureVerdict dvVerifyCapture({
         'build, or free memory and disk on the machine running it.',
   );
 }
+
+/// The routes whose semantics tree is read: every one but those behind
+/// sign-in.
+///
+/// A guarded route shows a signed-out browser nothing of its own -- it
+/// redirects to sign in, or waits on a session check against the
+/// application's API, which on a build machine may never answer. Its content
+/// is not the crawler's to see either, so the capture does not ask for it.
+List<String> dvRoutesToCapture({
+  required List<String> routes,
+  required Set<String> guarded,
+}) =>
+    <String>[
+      for (final String route in routes)
+        if (!guarded.contains(route)) route,
+    ];
