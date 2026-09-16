@@ -622,6 +622,12 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Present: dartvel publish uploads a build to Play, App Store Connect or '
         'TestFlight. Absent: generated privacy manifests.',
   ),
+  (
+    'Dartvel Cloud',
+    'dartvel build ios --cloud',
+    'Present: the --cloud options on build, publish and key. Absent: the '
+        'hosted machines that run cloud builds.',
+  ),
 ];
 
 @DVPage(
@@ -640,7 +646,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('WHAT WORKS TODAY'),
         Heading('Thirty-three shipped sections.', level: 1),
         Bullets(<String>[
-          'Sixty-six more are partial, and each card says what is missing.',
+          'Sixty-seven more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
