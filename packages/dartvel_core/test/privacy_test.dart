@@ -1259,6 +1259,155 @@ void main() {
         await const DVQueues().work();
         expect(await site.users.read('u1', withDeleted: true), isNull);
       });
+
+      group('a durable queue', () {
+        tearDown(() => const DVQueues().useAdapter(DVInMemoryQueueAdapter()));
+
+        test('carries an erasure and a sweep to the worker that runs them, '
+            'the subject keeping its type', () async {
+          final SqliteDVDatabaseAdapter shared =
+              SqliteDVDatabaseAdapter.memory();
+          const DVQueues().useAdapter(DVDatabaseQueueAdapter(shared));
+          privacy.registerJobs(const DVQueues());
+          await privacy.requestErasure(subject: 'u1', reason: 'DSAR');
+          await const DVQueues().dispatch<DVPrivacyRetentionRequest>(
+            const DVPrivacyRetentionRequest(batchSize: 7, maxBatches: 2),
+          );
+          expect(
+            jsonEncode(await shared.query('SELECT * FROM dartvel_jobs')),
+            allOf(
+              contains('dartvel.privacy.erasure'),
+              contains('dartvel.privacy.retention'),
+            ),
+          );
+          expect(await const DVQueues().work(maxJobs: 2), 2);
+          expect(await site.users.read('u1', withDeleted: true), isNull);
+
+          final List<DVPrivacyErasureRequest> seen =
+              <DVPrivacyErasureRequest>[];
+          const DVQueues().register<DVPrivacyErasureRequest>(
+            (DVPrivacyErasureRequest request) async => seen.add(request),
+          );
+          await const DVQueues().dispatch<DVPrivacyErasureRequest>(
+            DVPrivacyErasureRequest(
+              subject: 42,
+              reason: 'r',
+              requestedAt: _now,
+              requestedBy: 'dpo',
+            ),
+          );
+          expect(await const DVQueues().work(), 1);
+          expect(
+            seen.single.subject,
+            42,
+            reason: 'an integer key read back as a string misses its rows',
+          );
+          expect(seen.single.requestedAt, _now);
+          expect(seen.single.requestedBy, 'dpo');
+        });
+      });
+
+      group('the erasure deadline', () {
+        tearDown(() => const DVQueues().useAdapter(DVInMemoryQueueAdapter()));
+
+        test(
+          'an erasure whose job never ran is run by the check, a day on',
+          () async {
+            privacy.registerJobs(const DVQueues());
+            await privacy.requestErasure(subject: 'u1', reason: 'DSAR');
+            // The queue that held it is gone: a restart of an in-process queue.
+            const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+
+            final DVErasureDeadlines soon = await _privacy(
+              site,
+              now: _now.add(const Duration(hours: 2)),
+            ).checkErasureDeadlines();
+            expect(soon.open, 1);
+            expect(
+              soon.results,
+              isEmpty,
+              reason: 'a request hours old is still its job\'s to run',
+            );
+            expect(await site.users.read('u1'), isNotNull);
+
+            final DVErasureDeadlines dayOn = await _privacy(
+              site,
+              now: _now.add(const Duration(days: 2)),
+            ).checkErasureDeadlines();
+            expect(dayOn.results, hasLength(1));
+            expect(dayOn.results.single.late, isFalse);
+            expect(dayOn.overdue, 0);
+            expect(await site.users.read('u1', withDeleted: true), isNull);
+
+            final DVErasureDeadlines after = await _privacy(
+              site,
+              now: _now.add(const Duration(days: 3)),
+            ).checkErasureDeadlines();
+            expect(
+              after.open,
+              0,
+              reason: 'a completed erasure closes its request',
+            );
+            expect(after.results, isEmpty);
+          },
+        );
+
+        test(
+          'one past its thirty days runs and reports DV-PRIVACY-004',
+          () async {
+            await privacy.requestErasure(subject: 'u1', reason: 'DSAR');
+            const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+            final DVErasureDeadlines late = await _privacy(
+              site,
+              now: _now.add(const Duration(days: 31)),
+            ).checkErasureDeadlines();
+            expect(late.overdue, 1);
+            expect(late.results.single.late, isTrue);
+            expect(late.results.single.codes, contains('DV-PRIVACY-004'));
+          },
+        );
+
+        test(
+          'an erasure an adapter missed stays open until one completes',
+          () async {
+            await privacy.requestErasure(subject: 'u1', reason: 'DSAR');
+            const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+            final DateTime dayOn = _now.add(const Duration(days: 2));
+            final DVErasureDeadlines missed = await _privacy(
+              site,
+              now: dayOn,
+              adapters: <DVPrivacyAdapter>[
+                _RecordingAdapter('search', fail: true),
+              ],
+            ).checkErasureDeadlines();
+            expect(missed.results.single.complete, isFalse);
+            final _RecordingAdapter search = _RecordingAdapter('search');
+            final DVErasureDeadlines retried = await _privacy(
+              site,
+              now: dayOn.add(const Duration(days: 1)),
+              adapters: <DVPrivacyAdapter>[search],
+            ).checkErasureDeadlines();
+            expect(retried.results.single.complete, isTrue);
+            expect(search.erased, <String>['u1']);
+            expect(
+              (await _privacy(
+                site,
+                now: dayOn.add(const Duration(days: 2)),
+              ).checkErasureDeadlines()).open,
+              0,
+            );
+          },
+        );
+
+        test(
+          'an erasure run directly closes an open request for the subject',
+          () async {
+            await privacy.requestErasure(subject: 'u1', reason: 'DSAR');
+            await privacy.erase(subject: 'u1', reason: 'DSAR');
+            expect((await privacy.checkErasureDeadlines()).open, 0);
+          },
+        );
+      });
     });
   }
 }

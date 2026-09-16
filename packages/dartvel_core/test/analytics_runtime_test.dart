@@ -422,5 +422,182 @@ void main() {
         expect(await store.events(subject: 'user-1'), isEmpty);
       });
     }
+
+    group('started by a server', () {
+      late SqliteDVDatabaseAdapter db;
+      late DVRecordTable sessions;
+
+      setUp(() async {
+        db = SqliteDVDatabaseAdapter.memory();
+        sessions = DVRecordTable(
+          table: 'sessions',
+          key: 'id',
+          columns: const <String>['id', 'user_id', 'ip', 'created_at'],
+          database: db,
+        );
+        await sessions.ensureSchema();
+        final DateTime now = DateTime.now().toUtc();
+        await sessions.write(<String, Object?>{
+          'id': 'old',
+          'user_id': 'u1',
+          'ip': '10.0.0.1',
+          'created_at': now.subtract(const Duration(days: 45)).toIso8601String(),
+        });
+        await sessions.write(<String, Object?>{
+          'id': 'new',
+          'user_id': 'u2',
+          'ip': '10.0.0.2',
+          'created_at': now.toIso8601String(),
+        });
+      });
+
+      tearDown(() => const DVQueues().useAdapter(DVInMemoryQueueAdapter()));
+
+      void configure() => DVPrivacyRuntime.configure(
+            models: <DVPrivacyModel>[
+              DVPrivacyModel(
+                name: 'sessions',
+                table: sessions,
+                subject: const DVSubject.field('user_id'),
+                personal: const <String>{'ip'},
+                retention: const DVRetention.days(30, from: 'created_at'),
+              ),
+            ],
+            database: db,
+            signingKey: signingKey,
+          );
+
+      Future<Set<String>> tables() async => <String>{
+            for (final Map<String, Object?> row in await db.query(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"))
+              '${row['name']}',
+          };
+
+      test('does nothing where DV.Privacy is not configured', () async {
+        expect(await DVPrivacyRuntime.start(), isFalse);
+        expect(DVPrivacyRuntime.schedules(), isNull);
+        expect(await tables(), isNot(contains('dv_privacy_requests')));
+      });
+
+      test('creates the walk\'s own tables and runs its jobs from the queue',
+          () async {
+        configure();
+        const DVQueues().useAdapter(
+            DVDatabaseQueueAdapter(SqliteDVDatabaseAdapter.memory()));
+        expect(await DVPrivacyRuntime.start(), isTrue);
+        expect(
+          await tables(),
+          containsAll(<String>[
+            'dv_privacy_requests',
+            DVPrivacy.tombstoneTable,
+            DVPrivacy.openErasuresTable,
+          ]),
+        );
+        await DVPrivacyRuntime.current
+            .requestErasure(subject: 'u1', reason: 'DSAR');
+        await const DVQueues().dispatch<DVPrivacyRetentionRequest>(
+            const DVPrivacyRetentionRequest());
+        expect(await const DVQueues().work(maxJobs: 2), 2);
+        expect(await sessions.read('old'), isNull);
+        expect(await sessions.read('new'), isNotNull);
+      });
+
+      test('an adapter installed after start is in the walk its jobs run',
+          () async {
+        configure();
+        await DVPrivacyRuntime.start();
+        final List<String> erased = <String>[];
+        DVPrivacyRuntime.installAdapters(
+            <DVPrivacyAdapter>[_ErasingAdapter(erased)]);
+        await DVPrivacyRuntime.current
+            .requestErasure(subject: 'u2', reason: 'DSAR');
+        expect(await const DVQueues().work(), 1);
+        expect(erased, <String>['u2']);
+      });
+
+      test('sweeps retention and checks erasure deadlines on a schedule, '
+          'each occurrence claimed through the lease', () async {
+        configure();
+        await DVPrivacyRuntime.start();
+        DateTime clock = DateTime(2026, 9, 13, 2, 50);
+        final _Lease lease = _Lease();
+        final DVScheduler scheduler =
+            DVPrivacyRuntime.schedules(clock: () => clock, lease: lease)!;
+        expect(scheduler.names, <String>[
+          DVPrivacyRuntime.retentionTask,
+          DVPrivacyRuntime.deadlineTask,
+        ]);
+        await scheduler.tick();
+        expect(await sessions.read('old'), isNotNull,
+            reason: 'nothing is due before the first occurrence');
+
+        clock = DateTime(2026, 9, 13, 3, 20);
+        await scheduler.tick();
+        expect(scheduler.failures, isEmpty);
+        expect(await sessions.read('old'), isNull);
+        expect(await sessions.read('new'), isNotNull);
+        expect(lease.claims.map(((String, DateTime) c) => c.$1),
+            containsAll(<String>[
+              DVPrivacyRuntime.retentionTask,
+              DVPrivacyRuntime.deadlineTask,
+            ]));
+
+        // A process that loses the claim sweeps nothing.
+        await sessions.write(<String, Object?>{
+          'id': 'old2',
+          'user_id': 'u1',
+          'ip': '10.0.0.3',
+          'created_at': DateTime.now()
+              .toUtc()
+              .subtract(const Duration(days: 45))
+              .toIso8601String(),
+        });
+        lease.grant = false;
+        clock = DateTime(2026, 9, 14, 3, 20);
+        await scheduler.tick();
+        expect(await sessions.read('old2'), isNotNull);
+      });
+
+      test('the deadline check runs an erasure whose job was lost', () async {
+        configure();
+        await DVPrivacyRuntime.start();
+        await DVPrivacyRuntime.current
+            .requestErasure(subject: 'u1', reason: 'DSAR');
+        // The in-process queue that held the job did not survive a restart.
+        const DVQueues().useAdapter(DVInMemoryQueueAdapter());
+        final DVErasureDeadlines deadlines = await DVPrivacyRuntime.current
+            .checkErasureDeadlines(staleAfter: Duration.zero);
+        expect(deadlines.results, hasLength(1));
+        expect(await sessions.read('old'), isNull);
+      });
+    });
   });
+}
+
+class _ErasingAdapter implements DVPrivacyAdapter {
+  _ErasingAdapter(this.erased);
+
+  final List<String> erased;
+
+  @override
+  String get name => 'probe-index';
+
+  @override
+  Future<void> erase(DVPrivacySubjectRef subject) async =>
+      erased.add('${subject.id}');
+
+  @override
+  Future<Map<String, Object?>> export(DVPrivacySubjectRef subject) async =>
+      <String, Object?>{};
+}
+
+class _Lease implements DVScheduleLease {
+  bool grant = true;
+  final List<(String, DateTime)> claims = <(String, DateTime)>[];
+
+  @override
+  Future<bool> claim(String task, DateTime occurrence) async {
+    claims.add((task, occurrence));
+    return grant;
+  }
 }

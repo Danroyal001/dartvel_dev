@@ -11,9 +11,11 @@ library dartvel_core.analytics.runtime;
 import 'dart:async';
 import 'dart:convert';
 
+import '../../dartvel.dart' show DVQueues;
 import '../database/adapter.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart';
+import '../scheduling/scheduler.dart';
 import 'consent.dart';
 import 'product_analytics.dart';
 
@@ -394,6 +396,73 @@ abstract final class DVPrivacyRuntime {
       adapters: adapters.values.toList(),
       deadline: c.deadline,
     );
+  }
+
+  /// The scheduled task that sweeps retention.
+  static const String retentionTask = 'dartvel.privacy.retention';
+
+  /// The scheduled task that runs open erasures before their deadline.
+  static const String deadlineTask = 'dartvel.privacy.deadlines';
+
+  /// When [retentionTask] runs: daily, at 03:00.
+  static const String retentionSchedule = '0 3 * * *';
+
+  /// When [deadlineTask] runs: hourly. A request whose job was lost is run a
+  /// day after it was made, well inside a thirty-day deadline.
+  static const String deadlineSchedule = '15 * * * *';
+
+  /// What the generated server runs at start, in every process: creates the
+  /// walk's own tables and registers its erasure and retention jobs, with
+  /// their codecs, on [queues]. The jobs run on the `DV.Privacy` current when
+  /// each one runs.
+  ///
+  /// Returns false, doing nothing, where `DV.Privacy` is not configured.
+  static Future<bool> start({DVQueues queues = const DVQueues()}) async {
+    if (!isConfigured) return false;
+    await current.ensureSchema();
+    DVPrivacy.registerJobsFor(queues, () => current);
+    return true;
+  }
+
+  /// A scheduler holding [retentionTask] and [deadlineTask], or null where
+  /// `DV.Privacy` is not configured.
+  ///
+  /// [lease] is claimed for each occurrence, so a deployment with several
+  /// processes ticking sweeps once. Each task runs on the `DV.Privacy`
+  /// current when it fires.
+  static DVScheduler? schedules({
+    DateTime Function()? clock,
+    DVScheduleLease? lease,
+    void Function(DVScheduledFailure failure)? onFailure,
+  }) {
+    if (!isConfigured) return null;
+    return DVScheduler(clock: clock, lease: lease, onFailure: onFailure)
+      ..register(retentionTask, retentionSchedule, () async {
+        final DVRetentionSweep sweep = await current.sweepRetention();
+        if (sweep.remaining > 0) {
+          DVObservability.logger.warn(
+              'The retention sweep left ${sweep.remaining} expired row(s) for '
+              'its next run.');
+        }
+      })
+      ..register(deadlineTask, deadlineSchedule, () async {
+        await current.checkErasureDeadlines();
+      });
+  }
+
+  /// [schedules], ticked every [every]. Null where `DV.Privacy` is not
+  /// configured. The generated server starts it in the process that ticks
+  /// the application's schedules.
+  static Timer? startSchedules({
+    Duration every = const Duration(seconds: 20),
+    DateTime Function()? clock,
+    DVScheduleLease? lease,
+    void Function(DVScheduledFailure failure)? onFailure,
+  }) {
+    final DVScheduler? scheduler =
+        schedules(clock: clock, lease: lease, onFailure: onFailure);
+    if (scheduler == null) return null;
+    return Timer.periodic(every, (Timer _) => unawaited(scheduler.tick()));
   }
 
   /// Forgets the configuration and installed adapters, for tests.

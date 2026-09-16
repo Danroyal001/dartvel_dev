@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **Privacy jobs cross a durable queue, and open erasures are tracked to
+  their deadline.** `DVPrivacyErasureRequest` and `DVPrivacyRetentionRequest`
+  carry codecs, registered by `registerJobs`, so a request dispatched onto a
+  database queue no longer throws for want of one; the subject keeps its type.
+  `requestErasure` records the request in `dv_privacy_open_erasures` before
+  queueing it, and a completed erasure of the subject closes it.
+  `DVPrivacy.checkErasureDeadlines` runs every open request older than a day,
+  reporting `DV-PRIVACY-004` for one past its deadline; one an adapter missed
+  stays open for the next check. `DVPrivacyRuntime.start` creates the walk's
+  tables and registers its jobs against the current `DV.Privacy`, and
+  `DVPrivacyRuntime.schedules` / `startSchedules` sweep retention daily and
+  check deadlines hourly, each occurrence claimed through a schedule lease.
+
 - **`DVGraphQL.executeRequest` and `subscribeRequest`.** They run a decoded
   GraphQL-over-HTTP body, including the persisted-query hash at
   `extensions.persistedQuery.sha256Hash`, which the generated route never
