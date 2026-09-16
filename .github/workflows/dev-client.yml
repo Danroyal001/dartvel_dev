@@ -26,6 +26,8 @@ on:
       - packages/dartvel_flutter/lib/src/updates/**
       - tool/ci/android_dev_client_check.dart
       - tool/ci/ios_dev_client_check.dart
+      - tool/ci/linux_dev_client_check.dart
+      - packages/dartvel_flutter/lib/src/windowing/app_launch.dart
       - .github/workflows/dev-client.yml
 
 concurrency:
@@ -178,3 +180,62 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: dev-client-ios, path: /tmp/diag/, if-no-files-found: warn }
+
+  # Linux desktop: a development build launched with the pairing link as its
+  # launch flag, under a virtual display. The C++ tunnel pairs over GIO TLS
+  # pinned to the key in the link. See tool/ci/linux_dev_client_check.dart.
+  linux-desktop:
+    name: Linux desktop — launch with the link, edit, hot reload
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      # glib-networking is GIO's TLS; without it the tunnel says so and never
+      # pairs.
+      - name: Install the Linux desktop toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev glib-networking xvfb
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the development app
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/linux-devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build linux --profile development --no-auto-install
+          binary=build/linux/x64/debug/bundle/dartvel_example
+          test -x "$binary"
+          grep -q 'dartvel_dev_client.cc' linux/runner/CMakeLists.txt
+          # Exported, where Dart's FFI lookup finds it.
+          nm -D --defined-only "$binary" | grep -q dartvel_dev_client_vm_service
+
+      - name: Precache the tester artifacts
+        run: flutter precache --linux
+
+      - name: Launch with the link, edit and reload
+        id: run
+        continue-on-error: true
+        timeout-minutes: 40
+        run: dart tool/ci/linux_dev_client_check.dart
+
+      - name: The desktop app agreed
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/linux-devclient-verdict.txt \
+            || { echo "no verdict: the desktop check did not finish"; exit 1; }
+          cat /tmp/diag/linux-devclient-verdict.txt
+          head -1 /tmp/diag/linux-devclient-verdict.txt | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dev-client-linux, path: /tmp/diag/, if-no-files-found: warn }
