@@ -66,6 +66,12 @@ String dvApacheConfig() => '''
 # branding.
 ErrorDocument 404 /404/index.html
 
+# The Universal Links document has no extension for AddType to match, and iOS
+# refuses it as anything but JSON.
+<Files "apple-app-site-association">
+  ForceType application/json
+</Files>
+
 <IfModule mod_mime.c>
   # instantiateStreaming refuses a wasm module served as anything else.
   AddType application/wasm .wasm

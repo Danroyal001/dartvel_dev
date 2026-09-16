@@ -24,6 +24,10 @@ void main() {
       }
     });
 
+    test('asks android and ios about their deployed deep links', () {
+      expect(doctorTargets, containsAll(deepLinkDoctorTargets));
+    });
+
     test('includes the targets that previously drifted out of it', () {
       expect(doctorTargets, contains('tvos'));
       expect(doctorTargets,
@@ -43,9 +47,13 @@ void main() {
     });
 
     test('offers nothing plain `flutter build` already handles', () {
-      // Asking about `web` or `android` would imply Dartvel checks a toolchain
-      // it does not manage; those surface through `flutter doctor`.
+      // Asking about `web` or `windows` would imply Dartvel checks a toolchain
+      // it does not manage; those surface through `flutter doctor`. android and
+      // ios are the exception, and not for their toolchain: the specification
+      // has `dartvel doctor --target android,ios` check the deep-link
+      // documents the declared domains serve, which flutter doctor cannot.
       for (final platform in flutterBuildPlatforms) {
+        if (deepLinkDoctorTargets.contains(platform)) continue;
         expect(doctorTargets, isNot(contains(platform)),
             reason: '$platform needs no Dartvel-managed embedder');
       }
