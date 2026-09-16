@@ -143,6 +143,55 @@ void main() {
     expect(DV.Navigation.currentPath, '/feed');
   });
 
+  testWidgets('a selectable page still swipes back on iOS', (
+    WidgetTester tester,
+  ) async {
+    // Every generated page is inside DVPageShell, whose text is selectable by
+    // default. The selection area took the edge swipe for itself, so no page
+    // in a Dartvel app on iOS could be swiped back from.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      final GoRouter router = GoRouter(
+        initialLocation: '/list',
+        routes: dvConfigRoutes(<DVRouteNode>[
+          DVRoute(
+            path: '/list',
+            builder: (BuildContext context, DVRouteState state) =>
+                const DVPageShell(
+                  spec: DVPageScaffoldSpec(),
+                  child: Center(child: Text('list')),
+                ),
+            routes: <DVRouteNode>[
+              DVRoute(
+                path: ':item',
+                builder: (BuildContext context, DVRouteState state) =>
+                    const DVPageShell(
+                      spec: DVPageScaffoldSpec(),
+                      child: Center(child: Text('detail')),
+                    ),
+              ),
+            ],
+          ),
+        ], transition: PageTransitionSpec.none),
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      router.go('/list/1');
+      await tester.pumpAndSettle();
+      expect(find.text('detail'), findsOneWidget);
+
+      final TestGesture swipe = await tester.startGesture(const Offset(2, 300));
+      await swipe.moveBy(const Offset(500, 0));
+      await swipe.up();
+      await tester.pumpAndSettle();
+
+      expect(find.text('detail'), findsNothing);
+      expect(find.text('list'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('the iOS edge swipe pops inside the tab first', (
     WidgetTester tester,
   ) async {

@@ -8689,6 +8689,10 @@ class DVPageScaffoldSpec {
   });
 }
 
+/// How far from the leading edge an iOS back swipe starts: the width
+/// Cupertino's page route listens on.
+const double dvBackSwipeEdgeWidth = 20;
+
 class DVPageShell extends StatefulWidget {
   final DVPageScaffoldSpec spec;
   final Widget child;
@@ -8824,7 +8828,32 @@ class _DVPageShellState extends State<DVPageShell> {
             child: body,
           )
         : body;
-    return spec.safeArea ? SafeArea(child: content) : content;
+    final Widget framed = spec.safeArea ? SafeArea(child: content) : content;
+    if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
+      return framed;
+    }
+    // The strip iOS swipes back from, kept out of the selection area. The
+    // area's drag recognizer entered the same gesture arena as the route's
+    // back swipe and won it, so no selectable page -- every generated page,
+    // by default -- could be swiped back from. A hit target over the strip
+    // stops the pointer reaching the selection below it, and the route's own
+    // detector, which sits above the page, still gets it.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: <Widget>[
+        framed,
+        PositionedDirectional(
+          start: 0,
+          top: 0,
+          bottom: 0,
+          width: dvBackSwipeEdgeWidth,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+          ),
+        ),
+      ],
+    );
   }
 
   static DVPageShellMode _adaptiveShellMode(BuildContext context) {
