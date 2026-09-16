@@ -4205,6 +4205,14 @@ last seven days (default `0.5%`). An override exists, takes an explicit flag,
 and is logged with the histogram it overrode; stranding users is sometimes the
 right call and is never a quiet one.
 
+Monitoring does not record sessions per protocol version yet, so today the
+histogram is an export passed with `--histogram <file>`, and without one the
+check refuses rather than passes. The override is `--override <reason>`,
+appended with the histogram to `.dartvel/compatibility-overrides.jsonl`. Run
+without `--against`, the command checks what the build alone can: that a
+protocol is recorded, that the lockfile was not edited by hand, and that every
+version in the window can be served (`DV-PROTO-004`, `DV-PROTO-006`).
+
 This is the same discipline as the migration gate in Schema Evolution, applied
 to the other artifact, and the two are sequenced: a contract-breaking change
 expands the schema and raises the protocol in one release, and contracts only
@@ -8463,9 +8471,11 @@ and owned windows outliving the frame budget on close.
 
 `DV.Platform.Window.setTitle` / `persistState` / `restoreState` continue to
 work as sugar over `DV.Window.current`. No existing surface is removed, so no
-project has to move. `dartvel migrate-code` is where a rewrite to the explicit
-form would live, and that command is designed and not built; see *Upgrade and
-compatibility*.
+project has to move. `dartvel migrate-code` exists and deliberately does not
+carry a rewrite to the explicit form: `DVWindow` has `setTitle` but no
+`persistState` or `restoreState`, `current` is nullable, and `DV` has no
+`Window` alias of its own, so the rewrite would turn working code into code
+that does not compile. See *Upgrade and compatibility*.
 
 ## Deliberately absent
 
@@ -10216,10 +10226,10 @@ dartvel logs          # dartvel metrics | dartvel traces | dartvel studio
 ```
 
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
-migrate-code` complete the last step and none of them exists yet; Unified
-Development, Transparency, and Contracts says so in full, and `dartvel update`
-and `dartvel updates` are different commands despite the near-miss in the
-names.
+migrate-code` complete the last step. All three exist; applying an upgrade
+(`dartvel upgrade` without `--plan`) does not, and Unified Development,
+Transparency, and Contracts says what each covers. `dartvel update` and
+`dartvel updates` are different commands despite the near-miss in the names.
 
 During development, generation happens incrementally through `dartvel dev`.
 
@@ -12043,18 +12053,38 @@ dartvel migrate-code
 dartvel upgrade
 ```
 
-**Designed, not built.** None of those four commands exists yet. There is no
-`upgrade`, no `compatibility-check` and no `migrate-code` under
-`packages/dartvel_cli`, and no rewrite-rule list for one to run, so every
-rename above is a manual edit today. `dartvel update` updates the CLI itself
-and `dartvel updates` ships over-the-air patches to a released application;
-neither is this, and the near-miss in the names is worth stating once.
+**Three of the four are built; `dartvel upgrade` on its own is not.**
+`dartvel update` updates the CLI itself and `dartvel updates` ships
+over-the-air patches to a released application; neither is this, and the
+near-miss in the names is worth stating once.
 
-`DV.Storage → DV.FileStorage` is the first rule waiting for the command.
-`DV.Storage` is deprecated in the current release and goes in the next minor,
-which is the shape of change `migrate-code` exists to absorb. `DV.BlobStorage`
-is deliberately not in the list: it is a supported alias, not a name on its way
-out, and rewriting it would churn working code for nothing.
+`dartvel upgrade --plan` plans against the release of the CLI it is run with,
+because that is the only release whose floors, constraints and rewrites the CLI
+knows; `dartvel update` fetches a newer one first. It writes nothing and lists
+each area above: the SDK constraint and the installed Dart and Flutter, each
+Dartvel package's constraint and resolved version, shared dependencies, the
+names `migrate-code` would rewrite, the generated files this CLI's generator
+would change with the lines each gains and loses, the protocol lockfile, and
+each mounted module's Dartvel constraints. An area it cannot check is listed as
+not checked, never as unchanged, and a project already newer than the CLI is
+blocked rather than planned backwards. Applying the plan is not built, so
+`dartvel upgrade` without `--plan` refuses.
+
+`dartvel migrate-code` is a dry run that prints every rewritten line;
+`--apply` writes them, and writes nothing if a file changed after the plan was
+made. It reads Dart tokens rather than text, so a name inside a string or a
+comment is left alone. The rules are the three above plus the names the
+packages deprecate with an exact replacement: `@DVSearchable` and
+`@DVSensitiveModelField` to their `@DVModel` forms, and the `Debug*` auth,
+analytics and push providers to the `Local*` ones. `DV.BlobStorage` is
+deliberately not in the list: it is a supported alias, not a name on its way
+out, and rewriting it would churn working code for nothing. The deprecated
+`AuthFailure.unknownAccount` and `invalidPassword` are not either, because
+rewriting both to `invalidCredentials` produces a duplicate case in any switch
+that names them.
+
+`dartvel compatibility-check` is described under Protocol Versioning and
+Client Compatibility.
 
 ## Performance contracts
 
