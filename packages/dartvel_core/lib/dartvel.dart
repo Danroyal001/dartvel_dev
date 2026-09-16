@@ -144,6 +144,8 @@ export 'src/data/offline_store.dart';
 export 'src/data/record_history.dart';
 export 'src/devclient/dev_backend_url.dart';
 export 'src/devclient/dev_client.dart';
+export 'src/devclient/dev_client_certificate.dart';
+export 'src/devclient/dev_client_tls.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';

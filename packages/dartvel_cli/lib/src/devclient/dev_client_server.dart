@@ -1,5 +1,10 @@
 /// What `dartvel dev` serves to a paired shell.
 ///
+/// Over TLS only, with a self-signed certificate for this run's key: the key
+/// the pairing link carries, which a device pins the connection to. The token
+/// never crosses the network in the clear, and a machine on the LAN that saw
+/// the traffic reads neither it nor the pages.
+///
 /// One endpoint. A request without this run's token gets a 401 and nothing
 /// else; a request with it gets the current page documents sealed with this
 /// run's key, stamped with the branch, the binding manifest the project needs
@@ -60,14 +65,15 @@ class DVDevClientBundleServer {
     String? advertisedHost,
     void Function(DVDevClientDevice device)? onDevice,
   }) async {
-    final HttpServer server = await HttpServer.bind(
+    final DVDevClientSigner signer = DVDevClientSigner.generate();
+    final HttpServer server = await HttpServer.bindSecure(
       address ?? InternetAddress.anyIPv4,
       port,
+      dvDevClientServerContext(signer.certificate()),
     );
     final String host = advertisedHost ?? await dvDetectLanHost();
-    final DVDevClientSigner signer = DVDevClientSigner.generate();
     final DVDevClientPairing pairing = DVDevClientPairing(
-      server: Uri(scheme: 'http', host: host, port: server.port),
+      server: Uri(scheme: 'https', host: host, port: server.port),
       branch: branch,
       publicKey: signer.publicKey,
       token: DVDevClientPairing.newToken(),
