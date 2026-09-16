@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`@DVModel(version: false)`, `@DVModel(softDelete: true)`, restore and
+  revert are generated.** `version: false` writes without a version check.
+  `softDelete: true` makes `destroy()` mark the row, which `find` and `all`
+  then skip; `Model.withDeleted.find(id)` and `.all()` read it, and
+  `Model.restore(id)` brings it back and publishes
+  `DVModelChangeKind.restored`. A model with `history:` gets
+  `model.revert(to: entry)`, a new change checked against the version the
+  model was read at and refused when it read nothing. A value other than the
+  literal `true` or `false` stops the build.
+
 - **Breaking: a generated model built by hand no longer replaces a stored
   row.** `save()` on a model that was not read -- `const Order(id: 'o1', ...)`
   over an existing `o1` -- replaced the row at whatever version it held, the

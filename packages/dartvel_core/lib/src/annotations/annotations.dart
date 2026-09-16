@@ -340,6 +340,16 @@ class DVModel {
   /// never as values, and an erasure removes the log with the row.
   final DVHistory? history;
 
+  /// Whether every write is checked against the version it read: on by
+  /// default, because a lost update is silent. `version: false` is for
+  /// append-only data whose writes never contend, and says so here.
+  final bool version;
+
+  /// Whether deleting marks the row rather than removing it. Queries skip a
+  /// marked row, `Model.withDeleted` reads it, and `Model.restore(id)` brings
+  /// it back.
+  final bool softDelete;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -353,6 +363,8 @@ class DVModel {
     this.subject,
     this.retain,
     this.history,
+    this.version = true,
+    this.softDelete = false,
   })  : encrypted = false,
         retainYears = null,
         retainBecause = null,
@@ -392,6 +404,8 @@ class DVModel {
   })  : searchable = false,
         subject = null,
         history = null,
+        version = true,
+        softDelete = false,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -416,6 +430,8 @@ class DVModel {
       : searchable = true,
         subject = null,
         history = null,
+        version = true,
+        softDelete = false,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -490,6 +506,8 @@ class DVModel {
   })  : isModel3dField = true,
         subject = null,
         history = null,
+        version = true,
+        softDelete = false,
         retain = null,
         retainYears = null,
         retainBecause = null,
@@ -524,6 +542,8 @@ class DVModel {
         retainBecause = because,
         subject = null,
         history = null,
+        version = true,
+        softDelete = false,
         retain = null,
         onErase = DVErase.delete,
         searchable = false,
@@ -549,6 +569,8 @@ class DVModel {
       : searchable = false,
         subject = null,
         history = null,
+        version = true,
+        softDelete = false,
         retain = null,
         retainYears = null,
         retainBecause = null,
