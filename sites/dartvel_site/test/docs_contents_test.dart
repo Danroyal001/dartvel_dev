@@ -31,7 +31,6 @@ void main() {
     // an entry naming a step that no longer exists scrolls nowhere.
     expect(kDocsTitles.keys.toSet(), kDocsOrder.toSet());
     expect(kDocsSummaries.keys.toSet(), kDocsOrder.toSet());
-    expect(kDocsSteps.keys.toSet(), kDocsOrder.toSet());
 
     await pumpDocs(tester);
     for (final String id in kDocsOrder) {
@@ -49,34 +48,43 @@ void main() {
     // dvGoToStep is that the key names no element and it silently returns --
     // which is what this catches.
     final ScrollController controller = ScrollController();
+    late BuildContext pageContext;
+    late Map<String, GlobalKey> keys;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SingleChildScrollView(
-            controller: controller,
-            child: Column(
-              children: <Widget>[
-                for (final String id in kDocsOrder)
-                  SizedBox(
-                    key: kDocsSteps[id],
-                    height: 900,
-                    child: Text(kDocsTitles[id]!),
-                  ),
-              ],
-            ),
+          body: DocsSteps(
+            builder: (BuildContext context, Map<String, GlobalKey> steps) {
+              pageContext = context;
+              keys = steps;
+              return SingleChildScrollView(
+                controller: controller,
+                child: Column(
+                  children: <Widget>[
+                    for (final String id in kDocsOrder)
+                      SizedBox(
+                        key: steps[id],
+                        height: 900,
+                        child: Text(kDocsTitles[id]!),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
     );
     await tester.pump();
     expect(controller.offset, 0);
+    expect(keys.keys.toSet(), kDocsOrder.toSet());
 
-    dvGoToStep('building');
+    dvGoToStep(pageContext, 'building');
     await tester.pumpAndSettle();
 
     // Eighth of nine, each 900 tall, so it cannot be reached without moving.
     expect(controller.offset, greaterThan(900));
-    final RenderBox box = kDocsSteps['building']!.currentContext!
+    final RenderBox box = keys['building']!.currentContext!
         .findRenderObject()! as RenderBox;
     expect(box.localToGlobal(Offset.zero).dy, lessThan(100));
   });
@@ -88,8 +96,9 @@ void main() {
     // key names nothing. Returning quietly is right; throwing would be a
     // crash on a link that works a moment later.
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('x'))));
-    expect(() => dvGoToStep('building'), returnsNormally);
-    expect(() => dvGoToStep('no-such-step'), returnsNormally);
+    final BuildContext outside = tester.element(find.text('x'));
+    expect(() => dvGoToStep(outside, 'building'), returnsNormally);
+    expect(() => dvGoToStep(outside, 'no-such-step'), returnsNormally);
   });
 
   testWidgets('the step nobody should skip is not numbered like a step', (
