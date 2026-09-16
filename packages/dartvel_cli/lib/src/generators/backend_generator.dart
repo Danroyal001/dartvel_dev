@@ -2081,7 +2081,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             return '';
           }
 
-          final convExpr = conv(rtype);
+          // The type the client sees, with the Future taken off.
+          final convExpr = conv(clientReturnType);
           if (convExpr.isEmpty) {
             // Custom type – require a mapper
             final sigApiMapper = sigApi.replaceFirst(' }',
