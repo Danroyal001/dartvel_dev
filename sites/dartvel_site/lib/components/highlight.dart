@@ -45,8 +45,83 @@ class Code {
   static const Color _number = Color(0xFFFF9E64);
   static const Color _call = Color(0xFF7AA2F7);
 
+  /// What a terminal prints back, dimmer than what you type into it.
+  static const Color _output = Color(0xFF9AA5CE);
+
+  /// The first words that make a line a command someone types.
+  static const Set<String> _commands = <String>{
+    'dartvel', 'brew', 'cd', 'flutter', 'dart', 'npm', 'npx', 'curl', 'scp',
+    'ssh', 'git', 'export', 'sudo', 'docker', 'cp', 'mkdir', 'chmod',
+  };
+
+  /// Whether [source] is a terminal session rather than Dart.
+  ///
+  /// A line at a `$ ` prompt makes it one. So does a block where every line
+  /// is a comment or starts with a command: the install block has no prompt,
+  /// and through the Dart scanner "Danroyal001" was coloured as a type.
+  static bool isSession(String source) {
+    final List<String> lines = <String>[
+      for (final String line in source.split('\n'))
+        if (line.trim().isNotEmpty) line.trim(),
+    ];
+    if (lines.any((String line) => line.startsWith(r'$ '))) return true;
+    final List<String> commands = <String>[
+      for (final String line in lines)
+        if (!line.startsWith('#')) line,
+    ];
+    return commands.isNotEmpty &&
+        commands.every((String line) =>
+            _commands.contains(line.split(RegExp(r'\s+')).first));
+  }
+
+  /// A terminal session: the prompt, what is typed, what is printed back,
+  /// and comments. None of Dart's rules apply, so a URL's `//` is part of the
+  /// URL and "on" in a sentence is a word.
+  static List<TextSpan> _session(String source) {
+    final bool prompted = source
+        .split('\n')
+        .any((String line) => line.trimLeft().startsWith(r'$ '));
+    final List<TextSpan> out = <TextSpan>[];
+    final List<String> lines = source.split('\n');
+    for (int i = 0; i < lines.length; i++) {
+      String line = lines[i];
+      final String newline = i + 1 < lines.length ? '\n' : '';
+      if (line.trimLeft().startsWith('#')) {
+        out.add(TextSpan(
+            text: '$line$newline', style: const TextStyle(color: _comment)));
+        continue;
+      }
+      final bool typed = !prompted || line.trimLeft().startsWith(r'$ ');
+      if (!typed) {
+        out.add(TextSpan(
+            text: '$line$newline', style: const TextStyle(color: _output)));
+        continue;
+      }
+      if (line.trimLeft().startsWith(r'$ ')) {
+        final int at = line.indexOf(r'$ ');
+        out.add(TextSpan(
+            text: line.substring(0, at + 2),
+            style: const TextStyle(color: _string)));
+        line = line.substring(at + 2);
+      }
+      final int hash = line.indexOf(RegExp(r'\s#'));
+      out.add(TextSpan(
+          text: hash < 0 ? line : line.substring(0, hash),
+          style: const TextStyle(color: _plain)));
+      if (hash >= 0) {
+        out.add(TextSpan(
+            text: line.substring(hash), style: const TextStyle(color: _comment)));
+      }
+      if (newline.isNotEmpty) {
+        out.add(const TextSpan(text: '\n'));
+      }
+    }
+    return out;
+  }
+
   /// Scan [source] into coloured spans.
   static List<TextSpan> spans(String source) {
+    if (isSession(source)) return _session(source);
     final List<TextSpan> out = <TextSpan>[];
     final StringBuffer plain = StringBuffer();
 
@@ -176,7 +251,19 @@ Widget _codeSample(BuildContext context, List<String> lines) {
   final DVSignal<bool> copied = context.signal(false);
 
   return DVBox(
-    DVBox.stack(<Widget>[
+    // The Copy button's corner is kept clear of the code. Stacked straight
+    // over the text, a first line that reached the right edge ran under the
+    // button on every phone. Beside the code where the block is wide, and
+    // above it where it is narrow, since a gutter on a phone would wrap
+    // every line.
+    LayoutBuilder(builder: (BuildContext context, BoxConstraints box) {
+      final bool narrow = box.maxWidth < 560;
+      return DVBox.stack(<Widget>[
+      Padding(
+        padding: narrow
+            ? const EdgeInsets.only(top: 52)
+            : const EdgeInsets.only(right: 80),
+        child:
       // Labelled, because Flutter renders SelectableText as a textarea whose
       // value it manages: without this the code is absent from the semantics
       // tree entirely, so a crawler never sees the install commands and a
@@ -199,11 +286,13 @@ Widget _codeSample(BuildContext context, List<String> lines) {
           ),
         ),
       ),
+      ),
       DVBox(
         CopyButton(source, copied),
         const DVModifier().align(Alignment.topRight),
       ),
-    ]),
+      ]);
+    }),
     const DVModifier()
         .width(double.infinity)
         .maxWidth(680)
