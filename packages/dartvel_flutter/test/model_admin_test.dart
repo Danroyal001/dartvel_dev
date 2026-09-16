@@ -69,18 +69,29 @@ void main() {
         () => const Account(id: '', email: '', seats: 0));
     registerDVModelSerializer<Account>((Account model) => model.toJson());
     registerDVModelDeserializer<Account>(Account.fromJson);
+    // The admin asks a policy before it offers an action, and a model
+    // nobody wrote one for is refused like any other unanswered policy. The
+    // screen itself is what these tests drive, so everybody may.
+    DV.Test.resetPolicies();
+    for (final String action in <String>['create', 'update', 'delete']) {
+      DV.Auth.authorization
+          .register<Object?, Account>(action, (Object? user, Account a) => true);
+    }
   });
 
   tearDown(() {
+    DV.Test.resetPolicies();
+    DV.Test.resetAuth();
     database.close();
     dvModelFactories.clear();
     dvModelSerializers.clear();
     dvModelDeserializers.clear();
   });
 
-  Widget host() => MaterialApp(
+  Widget host({Object? as}) => MaterialApp(
         home: Material(
           child: DVModelAdmin<Account>(
+            as: as,
             title: 'Account',
             load: store.all,
             save: store.save,
@@ -93,8 +104,8 @@ void main() {
         ),
       );
 
-  Future<void> open(WidgetTester tester) async {
-    await tester.pumpWidget(host());
+  Future<void> open(WidgetTester tester, {Object? as}) async {
+    await tester.pumpWidget(host(as: as));
     await tester.pumpAndSettle();
   }
 
@@ -229,4 +240,167 @@ void main() {
     expect(find.textContaining('Could not read Account'), findsOneWidget);
     expect(find.text('No Account records yet.'), findsNothing);
   });
+
+  group('the policy decides which actions are offered', () {
+    Future<void> openRecord(WidgetTester tester, {Object? as}) async {
+      await open(tester, as: as);
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-admin-record-a1')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Delete is not offered to somebody the policy forbids',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization.register<Object?, Account>(
+          'delete', (Object? user, Account a) => false);
+
+      await openRecord(tester);
+
+      expect(find.byKey(const ValueKey<String>('dv-admin-delete')),
+          findsNothing);
+    });
+
+    testWidgets('a delete refused after the screen drew is refused at the write',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      bool allowed = true;
+      DV.Auth.authorization.register<Object?, Account>(
+          'delete', (Object? user, Account a) => allowed);
+
+      await openRecord(tester);
+      expect(find.byKey(const ValueKey<String>('dv-admin-delete')),
+          findsOneWidget);
+      // A role removed while the screen was open: the button is still
+      // drawn, and pressing it must not delete.
+      allowed = false;
+      await tester.tap(find.byKey(const ValueKey<String>('dv-admin-delete')));
+      await tester.pumpAndSettle();
+
+      expect((await store.all()).map((Account a) => a.id), <String>['a1']);
+      expect(find.textContaining('Account.delete is not allowed'),
+          findsOneWidget);
+    });
+
+    testWidgets('New is not offered when the policy refuses create',
+        (WidgetTester tester) async {
+      DV.Auth.authorization.register<Object?, Account>(
+          'create', (Object? user, Account a) => false);
+
+      await open(tester);
+
+      expect(find.byKey(const ValueKey<String>('dv-admin-new')), findsNothing);
+    });
+
+    testWidgets('a record the policy refuses to update is shown without Save',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization.register<Object?, Account>(
+          'update', (Object? user, Account a) => false);
+
+      await openRecord(tester);
+
+      expect(find.byType(EditableText), findsNWidgets(3));
+      expect(find.text('Save'), findsNothing);
+      expect(find.textContaining('Account.update is not allowed'),
+          findsOneWidget);
+    });
+
+    testWidgets('a save refused after the form drew writes nothing',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'old@x.com', seats: 1));
+      bool allowed = true;
+      DV.Auth.authorization.register<Object?, Account>(
+          'update', (Object? user, Account a) => allowed);
+
+      await openRecord(tester);
+      await tester.enterText(find.byType(EditableText).at(1), 'new@x.com');
+      allowed = false;
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect((await store.all()).single.email, 'old@x.com');
+      expect(find.text('Saved.'), findsNothing);
+    });
+
+    testWidgets('an update is asked about the stored record, not the edit',
+        (WidgetTester tester) async {
+      // Ownership is judged on what exists: typing somebody else's value
+      // into the form must not make a record one may edit.
+      await store.save(const Account(id: 'a1', email: 'mine@x.com', seats: 1));
+      DV.Auth.authorization.register<Object?, Account>(
+          'update', (Object? user, Account a) => a.email == 'mine@x.com');
+
+      await openRecord(tester);
+      await tester.enterText(find.byType(EditableText).at(1), 'other@x.com');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect((await store.all()).single.email, 'other@x.com');
+    });
+
+    testWidgets(
+        'a policy written against the application\'s user refuses the session '
+        'user rather than throwing', (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization
+          .register<Member, Account>('delete', (Member m, Account a) => true);
+
+      await DV.Test.asUser(DV.Test.fakeAuthUser(id: 'u1'), () async {
+        await openRecord(tester);
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey<String>('dv-admin-delete')),
+            findsNothing);
+      });
+    });
+
+    testWidgets('the application\'s user handed to the admin is who is asked',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization.register<Member, Account>(
+          'delete', (Member m, Account a) => m.id == 'm1');
+
+      await DV.Test.asUser(DV.Test.fakeAuthUser(id: 'u1'), () async {
+        await openRecord(tester, as: const Member('m1'));
+        await tester
+            .tap(find.byKey(const ValueKey<String>('dv-admin-delete')));
+        await tester.pumpAndSettle();
+      });
+
+      expect(await store.all(), isEmpty);
+    });
+
+    testWidgets('an application user of the wrong type is refused, not '
+        'swapped for the session user', (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization.register<DVAuthUser, Account>(
+          'delete', (DVAuthUser u, Account a) => true);
+
+      await DV.Test.asUser(DV.Test.fakeAuthUser(id: 'u1'), () async {
+        await openRecord(tester, as: const Member('m1'));
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey<String>('dv-admin-delete')),
+            findsNothing);
+      });
+    });
+
+    testWidgets('the signed-in user reaches a policy written against it',
+        (WidgetTester tester) async {
+      await store.save(const Account(id: 'a1', email: 'a@x.com', seats: 1));
+      DV.Auth.authorization.register<DVAuthUser, Account>(
+          'delete', (DVAuthUser u, Account a) => u.id == 'u1');
+
+      await DV.Test.asUser(DV.Test.fakeAuthUser(id: 'u1'), () async {
+        await openRecord(tester);
+        expect(find.byKey(const ValueKey<String>('dv-admin-delete')),
+            findsOneWidget);
+      });
+    });
+  });
+}
+
+/// The application's own user model, which is not the session's DVAuthUser.
+class Member {
+  final String id;
+  const Member(this.id);
 }
