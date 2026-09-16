@@ -99,8 +99,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Model Sync and Presence',
     'Built on models and signals',
-    'Generated sync, subscriptions and presence for your models. Absent: a '
-        'restored change event, since nothing restores a deleted model yet.',
+    'Generated sync, subscriptions and presence for your models, including a '
+        'restored event when a soft-deleted record comes back.',
   ),
   (
     'File Storage',
@@ -225,8 +225,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Record History and Optimistic Concurrency',
     'Versioned writes',
-    'Present: a generated model saves at the version it read and is refused '
-        'when the row moved. Absent: generated restore and revert.',
+    'Present: a model saves at the version it read, a hand-built model cannot '
+        'overwrite a stored row, and soft delete, restore and revert are '
+        'generated. Absent: form reload-and-merge and the Studio history view.',
   ),
   (
     'Outbound HTTP',
