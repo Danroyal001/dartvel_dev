@@ -152,7 +152,7 @@ void main() {
 
   test('the model generates a CRUD admin over its own operations', () async {
     final generated = await generate(_model);
-    final admin = bodyOf(generated, 'static Widget Admin()');
+    final admin = bodyOf(generated, 'static Widget Admin({Object? as})');
 
     // Wired to the model's real persistence, not a placeholder screen.
     expect(admin, contains('DVModelAdmin<Post>'));
@@ -168,6 +168,16 @@ void main() {
       generated,
       contains('static Widget Form(Post model, [void Function(Post)? onSubmit])'),
     );
+  });
+
+  test('the generated admin asks its policy about the user it is handed',
+      () async {
+    final generated = await generate(_model);
+    final admin = bodyOf(generated, 'static Widget Admin({Object? as})');
+
+    // A policy written against the application's User cannot take the
+    // session's DVAuthUser, so the admin has to be told who is asking.
+    expect(admin, contains('as: as,'));
   });
 
   test('an application with no models still gets registerDartvelModels', () async {

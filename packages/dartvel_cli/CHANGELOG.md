@@ -1,4 +1,11 @@
 ## Unreleased
+- **`Model.Admin(as:)`.** The generated admin asks the model's policy before
+  it offers New, Delete or Save and again before it writes, and `as:` names
+  the application's own user the policy is asked about, which a policy
+  written against the generated `User` needs. Without it the session's
+  `DV.Auth.currentUser` is asked, and a policy that cannot take that refuses
+  rather than throwing.
+
 - **The account pages build for the web, and the gate lands on a page.** The
   generated router also serves `DV.Auth.SignInWithEmailAndPasswordPage` at
   `dartvel.auth.pages.signIn` (default `/login`), passing it `from`, and sets
