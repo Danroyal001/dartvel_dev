@@ -300,15 +300,16 @@ Widget _oneFileBackend(BuildContext context) => const Section(
           'your tables.',
       'The database lives in dartvel_data next to the binary, so you back up '
           'one folder.',
-      'The web app, the API and the pages rendered on request all come '
-          'from that file.',
+      'The web app, the API, the admin and the pages rendered on request all '
+          'come from that file.',
     ]),
     Objection(
       'Why not use PocketBase?',
-      'PocketBase is also one file, and you extend it in Go or JavaScript. '
-          'Dartvel keeps your backend in Dart beside your Flutter app, with '
-          'a typed client generated for it. PocketBase ships an admin '
-          'dashboard in its file, and this binary has none yet.',
+      'PocketBase is also one file with its admin inside, and you extend it '
+          'in Go or JavaScript. This binary carries its admin too: turn on '
+          'dartvel.admin.enabled and a signed-in user opens it at /__studio. '
+          'Your backend stays in Dart beside your Flutter app, with a typed '
+          'client generated for it.',
     ),
     DVBox.wrapLine(<Widget>[
       PrimaryLink('Build your one-file backend', '/docs/deploying'),

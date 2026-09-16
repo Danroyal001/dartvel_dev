@@ -18,8 +18,8 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
           title: 'Build one file with dartvel build web-server',
           children: <Widget>[
             DocsText('dartvel build web-server writes build/server: one '
-                'executable with your backend, the native server and the web '
-                'app inside it.'),
+                'executable with your backend, the native server, the web app '
+                'and the admin dashboard inside it.'),
             DocsShell(<String>[
               r'$ dartvel build web-server',
               r'$ scp build/server you@host:/srv/shop/',
@@ -33,6 +33,8 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'mounted volume.',
               'Set DATABASE_URL to use PostgreSQL or MySQL. The binary does '
                   'not migrate those on start.',
+              'With dartvel.admin.enabled on, the binary serves the admin at '
+                  '/__studio to a signed-in session. dartvel.admin.path moves it.',
             ]),
             DocsNote('Linux x64 only',
                 'The server binary embeds a native library that ships for '
