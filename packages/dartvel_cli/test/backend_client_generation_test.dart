@@ -234,6 +234,11 @@ Future<Map<String, bool>> pay(DVContext context, String orderId) async =>
       // one value forever.
       expect(routes, contains('DVRequestLifecycle.executing'));
       expect(routes, contains('DVRequestLifecycle.failed'));
+      // And its hooks run. The context is made per request and is not a
+      // DV.transaction, so afterCommit and compensate on it filled lists that
+      // nothing read: a receipt was never sent and a charge never refunded.
+      expect(routes, contains('await core.dvCommitContext(_dvCtx);'));
+      expect(routes, contains('await core.dvCompensateContext(_dvCtx)'));
 
       // And the client must not be asked for it. A context decoded from the
       // request body is the opposite of an injected one.

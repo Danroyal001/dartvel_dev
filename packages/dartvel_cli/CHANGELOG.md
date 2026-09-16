@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`afterCommit` and `compensate` on an injected `DVContext` run.** The
+  context a backend function is handed is made per request and is not a
+  `DV.transaction`, so its hooks were never read: a receipt registered with
+  `afterCommit` was never sent. After-commit work now runs once the function
+  returns, and compensations run in reverse when it throws
+  (`dvCommitContext`, `dvCompensateContext`).
+
 - **The generated runtime registers the Shorebird update bindings** in
   `registerPlatformBindings`, a no-op on a build without Shorebird's engine.
 
