@@ -1042,9 +1042,10 @@ class BuildCommand extends Command<void> {
         _writeRendererHints(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
-          await _writeAdminDashboard(root);
+          final DVAdminMount? admin = await _writeAdminDashboard(root);
           // The backend that serves all of it, as one executable file.
-          if (await _buildServerBinary(root) == _PlatformBuildResult.failed) {
+          if (await _buildServerBinary(root, admin: admin) ==
+              _PlatformBuildResult.failed) {
             Logger.log('❌ $platform build failed');
             return _PlatformBuildResult.failed;
           }
@@ -1073,7 +1074,8 @@ class BuildCommand extends Command<void> {
   /// server library inside: the web-server build's executable, at the path
   /// `dartvel deploy`'s image runs as /app/server and `dartvel infra`'s units
   /// start as /opt/<app>/server.
-  Future<_PlatformBuildResult> _buildServerBinary(String root) async {
+  Future<_PlatformBuildResult> _buildServerBinary(String root,
+      {required DVAdminMount? admin}) async {
     Logger.log('🔨 Compiling the backend into one executable...');
     final host = dvHostServerLibrary();
     final DVServerLibraryLookup lookup =
@@ -1087,6 +1089,10 @@ class BuildCommand extends Command<void> {
       library: lookup.file!,
       // Everything the web-server build wrote, carried inside the binary.
       webRoot: p.join(root, 'build', 'web'),
+      // The dashboard this build wrote, in a section of its own and never
+      // among the web files, served by the binary at its mount.
+      admin: admin,
+      adminRoot: p.join(root, 'build', 'web', '__admin'),
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
@@ -2949,9 +2955,13 @@ class BuildCommand extends Command<void> {
   /// web-server, because that is the target with a backend to serve it --
   /// putting it in a static web build would be the same thing as compiling
   /// it into the client, which is what moving it here undid.
-  Future<void> _writeAdminDashboard(String root) async {
+  ///
+  /// Returns the mount it wrote the dashboard for, or null when this build
+  /// has none -- which is what the binary carries, so a dashboard left in
+  /// build/web by an earlier build is never mistaken for this one's.
+  Future<DVAdminMount?> _writeAdminDashboard(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
-    if (!web.existsSync()) return;
+    if (!web.existsSync()) return null;
 
     // A release or profile build has to ask for the admin; a debug one gets
     // it by default, which is what makes a new project's dashboard work with
@@ -2966,13 +2976,13 @@ class BuildCommand extends Command<void> {
       Logger.log('   No admin dashboard in this build. A release build '
           'serves one only when dartvel.admin.enabled says so; '
           '--profile development gets it with no configuration.');
-      return;
+      return null;
     }
 
     final String problem = dvAdminMountProblem(admin.path) ?? '';
     if (problem.isNotEmpty) {
       Logger.log('❌ $problem');
-      return;
+      return null;
     }
 
     final Object? declaredName = readPubspecYaml(root)?['name'];
@@ -2999,6 +3009,7 @@ class BuildCommand extends Command<void> {
 
     Logger.log('   Admin dashboard at ${admin.path} '
         '(${files.length} files, served by the backend).');
+    return admin;
   }
 
   /// Whether this build is a release or profile one.

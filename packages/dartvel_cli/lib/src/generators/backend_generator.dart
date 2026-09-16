@@ -1439,7 +1439,11 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// [updatesRoot] is where the Shorebird patch source keeps patches when
 /// [dartvelPatchSourcePrefix] is set: DARTVEL_UPDATES_DIR when null, else
 /// .dartvel/updates. It publishes only with DARTVEL_UPDATES_TOKEN set.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot}) async {
+///
+/// With [admin] and [adminRoot], the admin dashboard in [adminRoot] is served
+/// at the mount: to a signed-in session when the mount requires one, and to
+/// nobody else. The web-server binary passes both from what it carries.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot}) async {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -1570,9 +1574,19 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
           updatesRoot ?? Platform.environment['DARTVEL_UPDATES_DIR'] ?? '.dartvel\${Platform.pathSeparator}updates',
           publishToken: Platform.environment['DARTVEL_UPDATES_TOKEN'],
         );
-  final Future<dv.Response> Function(dv.Request) handler = patchSource == null
+  final Future<dv.Response> Function(dv.Request) application = patchSource == null
       ? router.call
       : (dv.Request request) async => await patchSource.respond(request, prefix: patchPrefix!) ?? await router.call(request);
+  // The admin dashboard, at its mount, from files that are not under
+  // [spaRoot] -- every file there is served to anybody. A caller who may not
+  // see it falls through to the application, which answers the path exactly
+  // as it answers any route it does not serve.
+  final core.DVAdminServer? adminServer = admin == null || adminRoot == null
+      ? null
+      : core.DVAdminServer(mount: admin, root: adminRoot);
+  final Future<dv.Response> Function(dv.Request) handler = adminServer == null
+      ? application
+      : (dv.Request request) async => await adminServer.respond(request) ?? await application(request);
   return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
@@ -1666,12 +1680,12 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
-Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot}) async {
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot}) async {
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
     case core.DVProcessRole.web:
-      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot);
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot);
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();
