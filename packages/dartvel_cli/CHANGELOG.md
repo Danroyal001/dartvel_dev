@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`dartvel compatibility-check` checks the recorded protocol and gates a
+  deploy on the client histogram.** On its own it refuses a project with no
+  `dartvel.protocol.lock` or a lockfile edited by hand, prints the protocol
+  and what each version in the window is served, and fails on `DV-PROTO-004`.
+  With `--against <environment> --histogram <file>` it refuses a deploy when
+  a version outside the window carried more than `protocol.strandThreshold`
+  of the last seven days' sessions (`DV-PROTO-005`), and refuses an empty
+  histogram. Monitoring does not record that histogram yet, so it is passed
+  as an export. `--override <reason>` lets a refused deploy through and
+  appends the reason and the histogram to
+  `.dartvel/compatibility-overrides.jsonl`.
+
 - **`dartvel migrate-code` rewrites deprecated Dartvel names.** It rewrites
   `DVStyleModifier` to `DVModifier`, `.styleModifier(` to `.modifier(`,
   `DV.Storage` to `DV.FileStorage`, `@DVSearchable` and
