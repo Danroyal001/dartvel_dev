@@ -10,6 +10,7 @@ import '../config/dartvel_config.dart';
 import '../devclient/dev_client_server.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
+import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
 import '../build/seo_head.dart';
 import '../utils/logger.dart';
@@ -204,6 +205,17 @@ Future<void> main() async {
       flutterArgs.addAll(['--web-port', webPort.toString()]);
       Logger.log('Dartvel web-server device selected.');
       Logger.log('Dartvel web app local URL: http://localhost:$webPort');
+      final lanUrl = dvLanPreviewUrl(
+        bindHost: webHostname ?? '0.0.0.0',
+        port: webPort,
+        lanHost: await dvDetectLanHost(),
+      );
+      if (lanUrl != null) {
+        _printQr('Open it on a phone on the same network:', lanUrl.toString());
+      } else {
+        Logger.log('The web server is bound to $webHostname, so no phone can '
+            'reach it. Pass --web-hostname 0.0.0.0 to serve it on the LAN.');
+      }
       final forwardedHost = Platform.environment['CODESPACE_NAME'];
       final forwardedDomain =
           Platform.environment['GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN'];
@@ -375,13 +387,24 @@ Future<void> main() async {
       final server = await DVDevClientBundleServer.start(
           root: root, branch: branch, port: port);
       Logger.log('Dev client: serving $branch on port ${server.port}.');
-      Logger.log('Dev client pairing link (open it on the device, or encode '
-          'it as a QR code):');
-      Logger.log('  ${server.pairing.link}');
+      _printQr('Scan with the camera on a device running a development build:',
+          server.pairing.link.toString());
       return server;
     } catch (error) {
       Logger.log('WARN: the dev-client server did not start: $error');
       return null;
+    }
+  }
+
+  /// A heading, a QR code and the link, unprefixed so the code stays square.
+  void _printQr(String heading, String link) {
+    Logger.log(heading);
+    for (final line in dvQrBlock(
+      heading: '',
+      link: link,
+      ansi: stdout.hasTerminal && stdout.supportsAnsiEscapes,
+    ).skip(1)) {
+      stdout.writeln(line);
     }
   }
 

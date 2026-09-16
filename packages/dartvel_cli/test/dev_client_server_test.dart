@@ -8,7 +8,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_cli/src/devclient/dev_client_project.dart';
 import 'package:dartvel_cli/src/devclient/dev_client_server.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
@@ -219,28 +218,5 @@ void main() {
 
     expect(status, 500);
     expect(body, contains('broken.json'));
-  });
-
-  group('the address a device is told to use', () {
-    test('a private LAN address over a public or link-local one', () {
-      expect(
-        dvDevClientAdvertisedHost(<InternetAddress>[
-          InternetAddress('127.0.0.1'),
-          InternetAddress('169.254.3.4'),
-          InternetAddress('203.0.113.9'),
-          InternetAddress('192.168.1.20'),
-        ]),
-        '192.168.1.20',
-      );
-    });
-
-    test('loopback only when there is nothing else', () {
-      expect(
-        dvDevClientAdvertisedHost(<InternetAddress>[
-          InternetAddress('127.0.0.1'),
-        ]),
-        '127.0.0.1',
-      );
-    });
   });
 }

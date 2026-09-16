@@ -83,29 +83,3 @@ String? _lockedVersion(String root, String package) {
     return null;
   }
 }
-
-/// The address a device on the same network should be told to use.
-///
-/// A private LAN address first -- that is where a phone on the office Wi-Fi
-/// can reach -- then any other non-loopback, non-link-local address, and
-/// loopback only when nothing else exists.
-String dvDevClientAdvertisedHost(List<InternetAddress> addresses) {
-  bool private(InternetAddress a) {
-    final List<int> b = a.rawAddress;
-    if (a.type != InternetAddressType.IPv4) return false;
-    return b[0] == 10 ||
-        (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
-        (b[0] == 192 && b[1] == 168);
-  }
-
-  bool usable(InternetAddress a) =>
-      !a.isLoopback && !a.isLinkLocal && a.type == InternetAddressType.IPv4;
-
-  for (final InternetAddress a in addresses) {
-    if (private(a)) return a.address;
-  }
-  for (final InternetAddress a in addresses) {
-    if (usable(a)) return a.address;
-  }
-  return InternetAddress.loopbackIPv4.address;
-}
