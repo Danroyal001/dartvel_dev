@@ -1,5 +1,22 @@
 ## Unreleased
 
+- **Webhook subscriptions, deliveries and payloads are kept in
+  `DV.Database`.** They were maps in process memory, so a restart lost every
+  subscription, the record of every delivery, and every retry still owed.
+  They are three framework tables now (`dv_webhook_subscriptions`,
+  `dv_webhook_deliveries`, `dv_webhook_payloads`), and the job on the queue
+  only says which endpoint to work, so a delivery that failed before a
+  restart is retried after it as the same delivery, with its earlier
+  attempts counted and still ahead of the next event. A queue lost with the
+  process is refilled: `drain` queues one job for each pending delivery that
+  has none, and `resume()` does it for every endpoint at startup. The drain
+  job also has a payload codec now. Before, `DVDatabaseQueueAdapter` refused
+  to store it, so webhooks could not run on the durable queue at all.
+  Retention deletes the payload row and keeps the record. `subscription`,
+  `subscriptions()`, `delivery`, `deliveries` and `purgeExpiredPayloads`
+  return futures, and ids are random rather than a counter that restarted
+  at 1.
+
 - **A webhook connects to the address its check approved.** The endpoint
   check resolved a customer's host and refused private addresses, and then
   the HTTP client resolved the host again to connect. A name with a short TTL

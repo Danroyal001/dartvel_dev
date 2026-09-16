@@ -12,10 +12,12 @@ library dartvel_core.webhooks;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
 import '../../dartvel.dart';
+import '../database/framework_tables.dart' show dvEnsureFrameworkTable;
 import 'webhook_resolver_unsupported.dart'
     if (dart.library.io) 'webhook_resolver_io.dart' as resolver;
 
@@ -329,17 +331,25 @@ class DVWebhookDrainJob {
 }
 
 /// `DV.Webhooks`.
+///
+/// Subscriptions, deliveries and payloads are rows in `DV.Database`, so the
+/// record of what was sent -- and what is still owed -- outlives the process
+/// that emitted it. The queue carries only "attempt the head of this
+/// endpoint's line"; everything that job needs to know is read from the
+/// database when it runs, so a job queued before a restart, or re-queued by
+/// [drain] after the queue itself was lost, does the same thing.
 class DVWebhooks {
   const DVWebhooks();
 
   static final Map<String, DVWebhookEvent> _events = <String, DVWebhookEvent>{};
-  static final Map<String, DVWebhookSubscription> _subscriptions =
-      <String, DVWebhookSubscription>{};
-  static final Map<String, DVWebhookDelivery> _deliveries =
-      <String, DVWebhookDelivery>{};
-  static int _sequence = 0;
-  static int _ids = 0;
   static bool _registered = false;
+  static final Expando<Future<void>> _ready = Expando<Future<void>>();
+  static Future<void> _sequenceLock = Future<void>.value();
+  static final Random _random = Random.secure();
+
+  /// The job's codec name. Written into a durable queue and read back after a
+  /// restart, so it does not change.
+  static const String drainJobCodec = 'dartvel.webhooks.drain';
 
   static DVWebhooksConfig config = const DVWebhooksConfig();
 
@@ -355,28 +365,58 @@ class DVWebhooks {
   /// `DV.Notifications`.
   static Future<void> Function(DVWebhookSubscription subscription)? onDisabled;
 
+  /// Where the record is kept. Null means `DV.Database`'s adapter, resolved
+  /// on each use so a tenant's database is the tenant's.
+  static DVDatabaseAdapter? database;
+
+  /// Forgets what this process holds -- declarations, configuration, hooks --
+  /// and none of what the database holds.
   static void reset() {
     _events.clear();
-    _subscriptions.clear();
-    _deliveries.clear();
-    _sequence = 0;
-    _ids = 0;
     _registered = false;
+    _sequenceLock = Future<void>.value();
     config = const DVWebhooksConfig();
     clock = DateTime.now;
     resolveHost = resolver.dvWebhookResolveHost;
     onDisabled = null;
+    database = null;
   }
 
   static String _queueFor(String subscriptionId) =>
       'dv.webhooks.$subscriptionId';
+
+  static String _newId(String prefix) {
+    final StringBuffer id = StringBuffer(prefix)
+      ..write('_')
+      ..write(DateTime.now().microsecondsSinceEpoch.toRadixString(36));
+    for (int i = 0; i < 8; i++) {
+      id.write(_random.nextInt(36).toRadixString(36));
+    }
+    return id.toString();
+  }
 
   void _ensureRegistered() {
     if (_registered) return;
     const DVQueues().register<DVWebhookDrainJob>(
       (DVWebhookDrainJob job) => _attemptHead(job.subscriptionId),
     );
+    const DVJobPayloadCodecs().register<DVWebhookDrainJob>(
+      DVJobPayloadCodec<DVWebhookDrainJob>(
+        name: drainJobCodec,
+        encode: (DVWebhookDrainJob job) =>
+            <String, Object?>{'subscription': job.subscriptionId},
+        decode: (Map<String, Object?> json) =>
+            DVWebhookDrainJob('${json['subscription']}'),
+      ),
+    );
     _registered = true;
+  }
+
+  /// The adapter, with the webhook tables made on it.
+  Future<DVDatabaseAdapter> _db() async {
+    final DVDatabaseAdapter adapter = database ?? const DVDatabase().adapter;
+    await (_ready[adapter] ??= _DVWebhookTables.create(adapter));
+    return adapter;
   }
 
   // --- catalog and subscriptions --------------------------------------------
@@ -406,21 +446,22 @@ class DVWebhooks {
     final Uri uri = Uri.parse(url);
     await _checkAddress(uri);
     final DVWebhookSubscription subscription = DVWebhookSubscription(
-      id: id ?? 'whsub_${++_ids}',
+      id: id ?? _newId('whsub'),
       url: uri,
       events: Set<String>.unmodifiable(events),
       signingSecret: signingSecret,
       tenant: tenant,
       createdAt: clock(),
     );
-    _subscriptions[subscription.id] = subscription;
+    await _DVWebhookTables.insertSubscription(await _db(), subscription);
     return subscription;
   }
 
-  DVWebhookSubscription? subscription(String id) => _subscriptions[id];
+  Future<DVWebhookSubscription?> subscription(String id) async =>
+      _DVWebhookTables.subscription(await _db(), id);
 
-  List<DVWebhookSubscription> get subscriptions =>
-      List<DVWebhookSubscription>.unmodifiable(_subscriptions.values);
+  Future<List<DVWebhookSubscription>> subscriptions() async =>
+      _DVWebhookTables.subscriptions(await _db());
 
   /// Signs with [newSecret] from now on, and with the current key as well
   /// until [overlap] has passed (`DV-WEBHOOK-007`), so a customer can switch
@@ -430,14 +471,14 @@ class DVWebhooks {
     String newSecret, {
     required Duration overlap,
   }) async {
-    final DVWebhookSubscription current = _require(subscriptionId);
+    final DVWebhookSubscription current = await _require(subscriptionId);
     final DateTime until = clock().add(overlap);
     final DVWebhookSubscription rotated = current._copyWith(
       previousSigningSecret: current.signingSecret,
       signingSecret: newSecret,
       overlapUntil: until,
     );
-    _subscriptions[subscriptionId] = rotated;
+    await _DVWebhookTables.updateSubscription(await _db(), rotated);
     DVObservability.log(
       'Webhook signing key rotated for $subscriptionId; both signatures are '
       'sent until ${until.toIso8601String()}.',
@@ -453,19 +494,15 @@ class DVWebhooks {
 
   /// Re-enables a disabled endpoint and resumes its pending deliveries.
   Future<void> enable(String subscriptionId) async {
-    final DVWebhookSubscription current = _require(subscriptionId);
-    _subscriptions[subscriptionId] =
-        current._copyWith(disabled: false, consecutiveFailures: 0);
+    final DVWebhookSubscription current = await _require(subscriptionId);
+    await _DVWebhookTables.updateSubscription(
+        await _db(), current._copyWith(disabled: false, consecutiveFailures: 0));
     _ensureRegistered();
-    for (final DVWebhookDelivery delivery in deliveries(subscriptionId)) {
-      if (delivery.state == DVWebhookDeliveryState.pending) {
-        await _dispatch(subscriptionId);
-      }
-    }
+    await _resume(subscriptionId);
   }
 
-  DVWebhookSubscription _require(String id) {
-    final DVWebhookSubscription? subscription = _subscriptions[id];
+  Future<DVWebhookSubscription> _require(String id) async {
+    final DVWebhookSubscription? subscription = await this.subscription(id);
     if (subscription == null) {
       throw ArgumentError('No webhook subscription "$id".');
     }
@@ -482,6 +519,10 @@ class DVWebhooks {
   /// [DVWebhookEvent.sensitiveFields] are removed wherever they appear. An
   /// endpoint belongs to somebody else, so this is the one serializer whose
   /// output the application can never recall.
+  ///
+  /// The delivery and its payload are written before the job is queued, so a
+  /// process that stops in between leaves a pending delivery [drain] or
+  /// [resume] picks up, never a job for a delivery that does not exist.
   Future<List<DVWebhookDelivery>> emit(String event, Object? payload) async {
     final DVWebhookEvent? declared = _events[event];
     if (declared == null) {
@@ -493,34 +534,57 @@ class DVWebhooks {
     }
     final Object? data = _strip(_publicForm(payload), declared.sensitiveFields);
     _ensureRegistered();
+    final DVDatabaseAdapter db = await _db();
 
     final List<DVWebhookDelivery> created = <DVWebhookDelivery>[];
-    for (final DVWebhookSubscription subscription in _subscriptions.values) {
+    for (final DVWebhookSubscription subscription
+        in await _DVWebhookTables.subscriptions(db)) {
       if (subscription.disabled || !subscription.events.contains(event)) {
         continue;
       }
-      final String id =
-          'whdel_${clock().microsecondsSinceEpoch}_${++_ids}';
+      final String id = _newId('whdel');
       final String body = jsonEncode(<String, Object?>{
         'id': id,
         'event': event,
         'created': clock().toUtc().toIso8601String(),
         'data': data,
       });
-      final DVWebhookDelivery delivery = DVWebhookDelivery(
-        id: id,
-        subscriptionId: subscription.id,
-        event: event,
-        sequence: ++_sequence,
-        createdAt: clock(),
-        state: DVWebhookDeliveryState.pending,
-        payload: body,
+      final DVWebhookDelivery delivery = await _withNextSequence(
+        db,
+        subscription.id,
+        (int sequence) async {
+          final DVWebhookDelivery delivery = DVWebhookDelivery(
+            id: id,
+            subscriptionId: subscription.id,
+            event: event,
+            sequence: sequence,
+            createdAt: clock(),
+            state: DVWebhookDeliveryState.pending,
+            payload: body,
+          );
+          await _DVWebhookTables.insertDelivery(db, delivery);
+          return delivery;
+        },
       );
-      _deliveries[id] = delivery;
       created.add(delivery);
       await _dispatch(subscription.id);
     }
     return created;
+  }
+
+  /// Runs [write] with the next sequence number in [subscriptionId]'s line.
+  ///
+  /// One at a time in this process, so two emits cannot read the same last
+  /// number and tie.
+  Future<T> _withNextSequence<T>(
+    DVDatabaseAdapter db,
+    String subscriptionId,
+    Future<T> Function(int sequence) write,
+  ) {
+    final Future<T> result = _sequenceLock.then((_) async =>
+        write(await _DVWebhookTables.lastSequence(db, subscriptionId) + 1));
+    _sequenceLock = result.then((_) {}, onError: (Object _) {});
+    return result;
   }
 
   static Object? _publicForm(Object? payload) {
@@ -569,20 +633,53 @@ class DVWebhooks {
 
   // --- delivering -----------------------------------------------------------
 
+  /// Queues jobs for [subscriptionId] until it has one for every pending
+  /// delivery.
+  ///
+  /// The deliveries table is what is owed; the queue is only what will next
+  /// act on it, one job per delivery. A queue in process memory is gone after
+  /// a restart, and a job a stopped worker had reserved is never handed out
+  /// again, so either can leave pending deliveries with nothing queued to
+  /// send them.
+  Future<void> _resume(String subscriptionId) async {
+    final DVDatabaseAdapter db = await _db();
+    final DVWebhookSubscription? subscription =
+        await _DVWebhookTables.subscription(db, subscriptionId);
+    if (subscription == null || subscription.disabled) return;
+    final int owed = await _DVWebhookTables.pendingCount(db, subscriptionId);
+    final int queued =
+        (await const DVQueues().pending(_queueFor(subscriptionId))).length;
+    for (int i = queued; i < owed; i++) {
+      await _dispatch(subscriptionId);
+    }
+  }
+
+  /// Queues whatever every enabled endpoint is still owed. For a process
+  /// starting up: deliveries that were pending when the last one stopped
+  /// continue from the attempts already recorded.
+  Future<void> resume() async {
+    _ensureRegistered();
+    for (final DVWebhookSubscription subscription in await subscriptions()) {
+      await _resume(subscription.id);
+    }
+  }
+
   /// Runs one queued attempt for [subscriptionId].
   Future<void> drainOnce(String subscriptionId) async {
     _ensureRegistered();
+    await _resume(subscriptionId);
     await const DVQueues().work(queue: _queueFor(subscriptionId));
   }
 
   /// Works [subscriptionId]'s queue until nothing is left in it.
   Future<void> drain(String subscriptionId) async {
     _ensureRegistered();
+    await _resume(subscriptionId);
     final String queue = _queueFor(subscriptionId);
     // Bounded: every attempt either finishes a delivery or counts towards its
     // limit, so this many runs is enough to empty any queue.
     int budget = 0;
-    for (final DVWebhookDelivery delivery in deliveries(subscriptionId)) {
+    for (final DVWebhookDelivery delivery in await deliveries(subscriptionId)) {
       if (delivery.state == DVWebhookDeliveryState.pending) {
         budget += config.maxAttempts + 1;
       }
@@ -598,26 +695,21 @@ class DVWebhooks {
   /// Drains every subscription at once, each in its own line, so an endpoint
   /// that takes thirty seconds to answer delays its own deliveries and nobody
   /// else's.
-  Future<void> drainAll() => Future.wait(<Future<void>>[
-        for (final String id in _subscriptions.keys.toList()) drain(id),
-      ]);
-
-  DVWebhookDelivery? _head(String subscriptionId) {
-    DVWebhookDelivery? head;
-    for (final DVWebhookDelivery delivery in _deliveries.values) {
-      if (delivery.subscriptionId != subscriptionId ||
-          delivery.state != DVWebhookDeliveryState.pending) {
-        continue;
-      }
-      if (head == null || delivery.sequence < head.sequence) head = delivery;
-    }
-    return head;
+  Future<void> drainAll() async {
+    final List<DVWebhookSubscription> all = await subscriptions();
+    await Future.wait(<Future<void>>[
+      for (final DVWebhookSubscription subscription in all)
+        drain(subscription.id),
+    ]);
   }
 
   Future<void> _attemptHead(String subscriptionId) async {
-    final DVWebhookSubscription? subscription = _subscriptions[subscriptionId];
+    final DVDatabaseAdapter db = await _db();
+    final DVWebhookSubscription? subscription =
+        await _DVWebhookTables.subscription(db, subscriptionId);
     if (subscription == null || subscription.disabled) return;
-    final DVWebhookDelivery? head = _head(subscriptionId);
+    final DVWebhookDelivery? head =
+        await _DVWebhookTables.head(db, subscriptionId);
     if (head == null) return;
     final String? body = head.payload;
     if (body == null) return;
@@ -635,14 +727,17 @@ class DVWebhooks {
             'subscription': subscriptionId,
             'delivery': head.id,
           });
-      _deliveries[head.id] = head._copyWith(
-        state: DVWebhookDeliveryState.refused,
-        attempts: head.attempts + 1,
-        lastError: refused.toString(),
-        lastAttemptAt: started,
-        lastDuration: clock().difference(started),
+      await _DVWebhookTables.updateDelivery(
+        db,
+        head._copyWith(
+          state: DVWebhookDeliveryState.refused,
+          attempts: head.attempts + 1,
+          lastError: refused.toString(),
+          lastAttemptAt: started,
+          lastDuration: clock().difference(started),
+        ),
       );
-      await _countFailure(subscription);
+      await _countFailure(subscriptionId);
       return;
     } catch (failure) {
       error = '$failure';
@@ -650,28 +745,38 @@ class DVWebhooks {
 
     final int attempts = head.attempts + 1;
     if (status != null && status >= 200 && status < 300) {
-      _deliveries[head.id] = head._copyWith(
-        state: DVWebhookDeliveryState.delivered,
-        attempts: attempts,
-        lastStatus: status,
-        lastAttemptAt: started,
-        lastDuration: clock().difference(started),
-        deliveredAt: clock(),
+      await _DVWebhookTables.updateDelivery(
+        db,
+        head._copyWith(
+          state: DVWebhookDeliveryState.delivered,
+          attempts: attempts,
+          lastStatus: status,
+          lastAttemptAt: started,
+          lastDuration: clock().difference(started),
+          deliveredAt: clock(),
+        ),
       );
-      _subscriptions[subscriptionId] =
-          (_subscriptions[subscriptionId] ?? subscription)
-              ._copyWith(consecutiveFailures: 0);
+      final DVWebhookSubscription latest =
+          await _DVWebhookTables.subscription(db, subscriptionId) ??
+              subscription;
+      if (latest.consecutiveFailures != 0) {
+        await _DVWebhookTables.updateSubscription(
+            db, latest._copyWith(consecutiveFailures: 0));
+      }
       return;
     }
 
     final bool exhausted = attempts >= config.maxAttempts;
-    _deliveries[head.id] = head._copyWith(
-      state: exhausted ? DVWebhookDeliveryState.deadLettered : null,
-      attempts: attempts,
-      lastStatus: status,
-      lastError: error ?? 'HTTP $status',
-      lastAttemptAt: started,
-      lastDuration: clock().difference(started),
+    await _DVWebhookTables.updateDelivery(
+      db,
+      head._copyWith(
+        state: exhausted ? DVWebhookDeliveryState.deadLettered : null,
+        attempts: attempts,
+        lastStatus: status,
+        lastError: error ?? 'HTTP $status',
+        lastAttemptAt: started,
+        lastDuration: clock().difference(started),
+      ),
     );
     if (exhausted) {
       DVObservability.log(
@@ -686,7 +791,7 @@ class DVWebhooks {
         },
       );
     }
-    final bool nowDisabled = await _countFailure(subscription);
+    final bool nowDisabled = await _countFailure(subscriptionId);
     // Thrown only while the delivery still has attempts left, so the job layer
     // re-queues this line and applies its backoff. A disabled endpoint's queue
     // stops instead.
@@ -697,25 +802,27 @@ class DVWebhooks {
   }
 
   /// Counts a failed attempt; disables the endpoint at the configured run.
-  Future<bool> _countFailure(DVWebhookSubscription subscription) async {
-    final DVWebhookSubscription latest =
-        _subscriptions[subscription.id] ?? subscription;
+  Future<bool> _countFailure(String subscriptionId) async {
+    final DVDatabaseAdapter db = await _db();
+    final DVWebhookSubscription? latest =
+        await _DVWebhookTables.subscription(db, subscriptionId);
+    if (latest == null) return false;
     final int failures = latest.consecutiveFailures + 1;
     if (failures < config.disableAfter) {
-      _subscriptions[subscription.id] =
-          latest._copyWith(consecutiveFailures: failures);
+      await _DVWebhookTables.updateSubscription(
+          db, latest._copyWith(consecutiveFailures: failures));
       return false;
     }
     final DVWebhookSubscription disabled =
         latest._copyWith(consecutiveFailures: failures, disabled: true);
-    _subscriptions[subscription.id] = disabled;
-    await const DVQueues().flush(queue: _queueFor(subscription.id));
+    await _DVWebhookTables.updateSubscription(db, disabled);
+    await const DVQueues().flush(queue: _queueFor(subscriptionId));
     DVObservability.log(
-      'Webhook endpoint ${subscription.url} disabled after $failures '
+      'Webhook endpoint ${latest.url} disabled after $failures '
       'consecutive failures.',
       level: DVLogLevel.warn,
       code: 'DV-WEBHOOK-003',
-      context: <String, Object?>{'subscription': subscription.id},
+      context: <String, Object?>{'subscription': subscriptionId},
     );
     await onDisabled?.call(disabled);
     return true;
@@ -895,34 +1002,26 @@ class DVWebhooks {
 
   // --- the record, retention and replay -------------------------------------
 
-  DVWebhookDelivery? delivery(String id) => _deliveries[id];
+  Future<DVWebhookDelivery?> delivery(String id) async =>
+      _DVWebhookTables.delivery(await _db(), id);
 
   /// [subscriptionId]'s deliveries in the order they were emitted.
-  List<DVWebhookDelivery> deliveries(String subscriptionId) {
-    final List<DVWebhookDelivery> found = <DVWebhookDelivery>[
-      for (final DVWebhookDelivery delivery in _deliveries.values)
-        if (delivery.subscriptionId == subscriptionId) delivery,
-    ]..sort((DVWebhookDelivery a, DVWebhookDelivery b) =>
-        a.sequence.compareTo(b.sequence));
-    return found;
-  }
+  Future<List<DVWebhookDelivery>> deliveries(String subscriptionId) async =>
+      _DVWebhookTables.deliveries(await _db(), subscriptionId);
 
   /// Drops the payload of every finished delivery older than the retention
   /// window, keeping the record. Returns how many were dropped.
   ///
   /// A delivery still waiting keeps its payload: dropping it would leave a
   /// pending delivery that can only ever be sent empty.
-  int purgeExpiredPayloads() {
-    int dropped = 0;
+  Future<int> purgeExpiredPayloads() async {
+    final DVDatabaseAdapter db = await _db();
     final DateTime now = clock();
-    for (final DVWebhookDelivery delivery in _deliveries.values.toList()) {
-      if (delivery.payload == null ||
-          delivery.state == DVWebhookDeliveryState.pending ||
-          now.difference(delivery.createdAt) <= config.retention) {
-        continue;
-      }
-      _deliveries[delivery.id] =
-          delivery._copyWith(clearPayload: true, payloadPurgedAt: now);
+    int dropped = 0;
+    for (final DVWebhookDelivery delivery in await _DVWebhookTables.olderThan(
+        db, now.subtract(config.retention))) {
+      if (delivery.state == DVWebhookDeliveryState.pending) continue;
+      await _DVWebhookTables.purgePayload(db, delivery.id, now);
       dropped++;
     }
     return dropped;
@@ -933,7 +1032,9 @@ class DVWebhooks {
   /// Refused after the retention window (`DV-WEBHOOK-005`) — whether or not
   /// the purge has run yet — rather than sent without a body.
   Future<DVWebhookDelivery> replay(String deliveryId) async {
-    final DVWebhookDelivery? delivery = _deliveries[deliveryId];
+    final DVDatabaseAdapter db = await _db();
+    final DVWebhookDelivery? delivery =
+        await _DVWebhookTables.delivery(db, deliveryId);
     if (delivery == null) {
       throw ArgumentError('No webhook delivery "$deliveryId".');
     }
@@ -953,15 +1054,318 @@ class DVWebhooks {
           context: <String, Object?>{'delivery': deliveryId});
       throw refused;
     }
-    final DVWebhookDelivery again = delivery._copyWith(
-      sequence: ++_sequence,
-      state: DVWebhookDeliveryState.pending,
-      attempts: 0,
-      replays: delivery.replays + 1,
+    final DVWebhookDelivery again = await _withNextSequence(
+      db,
+      delivery.subscriptionId,
+      (int sequence) async {
+        final DVWebhookDelivery again = delivery._copyWith(
+          sequence: sequence,
+          state: DVWebhookDeliveryState.pending,
+          attempts: 0,
+          replays: delivery.replays + 1,
+        );
+        await _DVWebhookTables.updateDelivery(db, again);
+        return again;
+      },
     );
-    _deliveries[deliveryId] = again;
     _ensureRegistered();
     await _dispatch(delivery.subscriptionId);
     return again;
+  }
+}
+
+/// The three webhook tables and every statement against them.
+///
+/// Payloads are a table of their own so that retention is a delete: the
+/// record row keeps what happened, and the body -- the one part that can
+/// carry a customer's data -- is gone rather than blanked. Written in the SQL
+/// the development adapter runs as well as SQLite and the servers do: no
+/// joins, no `IN`, no aggregates.
+abstract final class _DVWebhookTables {
+  static const String subscriptionsTable = 'dv_webhook_subscriptions';
+  static const String deliveriesTable = 'dv_webhook_deliveries';
+  static const String payloadsTable = 'dv_webhook_payloads';
+
+  static const String _subscriptionColumns =
+      'id, url, events, signing_secret, previous_signing_secret, '
+      'overlap_until, tenant, disabled, consecutive_failures, created_at';
+  static const String _deliveryColumns =
+      'id, subscription_id, event, sequence, created_at, state, attempts, '
+      'replays, last_status, last_error, last_attempt_at, last_duration_us, '
+      'delivered_at, payload_purged_at';
+
+  static Future<void> create(DVDatabaseAdapter db) async {
+    await dvEnsureFrameworkTable(
+      db,
+      'CREATE TABLE IF NOT EXISTS $subscriptionsTable ('
+      'id VARCHAR(191) PRIMARY KEY, '
+      'url TEXT NOT NULL, '
+      'events TEXT NOT NULL, '
+      'signing_secret TEXT NOT NULL, '
+      'previous_signing_secret TEXT, '
+      'overlap_until BIGINT, '
+      'tenant TEXT, '
+      'disabled INTEGER NOT NULL, '
+      'consecutive_failures INTEGER NOT NULL, '
+      'created_at BIGINT NOT NULL)',
+    );
+    await dvEnsureFrameworkTable(
+      db,
+      'CREATE TABLE IF NOT EXISTS $deliveriesTable ('
+      'id VARCHAR(191) PRIMARY KEY, '
+      'subscription_id VARCHAR(191) NOT NULL, '
+      'event TEXT NOT NULL, '
+      'sequence BIGINT NOT NULL, '
+      'created_at BIGINT NOT NULL, '
+      'state VARCHAR(32) NOT NULL, '
+      'attempts INTEGER NOT NULL, '
+      'replays INTEGER NOT NULL, '
+      'last_status INTEGER, '
+      'last_error TEXT, '
+      'last_attempt_at BIGINT, '
+      'last_duration_us BIGINT, '
+      'delivered_at BIGINT, '
+      'payload_purged_at BIGINT)',
+    );
+    await dvEnsureFrameworkTable(
+      db,
+      'CREATE TABLE IF NOT EXISTS $payloadsTable ('
+      'delivery_id VARCHAR(191) PRIMARY KEY, '
+      'body TEXT NOT NULL)',
+    );
+  }
+
+  static int? _micros(DateTime? at) => at?.toUtc().microsecondsSinceEpoch;
+
+  static DateTime? _time(Object? value) => value == null
+      ? null
+      : DateTime.fromMicrosecondsSinceEpoch(_int(value), isUtc: true);
+
+  static int _int(Object? value) =>
+      value is int ? value : (value as num).toInt();
+
+  static DVWebhookSubscription _readSubscription(Map<String, Object?> row) {
+    final Object? events = jsonDecode('${row['events']}');
+    return DVWebhookSubscription(
+      id: '${row['id']}',
+      url: Uri.parse('${row['url']}'),
+      events: Set<String>.unmodifiable(<String>{
+        for (final Object? event in events as List<Object?>) '$event',
+      }),
+      signingSecret: '${row['signing_secret']}',
+      previousSigningSecret: row['previous_signing_secret'] as String?,
+      overlapUntil: _time(row['overlap_until']),
+      tenant: row['tenant'] as String?,
+      disabled: _int(row['disabled']) != 0,
+      consecutiveFailures: _int(row['consecutive_failures']),
+      createdAt: _time(row['created_at'])!,
+    );
+  }
+
+  static Future<void> insertSubscription(
+      DVDatabaseAdapter db, DVWebhookSubscription s) async {
+    await db.execute(
+      'INSERT INTO $subscriptionsTable ($_subscriptionColumns) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      <Object?>[
+        s.id,
+        '${s.url}',
+        jsonEncode(s.events.toList()..sort()),
+        s.signingSecret,
+        s.previousSigningSecret,
+        _micros(s.overlapUntil),
+        s.tenant,
+        s.disabled ? 1 : 0,
+        s.consecutiveFailures,
+        _micros(s.createdAt),
+      ],
+    );
+  }
+
+  static Future<void> updateSubscription(
+      DVDatabaseAdapter db, DVWebhookSubscription s) async {
+    await db.execute(
+      'UPDATE $subscriptionsTable SET signing_secret = ?, '
+      'previous_signing_secret = ?, overlap_until = ?, disabled = ?, '
+      'consecutive_failures = ? WHERE id = ?',
+      <Object?>[
+        s.signingSecret,
+        s.previousSigningSecret,
+        _micros(s.overlapUntil),
+        s.disabled ? 1 : 0,
+        s.consecutiveFailures,
+        s.id,
+      ],
+    );
+  }
+
+  static Future<DVWebhookSubscription?> subscription(
+      DVDatabaseAdapter db, String id) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_subscriptionColumns FROM $subscriptionsTable WHERE id = ?',
+      <Object?>[id],
+    );
+    return rows.isEmpty ? null : _readSubscription(rows.first);
+  }
+
+  static Future<List<DVWebhookSubscription>> subscriptions(
+      DVDatabaseAdapter db) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_subscriptionColumns FROM $subscriptionsTable '
+      'ORDER BY created_at ASC, id ASC',
+    );
+    return <DVWebhookSubscription>[
+      for (final Map<String, Object?> row in rows) _readSubscription(row),
+    ];
+  }
+
+  static Future<DVWebhookDelivery> _readDelivery(
+      DVDatabaseAdapter db, Map<String, Object?> row) async {
+    final String id = '${row['id']}';
+    final List<Map<String, Object?>> payload = await db.query(
+      'SELECT body FROM $payloadsTable WHERE delivery_id = ?',
+      <Object?>[id],
+    );
+    final Object? duration = row['last_duration_us'];
+    return DVWebhookDelivery(
+      id: id,
+      subscriptionId: '${row['subscription_id']}',
+      event: '${row['event']}',
+      sequence: _int(row['sequence']),
+      createdAt: _time(row['created_at'])!,
+      state: DVWebhookDeliveryState.values.byName('${row['state']}'),
+      payload: payload.isEmpty ? null : '${payload.first['body']}',
+      attempts: _int(row['attempts']),
+      replays: _int(row['replays']),
+      lastStatus: row['last_status'] == null ? null : _int(row['last_status']),
+      lastError: row['last_error'] as String?,
+      lastAttemptAt: _time(row['last_attempt_at']),
+      lastDuration:
+          duration == null ? null : Duration(microseconds: _int(duration)),
+      deliveredAt: _time(row['delivered_at']),
+      payloadPurgedAt: _time(row['payload_purged_at']),
+    );
+  }
+
+  static List<Object?> _deliveryValues(DVWebhookDelivery d) => <Object?>[
+        d.subscriptionId,
+        d.event,
+        d.sequence,
+        _micros(d.createdAt),
+        d.state.name,
+        d.attempts,
+        d.replays,
+        d.lastStatus,
+        d.lastError,
+        _micros(d.lastAttemptAt),
+        d.lastDuration?.inMicroseconds,
+        _micros(d.deliveredAt),
+        _micros(d.payloadPurgedAt),
+      ];
+
+  /// The payload first, then the record: a record is what [head] finds, and
+  /// one found without its payload could never be sent.
+  static Future<void> insertDelivery(
+      DVDatabaseAdapter db, DVWebhookDelivery d) async {
+    await db.execute(
+      'INSERT INTO $payloadsTable (delivery_id, body) VALUES (?, ?)',
+      <Object?>[d.id, d.payload],
+    );
+    await db.execute(
+      'INSERT INTO $deliveriesTable ($_deliveryColumns) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      <Object?>[d.id, ..._deliveryValues(d)],
+    );
+  }
+
+  static Future<void> updateDelivery(
+      DVDatabaseAdapter db, DVWebhookDelivery d) async {
+    await db.execute(
+      'UPDATE $deliveriesTable SET subscription_id = ?, event = ?, '
+      'sequence = ?, created_at = ?, state = ?, attempts = ?, replays = ?, '
+      'last_status = ?, last_error = ?, last_attempt_at = ?, '
+      'last_duration_us = ?, delivered_at = ?, payload_purged_at = ? '
+      'WHERE id = ?',
+      <Object?>[..._deliveryValues(d), d.id],
+    );
+  }
+
+  static Future<DVWebhookDelivery?> delivery(
+      DVDatabaseAdapter db, String id) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_deliveryColumns FROM $deliveriesTable WHERE id = ?',
+      <Object?>[id],
+    );
+    return rows.isEmpty ? null : _readDelivery(db, rows.first);
+  }
+
+  static Future<List<DVWebhookDelivery>> deliveries(
+      DVDatabaseAdapter db, String subscriptionId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_deliveryColumns FROM $deliveriesTable '
+      'WHERE subscription_id = ? ORDER BY sequence ASC, id ASC',
+      <Object?>[subscriptionId],
+    );
+    return <DVWebhookDelivery>[
+      for (final Map<String, Object?> row in rows) await _readDelivery(db, row),
+    ];
+  }
+
+  /// The oldest delivery [subscriptionId] still owes.
+  static Future<DVWebhookDelivery?> head(
+      DVDatabaseAdapter db, String subscriptionId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_deliveryColumns FROM $deliveriesTable '
+      'WHERE subscription_id = ? AND state = ? '
+      'ORDER BY sequence ASC, id ASC LIMIT 1',
+      <Object?>[subscriptionId, DVWebhookDeliveryState.pending.name],
+    );
+    return rows.isEmpty ? null : _readDelivery(db, rows.first);
+  }
+
+  static Future<int> pendingCount(
+      DVDatabaseAdapter db, String subscriptionId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT COUNT(*) AS owed FROM $deliveriesTable '
+      'WHERE subscription_id = ? AND state = ?',
+      <Object?>[subscriptionId, DVWebhookDeliveryState.pending.name],
+    );
+    return rows.isEmpty ? 0 : _int(rows.first['owed']);
+  }
+
+  static Future<int> lastSequence(
+      DVDatabaseAdapter db, String subscriptionId) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT sequence FROM $deliveriesTable WHERE subscription_id = ? '
+      'ORDER BY sequence DESC LIMIT 1',
+      <Object?>[subscriptionId],
+    );
+    return rows.isEmpty ? 0 : _int(rows.first['sequence']);
+  }
+
+  /// Deliveries created before [cutoff] whose payload is still kept.
+  static Future<List<DVWebhookDelivery>> olderThan(
+      DVDatabaseAdapter db, DateTime cutoff) async {
+    final List<Map<String, Object?>> rows = await db.query(
+      'SELECT $_deliveryColumns FROM $deliveriesTable '
+      'WHERE created_at < ? AND payload_purged_at IS NULL '
+      'ORDER BY created_at ASC',
+      <Object?>[_micros(cutoff)],
+    );
+    return <DVWebhookDelivery>[
+      for (final Map<String, Object?> row in rows) await _readDelivery(db, row),
+    ];
+  }
+
+  static Future<void> purgePayload(
+      DVDatabaseAdapter db, String deliveryId, DateTime at) async {
+    await db.execute(
+      'DELETE FROM $payloadsTable WHERE delivery_id = ?',
+      <Object?>[deliveryId],
+    );
+    await db.execute(
+      'UPDATE $deliveriesTable SET payload_purged_at = ? WHERE id = ?',
+      <Object?>[_micros(at), deliveryId],
+    );
   }
 }
