@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A compiled executable can serve.** `serve()` found the native library
+  with `Isolate.resolvePackageUri`, which answers null in a program built by
+  `dart compile exe`, so a backend compiled to one binary failed on its first
+  line with a null check. `embedNativeServerLibrary(bytes)` hands the process
+  the library to load. On Linux it is loaded from an in-memory file, so
+  nothing is written to disk; elsewhere it goes into a fresh private
+  temporary directory. A compiled program that was given nothing now says the
+  library is missing and names `dartvel build server`.
+
 - **No request body is read past a limit.** The native side read every
   request body into memory before Dart saw any of it, with no cap, so one
   client could send any size, or a chunked body that never ended, and the
