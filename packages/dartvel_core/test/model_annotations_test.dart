@@ -46,6 +46,17 @@ void main() {
     expect(const DVModel.pageOrder(3).pageRole, isNull);
   });
 
+  test('a model is versioned and hard-deleted unless it says otherwise', () {
+    expect(const DVModel().version, isTrue);
+    expect(const DVModel().softDelete, isFalse);
+    const DVModel declared = DVModel(version: false, softDelete: true);
+    expect(declared.version, isFalse);
+    expect(declared.softDelete, isTrue);
+    // A field annotation says nothing about how the model is written.
+    expect(const DVModel.sensitiveField().version, isTrue);
+    expect(const DVModel.sensitiveField().softDelete, isFalse);
+  });
+
   test('a model annotation carries no field-scoped metadata', () {
     const model = DVModel();
 

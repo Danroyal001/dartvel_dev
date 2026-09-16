@@ -226,6 +226,31 @@ class ModelGenerator {
               throw StateError('Dartvel: $sourceClassName: $message.'),
         );
 
+        // @DVModel(version: false) and @DVModel(softDelete: true). Read as
+        // literals and refused otherwise: the generator reads text, and an
+        // expression it skipped would be a model that checks versions, or
+        // deletes rows, when its declaration says it does not.
+        bool flagArg(String name, bool fallback) {
+          bool? value;
+          for (final String part in dvSplitArgs(modelArgs)) {
+            final RegExpMatch? named =
+                RegExp('^\\s*$name\\s*:(?!:)([\\s\\S]*)\$').firstMatch(part);
+            if (named == null) continue;
+            final String raw = named.group(1)!.trim();
+            if (raw != 'true' && raw != 'false') {
+              throw StateError(
+                'Dartvel: $sourceClassName: $name: $raw is not true or false. '
+                'Write the literal, which the generator reads.',
+              );
+            }
+            value = raw == 'true';
+          }
+          return value ?? fallback;
+        }
+
+        final bool versioned = flagArg('version', true);
+        final bool softDelete = flagArg('softDelete', false);
+
         // billable and nativePrice, which the specification writes as
         //
         //     @DVModel(billable: true, nativePrice: 100)
@@ -1060,6 +1085,8 @@ class ModelGenerator {
           if (history != null) {
             sb.writeln('        history: const ${history.source},');
           }
+          if (!versioned) sb.writeln('        versioned: false,');
+          if (softDelete) sb.writeln('        softDelete: true,');
           if (tenantScoped) {
             // Read when the statement runs, not captured once.
             sb.writeln(
@@ -1147,6 +1174,42 @@ class ModelGenerator {
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
           );
           sb.writeln('  }');
+          if (softDelete) {
+            for (final String member in <String>['restore', 'withDeleted']) {
+              if (fields.any((Map<String, String> f) => f['name'] == member)) {
+                throw StateError(
+                  'Dartvel: $sourceClassName declares softDelete: true and a '
+                  'field named $member, which the generated $className.$member '
+                  'would clash with. Rename the field.',
+                );
+              }
+            }
+            sb.writeln();
+            sb.writeln('  /// Brings back the soft-deleted [$className] whose');
+            sb.writeln('  /// $keyField matches, and publishes the restore. Refused');
+            sb.writeln('  /// with DVRestoreConflictError (DV-HISTORY-006) when a live');
+            sb.writeln('  /// record holds one of its unique fields.');
+            sb.writeln('  static Future<$className> restore(String $keyField) async {');
+            sb.writeln('    final records = _dvRecords();');
+            sb.writeln('    final before = await records.read($keyField, withDeleted: true);');
+            sb.writeln('    final record = await records.restore($keyField);');
+            sb.writeln('    final model = _dvLoaded(record);');
+            // Only a restore that happened is published: a live record asked
+            // to be restored was not deleted, and watchers saw nothing change.
+            sb.writeln('    if (before?.deletedAt != null) {');
+            sb.writeln(
+              '      await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.restored);',
+            );
+            sb.writeln('    }');
+            sb.writeln('    return model;');
+            sb.writeln('  }');
+            sb.writeln();
+            sb.writeln('  /// Reads that include soft-deleted records, which [find]');
+            sb.writeln('  /// and [all] leave out.');
+            sb.writeln(
+              '  static ${className}WithDeleted get withDeleted => const ${className}WithDeleted._();',
+            );
+          }
           sb.writeln();
           sb.writeln('  /// Generated CRUD admin for [$className].');
           sb.writeln('  ///');
@@ -1407,6 +1470,48 @@ class ModelGenerator {
             sb.writeln(
               '  Future<List<DVHistoryEntry>> history() => $className._dvRecords().history($keyField);',
             );
+            if (fields.any((Map<String, String> f) => f['name'] == 'revert')) {
+              throw StateError(
+                'Dartvel: $sourceClassName declares history: and a field named '
+                'revert, which the generated model.revert() would clash with. '
+                'Rename the field.',
+              );
+            }
+            sb.writeln();
+            sb.writeln('  /// Puts this record back as it was after [to], as a new');
+            sb.writeln('  /// change: the entries in between stay, and inside');
+            sb.writeln('  /// DV.transaction it rolls back with the rest.');
+            sb.writeln('  ///');
+            sb.writeln('  /// Checked against the version this model was read at, as');
+            sb.writeln('  /// a save is, so it never reverts a change made since.');
+            sb.writeln('  /// Sensitive fields changed since [to] cannot be put back');
+            sb.writeln('  /// and are named in DVRevertResult.unrestored');
+            sb.writeln('  /// (DV-HISTORY-003).');
+            sb.writeln('  Future<DVRevertResult> revert({required DVHistoryEntry to}) async {');
+            sb.writeln('    final records = $className._dvRecords();');
+            sb.writeln('    final read = $className._dvRead[this];');
+            if (versioned) {
+              // A model built by hand read nothing, so it cannot say which
+              // version it means to revert from.
+              sb.writeln('    if (read == null) {');
+              sb.writeln('      final current = await records.read($keyField, withDeleted: true);');
+              sb.writeln('      throw DVConflictError(');
+              sb.writeln('        table: records.table,');
+              sb.writeln('        key: $keyField,');
+              sb.writeln('        mine: const <String, Object?>{},');
+              sb.writeln('        theirs: current?.values ?? const <String, Object?>{},');
+              sb.writeln('        base: null,');
+              sb.writeln('        expectedVersion: null,');
+              sb.writeln('        actualVersion: current?.version ?? 0,');
+              sb.writeln('      );');
+              sb.writeln('    }');
+            }
+            sb.writeln('    final result = await records.revert($keyField, to: to, base: read);');
+            sb.writeln(
+              '    await DVModelSync.publish<$className>($className._dvLoaded(result.record), kind: DVModelChangeKind.updated);',
+            );
+            sb.writeln('    return result;');
+            sb.writeln('  }');
           }
         }
 
@@ -1865,6 +1970,26 @@ class ModelGenerator {
         }
         sb.writeln('}');
 
+        if (keyField != null && softDelete) {
+          sb.writeln();
+          sb.writeln('/// Reads of [$className] that include soft-deleted records.');
+          sb.writeln('class ${className}WithDeleted {');
+          sb.writeln('  const ${className}WithDeleted._();');
+          sb.writeln();
+          sb.writeln('  /// Every stored [$className], deleted or not.');
+          sb.writeln('  Future<core.List<$className>> all() async {');
+          sb.writeln('    final records = await $className._dvRecords().all(withDeleted: true);');
+          sb.writeln('    return records.map($className._dvLoaded).toList(growable: false);');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// The stored [$className] whose $keyField matches, deleted');
+          sb.writeln('  /// or not, or null.');
+          sb.writeln('  Future<$className?> find(String $keyField) async {');
+          sb.writeln('    final record = await $className._dvRecords().read($keyField, withDeleted: true);');
+          sb.writeln('    return record == null ? null : $className._dvLoaded(record);');
+          sb.writeln('  }');
+          sb.writeln('}');
+        }
         sb.writeln();
         sb.writeln('/// Generated bulk import helpers for [$className].');
         sb.writeln('class ${className}Import {');

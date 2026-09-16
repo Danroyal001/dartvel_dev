@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **`DVModel.version` and `DVModel.softDelete`.** `@DVModel(version: false,
+  softDelete: true)`, read by `dartvel routes`.
+
 - **A job runs as the tenant it was dispatched under.** `DVJobEnvelope.tenant`
   records the tenant current when `DV.Jobs.dispatch` ran, or null for none.
   Every adapter stores it and reads it back: in-memory, database (a nullable
