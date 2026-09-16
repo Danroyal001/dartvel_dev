@@ -1452,6 +1452,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // webhook can send: the same declaration the client runtime installs.
   configureDartvelHttp();
   registerDartvelJobs();
+  // Every @DVPolicy class, before the first await below. The router registers
+  // them again when it is built; nothing that runs while the database is
+  // made ready -- a job, a preview check -- may meet an empty registry.
+  dartvelRegisterBackendPolicies();
   // [defaultDatabase] when DATABASE_URL is not set: a web-server binary's
   // SQLite file, created here on its first run.
   final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
