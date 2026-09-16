@@ -1,0 +1,105 @@
+import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' show DVHttp;
+import 'package:path/path.dart' as p;
+
+/// `dartvel.http` read at generation, and the Dart the running application
+/// declares its hosts from.
+///
+/// The block is emitted as the map it was written as and handed at startup to
+/// the reader that checked it here, rather than translated into constructor
+/// calls: one reader means the build and the running process cannot disagree
+/// about what a key means. The file imports only dartvel_core, because the
+/// generated server imports it as well as the client runtime.
+class HttpHostsGenerator {
+  const HttpHostsGenerator._();
+
+  /// Reads and checks `dartvel.http` from [dv], returning the block to emit,
+  /// or null when the project declares none.
+  ///
+  /// Throws [StateError] naming the key for anything the reader does not
+  /// understand. Called before anything is generated, so a build that is
+  /// going to fail leaves no half-written client behind.
+  static Map<Object?, Object?>? read(Map<Object?, Object?> dv) {
+    final Object? http = dv['http'];
+    if (http == null) return null;
+    if (http is! Map) {
+      throw StateError('dartvel.http must be a map with a hosts block, not '
+          '"$http".');
+    }
+    try {
+      DVHttp.readConfig(http);
+    } on ArgumentError catch (error) {
+      throw StateError('${error.message}');
+    }
+    return http;
+  }
+
+  /// Writes `http.g.dart` under `lib/dartvel_client`, whether or not hosts are
+  /// declared: the client runtime and the generated server call it
+  /// unconditionally.
+  static void generate({
+    required String root,
+    required Map<Object?, Object?>? http,
+  }) {
+    final Directory out = Directory(p.join(root, 'lib', 'dartvel_client'))
+      ..createSync(recursive: true);
+    File(p.join(out.path, 'http.g.dart')).writeAsStringSync(render(http));
+  }
+
+  static String render(Map<Object?, Object?>? http) {
+    final StringBuffer sb = StringBuffer()
+      ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
+      ..writeln();
+    if (http == null) {
+      sb
+        ..writeln('/// Declares nothing: this project has no `dartvel.http` block, so')
+        ..writeln('/// every `DV.Http` request is refused with DV-HTTP-001 until a host is')
+        ..writeln('/// declared.')
+        ..writeln('void configureDartvelHttp() {}');
+      return sb.toString();
+    }
+    sb
+      ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      ..writeln()
+      ..writeln('/// `dartvel.http` from pubspec.yaml, as read and checked when this file')
+      ..writeln('/// was generated.')
+      ..writeln('const Map<String, Object?> dartvelHttpConfig = ${_literal(http, '')};')
+      ..writeln()
+      ..writeln('/// Declares every host in `dartvel.http.hosts` on `DV.Http`.')
+      ..writeln('///')
+      ..writeln('/// Called by the generated client runtime and by every generated server')
+      ..writeln('/// role before either runs application code, so `DV.Http.host(name)` and')
+      ..writeln('/// an absolute URL under a declared base URL work on both sides.')
+      ..writeln('void configureDartvelHttp() {')
+      ..writeln('  const DVHttp().declareFromConfig(dartvelHttpConfig);')
+      ..writeln('}');
+    return sb.toString();
+  }
+
+  static String _literal(Object? value, String indent) {
+    if (value == null) return 'null';
+    if (value is bool || value is int) return '$value';
+    if (value is double) {
+      return value.isFinite ? '$value' : _string('$value');
+    }
+    if (value is Map) {
+      if (value.isEmpty) return '<String, Object?>{}';
+      final String inner = '$indent  ';
+      final StringBuffer sb = StringBuffer('<String, Object?>{\n');
+      for (final MapEntry<Object?, Object?> entry in value.entries) {
+        sb.writeln('$inner${_string('${entry.key}')}: '
+            '${_literal(entry.value, inner)},');
+      }
+      sb.write('$indent}');
+      return sb.toString();
+    }
+    if (value is List) {
+      return '<Object?>[${value.map((Object? v) => _literal(v, indent)).join(', ')}]';
+    }
+    return _string('$value');
+  }
+
+  static String _string(String value) =>
+      "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$').replaceAll('\n', r'\n').replaceAll('\r', r'\r')}'";
+}

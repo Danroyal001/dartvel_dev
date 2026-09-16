@@ -11,6 +11,7 @@ import 'analytics_generator.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
 import 'flag_generator.dart';
+import 'http_hosts_generator.dart';
 import 'job_generator.dart';
 import 'model_generator.dart';
 import 'platform_api_generator.dart';
@@ -66,6 +67,12 @@ Future<void> generate({
   // application believes it configured.
   AccountGenerator.readPages(dv);
   final accountDeletionGrace = AccountGenerator.readDeletionGrace(dv);
+
+  // dartvel.http, checked before anything is written, through the reader the
+  // running application declares its hosts with. A misspelt key would
+  // otherwise be a timeout or a retry policy the pubspec states and nothing
+  // applies.
+  final httpHosts = HttpHostsGenerator.read(dv);
 
   // Every model's privacy declaration, before anything is written. A
   // sensitive field no subject path reaches (DV-PRIVACY-001) is a table an
@@ -230,6 +237,10 @@ Future<void> generate({
     appName: seoSiteName.isNotEmpty ? seoSiteName : pkgName,
     deletionGrace: accountDeletionGrace,
   );
+
+  // The hosts DV.Http sends to, which the client runtime and every server
+  // role declare at startup.
+  HttpHostsGenerator.generate(root: root, http: httpHosts);
 
   // The scope registry, rate plans and OAuth settings, which the client and
   // the generated server both read.

@@ -535,6 +535,7 @@ export 'ai_tools.g.dart';
 export 'analytics.g.dart';
 export 'functions.g.dart';
 export 'flags.g.dart';
+export 'http.g.dart';
 export 'jobs.g.dart';
 export 'client_jobs.g.dart';
 export 'models.g.dart';
@@ -612,6 +613,7 @@ ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' 
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
+import 'http.g.dart' show configureDartvelHttp;
 import 'analytics.g.dart' show configureDartvelAnalytics;
 import 'client_jobs.g.dart' show registerDartvelClientJobs;
 import 'models.g.dart' show registerDartvelModels;
@@ -661,6 +663,10 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // The modules this application mounts, so DV.Modules.<id> is the module
   // the build mounted rather than an unknown id.
   registerDartvelModules();
+  // The hosts dartvel.http declares, before anything can call out: a
+  // project that declared its gateway in pubspec.yaml otherwise met
+  // DV-HTTP-001 on its first DV.Http request.
+  configureDartvelHttp();
   // What this application's @DVHomeWidget declarations are. The list was
   // generated, exported from the barrel and read by nothing -- so
   // DVHomeWidgets.publish took any string at all, and a misspelled id wrote
