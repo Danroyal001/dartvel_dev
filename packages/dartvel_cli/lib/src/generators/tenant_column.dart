@@ -1,11 +1,9 @@
 /// The column a tenant-scoped model's rows carry.
 ///
-/// One definition, because the two things that use it are in different files
-/// and neither would notice the other changing: the generator writes it into
-/// the schema and into every predicate, and the migration adds it to a table
-/// that predates the annotation. Two spellings is a migration that adds one
-/// column and queries that read another, on a database that reports as
-/// migrated.
+/// Defined in dartvel_core, beside the migration a web-server binary runs
+/// when it starts, and re-exported here for the generators: one definition,
+/// because the generator writes it into the schema and every predicate and
+/// the migration adds it to a table that predates the annotation.
 library;
 
-const String dvTenantColumn = 'dv_tenant';
+export 'package:dartvel_core/dartvel.dart' show dvTenantColumn;

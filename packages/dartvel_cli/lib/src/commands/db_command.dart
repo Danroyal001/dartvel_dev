@@ -6,7 +6,11 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
-        DVAddColumn,
+        DVDatabaseEngine,
+        DVGeneratedSchemaReport,
+        dvAddColumnFor,
+        dvAddColumnSql,
+        dvApplyGeneratedSchema,
         DVCreateTable,
         DVSchemaChange,
         DVSchemaClassifier,
@@ -20,11 +24,13 @@ import 'package:dartvel_core/dartvel.dart'
         DVSchemaSnapshotTable,
         SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
+
+// Where they were defined before the server needed them too.
+export 'package:dartvel_core/dartvel.dart' show dvAddColumnFor, dvAddColumnSql;
 import 'package:yaml/yaml.dart';
 
 import '../adoption/local_schema.dart';
 import '../generators/annotation_args.dart';
-import '../generators/tenant_column.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
 
@@ -715,60 +721,23 @@ Future<DVMigrationReport> dvApplyMigrations(
   // ways to open the same file is how the migration comes to enable
   // foreign keys and the application not to.
   final SqliteDVDatabaseAdapter db = SqliteDVDatabaseAdapter.file(file);
-  final List<String> applied = <String>[];
-  final List<String> added = <String>[];
-  final List<String> needsTenant = <String>[];
+  final DVGeneratedSchemaReport report;
   try {
-    for (final Map<String, Object?> table in tables) {
-      final Object? create = table['createSql'];
-      if (create is! String) continue;
-      final String name = '${table['table']}';
-      final List<String> want = <String>[
-        for (final Object? column in (table['columns'] as List<Object?>? ??
-            const <Object?>[]))
-          '$column',
-      ];
-
-      final List<String> before = await _columns(db, name);
-      await db.execute(create);
-      applied.add(name);
-      if (before.isEmpty) continue;
-
-      // The table was already there, so the statement did nothing. What it
-      // is missing has to be added one column at a time.
-      final List<String> missing =
-          want.where((String c) => !before.contains(c)).toList();
-      if (missing.isEmpty) continue;
-
-      if (missing.contains(dvTenantColumn) &&
-          !orphanExistingRows &&
-          tenant == null &&
-          await _hasRows(db, name)) {
-        // Nothing altered. The application running the old code still
-        // works, which is the point of stopping here rather than half way.
-        needsTenant.add(name);
-        continue;
-      }
-
-      for (final String column in missing) {
-        await db.execute(dvAddColumnSql(dvAddColumnFor(table, column)));
-        added.add('$name.$column');
-      }
-      if (missing.contains(dvTenantColumn) && tenant != null) {
-        await db.execute(
-          'UPDATE $name SET $dvTenantColumn = ? '
-          'WHERE $dvTenantColumn IS NULL',
-          <Object?>[tenant],
-        );
-      }
-    }
+    // The same application a web-server binary makes when it starts.
+    report = await dvApplyGeneratedSchema(
+      db,
+      tables,
+      engine: DVDatabaseEngine.sqlite,
+      tenant: tenant,
+      orphanExistingRows: orphanExistingRows,
+    );
   } finally {
     db.close();
   }
   return DVMigrationReport(
-    applied: applied,
-    added: added,
-    needsTenant: needsTenant,
+    applied: report.applied,
+    added: report.added,
+    needsTenant: report.needsTenant,
   );
 }
 
@@ -800,12 +769,6 @@ Future<List<String>> _columns(SqliteDVDatabaseAdapter db, String table) async {
   return rows
       .map((Map<String, Object?> row) => '${row['name']}')
       .toList(growable: false);
-}
-
-Future<bool> _hasRows(SqliteDVDatabaseAdapter db, String table) async {
-  final List<Map<String, Object?>> rows =
-      await db.query('SELECT 1 FROM $table LIMIT 1');
-  return rows.isNotEmpty;
 }
 
 /// Runs one statement against a SQLite file. For tests and for the seeder.
@@ -853,32 +816,6 @@ List<DVSchemaChange> dvPendingSchemaChanges(
   return changes;
 }
 
-/// The column [column] of a generated [table], as the change that adds it.
-///
-/// Nullable TEXT unless the generator recorded a type for it under
-/// `columnTypes` -- the record version, which has to arrive as `NOT NULL
-/// DEFAULT 1` so the rows already there can be written at the version they
-/// hold.
-DVAddColumn dvAddColumnFor(Map<String, Object?> table, String column) {
-  final Object? types = table['columnTypes'];
-  final Object? spec = types is Map ? types[column] : null;
-  if (spec is! Map) return DVAddColumn('${table['table']}', column);
-  return DVAddColumn(
-    '${table['table']}',
-    column,
-    type: '${spec['type'] ?? 'TEXT'}',
-    nullable: spec['nullable'] != false,
-    defaultSql: spec['default'] == null ? null : '${spec['default']}',
-  );
-}
-
-/// The SQL that makes [change]. `IF NOT EXISTS` only where asked for: it is
-/// PostgreSQL's, and SQLite and MySQL refuse it.
-String dvAddColumnSql(DVAddColumn change, {bool ifNotExists = false}) =>
-    'ALTER TABLE ${change.table} ADD COLUMN '
-    '${ifNotExists ? 'IF NOT EXISTS ' : ''}${change.column} ${change.type}'
-    '${change.nullable ? '' : ' NOT NULL'}'
-    '${change.defaultSql == null ? '' : ' DEFAULT ${change.defaultSql}'}';
 
 /// Classifies the pending migration.
 ///
