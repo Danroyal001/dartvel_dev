@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import 'src/commands/update_command.dart';
 import 'src/commands/mcp_command.dart';
+import 'src/commands/migrate_code_command.dart';
 import 'src/commands/modules_command.dart';
 import 'src/commands/analyze_command.dart';
 import 'src/commands/inspect_command.dart';
@@ -118,5 +119,6 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(ShCommand())
       ..addCommand(TaskCommand())
       ..addCommand(TestCommand())
+      ..addCommand(MigrateCodeCommand())
       ..addCommand(UpdateCommand())
       ..addCommand(VersionCommand());
