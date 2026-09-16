@@ -43,6 +43,7 @@ export 'src/analytics/consent.dart';
 export 'src/analytics/local_database.dart';
 export 'src/analytics/product_analytics.dart';
 export 'src/annotations/annotations.dart';
+export 'src/auth/account_mail.dart';
 export 'src/auth/api_keys.dart';
 export 'src/auth/api_scopes.dart';
 export 'src/auth/auth.dart';
@@ -2953,6 +2954,12 @@ class DVNotificationMail {
     _provider = provider;
   }
 
+  /// Whether a message sent now has somewhere to go: a registered provider,
+  /// or a preview capturing mail. Something that would otherwise report
+  /// sending a message asks this first, rather than learning from a throw
+  /// after it already promised the person a mail.
+  bool get isConfigured => _provider != null || DVPreviewOutbound.isActive;
+
   Future<void> send(DVMailMessage message) {
     // A preview captures before a provider is even looked up, so the
     // application's real provider -- registered before or after the preview
@@ -3734,6 +3741,9 @@ class DVNotificationsService {
   void useMailSender(DVMailAddress sender) {
     _mailSender = sender;
   }
+
+  /// The configured `From`, or null when [useMailSender] was never called.
+  DVMailAddress? get mailSender => _mailSender;
 
   /// Forgets the routing configuration. For tests.
   void resetRouting() {
