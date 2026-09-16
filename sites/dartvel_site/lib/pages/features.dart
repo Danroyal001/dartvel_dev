@@ -34,9 +34,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Routing',
-    'File-based pages',
-    'A file under lib/pages is a route. Links are typed, so moving a page '
-        'breaks the build at every link to it.',
+    'Files, lib/routes.dart, GoRouter',
+    'Pages by file and routes in lib/routes.dart share one typed router, so '
+        'moving a page breaks the build at every link to it. A (tabs) folder '
+        'keeps a stack per tab, and dartvelRoutes(at:) mounts the lot into '
+        'your own GoRouter. Absent: typed targets for routes inside DVGoRoutes.',
   ),
   (
     'State',
@@ -47,8 +49,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Models',
     '@DVModel',
-    'One annotated class generates the typed client, serialization, form, '
-        'table and admin.',
+    'One annotated class gives you the typed client, serialization, form, '
+        'table and admin, with no build_runner step.',
   ),
   (
     'Forms',
@@ -171,16 +173,19 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Deployment',
-    'dartvel deploy',
-    'dartvel deploy --functions writes a Lambda, Cloud Run, container, Fly, '
-        'Railway or bare-metal artifact per function. Absent: pushing it to the '
-        'cloud with your credentials.',
+    'dartvel build web-server',
+    'dartvel build web-server writes one Linux x64 file with your backend and '
+        'web app, which creates its SQLite database on the first run. dartvel '
+        'deploy --functions writes a Lambda, Cloud Run, container, Fly, Railway '
+        'or bare-metal artifact per function. Absent: pushing it to the cloud '
+        'with your credentials.',
   ),
   (
     'CLI',
     'One tool',
-    'create, dev, build, doctor, inspect, explain and sh. dartvel build runs '
-        'code generation for you.',
+    'Code generation runs inside dartvel dev and dartvel build, so there is no '
+        'generator to start yourself. create, doctor, inspect, explain and sh '
+        'are the same tool.',
   ),
   (
     'CSRF Protection',
@@ -334,10 +339,11 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'OTA Updates',
-    'dartvel updates',
-    'Present: release, patch and rollback commands and staged rollout rules. '
-        'Absent: DV.Updates.check() throws in a real app, since no platform '
-        'binds it.',
+    'DV.Updates',
+    'Present: DV.Updates.check, apply and rollback on the Shorebird updater, '
+        'with patches served from your own host by DVShorebirdPatchSource. CI '
+        'patches an Android release this way with no Shorebird account. '
+        'Absent: a patch applied on iOS.',
   ),
   (
     'Protocol Versioning and Client Compatibility',
@@ -510,8 +516,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Dev Client',
     'dartvel dev --dev-client',
-    'Present: signed page bundles loaded onto a paired device. Absent: a shell '
-        'built and installed on a real device.',
+    'Present: an Android development build pairs by QR code and hot reloads '
+        'on every save over your network. Absent: pairing on iOS.',
   ),
   (
     'Package Structure',
@@ -634,8 +640,8 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Heading('Thirty-three shipped sections.', level: 1),
         Bullets(<String>[
           'Sixty-six more are partial, and each card says what is missing.',
-          'Every card summarises an entry in docs/spec-status.json.',
-          'CI fails when this page and that file disagree.',
+          'Every card summarises an entry in docs/spec-status.json, and CI '
+              'fails when they disagree.',
         ]),
         ExternalLink('Read spec-status.json', kSpecStatusUrl),
       ],
