@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **A function page's `.loading.dart` and `.error.dart` are used.** They were
+  imported for class pages only, while `dartvel create` writes
+  `index.loading.dart` and `index.error.dart` beside a function page, so every
+  new application carried two files the router never read. A function page
+  `_aboutPage` is answered by `AboutPageLoading` and `AboutPageError`.
+
 - **A nested layout sits inside its parent's.** The generated router wrapped
   the root `_layout.dart` first and each deeper layout around it, so
   `lib/pages/docs/_layout.dart` drew around the site header instead of below

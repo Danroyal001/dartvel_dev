@@ -26,6 +26,7 @@ void main() {
   rootGuardTests();
   generatedRouterGuardTests();
   nestedLayoutOrderTests();
+  functionPageCompanionTests();
 
   group('layout and guard discovery', () {
     test('finds a nested layout and a guard', () async {
@@ -249,6 +250,67 @@ void nestedLayoutOrderTests() {
             .replaceAll(';', '');
         expect(wrapped, startsWith('$rootAlias.RootLayout(child: '));
         expect(wrapped, contains('.DocsLayout(child: seoWrapped)'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    });
+  });
+}
+
+// A page's loading and error companions, for a function page.
+//
+// They were wired for class pages only, while `dartvel create` writes
+// index.loading.dart and index.error.dart beside a function page. Every new
+// application shipped two files the router never imported.
+void functionPageCompanionTests() {
+  group('loading and error companions of a function page', () {
+    test('are what the route shows while it loads and when it fails', () async {
+      final root = await _project({
+        'lib/pages/about.dart':
+            "import 'package:dartvel_core/dartvel.dart';\n"
+            '@DVPage()\nWidget _aboutPage(BuildContext context) => const Placeholder();\n',
+        'lib/pages/about.loading.dart':
+            'class AboutPageLoading extends StatelessWidget {}\n',
+        'lib/pages/about.error.dart':
+            'class AboutPageError extends StatelessWidget {}\n',
+      });
+      try {
+        Directory('${root.path}/lib/dartvel_client').createSync(recursive: true);
+        await ClientGenerator.generate(
+          root: root.path,
+          pagesDir: 'lib/pages',
+          pkgName: 'shop',
+          buildId: 'b',
+          modules: const <DVModuleMount>[],
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          devBackendHost: 'http://localhost:3000',
+          prodBackendHost: 'https://example.com',
+          apiBasePath: '/api',
+          envFiles: const <String>[],
+          seoSiteName: 'app',
+          seoTitle: 'app',
+          seoDesc: 'app',
+          seoImage: '',
+          seoTwitter: '',
+          defaultTransition: 'none',
+          durationMs: 200,
+          curve: 'linear',
+          normalizeTrailing: true,
+          notFoundRedirect: '/',
+          plugins: const <String>[],
+          webPrerender: false,
+          ota: false,
+          dv: YamlMap(),
+        );
+
+        final String router =
+            File('${root.path}/lib/dartvel_client/router.g.dart')
+                .readAsStringSync();
+        expect(router, contains("import 'package:shop/pages/about.loading.dart' as pl0;"));
+        expect(router, contains("import 'package:shop/pages/about.error.dart' as pe0;"));
+        expect(router, contains('loading: pl0.AboutPageLoading(),'));
+        expect(router, contains('error: pe0.AboutPageError(),'));
       } finally {
         root.deleteSync(recursive: true);
       }

@@ -343,7 +343,9 @@ class ClientGenerator {
       final errorRel = '$baseNoSuffix.error.dart';
       String? loadingAlias;
       String? errorAlias;
-      if (!isFunctional && File(p.join(root, loadingRel)).existsSync()) {
+      // Function pages as well as class pages: `dartvel create` writes both
+      // companions beside a function page, and they were never imported.
+      if (File(p.join(root, loadingRel)).existsSync()) {
         final importPathL = loadingRel.replaceFirst(
           RegExp(r'^lib/'),
           'package:$pkgName/',
@@ -351,7 +353,7 @@ class ClientGenerator {
         loadingAlias = 'pl$i';
         pageImports.add("import '$importPathL' as $loadingAlias;");
       }
-      if (!isFunctional && File(p.join(root, errorRel)).existsSync()) {
+      if (File(p.join(root, errorRel)).existsSync()) {
         final importPathE = errorRel.replaceFirst(
           RegExp(r'^lib/'),
           'package:$pkgName/',
@@ -1163,8 +1165,14 @@ ${guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa)}      pageBuilder
 ${(() {
             final la = e.loadingAlias;
             final ea = e.errorAlias;
-            final lc = '${e.className}Loading';
-            final ec = '${e.className}Error';
+            // A class page names its companions after the class. A function
+            // page has no class, so they take the public name, capitalised:
+            // _aboutPage is answered by AboutPageLoading and AboutPageError.
+            final companion = e.isFunctional
+                ? '${e.publicName[0].toUpperCase()}${e.publicName.substring(1)}'
+                : e.className;
+            final lc = '${companion}Loading';
+            final ec = '${companion}Error';
             final b = StringBuffer();
             if (la != null && la.isNotEmpty) {
               b.writeln("          loading: $la.$lc(),");
