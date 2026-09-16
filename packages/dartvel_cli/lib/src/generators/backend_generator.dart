@@ -1833,6 +1833,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     sbClient.writeln('  }');
     sbClient.writeln('}');
 
+    // Every route's own client function, so a typed wrapper cannot take a
+    // name one of them already has: two declarations of one name is a
+    // compile error inside a generated file, pointing at nothing.
+    final Map<String, String> routeFunctionNames = <String, String>{
+      for (final e in backendEntries)
+        RouteUtils.funcNameForFromUrl(e['method']!, e['path']!):
+            '${e['method']!.toUpperCase()} ${e['path']!}',
+    };
+
     for (final e in backendEntries) {
       final method = e['method']!;
       final urlPath = e['path']!;
@@ -1958,6 +1967,19 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         final fnameApi = (hasDvBackendFn && e['typed']!.isNotEmpty)
             ? e['typed']!
             : '${fname}Api';
+        final String? clash = routeFunctionNames[fnameApi];
+        if (clash != null) {
+          final String bare = fnameApi.replaceFirst(
+              RegExp(r'^(get|post|put|patch|delete|head|options)'), '');
+          final String suggestion = bare.isEmpty
+              ? '${fnameApi}Value'
+              : '${bare[0].toLowerCase()}${bare.substring(1)}';
+          throw StateError(
+            'The backend function _$fnameApi generates $fnameApi, which is also '
+            'the client function for $clash. Rename it, for example to '
+            '_$suggestion.',
+          );
+        }
 
         final isStreamType = clientReturnType.startsWith('Stream<');
 

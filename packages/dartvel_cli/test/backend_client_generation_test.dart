@@ -410,4 +410,44 @@ Future<Map<String, Object?>> _greeting(String name) async =>
       root.deleteSync(recursive: true);
     }
   });
+
+  test('a function named like its own route is refused with both names',
+      () async {
+    // _getHello in hello.get.dart generates getHello, and so does the route
+    // GET /hello. The client declared getHello twice and failed to compile,
+    // in a generated file, with nothing pointing at the source.
+    final root = await Directory.systemTemp.createTemp('dartvel_clash_');
+    try {
+      Directory(p.join(root.path, '.dart_tool')).createSync();
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'backend', 'functions'))
+          .createSync(recursive: true);
+
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'hello.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> _getHello(String name) async => name;
+''');
+
+      await expectLater(
+        BackendGenerator.generate(
+          root: root.path,
+          backendDir: 'lib/backend',
+          pkgName: 'clash_app',
+          buildId: 'test-build',
+          backendHost: '127.0.0.1',
+          backendPort: 3000,
+          apiBasePath: '/api',
+        ),
+        throwsA(isA<StateError>()
+            .having((StateError e) => e.message, 'message', contains('_getHello'))
+            .having((StateError e) => e.message, 'message', contains('GET /hello'))),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }
