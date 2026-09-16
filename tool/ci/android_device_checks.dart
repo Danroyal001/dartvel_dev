@@ -204,6 +204,30 @@ Future<void> main(List<String> arguments) async {
   // reads as a build failure there.
   await Future<void>.delayed(const Duration(seconds: 25));
 
+  // The kiosk this job declares starts lock task at launch, and with no
+  // device owner yet Android answers with its "App is pinned" sheet over the
+  // bottom half of the application. That sheet is the platform explaining
+  // screen pinning, not the application, and the photograph is of the
+  // application: it is acknowledged the way a person would, by its own
+  // button. Diagnostics only -- lock task itself is verified below.
+  stdout.writeln('== acknowledge the screen pinning sheet');
+  try {
+    await _adb(<String>['shell', 'uiautomator', 'dump', '/sdcard/pin.xml']);
+    final ProcessResult dump =
+        await Process.run('adb', <String>['shell', 'cat', '/sdcard/pin.xml']);
+    final Match? button = RegExp(
+      r'text="Got it"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+    ).firstMatch('${dump.stdout}');
+    if (button != null) {
+      final int x = (int.parse(button[1]!) + int.parse(button[3]!)) ~/ 2;
+      final int y = (int.parse(button[2]!) + int.parse(button[4]!)) ~/ 2;
+      await _adb(<String>['shell', 'input', 'tap', '$x', '$y']);
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  } on Object catch (error) {
+    stdout.writeln('   could not read the screen: $error');
+  }
+
   await _step('photograph the screen', failures, () async {
     final ProcessResult shot = await Process.run('adb', <String>[
       'exec-out',
