@@ -392,8 +392,8 @@ Widget _startNow(BuildContext context) => const Section(
     ]),
     Objection(
       'Will I be locked in?',
-      'Your pages and models are ordinary Dart files in your repository. '
-          'Dartvel is MIT licensed.',
+      'Your pages are Flutter widgets and your code stays in your repository. '
+          'Dartvel is MIT licensed, so you can fork it.',
     ),
     PrimaryLink('Create your first app', '/docs'),
   ],
