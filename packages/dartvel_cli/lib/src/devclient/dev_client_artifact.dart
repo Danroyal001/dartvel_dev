@@ -7,6 +7,10 @@
 /// searched -- `libapp.so` in an APK or app bundle, `App.framework/App` in an
 /// IPA -- so an asset that merely mentions the marker is not mistaken for a
 /// shell.
+///
+/// A `--profile development` build has no AOT snapshot at all: it is a Flutter
+/// debug build, and its Dart is the JIT kernel `flutter_assets/kernel_blob.bin`.
+/// That file is what makes it a development build, so its presence is enough.
 library;
 
 import 'dart:convert';
@@ -31,6 +35,12 @@ String? dvDevClientPublishRefusal({required String store, String? track}) {
       'Distribution; publish the application build instead.';
 }
 
+final RegExp _kernel = RegExp(
+  r'^(?:base/)?assets/flutter_assets/kernel_blob\.bin$|'
+  r'^Payload/[^/]+\.app/Frameworks/App\.framework/flutter_assets/'
+  r'kernel_blob\.bin$',
+);
+
 final RegExp _snapshot = RegExp(
   r'^(?:base/)?lib/[^/]+/libapp\.so$|'
   r'^Payload/[^/]+\.app/Frameworks/App\.framework/App$',
@@ -49,6 +59,7 @@ bool dvArtifactIsDevClient(String path) {
   }
   try {
     for (final _Entry entry in _centralDirectory(file)) {
+      if (_kernel.hasMatch(entry.name)) return true;
       if (!_snapshot.hasMatch(entry.name)) continue;
       if (_entryContainsMarker(file, entry)) return true;
     }
