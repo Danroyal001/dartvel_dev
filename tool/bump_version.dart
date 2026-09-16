@@ -40,6 +40,27 @@ const List<String> _pubPackages = <String>[
 ];
 
 const List<String> _npmPackages = <String>['dartvel_cli', 'dartvel_dev'];
+/// [manifest] with its own version set to [version], and its dependency on
+/// the dartvel_dev launcher pinned to [launcher].
+///
+/// dartvel_cli pins dartvel_dev exactly rather than with a range, because the
+/// launcher and the binaries it fetches are one release. Only the pin inside
+/// "dependencies" is changed: dartvel_dev's own manifest has a bin named
+/// dartvel_dev, and rewriting the first match turned that bin into a version.
+String setNpmManifestVersions(
+  String manifest, {
+  required String version,
+  required String launcher,
+}) {
+  String after = manifest.replaceFirst(
+    RegExp(r'"version":\s*"[^"]*"'),
+    '"version": "$version"',
+  );
+  return after.replaceFirstMapped(
+    RegExp(r'("dependencies":\s*\{[^}]*"dartvel_dev":\s*)"[^"]*"'),
+    (Match m) => '${m[1]}"$launcher"',
+  );
+}
 
 void main(List<String> args) {
   if (args.isEmpty || args.first.startsWith('-')) {
@@ -106,15 +127,10 @@ void main(List<String> args) {
     final File manifest = File('npm/$name/package.json');
     if (!manifest.existsSync()) continue;
     final String before = manifest.readAsStringSync();
-    String after = before.replaceFirst(
-      RegExp(r'"version":\s*"[^"]*"'),
-      '"version": "${target[name]!}"',
-    );
-    // dartvel_cli pins dartvel_dev exactly rather than with a range, because
-    // the launcher and the binaries it fetches are one release.
-    after = after.replaceFirst(
-      RegExp(r'"dartvel_dev":\s*"[^"]*"'),
-      '"dartvel_dev": "${target['dartvel_dev']!}"',
+    final String after = setNpmManifestVersions(
+      before,
+      version: target[name]!,
+      launcher: target['dartvel_dev']!,
     );
     if (after == before) continue;
     changed.add(manifest.path);

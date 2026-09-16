@@ -5,7 +5,7 @@
   "main": "./index.js",
   "bin": {
     "dartvel": "bin/dartvel.js",
-    "dartvel_dev": "0.5.0"
+    "dartvel_dev": "bin/dartvel.js"
   },
   "files": [
     "bin/",

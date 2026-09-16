@@ -373,6 +373,13 @@ jobs:
 
       - name: Check the declared floors
         run: dart test test/unit/sdk_floor_test.dart
+      # The npm launchers' own checks, and the bump that wrote a version into
+      # dartvel_dev's bin: 0.5.0 shipped `npx dartvel_dev` pointing at a file
+      # named 0.5.0, and the check that would have said so was never run.
+      - name: The npm manifests
+        run: |
+          dart test test/unit/bump_version_test.dart
+          node npm/dartvel_dev/test.js
 
   # The browser bindings run in a browser, or they are untested. The VM suite
   # resolves the stub, so it proves what web claims and nothing about whether
