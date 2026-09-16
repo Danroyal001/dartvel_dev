@@ -10,6 +10,25 @@
   `Not authorized (Resource.action)` with the `FORBIDDEN` code a declared
   field policy already used.
 
+- **`DV.Http` refuses an absolute URL no declared host covers
+  (`DV-HTTP-001`).** Only a name was checked: `DV.Http.host('paystak')` was
+  refused while `DV.Http.get('https://api.paystak.co/...')` went out on the
+  default policy with nobody's decision about it. A URL is now sent as the
+  declared host whose base URL it is under -- same scheme, host and port, a
+  path at or below the base path, the longest base URL winning -- with that
+  host's credential, timeout, retries, breaker and pool, and anything else
+  fails before it is sent, faked or not. `send(allowUndeclaredHost: true)` is
+  for a destination that is data rather than configuration: it sends on the
+  default policy and never as a declared host, so a URL somebody else
+  supplied cannot borrow the application's credential for that host. Webhook
+  deliveries use it, and stay pinned to the address their own check approved.
+  `DVRangeQueryBreachedPasswords.overHttp` needs its endpoint declared.
+
+- **The `dartvel.http` block is read strictly.** Every key and value the
+  reader does not understand throws naming it, where it used to fall back to
+  the default (`retry:` for `retries:`, `attempts: many`, `backoff: linear`,
+  `jitter: "yes"`). `DVHttp.readConfig` reads a whole block without declaring
+  anything.
 
 - **Webhook subscriptions, deliveries and payloads are kept in
   `DV.Database`.** They were maps in process memory, so a restart lost every

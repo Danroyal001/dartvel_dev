@@ -481,6 +481,14 @@ void main() {
 
     group('over DV.Http', () {
       tearDown(DVHttp.reset);
+      // The range service is the application's choice, so it is declared like
+      // any other host; an undeclared one is refused with DV-HTTP-001.
+      setUp(() => const DVHttp().declare(
+          'range',
+          const DVHttpHostConfig(
+            baseUrl: 'https://range.example',
+            retries: DVHttpRetryPolicy(attempts: 1),
+          )));
 
       test('asks the endpoint for the prefix and reads the range', () async {
         final suffix = sha1Hex(password).substring(5);
