@@ -82,7 +82,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --format                     Sony eLinux output format (bundle | iso | img)',
       '                                 [bundle, iso, img]',
       '    --device-profile             Named embedded device profile from pubspec.yaml',
-      '    --simulator                  Build for a simulator rather than a device (tvOS). Device builds are AOT and need a configured Xcode signing team, so this is the only unsigned path.',
+      '    --simulator                  Build for a simulator rather than a device (iOS, tvOS). On tvOS device builds are AOT and need a configured Xcode signing team, so this is the only unsigned path.',
       '    --build-timeout              Minutes before a stalled build is killed (0 disables). A build that stops producing output is the failure mode worth guarding: it looks identical to a slow one and costs far more.',
       '    --arch                       Target architecture for embedded builds',
       '                                 [arm, arm64 (default), x64]',
