@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **`dvApplyGeneratedSchema`** makes the generated models' tables and adds
+  the columns a table made by an earlier release is missing, on SQLite by
+  asking the table what it has. It is what `dartvel db migrate` runs, moved
+  here so a web-server binary can run the same thing when it starts.
+  `dvTenantColumn`, `dvAddColumnFor` and `dvAddColumnSql` moved with it.
+
 - **Dev-client tunnel primitives.** `dvDevClientTunnelPath`,
   `dvDevClientTunnelProtocol`, `dvDevClientTunnelProof` and
   `dvDevClientTunnelProofValid`, the challenge a dev server signs so a
