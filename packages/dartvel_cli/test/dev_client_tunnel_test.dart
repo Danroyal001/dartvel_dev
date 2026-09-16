@@ -79,9 +79,15 @@ class RawTunnel {
       },
       onError: (Object _) {},
     );
-    final (int status, Map<String, String> headers) = await head.future
-        .timeout(const Duration(seconds: 5));
-    return RawTunnel._(socket, status, headers, rest.stream.asBroadcastStream());
+    final (int status, Map<String, String> headers) = await head.future.timeout(
+      const Duration(seconds: 5),
+    );
+    return RawTunnel._(
+      socket,
+      status,
+      headers,
+      rest.stream.asBroadcastStream(),
+    );
   }
 }
 
@@ -135,9 +141,8 @@ void main() {
     return tunnel;
   }
 
-  Stream<String> lines(RawTunnel tunnel) => tunnel.rest
-      .transform(utf8.decoder)
-      .transform(const LineSplitter());
+  Stream<String> lines(RawTunnel tunnel) =>
+      tunnel.rest.transform(utf8.decoder).transform(const LineSplitter());
 
   test('without the pairing token there is no tunnel', () async {
     final RawTunnel tunnel = await RawTunnel.open(
@@ -200,55 +205,59 @@ void main() {
     tunnel.socket.destroy();
   });
 
-  test('a compatible device gets a loopback URL that reaches its VM service',
-      () async {
-    final RawTunnel device = await control();
-    final Stream<String> commands = lines(device);
-    final Future<String> firstCommand = commands.first;
+  test(
+    'a compatible device gets a loopback URL that reaches its VM service',
+    () async {
+      final RawTunnel device = await control();
+      final Stream<String> commands = lines(device);
+      final Future<String> firstCommand = commands.first;
 
-    await _until(() => devices.isNotEmpty);
-    final DVDevClientDevice attached = devices.single;
-    expect(attached.debugUrl.host, '127.0.0.1');
-    expect(attached.debugUrl.path, '/Q52L-EEB5A0=/');
-    expect(attached.manifest.bindings, contains('plugin:jni'));
+      await _until(() => devices.isNotEmpty);
+      final DVDevClientDevice attached = devices.single;
+      expect(attached.debugUrl.host, '127.0.0.1');
+      expect(attached.debugUrl.path, '/Q52L-EEB5A0=/');
+      expect(attached.manifest.bindings, contains('plugin:jni'));
 
-    // flutter attach connects to the loopback port...
-    final Socket attach = await Socket.connect(
-      InternetAddress.loopbackIPv4,
-      attached.debugUrl.port,
-    );
-    // ...which asks the device to open a stream for it.
-    final String open = await firstCommand.timeout(const Duration(seconds: 5));
-    expect(open, startsWith('open '));
-    final String id = open.substring('open '.length);
+      // flutter attach connects to the loopback port...
+      final Socket attach = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        attached.debugUrl.port,
+      );
+      // ...which asks the device to open a stream for it.
+      final String open = await firstCommand.timeout(
+        const Duration(seconds: 5),
+      );
+      expect(open, startsWith('open '));
+      final String id = open.substring('open '.length);
 
-    final RawTunnel stream = await RawTunnel.open(
-      server.pairing,
-      query: 'role=stream&id=$id&nonce=${nonce()}',
-      token: server.pairing.token,
-    );
-    expect(stream.status, 101);
+      final RawTunnel stream = await RawTunnel.open(
+        server.pairing,
+        query: 'role=stream&id=$id&nonce=${nonce()}',
+        token: server.pairing.token,
+      );
+      expect(stream.status, 101);
 
-    // Bytes both ways: the attach side's request reaches the device, and the
-    // device's answer (the VM service's, on a phone) comes back.
-    final Future<String> atDevice = stream.rest
-        .transform(utf8.decoder)
-        .first
-        .timeout(const Duration(seconds: 5));
-    attach.write('GET /Q52L-EEB5A0=/ws HTTP/1.1\r\n\r\n');
-    expect(await atDevice, startsWith('GET /Q52L-EEB5A0=/ws'));
+      // Bytes both ways: the attach side's request reaches the device, and the
+      // device's answer (the VM service's, on a phone) comes back.
+      final Future<String> atDevice = stream.rest
+          .transform(utf8.decoder)
+          .first
+          .timeout(const Duration(seconds: 5));
+      attach.write('GET /Q52L-EEB5A0=/ws HTTP/1.1\r\n\r\n');
+      expect(await atDevice, startsWith('GET /Q52L-EEB5A0=/ws'));
 
-    final Future<String> atAttach = utf8.decoder
-        .bind(attach)
-        .first
-        .timeout(const Duration(seconds: 5));
-    stream.socket.write('HTTP/1.1 101 from the VM service\r\n\r\n');
-    expect(await atAttach, startsWith('HTTP/1.1 101 from the VM service'));
+      final Future<String> atAttach = utf8.decoder
+          .bind(attach)
+          .first
+          .timeout(const Duration(seconds: 5));
+      stream.socket.write('HTTP/1.1 101 from the VM service\r\n\r\n');
+      expect(await atAttach, startsWith('HTTP/1.1 101 from the VM service'));
 
-    attach.destroy();
-    stream.socket.destroy();
-    device.socket.destroy();
-  });
+      attach.destroy();
+      stream.socket.destroy();
+      device.socket.destroy();
+    },
+  );
 
   test('a device missing a binding the project needs is refused', () async {
     final RawTunnel device = await control(
@@ -288,6 +297,59 @@ void main() {
     );
     expect(stream.status, 404);
     stream.socket.destroy();
+  });
+
+  test('an attach connection that resets mid-stream does not take the dev '
+      'server down', () async {
+    // flutter attach drops its connections whenever it restarts or exits.
+    // A write the server then makes to one of them fails on the socket's
+    // done future, and an unhandled one ended `dartvel dev` with "Connection
+    // reset by peer" -- every paired device lost at once.
+    final RawTunnel device = await control();
+    final Future<String> firstCommand = lines(device).first;
+    await _until(() => devices.isNotEmpty);
+    final Socket attach = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      devices.single.debugUrl.port,
+    );
+    final String open = await firstCommand.timeout(const Duration(seconds: 5));
+    final RawTunnel stream = await RawTunnel.open(
+      server.pairing,
+      query:
+          'role=stream&id=${open.substring('open '.length)}&nonce=${nonce()}',
+      token: server.pairing.token,
+    );
+    expect(stream.status, 101);
+    // This test's own ends fail too, and are not what is under test.
+    for (final Socket s in <Socket>[attach, stream.socket]) {
+      unawaited(s.done.then<void>((_) {}, onError: (Object _) {}));
+    }
+
+    // The device keeps answering while the attach side goes away with bytes
+    // it never read, which is a reset rather than a close.
+    final List<int> chunk = List<int>.filled(64 * 1024, 42);
+    final Timer flood = Timer.periodic(const Duration(milliseconds: 5), (_) {
+      try {
+        stream.socket.add(chunk);
+      } on Object {
+        // The stream closing is expected.
+      }
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    attach.destroy();
+    await Future<void>.delayed(const Duration(seconds: 1));
+    flood.cancel();
+    stream.socket.destroy();
+
+    // Still serving: another device can open a control connection.
+    final RawTunnel again = await RawTunnel.open(
+      server.pairing,
+      query: 'role=control&nonce=${nonce()}',
+      token: server.pairing.token,
+    );
+    expect(again.status, 101);
+    again.socket.destroy();
+    device.socket.destroy();
   });
 
   test('when the device goes, so does its loopback port', () async {
