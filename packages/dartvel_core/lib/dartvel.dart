@@ -199,6 +199,7 @@ export 'src/queues/pubsub_queue.dart';
 export 'src/queues/redis_queue.dart';
 export 'src/queues/sqs_queue.dart';
 export 'src/release/release.dart';
+export 'src/routing/route_order.dart';
 export 'src/scene3d/scene3d.dart';
 export 'src/scheduling/cron.dart';
 export 'src/scheduling/scheduler.dart';

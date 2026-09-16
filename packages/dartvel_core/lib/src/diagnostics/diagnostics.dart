@@ -1440,6 +1440,27 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-ROUTE-001',
+      reason: 'a path is declared twice: by a page file and a config route, '
+          'or by two config routes',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ROUTE-002',
+      reason: 'two routes generate the same typed target in DVRoutes',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ROUTE-003',
+      reason: 'the routes file declares a route the build cannot read',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-ROUTE-004',
+      reason: 'routes cannot be ordered so that every one is reachable',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-CDC-001',
       reason: 'a destination refused a batch; delivery is retrying',
       level: 'warning',
