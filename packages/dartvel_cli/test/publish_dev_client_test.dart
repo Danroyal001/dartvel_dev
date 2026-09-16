@@ -170,6 +170,22 @@ $yaml
       expect(dvArtifactIsDevClient(ipa), isTrue);
     });
 
+    // A development-profile build is a Flutter debug build: its Dart is a
+    // JIT kernel, not an AOT snapshot, and no store track runs one.
+    for (final String path in <String>[
+      'assets/flutter_assets/kernel_blob.bin',
+      'base/assets/flutter_assets/kernel_blob.bin',
+      'Payload/Runner.app/Frameworks/App.framework/flutter_assets/kernel_blob.bin',
+    ]) {
+      test('in a development-profile build, by its kernel ($path)', () {
+        final String built = artifact(
+          'dev.zip',
+          zip(<String, List<int>>{path: List<int>.filled(128, 7)}),
+        );
+        expect(dvArtifactIsDevClient(built), isTrue);
+      });
+    }
+
     test('not in the application itself', () {
       final String aab = artifact(
         'a.aab',
