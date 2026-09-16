@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **A nested layout sits inside its parent's.** The generated router wrapped
+  the root `_layout.dart` first and each deeper layout around it, so
+  `lib/pages/docs/_layout.dart` drew around the site header instead of below
+  it. The root layout is now outermost.
+
 - **`dartvel build server` compiles the backend into one file.** It writes
   `build/server`, the file `dartvel deploy`'s image runs as `/app/server`
   and `dartvel infra`'s units start as `/opt/<app>/server`, and which nothing
