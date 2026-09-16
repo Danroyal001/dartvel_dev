@@ -846,11 +846,21 @@ class DVHttp {
     );
   }
 
-  /// The declared host whose base URL [url] is under, preferring the longest.
   static (String, DVHttpHostConfig)? _covering(Uri url) {
-    (String, DVHttpHostConfig)? best;
+    final String? name = coveringHost(_hosts, url);
+    return name == null ? null : (name, _hosts[name]!);
+  }
+
+  /// The name of the host in [hosts] whose base URL [url] is under -- same
+  /// scheme, host and port, and a path at or below the base path -- preferring
+  /// the longest base URL, or null when none covers it.
+  ///
+  /// The rule a request is sent or refused by, public so the build's
+  /// DV-HTTP-001 check applies the same one.
+  static String? coveringHost(Map<String, DVHttpHostConfig> hosts, Uri url) {
+    String? best;
     int bestLength = -1;
-    for (final MapEntry<String, DVHttpHostConfig> entry in _hosts.entries) {
+    for (final MapEntry<String, DVHttpHostConfig> entry in hosts.entries) {
       final Uri base = Uri.parse(entry.value.baseUrl);
       if (base.scheme.toLowerCase() != url.scheme.toLowerCase() ||
           base.host.toLowerCase() != url.host.toLowerCase() ||
@@ -865,7 +875,7 @@ class DVHttp {
           url.path == prefix ||
           url.path.startsWith('$prefix/');
       if (!under || prefix.length <= bestLength) continue;
-      best = (entry.key, entry.value);
+      best = entry.key;
       bestLength = prefix.length;
     }
     return best;
