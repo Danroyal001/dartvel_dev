@@ -1,0 +1,135 @@
+name: OTA updates
+
+# DV.Updates in a real release build, end to end, with no Shorebird account.
+#
+# The release is built with Shorebird's Flutter fork at the Flutter version
+# Dartvel pins (flutter_release/3.44.5), whose engine carries the open-source
+# updater; its shorebird.yaml points base_url at Dartvel's own patch source
+# (DVShorebirdPatchSource). The patch is the same app with one string changed,
+# diffed with Shorebird's published patch tool for that engine revision. On an
+# emulator the release checks, applies through DV.Updates, and is the patch on
+# the next launch. See tool/ci/android_ota_check.dart.
+#
+# Repository secrets are empty, so Shorebird's hosted service is not used and
+# cannot be: this is the self-hosted path.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - packages/dartvel_core/lib/src/updates/**
+      - packages/dartvel_flutter/lib/src/updates/**
+      - examples/dartvel_example/integration_test/app_updates_probe.dart
+      - tool/ci/android_ota_check.dart
+      - tool/ci/ota_patch_server.dart
+      - .github/workflows/ota-updates.yml
+
+concurrency:
+  group: ota-updates-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  android-emulator:
+    name: Android — release, patch, relaunch
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SHOREBIRD_FLUTTER_BRANCH: flutter_release/3.44.5
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag /tmp/ota
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Shorebird's Flutter at Dartvel's version
+        run: |
+          set -euo pipefail
+          git clone --filter=tree:0 -b "$SHOREBIRD_FLUTTER_BRANCH" \
+            https://github.com/shorebirdtech/flutter /tmp/sbflutter
+          # Shorebird's engine artifacts, not Google's: the updater is in them.
+          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
+          /tmp/sbflutter/bin/flutter --version
+          echo "engine: $(cat /tmp/sbflutter/bin/internal/engine.version)"
+
+      - name: Build the release and the patch
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ota-build.log) 2>&1
+          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
+          SB=/tmp/sbflutter/bin/flutter
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel routes
+
+          # The patch source is the dev machine as the emulator sees it, and
+          # DV.Updates decides when to check, so the engine must not.
+          printf 'app_id: dartvel-example-ota\nbase_url: http://10.0.2.2:9090/updates\nauto_update: false\n' \
+            > shorebird.yaml
+          sed -i 's|^    - assets/$|    - assets/\n    - shorebird.yaml|' pubspec.yaml
+          grep -n 'shorebird.yaml' pubspec.yaml
+
+          $SB pub get
+          probe=integration_test/app_updates_probe.dart
+          $SB build apk --release --target-platform android-x64 -t "$probe"
+          cp build/app/outputs/flutter-apk/app-release.apk /tmp/ota/release.apk
+          unzip -p /tmp/ota/release.apk lib/x86_64/libapp.so > /tmp/ota/release-libapp.so
+          unzip -l /tmp/ota/release.apk | grep -E 'libflutter|libapp|shorebird' || true
+
+          sed -i "s/'OTA-PROBE-ONE';/'OTA-PROBE-TWO';/" "$probe"
+          grep -q "'OTA-PROBE-TWO';" "$probe"
+          $SB build apk --release --target-platform android-x64 -t "$probe"
+          unzip -p build/app/outputs/flutter-apk/app-release.apk lib/x86_64/libapp.so \
+            > /tmp/ota/patched-libapp.so
+          if cmp -s /tmp/ota/release-libapp.so /tmp/ota/patched-libapp.so; then
+            echo "::error::the patch build produced the same libapp.so"; exit 1
+          fi
+
+          engine=$(cat /tmp/sbflutter/bin/internal/engine.version)
+          curl -fsSL -o /tmp/ota/patch-tool.zip \
+            "https://storage.googleapis.com/download.shorebird.dev/shorebird/$engine/patch-linux-x64.zip"
+          unzip -o /tmp/ota/patch-tool.zip -d /tmp/ota/patch-tool
+          chmod +x /tmp/ota/patch-tool/patch
+          /tmp/ota/patch-tool/patch /tmp/ota/release-libapp.so /tmp/ota/patched-libapp.so /tmp/ota/patch.bin
+          sha256sum /tmp/ota/patched-libapp.so | cut -d' ' -f1 > /tmp/ota/patched.sha256
+          ls -la /tmp/ota
+
+      - name: Resolve the repository for the patch source
+        run: dart pub get
+
+      - name: Release, patch and relaunch on an emulator
+        id: run
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: dart tool/ci/android_ota_check.dart
+
+      - name: The device agreed
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/ota-verdict.txt \
+            || { echo "no verdict: the device check did not finish"; exit 1; }
+          cat /tmp/diag/ota-verdict.txt
+          head -1 /tmp/diag/ota-verdict.txt | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ota-updates-android, path: /tmp/diag/, if-no-files-found: warn }
