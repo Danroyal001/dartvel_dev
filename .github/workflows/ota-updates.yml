@@ -220,6 +220,65 @@ jobs:
           done
           find "$app" -name shorebird.yaml | tee /tmp/diag/ios-shorebird-yaml.txt | grep -q .
 
+      # Can a Shorebird patch be applied on the iOS simulator, which is the
+      # only iOS device this runner has? Attempted rather than assumed, and
+      # every answer kept in ios-simulator-patch-attempt.txt:
+      #  1. a release build for the simulator, which is the only mode whose
+      #     engine starts the updater;
+      #  2. the updater symbols in the simulator engine Shorebird ships, in
+      #     debug, the mode the simulator does run;
+      #  3. that debug build launched on a booted simulator, with what
+      #     DV.Updates reports when it binds the updater;
+      #  4. dartvel updates release --patch-source for iOS.
+      - name: A patch on the iOS simulator, attempted
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          set -uo pipefail
+          out=/tmp/diag/ios-simulator-patch-attempt.txt
+          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
+          SB=/tmp/sbflutter/bin/flutter
+          probe=integration_test/app_updates_probe.dart
+          cd examples/dartvel_example
+
+          echo "== 1. $SB build ios --simulator --release" | tee -a "$out"
+          $SB build ios --simulator --release --no-codesign -t "$probe" > /tmp/diag/ios-sim-release.log 2>&1
+          echo "exit $?" | tee -a "$out"
+          tail -n 15 /tmp/diag/ios-sim-release.log | tee -a "$out"
+
+          echo "== 2. $SB build ios --simulator --debug, updater symbols" | tee -a "$out"
+          $SB build ios --simulator --debug --no-codesign -t "$probe" > /tmp/diag/ios-sim-debug.log 2>&1
+          echo "exit $?" | tee -a "$out"
+          tail -n 5 /tmp/diag/ios-sim-debug.log | tee -a "$out"
+          app=build/ios/iphonesimulator/Runner.app
+          if [ -d "$app" ]; then
+            nm -gU "$app/Frameworks/Flutter.framework/Flutter" 2>&1 | grep -c shorebird_ \
+              | sed 's/^/shorebird_ symbols exported: /' | tee -a "$out"
+          fi
+
+          echo "== 3. launched on a simulator" | tee -a "$out"
+          udid=$(xcrun simctl list devices available | grep -m1 -E 'iPhone' | grep -oE '[0-9A-F-]{36}')
+          echo "simulator $udid" | tee -a "$out"
+          if [ -n "$udid" ] && [ -d "$app" ]; then
+            xcrun simctl boot "$udid" || true
+            xcrun simctl bootstatus "$udid" -b || true
+            xcrun simctl install "$udid" "$app"
+            bundle=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
+            ( xcrun simctl launch --console-pty "$udid" "$bundle" > /tmp/diag/ios-sim-console.log 2>&1 & )
+            for i in $(seq 1 60); do
+              grep -q 'OTA-PROBE' /tmp/diag/ios-sim-console.log 2>/dev/null && break
+              sleep 2
+            done
+            sleep 5
+            grep 'OTA-PROBE' /tmp/diag/ios-sim-console.log | tee -a "$out" \
+              || { echo "no OTA-PROBE line; console tail:"; tail -n 20 /tmp/diag/ios-sim-console.log; } | tee -a "$out"
+            xcrun simctl terminate "$udid" "$bundle" || true
+          fi
+
+          echo "== 4. dartvel updates release --platform ios --patch-source" | tee -a "$out"
+          dart run dartvel_cli:dartvel updates release --platform ios \
+            --patch-source https://updates.example.invalid/updates 2>&1 | tail -n 3 | tee -a "$out"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ota-updates-ios, path: /tmp/diag/, if-no-files-found: warn }
