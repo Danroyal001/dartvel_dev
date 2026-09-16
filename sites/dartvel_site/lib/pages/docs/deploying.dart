@@ -15,12 +15,27 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
       sections: <DocsSection>[
         DocsSection(
           id: 'web-server',
-          title: 'dartvel build web-server (coming to these docs)',
+          title: 'Build one file with dartvel build web-server',
           children: <Widget>[
-            DocsNote('Documented once verified',
-                'dartvel build web-server is being finished. This section will '
-                'describe what it produces once the build has been run and its '
-                'output checked.'),
+            DocsText('dartvel build web-server writes build/server: one '
+                'executable with your backend, the native server and the web '
+                'app inside it.'),
+            DocsShell(<String>[
+              r'$ dartvel build web-server',
+              r'$ scp build/server you@host:/srv/shop/',
+              r'$ ssh you@host "cd /srv/shop && ./server"',
+            ]),
+            Bullets(<String>[
+              'With no DATABASE_URL, the first run creates '
+                  'dartvel_data/data.db with your models\' tables in it.',
+              'Pages are rendered on request from your model data, with head '
+                  'tags a crawler can read.',
+              'Set DATABASE_URL to use PostgreSQL or MySQL. The binary does '
+                  'not migrate those on start.',
+            ]),
+            DocsNote('Linux x64 only',
+                'The server binary embeds a native library that ships for '
+                'linux-x64, so build it for a Linux x64 host.'),
           ],
         ),
         DocsSection(

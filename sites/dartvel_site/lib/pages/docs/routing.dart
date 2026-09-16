@@ -163,12 +163,32 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'config-routes',
-          title: 'Config-based routes (coming)',
+          title: 'Declare routes in lib/routes.dart',
           children: <Widget>[
-            DocsNote('Coming soon',
-                'Routes declared in code, merged with file pages into one '
-                'router, are designed and not built yet. This section will '
-                'describe them when they ship.'),
+            DocsText('A top-level routes list in lib/routes.dart joins the '
+                'file pages in one router. Each route gets a typed target on '
+                'DVRoutes, derived from its path or set with name:.'),
+            Bullets(<String>[
+              'DVRoute is a screen, DVShellRoute wraps its children in a frame, '
+                  'and DVStatefulShellRoute keeps a stack per branch.',
+              'A redirect returns a DVRouteTarget. While an async redirect '
+                  'decides, the router shows a pending view.',
+              'DVGoRoutes mounts a GoRoute list you already have.',
+            ]),
+            DocsSubheading('Tabs from a folder'),
+            DocsText('A _layout.dart that extends DartvelTabsLayout makes its '
+                'folder a set of tabs. A detail page is pushed inside its tab, '
+                'and back pops inside the tab on screen.'),
+            DocsSubheading('Mount into your GoRouter'),
+            DocsText('dartvelRoutes(at: \'/app\') returns every Dartvel route '
+                'under a prefix for your own GoRouter. DV.Navigation and '
+                'DVNavLink place Dartvel targets under it and leave your paths '
+                'alone.'),
+            DocsSubheading('Deep links'),
+            DocsText('List your domains under dartvel.deepLinks in '
+                'pubspec.yaml. dartvel build web writes assetlinks.json and '
+                'apple-app-site-association, and dartvel doctor --target '
+                'android,ios checks the deployed files.'),
           ],
         ),
         DocsSection(
