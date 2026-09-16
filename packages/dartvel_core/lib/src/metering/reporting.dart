@@ -10,6 +10,7 @@ import 'dart:async';
 
 import '../../dartvel.dart' show DVBillingProvider, DVUsageMeter;
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../observability/observability.dart';
 import 'meters.dart';
 
@@ -141,12 +142,13 @@ class DVDatabaseMeterReportQueue implements DVMeterReportQueue {
 
   static const DVDatabase _db = DVDatabase();
 
-  Future<void> _ensureTable() => _ready ??= _db.execute(
+  Future<void> _ensureTable() => _ready ??= dvEnsureFrameworkTable(
+        _db.adapter,
         'CREATE TABLE IF NOT EXISTS $table (idempotency_key TEXT NOT NULL, '
         'dv_tenant TEXT NOT NULL, meter TEXT NOT NULL, '
-        'period_start_us INTEGER NOT NULL, period_end_us INTEGER NOT NULL, '
-        'quantity INTEGER NOT NULL, last_error TEXT, '
-        'queued_at_us INTEGER NOT NULL)',
+        'period_start_us BIGINT NOT NULL, period_end_us BIGINT NOT NULL, '
+        'quantity BIGINT NOT NULL, last_error TEXT, '
+        'queued_at_us BIGINT NOT NULL)',
       );
 
   @override

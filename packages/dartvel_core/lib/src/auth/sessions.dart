@@ -23,6 +23,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart' as crypto;
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../tenancy/tenants.dart';
 
 /// A signed-in device.
@@ -371,11 +372,12 @@ class DVDatabaseSessionStore implements DVSessionStore {
 
   Future<void>? _ready;
 
-  Future<void> _ensure() => _ready ??= adapter.execute(
+  Future<void> _ensure() => _ready ??= dvEnsureFrameworkTable(
+        adapter,
         'CREATE TABLE IF NOT EXISTS $table ('
         'token_hash TEXT, id TEXT, user_id TEXT, tenant TEXT, '
-        'created_at INTEGER, last_seen_at INTEGER, mfa_at INTEGER, '
-        'revoked_at INTEGER, device TEXT, location TEXT, claims TEXT)',
+        'created_at BIGINT, last_seen_at BIGINT, mfa_at BIGINT, '
+        'revoked_at BIGINT, device TEXT, location TEXT, claims TEXT)',
       );
 
   static const String _columns =

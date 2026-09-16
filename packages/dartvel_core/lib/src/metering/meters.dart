@@ -10,6 +10,7 @@ library dartvel_core.metering.meters;
 import 'dart:async';
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
 
@@ -354,17 +355,19 @@ class DVDatabaseMeterStore implements DVMeterStore {
   Future<void> _create() async {
     const String columns = 'dv_tenant TEXT NOT NULL, meter TEXT NOT NULL, '
         'idempotency_key TEXT NOT NULL, amount REAL NOT NULL, '
-        'at_us INTEGER NOT NULL, period_start_us INTEGER NOT NULL, '
-        'period_end_us INTEGER NOT NULL';
+        'at_us BIGINT NOT NULL, period_start_us BIGINT NOT NULL, '
+        'period_end_us BIGINT NOT NULL';
     try {
-      await _db.execute(
+      await dvEnsureFrameworkTable(
+        _db.adapter,
         'CREATE TABLE IF NOT EXISTS $table ($columns, '
         'UNIQUE (dv_tenant, meter, period_start_us, idempotency_key))',
       );
     } on ArgumentError {
       // An adapter that cannot express the constraint still stores records;
       // the in-process check in DVMeters is then the only guard.
-      await _db.execute('CREATE TABLE IF NOT EXISTS $table ($columns)');
+      await dvEnsureFrameworkTable(
+          _db.adapter, 'CREATE TABLE IF NOT EXISTS $table ($columns)');
     }
   }
 

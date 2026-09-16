@@ -25,6 +25,7 @@ import 'dart:async';
 import '../../dartvel.dart' show dvBillingCustomerKey;
 import '../billing/money.dart';
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import '../observability/observability.dart';
 import '../transaction/transaction.dart';
 import 'exact.dart';
@@ -349,10 +350,11 @@ class DVDatabasePromotionLedger implements DVPromotionLedger {
       <(String, String), Future<void>>{};
 
   Future<void> _ensureTables() => _ready ??= () async {
-        await db.execute(
+        await dvEnsureFrameworkTable(
+          db,
           'CREATE TABLE IF NOT EXISTS $redemptionsTable (promotion_id TEXT NOT '
           'NULL, order_id TEXT NOT NULL, customer_key TEXT NOT NULL, '
-          'redeemed_at_us INTEGER NOT NULL, PRIMARY KEY (promotion_id, order_id))',
+          'redeemed_at_us BIGINT NOT NULL, PRIMARY KEY (promotion_id, order_id))',
         );
         await db.execute(
           'CREATE TABLE IF NOT EXISTS $countersTable (promotion_id TEXT NOT '

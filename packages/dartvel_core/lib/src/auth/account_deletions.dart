@@ -14,6 +14,7 @@
 library dartvel_core.auth.account_deletions;
 
 import '../database/adapter.dart' show DVDatabaseAdapter;
+import '../database/framework_tables.dart';
 
 /// Where a deletion is.
 enum DVAccountDeletionState {
@@ -67,10 +68,11 @@ class DVAccountDeletionStore {
 
   Future<void>? _ready;
 
-  Future<void> _ensure() => _ready ??= database.execute(
+  Future<void> _ensure() => _ready ??= dvEnsureFrameworkTable(
+        database,
         'CREATE TABLE IF NOT EXISTS $table ('
-        'user_id TEXT, requested_at INTEGER, due_at INTEGER, state TEXT, '
-        'claimed_at INTEGER)',
+        'user_id TEXT, requested_at BIGINT, due_at BIGINT, state TEXT, '
+        'claimed_at BIGINT)',
       );
 
   /// Records a deletion request, replacing any earlier one for the account.

@@ -9,6 +9,7 @@
 library dartvel.purchases.database_ledger;
 
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import 'purchases.dart';
 
 class DVDatabasePurchaseLedger implements DVPurchaseLedger {
@@ -33,19 +34,21 @@ class DVDatabasePurchaseLedger implements DVPurchaseLedger {
   /// instances on a real database. The development adapter reads no column
   /// definitions, so there the check before each insert is the only guard.
   Future<void> _ensureTables() => _ready ??= () async {
-        await db.execute(
+        await dvEnsureFrameworkTable(
+          db,
           'CREATE TABLE IF NOT EXISTS $grantsTable (store TEXT NOT NULL, '
           'original_transaction_id TEXT NOT NULL, '
           'transaction_id TEXT NOT NULL, customer_key TEXT NOT NULL, '
           'product_id TEXT NOT NULL, store_product_id TEXT NOT NULL, '
-          'purchased_at_us INTEGER NOT NULL, not_after_us INTEGER, '
-          'revoked_at_us INTEGER, acknowledged INTEGER NOT NULL, '
-          'last_event_at_us INTEGER NOT NULL, '
+          'purchased_at_us BIGINT NOT NULL, not_after_us BIGINT, '
+          'revoked_at_us BIGINT, acknowledged INTEGER NOT NULL, '
+          'last_event_at_us BIGINT NOT NULL, '
           'PRIMARY KEY (store, original_transaction_id))',
         );
-        await db.execute(
+        await dvEnsureFrameworkTable(
+          db,
           'CREATE TABLE IF NOT EXISTS $notificationsTable (store TEXT NOT NULL, '
-          'notification_id TEXT NOT NULL, claimed_at_us INTEGER NOT NULL, '
+          'notification_id TEXT NOT NULL, claimed_at_us BIGINT NOT NULL, '
           'PRIMARY KEY (store, notification_id))',
         );
       }();
