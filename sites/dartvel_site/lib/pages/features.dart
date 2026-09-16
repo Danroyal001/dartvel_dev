@@ -35,22 +35,22 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Routing',
     'Files, lib/routes.dart, GoRouter',
-    'Pages by file and routes in lib/routes.dart share one typed router, so '
-        'moving a page breaks the build at every link to it. A (tabs) folder '
-        'keeps a stack per tab, and dartvelRoutes(at:) mounts the lot into '
-        'your own GoRouter. Absent: typed targets for routes inside DVGoRoutes.',
+    'File pages and lib/routes.dart share one typed router, with a stack per '
+        'tab. Moving a page breaks the build at every link to it, and '
+        'dartvelRoutes(at:) mounts the lot into your own GoRouter. Absent: typed '
+        'targets for routes inside DVGoRoutes.',
   ),
   (
     'State',
     'Signals',
-    'context.signal, reactive models and DV.global. price * quantity returns '
-        'a signal that tracks both.',
+    'Signals from context.signal, reactive models and DV.global. The result '
+        'of price * quantity is a signal that tracks both.',
   ),
   (
     'Models',
     '@DVModel',
-    'One annotated class gives you the typed client, serialization, form, '
-        'table and admin, with no build_runner step.',
+    'One annotated class gives you the typed client, form, table and admin, '
+        'with no build_runner. Serialization comes with it.',
   ),
   (
     'Forms',
@@ -89,8 +89,9 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Database',
     'SQLite by default',
-    'Zero-config SQLite locally, plus Postgres and MySQL with TLS. dartvel db '
-        'migrate runs migrations on SQLite and writes the SQL for the others.',
+    'Zero-config SQLite locally, plus Postgres and MySQL with TLS. Migrations '
+        'run on SQLite with dartvel db migrate, which writes the SQL for the '
+        'others.',
   ),
   (
     'APIs',
@@ -101,8 +102,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Model Sync and Presence',
     'Built on models and signals',
-    'Generated sync, subscriptions and presence for your models, including a '
-        'restored event when a soft-deleted record comes back.',
+    'Generated sync, subscriptions and presence for your models. A '
+        'soft-deleted record that comes back sends a restored event.',
   ),
   (
     'File Storage',
@@ -168,24 +169,24 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Admin, Devtools, and Scaffolding',
     'dartvel inspect, dartvel mcp',
-    'One graph of your routes, models, functions and jobs. dartvel mcp serves '
-        'it to a coding agent.',
+    'One graph of your routes, models, functions and jobs. A coding agent '
+        'reads it through dartvel mcp.',
   ),
   (
     'Deployment',
     'dartvel build web-server',
-    'dartvel build web-server writes one Linux x64 file with your backend and '
-        'web app, which creates its SQLite database on the first run. dartvel '
-        'deploy --functions writes a Lambda, Cloud Run, container, Fly, Railway '
-        'or bare-metal artifact per function. Absent: pushing it to the cloud '
-        'with your credentials.',
+    'One Linux x64 file from dartvel build web-server carries your backend '
+        'and web app. It creates its SQLite database on the first run, and '
+        'dartvel deploy --functions writes a Lambda, Cloud Run, container, Fly, '
+        'Railway or bare-metal artifact per function. Absent: pushing it to the '
+        'cloud with your credentials.',
   ),
   (
     'CLI',
     'One tool',
-    'Code generation runs inside dartvel dev and dartvel build, so there is no '
-        'generator to start yourself. create, doctor, inspect, explain and sh '
-        'are the same tool.',
+    'Code generation runs inside dartvel dev and dartvel build. The same tool '
+        'creates, diagnoses and inspects projects, with create, doctor, inspect, '
+        'explain and sh.',
   ),
   (
     'CSRF Protection',
@@ -230,7 +231,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Record History and Optimistic Concurrency',
     'Versioned writes',
-    'Present: a model saves at the version it read, a hand-built model cannot '
+    'Present: a model saves at the version it read. A hand-built model cannot '
         'overwrite a stored row, and soft delete, restore and revert are '
         'generated. Absent: form reload-and-merge and the Studio history view.',
   ),
@@ -340,10 +341,10 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'OTA Updates',
     'DV.Updates',
-    'Present: DV.Updates.check, apply and rollback on the Shorebird updater, '
-        'with patches served from your own host by DVShorebirdPatchSource. CI '
-        'patches an Android release this way with no Shorebird account. '
-        'Absent: a patch applied on iOS.',
+    'Present: DV.Updates.check, apply and rollback run on the Shorebird '
+        'updater. Patches can come from your own host through '
+        'DVShorebirdPatchSource, and CI patches an Android release that way '
+        'with no Shorebird account. Absent: a patch applied on iOS.',
   ),
   (
     'Protocol Versioning and Client Compatibility',

@@ -137,7 +137,22 @@ String siteLead(String body) {
   // "Present: a module is a whole application" loses its label and would open
   // a card in lower case, which reads as a sentence fragment rather than a
   // summary.
-  return lead[0].toUpperCase() + lead.substring(1);
+  return _capitalised(lead);
+}
+
+/// [text] with a capital first letter, unless its first word is code or a
+/// name whose case is part of it.
+///
+/// "the image." takes a capital. "dartvel build web", "context.signal",
+/// "background: true", "webOS" and "iPadOS" do not: a capital there is a
+/// different command, a different identifier, or a misspelt brand.
+String _capitalised(String text) {
+  final String word = RegExp(r'^\S+').stringMatch(text) ?? '';
+  final bool code = word == 'dartvel' ||
+      RegExp(r'[.:_()@<>*/]').hasMatch(word.replaceFirst(RegExp(r'[.,;:]$'), '')) ||
+      word.endsWith(':') ||
+      RegExp(r'^.+[A-Z]').hasMatch(word);
+  return code ? text : text[0].toUpperCase() + text.substring(1);
 }
 
 /// The one line a card shows under its lead: the first thing it lacks.
@@ -151,7 +166,5 @@ String siteGap(String body) {
   if (gap.isEmpty) return '';
   // "the image." opens with a capital; "iPadOS and Tizen." is a name and
   // keeps the case it was written in.
-  final bool name = gap.length > 1 && gap[1].toUpperCase() == gap[1] &&
-      gap[1].toLowerCase() != gap[1];
-  return name ? gap : gap[0].toUpperCase() + gap.substring(1);
+  return _capitalised(gap);
 }
