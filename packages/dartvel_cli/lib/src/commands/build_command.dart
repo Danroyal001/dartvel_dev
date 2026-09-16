@@ -64,6 +64,7 @@ import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
 import '../build/build_profile.dart';
+import '../cloud/cloud_build.dart';
 import '../devclient/android_dev_client.dart';
 import '../devclient/dev_client_project.dart';
 
@@ -465,6 +466,7 @@ class BuildCommand extends Command<void> {
     BuildProcessRun? processRun,
     BuildRunnerDependencyCheck? hasBuildRunner,
     bool Function(String)? onPath,
+    this._cloud,
     // The project; null reads the working directory when the command runs.
     // A test passes its own, because that directory is one value shared by
     // every suite in the process.
@@ -521,10 +523,19 @@ class BuildCommand extends Command<void> {
           defaultsTo: null,
           help: 'Install missing build tools without prompting. Defaults to '
               'prompting when interactive, and to installing in CI. Use '
-              '--no-auto-install to require a pre-provisioned toolchain.');
+              '--no-auto-install to require a pre-provisioned toolchain.')
+      ..addFlag('cloud',
+          defaultsTo: false,
+          negatable: false,
+          help: 'Build on this repository\'s own GitHub Actions instead of '
+              'this machine: iOS and macOS on a macOS runner, whatever the '
+              'host. Writes .github/workflows/dartvel-cloud.yml, dispatches '
+              'it with GH_TOKEN or gh\'s login, follows the run and downloads '
+              'the artifact into build/cloud/<target>.');
   }
 
   final String? _root;
+  final DVCloudBuild? _cloud;
 
   /// The profile of the build being run, set once `run` has parsed it.
   DVBuildProfile _profile = DVBuildProfile.release;
@@ -573,6 +584,22 @@ class BuildCommand extends Command<void> {
     } on FormatException catch (error) {
       Logger.log('❌ ${error.message}');
       exit(64); // EX_USAGE
+    }
+
+    if (argResults?['cloud'] == true) {
+      final String cloudTarget = normalizeBuildTarget(rawPlatform).platform;
+      if (cloudTarget == 'all') {
+        Logger.log('❌ Name the target to build in the cloud, for example '
+            'dartvel build ios --cloud.');
+        exitCode = 64; // EX_USAGE
+        return;
+      }
+      exitCode = await (_cloud ?? DVCloudBuild()).run(DVCloudBuildRequest(
+        root: root,
+        target: cloudTarget,
+        profile: argResults?['profile'] as String,
+      ));
+      return;
     }
 
     final buildProfile = DVBuildProfile.parse(argResults?['profile'] as String);
