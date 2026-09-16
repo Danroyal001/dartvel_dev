@@ -1,6 +1,25 @@
 /// The server configuration a Dartvel web build needs to actually serve.
 library dartvel_cli.build.server_config;
 
+import 'dart:io';
+
+/// Makes [web] readable by a web server running as another user: every
+/// directory 755 and every file 644.
+///
+/// A build inherits the modes of the disk it runs on, and one made every
+/// directory 756. A shared host extracts an upload with the modes it carries,
+/// and its static server reads as another user, so every file below the root
+/// was unreachable and the rewrite answered index.html in its place: the
+/// manifest icon was not an image and the asset manifest was not JSON.
+void dvMakeWebOutputServable(Directory web) {
+  if (Platform.isWindows || !web.existsSync()) return;
+  final ProcessResult result =
+      Process.runSync('chmod', <String>['-R', 'u=rwX,go=rX', web.path]);
+  if (result.exitCode != 0) {
+    throw StateError('chmod failed on ${web.path}: ${result.stderr}');
+  }
+}
+
 /// An `.htaccess` for Apache, which is what shared hosting runs.
 ///
 /// `dartvel build web` uses path URLs rather than Flutter's hash strategy, so
