@@ -12,16 +12,17 @@ import 'package:test/test.dart';
 const String _fingerprint =
     '14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:16:A0:83:42:E6:1D:BE:A8:8A:04:96:B2:3F:CF:44:E5';
 
-DVDeepLinks parse(Map<String, Object?> yaml) => DVDeepLinks.parse(yaml)!;
+DVDeepLinkConfig parse(Map<String, Object?> yaml) =>
+    DVDeepLinkConfig.parse(yaml)!;
 
 void main() {
   group('reading dartvel.deepLinks', () {
     test('nothing declared is no deep links', () {
-      expect(DVDeepLinks.parse(null), isNull);
+      expect(DVDeepLinkConfig.parse(null), isNull);
     });
 
     test('every key the section documents', () {
-      final DVDeepLinks links = parse(<String, Object?>{
+      final DVDeepLinkConfig links = parse(<String, Object?>{
         'domains': <String>['example.com', 'www.example.com'],
         'android': <String, Object?>{
           'package': 'com.example.app',
@@ -38,7 +39,7 @@ void main() {
     });
 
     test('playAppSigning reads the Play signing certificate it names', () {
-      final DVDeepLinks links = parse(<String, Object?>{
+      final DVDeepLinkConfig links = parse(<String, Object?>{
         'domains': <String>['example.com'],
         'android': <String, Object?>{
           'package': 'com.example.app',
@@ -50,7 +51,7 @@ void main() {
       expect(links.androidFingerprints, <String>[_fingerprint]);
       expect(links.missingIdentifiers(<String>{'android'}), isEmpty);
 
-      final DVDeepLinks unnamed = parse(<String, Object?>{
+      final DVDeepLinkConfig unnamed = parse(<String, Object?>{
         'domains': <String>['example.com'],
         'android': <String, Object?>{
           'package': 'com.example.app',
@@ -104,7 +105,7 @@ void main() {
 
   group('DV-LINKS-001', () {
     test('domains with no application id for a target the app builds', () {
-      final DVDeepLinks links = parse(<String, Object?>{
+      final DVDeepLinkConfig links = parse(<String, Object?>{
         'domains': <String>['example.com'],
         'ios': <String, Object?>{'appId': 'ABCDE12345.com.example.app'},
       });
@@ -120,7 +121,7 @@ void main() {
     });
 
     test('android without fingerprints is missing its identity too', () {
-      final DVDeepLinks links = parse(<String, Object?>{
+      final DVDeepLinkConfig links = parse(<String, Object?>{
         'domains': <String>['example.com'],
         'android': <String, Object?>{'package': 'com.example.app'},
       });
@@ -132,7 +133,7 @@ void main() {
   });
 
   group('the patterns', () {
-    final DVDeepLinks links = parse(<String, Object?>{
+    final DVDeepLinkConfig links = parse(<String, Object?>{
       'domains': <String>['example.com'],
       'exclude': <String>['/admin/**'],
     });
@@ -164,7 +165,7 @@ void main() {
   });
 
   group('the documents', () {
-    final DVDeepLinks links = parse(<String, Object?>{
+    final DVDeepLinkConfig links = parse(<String, Object?>{
       'domains': <String>['example.com'],
       'android': <String, Object?>{
         'package': 'com.example.app',
@@ -207,7 +208,7 @@ void main() {
     });
 
     test('no document for a platform with no identity', () {
-      final DVDeepLinks webOnly = parse(<String, Object?>{
+      final DVDeepLinkConfig webOnly = parse(<String, Object?>{
         'domains': <String>['example.com'],
       });
       expect(webOnly.assetLinks(), isNull);

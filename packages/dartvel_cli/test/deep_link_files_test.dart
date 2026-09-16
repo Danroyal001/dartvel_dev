@@ -14,7 +14,7 @@ import 'package:test/test.dart';
 const String _fingerprint =
     '14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:16:A0:83:42:E6:1D:BE:A8:8A:04:96:B2:3F:CF:44:E5';
 
-final DVDeepLinks _links = DVDeepLinks.parse(<String, Object?>{
+final DVDeepLinkConfig _links = DVDeepLinkConfig.parse(<String, Object?>{
   'domains': <String>['example.com', 'www.example.com'],
   'android': <String, Object?>{
     'package': 'com.example.app',
@@ -196,17 +196,18 @@ void main() {
     });
     tearDown(() => server.close(force: true));
 
-    DVDeepLinks linksFor(String domain) => DVDeepLinks.parse(<String, Object?>{
-      'domains': <String>[domain],
-      'android': <String, Object?>{
-        'package': 'com.example.app',
-        'fingerprints': <String>[_fingerprint],
-      },
-      'ios': <String, Object?>{'appId': 'ABCDE12345.com.example.app'},
-    })!;
+    DVDeepLinkConfig linksFor(String domain) =>
+        DVDeepLinkConfig.parse(<String, Object?>{
+          'domains': <String>[domain],
+          'android': <String, Object?>{
+            'package': 'com.example.app',
+            'fingerprints': <String>[_fingerprint],
+          },
+          'ios': <String, Object?>{'appId': 'ABCDE12345.com.example.app'},
+        })!;
 
     test('files that are right pass', () async {
-      final DVDeepLinks links = linksFor('example.com');
+      final DVDeepLinkConfig links = linksFor('example.com');
       served['/.well-known/assetlinks.json'] = (
         200,
         'application/json',
@@ -229,7 +230,7 @@ void main() {
     });
 
     test('DV-LINKS-002: missing, redirected, or not JSON', () async {
-      final DVDeepLinks links = linksFor('example.com');
+      final DVDeepLinkConfig links = linksFor('example.com');
       served['/.well-known/assetlinks.json'] = (
         301,
         '',
@@ -256,7 +257,7 @@ void main() {
     });
 
     test('DV-LINKS-003: the served fingerprint is not the signing one', () async {
-      final DVDeepLinks links = linksFor('example.com');
+      final DVDeepLinkConfig links = linksFor('example.com');
       served['/.well-known/assetlinks.json'] = (
         200,
         'application/json',
@@ -275,7 +276,7 @@ void main() {
     });
 
     test('DV-LINKS-004: a route the served patterns do not cover', () async {
-      final DVDeepLinks links = linksFor('example.com');
+      final DVDeepLinkConfig links = linksFor('example.com');
       served['/.well-known/apple-app-site-association'] = (
         200,
         'application/json',

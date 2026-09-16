@@ -25,8 +25,8 @@ library;
 import 'dart:convert';
 
 /// The declared deep-link configuration.
-class DVDeepLinks {
-  const DVDeepLinks({
+class DVDeepLinkConfig {
+  const DVDeepLinkConfig({
     required this.domains,
     this.androidPackage,
     this.androidFingerprints = const <String>[],
@@ -79,7 +79,7 @@ class DVDeepLinks {
   /// Throws [FormatException] for a key nothing reads or a value no platform
   /// accepts: a misspelt key would otherwise be a link file that silently
   /// leaves the application out.
-  static DVDeepLinks? parse(Object? yaml) {
+  static DVDeepLinkConfig? parse(Object? yaml) {
     if (yaml == null) return null;
     if (yaml is! Map) {
       throw const FormatException('dartvel.deepLinks must be a map.');
@@ -127,7 +127,7 @@ class DVDeepLinks {
       _refuseUnknown(ios, _iosKeys, 'dartvel.deepLinks.ios');
       appId = ios['appId']?.toString();
     }
-    return DVDeepLinks(
+    return DVDeepLinkConfig(
       domains: domains,
       androidPackage: package,
       androidFingerprints: fingerprints,
