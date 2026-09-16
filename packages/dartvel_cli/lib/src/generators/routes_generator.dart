@@ -76,6 +76,14 @@ Future<void> generate({
   // otherwise be a timeout or a retry policy the pubspec states and nothing
   // applies.
   final httpHosts = HttpHostsGenerator.read(dv);
+  // DV-HTTP-001 and DV-HTTP-005, which the specification makes build errors:
+  // a request to a host nobody declared, and a host whose credential is
+  // backend-scoped used from client code.
+  HttpHostsGenerator.check(
+    root: root,
+    backendDir: config.backendDir,
+    http: httpHosts,
+  );
 
   // Every model's privacy declaration, before anything is written. A
   // sensitive field no subject path reaches (DV-PRIVACY-001) is a table an

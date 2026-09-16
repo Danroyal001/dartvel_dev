@@ -1,4 +1,13 @@
 ## Unreleased
+- **`DV-HTTP-001` and `DV-HTTP-005` stop the build.** `dartvel routes` reads
+  every `DV.Http.host('name')` and every absolute URL written as a literal
+  (directly, through `Uri.parse`, or as `send`'s second argument) before it
+  writes anything. A name nobody declared, or a URL no declared base URL
+  covers, is `DV-HTTP-001` wherever it is; a declared host whose `auth.bearer`
+  names a backend-scoped secret, used outside the backend directory, is
+  `DV-HTTP-005`. Each names the file and line. A URL assembled at runtime is
+  not guessed at: the running client refuses it with `DV-HTTP-001`.
+
 - **`dartvel routes` reads `dartvel.http` and installs its hosts at startup.**
   The block was documented and read by nothing, so a project that declared
   its payment gateway in pubspec.yaml met `DV-HTTP-001` on its first

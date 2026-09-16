@@ -8,6 +8,10 @@
   A body that is not an object counts as an empty request.
   `DVPersistedQueries.withMode` changes the mode and keeps the manifest.
 
+- **`DVHttp.coveringHost`** names the declared host whose base URL a URL is
+  under, by the rule a request is sent or refused by, so the build's
+  `DV-HTTP-001` check applies the same one.
+
 - **`DVGraphQL.authorizeModel` and `DVGraphQLForbidden`.** A resolver asks
   the policy for `Resource.action` on the record it would touch, through
   `canAction`, and is refused with `DVGraphQLForbidden` unless it allows. The
