@@ -23,6 +23,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:dartvel_core/binary_payload.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVDatabaseAdapter,
+        DVDatabaseConnection,
+        DVDatabaseEngine,
+        DVDatabaseSessionStore,
+        DVIssuedSession,
+        DVSessions,
+        DVTenants;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -130,6 +140,13 @@ Future<List<String>> _notes() async => <String>[
         '\${row['text']}',
     ];
 ''');
+    // The admin, asked for. This is a release build, which carries a
+    // dashboard only when the project says so.
+    final File pubspec = File(p.join(project.path, 'pubspec.yaml'));
+    final String declared = pubspec.readAsStringSync();
+    expect(declared, contains('\ndartvel:\n'));
+    pubspec.writeAsStringSync(declared.replaceFirst(
+        '\ndartvel:\n', '\ndartvel:\n  admin:\n    enabled: true\n'));
 
     final ProcessResult resolved = await Process.run(
       'flutter',
@@ -212,11 +229,13 @@ Future<List<String>> _notes() async => <String>[
     String method,
     String path, {
     Object? json,
+    String? bearer,
   }) async {
     final HttpClient client = HttpClient();
     try {
       final HttpClientRequest request =
           await client.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
+      if (bearer != null) request.headers.set('authorization', 'Bearer $bearer');
       if (json != null) {
         request.headers.contentType = ContentType.json;
         // What the generated client sends with a POST.
@@ -275,6 +294,79 @@ Future<List<String>> _notes() async => <String>[
     } finally {
       second.process.kill();
       await second.process.exitCode;
+    }
+  }, skip: skip);
+
+  test('the copied binary serves the admin dashboard to a signed-in session '
+      'and to nobody else', () async {
+    // Carried, and not among the web files the binary serves to anybody.
+    final DVBinaryPayload? payload = DVBinaryPayload.read(binary.path);
+    expect(payload?.names, contains('admin'), reason: buildOutput);
+    expect(
+        dvUnpackFiles(payload!.section('web'))
+            .keys
+            .where((String path) => path.startsWith('__admin/')),
+        isEmpty);
+
+    final run = await start();
+    try {
+      // No session: the mount answers as a path the application does not
+      // serve, the same length so nothing can differ by it.
+      final nowhere = await request(run.port, 'GET', '/__nowhr/');
+      final hidden = await request(run.port, 'GET', '/__studio/');
+      expect(hidden.status, nowhere.status);
+      expect(hidden.type, nowhere.type);
+      expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
+      expect(hidden.body, isNot(contains('src="admin.js"')));
+      final hiddenGraph = await request(run.port, 'GET', '/__studio/graph.json');
+      expect(hiddenGraph.body, isNot(contains('"models"')));
+      // And the dashboard's files are not web files under any path.
+      final raw = await request(run.port, 'GET', '/__admin/graph.json');
+      expect(raw.body, isNot(contains('"models"')));
+
+      // A session of the application's own, issued in the binary's database
+      // on the tenant the server resolves for its own requests -- by the
+      // same resolver, rather than by assuming which one that is.
+      final DateTime waitForLine =
+          DateTime.now().add(const Duration(seconds: 10));
+      RegExpMatch? listening;
+      while ((listening = RegExp(r'listening on http://([^:/\s]+):')
+                  .firstMatch('${run.output}')) ==
+              null &&
+          DateTime.now().isBefore(waitForLine)) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(listening, isNotNull, reason: '${run.output}');
+      final String tenant = const DVTenants()
+              .resolve(Uri(scheme: 'http', host: listening!.group(1))) ??
+          DVTenants.defaultTenant;
+      final DVDatabaseAdapter database = DVDatabaseConnection(
+        engine: DVDatabaseEngine.sqlite,
+        database: p.join(binary.parent.path, 'dartvel_data', 'data.db'),
+      ).open();
+      final DVIssuedSession issued =
+          await DVSessions(store: DVDatabaseSessionStore(database))
+              .create('operator', tenant: tenant);
+
+      final page =
+          await request(run.port, 'GET', '/__studio/', bearer: issued.token);
+      expect(page.status, 200, reason: '${page.body}\n${run.output}');
+      expect(page.type, 'text/html');
+      expect(page.body, contains('src="admin.js"'),
+          reason: 'the dashboard, not the site shell');
+      final graph = await request(run.port, 'GET', '/__studio/graph.json',
+          bearer: issued.token);
+      expect(graph.status, 200);
+      expect(graph.type, 'application/json');
+      expect(jsonDecode(graph.body), isA<Map<String, Object?>>());
+
+      // The control: a token that is not a live session is nobody.
+      final forged = await request(run.port, 'GET', '/__studio/graph.json',
+          bearer: 'dvs_not-a-session');
+      expect(forged.body, isNot(contains('"models"')));
+    } finally {
+      run.process.kill();
+      await run.process.exitCode;
     }
   }, skip: skip);
 }
