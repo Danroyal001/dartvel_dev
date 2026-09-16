@@ -393,6 +393,30 @@ void main() {
               reason: 'retention removes the log, never the record');
         });
 
+        test('retention that removes entries says so, and one that removes '
+            'none is silent', () async {
+          DVObservability.resetLogging();
+          final DVRecord read = (await orders.write(_order('o1'))).record;
+          await orders.write(_order('o1', quantity: 2), base: read);
+
+          await orders.prune(now: DateTime.now().toUtc());
+          expect(
+            DVObservability.recentLogs.where(
+                (DVLogRecord r) => r.code == 'DV-HISTORY-004'),
+            isEmpty,
+            reason: 'nothing was old enough to remove',
+          );
+
+          await orders.prune(
+            now: DateTime.now().toUtc().add(const Duration(days: 400)),
+          );
+          final DVLogRecord logged = DVObservability.recentLogs.singleWhere(
+              (DVLogRecord r) => r.code == 'DV-HISTORY-004');
+          expect(logged.level, DVLogLevel.info);
+          expect(logged.context['table'], 'orders');
+          expect(logged.context['removed'], 2);
+        });
+
         test('a table without history writes no entries', () async {
           final DVRecordTable plain = _orders(database, history: null);
           await plain.ensureSchema();
