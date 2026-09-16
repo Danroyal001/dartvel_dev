@@ -162,6 +162,17 @@ public final class DartvelDevTunnel implements Runnable {
         listener);
   }
 
+  /**
+   * The VM service URI to tunnel to: the first one this process reported.
+   *
+   * The VM service's address cannot change while the process lives, but what
+   * a restarted isolate reports can: with DDS attached it reports DDS's
+   * address, which is on the dev machine, not the phone.
+   */
+  public static String vmServiceToKeep(String held, String offered) {
+    return held != null ? held : offered;
+  }
+
   public String server() {
     return host + ":" + port;
   }
@@ -498,11 +509,7 @@ public final class DartvelDevClient {
 
   /** Called from Dart with this app's VM service URI. Returns the status. */
   public static synchronized String vmService(String uri) {
-    if (uri != null && !uri.equals(vmService) && tunnel != null) {
-      tunnel.close();
-      tunnel = null;
-    }
-    vmService = uri;
+    vmService = DartvelDevTunnel.vmServiceToKeep(vmService, uri);
     if (link == null) link = stored();
     start();
     return status;
