@@ -19,7 +19,9 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         Proof(),
         BackendProof(),
         OneFileBackend(),
-        ImportApi(),
+        PhoneLoop(),
+        OtaUpdates(),
+        RoutingProof(),
         Targets(),
         ExpoComparison(),
         Honest(),
@@ -68,8 +70,8 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
           .semanticHeading(1),
     ),
     const DVText(
-      'Annotate a class and a function. Dartvel generates the routes, forms, '
-      'typed client and API server.',
+      'Write a model and a function. Dartvel generates the routes, forms, typed '
+      'client and API server, then builds them into one file for your server.',
     ).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
@@ -220,7 +222,7 @@ Widget _proof(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
     Eyebrow('MODELS'),
-    Heading('Write one class. Get its form, table and admin.'),
+    Heading('Write one class. Get its form, table, admin and typed client.'),
     CodeBlock(<String>[
       '@DVModel(generatePublicPages: true)',
       'class _Post {',
@@ -235,8 +237,9 @@ Widget _proof(BuildContext context) => const Section(
       '}',
     ]),
     Bullets(<String>[
+      'No build_runner and no generated files to commit. dartvel dev '
+          'regenerates when you save.',
       'Post.Form(...) validates input against the fields you declared.',
-      'Post.Table(...) and Post.Admin() list and edit rows with no extra code.',
       'authorEmail stays out of logs, search and the admin until a policy '
           'allows it.',
     ]),
@@ -291,7 +294,7 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'dartvel backend listening on http://0.0.0.0:3000/api',
     ]),
     Bullets(<String>[
-      'Copy one file to a Linux server and run it. The first run creates '
+      'Copy one file to a Linux x64 server and run it. The first run creates '
           'the SQLite file and your tables.',
       'The web app, the API and the pages rendered on request all come '
           'from that file.',
@@ -305,25 +308,110 @@ Widget _oneFileBackend(BuildContext context) => const Section(
           'dashboard in its file, and this binary has none yet.',
     ),
     DVBox.wrapLine(<Widget>[
-      PrimaryLink('Build your one-file backend', '/docs'),
+      PrimaryLink('Build your one-file backend', '/docs/deploying'),
     ]),
   ],
 );
 
+/// Expo Go's job, done by a build of your own app. The output lines are the
+/// dev command's own (dev_command.dart), and the loop is what the Dev client
+/// workflow runs on an Android emulator: pair by the printed link, edit, and
+/// check the edit is on the device with the process unchanged.
 @DVFunctionalWidget()
-Widget _importApi(BuildContext context) => const Section(
+Widget _phoneLoop(BuildContext context) => const Section(
   children: <Widget>[
-    Eyebrow('EXISTING APIS'),
-    Heading('Already have an API? Import its spec.'),
+    Eyebrow('HOT RELOAD ON A PHONE'),
+    Heading('Scan a QR code and hot reload on your Android phone.'),
     CodeBlock(<String>[
-      'dartvel import openapi openapi.yaml',
-      'dartvel import postman collection.json',
+      r'$ dartvel build android --profile development',
+      r'$ dartvel dev --dev-client',
+      '[dartvel] Dev client: serving main on port 8787.',
+      '[dartvel] Scan with the camera on a device running a development build:',
+      '# the QR code and its dartvel-dev://pair link print here',
     ]),
     Bullets(<String>[
-      'Each schema becomes a model under lib/models.',
-      'Each operation becomes a typed function under lib/api.',
-      'A field the spec does not require comes out nullable.',
+      'Install the development build once. It is your own app, so every '
+          'plugin you added is in it.',
+      'Scan the code, and each save hot reloads every paired phone over your '
+          'local network.',
+      'No USB cable and no emulator. No store-approved Go app to wait for.',
     ]),
+    Objection(
+      'Does it work on an iPhone?',
+      'Not yet. Android works today, and CI pairs an emulator, edits a file '
+          'and checks the change runs. iOS builds with --profile development '
+          'and cannot pair yet.',
+    ),
+  ],
+);
+
+/// DV.Updates on Shorebird's updater. The proof is the OTA updates workflow:
+/// a release built with Shorebird's engine, a patch published into
+/// DVShorebirdPatchSource, and the relaunched app running the patch, with no
+/// Shorebird account. The section is Partial in spec-status, and says so.
+@DVFunctionalWidget()
+Widget _otaUpdates(BuildContext context) => const Section(
+  tint: true,
+  children: <Widget>[
+    Eyebrow('OVER-THE-AIR UPDATES'),
+    Heading('Push a Dart fix to installed apps without waiting for store '
+        'review.'),
+    CodeBlock(<String>[
+      'final DVUpdateInfo update = await DV.Updates.check();',
+      'if (update.available) {',
+      '  await DV.Updates.apply(update: update); // runs on the next launch',
+      '}',
+    ]),
+    Bullets(<String>[
+      'check, apply and rollback call the Shorebird updater built into your '
+          'release.',
+      'Host patches on your own server with DVShorebirdPatchSource. You need '
+          'no Shorebird account for it.',
+      'Staged rollout, pinned versions and skipped versions are decided in '
+          'one check.',
+    ]),
+    Objection(
+      'Is it finished?',
+      'Partly. On Android, CI builds a release, publishes a patch to '
+          'DVShorebirdPatchSource and relaunches into the patch. On iOS the '
+          'release carries the updater, and no patch has run on a device yet.',
+    ),
+  ],
+);
+
+/// File routes and config routes in one router, and the parts real apps ask
+/// for: a stack per tab, deep-link files, and a way in from GoRouter. Each
+/// line is in spec-status's Routing record and the dartvel_example tests.
+@DVFunctionalWidget()
+Widget _routingProof(BuildContext context) => const Section(
+  children: <Widget>[
+    Eyebrow('ROUTING'),
+    Heading('Get typed routes, tab stacks and deep links without rewriting '
+        'your router.'),
+    CodeBlock(<String>[
+      '// lib/routes.dart, beside the pages in lib/pages',
+      'final List<DVRouteNode> routes = <DVRouteNode>[',
+      '  DVRoute(path: \'/settings\', builder: (context, state) =>',
+      '      const SettingsScreen()),',
+      '];',
+      '',
+      '// Or mount every Dartvel route into your own GoRouter',
+      'GoRouter(routes: <RouteBase>[...yourRoutes, ...dartvelRoutes(at: \'/app\')]);',
+    ]),
+    Bullets(<String>[
+      'A (tabs) folder keeps a stack per tab, and back pops inside the tab '
+          'you are on.',
+      'dartvel.deepLinks in pubspec.yaml writes assetlinks.json and '
+          'apple-app-site-association for you.',
+      'A redirect or a _guard.dart runs before the page shows, and an async '
+          'check shows a pending view while it decides.',
+    ]),
+    Objection(
+      'Do I have to move my screens into lib/pages?',
+      'No. Declare them in lib/routes.dart, or mount your GoRoute list inside '
+          'Dartvel\'s router with DVGoRoutes.',
+    ),
+    GhostLink('Read the routing docs', '/docs/routing'),
   ],
 );
 
@@ -367,28 +455,28 @@ Widget _targets(BuildContext context) => Section(
   ],
 );
 
-/// What "Flutter's Expo" covers, and the one part it does not.
+/// What an Expo developer looks for first, and where each one stands.
 @DVFunctionalWidget()
 Widget _expoComparison(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
     Eyebrow('COMING FROM EXPO'),
-    Heading('Dartvel covers two of the three jobs Expo does.'),
+    Heading('Two of the three Expo services you rely on work on Android today.'),
     DVBox.wrapLine(<Widget>[
       SiteCard(
-        'The SDK',
-        'Auth, notifications, storage, database, queues and AI are built in, '
-            'as DV.Auth, DV.Notifications, DV.Storage, DV.Database, DV.Queues and DV.AI.',
+        'Development builds',
+        'dartvel build android --profile development, paired with dartvel dev '
+            'by a QR code. iOS cannot pair yet.',
       ),
       SiteCard(
         'Over-the-air updates',
-        'dartvel updates release, patch and rollback drive Shorebird. '
-            'The in-app DV.Updates call is still in progress.',
+        'DV.Updates on Shorebird\'s updater, with a patch source you host. '
+            'Proven on an Android emulator in CI.',
       ),
       SiteCard(
         'Cloud builds',
-        'Missing. There is no hosted build service and no certificate '
-            'management. You build on your own machine or CI.',
+        'There is no hosted build service and no certificate management. '
+            'You build on your own machine or in CI.',
       ),
     ], spacing: 16),
   ],
@@ -432,8 +520,9 @@ Widget _startNow(BuildContext context) => const Section(
     ]),
     Objection(
       'Will I be locked in?',
-      'Your pages are Flutter widgets and your code stays in your repository. '
-          'Dartvel is MIT licensed, so you can fork it.',
+      'Your pages are Flutter widgets, your backend is a file on your own '
+          'server, and your patches can come from your own host. Dartvel is '
+          'MIT licensed, so you can fork it.',
     ),
     // In a row, as the other buttons are: directly in the section's column
     // it stretched to the full width of the page.
