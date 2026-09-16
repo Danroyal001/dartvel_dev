@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **`dartvel upgrade --plan` says what upgrading to this CLI's release
+  changes, and changes nothing.** It checks the SDK constraint and the
+  installed Dart and Flutter against the floors, each Dartvel package's
+  constraint and resolved version (a project newer than the CLI is told to
+  run `dartvel update`), shared dependencies such as `go_router`, the
+  deprecated names `migrate-code` would rewrite, the files this CLI's
+  generator would change with lines added and removed, a recorded protocol
+  lockfile, and each mounted module's Dartvel constraints. What it cannot
+  check (the protocol contract, the database, plugins and deployment) is
+  listed as not checked, never as unchanged. It exits 1 when anything
+  blocks. `dartvel upgrade` without `--plan` refuses: applying is not built.
+  `dartvel generate --check` now also counts the lines each stale file
+  would gain and lose.
+
 - **`dartvel compatibility-check` checks the recorded protocol and gates a
   deploy on the client histogram.** On its own it refuses a project with no
   `dartvel.protocol.lock` or a lockfile edited by hand, prints the protocol

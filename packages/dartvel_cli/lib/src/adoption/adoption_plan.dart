@@ -802,3 +802,15 @@ String _insertionDiff(String original, String edited) {
   }
   return out.toString();
 }
+
+/// The `environment.sdk` check, shared with `dartvel upgrade --plan`, which
+/// asks the same question of a project already on Dartvel.
+DVAdoptionCheck dvSdkConstraintCheck(YamlMap pubspec) => _sdkCheck(pubspec);
+
+/// The packages [pubspec] declares that the Dartvel packages in [wanted]
+/// depend on too, each against the constraints this CLI's release declares.
+Iterable<DVAdoptionCheck> dvSharedDependencyChecks(
+  YamlMap pubspec,
+  List<String> wanted,
+) =>
+    _sharedDependencyChecks(pubspec, wanted);

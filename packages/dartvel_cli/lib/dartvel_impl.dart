@@ -44,6 +44,7 @@ import 'src/commands/shell_command.dart';
 import 'src/commands/key_command.dart';
 import 'src/commands/test_command.dart';
 import 'src/commands/updates_command.dart';
+import 'src/commands/upgrade_command.dart';
 import 'src/commands/version_command.dart';
 
 Future<void> main(List<String> args) async {
@@ -123,4 +124,5 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(TestCommand())
       ..addCommand(MigrateCodeCommand())
       ..addCommand(UpdateCommand())
+      ..addCommand(UpgradeCommand())
       ..addCommand(VersionCommand());
