@@ -856,6 +856,12 @@ class DVWebhooks {
         target,
         body: body,
         connectAddress: address,
+        // A subscriber's endpoint is data, not configuration: no pubspec can
+        // list it, so it cannot be a declared host. What stands in for the
+        // declaration is the check above, which approved this address. And it
+        // is never sent as a declared host either, since that would let a
+        // subscriber aim the application's credential for one at its API.
+        allowUndeclaredHost: true,
         // One attempt per job run: retries belong to the job layer, which
         // keeps the line's order and applies the backoff.
         attempts: 1,

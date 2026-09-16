@@ -27,17 +27,32 @@ import 'wintercg.dart';
 typedef DVHttpStreamSend = Future<DVHttpStreamedResponse> Function(
     DVHttpRequest request);
 
-/// `DV-HTTP-001`: a request named a host nobody declared.
+/// `DV-HTTP-001`: a request to a host nobody declared -- by name, or by an
+/// absolute URL no declared base URL covers.
 class DVHttpUndeclaredHostException implements Exception {
-  const DVHttpUndeclaredHostException(this.host);
+  const DVHttpUndeclaredHostException(this.host, {this.url});
 
+  /// The name asked for, or the URL's authority.
   final String host;
+
+  /// The refused URL, when the request named one. Its query is left out of
+  /// the message, since that is where a credential in a URL would be.
+  final Uri? url;
   String get code => 'DV-HTTP-001';
 
   @override
-  String toString() => '$code: no host named "$host" is declared. Declare it '
-      'under dartvel.http.hosts, or with DV.Http.declare, so its credentials, '
-      'timeout, retries and breaker come from one place.';
+  String toString() {
+    final Uri? refused = url;
+    if (refused != null) {
+      return '$code: no declared host covers '
+          '${refused.scheme}://${refused.authority}${refused.path}. Declare '
+          'its base URL under dartvel.http.hosts, so its credentials, '
+          'timeout, retries and breaker come from one place.';
+    }
+    return '$code: no host named "$host" is declared. Declare it under '
+        'dartvel.http.hosts, or with DV.Http.declare, so its credentials, '
+        'timeout, retries and breaker come from one place.';
+  }
 }
 
 /// `DV-HTTP-002`: the host's breaker is open, and the request never went out.
@@ -765,9 +780,21 @@ class DVHttp {
           idempotencyKey: idempotencyKey,
           attempts: attempts);
 
-  /// Sends to an absolute URL, with the default policy: a 30-second timeout,
-  /// idempotency-aware retries, no breaker and no pool. Declare the host to
-  /// change any of that.
+  /// Sends to an absolute URL, as the declared host whose base URL it is
+  /// under: that host's credential, timeout, retries, breaker and pool.
+  ///
+  /// A URL no declared host covers is refused with `DV-HTTP-001` and never
+  /// sent -- the same answer [host] gives a name nobody declared. Covered
+  /// means the same scheme, host and port, and a path at or below the base
+  /// URL's; where two declared hosts cover it, the longer base URL does.
+  ///
+  /// [allowUndeclaredHost] is for a destination that is data rather than
+  /// configuration, such as a webhook subscriber's endpoint, which no pubspec
+  /// can list. It sends on the default policy -- a 30-second timeout,
+  /// idempotency-aware retries, no breaker, no pool -- and never as a declared
+  /// host, even one whose base URL covers it: a URL somebody else supplied
+  /// must not be able to borrow the application's credential for that host.
+  /// Whoever passes it owns checking where the URL leads.
   Future<Response> send(
     String method,
     Object url, {
@@ -777,14 +804,37 @@ class DVHttp {
     String? idempotencyKey,
     int? attempts,
     String? connectAddress,
+    bool allowUndeclaredHost = false,
   }) {
     final Uri uri = url is Uri ? url : Uri.parse('$url');
     if (!uri.hasScheme || uri.host.isEmpty) {
       throw ArgumentError('"$url" is not an absolute URL.');
     }
+
+    String key;
+    DVHttpHostConfig config;
+    final (String, DVHttpHostConfig)? declared =
+        allowUndeclaredHost ? null : _covering(uri);
+    if (declared != null) {
+      (key, config) = declared;
+    } else if (allowUndeclaredHost) {
+      key = uri.authority;
+      config = DVHttpHostConfig(baseUrl: '${uri.scheme}://${uri.authority}');
+    } else {
+      DVObservability.log(
+        'Refused $method ${uri.scheme}://${uri.authority}${uri.path}: no '
+        'declared host covers it.',
+        level: DVLogLevel.error,
+        code: 'DV-HTTP-001',
+        context: <String, Object?>{'host': uri.authority},
+      );
+      return Future<Response>.error(
+          DVHttpUndeclaredHostException(uri.authority, url: uri));
+    }
+
     return _execute(
-      uri.authority,
-      DVHttpHostConfig(baseUrl: '${uri.scheme}://${uri.authority}'),
+      key,
+      config,
       method,
       uri,
       json: json,
@@ -794,6 +844,31 @@ class DVHttp {
       attempts: attempts,
       connectAddress: connectAddress,
     );
+  }
+
+  /// The declared host whose base URL [url] is under, preferring the longest.
+  static (String, DVHttpHostConfig)? _covering(Uri url) {
+    (String, DVHttpHostConfig)? best;
+    int bestLength = -1;
+    for (final MapEntry<String, DVHttpHostConfig> entry in _hosts.entries) {
+      final Uri base = Uri.parse(entry.value.baseUrl);
+      if (base.scheme.toLowerCase() != url.scheme.toLowerCase() ||
+          base.host.toLowerCase() != url.host.toLowerCase() ||
+          base.port != url.port) {
+        continue;
+      }
+      String prefix = base.path;
+      while (prefix.endsWith('/')) {
+        prefix = prefix.substring(0, prefix.length - 1);
+      }
+      final bool under = prefix.isEmpty ||
+          url.path == prefix ||
+          url.path.startsWith('$prefix/');
+      if (!under || prefix.length <= bestLength) continue;
+      best = (entry.key, entry.value);
+      bestLength = prefix.length;
+    }
+    return best;
   }
 
   /// Answers every outbound request from [stubs], by declared host name or by

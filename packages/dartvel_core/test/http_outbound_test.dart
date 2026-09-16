@@ -48,6 +48,10 @@ void main() {
     DVHttp.reset();
     DVSecrets.reset();
     DVObservability.resetLogging();
+    // The absolute URLs below are under a declared host, as every absolute URL
+    // has to be; see http_undeclared_url_test.dart for the ones that are not.
+    http.declare(
+        'example', const DVHttpHostConfig(baseUrl: 'https://api.example.com'));
     slept.clear();
     now = DateTime.utc(2026, 9, 13, 12);
     DVHttp.sleep = (Duration d) async => slept.add(d);
