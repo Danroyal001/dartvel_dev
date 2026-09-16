@@ -147,6 +147,65 @@ jobs:
             dart test
           fi
 
+  # The framework's own tables on a real PostgreSQL.
+  #
+  # Every other job runs the stores on SQLite and the in-memory adapter, where
+  # INTEGER is 64 bits. On PostgreSQL it is 32, and the session, queue,
+  # purchase, metering and promotion tables declared their timestamps INTEGER:
+  # every suite passed while every sign-in against a server would have failed
+  # with "value out of range for type integer". Nothing ran a store against a
+  # server, so nothing could have noticed.
+  #
+  # The suite skips when DARTVEL_TEST_POSTGRES_PORT is unset, so the step also
+  # refuses a run in which nothing passed -- a mistyped variable would
+  # otherwise be a green job that checked nothing.
+  postgres:
+    name: framework tables on postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: dartvel_test
+          POSTGRES_PASSWORD: dartvel
+          # The adapter speaks trust and md5, not SCRAM.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: packages/dartvel_core
+        run: dart pub get
+
+      - name: Run the framework tables against PostgreSQL
+        working-directory: packages/dartvel_core
+        env:
+          DARTVEL_TEST_POSTGRES_PORT: '5432'
+        run: |
+          set -o pipefail
+          dart test test/framework_tables_postgres_live_test.dart -j 1 \
+            --reporter expanded 2>&1 | tee /tmp/postgres-suite.log
+          if grep -q 'skipped' /tmp/postgres-suite.log; then
+            echo "::error::the PostgreSQL suite skipped instead of running"
+            exit 1
+          fi
+
   # The only test in this repository that runs the application rather than a
   # widget in isolation. It exists because unit tests on one platform cannot
   # catch a build that produces an artifact which does not start: four of the
