@@ -1,4 +1,14 @@
 ## Unreleased
+- **The GraphQL fields generated for a model ask its policy.** `posts`
+  asks `Post.viewAny`, `post` asks `Post.view` on the record it found,
+  `savePost` asks `Post.update` on the stored record (or `Post.create` on the
+  new one when none is stored), and `deletePost` asks `Post.delete` on the
+  stored record, each before it reads or writes. They sent every request
+  straight to `all`, `find`, `save` and `destroy`, so a delete the admin hid
+  from somebody could still be sent as a mutation. The caller is
+  `DV.Auth.currentUser` unless a server authenticated the request. A model
+  no policy answers refuses.
+
 - **`Model.Admin(as:)`.** The generated admin asks the model's policy before
   it offers New, Delete or Save and again before it writes, and `as:` names
   the application's own user the policy is asked about, which a policy
