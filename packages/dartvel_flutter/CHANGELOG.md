@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **`DVModelAdmin` asks the model's policy before it offers an action, and
+  again before it writes.** New is drawn only when `T.create` allows it,
+  Delete only when `T.delete` allows it on the open record, and Save only when
+  `T.update` (or `T.create` for a new record) does; a record that may not be
+  saved is shown as a read-only form saying so. Each action is asked again at
+  the moment it writes, so a button drawn before a role was removed deletes
+  or saves nothing. An update is asked about the stored record rather than the
+  edit. `DVModelAdmin(as:)` names who the policy is asked about -- the
+  application's own user -- and without it `DV.Auth.currentUser` is asked. A
+  caller the policy cannot take is refused rather than cast, and a model no
+  policy answers offers no action, as every unanswered policy is refused.
+
 - **Each account page names itself with a level 1 heading, and sign-in goes
   back where the gate was sending the person.** `ProfilePage`,
   `SecurityPage`, `SessionsPage` ("Devices"), `SignUpPage`, `DeletePage` and
