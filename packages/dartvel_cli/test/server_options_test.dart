@@ -9,7 +9,9 @@
 //
 // dartvel.server is where a server-wide decision belongs, next to the host
 // and port that were already there.
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dartvel_cli/src/build/server_options.dart';
 import 'package:dartvel_core/dartvel.dart' show dvDefaultMaxBodyBytes;
@@ -370,9 +372,31 @@ dartvel:
           'ipv6SourcePrefix: dartvelIpv6SourcePrefix, '
           'environment: Platform.environment));');
       expect(install, isNot(-1));
-      expect(install, lessThan(routes.indexOf('return dv.serve(')),
-          reason: 'installed before the first request can arrive');
     });
+
+    test(
+        'a running server counts a request through a trusted proxy as the '
+        'client the proxy names, from the moment it serves', () async {
+      // Run, not read: where the install sits in the generated text says
+      // nothing once startBackend waits on anything before serving.
+      final Map<String, Object?> trusted = await _serve(
+        'dartvel:\n'
+        '  backendHost: 127.0.0.1\n'
+        '  server:\n'
+        '    trustedProxies: [127.0.0.1/32]\n'
+        '    forwardedHeader: forwarded\n',
+      );
+      expect(trusted['error'], isNull);
+      expect(trusted['viaProxy'], '203.0.113.9');
+      expect(trusted['direct'], '198.51.100.7',
+          reason: 'a peer that is not the proxy is not believed');
+
+      // The control: where no proxy is named, the proxy is the client.
+      final Map<String, Object?> none =
+          await _serve('dartvel:\n  backendHost: 127.0.0.1\n');
+      expect(none['error'], isNull);
+      expect(none['viaProxy'], '127.0.0.1');
+    }, timeout: const Timeout(Duration(minutes: 8)));
 
     test('the IPv6 source prefix reaches the resolver the server installs',
         () async {
@@ -451,4 +475,107 @@ dartvel:
       );
     });
   });
+}
+
+const String _serveProbe = r'''
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' hide Platform;
+
+import '../.dart_tool/dartvel_backend_routes.g.dart' as gen;
+
+Future<void> main() async {
+  final Map<String, Object?> out = <String, Object?>{};
+  try {
+    final dynamic handle = await gen.startBackend(host: '127.0.0.1', port: 0);
+    // Read as the server's first request would be, the moment it serves.
+    out['viaProxy'] = DVClientAddress.sourceOf(<String, Object?>{
+      'peerAddress': '127.0.0.1',
+      'headers': <String, Object?>{'forwarded': 'for=203.0.113.9'},
+    });
+    out['direct'] = DVClientAddress.sourceOf(<String, Object?>{
+      'peerAddress': '198.51.100.7',
+      'headers': <String, Object?>{'forwarded': 'for=203.0.113.9'},
+    });
+    await handle.stop();
+  } on Object catch (error) {
+    out['error'] = '$error';
+  }
+  stdout.writeln('PROBE ${jsonEncode(out)}');
+  exit(0);
+}
+''';
+
+/// Generates a backend project whose pubspec ends with [dartvel], starts its
+/// server as the generated entry point does, and reports what it resolved.
+Future<Map<String, Object?>> _serve(String dartvel) async {
+  final Uri cli = (await Isolate.resolvePackageUri(
+    Uri.parse('package:dartvel_cli/src/generators/routes_generator.dart'),
+  ))!;
+  final String packages = p.dirname(
+    p.dirname(p.dirname(p.dirname(p.dirname(cli.toFilePath())))),
+  );
+  final Directory project =
+      Directory.systemTemp.createTempSync('dv_server_options_run_');
+  try {
+    void write(String relative, String content) {
+      File(p.join(project.path, relative))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(content);
+    }
+
+    final String core = p.join(packages, 'dartvel_core');
+    final String shelf = p.join(packages, 'dartvel_shelf');
+    final String dependencies = '  dartvel_core:\n    path: $core\n'
+        '  dartvel_shelf:\n    path: $shelf\n';
+    write(
+      'pubspec.yaml',
+      'name: server_options_probe\npublish_to: none\n'
+          'environment:\n  sdk: ^3.12.0\n'
+          'dependencies:\n$dependencies$dartvel',
+    );
+    write('pubspec_overrides.yaml', 'dependency_overrides:\n$dependencies');
+    write(
+      'lib/backend/functions/ping.get.dart',
+      "import 'package:dartvel_core/dartvel.dart';\n\n"
+          '@DVBackendFunction()\n'
+          "Future<String> _ping() async => 'pong';\n",
+    );
+    write('bin/probe.dart', _serveProbe);
+    final String cliPackage = p.join(packages, 'dartvel_cli');
+    final ProcessResult generated = await Process.run(
+      Platform.resolvedExecutable,
+      <String>[
+        '--packages=${p.join(cliPackage, '.dart_tool', 'package_config.json')}',
+        p.join(cliPackage, 'bin', 'routes.dart'),
+      ],
+      workingDirectory: project.path,
+    );
+    if (generated.exitCode != 0) {
+      fail('dartvel routes failed:\n${generated.stdout}\n${generated.stderr}');
+    }
+    final ProcessResult resolved = await Process.run(
+        Platform.resolvedExecutable, <String>['pub', 'get'],
+        workingDirectory: project.path);
+    if (resolved.exitCode != 0) {
+      fail('dart pub get failed:\n${resolved.stderr}');
+    }
+    final ProcessResult result = await Process.run(
+      Platform.resolvedExecutable,
+      <String>['run', 'bin/probe.dart'],
+      workingDirectory: project.path,
+    ).timeout(const Duration(minutes: 3));
+    final String? line = const LineSplitter()
+        .convert('${result.stdout}')
+        .where((String l) => l.startsWith('PROBE '))
+        .firstOrNull;
+    if (result.exitCode != 0 || line == null) {
+      fail('the probe did not run (exit ${result.exitCode}):\n'
+          '${result.stdout}\n${result.stderr}');
+    }
+    return jsonDecode(line.substring('PROBE '.length)) as Map<String, Object?>;
+  } finally {
+    project.deleteSync(recursive: true);
+  }
 }
