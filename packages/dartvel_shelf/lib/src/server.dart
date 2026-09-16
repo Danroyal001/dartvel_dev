@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
-import 'dart:isolate';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart'
@@ -20,6 +19,8 @@ import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'package:dartvel_core/http.dart';
 
 import 'ffi_string.dart';
+import 'native_library.dart';
+export 'native_library.dart' show embedNativeServerLibrary;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
 import 'ssr_helper.dart';
@@ -173,21 +174,9 @@ Future<ServerHandle> serve(
   final DVPreviewServer? preview = DVPreviewServer.current ??
       DVPreviewServer.start(Platform.environment, membership: previewMembership);
 
-  final subdir = Platform.isMacOS
-      ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
-      : Platform.isLinux
-          ? (Platform.version.contains('aarch64') ? 'linux-arm64' : 'linux-x64')
-          : (Platform.version.contains('ARM64')
-              ? 'windows-arm64'
-              : 'windows-x64');
-  final libName = Platform.isWindows
-      ? 'dartvel_shelf.dll'
-      : Platform.isMacOS
-          ? 'libdartvel_shelf.dylib'
-          : 'libdartvel_shelf.so';
-  final uri = await Isolate.resolvePackageUri(
-      Uri.parse('package:dartvel_shelf/native/$subdir/$libName'));
-  final dylib = ffi.DynamicLibrary.open(uri!.toFilePath());
+  // Embedded in a compiled binary, or the package's own file under dart run.
+  final native = await openNativeServerLibrary();
+  final dylib = native.library;
 
   final api = gen.DartvelShelfBindings(dylib);
 
@@ -199,7 +188,7 @@ Future<ServerHandle> serve(
       dylib.providesSymbol('aw_abi_version') ? api.aw_abi_version() : 1;
   if (abi != _nativeAbiVersion) {
     throw StateError(
-      'dartvel: the native server library at ${uri.toFilePath()} speaks ABI '
+      'dartvel: the native server library at ${native.origin} speaks ABI '
       '$abi and this package speaks $_nativeAbiVersion. Rebuild it: '
       'cargo build --release --target <triple> in dartvel_shelf/rust, then '
       'copy the result over that file.',
@@ -214,7 +203,7 @@ Future<ServerHandle> serve(
   final bool acknowledgesRequests = dylib.providesSymbol('aw_request_received');
   if (!configuresTimeout && requestTimeout != _defaultRequestTimeout) {
     throw StateError(
-      'dartvel: the native server library at ${uri.toFilePath()} cannot '
+      'dartvel: the native server library at ${native.origin} cannot '
       'configure a request timeout. Rebuild it: cargo build --release '
       '--target <triple> in dartvel_shelf/rust, then copy the result over '
       'that file.',
@@ -227,7 +216,7 @@ Future<ServerHandle> serve(
   if (!dylib.providesSymbol('aw_configure_max_body_bytes') ||
       !dylib.providesSymbol('aw_configure_route_body_limit')) {
     throw StateError(
-      'dartvel: the native server library at ${uri.toFilePath()} cannot '
+      'dartvel: the native server library at ${native.origin} cannot '
       'limit a request body, so it would read any size a client sends. '
       'Rebuild it: cargo build --release --target <triple> in '
       'dartvel_shelf/rust, then copy the result over that file.',

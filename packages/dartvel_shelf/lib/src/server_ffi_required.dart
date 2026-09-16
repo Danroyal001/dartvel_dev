@@ -78,3 +78,7 @@ Future<ServerHandle> serve(
     'Dartvel Shelf server requires the FFI native backend. Build with dart.library.ffi and the ffigen-generated server bindings.',
   );
 }
+
+/// Gives this process the native server library as bytes. Nothing to load
+/// where there is no FFI, so this only records that the call was made.
+void embedNativeServerLibrary(List<int> bytes) {}
