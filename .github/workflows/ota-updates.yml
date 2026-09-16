@@ -133,3 +133,70 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ota-updates-android, path: /tmp/diag/, if-no-files-found: warn }
+
+  # iOS, as far as it goes without a signing team. A Shorebird patch runs only
+  # on a physical arm64 device (its interpreter is not built for the
+  # simulator) and installing either build on one needs a provisioning
+  # profile; neither is available here. What can be shown is shown: the
+  # development profile builds, and a release made with Shorebird's engine
+  # carries the updater symbols DV.Updates binds and the shorebird.yaml it
+  # reads.
+  ios-release:
+    name: iOS — development build, and the updater in a Shorebird release
+    runs-on: macos-latest
+    timeout-minutes: 75
+    env:
+      SHOREBIRD_FLUTTER_BRANCH: flutter_release/3.44.5
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: The development profile builds for iOS
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ios-development-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build ios --profile development
+          test -d build/ios/iphoneos/Runner.app
+          # A debug build's Dart is a JIT kernel, which is what dartvel publish
+          # refuses for store tracks.
+          find build/ios/iphoneos/Runner.app -name kernel_blob.bin | grep -q .
+
+      - name: A Shorebird release carries the updater DV.Updates binds
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/ios-shorebird-build.log) 2>&1
+          git clone --filter=tree:0 -b "$SHOREBIRD_FLUTTER_BRANCH" \
+            https://github.com/shorebirdtech/flutter /tmp/sbflutter
+          export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
+          SB=/tmp/sbflutter/bin/flutter
+          cd examples/dartvel_example
+          printf 'app_id: dartvel-example-ota\nbase_url: https://updates.example.invalid/updates\nauto_update: false\n' \
+            > shorebird.yaml
+          sed -i '' 's|^    - assets/$|    - assets/\
+              - shorebird.yaml|' pubspec.yaml
+          sed -i '' 's|^              - shorebird.yaml$|    - shorebird.yaml|' pubspec.yaml
+          grep -n 'shorebird.yaml' pubspec.yaml
+          $SB pub get
+          $SB build ios --release --no-codesign -t integration_test/app_updates_probe.dart
+          app=build/ios/iphoneos/Runner.app
+          flutter_bin="$app/Frameworks/Flutter.framework/Flutter"
+          nm -gU "$flutter_bin" | grep shorebird_ | tee /tmp/diag/ios-updater-symbols.txt
+          for symbol in shorebird_current_boot_patch_number shorebird_next_boot_patch_number \
+              shorebird_check_for_downloadable_update shorebird_update_with_result \
+              shorebird_free_update_result; do
+            grep -q "_$symbol\$" /tmp/diag/ios-updater-symbols.txt \
+              || { echo "::error::$symbol is not exported"; exit 1; }
+          done
+          find "$app" -name shorebird.yaml | tee /tmp/diag/ios-shorebird-yaml.txt | grep -q .
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ota-updates-ios, path: /tmp/diag/, if-no-files-found: warn }
