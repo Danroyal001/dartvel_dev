@@ -20,6 +20,7 @@ import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart' show GoRouter;
 
 import '../../dartvel_flutter.dart' show DV, DVRouteTarget;
 import 'link_interception.dart' show DVPressedLink;
@@ -352,6 +353,10 @@ class _DVNavLinkState extends State<DVNavLink> {
     // Nothing registered for this route. Quietly nothing, rather than an
     // empty card that looks like a failure.
     if (builder == null) return;
+    // Not the page already on screen. The preview is that page built live, so
+    // it shows nothing new, and a second copy of a page holding GlobalKeys
+    // takes their content from the page itself.
+    if (_isCurrentRoute) return;
 
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
@@ -370,6 +375,17 @@ class _DVNavLinkState extends State<DVNavLink> {
       ),
     );
     Overlay.of(context, rootOverlay: true).insert(_previewEntry!);
+  }
+
+  bool get _isCurrentRoute {
+    final GoRouter? router = GoRouter.maybeOf(context);
+    if (router == null) return false;
+    final String current =
+        router.routerDelegate.currentConfiguration.uri.path;
+    String normal(String path) => path.length > 1 && path.endsWith('/')
+        ? path.substring(0, path.length - 1)
+        : path;
+    return normal(current) == normal(widget.to.path);
   }
 
   void _removePreview() {
