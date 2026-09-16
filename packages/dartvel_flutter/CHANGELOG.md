@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **A form's edited model saves at the version its record was read.**
+  `DVForm` rebuilt the model it returns from JSON, which carried no read
+  version, so a save of it replaced the row whatever had changed since. It
+  now calls `carryDVModelRead`, which the generated client registers.
+
 - **`DVModelAdmin` asks the model's policy before it offers an action, and
   again before it writes.** New is drawn only when `T.create` allows it,
   Delete only when `T.delete` allows it on the open record, and Save only when

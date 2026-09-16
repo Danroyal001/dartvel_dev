@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Breaking: a generated model built by hand no longer replaces a stored
+  row.** `save()` on a model that was not read -- `const Order(id: 'o1', ...)`
+  over an existing `o1` -- replaced the row at whatever version it held, the
+  lost update Record History exists to refuse. It now throws
+  `DVConflictError` (`DV-HISTORY-001`) and leaves the row as it was; a model
+  that creates a record, or was loaded, copied or saved, is unaffected.
+  Replacing without reading is written at the call:
+  `save(onConflict: DVConflict.lastWriteWins)`. A model returned by the
+  generated form keeps the version of the model it edits, so the admin still
+  saves. GraphQL types carry `dvVersion`, and `saveX` refuses an update of a
+  stored record unless it sends back the `dvVersion` it read.
+
 - **A web build on another origin than its API stays signed in.** The
   generated runtime names its backend's origin for credentials in a browser,
   before the session client's first call. On the server,

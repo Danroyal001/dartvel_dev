@@ -57,6 +57,7 @@ void main() {
     dvModelFactories.clear();
     dvModelSerializers.clear();
     dvModelDeserializers.clear();
+    dvModelReadCarriers.clear();
   }
 
   setUp(clearRegistries);
@@ -93,6 +94,31 @@ void main() {
     // Untouched fields keep their value rather than resetting to a default.
     expect(submitted!.id, 'a1');
     expect(submitted!.seats, 3);
+  });
+
+  testWidgets(
+      'the edited model carries the version its record was read at, so its '
+      'save is checked against that read rather than refused as unread',
+      (WidgetTester tester) async {
+    registerAccount();
+    // Where a generated model keeps the record it was read at: beside the
+    // model, keyed by identity, as the generated Expando is.
+    final Expando<int> readAt = Expando<int>();
+    registerDVModelReadCarrier<Account>((Account read, Account edited) {
+      readAt[edited] = readAt[read];
+    });
+    const Account loaded = Account(id: 'a1', email: 'old@example.com', seats: 3);
+    readAt[loaded] = 7;
+    Account? submitted;
+    await pumpAccountForm(tester,
+        model: loaded, onSubmit: (Account v) => submitted = v);
+
+    await tester.enterText(
+        find.byType(EditableText).at(emailField), 'new@example.com');
+    await press(tester, 'Save');
+
+    expect(identical(submitted, loaded), isFalse);
+    expect(readAt[submitted!], 7);
   });
 
   testWidgets('a typed number comes back as a number, not a string',
