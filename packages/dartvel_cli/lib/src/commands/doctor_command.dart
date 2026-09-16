@@ -6,6 +6,8 @@ import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/deep_link_files.dart';
+import '../build/static_seo.dart' show dvGuardedRoutes;
 import '../doctor/kiosk_check.dart';
 import '../doctor/memory_check.dart';
 import '../doctor/module_check.dart';
@@ -33,7 +35,14 @@ final List<String> doctorTargets = <String>[
   // Terminal targets need the dartvel_cli_flt embedder, which is no more a plain
   // Flutter SDK than flutter-tizen is. Third time this list drifted.
   ...terminalBuildTargets,
+  // Not a toolchain question. `flutter doctor` answers that for these two;
+  // what it cannot answer is whether the site the deep links point at serves
+  // the verification documents this application needs (DV-LINKS-002 to 004).
+  ...deepLinkDoctorTargets,
 ];
+
+/// Targets `dartvel doctor --target` checks deployed deep links for.
+const List<String> deepLinkDoctorTargets = <String>['android', 'ios'];
 
 class DoctorCommand extends Command<void> {
   @override
@@ -53,11 +62,13 @@ class DoctorCommand extends Command<void> {
           'version) and compare what each module uses against what this '
           'application grants.',
     );
-    argParser.addOption(
+    argParser.addMultiOption(
       'target',
       allowed: doctorTargets,
-      help:
-          'Validate the toolchain for a specific embedded/TV/extension build target',
+      help: 'Validate the toolchain for an embedded, TV or extension build '
+          'target, or, for android and ios, the deep-link verification '
+          'documents the declared domains serve. Comma-separate several: '
+          '--target android,ios.',
     );
   }
 
@@ -85,9 +96,20 @@ class DoctorCommand extends Command<void> {
       _checkModuleTrust(root ?? Directory.current.path);
       return;
     }
-    final target = argResults?['target'] as String?;
-    if (target != null) {
-      await _checkTargetToolchain(target);
+    final List<String> targets =
+        (argResults?['target'] as List<String>?) ?? const <String>[];
+    if (targets.isNotEmpty) {
+      final Set<String> linkTargets = <String>{
+        for (final String t in targets)
+          if (deepLinkDoctorTargets.contains(t)) t,
+      };
+      if (linkTargets.isNotEmpty) {
+        await _checkDeepLinks(root ?? Directory.current.path, linkTargets);
+      }
+      for (final String target in targets) {
+        if (deepLinkDoctorTargets.contains(target)) continue;
+        await _checkTargetToolchain(target);
+      }
       return;
     }
 
@@ -152,6 +174,64 @@ class DoctorCommand extends Command<void> {
       await flutterDoctorProcess.exitCode;
     } catch (_) {
       Logger.log('[!] Could not run flutter doctor');
+    }
+  }
+
+  /// `dartvel doctor --target android,ios`: what the declared domains serve,
+  /// not what the build wrote -- a file that is right in build/web and
+  /// behind a redirect in production is the failure this exists for.
+  Future<void> _checkDeepLinks(String root, Set<String> targets) async {
+    Logger.log('Dartvel Doctor — deep links: ${targets.join(', ')}');
+    Logger.log('==================================================\n');
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    final Object? document =
+        pubspec.existsSync() ? loadYaml(pubspec.readAsStringSync()) : null;
+    final Object? dartvel = document is Map ? document['dartvel'] : null;
+    final DVDeepLinks? links;
+    try {
+      links = DVDeepLinks.parse(dartvel is Map ? dartvel['deepLinks'] : null);
+    } on FormatException catch (error) {
+      Logger.log('[!] ${error.message}');
+      exitCode = 1;
+      return;
+    }
+    if (links == null || links.domains.isEmpty) {
+      Logger.log('[-] dartvel.deepLinks declares no domains; nothing to check.');
+      return;
+    }
+    final List<String> missing = links.missingIdentifiers(targets);
+    for (final String error in missing) {
+      Logger.log('[!] $error');
+    }
+    final File router =
+        File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
+    final String source = router.existsSync() ? router.readAsStringSync() : '';
+    final List<String> routes = <String>{
+      for (final RegExpMatch m in RegExp("path: '(/[^']*)'").allMatches(source))
+        m.group(1)!,
+    }.toList()
+      ..sort();
+    final List<String> findings = await dvCheckDeepLinks(
+      links: links,
+      targets: targets,
+      routes: routes,
+      guarded: dvGuardedRoutes(source),
+      signingFingerprint: targets.contains('android')
+          ? await dvAndroidSigningFingerprint(root)
+          : null,
+    );
+    for (final String finding in findings) {
+      Logger.log('[!] $finding');
+    }
+    if (missing.isEmpty && findings.isEmpty) {
+      Logger.log('[+] ${links.domains.join(', ')} serve verification documents '
+          'that name this application and cover its routes.');
+      return;
+    }
+    // DV-LINKS-004 is a warning; the rest fail.
+    if (missing.isNotEmpty ||
+        findings.any((String f) => !f.startsWith('DV-LINKS-004'))) {
+      exitCode = 1;
     }
   }
 

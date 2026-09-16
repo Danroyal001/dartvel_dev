@@ -13,6 +13,13 @@ void main() {
   group('the Apache configuration', () {
     final String config = dvApacheConfig();
 
+    test('apple-app-site-association is served as JSON', () {
+      // It has no extension, so AddType cannot reach it, and iOS refuses the
+      // document as anything but JSON: every Universal Link opens Safari.
+      expect(config, contains('<Files "apple-app-site-association">'));
+      expect(config, contains('ForceType application/json'));
+    });
+
     test('an existing file is served as itself', () {
       // Without this the rewrite swallows main.dart.js and every asset, and
       // the page loads index.html as its own JavaScript.

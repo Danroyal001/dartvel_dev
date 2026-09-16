@@ -22,6 +22,7 @@ import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
 import '../build/apple_widget_reload.dart';
 import '../build/apple_widget_target.dart';
+import '../build/deep_link_files.dart';
 import '../build/ios_deep_links.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
@@ -866,6 +867,26 @@ class BuildCommand extends Command<void> {
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
+    // dartvel.deepLinks, before anything is built for a target it names
+    // nothing for (DV-LINKS-001): a link file with no application in it is a
+    // link that opens the browser, from a build that succeeded.
+    final DVDeepLinks? deepLinks;
+    try {
+      deepLinks = DVDeepLinks.parse(_dartvelSection(_projectRoot)['deepLinks']);
+    } on FormatException catch (error) {
+      Logger.log('❌ ${error.message}');
+      return _PlatformBuildResult.failed;
+    }
+    final List<String> linkErrors = deepLinks?.missingIdentifiers(<String>{
+          platform == 'fireos' ? 'android' : platform,
+        }) ??
+        const <String>[];
+    if (linkErrors.isNotEmpty) {
+      for (final String error in linkErrors) {
+        Logger.log('❌ $error');
+      }
+      return _PlatformBuildResult.failed;
+    }
     // Before Xcode packages the bundle: the document and URL types live in
     // its Info.plist.
     if (platform == 'macos') _writeMacosDesktopEntries(_projectRoot);
@@ -876,6 +897,7 @@ class BuildCommand extends Command<void> {
       _writeAppleHomeWidgets(_projectRoot, platform);
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
+    if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
@@ -888,6 +910,7 @@ class BuildCommand extends Command<void> {
       _writeAndroidCaptureBridge(_projectRoot);
       _writeAndroidKioskFiles(_projectRoot);
       _writeAndroidHomeWidgets(_projectRoot);
+      _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
@@ -983,6 +1006,9 @@ class BuildCommand extends Command<void> {
         } else {
           await _writeStaticPages(root);
         }
+        // The App Links and Universal Links documents, served from the site
+        // the links point at, whichever way the site is served.
+        _writeDeepLinkDocuments(root, deepLinks);
         // Last, after everything above has written into it: a host serves
         // the upload with the modes it carries, and a directory others cannot
         // enter turns every asset under it into index.html.
@@ -1653,6 +1679,73 @@ class BuildCommand extends Command<void> {
     return RegExp(r'''package\s*=\s*["']([A-Za-z0-9_.]+)["']''')
         .firstMatch(manifest)
         ?.group(1);
+  }
+
+  /// `.well-known/assetlinks.json` and `apple-app-site-association` into the
+  /// web build, from the route index.
+  void _writeDeepLinkDocuments(String root, DVDeepLinks? links) {
+    final String web = p.join(root, 'build', 'web');
+    if (!Directory(web).existsSync()) return;
+    final int written = dvWriteDeepLinkFiles(
+      webDir: web,
+      links: links,
+      routes: _generatedRoutes(root),
+      guarded: dvGuardedRoutes(_routerSource(root)).toSet(),
+    );
+    if (written > 0) {
+      Logger.log('   Deep links: $written verification document(s) under '
+          '.well-known for ${links!.domains.join(', ')}.');
+    }
+  }
+
+  /// The App Links intent filter into the Android manifest.
+  void _writeAndroidDeepLinks(String root, DVDeepLinks? links) {
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidDeepLinkManifest(
+      before,
+      links,
+      paths: links == null
+          ? const <String>[]
+          : links.paths(
+              routes: _generatedRoutes(root),
+              guarded: dvGuardedRoutes(_routerSource(root)).toSet(),
+            ),
+    );
+    if (after != before) manifest.writeAsStringSync(after);
+  }
+
+  /// The associated domains into the iOS entitlements, and the entitlements
+  /// into the build settings: a domain in a file nothing signs with is one
+  /// iOS never checks.
+  void _writeIosAssociatedDomains(String root, DVDeepLinks? links) {
+    final String path = p.join('Runner', 'Runner.entitlements');
+    final File entitlements = File(p.join(root, 'ios', path));
+    final bool wanted = links != null &&
+        links.domains.isNotEmpty &&
+        links.iosAppId != null;
+    if (!wanted && !entitlements.existsSync()) return;
+    final String before = entitlements.existsSync()
+        ? entitlements.readAsStringSync()
+        : dvEmptyEntitlements;
+    final String after = dvIosAssociatedDomains(before, links);
+    if (after != before || !entitlements.existsSync()) {
+      entitlements.parent.createSync(recursive: true);
+      entitlements.writeAsStringSync(after);
+    }
+    if (!wanted) return;
+    final File project =
+        File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) return;
+    final String pbxproj = project.readAsStringSync();
+    final String signed = dvApplePbxprojWithAppEntitlements(
+      pbxproj,
+      hasWidgets: true,
+      path: path,
+    );
+    if (signed != pbxproj) project.writeAsStringSync(signed);
   }
 
   /// The document and URL types into the macOS runner's Info.plist.

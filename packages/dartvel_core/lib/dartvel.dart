@@ -223,6 +223,7 @@ export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';
 export 'src/updates/rollout.dart';
 export 'src/updates/update_info.dart';
+export 'src/web/deep_links.dart';
 export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
 export 'src/web/seo_head.dart';
