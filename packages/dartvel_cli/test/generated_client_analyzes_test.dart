@@ -371,6 +371,22 @@ dependency_overrides:
     expect(client, contains('DVStepUp.send('));
   });
 
+  test('the account page routes, their entries and the account mail are in '
+      'the analyzed client', () {
+    final String client = Directory(
+      p.join(project.path, 'lib', 'dartvel_client'),
+    )
+        .listSync()
+        .whereType<File>()
+        .map((File f) => f.readAsStringSync())
+        .join('\n');
+    expect(client,
+        contains('DVAccountPages.requireSession(context, state)'));
+    expect(client, contains('DV.Auth.SecurityPage()'));
+    expect(client, contains('const List<DVAccountPageEntry> dartvelAccountPages'));
+    expect(client, contains('DVMailMessage dartvelEmailVerificationMail('));
+  });
+
   test('the memory configuration is actually in the analyzed client', () {
     // The fixture declares dartvel.memory so the analyzer sees the startup
     // call and the names it imports. Without this check the call could stop

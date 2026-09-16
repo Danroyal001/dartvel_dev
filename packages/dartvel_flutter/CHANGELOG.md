@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`DVAccountPages.requireSession`, and navigation entries for the account
+  pages.** The redirect the generated router puts in front of an account page:
+  nobody signed in goes to `dvSignInRoute` with where they were going as
+  `from`, and a browser that has not yet asked which session its cookie is
+  asks before refusing. `DVAccountPage` names each page with its label and
+  whether it needs a session; `DVAccountPageEntry` is a page and its route
+  target; `DVAccountPages.visible(entries, signedIn:)` is what a menu offers,
+  so a signed-out person is offered sign-up and not a page that only sends
+  them to sign in.
+
 - **`DV.Session.watch(context)`, and a device on every session.** A widget
   reading the session in its build with `watch` rebuilds on sign-in, a
   completed second factor, sign-out and revocation, with one subscription per

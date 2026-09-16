@@ -10,6 +10,104 @@ import 'package:path/path.dart' as p;
 class AccountGenerator {
   const AccountGenerator._();
 
+  /// Every prebuilt account page, in the order navigation lists them, with
+  /// the path it is served at unless `dartvel.auth.pages` says otherwise.
+  static const List<AccountPageRoute> defaults = <AccountPageRoute>[
+    AccountPageRoute('profile', 'ProfilePage', '/account/profile', requiresSession: true),
+    AccountPageRoute('security', 'SecurityPage', '/account/security', requiresSession: true),
+    AccountPageRoute('sessions', 'SessionsPage', '/account/sessions', requiresSession: true),
+    AccountPageRoute('delete', 'DeletePage', '/account/delete', requiresSession: true),
+    AccountPageRoute('signUp', 'SignUpPage', '/sign-up', requiresSession: false),
+  ];
+
+  /// Paths the generated router or runtime already means something else by:
+  /// the second-factor challenge, the OAuth consent page and sign-in, where a
+  /// page behind sign-in would redirect to itself.
+  static const List<String> reserved = <String>[
+    '/second-factor',
+    '/oauth/consent',
+    '/login',
+  ];
+
+  /// The account pages `dartvel.auth.pages` in [dv] asks to be served.
+  ///
+  /// Nothing declared serves every page at its default path. `pages: false`
+  /// serves none; a page set to `false` is left out; a page set to a path is
+  /// served there. Throws [StateError] naming the key for anything else --
+  /// a misspelt page, a path that is not one, a parameter, two pages at one
+  /// path, a path the router already uses -- because each would otherwise be
+  /// skipped into a route the application believes it configured.
+  static List<AccountPageRoute> readPages(Map<Object?, Object?> dv) {
+    final Object? auth = dv['auth'];
+    if (auth != null && auth is! Map) {
+      throw StateError('dartvel.auth must be a map, not "$auth".');
+    }
+    final Object? declared = auth is Map ? auth['pages'] : null;
+    if (declared == null) return defaults;
+    if (declared == false) return const <AccountPageRoute>[];
+    if (declared is! Map) {
+      throw StateError('dartvel.auth.pages must be false or a map of account '
+          'pages to paths (${defaults.map((AccountPageRoute r) => r.key).join(', ')}), '
+          'not "$declared".');
+    }
+    final Set<String> known = <String>{
+      for (final AccountPageRoute r in defaults) r.key,
+    };
+    for (final Object? key in declared.keys) {
+      if (!known.contains(key)) {
+        throw StateError('dartvel.auth.pages.$key is not an account page. '
+            'The pages are ${known.join(', ')}.');
+      }
+    }
+    final List<AccountPageRoute> out = <AccountPageRoute>[];
+    final Map<String, String> claimed = <String, String>{};
+    for (final AccountPageRoute page in defaults) {
+      if (!declared.containsKey(page.key)) {
+        out.add(page);
+        claimed[page.path] = page.key;
+        continue;
+      }
+      final Object? value = declared[page.key];
+      if (value == false) continue;
+      final String key = 'dartvel.auth.pages.${page.key}';
+      if (value is! String) {
+        throw StateError('$key must be a path such as ${page.path}, or false '
+            'to leave the page out, not "$value".');
+      }
+      final String path = value.trim();
+      if (!RegExp(r'^/[A-Za-z0-9._~/-]*$').hasMatch(path) || path.contains('//')) {
+        throw StateError('$key must be a path starting with / and made of '
+            'letters, digits, ".", "_", "~", "-" and "/", not "$value". A '
+            'route parameter or a query has no meaning for an account page.');
+      }
+      if (reserved.contains(path)) {
+        throw StateError('$key is $path, which the generated application '
+            'already serves something else at.');
+      }
+      final String? other = claimed[path];
+      if (other != null) {
+        throw StateError('dartvel.auth.pages.$other and $key are both $path; '
+            'one route cannot serve two pages.');
+      }
+      claimed[path] = page.key;
+      out.add(AccountPageRoute(page.key, page.widget, path,
+          requiresSession: page.requiresSession));
+    }
+    // A default path another page was moved onto is two pages at one path
+    // too, and is only visible once every page is placed.
+    final Map<String, String> seen = <String, String>{};
+    for (final AccountPageRoute page in out) {
+      final String? other = seen[page.path];
+      if (other != null) {
+        throw StateError('dartvel.auth.pages.$other and '
+            'dartvel.auth.pages.${page.key} are both ${page.path}; one route '
+            'cannot serve two pages.');
+      }
+      seen[page.path] = page.key;
+    }
+    return out;
+  }
+
   /// Writes `lib/dartvel_client/account.g.dart` for the application called
   /// [appName] -- the name a person sees in the subject of mail it sends.
   static void generate({required String root, required String appName}) {
@@ -59,4 +157,21 @@ void configureDartvelBackendAccounts() {
 
   static String _literal(String value) =>
       "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$').replaceAll('\n', r'\n')}'";
+}
+
+/// Where one prebuilt account page is served.
+class AccountPageRoute {
+  const AccountPageRoute(this.key, this.widget, this.path,
+      {required this.requiresSession});
+
+  /// The page's name under `dartvel.auth.pages`, and its `DVAccountPage`.
+  final String key;
+
+  /// The `DV.Auth` member that builds it.
+  final String widget;
+
+  final String path;
+
+  /// Whether the route is behind `DVAccountPages.requireSession`.
+  final bool requiresSession;
 }
