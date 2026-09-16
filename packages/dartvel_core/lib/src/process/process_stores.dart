@@ -48,10 +48,17 @@ final class DVProcessStores {
   /// because an application that chose its queue chose it. Without a store
   /// nothing is installed.
   ///
+  /// [fallback] is the store when `DATABASE_URL` is not set: a web-server
+  /// binary's SQLite file beside it, which opening creates. `DATABASE_URL`
+  /// always wins.
+  ///
   /// [read] looks a setting up; `DV.Secrets` by default. Throws
   /// [DVProcessConfigurationError] for a `DATABASE_URL` it cannot read,
   /// without repeating the URL, which carries a password.
-  static DVProcessStores install({String? Function(String key)? read}) {
+  static DVProcessStores install({
+    String? Function(String key)? read,
+    DVDatabaseConnection? fallback,
+  }) {
     final DVDatabaseConnection? connection;
     final DVDatabaseAdapter? database;
     final DVPreviewServer? preview = DVPreviewServer.current;
@@ -63,15 +70,19 @@ final class DVProcessStores {
       final String? Function(String) lookup =
           read ?? const DVSecrets().maybeGet;
       final String? url = lookup('DATABASE_URL')?.trim();
-      if (url == null || url.isEmpty) return DVProcessStores._();
-      try {
-        connection = DVDatabaseConnection.parse(url);
-      } on FormatException catch (error) {
-        throw DVProcessConfigurationError(
-          'DATABASE_URL cannot be read: ${error.message}. It is the store '
-          "this deployment's processes share, and the backend does not start "
-          'on a process-local one instead.',
-        );
+      if (url == null || url.isEmpty) {
+        if (fallback == null) return DVProcessStores._();
+        connection = fallback;
+      } else {
+        try {
+          connection = DVDatabaseConnection.parse(url);
+        } on FormatException catch (error) {
+          throw DVProcessConfigurationError(
+            'DATABASE_URL cannot be read: ${error.message}. It is the store '
+            "this deployment's processes share, and the backend does not "
+            'start on a process-local one instead.',
+          );
+        }
       }
       database = connection.open();
     }
