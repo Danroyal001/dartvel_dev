@@ -18,7 +18,18 @@
 import 'dart:convert';
 import 'dart:io';
 
-int main(List<String> arguments) {
+// exitCode, not main's return value. The VM ignores what main returns, so
+// this check printed its problems and exited 0 for as long as it had an int
+// main: the site listed sections under the wrong status and CI stayed green.
+void main(List<String> arguments) {
+  exitCode = _check();
+}
+
+/// A section title as the site may print it. The site copy carries no em
+/// dashes, so "XR — Spatial Presentation" is written with a colon there.
+String _siteName(String section) => section.replaceAll(' — ', ': ');
+
+int _check() {
   final Directory root = _repoRoot();
   final File index = File('${root.path}/docs/spec-status.json');
   final File page =
@@ -31,7 +42,7 @@ int main(List<String> arguments) {
   final Set<String> shipped = <String>{
     for (final Object? entry in decoded['sections']! as List)
       if (entry is Map && entry['status'] == 'Shipped')
-        entry['section']! as String,
+        _siteName(entry['section']! as String),
   };
 
   // The first string of each `(area, surface, body)` tuple in the list.
@@ -50,7 +61,7 @@ int main(List<String> arguments) {
   final Set<String> partialSections = <String>{
     for (final Object? entry in decoded['sections']! as List)
       if (entry is Map && entry['status'] == 'Partial')
-        entry['section']! as String,
+        _siteName(entry['section']! as String),
   };
   if (listedPartial.isEmpty && partialSections.isNotEmpty) {
     problems.add('the page says partial sections are listed, and lists none');
@@ -132,6 +143,36 @@ int main(List<String> arguments) {
       problems.add('the docs page says "${f.group(1)}" frozen contracts with '
           'an unfinished implementation; the index has $frozen '
           '(${_word(frozen)})');
+    }
+  }
+
+  // The home page states both counts as figures. They are the first numbers a
+  // visitor reads, so they are held to the index like the ones above.
+  final File home =
+      File('${root.path}/sites/dartvel_site/lib/pages/index.dart');
+  if (!home.existsSync()) {
+    problems.add('index.dart not found');
+  } else {
+    final String source = home.readAsStringSync();
+    for (final (String label, int count) figure in <(String, int)>[
+      ('sections shipped', shipped.length),
+      ('sections partial', partial),
+    ]) {
+      final RegExpMatch? m =
+          RegExp("Stat\\('(\\d+)', '${figure.$1}'\\)").firstMatch(source);
+      if (m == null) {
+        problems.add('the home page no longer states "${figure.$1}"');
+      } else if (int.parse(m.group(1)!) != figure.$2) {
+        problems.add('the home page says ${m.group(1)} ${figure.$1}; the '
+            'index has ${figure.$2}');
+      }
+    }
+    final RegExpMatch? h =
+        RegExp(r"Heading\('(\d+) spec sections ship today\.'\)")
+            .firstMatch(source);
+    if (h != null && int.parse(h.group(1)!) != shipped.length) {
+      problems.add('the home page heading says ${h.group(1)} sections ship; '
+          'the index has ${shipped.length}');
     }
   }
 
