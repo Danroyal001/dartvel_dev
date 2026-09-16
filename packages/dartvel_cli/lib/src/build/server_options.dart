@@ -234,7 +234,7 @@ class DVServerOptions {
         _wildcardList(_value(node, 'methods'), 'methods');
     final (bool anyHeader, List<String> headers) =
         _wildcardList(_value(node, 'headers'), 'headers');
-    final (bool _, List<String> exposeHeaders) =
+    final (bool anyExposed, List<String> exposeHeaders) =
         _wildcardList(_value(node, 'exposeHeaders'), 'exposeHeaders');
     final bool credentials = _bool(_value(node, 'allowCredentials'),
         'dartvel.server.cors.allowCredentials');
@@ -252,17 +252,88 @@ class DVServerOptions {
       );
     }
 
+    if (credentials) {
+      _checkCredentialed(
+        origins: origins,
+        wildcards: <String, bool>{
+          'methods': anyMethod,
+          'headers': anyHeader,
+          'exposeHeaders': anyExposed,
+        },
+      );
+    }
+
     return DVCorsSettings(
       allowAnyOrigin: anyOrigin,
       origins: origins,
       allowAnyMethod: anyMethod,
       methods: methods,
       allowAnyHeader: anyHeader,
-      headers: headers,
+      headers: credentials ? _withClientHeaders(headers) : headers,
       exposeHeaders: exposeHeaders,
       allowCredentials: credentials,
       maxAgeSeconds: _seconds(_value(node, 'maxAge')),
     );
+  }
+
+  /// The request headers the generated client sends on a call from a
+  /// browser: the body's type, and the CSRF token every state-changing call
+  /// carries. A credentialed policy that did not answer them would fail the
+  /// preflight of every sign-in.
+  static const List<String> clientRequestHeaders = <String>[
+    'content-type',
+    'x-dartvel-csrf-token',
+  ];
+
+  static List<String> _withClientHeaders(List<String> headers) {
+    final Set<String> listed = <String>{
+      for (final String h in headers) h.toLowerCase(),
+    };
+    return <String>[
+      ...headers,
+      for (final String h in clientRequestHeaders)
+        if (!listed.contains(h)) h,
+    ];
+  }
+
+  /// Refuses a credentialed policy that could never work, or that hands the
+  /// signed-in person to a page anybody on the network can rewrite.
+  static void _checkCredentialed({
+    required List<String> origins,
+    required Map<String, bool> wildcards,
+  }) {
+    if (origins.isEmpty) {
+      throw const FormatException(
+        'dartvel.server.cors.origins is empty and allowCredentials is true. '
+        'Credentials are answered only for origins named exactly -- '
+        'origins: [https://app.example.com] -- so this policy allows nothing.',
+      );
+    }
+    for (final MapEntry<String, bool> wildcard in wildcards.entries) {
+      if (wildcard.value) {
+        throw FormatException(
+          'dartvel.server.cors.${wildcard.key}: any cannot be used with '
+          'allowCredentials. A browser reads "*" as a literal name once '
+          'credentials are on, so nothing would match; list the '
+          '${wildcard.key} instead.',
+        );
+      }
+    }
+    for (final String origin in origins) {
+      final Uri uri = Uri.parse(origin);
+      final bool loopback = uri.host == 'localhost' ||
+          uri.host == '127.0.0.1' ||
+          uri.host == '[::1]' ||
+          uri.host == '::1';
+      if (uri.scheme != 'https' && !loopback) {
+        throw FormatException(
+          'dartvel.server.cors.origins: "$origin" is not https and '
+          'allowCredentials is true. A page served over plain http can be '
+          'rewritten by anybody on the network into one that acts as the '
+          'signed-in person. Only a loopback origin may be http.',
+        );
+      }
+    }
   }
 
   /// An origin list, refusing anything that is not an origin.

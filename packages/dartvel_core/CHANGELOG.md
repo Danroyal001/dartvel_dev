@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **A browser client sends its credentials to an API on another origin, and
+  only to origins named exactly.** `DVCredentialedOrigins.allow` names one
+  origin; the browser transport sends a request to it with
+  `credentials: 'include'` and every other request with the same-origin
+  default. A wildcard, `null`, a path, user information or plain `http` off
+  the loopback is refused when named. `allowBackend` names the origin of a
+  backend URL and says why when it cannot.
+
 - **Privacy jobs cross a durable queue, and open erasures are tracked to
   their deadline.** `DVPrivacyErasureRequest` and `DVPrivacyRetentionRequest`
   carry codecs, registered by `registerJobs`, so a request dispatched onto a
