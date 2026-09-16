@@ -242,6 +242,58 @@ void main() {
     expect(find.text('inbox taps 1'), findsOneWidget);
   });
 
+  testWidgets('a selectable page with a grid can be covered and uncovered', (
+    WidgetTester tester,
+  ) async {
+    // A lazy list or grid keeps each child alive through a widget that turns
+    // into a selection scope when a selection registrar is above it and back
+    // when there is none. Turning selection off beneath a covering route took
+    // the registrar away, every grid child rebuilt into a different widget
+    // outside the grid's own layout, and the sliver asserted: the example's
+    // home page, a DVBox.grid, threw as soon as a link was tapped.
+    final GoRouter router = GoRouter(
+      initialLocation: '/list',
+      routes: dvConfigRoutes(<DVRouteNode>[
+        DVRoute(
+          path: '/list',
+          builder: (BuildContext context, DVRouteState state) => DVPageShell(
+            spec: const DVPageScaffoldSpec(),
+            child: GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              children: const <Widget>[Counter(), Text('one'), Text('two')],
+            ),
+          ),
+          routes: <DVRouteNode>[
+            DVRoute(
+              path: ':item',
+              builder: (BuildContext context, DVRouteState state) =>
+                  const DVPageShell(
+                    spec: DVPageScaffoldSpec(),
+                    child: Center(child: Text('detail')),
+                  ),
+            ),
+          ],
+        ),
+      ], transition: PageTransitionSpec.none),
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('inbox taps 0'));
+    await tester.pumpAndSettle();
+
+    unawaited(router.push<void>('/list/1'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('detail'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('inbox taps 1'), findsOneWidget);
+  });
+
   testWidgets('the iOS edge swipe pops inside the tab first', (
     WidgetTester tester,
   ) async {

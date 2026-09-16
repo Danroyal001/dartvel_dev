@@ -9,6 +9,7 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show Selectable, SelectionRegistrar;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
@@ -8709,6 +8710,43 @@ class DVPageShell extends StatefulWidget {
   State<DVPageShell> createState() => _DVPageShellState();
 }
 
+/// Hands the page's selectables to the selection area above only while the
+/// page is on top, and to a registrar that keeps nothing while it is covered.
+///
+/// Never to no registrar at all. A lazy list or grid keeps each child alive
+/// through a widget that becomes a selection scope when a registrar is above
+/// it and plain again when there is none; taking the registrar away rebuilt
+/// every one of those children into a different widget outside the sliver's
+/// own layout, and the sliver asserted. `SelectionContainer.disabled` did
+/// exactly that, so any page with a DVBox.grid threw once a route covered it.
+class _DVSelectionWhileOnTop extends StatelessWidget {
+  const _DVSelectionWhileOnTop({required this.onTop, required this.child});
+
+  final bool onTop;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final SelectionRegistrar? registrar = SelectionContainer.maybeOf(context);
+    if (registrar == null) return child;
+    return SelectionRegistrarScope(
+      registrar: onTop ? registrar : const _DVInertSelectionRegistrar(),
+      child: child,
+    );
+  }
+}
+
+/// A registrar that keeps nothing: what a covered page selects into.
+class _DVInertSelectionRegistrar implements SelectionRegistrar {
+  const _DVInertSelectionRegistrar();
+
+  @override
+  void add(Selectable selectable) {}
+
+  @override
+  void remove(Selectable selectable) {}
+}
+
 class _DVPageShellState extends State<DVPageShell> {
   /// The selection area's focus node, kept out of the tab order.
   final FocusNode _selectionFocusNode =
@@ -8838,7 +8876,7 @@ class _DVPageShellState extends State<DVPageShell> {
             // subsequent one was off by one. It still takes focus when a
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
-            child: onTop ? keyed : SelectionContainer.disabled(child: keyed),
+            child: _DVSelectionWhileOnTop(onTop: onTop, child: keyed),
           )
         : keyed;
     final Widget framed = spec.safeArea ? SafeArea(child: content) : content;
