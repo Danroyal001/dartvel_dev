@@ -27,9 +27,10 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'With no DATABASE_URL, the first run creates '
-                  'dartvel_data/data.db with your models\' tables in it.',
-              'Pages are rendered on request from your model data, with head '
-                  'tags a crawler can read.',
+                  '/srv/shop/dartvel_data/data.db next to the binary, with your '
+                  'models\' tables in it. Back up that one folder.',
+              'DARTVEL_DATA_DIR moves dartvel_data somewhere else, such as a '
+                  'mounted volume.',
               'Set DATABASE_URL to use PostgreSQL or MySQL. The binary does '
                   'not migrate those on start.',
             ]),
