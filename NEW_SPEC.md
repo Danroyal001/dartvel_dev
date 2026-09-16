@@ -85,7 +85,9 @@ No repositories.
 
 No DTOs.
 
-No manual route maps. Generated route maps are supported out of the box.
+No hand-maintained route maps. Pages are routes by file, routes declared in
+code generate the same typed map (Routing: Config routes), and both are
+checked against each other at build time.
 
 No signal folders.
 
@@ -505,6 +507,218 @@ Application code must use `DV.Navigation`, `DVPages`, and `.navigateToPage(...)`
 rather than importing or calling `go_router` directly, so the engine can evolve
 (for example, generating onto `StatefulShellRoute` for nested-stack navigation)
 without breaking application code.
+
+## Config routes
+
+Pages are routes by file. Routes can also be declared in code, the way a team
+coming from `go_router` or `auto_route` already writes them, and the two mix
+in one application: one router, one typed `DVRoutes`, one `DV.Navigation`.
+
+A file route suits a page that is mostly its own content. A config route
+suits a screen that already exists as a widget taking constructor arguments,
+a tab shell, or a section whose guard and nesting read better as a tree than
+as folders. Neither is the legacy one.
+
+### Where config lives
+
+In `lib/routes.dart`, which declares a public top-level `routes`:
+
+```dart
+// lib/routes.dart
+import 'package:my_app/dartvel_client/dartvel_client.dart';
+
+import 'screens/settings_screen.dart';
+import 'screens/order_screen.dart';
+
+final List<DVRouteNode> routes = <DVRouteNode>[
+  DVRoute(
+    path: '/settings',
+    title: 'Settings',
+    builder: (context, state) => const SettingsScreen(),
+  ),
+  DVRoute(
+    path: '/orders',
+    builder: (context, state) => const OrdersScreen(),
+    routes: <DVRouteNode>[
+      DVRoute(
+        path: ':id',
+        name: 'order',
+        builder: (context, state) => OrderScreen(id: state.params['id']!),
+      ),
+    ],
+  ),
+  DVShellRoute(
+    redirect: (context, state) =>
+        DV.Auth.currentUser == null ? DVRoutes.login : null,
+    builder: (context, state, child) => AdminFrame(child: child),
+    routes: <DVRouteNode>[
+      DVRoute(path: '/admin/reports', builder: (context, state) => const Reports()),
+    ],
+  ),
+];
+```
+
+`dartvel.routes: lib/app/routes.dart` in `pubspec.yaml` moves it. There is
+no annotation, no second generator and no `build_runner`: `dartvel routes`
+reads the file lexically, as it reads pages, and the generated router imports
+it. A project without the file has no config routes and pays nothing.
+
+The path is written once, in `path:`, and nowhere else. The CLI reads it to
+generate the typed target, so it must be a plain string literal; anything
+else is `DV-ROUTE-003`, because a route the build cannot read is a route with
+no target, no conflict check and no sitemap entry.
+
+| Type | `go_router` counterpart | What it is |
+|---|---|---|
+| `DVRoute` | `GoRoute` | a path and the widget it shows, with optional `name`, `title`, `redirect`, `transition`, `preview` and child `routes` |
+| `DVShellRoute` | `ShellRoute` | a frame around its child routes, which render in a nested navigator |
+| `DVStatefulShellRoute` + `DVShellBranch` | `StatefulShellRoute.indexedStack` + `StatefulShellBranch` | tabs, each branch keeping its own stack; the builder receives a `DVShellNavigation` with `currentIndex` and `goBranch(i)` |
+| `DVGoRoutes` | a `List<RouteBase>` | an existing application's `go_router` routes, mounted as they are |
+| `DVRouteState` | `GoRouterState` | `uri`, `path`, `pattern`, `params` and `query` of the match |
+
+Builders take `(BuildContext, DVRouteState)`, and a redirect returns a
+`DVRouteTarget?` — a typed target rather than a string — possibly
+asynchronously.
+
+### Typed navigation
+
+Every config route gets a member on the same generated `DVRoutes` the pages
+do. Its name comes from the path exactly as a page's does (`/settings` is
+`DVRoutes.settings`, `/orders/:id` is `DVRoutes.orders(id: ...)`), and
+`name:` replaces it when the derived one collides or reads badly — the
+`/orders/:id` above is `DVRoutes.order(id: '42')`. `name:` is an identifier,
+not a path, so it repeats nothing.
+
+```dart
+DVBox(DVText('Settings')).onPressed(DV.Navigation.to(DVRoutes.settings));
+DVNavLink(to: DVRoutes.order(id: '42'), child: DVText('Order 42'));
+```
+
+There is no second navigation API for config routes. `DV.Navigation.to`,
+`navigate`, `push`, `back`, `DVNavLink` and `context.navigateToPage` take a
+`DVRouteTarget` and do not know which source a route came from.
+
+### How the two merge
+
+The CLI generates one `GoRouter`. Its route list is every generated route —
+pages, model pages, module mounts, account pages — and every config route,
+ordered by one rule regardless of source: **at the first segment where two
+routes that could match the same URL differ, a static segment is matched
+before a parameter, and a parameter before a catch-all.** `/users/new` is
+reached before `/users/:id` whether either is a file or a config route, and
+whichever was declared first. `go_router` on its own matches in list order,
+so a parameter route listed first makes the static one unreachable without a
+word; Next.js and Expo Router rank routes for the same reason. Routes that
+cannot match the same URL keep their declared order.
+
+A shell, and a route with children, moves as one group, because a router
+cannot match half a shell first. When two groups would each have to come
+before the other, the build fails with `DV-ROUTE-004` naming both pairs.
+
+What a config route is given, and what it is not:
+
+- **Given**: the route state (`context.dvParams`, `context.dvQuery`), the page
+  lifecycle (`context.lifecycle.page`), the project's SEO defaults with the
+  route's `title:`, and the project's page transition unless `transition:`
+  says otherwise.
+- **Not given**: `DVPageShell`, `_layout.dart` wrappers, `.loading.dart` and
+  `.error.dart` siblings, or a deferred library. Those belong to a page file
+  and its folder. A config route's screen brings its own scaffold, a
+  `DVShellRoute` is its layout, and it is compiled into the bundle the routes
+  file is in. A screen worth splitting out of that bundle is either a page, or
+  a builder over a `deferred` import in `routes.dart`.
+
+### Conflicts
+
+A route has one source. Declaring the same path twice is a build error,
+never a precedence rule, for the reason Adoption gives: the route that lost
+would stop being reachable and nobody would notice.
+
+- `DV-ROUTE-001`: a config route has the same shape as a page, a model's
+  generated page, a mounted module's route, or another config route.
+  `/users/:id` and `/users/:slug` are the same shape. Both sources are named.
+- `DV-ROUTE-002`: two routes generate the same `DVRoutes` member. The fix is
+  `name:` on the config route.
+- `DV-ROUTE-003`: the routes file has a route the build cannot read: a `path:`
+  or `name:` that is not a plain literal, a spread or collection `if` in a
+  route list, or a `dartvel.routes` pointing at a file that does not exist,
+  or one with no top-level `routes`.
+- `DV-ROUTE-004`: routes that cannot be ordered so that each is reachable.
+
+A `GoRoute` inside `DVGoRoutes` that repeats a page's path is `DV-ADOPT-002`,
+as a host router's always was.
+
+### Guards and redirects
+
+`redirect:` on a `DVRoute`, `DVShellRoute` or `DVStatefulShellRoute` runs
+before the route activates, and on a parent it runs for every route under it,
+as in `go_router`. It returns the target to send the visitor to, or null to
+let the route through.
+
+The application-wide guard, `lib/pages/_guard.dart`, applies to config
+routes too. It protects the application rather than a folder of it, and a
+config route slipping past the guard a team wrote for every page is a public
+page nobody decided to make. A guard in a subfolder of `lib/pages` belongs to
+that folder and does not. The root guard runs first, then the route's own
+redirects from the outside in.
+
+A config route behind any redirect is listed in `dartvelGuardedRoutes`, so it
+is left out of `sitemap.xml`, and gets no link preview.
+
+### Nesting
+
+`routes:` under a `DVRoute` nests with a relative path (`':id'` under
+`'/orders'` is `/orders/:id`), and the child is pushed on top of its parent,
+so back from an order goes to the order list. Routes under a `DVShellRoute`
+or a `DVShellBranch` are written absolute and render inside the shell's
+builder. Shells nest. Each branch of a `DVStatefulShellRoute` may name its
+`initialLocation` as a `DVRouteTarget`.
+
+### Deep links and web URLs
+
+A config route is a URL like any page. It is in `dartvelRouteManifest`, so a
+web build writes its `index.html` and prerenders it, the service worker
+precaches it, `sitemap.xml` lists it unless it is guarded or parameterised, and
+a deep link, an app link, a home-widget launch or a browser reload resolves it
+through the same router. Browser back and forward move through it as through
+any page.
+
+### DV.Navigation and DVNavLink
+
+A link to a config route is a link: an anchor in the semantics tree, keyboard
+focus, middle click to a new tab. Preload has nothing of its own to fetch —
+there is no deferred library — so it is the web document prefetch every
+route gets. Preview builds the route's screen: a parameterless config route
+with no redirect over it registers one, and `preview: false` turns it off for
+a screen too heavy or too live to build on a hover.
+
+### Bringing an existing go_router app
+
+An application that already has a `go_router` route list mounts it into the
+generated router instead of rewriting it:
+
+```dart
+final List<DVRouteNode> routes = <DVRouteNode>[
+  DVGoRoutes($appRoutes), // a List<RouteBase>, go_router_builder's included
+  DVRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+];
+```
+
+Those routes keep their own builders, redirects and names, are not wrapped
+and not reordered internally, and are reached the way they always were —
+`context.go(...)` keeps working, because it is the same router. They get no
+`DVRoutes` members: the CLI cannot read a list built somewhere else, and a
+typed target guessed from half the information is worse than none. A route
+moved from `DVGoRoutes` to `DVRoute` gains its target, so an application
+migrates one route at a time, and the `DV-ADOPT-002` check covers the
+remainder against pages meanwhile.
+
+| Code | Meaning | Level |
+|---|---|---|
+| `DV-ROUTE-001` | a path is declared twice: by a page file and a config route, or by two config routes | build `error` |
+| `DV-ROUTE-002` | two routes generate the same typed target in `DVRoutes` | build `error` |
+| `DV-ROUTE-003` | the routes file declares a route the build cannot read | build `error` |
+| `DV-ROUTE-004` | routes cannot be ordered so that every one is reachable | build `error` |
 
 ---
 
@@ -9955,7 +10169,10 @@ naming both sources (`DV-ADOPT-002`) — not a precedence rule, because a
 silently shadowed route is a page that stops being reachable and nobody
 notices. For Navigator 1.0 and other routers the generated router mounts at a
 prefix as a nested navigator, and `DV.Navigation` delegates to the host router
-for routes it does not own.
+for routes it does not own. In the other direction, an existing route list mounts into
+the generated router as `DVGoRoutes(...)` in `lib/routes.dart` (Routing: Config
+routes), which is how a `go_router` application adopts Dartvel one route at a
+time.
 
 **State.** Signals are Riverpod-powered already, so interoperation is
 exposure rather than translation: a signal is readable as a provider, and an
