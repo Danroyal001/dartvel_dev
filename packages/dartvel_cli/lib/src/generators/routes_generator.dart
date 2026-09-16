@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import '../adoption/adoption_build_checks.dart';
+import 'package:dartvel_core/dartvel.dart' show DVPersistedQueryMode;
+
+import '../build/graphql_options.dart';
 import '../build/render_backends.dart';
 import '../config/dartvel_config.dart';
 import '../graph/module_mounts.dart';
@@ -98,6 +101,21 @@ Future<void> generate({
       pkgName: pkgName,
       backendDir: config.backendDir,
       config: platformApi,
+    );
+  }
+
+  // dartvel.api.graphql, before anything is written: a misspelt key or a
+  // budget the runtime cannot use would otherwise leave /graphql answering at
+  // the defaults for somebody who wrote down a limit.
+  final graphqlOptions = DVGraphQLApiOptions.parse(dv);
+  if (graphqlOptions?.persistedQueries == DVPersistedQueryMode.require) {
+    // Said, not refused: require is the setting the section asks for, and an
+    // endpoint that answers nothing fails closed.
+    stderr.writeln(
+      'dartvel.api.graphql.persistedQueries is require, and the build does '
+      'not extract client queries into a manifest yet, so /graphql answers '
+      'only documents the application loads into DVGraphQL.persistedQueries '
+      'itself. Every other document is refused with DV-EDGE-002.',
     );
   }
 
