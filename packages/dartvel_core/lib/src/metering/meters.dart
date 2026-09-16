@@ -357,8 +357,13 @@ class DVDatabaseMeterStore implements DVMeterStore {
     // that already, and PostgreSQL's REAL is four and rounds past seven
     // digits without a word. An exact NUMERIC would buy nothing, since every
     // amount is summed as a double once it is read.
-    const String columns = 'dv_tenant TEXT NOT NULL, meter TEXT NOT NULL, '
-        'idempotency_key TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, '
+    //
+    // Keyed strings are VARCHAR because MySQL cannot index TEXT, and sized so
+    // the four-column key fits InnoDB's 3072 bytes in utf8mb4.
+    const String columns = 'dv_tenant VARCHAR(191) NOT NULL, '
+        'meter VARCHAR(191) NOT NULL, '
+        'idempotency_key VARCHAR(255) NOT NULL, '
+        'amount DOUBLE PRECISION NOT NULL, '
         'at_us BIGINT NOT NULL, period_start_us BIGINT NOT NULL, '
         'period_end_us BIGINT NOT NULL';
     try {

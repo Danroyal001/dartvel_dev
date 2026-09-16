@@ -14,6 +14,7 @@ import 'dart:convert';
 import '../../dartvel.dart' show DVAuthAuthorization, DVNotificationMessage;
 import '../content/content_workflow.dart';
 import '../database/adapter.dart';
+import '../database/framework_tables.dart';
 import 'scene_document.dart';
 
 /// Published scene documents, by id.
@@ -30,7 +31,8 @@ final class DV3DSceneStore {
   Stream<String> get changes => _changes.stream;
 
   Future<void> ensureSchema() async {
-    await database.execute(
+    await dvEnsureFrameworkTable(
+      database,
       'CREATE TABLE IF NOT EXISTS $table (id TEXT, document TEXT)',
     );
   }
@@ -196,7 +198,8 @@ final class DV3DSceneBundleInstaller {
   final DV3DSceneStore store;
 
   Future<void> _ensureSchema() async {
-    await store.database.execute(
+    await dvEnsureFrameworkTable(
+      store.database,
       'CREATE TABLE IF NOT EXISTS $table (version TEXT, applied_at TEXT, seq INTEGER)',
     );
   }
