@@ -53,6 +53,18 @@ public final class Harness {
 }
 ''';
 
+const String _keepHarness = """
+import dev.dartvel.devclient.DartvelDevTunnel;
+
+public final class KeepHarness {
+  public static void main(String[] args) {
+    String held = DartvelDevTunnel.vmServiceToKeep(null, args[0]);
+    System.out.println(held);
+    System.out.println(DartvelDevTunnel.vmServiceToKeep(held, args[1]));
+  }
+}
+""";
+
 void main() {
   final String? javaHome = _javaHome();
   final String? skip = javaHome == null
@@ -76,6 +88,9 @@ void main() {
       ..createSync(recursive: true)
       ..writeAsStringSync(dvAndroidDevTunnelSource());
     File(p.join(sources.path, 'Harness.java')).writeAsStringSync(_harness);
+    File(
+      p.join(sources.path, 'KeepHarness.java'),
+    ).writeAsStringSync(_keepHarness);
     final ProcessResult javac = await Process.run(
       p.join(javaHome!, 'bin', 'javac'),
       <String>[
@@ -85,6 +100,7 @@ void main() {
         p.join(work.path, 'classes'),
         p.join(sources.path, 'dev', 'dartvel', 'devclient', 'DartvelDevTunnel.java'),
         p.join(sources.path, 'Harness.java'),
+        p.join(sources.path, 'KeepHarness.java'),
       ],
     );
     expect(javac.exitCode, 0, reason: '${javac.stdout}${javac.stderr}');
@@ -185,6 +201,31 @@ void main() {
     },
     skip: skip,
     timeout: const Timeout(Duration(seconds: 60)),
+  );
+
+  test(
+    'the first VM service URI is kept for the life of the process',
+    () async {
+      // After a hot restart the new isolate reports its VM service again, and
+      // with DDS attached what it reports is DDS's address on the dev
+      // machine. Following it tore the tunnel down and pointed it at a port
+      // that is not on the phone; the emulator run caught it.
+      final ProcessResult kept = await Process.run(
+        p.join(javaHome!, 'bin', 'java'),
+        <String>[
+          '-cp',
+          p.join(work.path, 'classes'),
+          'KeepHarness',
+          'http://127.0.0.1:37143/abc=/',
+          'http://127.0.0.1:41234/dds=/',
+        ],
+      );
+      expect('${kept.stdout}'.trim().split('\n'), <String>[
+        'http://127.0.0.1:37143/abc=/',
+        'http://127.0.0.1:37143/abc=/',
+      ]);
+    },
+    skip: skip,
   );
 
   test(
