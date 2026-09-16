@@ -670,6 +670,7 @@ class DVHttp {
     Map<String, String> headers = const <String, String>{},
     String? idempotencyKey,
     int? attempts,
+    String? connectAddress,
   }) {
     final Uri uri = url is Uri ? url : Uri.parse('$url');
     if (!uri.hasScheme || uri.host.isEmpty) {
@@ -685,6 +686,7 @@ class DVHttp {
       headers: headers,
       idempotencyKey: idempotencyKey,
       attempts: attempts,
+      connectAddress: connectAddress,
     );
   }
 
@@ -730,6 +732,7 @@ class DVHttp {
     required Map<String, String> headers,
     String? idempotencyKey,
     int? attempts,
+    String? connectAddress,
   }) async {
     final String method = rawMethod.toUpperCase();
     final bool idempotent =
@@ -799,6 +802,7 @@ class DVHttp {
       method: method,
       headers: sent,
       body: payload,
+      connectAddress: connectAddress,
     );
 
     try {

@@ -741,13 +741,14 @@ class DVWebhooks {
   ) async {
     Uri target = subscription.url;
     for (int hop = 0;; hop++) {
-      await _checkAddress(target);
+      final String? address = await _checkAddress(target);
       final String timestamp =
           '${clock().toUtc().millisecondsSinceEpoch ~/ 1000}';
       final Response response = await const DVHttp().send(
         'POST',
         target,
         body: body,
+        connectAddress: address,
         // One attempt per job run: retries belong to the job layer, which
         // keeps the line's order and applies the backoff.
         attempts: 1,
@@ -775,38 +776,57 @@ class DVWebhooks {
 
   /// Refuses an endpoint a delivery may not go to: not HTTPS, or resolving to
   /// a private, loopback, link-local or metadata address.
-  Future<void> _checkAddress(Uri url) async {
+  ///
+  /// Returns the address the connection must use. Checking one lookup and
+  /// connecting after another is a DNS rebinding window: a name can answer a
+  /// public address to the check and 127.0.0.1 to the connection. So the
+  /// attempt connects to an address this check approved, and the name is
+  /// kept only for TLS and the Host header. Null only when private addresses
+  /// are allowed and the name does not resolve here, which leaves the
+  /// connection to resolve it -- there is nothing to refuse in that
+  /// deployment.
+  Future<String?> _checkAddress(Uri url) async {
     DVWebhookAddressRefusedException refuse(String reason) =>
         DVWebhookAddressRefusedException(url, reason);
 
     if (url.scheme != 'https') throw refuse('deliveries are HTTPS POSTs');
-    if (config.allowPrivateAddresses) return;
+    final bool allowPrivate = config.allowPrivateAddresses;
 
     final String host = url.host.toLowerCase();
     if (host.isEmpty) throw refuse('it has no host');
-    if (host == 'localhost' ||
-        host.endsWith('.localhost') ||
-        host == 'metadata' ||
-        host.endsWith('.internal')) {
+    if (!allowPrivate &&
+        (host == 'localhost' ||
+            host.endsWith('.localhost') ||
+            host == 'metadata' ||
+            host.endsWith('.internal'))) {
       throw refuse('"$host" names a local or metadata service');
     }
 
-    final List<int>? literal = _parseAddress(host);
-    final List<List<int>> addresses;
-    if (literal != null) {
-      addresses = <List<int>>[literal];
-    } else {
-      final List<String> resolved = await resolveHost(host);
-      if (resolved.isEmpty) throw refuse('"$host" does not resolve');
-      addresses = <List<int>>[
-        for (final String address in resolved)
-          _parseAddress(address) ?? const <int>[],
-      ];
+    if (_parseAddress(host) case final List<int> literal) {
+      if (!allowPrivate) {
+        final String? why = _nonPublic(literal);
+        if (why != null) throw refuse('"$host" resolves to $why');
+      }
+      return host;
     }
-    for (final List<int> address in addresses) {
-      final String? why = _nonPublic(address);
+
+    final List<String> resolved = await resolveHost(host);
+    if (resolved.isEmpty) {
+      if (allowPrivate) return null;
+      throw refuse('"$host" does not resolve');
+    }
+    for (final String address in resolved) {
+      final List<int>? parsed = _parseAddress(address);
+      if (parsed == null) {
+        throw refuse('"$host" resolves to an address that could not be read');
+      }
+      if (allowPrivate) continue;
+      final String? why = _nonPublic(parsed);
       if (why != null) throw refuse('"$host" resolves to $why');
     }
+    // Every address passed, so the first is as good as any; it is the one
+    // the connection is held to.
+    return resolved.first;
   }
 
   static List<int>? _parseAddress(String text) {

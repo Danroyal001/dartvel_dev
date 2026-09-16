@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **A webhook connects to the address its check approved.** The endpoint
+  check resolved a customer's host and refused private addresses, and then
+  the HTTP client resolved the host again to connect. A name with a short TTL
+  could answer a public address to the first lookup and 127.0.0.1 to the
+  second. `DVHttpRequest.connectAddress` (and `DV.Http.send(connectAddress:)`)
+  now holds a request to one IP: the connection goes there, TLS still sends
+  the host name as SNI and verifies the certificate against it, and the Host
+  header still names it. Every webhook attempt and every redirect hop is
+  pinned to the address its own check passed. On the real wire this also
+  stops `package:http` from following a redirect by itself. Before, the
+  per-hop check that refuses a redirect onto 169.254.169.254 only ran against
+  a test transport, because the default client had already followed the
+  redirect. A pinned request is refused where there is no `dart:io`.
+
 - **A meter amount keeps its precision on PostgreSQL.** `dv_meter_records`
   declared `amount REAL`, which PostgreSQL stores in four bytes: a gauge
   reading of 16777217.25 came back as 16777218, with no error. It is

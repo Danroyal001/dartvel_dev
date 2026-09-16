@@ -11,6 +11,8 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'pinned_connect_unsupported.dart'
+    if (dart.library.io) 'pinned_connect_io.dart' as pinned;
 import 'protocol.dart';
 
 export 'protocol.dart';
@@ -32,6 +34,16 @@ class DVHttpRequest {
   /// one. Never called after the response returns.
   final DVEarlyHintsCallback? onEarlyHints;
 
+  /// The IP address to connect to instead of resolving [url]'s host.
+  ///
+  /// For a request whose destination was checked by address -- a webhook
+  /// endpoint a customer supplied -- so the connection reaches the address the
+  /// check approved and a second lookup cannot answer differently. TLS still
+  /// verifies the certificate against [url]'s host and the Host header still
+  /// names it. Sent over HTTP/1.1 with redirects returned rather than
+  /// followed, and refused where the platform resolves names itself.
+  final String? connectAddress;
+
   const DVHttpRequest({
     required this.url,
     this.method = 'POST',
@@ -39,6 +51,7 @@ class DVHttpRequest {
     this.body = const <int>[],
     this.protocols = DVHttpProtocolChain.standard,
     this.onEarlyHints,
+    this.connectAddress,
   });
 
   /// A copy of this request pinned to [protocol].
@@ -52,6 +65,7 @@ class DVHttpRequest {
         body: body,
         protocols: DVHttpProtocolChain(<DVHttpProtocol>[protocol]),
         onEarlyHints: onEarlyHints,
+        connectAddress: connectAddress,
       );
 }
 
@@ -432,16 +446,38 @@ DVHttpTransport? dvUseHttpTransport(DVHttpTransport? transport) {
 }
 
 /// Sends [request], walking its protocol chain until one succeeds.
-Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) =>
-    DVHttpFallbackClient(dvHttpTransport).send(request);
+Future<DVHttpResponse> dvSendHttpRequest(DVHttpRequest request) async {
+  if (request.connectAddress == null) {
+    return DVHttpFallbackClient(dvHttpTransport).send(request);
+  }
+  final DVHttpStreamedResponse response =
+      await pinned.dvPinnedStreamHttpRequest(request);
+  final BytesBuilder bytes = BytesBuilder(copy: false);
+  await for (final List<int> chunk in response.body) {
+    bytes.add(chunk);
+  }
+  final Uint8List body = bytes.takeBytes();
+  return DVHttpResponse(
+    statusCode: response.statusCode,
+    body: utf8.decode(body, allowMalformed: true),
+    bytes: body,
+    protocol: response.protocol,
+  );
+}
 
 /// Sends [request] and yields the body as it arrives.
 ///
 /// Server-sent events and long-running responses cannot go through
 /// [dvSendHttpRequest], which waits for the whole body: a stream that never
 /// ends would never return.
+/// A request with a [DVHttpRequest.connectAddress] skips the installed
+/// transports, none of which can be told where to connect, and goes over the
+/// pinned connection instead. Sending it unpinned would make the pin a
+/// suggestion.
 Future<DVHttpStreamedResponse> dvStreamHttpRequest(DVHttpRequest request) =>
-    DVHttpFallbackClient(dvHttpTransport).stream(request);
+    request.connectAddress == null
+        ? DVHttpFallbackClient(dvHttpTransport).stream(request)
+        : pinned.dvPinnedStreamHttpRequest(request);
 
 /// Routes each protocol to whichever transport can speak it.
 ///
