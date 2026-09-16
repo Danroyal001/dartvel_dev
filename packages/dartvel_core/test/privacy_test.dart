@@ -415,6 +415,72 @@ void main() {
       tearDown(DVFieldEncryption.reset);
 
       group('erasure', () {
+        // A tenant-scoped model's keys are unique per tenant, so tenant a's
+        // order o1 and tenant b's order o1 are two records, and the history
+        // of one is not the history of the other. The walk reads the table
+        // whole, as the generated privacy declarations do; what it erases
+        // for one tenant's row must stay on that tenant.
+        test("erasing a subject's record on one tenant leaves another tenant's "
+            'record with the same key, and its history', () async {
+          final DVDatabaseAdapter db = site.database;
+          DVRecordTable on(String? tenant) => DVRecordTable(
+            table: 'tenant_orders',
+            key: 'id',
+            columns: const <String>['dv_tenant', 'id', 'user_id', 'note'],
+            history: const DVHistory(),
+            scope: tenant == null ? null : DVRecordScope('dv_tenant', tenant),
+            database: db,
+          );
+          await on('a').ensureSchema();
+          final DVRecord a = (await on('a').write(<String, Object?>{
+            'id': 'o1',
+            'user_id': 'u1',
+            'note': "u1's order on a",
+          })).record;
+          await on('a').write(<String, Object?>{
+            ...a.values,
+            'note': "u1's order on a, edited",
+          }, base: a);
+          // Tenant b's o1 belongs to somebody else, at the same version.
+          final DVRecord b = (await on('b').write(<String, Object?>{
+            'id': 'o1',
+            'user_id': 'u9',
+            'note': "u9's order on b",
+          })).record;
+          await on('b').write(<String, Object?>{
+            ...b.values,
+            'note': "u9's order on b, edited",
+          }, base: b);
+
+          final DVPrivacy walk = DVPrivacy(
+            models: <DVPrivacyModel>[
+              DVPrivacyModel(
+                name: 'tenant_orders',
+                table: on(null),
+                subject: const DVSubject.field('user_id'),
+                personal: const <String>{'note'},
+                retention: DVRetention.indefinite,
+              ),
+            ],
+            database: db,
+            signingKey: _signingKey,
+            now: () => _now,
+          );
+          await walk.ensureSchema();
+          await walk.erase(subject: 'u1', reason: 'DSAR');
+
+          expect(await on('a').read('o1'), isNull);
+          expect(await on('a').history('o1'), isEmpty);
+          final DVRecord? kept = await on('b').read('o1');
+          expect(kept, isNotNull, reason: "tenant b's o1 is not u1's");
+          expect(kept!.values['note'], "u9's order on b, edited");
+          expect(
+            await on('b').history('o1'),
+            hasLength(2),
+            reason: "tenant b's audit trail is not u1's to erase",
+          );
+        });
+
         test(
           "removes the subject's rows across every path and leaves others'",
           () async {

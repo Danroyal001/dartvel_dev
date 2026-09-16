@@ -1477,9 +1477,16 @@ Future<void> _forgetRow(
   bool capture = true,
 }) async {
   if (table.historyPolicy != null) {
+    // Only this record's log. On a tenant-scoped table another tenant's
+    // record can share the key, and its entries are that record's audit:
+    // if it is the subject's too, the walk reaches it as a row of its own.
+    final (String tenant, List<Object?> tenantParams) = _historyTenant(
+      table,
+      row,
+    );
     await database.execute(
-      'DELETE FROM ${table.historyTable} WHERE record_key = ?',
-      <Object?>[row.key],
+      'DELETE FROM ${table.historyTable} WHERE record_key = ?$tenant',
+      <Object?>[row.key, ...tenantParams],
     );
   }
   final DVCapture? log = table.capture;
@@ -1494,14 +1501,72 @@ Future<void> _forgetRow(
   DVRecordTable table,
   DVRecord row,
   Map<String, Object?> unchanged,
-) => (
-  <String>[
-    '${table.key} = ?',
-    '${DVRecordTable.versionColumn} = ?',
-    for (final String column in unchanged.keys) '$column = ?',
-  ].join(' AND '),
-  <Object?>[row.key, row.version, ...unchanged.values],
-);
+) {
+  final Object? tenant = _rowTenant(table, row);
+  final bool scoped = _tenantScoped(table);
+  return (
+    <String>[
+      '${table.key} = ?',
+      '${DVRecordTable.versionColumn} = ?',
+      // Keys are unique per tenant on a tenant-scoped table, so a row is its
+      // key on its tenant; without this, another tenant's row at the same
+      // key and version is written too.
+      if (scoped)
+        tenant == null
+            ? '$dvTenantColumnName IS NULL'
+            : '$dvTenantColumnName = ?',
+      for (final String column in unchanged.keys) '$column = ?',
+    ].join(' AND '),
+    <Object?>[
+      row.key,
+      row.version,
+      if (scoped && tenant != null) tenant,
+      ...unchanged.values,
+    ],
+  );
+}
+
+/// Whether [table]'s rows carry a tenant, which makes a key unique only on
+/// its tenant. The walk reads such a table whole rather than through a scope.
+bool _tenantScoped(DVRecordTable table) =>
+    table.scope == null && table.columns.contains(dvTenantColumnName);
+
+Object? _rowTenant(DVRecordTable table, DVRecord row) =>
+    _tenantScoped(table) ? row.values[dvTenantColumnName] : null;
+
+/// ` AND tenant = ?` for [row]'s tenant on a tenant-scoped table, matching
+/// the tenant a record table records its history under; nothing otherwise.
+(String, List<Object?>) _historyTenant(DVRecordTable table, DVRecord row) {
+  if (!_tenantScoped(table)) return ('', const <Object?>[]);
+  final Object? tenant = _rowTenant(table, row);
+  return tenant == null
+      ? (' AND tenant IS NULL', const <Object?>[])
+      : (' AND tenant = ?', <Object?>['$tenant']);
+}
+
+/// [row] read again on its own tenant: on a tenant-scoped table read whole,
+/// a read by key alone can return another tenant's record.
+Future<DVRecord?> _reread(DVRecordTable table, DVRecord row) async {
+  if (!_tenantScoped(table)) return table.read(row.key, withDeleted: true);
+  final Object? tenant = _rowTenant(table, row);
+  final List<Map<String, Object?>> rows = await table.database.query(
+    'SELECT * FROM ${table.table} WHERE ${table.key} = ? AND '
+    '${tenant == null ? '$dvTenantColumnName IS NULL' : '$dvTenantColumnName = ?'}',
+    <Object?>[row.key, if (tenant != null) tenant],
+  );
+  if (rows.isEmpty) return null;
+  final Map<String, Object?> stored = rows.first;
+  final Object? version = stored[DVRecordTable.versionColumn];
+  final Object? deleted = stored[DVRecordTable.deletedColumn];
+  return DVRecord(
+    key: stored[table.key] ?? row.key,
+    version: version is num ? version.toInt() : int.tryParse('$version') ?? 0,
+    values: <String, Object?>{
+      for (final String column in table.columns) column: stored[column],
+    },
+    deletedAt: deleted == null ? null : DateTime.parse('$deleted'),
+  );
+}
 
 /// Deletes [row] if it is still at the version it was read and holds each
 /// value in [unchanged]; returns whether it was.
@@ -1544,7 +1609,7 @@ Future<({DVRecord row, bool gone})?> _writeAtVersion(
   DVRecord at = row;
   for (int attempt = 1; ; attempt++) {
     if (await write(at)) return (row: at, gone: false);
-    final DVRecord? current = await table.read(at.key, withDeleted: true);
+    final DVRecord? current = await _reread(table, at);
     if (current == null) return (row: at, gone: true);
     if (!belongs(current)) return null;
     if (attempt >= _erasureAttempts) {
