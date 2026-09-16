@@ -1,0 +1,103 @@
+name: Dev client
+
+# A development build on a device, paired with `dartvel dev --dev-client`.
+#
+# Android: an emulator installs `dartvel build android --profile development`,
+# pairs by the dartvel-dev:// link the dev server prints, shows an edit made
+# after the APK was built, then shows a second edit saved while paired --
+# without reinstalling, in the same process. See
+# tool/ci/android_dev_client_check.dart.
+#
+# A workflow of its own with a concurrency group per commit, so a verdict is
+# not cancelled by an unrelated push. The repository is public, so minutes
+# are free; the jobs are bounded by timeouts, not by narrowing what runs.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - packages/dartvel_cli/lib/src/devclient/**
+      - packages/dartvel_cli/lib/src/commands/dev_command.dart
+      - packages/dartvel_cli/lib/src/commands/build_command.dart
+      - packages/dartvel_core/lib/src/devclient/**
+      - packages/dartvel_core/lib/src/updates/**
+      - packages/dartvel_flutter/lib/src/devclient/**
+      - packages/dartvel_flutter/lib/src/updates/**
+      - tool/ci/android_dev_client_check.dart
+      - .github/workflows/dev-client.yml
+
+concurrency:
+  group: dev-client-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  android-emulator:
+    name: Android — pair, edit, hot reload
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      # Without the udev rule the emulator falls back to software rendering
+      # and times out rather than failing outright.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the development APK
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build android --profile development
+          ls -la build/app/outputs/flutter-apk/
+          # What the development profile writes. A build that skipped it is a
+          # debug APK that can never pair, and the device step would time out
+          # saying so far less clearly.
+          test -f android/app/src/debug/java/dev/dartvel/devclient/DartvelDevTunnel.java
+          test -f .dart_tool/dartvel/development_main.dart
+          grep -q 'android:scheme="dartvel-dev"' android/app/src/debug/AndroidManifest.xml
+
+      # Flutter's attach compiles with the flutter-tester device's toolchain;
+      # fetched here rather than halfway through the device step's timeout.
+      - name: Precache the tester artifacts
+        run: flutter precache --linux
+
+      - name: Pair, edit and reload on an emulator
+        id: run
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          # One line: the action runs each line as its own `sh -c`.
+          script: dart tool/ci/android_dev_client_check.dart
+
+      - name: The device agreed
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/devclient-verdict.txt \
+            || { echo "no verdict: the device check did not finish"; exit 1; }
+          cat /tmp/diag/devclient-verdict.txt
+          head -1 /tmp/diag/devclient-verdict.txt | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dev-client-android, path: /tmp/diag/, if-no-files-found: warn }
