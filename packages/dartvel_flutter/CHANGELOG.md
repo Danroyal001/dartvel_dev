@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Each account page names itself with a level 1 heading, and sign-in goes
+  back where the gate was sending the person.** `ProfilePage`,
+  `SecurityPage`, `SessionsPage` ("Devices"), `SignUpPage`, `DeletePage` and
+  `SignInWithEmailAndPasswordPage` each carry one, so a screen reader can
+  name the page and `dartvel build web`'s audit accepts it.
+  `SignInWithEmailAndPasswordPage(from:)` goes to `from` once signed in, when
+  it is a path in this application, and home otherwise. `DVAccountPage.signIn`
+  is the sign-in page's entry.
+
 - **A deletion that waits, on the device.** `DV.Auth.deleteAccount` (and
   `DVSessionClient.deleteAccount`) answers when a scheduled deletion erases
   the account, or null for one erased at once. `DeletePage` says when, and

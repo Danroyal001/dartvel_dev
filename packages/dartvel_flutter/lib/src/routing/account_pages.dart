@@ -34,7 +34,11 @@ enum DVAccountPage {
   delete('Delete account', requiresSession: true),
 
   /// `DV.Auth.SignUpPage`, for somebody with no account yet.
-  signUp('Sign up', requiresSession: false);
+  signUp('Sign up', requiresSession: false),
+
+  /// `DV.Auth.SignInWithEmailAndPasswordPage`, where the others send somebody
+  /// signed out.
+  signIn('Sign in', requiresSession: false);
 
   const DVAccountPage(this.label, {required this.requiresSession});
 

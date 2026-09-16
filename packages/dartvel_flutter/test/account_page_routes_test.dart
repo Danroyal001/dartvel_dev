@@ -16,6 +16,7 @@ import 'dart:convert';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 
 const String _token = 'dvs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -48,6 +49,7 @@ const List<DVAccountPageEntry> _entries = <DVAccountPageEntry>[
   DVAccountPageEntry(DVAccountPage.sessions, DVRouteTarget('/account/sessions')),
   DVAccountPageEntry(DVAccountPage.delete, DVRouteTarget('/account/delete')),
   DVAccountPageEntry(DVAccountPage.signUp, DVRouteTarget('/sign-up')),
+  DVAccountPageEntry(DVAccountPage.signIn, DVRouteTarget('/login')),
 ];
 
 Future<void> settle(WidgetTester tester) async {
@@ -150,15 +152,15 @@ void main() {
     test('each says which page it is, where it goes, and whether it needs a '
         'session', () {
       expect(<String>[for (final DVAccountPageEntry e in _entries) e.label],
-          <String>['Profile', 'Security', 'Devices', 'Delete account', 'Sign up']);
+          <String>['Profile', 'Security', 'Devices', 'Delete account', 'Sign up', 'Sign in']);
       expect(_entries.map((DVAccountPageEntry e) => e.requiresSession),
-          <bool>[true, true, true, true, false]);
+          <bool>[true, true, true, true, false, false]);
       expect(_entries[1].target.path, '/account/security');
     });
 
     test('a signed-out person is offered only what they can open', () {
       expect(DVAccountPages.visible(_entries, signedIn: false).map((e) => e.page),
-          <DVAccountPage>[DVAccountPage.signUp]);
+          <DVAccountPage>[DVAccountPage.signUp, DVAccountPage.signIn]);
       expect(DVAccountPages.visible(_entries, signedIn: true).map((e) => e.page),
           <DVAccountPage>[
             DVAccountPage.profile,
@@ -179,14 +181,13 @@ void main() {
             DVAccountPage.sessions => DV.Auth.SessionsPage(),
             DVAccountPage.delete => DV.Auth.DeletePage(),
             DVAccountPage.signUp => DV.Auth.SignUpPage(),
+            DVAccountPage.signIn => const SizedBox.shrink(),
           };
+      // The shape the generator writes: sign-in carries where the gate was
+      // sending the person.
       final GoRouter router = GoRouter(
         routes: <RouteBase>[
           GoRoute(path: '/', builder: (_, __) => const Scaffold(body: DVText('Home'))),
-          GoRoute(
-            path: '/login',
-            builder: (_, __) => const Scaffold(body: DVText('Sign in here')),
-          ),
           for (final DVAccountPageEntry entry in _entries)
             GoRoute(
               path: entry.target.path,
@@ -194,8 +195,14 @@ void main() {
                   ? (BuildContext context, GoRouterState state) =>
                       DVAccountPages.requireSession(context, state)
                   : null,
-              pageBuilder: (_, __) =>
-                  NoTransitionPage<void>(child: Scaffold(body: page(entry.page))),
+              pageBuilder: (_, GoRouterState state) => NoTransitionPage<void>(
+                child: Scaffold(
+                  body: entry.page == DVAccountPage.signIn
+                      ? DV.Auth.SignInWithEmailAndPasswordPage(
+                          from: state.uri.queryParameters['from'])
+                      : page(entry.page),
+                ),
+              ),
             ),
         ],
       );
@@ -215,11 +222,12 @@ void main() {
           router.go(entry.target.path);
           await settle(tester);
           if (entry.requiresSession) {
-            expect(find.text('Sign in here'), findsOneWidget, reason: entry.label);
+            expect(find.byKey(const ValueKey<String>('dv-auth-email')), findsOneWidget,
+                reason: entry.label);
             expect(router.routerDelegate.currentConfiguration.uri.path, dvSignInRoute);
           } else {
-            expect(find.text('Sign in here'), findsNothing);
-            expect(router.routerDelegate.currentConfiguration.uri.path, '/sign-up');
+            expect(router.routerDelegate.currentConfiguration.uri.path,
+                entry.target.path);
           }
           expect(tester.takeException(), isNull);
         }
@@ -241,9 +249,85 @@ void main() {
         router.go('/account/sessions');
         await settle(tester);
         expect(router.routerDelegate.currentConfiguration.uri.path, '/account/sessions');
-        expect(find.text('Sign in here'), findsNothing);
+        expect(find.byKey(const ValueKey<String>('dv-auth-email')), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('signing in on the page the gate sent somebody to goes back '
+          'where they were going (${size.width.toInt()}x${size.height.toInt()})',
+          (WidgetTester tester) async {
+        await tester.runAsync(() => install(signIn: false));
+        final GoRouter router = await app(tester, size);
+        router.go('/account/security');
+        await settle(tester);
+        expect(router.routerDelegate.currentConfiguration.uri.queryParameters['from'],
+            '/account/security');
+        await tester.enterText(
+            find.byKey(const ValueKey<String>('dv-auth-email')), 'ada@example.com');
+        await tester.enterText(
+            find.byKey(const ValueKey<String>('dv-auth-password')), 'correct horse');
+        await tester.tap(find.byKey(const ValueKey<String>('dv-auth-submit')));
+        await settle(tester);
+        expect(router.routerDelegate.currentConfiguration.uri.path, '/account/security');
+        expect(find.byKey(const ValueKey<String>('dv-security-totp-off')), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets('a from that leaves the application goes home instead',
+        (WidgetTester tester) async {
+      await tester.runAsync(() => install(signIn: false));
+      final GoRouter router = await app(tester, const Size(800, 600));
+      router.go('/login?from=https://evil.example/x');
+      await settle(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-email')), 'ada@example.com');
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-password')), 'correct horse');
+      await tester.tap(find.byKey(const ValueKey<String>('dv-auth-submit')));
+      await settle(tester);
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/');
+    });
+  });
+
+  // A page with no heading gives a screen reader nothing to name it by, and
+  // `dartvel build web` refuses it: every generated account route failed the
+  // build's audit when they were first served.
+  group('each page names itself with one level 1 heading', () {
+    final Map<String, Widget Function()> pages = <String, Widget Function()>{
+      'Profile': () => DV.Auth.ProfilePage(),
+      'Security': () => DV.Auth.SecurityPage(),
+      'Devices': () => DV.Auth.SessionsPage(),
+      'Delete your account': () => DV.Auth.DeletePage(),
+      'Create an account': () => DV.Auth.SignUpPage(),
+      'Sign in to your account': () => DV.Auth.SignInWithEmailAndPasswordPage(),
+    };
+    pages.forEach((String title, Widget Function() build) {
+      testWidgets(title, (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        await tester.runAsync(() => install());
+        await tester.binding.setSurfaceSize(const Size(800, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(MaterialApp(home: Scaffold(body: build())));
+        await settle(tester);
+        final List<SemanticsNode> headings = <SemanticsNode>[];
+        void walk(SemanticsNode node) {
+          if (node.headingLevel == 1) headings.add(node);
+          node.visitChildren((SemanticsNode child) {
+            walk(child);
+            return true;
+          });
+        }
+
+        SemanticsNode root = tester.getSemantics(find.byType(Scaffold));
+        while (root.parent != null) {
+          root = root.parent!;
+        }
+        walk(root);
+        expect(headings.map((SemanticsNode n) => n.label), <String>[title]);
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      });
+    });
   });
 }
