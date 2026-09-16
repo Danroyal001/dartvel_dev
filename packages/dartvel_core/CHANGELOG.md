@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`DVShorebirdPatchSource`: a patch source for Shorebird's updater that
+  Dartvel serves.** The updater in Shorebird's engine asks
+  `<base_url>/api/v1/patches/check`, with `base_url` read from
+  `shorebird.yaml`. This answers that check, serves the patch download
+  (resumable) and accepts the install events, from a directory of patches per
+  app, release, platform and architecture, with channels and rollback. It is
+  the open-source updater's wire format; Shorebird itself offers no
+  self-hosting.
+
 - **`dvApplyGeneratedSchema`** makes the generated models' tables and adds
   the columns a table made by an earlier release is missing, on SQLite by
   asking the table what it has. It is what `dartvel db migrate` runs, moved
