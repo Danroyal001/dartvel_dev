@@ -94,7 +94,8 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --[no-]tree-shake-icons      Tree shake icons',
       '                                 (defaults to on)',
       '    --[no-]auto-install          Install missing build tools without prompting. Defaults to prompting when interactive, and to installing in CI. Use --no-auto-install to require a pre-provisioned toolchain.',
-      '    --cloud                      Build on this repository\'s own GitHub Actions instead of this machine: iOS and macOS on a macOS runner, whatever the host. Writes .github/workflows/dartvel-cloud.yml, dispatches it with GH_TOKEN or gh\'s login, follows the run and downloads the artifact into build/cloud/<target>.',
+      '    --cloud                      Build on Dartvel Cloud instead of this machine, which needs no SDK for the target: iOS and macOS build on a macOS worker. Prints the build log as it runs and downloads the artifacts into build/cloud/<target>. Needs a paid Dartvel Cloud plan.',
+      '    --cloud-token                The Dartvel Cloud token for --cloud. Defaults to DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.',
     ],
   ),
   DocsCliCommand(
@@ -485,17 +486,14 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'key',
-    description: 'The application key in the platform key store, and cloud build credentials in the repository\'s secrets.',
+    description: 'The application key in the platform key store, and signing credentials in Dartvel Cloud.',
     subcommands: <DocsCliCommand>[
       DocsCliCommand(
         name: 'cloud',
-        description: 'Set the credentials cloud builds sign and publish with as the repository\'s Actions secrets.',
+        description: 'Keep a signing or store credential in Dartvel Cloud for this project, or list them.',
         options: <String>[
-          '    --android-keystore=<file>            The upload keystore release builds are signed with. Its password is read from DARTVEL_ANDROID_KEYSTORE_PASSWORD, and the key\'s from DARTVEL_ANDROID_KEY_PASSWORD when it differs.',
-          '    --android-key-alias                  The alias of the key in that keystore.',
-          '    --firebase-service-account=<file>    A service account JSON key that dartvel publish firebase uploads with.',
-          '    --repo=<owner/name>                  The repository whose secrets are set. Defaults to the origin remote.',
-          '    --dry-run                            Name the secrets that would be set, and set none.',
+          '    --delete         Remove the named credential from Dartvel Cloud.',
+          '    --cloud-token    The Dartvel Cloud token. Defaults to DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.',
         ],
       ),
       DocsCliCommand(
@@ -673,9 +671,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     name: 'publish',
     description: 'Publish a built application to a store (play, appstore, testflight, firebase).',
     options: <String>[
-      '    --dry-run     Print the command that would run, and run nothing.',
-      '    --artifact    The file to upload, when it is not where the build puts it.',
-      '    --cloud       Build and publish on this repository\'s own GitHub Actions, in one run of the workflow dartvel build --cloud writes. With --dry-run the run prints the upload instead of making it. Firebase only for now: Play needs an app bundle and App Store Connect a signed IPA, and dartvel build makes neither yet.',
+      '    --dry-run        Print the command that would run, and run nothing.',
+      '    --artifact       The file to upload, when it is not where the build puts it.',
+      '    --cloud          Build and publish on Dartvel Cloud, with the credentials kept there by dartvel key cloud. With --dry-run the worker prints the upload instead of making it. Firebase only for now: Play needs an app bundle and App Store Connect a signed IPA, and dartvel build makes neither yet. Needs a paid Dartvel Cloud plan.',
+      '    --cloud-token    The Dartvel Cloud token for --cloud. Defaults to DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.',
     ],
   ),
   DocsCliCommand(
