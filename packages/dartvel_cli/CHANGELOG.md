@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **An index page inside a route group is its folder's index.**
+  `lib/pages/(tabs)/index.page.dart` was routed at `/index` rather than `/`,
+  so a tabs layout opening on the home page refused every other page in the
+  folder as belonging to no tab (`DV-ROUTE-005`).
+
 - **`dartvel key cloud` sets the credentials cloud builds use as the
   repository's Actions secrets.** `--android-keystore` with
   `--android-key-alias` sets the keystore, its password (read from

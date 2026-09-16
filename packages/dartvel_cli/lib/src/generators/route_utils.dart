@@ -21,6 +21,9 @@ class RouteUtils {
     if (path == 'index') return '/';
     // strip group folders
     path = path.replaceAllMapped(RegExp(r'\(([^)]+)\)/'), (m) => '');
+    // A group adds nothing to a path, so an index inside one at the root is
+    // the root index too -- checked again now the groups are gone.
+    if (path == 'index') return '/';
     // dynamic and catch-all segments
     path = path.replaceAllMapped(RegExp(r'\[([^\]]+)\]'), (m) {
       final seg = m.group(1)!;
