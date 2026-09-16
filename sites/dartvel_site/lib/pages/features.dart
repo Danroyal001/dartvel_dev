@@ -672,7 +672,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
           'Only on the part its card lists as working. Read its entry in '
               'spec-status.json first.',
         ),
-        PrimaryLink('Create your first app', '/docs'),
+        DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', '/docs')]),
       ],
     ),
     SiteFooter(),

@@ -411,7 +411,7 @@ Widget _routingProof(BuildContext context) => const Section(
       'No. Declare them in lib/routes.dart, or mount your GoRoute list inside '
           'Dartvel\'s router with DVGoRoutes.',
     ),
-    GhostLink('Read the routing docs', '/docs/routing'),
+    DVBox.wrapLine(<Widget>[GhostLink('Read the routing docs', '/docs/routing')]),
   ],
 );
 
