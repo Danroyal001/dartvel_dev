@@ -78,6 +78,7 @@ class DVAuthEndpoints {
   static const String emailChangePath = '/auth/account/email';
   static const String emailVerifyPath = '/auth/account/email/verify';
   static const String deleteAccountPath = '/auth/account/delete';
+  static const String passwordPath = '/auth/account/password';
 
   /// Every path these endpoints are served under, below the API base path.
   static const List<String> paths = <String>[
@@ -98,6 +99,7 @@ class DVAuthEndpoints {
     emailChangePath,
     emailVerifyPath,
     deleteAccountPath,
+    passwordPath,
   ];
 
   /// Sent as `token` by a native client that keeps the session token itself.
@@ -958,6 +960,100 @@ class DVAuthEndpoints {
             'set-cookie': stage.cookie.clearHeader(development: stage.development),
           },
         );
+      });
+
+  /// `POST /auth/account/password`: `currentPassword`, `newPassword`, and on
+  /// an account with a second factor a `code` or `recoveryCode` unless one
+  /// was presented on this session within the step-up window.
+  ///
+  /// The session is not enough: a session somebody else holds is exactly
+  /// what a password change is for ending, and a change it could make alone
+  /// would lock the person out of their own account. The current password
+  /// is checked through the credential guard, so a wrong one counts as one
+  /// at sign-in does. The new one is breach-checked and the provider's rules
+  /// apply. Then this session rotates and every other session of the person
+  /// -- on every tenant, since a password is the account's -- is revoked.
+  static Future<Response> changePassword(Request request) => _guard(() async {
+        final DVSessionPrincipal? principal = DVSessionPrincipal.current;
+        if (principal == null) return _unauthenticated();
+        final DVCredentialGuard? guard = _credentials;
+        if (guard == null) return _notConfigured();
+        final Object? provider = guard.provider;
+        if (provider is! DVPasswordProvider) {
+          return _error(
+            503,
+            'account_changes_not_configured',
+            'Changing a password needs a provider that is a '
+                'DVPasswordProvider, passed to DVAuthEndpoints.install.',
+          );
+        }
+        final _Body body = await _body(request);
+        final Response? refused = body.refused;
+        if (refused != null) return refused;
+        final String? current = body.string('currentPassword');
+        final String? next = body.string('newPassword');
+        if (current == null || next == null) {
+          return _error(400, 'invalid_request',
+              'The current password and a new one are required.');
+        }
+        final String userId = principal.userId;
+        final AuthUser? user = await provider.userById(userId);
+        if (user == null) return _unauthenticated();
+        try {
+          final AuthUser? again =
+              await guard.signIn(user.email, current, source: sourceOf(request));
+          if (again == null || again.id != userId) {
+            return _credentialError(AuthException.invalidCredentials);
+          }
+        } on Object catch (error) {
+          return _credentialError(error);
+        }
+        bool factorPresented = false;
+        final DVSecondFactors? factors = _secondFactors;
+        if (factors != null && await factors.hasTotp(userId)) {
+          final String? code = body.string('code');
+          final String? recoveryCode = body.string('recoveryCode');
+          if (code != null || recoveryCode != null) {
+            final Response? failed = await _presentFactor(
+              guard,
+              request,
+              userId,
+              () => code != null
+                  ? factors.verifyTotp(userId, code)
+                  : factors.redeemRecoveryCode(userId, recoveryCode!),
+            );
+            if (failed != null) return failed;
+            factorPresented = true;
+          } else {
+            final DVMfa fresh = DVMfa.recent(_stepUpWindow);
+            if (!fresh.isSatisfiedBy(principal.session, DateTime.now().toUtc())) {
+              return stepUpRequired(fresh);
+            }
+          }
+        }
+        if (next == current) {
+          return _error(400, 'password_unchanged',
+              'The new password is the current one.');
+        }
+        try {
+          await guard.checkNewPassword(next);
+          await provider.changePassword(userId, next);
+        } on Object catch (error) {
+          return _credentialError(error);
+        }
+        final _Rotated? rotated =
+            await _rotate(request, factorPresented: factorPresented);
+        if (rotated == null) return _unauthenticated();
+        final DVSessions sessions = DVSessionAuthentication.sessions;
+        int revoked = 0;
+        for (final DVSession session in await sessions.list(userId)) {
+          if (session.id == rotated.issued.session.id) continue;
+          await sessions.revoke(session.id);
+          revoked++;
+        }
+        return _deliver(request, rotated.stage, rotated.issued, <String, Object?>{
+          'revoked': revoked,
+        }, bearer: rotated.bearer);
       });
 
   static Future<Map<String, Object?>> _accountJson(

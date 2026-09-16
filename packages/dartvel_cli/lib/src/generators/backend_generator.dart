@@ -209,6 +209,12 @@ class BackendGenerator {
     if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     return core.DVAuthEndpoints.deleteAccount(req);
   }));
+  // A password change, behind the current password and a fresh second factor;
+  // it rotates this session and revokes every other one.
+  router.post(cfg.apiBasePath + core.DVAuthEndpoints.passwordPath, (dv.Request req) => _dvStaged(req, () async {
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    return core.DVAuthEndpoints.changePassword(req);
+  }));
 ''';
 
   /// The paths [_dvAuthRouteSource] serves, below the API base path. Kept
@@ -231,6 +237,7 @@ class BackendGenerator {
     '/auth/account/email',
     '/auth/account/email/verify',
     '/auth/account/delete',
+    '/auth/account/password',
   ];
 
   static Future<void> generate({

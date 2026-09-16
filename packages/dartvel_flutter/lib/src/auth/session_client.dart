@@ -521,6 +521,27 @@ class DVSessionClient {
     return DVAccount.fromJson(json['account'], path);
   }
 
+  /// Changes the password, presenting the current one -- and a [code] or
+  /// [recoveryCode] when the account has a second factor. This device adopts
+  /// the rotated session; the answer is how many other sessions the server
+  /// revoked.
+  Future<int> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    String? code,
+    String? recoveryCode,
+  }) async {
+    final Map<String, Object?> json =
+        await _rotated(DVAuthEndpoints.passwordPath, <String, Object?>{
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+      if (code != null) 'code': code,
+      if (recoveryCode != null) 'recoveryCode': recoveryCode,
+    });
+    final Object? revoked = json['revoked'];
+    return revoked is int ? revoked : 0;
+  }
+
   /// Deletes the account, presenting its [password] -- and a [code] or
   /// [recoveryCode] when it has a second factor. Only once the server
   /// confirms is the session forgotten here; a refusal throws and leaves

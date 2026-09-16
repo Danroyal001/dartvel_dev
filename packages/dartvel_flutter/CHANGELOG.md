@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Changing the password from `DV.Auth.SecurityPage`.** `DV.Auth.changePassword`
+  (and `DVSessionClient.changePassword`) sends the current and new password,
+  with a code or recovery code when given, adopts the rotated session and
+  answers how many other devices were signed out. The page asks for both
+  passwords, and a code when the account has an authenticator; says that
+  changing the password signs out every other device; clears every field
+  once the change is made and keeps what was typed after a refusal; and
+  names a wrong current password, a breached or weak new one, and a missing
+  code.
+
 - **`DVAccountPages.requireSession`, and navigation entries for the account
   pages.** The redirect the generated router puts in front of an account page:
   nobody signed in goes to `dvSignInRoute` with where they were going as
