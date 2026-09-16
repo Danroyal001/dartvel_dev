@@ -324,7 +324,7 @@ Widget _phoneLoop(BuildContext context) => const Section(
     Heading('Scan a QR code and hot reload on your Android phone.'),
     CodeBlock(<String>[
       r'$ dartvel build android --profile development',
-      r'$ dartvel dev --dev-client',
+      r'$ dartvel dev',
       '[dartvel] Dev client: serving main on port 8787.',
       '[dartvel] Scan with the camera on a device running a development build:',
       '# the QR code and its dartvel-dev://pair link print here',
