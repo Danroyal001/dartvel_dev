@@ -22,6 +22,12 @@
   Flutter developer makes, rather than a separate artifact built from a
   generated entrypoint with no application code in it.
 
+- **A backend function named like its own route stops the build with both
+  names.** `_getHello` in `hello.get.dart` generates `getHello`, and so does
+  the route `GET /hello`, so the client declared `getHello` twice and failed
+  to compile inside a generated file. Generation now says which function and
+  route collide and suggests a name.
+
 - **An async backend function's typed client needs no mapper for a known
   type.** The return type was converted with its `Future` still attached, so
   `Future<String>` or `Future<Map<String, Object?>>` matched nothing and the
