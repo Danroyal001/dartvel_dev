@@ -516,7 +516,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Dev Client',
-    'dartvel dev --dev-client',
+    'dartvel dev',
     'Present: an Android development build pairs by QR code and hot reloads '
         'on every save over your network. Absent: pairing on iOS.',
   ),
