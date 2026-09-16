@@ -154,7 +154,7 @@ void main() {
     test('not other platforms, which have no tunnel yet', () {
       expect(
         dvDevelopmentBuildTarget(
-          platform: 'linux',
+          platform: 'windows',
           profile: DVBuildProfile.development,
           target: null,
         ),

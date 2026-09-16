@@ -16,7 +16,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 /// Targets a development build can be paired with.
-const List<String> dvDevClientTargets = <String>['android', 'ios'];
+const List<String> dvDevClientTargets = <String>['android', 'ios', 'macos'];
 
 /// Where `dartvel dev` reads the page documents it serves.
 const String dvDevClientPagesDir = 'studio/pages';

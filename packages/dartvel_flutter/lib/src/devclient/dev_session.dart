@@ -2,15 +2,18 @@
 ///
 /// The development entrypoint calls [DVDevClientSession.start] before the
 /// application's own `main`. It hands this app's Dart VM service URI to the
-/// Java the build wrote, which holds the pairing link and runs the tunnel the
-/// dev server reaches the VM service through. The tunnel is Java because a hot
-/// restart kills every Dart isolate, and the restart travels over it.
+/// native code the build wrote -- Java on Android over JNI, Objective-C on iOS
+/// and macOS over FFI -- which holds the pairing link and runs the tunnel the
+/// dev server reaches the VM service through. The tunnel is native because a
+/// hot restart kills every Dart isolate, and the restart travels over it.
 library;
 
 import 'dart:developer' as developer;
+import 'dart:ffi';
 import 'dart:io' show Platform;
 
 import 'package:dartvel_core/dartvel.dart' show DVDevServerHost;
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:jni/jni.dart';
 
@@ -18,6 +21,11 @@ abstract final class DVDevClientSession {
   /// The class `dartvel build android --profile development` writes, in JNI's
   /// form. The CLI's tests assert it is the same string the build uses.
   static const String androidClass = 'dev/dartvel/devclient/DartvelDevClient';
+
+  /// The C functions `dartvel build ios|macos --profile development` writes.
+  /// The CLI's tests assert they are the names the build uses.
+  static const String appleVmServiceSymbol = 'dartvel_dev_client_vm_service';
+  static const String appleServerHostSymbol = 'dartvel_dev_client_server_host';
 
   /// What the last [start] found, for a dev menu or a log.
   static String? lastStatus;
@@ -37,15 +45,22 @@ abstract final class DVDevClientSession {
     if (kReleaseMode || kProfileMode) {
       return 'not a development build, so there is nothing to pair';
     }
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
       return 'no dev client on this platform; a development build pairs on '
-          'Android';
+          'Android, iOS and macOS';
     }
-    final Uri? vmService = (await developer.Service.getInfo()).serverUri;
+    // The VM service can still be starting when main runs; waited for
+    // briefly rather than reported missing.
+    Uri? vmService = (await developer.Service.getInfo()).serverUri;
+    for (int i = 0; vmService == null && i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      vmService = (await developer.Service.getInfo()).serverUri;
+    }
     if (vmService == null) {
       return 'this build is running without a Dart VM service, so dartvel dev '
           'cannot reload it';
     }
+    if (!Platform.isAndroid) return _startApple(vmService);
     final JClass client;
     try {
       client = JClass.forName(androidClass);
@@ -69,6 +84,34 @@ abstract final class DVDevClientSession {
       return answer?.toDartString(releaseOriginal: true) ?? 'started';
     } on Object catch (error) {
       return '$androidClass is present but did not start the tunnel ($error)';
+    }
+  }
+
+  static String _startApple(Uri vmService) {
+    final DynamicLibrary process = DynamicLibrary.process();
+    if (!process.providesSymbol(appleVmServiceSymbol)) {
+      return 'the tunnel is not in this build (no $appleVmServiceSymbol). It '
+          'is written by `dartvel build ios|macos --profile development`; an '
+          'app built with plain `flutter build` does not have it.';
+    }
+    final Pointer<Utf8> Function(Pointer<Utf8>) start = process
+        .lookupFunction<
+          Pointer<Utf8> Function(Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>)
+        >(appleVmServiceSymbol);
+    final Pointer<Utf8> uri = vmService.toString().toNativeUtf8();
+    try {
+      final Pointer<Utf8> status = start(uri);
+      if (process.providesSymbol(appleServerHostSymbol)) {
+        final Pointer<Utf8> host = process
+            .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+              appleServerHostSymbol,
+            )();
+        if (host != nullptr) DVDevServerHost.current = host.toDartString();
+      }
+      return status == nullptr ? 'started' : status.toDartString();
+    } finally {
+      malloc.free(uri);
     }
   }
 }
