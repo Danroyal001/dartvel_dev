@@ -1,4 +1,4 @@
-import 'dart:convert' show jsonEncode, utf8;
+import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
@@ -598,6 +598,18 @@ class BackendGenerator {
       ],
     );
     final openApiJson = encodeOpenApiDocument(openApiDocument);
+    // The models' tables, as the model generator wrote them down, for the
+    // server to make on SQLite before it serves. Carried in the generated
+    // source because a compiled server has no project beside it to read.
+    final File schemaFile = File(p.join(root, '.dart_tool', 'dartvel_schema.g.json'));
+    Object? schemaTables = const <Object?>[];
+    if (schemaFile.existsSync()) {
+      final Object? decoded = jsonDecode(schemaFile.readAsStringSync());
+      if (decoded is Map && decoded['tables'] is List) {
+        schemaTables = decoded['tables'];
+      }
+    }
+    final String schemaTablesJson = jsonEncode(schemaTables);
     File(p.join(libClientDir.path, 'openapi.g.dart')).writeAsStringSync('''
 // GENERATED – do not edit.
 library dartvel_client_openapi;
@@ -688,6 +700,46 @@ ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
 const String _dvOpenApiJson = r\'\'\'
 $openApiJson\'\'\';
+
+// The generated models' tables: each statement and its columns.
+const String _dvSchemaTablesJson = r\'\'\'
+$schemaTablesJson\'\'\';
+
+/// The database this process shares, made ready before anything uses it.
+///
+/// DV.Database is that database when the application configured none: a
+/// backend function or a model with nothing configured otherwise threw on
+/// its first query. On SQLite the models' tables are made, and the columns a
+/// table from an earlier release is missing are added -- a web-server
+/// binary's first run creates the file and everything in it. PostgreSQL and
+/// MySQL are migrated with `dartvel db migrate`, where a blocking change is
+/// gated rather than run by whichever instance starts first.
+Future<void> _dartvelPrepareDatabase(core.DVProcessStores stores) async {
+  final core.DVDatabaseAdapter? database = stores.database;
+  if (database == null) return;
+  if (const core.DVDatabase().configuredAdapter == null) {
+    const core.DVDatabase().configure(database);
+  }
+  if (stores.connection?.engine != core.DVDatabaseEngine.sqlite) return;
+  final List<Map<String, Object?>> tables = <Map<String, Object?>>[
+    for (final Object? table in conv.jsonDecode(_dvSchemaTablesJson) as List<Object?>)
+      (table! as Map<Object?, Object?>).cast<String, Object?>(),
+  ];
+  final core.DVGeneratedSchemaReport report = await core.dvApplyGeneratedSchema(
+    database,
+    tables,
+    engine: core.DVDatabaseEngine.sqlite,
+  );
+  for (final String table in report.created) {
+    stdout.writeln('dartvel: created table \$table');
+  }
+  for (final String column in report.added) {
+    stdout.writeln('dartvel: added column \$column');
+  }
+  for (final String table in report.needsTenant) {
+    stderr.writeln('dartvel: \$table has rows and no tenant column; run dartvel db migrate --tenant to say whose they are.');
+  }
+}
 
 
 // Multipart structures and parser (bytes): collects text fields and files
@@ -1349,7 +1401,7 @@ const int dartvelMaxBodyBytes = ${server.maxBodyBytes};
 /// [maxBodyBytes] overrides `dartvel.server.maxBodyBytes`. Each route's own
 /// limit is read from `DVBodyLimits` when the router is built here, so set
 /// those before calling this.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes}) async {
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase}) async {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -1378,7 +1430,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // webhook can send: the same declaration the client runtime installs.
   configureDartvelHttp();
   registerDartvelJobs();
-  final core.DVProcessStores stores = core.DVProcessStores.install();
+  // [defaultDatabase] when DATABASE_URL is not set: a web-server binary's
+  // SQLite file, created here on its first run.
+  final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
+  await _dartvelPrepareDatabase(stores);
   if (processConfiguration.roleDeclared && !const core.DVQueues().adapterConfigured) {
     stderr.writeln('dartvel: DARTVEL_ROLE=web and DATABASE_URL is not set, so a job dispatched here goes on a queue inside this process and no DARTVEL_ROLE=worker process will run it.');
   }
@@ -1552,12 +1607,12 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
-Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20)}) async {
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase}) async {
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
     case core.DVProcessRole.web:
-      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick);
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase);
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();
@@ -1580,7 +1635,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelJobs();
       // The account erasure job, for a worker given its queue.
       configureDartvelBackendAccounts();
-      final core.DVProcessStores workerStores = core.DVProcessStores.install();
+      final core.DVProcessStores workerStores = core.DVProcessStores.install(fallback: defaultDatabase);
+      await _dartvelPrepareDatabase(workerStores);
       // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
       // here -- the account erasure job included.
       await _dartvelStartBackendPrivacy(workerStores);
@@ -1614,7 +1670,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelJobs();
       // The account deletion sweep ticks where the schedules do.
       configureDartvelBackendAccounts();
-      final core.DVProcessStores stores = core.DVProcessStores.install();
+      final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
+      await _dartvelPrepareDatabase(stores);
       // Each occurrence claimed in the shared database, so a second cron
       // process fires nothing twice. With none shared this throws rather than
       // start, unless DARTVEL_SCHEDULE_LEASE=none says this one is alone.

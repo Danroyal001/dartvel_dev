@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **`dartvel build web-server` writes one file that is the whole
+  deployment.** `build/server` carries the backend, the native server
+  library and the web app (shell, code and assets) inside itself. Copied
+  alone to another machine it starts, keeps its data in `dartvel_data`
+  beside itself (`DARTVEL_DATA_DIR` moves it), writes the web files there
+  once per build, and renders each page on request. With no `DATABASE_URL`
+  it uses SQLite at `dartvel_data/data.db`, creating the file and the
+  models' tables on the first run and adding new columns on later ones.
+  With `DATABASE_URL` set, that database is used instead. The admin
+  dashboard and debug symbols are not carried.
+- **A backend with nothing configured has a `DV.Database`.** The generated
+  backend configures `DV.Database` with the database it shares with its
+  other processes when the application configured none, so a backend
+  function's first query no longer throws.
+
 - **`afterCommit` and `compensate` on an injected `DVContext` run.** The
   context a backend function is handed is made per request and is not a
   `DV.transaction`, so its hooks were never read: a receipt registered with
