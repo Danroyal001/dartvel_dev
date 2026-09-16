@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **The generated runtime registers the Shorebird update bindings** in
+  `registerPlatformBindings`, a no-op on a build without Shorebird's engine.
+
 - **A backend function's body keeps its file's imports.** A private
   `@DVBackendFunction` is lowered out of its file, and the routes file it
   was lowered into imported nothing of the application's, so the first
