@@ -720,7 +720,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [basic_app, class_widgets_app]
+        # docs_samples holds every code sample on the docs site, so a sample
+        # that stops compiling fails here. The site checks its copy matches.
+        example: [basic_app, class_widgets_app, docs_samples]
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -760,6 +762,13 @@ jobs:
       - name: Test
         working-directory: examples/${{ matrix.example }}
         run: flutter test
+      # The samples include backend functions, and generated files are
+      # excluded from analysis. Compiling the server entry is what shows a
+      # backend sample still becomes a server.
+      - name: The backend samples compile into a server
+        if: matrix.example == 'docs_samples'
+        working-directory: examples/docs_samples
+        run: dart compile kernel .dart_tool/dartvel_server.dart -o "$RUNNER_TEMP/server.dill"
 
   # The example built for the web, which runs the build's accessibility
   # audit over every page it has -- generated ones included: a home widget's
