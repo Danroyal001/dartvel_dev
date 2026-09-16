@@ -557,3 +557,15 @@ String _scan(String s, {required bool blankStrings}) {
   assert(i >= s.length);
   return out.toString();
 }
+
+/// The index of the bracket closing the one at [open] in comment- and
+/// string-blanked [masked] source, or -1.
+int dvMatchingClose(String masked, int open) => _matchingClose(masked, open);
+
+/// The named arguments at depth zero between [open] and [close] in [masked]
+/// source, as the span of each value.
+Map<String, (int, int)> dvNamedArgs(String masked, int open, int close) =>
+    _namedArgs(masked, open, close);
+
+/// The 1-based line of [offset] in [source].
+int dvLineOf(String source, int offset) => _lineOf(source, offset);

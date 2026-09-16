@@ -13,6 +13,7 @@ import 'account_generator.dart';
 import 'analytics_generator.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
+import 'config_routes.dart';
 import 'flag_generator.dart';
 import 'http_hosts_generator.dart';
 import 'job_generator.dart';
@@ -167,6 +168,14 @@ Future<void> generate({
     pkgName: pkgName,
   ).where((p) => p.route != null && p.generatesPage).toList();
 
+  // The routes file, read before anything is written: a route it declares
+  // that the build cannot read (DV-ROUTE-003) would otherwise run with no
+  // typed target and no check against the pages.
+  final DVConfigRoutes configRoutes = DVConfigRoutes.read(root: root, dv: dv);
+  if (configRoutes.errors.isNotEmpty) {
+    throw StateError(configRoutes.errors.join('\n'));
+  }
+
   // Adoption's build errors, before anything is written: a route both the
   // host router and a page define (DV-ADOPT-002), and a model that already
   // has a generated serializer (DV-ADOPT-003). Checked here rather than in
@@ -178,6 +187,8 @@ Future<void> generate({
     extraRoutes: <(String, String)>[
       for (final model in publicPageModels)
         (model.route!, 'the generated page of ${model.className ?? model.functionName}'),
+      for (final DVConfigRoute route in configRoutes.routes)
+        (route.path, 'the config route at ${route.source}'),
     ],
   );
   for (final String note in adoption.unchecked) {
@@ -191,6 +202,25 @@ Future<void> generate({
   // under the mount point, so the route index, the sitemap, static
   // generation and the web server all know about them.
   final modules = dvDiscoverModuleMounts(root);
+
+  // DV-ROUTE-001 and DV-ROUTE-004: config routes against everything else the
+  // router serves, before a mounted module is generated.
+  if (configRoutes.exists) {
+    final List<String> routeErrors = dvConfigRouteConflicts(
+      configRoutes,
+      generated: <(String, String)>[
+        for (final (String path, String source)
+            in dvGeneratedPageRoutes(root, pagesDir))
+          (path, 'the page $source'),
+        for (final model in publicPageModels)
+          (model.route!, 'the generated page of ${model.className ?? model.functionName}'),
+        for (final module in modules)
+          for (final route in module.routes)
+            (route.mounted, 'the module ${module.id}'),
+      ],
+    );
+    if (routeErrors.isNotEmpty) throw StateError(routeErrors.join('\n'));
+  }
   for (final module in modules) {
     for (final problem in module.problems) {
       log('dartvel: $problem');
@@ -245,6 +275,7 @@ Future<void> generate({
     webPrerender: webPrerender,
     ota: ota,
     dv: dv,
+    configRoutes: configRoutes,
   );
 
   // DV.Analytics and DV.Privacy, which the client runtime and the generated

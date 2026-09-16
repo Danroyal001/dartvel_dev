@@ -155,6 +155,74 @@ import '../dartvel_client/dartvel_client.dart';
 Widget _accountPage(BuildContext context) => const DVText('Account');
 ''';
 
+/// Config routes beside the pages: every node type, a typed redirect to a
+/// page's target, a typed link to a config route's, and an adopted GoRoute.
+/// Analyzed with the rest, so the import, the spread and the targets the
+/// generator writes for them are compiled rather than read.
+const String _configRoutes = '''
+import 'package:flutter/widgets.dart';
+
+import 'dartvel_client/dartvel_client.dart';
+
+final List<DVRouteNode> routes = <DVRouteNode>[
+  DVRoute(
+    path: '/settings',
+    title: 'Settings',
+    builder: (BuildContext context, DVRouteState state) =>
+        DVNavLink(to: DVRoutes.order(id: '42'), child: const DVText('Order')),
+  ),
+  DVRoute(
+    path: '/orders',
+    builder: (BuildContext context, DVRouteState state) =>
+        const DVText('Orders'),
+    routes: <DVRouteNode>[
+      DVRoute(
+        path: ':id',
+        name: 'order',
+        builder: (BuildContext context, DVRouteState state) =>
+            DVText(state.params['id'] ?? ''),
+      ),
+    ],
+  ),
+  DVShellRoute(
+    redirect: (BuildContext context, DVRouteState state) async =>
+        DV.Auth.currentUser == null ? DVRoutes.index : null,
+    builder: (BuildContext context, DVRouteState state, Widget child) => child,
+    routes: <DVRouteNode>[
+      DVRoute(
+        path: '/reports',
+        builder: (BuildContext context, DVRouteState state) =>
+            const DVText('Reports'),
+      ),
+    ],
+  ),
+  DVStatefulShellRoute(
+    builder:
+        (BuildContext context, DVRouteState state, DVShellNavigation shell) =>
+            shell,
+    branches: <DVShellBranch>[
+      DVShellBranch(
+        initialLocation: DVRoutes.feed,
+        routes: <DVRouteNode>[
+          DVRoute(
+            path: '/feed',
+            builder: (BuildContext context, DVRouteState state) =>
+                const DVText('Feed'),
+          ),
+        ],
+      ),
+    ],
+  ),
+  DVGoRoutes(<RouteBase>[
+    GoRoute(
+      path: '/legacy',
+      builder: (BuildContext context, GoRouterState state) =>
+          const DVText('Legacy'),
+    ),
+  ]),
+];
+''';
+
 const String _backendFunction = '''
 import 'package:dartvel_core/dartvel.dart';
 
@@ -196,6 +264,7 @@ void main() {
     write(p.join(project.path, 'lib', 'pages', 'account.page.dart'),
         _guardedPage);
     write(p.join(project.path, 'lib', 'backend', 'ping.dart'), _backendFunction);
+    write(p.join(project.path, 'lib', 'routes.dart'), _configRoutes);
     write(p.join(project.path, 'lib', 'flags', 'flags.dart'), _flags);
     write(p.join(project.path, 'lib', 'pages', 'checkout.page.dart'),
         _checkoutPage);
@@ -349,6 +418,18 @@ dependency_overrides:
 
     expect(router, contains('DVPageMiddleware.check'));
     expect(router, contains('DVPageMiddleware.isSignedIn ??='));
+  });
+
+  test('the config routes are mounted in the analyzed router', () {
+    // Without this the routes file could stop being read and the analyzer
+    // would keep passing on a router with no config routes in it.
+    final String router = File(
+      p.join(project.path, 'lib', 'dartvel_client', 'router.g.dart'),
+    ).readAsStringSync();
+
+    expect(router, contains('dv_config.routes,'));
+    expect(router, contains("static DVRouteTarget order({required String id})"));
+    expect(router, contains("static const feed = DVRouteTarget('/feed');"));
   });
 
   test('the second-factor gate, its challenge route and the step-up are in '
