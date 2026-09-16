@@ -6037,6 +6037,25 @@ class DVAuth {
         .then((_) => _currentUser = null);
   }
 
+  /// Changes the password. The server checks [currentPassword], breach-checks
+  /// [newPassword], and on an account with an authenticator takes a [code] or
+  /// [recoveryCode] -- or throws [DVMfaRequired] when neither was given and no
+  /// factor was presented recently. This device keeps the rotated session;
+  /// every other device signed in as this person is signed out, and the
+  /// answer is how many.
+  Future<int> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    String? code,
+    String? recoveryCode,
+  }) =>
+      _sessionClient.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        code: code,
+        recoveryCode: recoveryCode,
+      );
+
   /// Two-factor status, enrollment with a QR code, recovery codes shown once,
   /// and removing the authenticator.
   Widget SecurityPage() => _SecurityPage(auth: this);
@@ -6726,6 +6745,14 @@ class _SecurityPageState extends State<_SecurityPage> {
   final TextEditingController _code = TextEditingController();
   final TextEditingController _removeCode = TextEditingController();
   final TextEditingController _stepUpCode = TextEditingController();
+  final TextEditingController _currentPassword = TextEditingController();
+  final TextEditingController _newPassword = TextEditingController();
+  final TextEditingController _passwordCode = TextEditingController();
+
+  /// Fixed text chosen here about the password change, apart from the
+  /// authenticator's, so neither hides the other.
+  String? _passwordError;
+  String? _passwordDone;
 
   DVSecondFactorStatus? _status;
   DVTotpEnrollment? _enrollment;
@@ -6748,6 +6775,9 @@ class _SecurityPageState extends State<_SecurityPage> {
     _code.dispose();
     _removeCode.dispose();
     _stepUpCode.dispose();
+    _currentPassword.dispose();
+    _newPassword.dispose();
+    _passwordCode.dispose();
     super.dispose();
   }
 
@@ -6821,6 +6851,63 @@ class _SecurityPageState extends State<_SecurityPage> {
       );
       _removeCode.clear();
       _codes = null;
+    });
+  }
+
+  Future<void> _changePassword() async {
+    if (_busy) return;
+    final String current = _currentPassword.text;
+    final String next = _newPassword.text;
+    if (current.isEmpty || next.isEmpty) {
+      setState(() {
+        _passwordDone = null;
+        _passwordError = 'Enter your current password and a new one.';
+      });
+      return;
+    }
+    final String presented = _passwordCode.text.trim();
+    final bool isCode = RegExp(r'^\d{6,8}$').hasMatch(presented);
+    setState(() {
+      _busy = true;
+      _passwordError = null;
+      _passwordDone = null;
+    });
+    String? error;
+    String? done;
+    try {
+      final int revoked = await widget.auth.changePassword(
+        currentPassword: current,
+        newPassword: next,
+        code: presented.isNotEmpty && isCode ? presented : null,
+        recoveryCode: presented.isNotEmpty && !isCode ? presented : null,
+      );
+      // Nothing typed here outlives its use.
+      _currentPassword.clear();
+      _newPassword.clear();
+      _passwordCode.clear();
+      done = switch (revoked) {
+        0 => 'Your password was changed.',
+        1 => 'Your password was changed, and 1 other device was signed out.',
+        _ => 'Your password was changed, and $revoked other devices were signed out.',
+      };
+    } on DVMfaRequired {
+      error = 'Enter a code from your authenticator app to change your password.';
+    } on DVBreachedPasswordRefusal catch (refusal) {
+      error = refusal.message;
+    } on AuthException catch (refusal) {
+      error = refusal.failure == AuthFailure.weakPassword
+          ? 'That new password is too weak. Choose a longer one.'
+          : _dvAccountRefusal(refusal,
+              fallback: 'Your password was not changed. Try again.');
+    } on Object catch (failure) {
+      error = _dvAccountRefusal(failure,
+          fallback: 'Your password was not changed. Check both passwords and try again.');
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _passwordError = error;
+      _passwordDone = done;
     });
   }
 
@@ -6906,6 +6993,37 @@ class _SecurityPageState extends State<_SecurityPage> {
         _dvAccountButton(
             'dv-security-remove', 'Remove', () => unawaited(_remove())),
       ],
+      const DVText('Password'),
+      TextField(
+        key: const ValueKey<String>('dv-security-password-current'),
+        controller: _currentPassword,
+        decoration: const InputDecoration(labelText: 'Current password'),
+        obscureText: true,
+        autofillHints: const <String>[AutofillHints.password],
+      ),
+      TextField(
+        key: const ValueKey<String>('dv-security-password-new'),
+        controller: _newPassword,
+        decoration: const InputDecoration(labelText: 'New password'),
+        obscureText: true,
+        autofillHints: const <String>[AutofillHints.newPassword],
+      ),
+      if (status != null && status.totp)
+        TextField(
+          key: const ValueKey<String>('dv-security-password-code'),
+          controller: _passwordCode,
+          decoration: const InputDecoration(
+              labelText: 'Code from the app or a recovery code'),
+          autocorrect: false,
+          autofillHints: const <String>[AutofillHints.oneTimeCode],
+        ),
+      const DVText('Changing your password signs out every other device.'),
+      _dvAccountButton('dv-security-password-submit', 'Change password',
+          () => unawaited(_changePassword())),
+      if (_passwordDone != null)
+        _dvAccountKeyed('dv-security-password-done', DVText(_passwordDone!)),
+      if (_passwordError != null)
+        _dvAccountKeyed('dv-security-password-error', DVText(_passwordError!)),
       if (error != null) _dvAccountKeyed('dv-security-error', DVText(error)),
     ]);
   }

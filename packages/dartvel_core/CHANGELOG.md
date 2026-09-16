@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **`DVAuthEndpoints.changePassword`, `POST /auth/account/password`.** Takes
+  `currentPassword` and `newPassword`, checked through the credential guard so
+  a wrong current password counts as one at sign-in does. On an account with
+  an authenticator it also takes a `code` or `recoveryCode`, unless a factor
+  was presented on the session within `stepUpWindow`; otherwise it is the
+  step-up refusal. The new password is breach-checked, the same one is 400
+  `password_unchanged`, and the provider's own rules apply. Then the session
+  rotates -- recording the factor when one was presented -- and every other
+  session of the person is revoked on every tenant, since the password is the
+  account's; the answer carries how many. `DVPasswordProvider` is what a
+  provider implements to have its password set, separately from
+  `DVAccountProvider` so an existing implementation keeps compiling;
+  `LocalAuthProvider` implements it.
+
 - **An address change and an account deletion work without application
   wiring, and refuse when they cannot.** `DVAuthEndpoints` used to send a
   verification code only through a `sendEmailVerification` the application

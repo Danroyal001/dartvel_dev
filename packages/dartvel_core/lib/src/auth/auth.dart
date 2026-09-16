@@ -90,6 +90,19 @@ abstract interface class DVAccountProvider implements DVAccountDirectory {
   Future<void> deleteAccount(String id);
 }
 
+/// A provider that can set an account's password, for the generated
+/// password-change endpoint.
+///
+/// The endpoint decides when: only after the current password is checked
+/// through the credential guard, a second factor where the account has one,
+/// and the breach check. The provider only stores what it is told, refusing
+/// a password its own rules call weak.
+abstract interface class DVPasswordProvider implements DVAccountDirectory {
+  /// Sets the password of the account with [id]. Throws [AuthException] with
+  /// [AuthFailure.weakPassword] for a password the provider will not keep.
+  Future<void> changePassword(String id, String password);
+}
+
 /// Auth manager
 class Auth {
   static Auth? _instance;
@@ -187,7 +200,7 @@ class _StoredCredential {
 /// in memory and has no account recovery, e-mail verification, or session
 /// expiry, so it remains a development and test adapter — configure a real
 /// [AuthProvider] for production.
-class LocalAuthProvider implements AuthProvider, DVAccountProvider {
+class LocalAuthProvider implements AuthProvider, DVAccountProvider, DVPasswordProvider {
   static const int minimumPasswordLength = 8;
 
   final _controller = StreamController<AuthUser?>.broadcast();
@@ -308,6 +321,21 @@ class LocalAuthProvider implements AuthProvider, DVAccountProvider {
     _accounts[key] = _StoredCredential(moved, current.value.passwordHash);
     if (_currentUser?.id == id) _currentUser = moved;
     return moved;
+  }
+
+  @override
+  Future<void> changePassword(String id, String password) async {
+    if (password.length < minimumPasswordLength) {
+      throw const AuthException(
+        AuthFailure.weakPassword,
+        'Passwords must be at least $minimumPasswordLength characters.',
+      );
+    }
+    final String passwordHash = _hasher.hash(password);
+    final MapEntry<String, _StoredCredential> current = _accounts.entries
+        .firstWhere((MapEntry<String, _StoredCredential> e) => e.value.user.id == id,
+            orElse: () => throw StateError('No account has that id.'));
+    _accounts[current.key] = _StoredCredential(current.value.user, passwordHash);
   }
 
   @override

@@ -1,4 +1,8 @@
 ## Unreleased
+- **The generated backend serves `POST /auth/account/password`,** behind the
+  authentication stage and CSRF-checked, and a backend function declaring
+  that path stops the build.
+
 - **The prebuilt account pages have routes.** The generated router serves
   `DV.Auth.ProfilePage`, `SecurityPage`, `SessionsPage` and `DeletePage` at
   `/account/profile`, `/account/security`, `/account/sessions` and
