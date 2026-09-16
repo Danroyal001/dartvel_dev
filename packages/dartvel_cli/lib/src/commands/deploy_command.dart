@@ -80,7 +80,15 @@ class DeployCommand extends Command<void> {
       Logger.log('📦 Building for production...');
       final buildResult = await _processRun(
         'dart',
-        ['run', 'dartvel_cli:dartvel', 'build', '--platform', target],
+        [
+          'run',
+          'dartvel_cli:dartvel',
+          'build',
+          '--platform',
+          // The server is the web-server build, which writes the backend
+          // executable. There is no build platform named server.
+          target == 'server' ? 'web-server' : target,
+        ],
         runInShell: true,
       );
 

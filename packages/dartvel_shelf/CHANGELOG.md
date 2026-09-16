@@ -7,7 +7,7 @@
   the library to load. On Linux it is loaded from an in-memory file, so
   nothing is written to disk; elsewhere it goes into a fresh private
   temporary directory. A compiled program that was given nothing now says the
-  library is missing and names `dartvel build server`.
+  library is missing and names `dartvel build web-server`.
 
 - **No request body is read past a limit.** The native side read every
   request body into memory before Dart saw any of it, with no cap, so one

@@ -1280,4 +1280,28 @@ dartvel:
       );
     });
   });
+  group('the backend binary', () {
+    // The backend executable is part of the web-server build. There is no
+    // separate `server` platform: a command nobody documented is a command
+    // the rest of the toolchain cannot be expected to know about.
+    test('server is not a build platform', () {
+      expect(buildPlatformArguments, isNot(contains('server')));
+      expect(isPlatformAvailableOn('server', 'linux'), isFalse);
+      expect(
+        () => resolveRequestedPlatform(
+          positional: const <String>['server'],
+          optionValue: 'all',
+          optionWasParsed: false,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('web-server is, on any host', () {
+      expect(buildPlatformArguments, contains('web-server'));
+      for (final String host in const <String>['linux', 'macos', 'windows']) {
+        expect(isPlatformAvailableOn('web-server', host), isTrue, reason: host);
+      }
+    });
+  });
 }

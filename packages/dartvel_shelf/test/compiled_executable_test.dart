@@ -149,7 +149,7 @@ void main() {
     final String output = run.lines.join('\n');
     expect(output, isNot(contains('Null check')));
     expect(output, contains('native server library'));
-    expect(output, contains('dartvel build server'));
+    expect(output, contains('dartvel build web-server'));
   },
       skip: skip);
 }

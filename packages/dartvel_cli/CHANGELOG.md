@@ -5,14 +5,15 @@
   `lib/pages/docs/_layout.dart` drew around the site header instead of below
   it. The root layout is now outermost.
 
-- **`dartvel build server` compiles the backend into one file.** It writes
-  `build/server`, the file `dartvel deploy`'s image runs as `/app/server`
-  and `dartvel infra`'s units start as `/opt/<app>/server`, and which nothing
-  produced: `dartvel deploy --target server` asked for a platform that did
-  not exist. The build generates the backend, embeds dartvel_shelf's native
-  server library for the host, and runs `dart compile exe`, so the binary
-  starts with nothing beside it. A host with no prebuilt library is skipped
-  with the path that was looked for, before anything is generated.
+- **`dartvel build web-server` also compiles the backend into one file.**
+  It writes `build/server`, the file `dartvel deploy`'s image runs as
+  `/app/server` and `dartvel infra`'s units start as `/opt/<app>/server`,
+  and which nothing produced. The build embeds dartvel_shelf's native server
+  library for the host and runs `dart compile exe`, so the binary starts
+  with nothing beside it. A host with no prebuilt library is told before
+  anything is generated, and the web output still builds.
+- **`dartvel deploy --target server` builds `web-server`.** It asked for
+  `build --platform server`, which is not a platform.
 
 - **`@DVModel(version: false)`, `@DVModel(softDelete: true)`, restore and
   revert are generated.** `version: false` writes without a version check.
