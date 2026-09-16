@@ -121,4 +121,20 @@ void _leads() {
           'The floor is Dart 3.12.2 for every package.');
     });
   });
+
+  group("a card's gap", () {
+    test("is the first sentence of what is missing, capitalised unless it is a name", () {
+      expect(
+        siteGap("Present: the policy. Absent: iPadOS and Tizen. And more."),
+        "iPadOS and Tizen.",
+        reason: "a name that starts in lower case keeps its case",
+      );
+      expect(siteGap("Present: a thing. Absent: the image. It needs a disk."),
+          "The image.");
+    });
+
+    test("is empty for a record that names nothing missing", () {
+      expect(siteGap("A file under lib/pages is a route."), isEmpty);
+    });
+  });
 }

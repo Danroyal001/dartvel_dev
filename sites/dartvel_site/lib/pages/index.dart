@@ -2,15 +2,6 @@ import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 import '../components/site.dart';
 
-/// Where the claims on this page can be checked.
-///
-/// Public because the page body is lowered into the generated router, which
-/// cannot see a private symbol in this file.
-const String kSpecStatusUrl =
-    'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json';
-const String kBuildTargetsUrl =
-    'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/build-targets.md';
-
 @DVPage(title: 'Dartvel: a Flutter app and its backend in one Dart project', showAppBar: false)
 @pragma('vm:entry-point')
 Widget _indexPage(BuildContext context) => const SingleChildScrollView(
