@@ -210,7 +210,7 @@ void main() {
         () async {
       final String field = fieldOf(await generate(_model), 'post');
       expect(
-        before(field, 'toPublicJson()'),
+        before(field, 'return _dvGraphQLPost(model)'),
         contains(
             "DVGraphQL.authorizeModel('Post.view', resource: model, $caller)"),
       );

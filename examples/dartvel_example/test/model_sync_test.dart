@@ -46,9 +46,19 @@ void main() {
     expect(await User.find('nobody'), isNull);
   });
 
-  test('save is an upsert keyed on the public path field', () async {
+  test('save is keyed on the public path field, and a model built by hand '
+      'replaces a stored row only when told to', () async {
     await user('ada').save();
-    await user('ada', name: 'Ada Lovelace').save();
+    // Built by hand, it read nothing, so it cannot know what it would
+    // replace: refused rather than a silent lost update (DV-HISTORY-001).
+    await expectLater(
+      user('ada', name: 'Ada Lovelace').save(),
+      throwsA(isA<DVConflictError>()),
+    );
+    expect((await User.find('ada'))!.name, 'Ada');
+
+    await user('ada', name: 'Ada Lovelace')
+        .save(onConflict: DVConflict.lastWriteWins);
 
     expect((await User.all()).length, 1);
     expect((await User.find('ada'))!.name, 'Ada Lovelace');

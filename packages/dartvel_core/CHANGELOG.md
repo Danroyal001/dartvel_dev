@@ -13,6 +13,10 @@
   `dvEnsureFrameworkColumns` adds a column a later release declared to a
   framework table that predates it, through the schema planner.
 
+- **`registerDVModelReadCarrier` and `carryDVModelRead`.** How an edit of a
+  model rebuilt from JSON inherits the version the model it edits was read
+  at, so its save is checked against that read rather than refused as unread.
+
 - **A browser client sends its credentials to an API on another origin, and
   only to origins named exactly.** `DVCredentialedOrigins.allow` names one
   origin; the browser transport sends a request to it with
