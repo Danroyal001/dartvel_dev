@@ -69,16 +69,17 @@ import '../build/build_profile.dart';
 // that already reached for it through this library keeps working.
 export '../build/render_backends.dart';
 
-typedef BuildPreflight =
-    Future<bool> Function(String platform, {bool? autoInstall});
+typedef BuildPreflight = Future<bool> Function(
+  String platform, {
+  bool? autoInstall,
+});
 
-typedef BuildProcessRun =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      bool runInShell,
-    });
+typedef BuildProcessRun = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  bool runInShell,
+});
 
 typedef BuildRunnerDependencyCheck = bool Function(String root);
 
@@ -112,7 +113,9 @@ const embeddedBuildPlatforms = <String>[
 ];
 
 /// Extension-host platforms built through host-specific Flutter embedders.
-const extensionBuildPlatforms = <String>['vscode'];
+const extensionBuildPlatforms = <String>[
+  'vscode',
+];
 
 /// Web output served by a Dartvel server rather than written to files.
 ///
@@ -120,7 +123,9 @@ const extensionBuildPlatforms = <String>['vscode'];
 /// build time -- which is the only way a model-backed page or a parameterised
 /// route can be served correctly, because neither can be written to a file
 /// ahead of being asked for.
-const webServerBuildPlatforms = <String>['web-server'];
+const webServerBuildPlatforms = <String>[
+  'web-server',
+];
 
 /// Browser extension bundles. These are Flutter web output plus a generated
 /// manifest and background script, not a separate embedder.
@@ -179,14 +184,10 @@ const terminalCapablePlatforms = <String>[
 /// `-tui` says what it does and `-cli` says where it runs; they resolve
 /// identically.
 const terminalBuildTargets = <String>[
-  'linux-cli',
-  'linux-tui',
-  'windows-cli',
-  'windows-tui',
-  'macos-cli',
-  'macos-tui',
-  'fuchsia-cli',
-  'fuchsia-tui',
+  'linux-cli', 'linux-tui',
+  'windows-cli', 'windows-tui',
+  'macos-cli', 'macos-tui',
+  'fuchsia-cli', 'fuchsia-tui',
 ];
 
 /// How a terminal build is actually produced.
@@ -248,7 +249,11 @@ TerminalBuildPlan terminalBuildPlan(
     // because that is where Dartvel installs it — and a plan naming something
     // nothing installs is the Fuchsia defect.
     toolchain: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
-    arguments: <String>['build', platform, if (buildMode != null) buildMode],
+    arguments: <String>[
+      'build',
+      platform,
+      if (buildMode != null) buildMode,
+    ],
   );
 }
 
@@ -277,15 +282,13 @@ TerminalBuildOutcome terminalBuildOutcome(
   if (toolchainPresent) {
     return TerminalBuildOutcome(
       shouldRun: true,
-      message:
-          'Building ${plan.platform} for the terminal with '
+      message: 'Building ${plan.platform} for the terminal with '
           '${plan.toolchain}.',
     );
   }
   return TerminalBuildOutcome(
     shouldRun: false,
-    message:
-        'Skipping ${plan.platform}-cli: ${plan.toolchain} is not '
+    message: 'Skipping ${plan.platform}-cli: ${plan.toolchain} is not '
         'installed. Terminal rendering uses the dartvel_cli_flt embedder, which '
         'renders through the Kitty graphics protocol from Rust — there is no '
         'way to produce a terminal binary from the desktop toolchain, so this '
@@ -413,9 +416,9 @@ String resolveRequestedPlatform({
 /// embedder can still be host-constrained: Fuchsia's states it builds on Linux
 /// only, not macOS or Windows natively.
 String? embeddedHostRequirement(String platform) => switch (platform) {
-  'fuchsia' => 'linux',
-  _ => null,
-};
+      'fuchsia' => 'linux',
+      _ => null,
+    };
 
 bool isPlatformAvailableOn(String platform, String hostOs) {
   switch (platform) {
@@ -463,85 +466,59 @@ class BuildCommand extends Command<void> {
     // A test passes its own, because that directory is one value shared by
     // every suite in the process.
     this._root,
-  }) : _preflightOverride = preflight,
-       _onPathOverride = onPath,
-       _processRun = processRun ?? _defaultProcessRun,
-       _hasBuildRunner = hasBuildRunner ?? hasBuildRunnerDependency {
+  })  : _preflightOverride = preflight,
+        _onPathOverride = onPath,
+        _processRun = processRun ?? _defaultProcessRun,
+        _hasBuildRunner = hasBuildRunner ?? hasBuildRunnerDependency {
     argParser
-      ..addOption(
-        'platform',
-        abbr: 'p',
-        allowed: buildPlatformArguments,
-        defaultsTo: 'all',
-        help: 'Target platform (or pass it positionally)',
-      )
-      ..addOption(
-        'profile',
-        allowed: DVBuildProfile.names,
-        defaultsTo: DVBuildProfile.release.name,
-        allowedHelp: const <String, String>{
-          'development':
-              'Flutter debug (JIT). On Android it carries the '
-              'dev-client pairing, so `dartvel dev --dev-client` can hot '
-              'reload it over the network.',
-          'profile': 'Flutter profile mode.',
-          'release': 'Flutter release mode.',
-        },
-        help: 'What kind of build to make.',
-      )
+      ..addOption('platform',
+          abbr: 'p',
+          allowed: buildPlatformArguments,
+          defaultsTo: 'all',
+          help: 'Target platform (or pass it positionally)')
+      ..addOption('profile',
+          allowed: DVBuildProfile.names,
+          defaultsTo: DVBuildProfile.release.name,
+          allowedHelp: const <String, String>{
+            'development': 'Flutter debug (JIT). On Android it carries the '
+                'dev-client pairing, so `dartvel dev --dev-client` can hot '
+                'reload it over the network.',
+            'profile': 'Flutter profile mode.',
+            'release': 'Flutter release mode.',
+          },
+          help: 'What kind of build to make.')
       ..addOption('target', abbr: 't', help: 'Target entry point')
-      ..addOption(
-        'format',
-        allowed: ['bundle', 'iso', 'img'],
-        help: 'Sony eLinux output format (bundle | iso | img)',
-      )
-      ..addOption(
-        'device-profile',
-        help: 'Named embedded device profile from pubspec.yaml',
-      )
-      ..addFlag(
-        'simulator',
-        defaultsTo: false,
-        negatable: false,
-        help:
-            'Build for a simulator rather than a device (tvOS). Device '
-            'builds are AOT and need a configured Xcode signing team, so '
-            'this is the only unsigned path.',
-      )
-      ..addOption(
-        'build-timeout',
-        help:
-            'Minutes before a stalled build is killed (0 disables). '
-            'A build that stops producing output is the failure mode worth '
-            'guarding: it looks identical to a slow one and costs far more.',
-      )
-      ..addOption(
-        'arch',
-        allowed: ['arm', 'arm64', 'x64'],
-        defaultsTo: 'arm64',
-        help: 'Target architecture for embedded builds',
-      )
-      ..addFlag(
-        'split-per-abi',
-        defaultsTo: false,
-        help: 'Split APKs per ABI (Android)',
-      )
+      ..addOption('format',
+          allowed: ['bundle', 'iso', 'img'],
+          help: 'Sony eLinux output format (bundle | iso | img)')
+      ..addOption('device-profile',
+          help: 'Named embedded device profile from pubspec.yaml')
+      ..addFlag('simulator',
+          defaultsTo: false,
+          negatable: false,
+          help: 'Build for a simulator rather than a device (tvOS). Device '
+              'builds are AOT and need a configured Xcode signing team, so '
+              'this is the only unsigned path.')
+      ..addOption('build-timeout',
+          help: 'Minutes before a stalled build is killed (0 disables). '
+              'A build that stops producing output is the failure mode worth '
+              'guarding: it looks identical to a slow one and costs far more.')
+      ..addOption('arch',
+          allowed: ['arm', 'arm64', 'x64'],
+          defaultsTo: 'arm64',
+          help: 'Target architecture for embedded builds')
+      ..addFlag('split-per-abi',
+          defaultsTo: false, help: 'Split APKs per ABI (Android)')
       ..addOption('build-number', help: 'Build number')
       ..addOption('build-name', help: 'Build name/version')
-      ..addFlag(
-        'obfuscate',
-        defaultsTo: true,
-        help: 'Obfuscate code (release only)',
-      )
+      ..addFlag('obfuscate',
+          defaultsTo: true, help: 'Obfuscate code (release only)')
       ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons')
-      ..addFlag(
-        'auto-install',
-        defaultsTo: null,
-        help:
-            'Install missing build tools without prompting. Defaults to '
-            'prompting when interactive, and to installing in CI. Use '
-            '--no-auto-install to require a pre-provisioned toolchain.',
-      );
+      ..addFlag('auto-install',
+          defaultsTo: null,
+          help: 'Install missing build tools without prompting. Defaults to '
+              'prompting when interactive, and to installing in CI. Use '
+              '--no-auto-install to require a pre-provisioned toolchain.');
   }
 
   final String? _root;
@@ -606,9 +583,8 @@ class BuildCommand extends Command<void> {
     final obfuscate = argResults?['obfuscate'] as bool;
     final treeShakeIcons = argResults?['tree-shake-icons'] as bool;
     final autoInstall = argResults?['auto-install'] as bool?;
-    final buildTimeout = parseBuildTimeout(
-      argResults?['build-timeout'] as String?,
-    );
+    final buildTimeout =
+        parseBuildTimeout(argResults?['build-timeout'] as String?);
 
     // A distribution-target name (`sony-elinux-iso`) resolves to a base
     // platform plus a format; an explicit `--format` overrides the default.
@@ -641,15 +617,11 @@ class BuildCommand extends Command<void> {
     // a build validates before it starts; the decision existed in the module
     // manifest verifier and no caller ever passed it a target, so an image
     // built happily around a module that cannot run on it.
-    final DVDeviceProfileCheck profileCheck = DVDeviceProfileCheck.run(
-      root,
-      profile: deviceProfile,
-    );
+    final DVDeviceProfileCheck profileCheck =
+        DVDeviceProfileCheck.run(root, profile: deviceProfile);
     if (!profileCheck.ok) {
-      Logger.log(
-        '❌ DV-ELINUX-004: the selected device profile cannot run '
-        'this application:',
-      );
+      Logger.log('❌ DV-ELINUX-004: the selected device profile cannot run '
+          'this application:');
       for (final String line in profileCheck.lines) {
         Logger.log(line);
       }
@@ -759,8 +731,7 @@ class BuildCommand extends Command<void> {
     // A terminal-only build must not reach the desktop branch below. It used
     // to, which is how `dartvel build linux-cli` produced a GUI binary and
     // called it a success.
-    final terminalOnly =
-        renderBackends.contains(DVRenderBackend.terminal) &&
+    final terminalOnly = renderBackends.contains(DVRenderBackend.terminal) &&
         !renderBackends.contains(DVRenderBackend.gui);
 
     var failures = 0;
@@ -769,15 +740,11 @@ class BuildCommand extends Command<void> {
       // declares. Per target rather than once, because a single command
       // builds several and the answer differs: an Android build carries
       // them and a web build cannot.
-      final DVHomeWidgetCheck homeWidgets = DVHomeWidgetCheck.run(
-        root,
-        target: p,
-      );
+      final DVHomeWidgetCheck homeWidgets =
+          DVHomeWidgetCheck.run(root, target: p);
       if (!homeWidgets.ok) {
-        Logger.log(
-          '❌ The project declares home widgets this build cannot '
-          'carry:',
-        );
+        Logger.log('❌ The project declares home widgets this build cannot '
+            'carry:');
       }
       for (final String line in homeWidgets.lines) {
         Logger.log(line);
@@ -790,11 +757,9 @@ class BuildCommand extends Command<void> {
           plan,
           toolchainPresent: _isOnPath(plan.toolchain),
         );
-        Logger.log(
-          outcome.shouldRun
-              ? '🔨 ${outcome.message}'
-              : '⏭️  ${outcome.message}',
-        );
+        Logger.log(outcome.shouldRun
+            ? '🔨 ${outcome.message}'
+            : '⏭️  ${outcome.message}');
         if (!outcome.shouldRun) {
           skipped += 1;
           continue;
@@ -843,21 +808,21 @@ class BuildCommand extends Command<void> {
               target: target,
             )
           : browserExtensionBuildPlatforms.contains(p)
-          ? await _buildBrowserExtension(p, buildMode, root, target: target)
-          : extensionBuildPlatforms.contains(p)
-          ? await _buildVSCodeExtension(root)
-          : await _buildPlatform(
-              p,
-              buildMode,
-              timeout: buildTimeout,
-              target: target,
-              splitPerAbi: splitPerAbi,
-              buildNumber: buildNumber,
-              buildName: buildName,
-              obfuscate: obfuscate && isRelease,
-              treeShakeIcons: treeShakeIcons,
-              deviceProfile: deviceProfile,
-            );
+              ? await _buildBrowserExtension(p, buildMode, root, target: target)
+              : extensionBuildPlatforms.contains(p)
+                  ? await _buildVSCodeExtension(root)
+                  : await _buildPlatform(
+                      p,
+                      buildMode,
+                      timeout: buildTimeout,
+                      target: target,
+                      splitPerAbi: splitPerAbi,
+                      buildNumber: buildNumber,
+                      buildName: buildName,
+                      obfuscate: obfuscate && isRelease,
+                      treeShakeIcons: treeShakeIcons,
+                      deviceProfile: deviceProfile,
+                    );
       switch (result) {
         case _PlatformBuildResult.succeeded:
           break;
@@ -907,15 +872,12 @@ class BuildCommand extends Command<void> {
     // link that opens the browser, from a build that succeeded.
     final DVDeepLinkConfig? deepLinks;
     try {
-      deepLinks = DVDeepLinkConfig.parse(
-        _dartvelSection(_projectRoot)['deepLinks'],
-      );
+      deepLinks = DVDeepLinkConfig.parse(_dartvelSection(_projectRoot)['deepLinks']);
     } on FormatException catch (error) {
       Logger.log('❌ ${error.message}');
       return _PlatformBuildResult.failed;
     }
-    final List<String> linkErrors =
-        deepLinks?.missingIdentifiers(<String>{
+    final List<String> linkErrors = deepLinks?.missingIdentifiers(<String>{
           platform == 'fireos' ? 'android' : platform,
         }) ??
         const <String>[];
@@ -953,13 +915,8 @@ class BuildCommand extends Command<void> {
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
     // start, and a splash written after that ships in the next build.
-    if (const <String>{
-      'android',
-      'fireos',
-      'ios',
-      'macos',
-      'linux',
-    }.contains(platform)) {
+    if (const <String>{'android', 'fireos', 'ios', 'macos', 'linux'}
+        .contains(platform)) {
       _writeNativeSplash(_projectRoot, platform);
     }
 
@@ -981,8 +938,7 @@ class BuildCommand extends Command<void> {
     // Check if platform is available
     if (!await _isPlatformAvailable(platform)) {
       Logger.log(
-        '⚠️  Platform $platform not available on this system. Skipping...',
-      );
+          '⚠️  Platform $platform not available on this system. Skipping...');
       return _PlatformBuildResult.skipped;
     }
 
@@ -1075,11 +1031,8 @@ class BuildCommand extends Command<void> {
   Future<_PlatformBuildResult> _buildServerBinary(String root) async {
     Logger.log('🔨 Compiling the backend into one executable...');
     final host = dvHostServerLibrary();
-    final DVServerLibraryLookup lookup = dvLocateServerLibrary(
-      root,
-      subdir: host.subdir,
-      name: host.name,
-    );
+    final DVServerLibraryLookup lookup =
+        dvLocateServerLibrary(root, subdir: host.subdir, name: host.name);
     if (lookup.file == null) {
       Logger.log('⚠️  build/server not written: ${lookup.problem}');
       return _PlatformBuildResult.skipped;
@@ -1087,17 +1040,10 @@ class BuildCommand extends Command<void> {
     final DVServerBinaryResult result = await dvBuildServerBinary(
       root: root,
       library: lookup.file!,
-      run:
-          (
-            String executable,
-            List<String> arguments, {
-            String? workingDirectory,
-          }) => _processRun(
-            executable,
-            arguments,
-            workingDirectory: workingDirectory,
-            runInShell: true,
-          ),
+      run: (String executable, List<String> arguments,
+              {String? workingDirectory}) =>
+          _processRun(executable, arguments,
+              workingDirectory: workingDirectory, runInShell: true),
     );
     for (final String line in result.lines) {
       Logger.log('   $line');
@@ -1121,9 +1067,7 @@ class BuildCommand extends Command<void> {
     // one -- that step wants a compiler configuration nothing puts where it
     // looks. The desktop build writes one; this is a configuration step, not
     // a second artifact, and nothing from it ships.
-    final String mode = plan.arguments.contains('--release')
-        ? 'release'
-        : 'debug';
+    final String mode = plan.arguments.contains('--release') ? 'release' : 'debug';
     final String root = _projectRoot;
     if (!await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
       return _PlatformBuildResult.failed;
@@ -1137,11 +1081,8 @@ class BuildCommand extends Command<void> {
       workingDirectory: root,
       mode: ProcessStartMode.inheritStdio,
     );
-    final exitCode = await _awaitBuild(
-      process,
-      timeout: timeout,
-      description: command,
-    );
+    final exitCode =
+        await _awaitBuild(process, timeout: timeout, description: command);
     if (exitCode == null) return _PlatformBuildResult.failed;
     if (exitCode != 0) {
       Logger.log('❌ ${plan.platform} terminal build failed (exit $exitCode)');
@@ -1164,10 +1105,8 @@ class BuildCommand extends Command<void> {
   }) async {
     if (dvConfigureNativeAssets(root, mode: mode).ready) return true;
 
-    Logger.log(
-      '   Configuring native assets: the bundle build needs the '
-      'desktop build\'s compiler settings.',
-    );
+    Logger.log('   Configuring native assets: the bundle build needs the '
+        'desktop build\'s compiler settings.');
     final Process process = await Process.start(
       'flutter',
       <String>['build', 'linux', '--$mode'],
@@ -1175,23 +1114,15 @@ class BuildCommand extends Command<void> {
       mode: ProcessStartMode.inheritStdio,
       runInShell: true,
     );
-    final int? exitCode = await _awaitBuild(
-      process,
-      timeout: timeout,
-      description: 'flutter build linux --$mode',
-    );
+    final int? exitCode = await _awaitBuild(process,
+        timeout: timeout, description: 'flutter build linux --$mode');
     if (exitCode != 0) {
-      Logger.log(
-        '❌ The desktop build that writes the native-asset compiler '
-        'settings failed, so the terminal build cannot start.',
-      );
+      Logger.log('❌ The desktop build that writes the native-asset compiler '
+          'settings failed, so the terminal build cannot start.');
       return false;
     }
 
-    final DVNativeAssetsConfig result = dvConfigureNativeAssets(
-      root,
-      mode: mode,
-    );
+    final DVNativeAssetsConfig result = dvConfigureNativeAssets(root, mode: mode);
     if (!result.ready) Logger.log('❌ ${result.reason}');
     return result.ready;
   }
@@ -1214,11 +1145,9 @@ class BuildCommand extends Command<void> {
       // kernel_blob.bin and no libapp.so, and the only engine obtainable
       // without building one is the release build, which has no interpreter to
       // run kernel with — so the result would look complete and never start.
-      Logger.log(
-        '⏭️  Skipping sony-elinux: only release bundles can be '
-        'assembled. Debug and profile need an engine built for those modes, '
-        'which is not published as a standalone embedder artifact.',
-      );
+      Logger.log('⏭️  Skipping sony-elinux: only release bundles can be '
+          'assembled. Debug and profile need an engine built for those modes, '
+          'which is not published as a standalone embedder artifact.');
       return _PlatformBuildResult.skipped;
     }
 
@@ -1226,11 +1155,9 @@ class BuildCommand extends Command<void> {
         '${dartvelToolchainRoot(resolveToolchainHome())}/dartvel_elinux/artifacts';
     final backend = ELinuxBackend.wayland;
     if (!File('$artifacts/${backend.executable}').existsSync()) {
-      Logger.log(
-        '⏭️  Skipping sony-elinux: the embedder artifacts are not '
-        'installed at $artifacts. Build them with the "Embedder artifacts" '
-        'workflow and unpack the result there.',
-      );
+      Logger.log('⏭️  Skipping sony-elinux: the embedder artifacts are not '
+          'installed at $artifacts. Build them with the "Embedder artifacts" '
+          'workflow and unpack the result there.');
       return _PlatformBuildResult.skipped;
     }
 
@@ -1316,10 +1243,8 @@ class BuildCommand extends Command<void> {
     Logger.log('✅ sony-elinux bundle assembled at $outDir');
     Logger.log('   ${backend.executable} + engine + libapp.so, no GUI stack');
     if (supervisor.written.isNotEmpty) {
-      Logger.log(
-        '   ${supervisor.written.join(', ')}: install under '
-        '/etc/systemd/system and enable it.',
-      );
+      Logger.log('   ${supervisor.written.join(', ')}: install under '
+          '/etc/systemd/system and enable it.');
     }
     return _PlatformBuildResult.succeeded;
   }
@@ -1330,8 +1255,7 @@ class BuildCommand extends Command<void> {
   /// applications and mime directories; what a developer copies there by
   /// hand to try an association.
   void _writeLinuxDesktopFiles(String root) {
-    final String bundle =
-        '$root/build/linux/${_hostArchitecture()}/release/bundle';
+    final String bundle = '$root/build/linux/${_hostArchitecture()}/release/bundle';
     if (!Directory(bundle).existsSync()) return;
     final DVDesktopWrite result = dvWriteLinuxDesktopFiles(root, bundle);
     for (final String problem in result.problems) {
@@ -1359,14 +1283,11 @@ class BuildCommand extends Command<void> {
   /// a package:jni symbol that is declared in a header and never defined.
   void _writeAndroidContextProvider(String root) {
     final File manifest = File(
-      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
-    );
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
-      Logger.log(
-        '⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-        'so the platform bindings will have no Context. Run flutter '
-        'create . to add the Android runner.',
-      );
+      Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+          'so the platform bindings will have no Context. Run flutter '
+          'create . to add the Android runner.');
       return;
     }
     final String before = manifest.readAsStringSync();
@@ -1389,25 +1310,21 @@ class BuildCommand extends Command<void> {
   /// shown and the same answer a person tapping Deny gives.
   void _writeAndroidCaptureBridge(String root) {
     final File manifest = File(
-      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
-    );
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       // The Context provider has already said so; saying it twice in one
       // build is noise.
       return;
     }
 
-    final List<String> requested = dvAndroidRequestedPermissions(
-      _dartvelSection(root),
-    );
+    final List<String> requested =
+        dvAndroidRequestedPermissions(_dartvelSection(root));
     final List<String> unknown = dvAndroidUnknownPermissions(requested);
     if (unknown.isNotEmpty) {
-      Logger.log(
-        '⚠️  dartvel.android.permissions names ${unknown.join(', ')}, '
-        'which Dartvel has no Android permission for. Nothing was declared '
-        'for it, so a request at run time is refused with no dialog. The '
-        'names it knows are ${dvAndroidPermissionNames.toList()..sort()}.',
-      );
+      Logger.log('⚠️  dartvel.android.permissions names ${unknown.join(', ')}, '
+          'which Dartvel has no Android permission for. Nothing was declared '
+          'for it, so a request at run time is refused with no dialog. The '
+          'names it knows are ${dvAndroidPermissionNames.toList()..sort()}.');
     }
 
     final String before = manifest.readAsStringSync();
@@ -1438,10 +1355,8 @@ class BuildCommand extends Command<void> {
   /// The web splash, into the built index.html.
   void _writeWebSplash(String root) {
     final DVSplash splash = DVSplash.of(root);
-    _logSplash(
-      splash,
-      dvWriteWebSplash(Directory(p.join(root, 'build', 'web')), splash),
-    );
+    _logSplash(splash,
+        dvWriteWebSplash(Directory(p.join(root, 'build', 'web')), splash));
   }
 
   /// The renderer, asked for by index.html as it parses: a preconnect to
@@ -1461,17 +1376,13 @@ class BuildCommand extends Command<void> {
         : null;
     final String before = index.readAsStringSync();
     final String after = dvApplyRendererHints(
-      before,
-      revision == null ? null : dvRendererHints(revision),
-    );
+        before, revision == null ? null : dvRendererHints(revision));
     if (after != before) index.writeAsStringSync(after);
-    Logger.log(
-      revision == null
-          ? '   Renderer hints: none; this build does not load the default '
-                'CanvasKit, so there is nothing safe to name.'
-          : '   Renderer hints: CanvasKit ${revision.substring(0, 8)} is '
-                'preconnected and preloaded from index.html.',
-    );
+    Logger.log(revision == null
+        ? '   Renderer hints: none; this build does not load the default '
+            'CanvasKit, so there is nothing safe to name.'
+        : '   Renderer hints: CanvasKit ${revision.substring(0, 8)} is '
+            'preconnected and preloaded from index.html.');
   }
 
   void _logSplash(DVSplash splash, DVSplashResult result) {
@@ -1482,10 +1393,8 @@ class BuildCommand extends Command<void> {
       final String dark = splash.darkColor == splash.color
           ? ''
           : ', ${splash.darkColor} in dark mode';
-      Logger.log(
-        '   Splash: ${splash.color}$dark; '
-        '${result.written.length} file(s) written.',
-      );
+      Logger.log('   Splash: ${splash.color}$dark; '
+          '${result.written.length} file(s) written.');
     }
     for (final String note in result.skipped) {
       Logger.log('   Splash: $note');
@@ -1494,16 +1403,13 @@ class BuildCommand extends Command<void> {
 
   void _writeAndroidKioskFiles(String root) {
     final DVAndroidKiosk kiosk = DVAndroidKiosk.of(root);
-    final File manifest = File(
-      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
-    );
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       if (kiosk.ownsTheDevice) {
-        Logger.log(
-          '⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-          'so the kiosk declaration reaches nothing. Run flutter create . '
-          'to add the Android runner.',
-        );
+        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+            'so the kiosk declaration reaches nothing. Run flutter create . '
+            'to add the Android runner.');
       }
       return;
     }
@@ -1517,43 +1423,24 @@ class BuildCommand extends Command<void> {
     // is what `.DartvelDeviceAdminReceiver` in the manifest resolves to.
     final String? package = _androidPackage(root, before);
     if (package == null) {
-      Logger.log(
-        '⚠️  Could not read the Android package name, so the kiosk '
-        'device-admin receiver was not written.',
-      );
+      Logger.log('⚠️  Could not read the Android package name, so the kiosk '
+          'device-admin receiver was not written.');
       return;
     }
     final String source = p.joinAll(<String>[
-      root,
-      'android',
-      'app',
-      'src',
-      'main',
-      'java',
+      root, 'android', 'app', 'src', 'main', 'java',
       ...package.split('.'),
       '$dvAndroidDeviceAdminClass.java',
     ]);
     final File receiver = File(source);
     receiver.parent.createSync(recursive: true);
     receiver.writeAsStringSync(dvAndroidDeviceAdminSource(package));
-    final File policy = File(
-      p.join(
-        root,
-        'android',
-        'app',
-        'src',
-        'main',
-        'res',
-        'xml',
-        'dartvel_device_admin.xml',
-      ),
-    );
+    final File policy = File(p.join(
+        root, 'android', 'app', 'src', 'main', 'res', 'xml', 'dartvel_device_admin.xml'));
     policy.parent.createSync(recursive: true);
     policy.writeAsStringSync(dvAndroidDeviceAdminPolicy());
-    Logger.log(
-      '   Kiosk: the application is the home screen, with a '
-      'device-admin receiver for dpm set-device-owner.',
-    );
+    Logger.log('   Kiosk: the application is the home screen, with a '
+        'device-admin receiver for dpm set-device-owner.');
   }
 
   /// A provider, its metadata and its layout for every `@DVHomeWidget`.
@@ -1563,16 +1450,13 @@ class BuildCommand extends Command<void> {
   /// has one, so there is nothing to put on a home screen.
   void _writeAndroidHomeWidgets(String root) {
     final List<DVHomeWidgetSpec> widgets = ClientGenerator.homeWidgetsIn(root);
-    final File manifest = File(
-      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
-    );
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       if (widgets.isNotEmpty) {
-        Logger.log(
-          '⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-          'so the home widgets reach nothing. Run flutter create . to add '
-          'the Android runner.',
-        );
+        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+            'so the home widgets reach nothing. Run flutter create . to add '
+            'the Android runner.');
       }
       return;
     }
@@ -1584,55 +1468,27 @@ class BuildCommand extends Command<void> {
 
     final String? package = _androidPackage(root, before);
     if (package == null) {
-      Logger.log(
-        '⚠️  Could not read the Android package name, so the home '
-        'widget providers were not written.',
-      );
+      Logger.log('⚠️  Could not read the Android package name, so the home '
+          'widget providers were not written.');
       return;
     }
 
     for (final DVHomeWidgetSpec widget in widgets) {
       final String resource = dvAndroidWidgetResource(widget.id);
-      File(
-          p.joinAll(<String>[
-            root,
-            'android',
-            'app',
-            'src',
-            'main',
-            'java',
-            ...package.split('.'),
-            '${widget.name}Provider.java',
-          ]),
-        )
+      File(p.joinAll(<String>[
+        root, 'android', 'app', 'src', 'main', 'java',
+        ...package.split('.'),
+        '${widget.name}Provider.java',
+      ]))
         ..parent.createSync(recursive: true)
-        ..writeAsStringSync(dvAndroidHomeWidgetProviderSource(package, widget));
-      File(
-          p.join(
-            root,
-            'android',
-            'app',
-            'src',
-            'main',
-            'res',
-            'xml',
-            '$resource.xml',
-          ),
-        )
+        ..writeAsStringSync(
+            dvAndroidHomeWidgetProviderSource(package, widget));
+      File(p.join(root, 'android', 'app', 'src', 'main', 'res', 'xml',
+          '$resource.xml'))
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(dvAndroidHomeWidgetMetadata(widget));
-      File(
-          p.join(
-            root,
-            'android',
-            'app',
-            'src',
-            'main',
-            'res',
-            'layout',
-            '$resource.xml',
-          ),
-        )
+      File(p.join(root, 'android', 'app', 'src', 'main', 'res', 'layout',
+          '$resource.xml'))
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(dvAndroidHomeWidgetLayout(widget));
     }
@@ -1643,10 +1499,8 @@ class BuildCommand extends Command<void> {
     File(p.joinAll(<String>[root, ...dvAndroidWidgetPublisherPath.split('/')]))
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(dvAndroidWidgetPublisherSource(package, widgets));
-    Logger.log(
-      '   Home widgets: ${widgets.length} provider(s) the launcher '
-      'can offer, each opening the page it was generated for.',
-    );
+    Logger.log('   Home widgets: ${widgets.length} provider(s) the launcher '
+        'can offer, each opening the page it was generated for.');
   }
 
   /// The WidgetKit extension for every `@DVHomeWidget`, and the Xcode target
@@ -1660,16 +1514,13 @@ class BuildCommand extends Command<void> {
   /// which can be added while the application is running.
   void _writeAppleHomeWidgets(String root, String platform) {
     final List<DVHomeWidgetSpec> widgets = ClientGenerator.homeWidgetsIn(root);
-    final File project = File(
-      p.join(root, platform, 'Runner.xcodeproj', 'project.pbxproj'),
-    );
+    final File project = File(p.join(
+        root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
     if (!project.existsSync()) {
       if (widgets.isNotEmpty) {
-        Logger.log(
-          '⚠️  $platform/Runner.xcodeproj is not there, so the home '
-          'widgets reach nothing. Run flutter create . to add the '
-          '$platform runner.',
-        );
+        Logger.log('⚠️  $platform/Runner.xcodeproj is not there, so the home '
+            'widgets reach nothing. Run flutter create . to add the '
+            '$platform runner.');
       }
       return;
     }
@@ -1678,33 +1529,27 @@ class BuildCommand extends Command<void> {
     final String? bundleId = _appleBundleId(before);
     if (bundleId == null) {
       if (widgets.isNotEmpty) {
-        Logger.log(
-          '⚠️  Could not read the bundle identifier out of '
-          '$platform/Runner.xcodeproj, so the widget extension was not '
-          'added. An extension has to be identified under the '
-          'application it ships inside.',
-        );
+        Logger.log('⚠️  Could not read the bundle identifier out of '
+            '$platform/Runner.xcodeproj, so the widget extension was not '
+            'added. An extension has to be identified under the '
+            'application it ships inside.');
       }
       return;
     }
 
-    final Directory extension = Directory(
-      p.join(root, platform, dvAppleWidgetExtensionName),
-    );
+    final Directory extension =
+        Directory(p.join(root, platform, dvAppleWidgetExtensionName));
     final String group = dvAppleAppGroup(bundleId);
     final bool has = widgets.isNotEmpty;
 
     if (has) {
       extension.createSync(recursive: true);
-      File(
-        p.join(extension.path, '$dvAppleWidgetExtensionName.swift'),
-      ).writeAsStringSync(dvAppleHomeWidgetSource(widgets));
-      File(
-        p.join(extension.path, 'Info.plist'),
-      ).writeAsStringSync(dvAppleHomeWidgetInfoPlist());
-      File(
-        p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'),
-      ).writeAsStringSync(dvAppleHomeWidgetEntitlements(group));
+      File(p.join(extension.path, '$dvAppleWidgetExtensionName.swift'))
+          .writeAsStringSync(dvAppleHomeWidgetSource(widgets));
+      File(p.join(extension.path, 'Info.plist'))
+          .writeAsStringSync(dvAppleHomeWidgetInfoPlist());
+      File(p.join(extension.path, '$dvAppleWidgetExtensionName.entitlements'))
+          .writeAsStringSync(dvAppleHomeWidgetEntitlements(group));
     }
 
     // The application's own half of the group. Without it the app writes to
@@ -1713,26 +1558,22 @@ class BuildCommand extends Command<void> {
     final String entitlementsPath = platform == 'ios'
         ? p.join('Runner', 'Runner.entitlements')
         : p.join('Runner', 'DebugProfile.entitlements');
-    final File appEntitlements = File(p.join(root, platform, entitlementsPath));
+    final File appEntitlements =
+        File(p.join(root, platform, entitlementsPath));
     if (has) {
       appEntitlements.parent.createSync(recursive: true);
-      appEntitlements.writeAsStringSync(
-        dvAppleAppEntitlements(
+      appEntitlements.writeAsStringSync(dvAppleAppEntitlements(
           appEntitlements.existsSync()
               ? appEntitlements.readAsStringSync()
               : '',
-          group,
-        ),
-      );
+          group));
       // macOS signs Release with its own file, and a widget that works in
       // debug and not in release is the worst shape this could take.
-      final File release = File(
-        p.join(root, platform, 'Runner', 'Release.entitlements'),
-      );
+      final File release =
+          File(p.join(root, platform, 'Runner', 'Release.entitlements'));
       if (platform == 'macos' && release.existsSync()) {
         release.writeAsStringSync(
-          dvAppleAppEntitlements(release.readAsStringSync(), group),
-        );
+            dvAppleAppEntitlements(release.readAsStringSync(), group));
       }
     }
 
@@ -1742,9 +1583,8 @@ class BuildCommand extends Command<void> {
     // application, not to the extension: WidgetCenter reloads a widget from
     // the containing app, and it is Swift-only, so Dart has nothing to
     // message without a class of its own compiled in here.
-    final File reload = File(
-      p.join(root, platform, 'Runner', dvAppleWidgetReloadFileName),
-    );
+    final File reload =
+        File(p.join(root, platform, 'Runner', dvAppleWidgetReloadFileName));
     if (has) {
       reload.parent.createSync(recursive: true);
       reload.writeAsStringSync(dvAppleWidgetReloadSource());
@@ -1755,31 +1595,20 @@ class BuildCommand extends Command<void> {
       reload.deleteSync();
     }
 
-    String after = dvApplePbxprojWithWidgets(
-      before,
-      hasWidgets: has,
-      bundleId: bundleId,
-      platform: platform,
-    );
-    after = dvApplePbxprojWithAppEntitlements(
-      after,
-      hasWidgets: has && platform == 'ios',
-      path: entitlementsPath,
-    );
-    after = dvApplePbxprojWithWidgetReload(
-      after,
-      hasWidgets: has,
-      platform: platform,
-    );
+    String after = dvApplePbxprojWithWidgets(before,
+        hasWidgets: has, bundleId: bundleId, platform: platform);
+    after = dvApplePbxprojWithAppEntitlements(after,
+        hasWidgets: has && platform == 'ios', path: entitlementsPath);
+    after = dvApplePbxprojWithWidgetReload(after,
+        hasWidgets: has, platform: platform);
     if (after != before) project.writeAsStringSync(after);
 
     if (!has) return;
-    Logger.log(
-      '   Home widgets: a WidgetKit extension with '
-      '${widgets.length} widget(s), embedded in the application and '
-      'sharing its App Group.',
-    );
+    Logger.log('   Home widgets: a WidgetKit extension with '
+        '${widgets.length} widget(s), embedded in the application and '
+        'sharing its App Group.');
   }
+
 
   /// The capture that gives iOS a link to hand back.
   ///
@@ -1790,15 +1619,12 @@ class BuildCommand extends Command<void> {
   /// capability files warn about -- the set says the binding exists and the
   /// application behaves as though no link ever arrives.
   void _writeIosDeepLinks(String root) {
-    final File delegate = File(
-      p.join(root, 'ios', 'Runner', 'AppDelegate.swift'),
-    );
+    final File delegate =
+        File(p.join(root, 'ios', 'Runner', 'AppDelegate.swift'));
     if (!delegate.existsSync()) {
-      Logger.log(
-        '⚠️  ios/Runner/AppDelegate.swift is not there, so a link '
-        'this application is launched with reaches nothing. Run flutter '
-        'create . to add the iOS runner.',
-      );
+      Logger.log('⚠️  ios/Runner/AppDelegate.swift is not there, so a link '
+          'this application is launched with reaches nothing. Run flutter '
+          'create . to add the iOS runner.');
       return;
     }
     final String before = delegate.readAsStringSync();
@@ -1809,24 +1635,21 @@ class BuildCommand extends Command<void> {
       // recognise. Saying so is the whole value here: the alternative is a
       // widget whose tap opens the home screen and a developer with nothing
       // to read.
-      Logger.log(
-        '⚠️  ios/Runner/AppDelegate.swift has been rewritten, so '
-        'the launch capture was not added. A link the application is '
-        'launched with will not reach DV.Platform.deepLinks.',
-      );
+      Logger.log('⚠️  ios/Runner/AppDelegate.swift has been rewritten, so '
+          'the launch capture was not added. A link the application is '
+          'launched with will not reach DV.Platform.deepLinks.');
       return;
     }
     delegate.writeAsStringSync(after);
   }
-
   /// The bundle identifier the application is built under.
   ///
   /// The test target's is the same string with a suffix, and taking that one
   /// would identify the extension under a bundle that does not ship.
   String? _appleBundleId(String pbxproj) {
-    for (final RegExpMatch match in RegExp(
-      r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);',
-    ).allMatches(pbxproj)) {
+    for (final RegExpMatch match
+        in RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]+);')
+            .allMatches(pbxproj)) {
       final String value = match.group(1)!.trim().replaceAll('"', '');
       if (value.contains('RunnerTests') || value.contains('.Tests')) continue;
       if (value.contains(r'$(')) continue;
@@ -1848,14 +1671,14 @@ class BuildCommand extends Command<void> {
       final File gradle = File(p.join(root, name));
       if (!gradle.existsSync()) continue;
       final RegExpMatch? found = RegExp(
-        r'''applicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']''',
-      ).firstMatch(gradle.readAsStringSync());
+              r'''applicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']''')
+          .firstMatch(gradle.readAsStringSync());
       if (found != null) return found.group(1);
     }
     // An older project that still declares it on the manifest.
-    return RegExp(
-      r'''package\s*=\s*["']([A-Za-z0-9_.]+)["']''',
-    ).firstMatch(manifest)?.group(1);
+    return RegExp(r'''package\s*=\s*["']([A-Za-z0-9_.]+)["']''')
+        .firstMatch(manifest)
+        ?.group(1);
   }
 
   /// `.well-known/assetlinks.json` and `apple-app-site-association` into the
@@ -1870,18 +1693,15 @@ class BuildCommand extends Command<void> {
       guarded: dvGuardedRoutes(_routerSource(root)).toSet(),
     );
     if (written > 0) {
-      Logger.log(
-        '   Deep links: $written verification document(s) under '
-        '.well-known for ${links!.domains.join(', ')}.',
-      );
+      Logger.log('   Deep links: $written verification document(s) under '
+          '.well-known for ${links!.domains.join(', ')}.');
     }
   }
 
   /// The App Links intent filter into the Android manifest.
   void _writeAndroidDeepLinks(String root, DVDeepLinkConfig? links) {
     final File manifest = File(
-      p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
-    );
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) return;
     final String before = manifest.readAsStringSync();
     final String after = dvAndroidDeepLinkManifest(
@@ -1903,8 +1723,9 @@ class BuildCommand extends Command<void> {
   void _writeIosAssociatedDomains(String root, DVDeepLinkConfig? links) {
     final String path = p.join('Runner', 'Runner.entitlements');
     final File entitlements = File(p.join(root, 'ios', path));
-    final bool wanted =
-        links != null && links.domains.isNotEmpty && links.iosAppId != null;
+    final bool wanted = links != null &&
+        links.domains.isNotEmpty &&
+        links.iosAppId != null;
     if (!wanted && !entitlements.existsSync()) return;
     final String before = entitlements.existsSync()
         ? entitlements.readAsStringSync()
@@ -1915,9 +1736,8 @@ class BuildCommand extends Command<void> {
       entitlements.writeAsStringSync(after);
     }
     if (!wanted) return;
-    final File project = File(
-      p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'),
-    );
+    final File project =
+        File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
     if (!project.existsSync()) return;
     final String pbxproj = project.readAsStringSync();
     final String signed = dvApplePbxprojWithAppEntitlements(
@@ -1934,8 +1754,7 @@ class BuildCommand extends Command<void> {
     for (final String problem in result.problems) {
       Logger.log('⚠️  $problem');
     }
-    if (result.written.isNotEmpty)
-      Logger.log('   Wrote ${result.written.join(', ')}.');
+    if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')}.');
   }
 
   /// The registry script for file associations and app links, beside the
@@ -1947,14 +1766,12 @@ class BuildCommand extends Command<void> {
     for (final String problem in result.problems) {
       Logger.log('⚠️  $problem');
     }
-    if (result.written.isNotEmpty)
-      Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+    if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
   }
 
   String _hostArchitecture() {
     final version = Platform.version;
-    if (version.contains('arm64') || version.contains('aarch64'))
-      return 'arm64';
+    if (version.contains('arm64') || version.contains('aarch64')) return 'arm64';
     return 'x64';
   }
 
@@ -1980,9 +1797,8 @@ class BuildCommand extends Command<void> {
     String? target,
     Duration? timeout,
   }) async {
-    final label = format == null || format == 'bundle'
-        ? platform
-        : '$platform ($format)';
+    final label =
+        format == null || format == 'bundle' ? platform : '$platform ($format)';
     Logger.log('');
     Logger.log('🔨 Building for $label...');
 
@@ -2006,9 +1822,9 @@ class BuildCommand extends Command<void> {
       Logger.log(
         p.isAbsolute(plan.executable)
             ? '⚠️  ${plan.executable} does not exist. '
-                  'Install the $platform embedder to build this target. Skipping...'
+                'Install the $platform embedder to build this target. Skipping...'
             : '⚠️  ${plan.executable} not found on PATH. '
-                  'Install the $platform embedder to build this target. Skipping...',
+                'Install the $platform embedder to build this target. Skipping...',
       );
       return _PlatformBuildResult.skipped;
     }
@@ -2198,10 +2014,8 @@ class BuildCommand extends Command<void> {
     }
     final config = BrowserExtensionConfig.fromPubspec(pubspec);
 
-    final arguments = browserExtensionBuildArguments(
-      buildMode: buildMode,
-      target: target,
-    );
+    final arguments =
+        browserExtensionBuildArguments(buildMode: buildMode, target: target);
     Logger.log('   flutter ${arguments.join(' ')}');
     final result = await _processRun(
       'flutter',
@@ -2281,7 +2095,9 @@ class BuildCommand extends Command<void> {
     ];
 
     for (final command in commands) {
-      Logger.log('   ${command.executable} ${command.arguments.join(' ')}');
+      Logger.log(
+        '   ${command.executable} ${command.arguments.join(' ')}',
+      );
       final result = await _processRun(
         command.executable,
         command.arguments,
@@ -2334,7 +2150,9 @@ class BuildCommand extends Command<void> {
   List<String> _envFileNames(String root) {
     final configured = _dartvelSection(root)['envFiles'];
     if (configured is! List) return const <String>['.env', '.env.local'];
-    return <String>[for (final entry in configured) '$entry'];
+    return <String>[
+      for (final entry in configured) '$entry',
+    ];
   }
 
   void _checkSecrets(String root) {
@@ -2359,13 +2177,11 @@ class BuildCommand extends Command<void> {
     for (final envFile in _envFileNames(root)) {
       final file = File(p.join(root, envFile));
       if (!file.existsSync()) continue;
-      envProblems.addAll(
-        dvAnalysePublicEnvironment(
-          declared: declared,
-          file: envFile,
-          contents: file.readAsStringSync(),
-        ),
-      );
+      envProblems.addAll(dvAnalysePublicEnvironment(
+        declared: declared,
+        file: envFile,
+        contents: file.readAsStringSync(),
+      ));
     }
     if (envProblems.isNotEmpty) {
       for (final finding in envProblems) {
@@ -2375,8 +2191,7 @@ class BuildCommand extends Command<void> {
       exit(1);
     }
 
-    final backendDir =
-        '${_dartvelSection(root)['backendDir'] ?? 'lib/backend'}';
+    final backendDir = '${_dartvelSection(root)['backendDir'] ?? 'lib/backend'}';
     final lib = Directory(p.join(root, 'lib'));
     if (!lib.existsSync()) return;
 
@@ -2433,10 +2248,8 @@ class BuildCommand extends Command<void> {
       Logger.log('   PWA manifest not written: ${result.problems.join(' ')}');
       return;
     }
-    Logger.log(
-      '   PWA manifest written for "$name"'
-      '${result.linked ? ' and linked from index.html' : ''}.',
-    );
+    Logger.log('   PWA manifest written for "$name"'
+        '${result.linked ? ' and linked from index.html' : ''}.');
     for (final problem in result.problems) {
       Logger.log('   ⚠ $problem');
     }
@@ -2486,10 +2299,8 @@ class BuildCommand extends Command<void> {
       exit(1);
     }
     if (source == null) {
-      Logger.log(
-        '   No PWA icons generated: add web/icon.png (or set '
-        'dartvel.pwa.icon) and the 192 and 512 sizes will be built from it.',
-      );
+      Logger.log('   No PWA icons generated: add web/icon.png (or set '
+          'dartvel.pwa.icon) and the 192 and 512 sizes will be built from it.');
       return;
     }
     try {
@@ -2498,10 +2309,8 @@ class BuildCommand extends Command<void> {
         into: Directory(p.join(root, 'build', 'web')),
         background: dvHexToArgb('${settings['backgroundColor'] ?? '#FFFFFF'}'),
       );
-      Logger.log(
-        '   PWA icons written from ${p.relative(source.path, from: root)}: '
-        '${written.length}.',
-      );
+      Logger.log('   PWA icons written from ${p.relative(source.path, from: root)}: '
+          '${written.length}.');
     } on DVPngError catch (error) {
       Logger.error('   ${error.message}');
       Logger.log('❌ PWA icon');
@@ -2560,9 +2369,10 @@ class BuildCommand extends Command<void> {
     // service-worker section, and the colour a project already declares for
     // its manifest is the colour it means.
     final Object? pwa = _dartvelSection(root)['pwa'];
-    final String? accent = pwa is Map && pwa['themeColor'] is String
-        ? pwa['themeColor']! as String
-        : null;
+    final String? accent =
+        pwa is Map && pwa['themeColor'] is String
+            ? pwa['themeColor']! as String
+            : null;
     _writePage(web, 'offline', dvOfflinePage(title: name, accent: accent));
 
     // The page this used to be. build/web is not emptied between builds, so a
@@ -2580,9 +2390,8 @@ class BuildCommand extends Command<void> {
     // hard-code 404.html; a site that only had /404/index.html would fall
     // back to their branding rather than its own. Nobody navigates to this
     // one, so it is not an extension anybody sees.
-    File(
-      p.join(web.path, '404.html'),
-    ).writeAsStringSync(dvNotFoundPage(title: name, accent: accent));
+    File(p.join(web.path, '404.html'))
+        .writeAsStringSync(dvNotFoundPage(title: name, accent: accent));
 
     // Written over flutter_service_worker.js, which index.html already
     // registers: adding a second worker would leave two competing for the
@@ -2602,11 +2411,9 @@ class BuildCommand extends Command<void> {
       ),
     );
 
-    Logger.log(
-      '   Service worker written: '
-      '${routes.length} route(s) and ${parts.length} page part(s) '
-      'precached, with an offline page.',
-    );
+    Logger.log('   Service worker written: '
+        '${routes.length} route(s) and ${parts.length} page part(s) '
+        'precached, with an offline page.');
   }
 
   /// Write the SEO head tags into a finished web build.
@@ -2628,8 +2435,7 @@ class BuildCommand extends Command<void> {
       settings,
       '${pwaSettings['name'] ?? _packageName(root) ?? 'Dartvel'}',
     );
-    final description =
-        dvSeoDescription(settings) ??
+    final description = dvSeoDescription(settings) ??
         (pwaSettings['description'] == null
             ? null
             : '${pwaSettings['description']}');
@@ -2670,16 +2476,12 @@ class BuildCommand extends Command<void> {
       description: description,
       siteUrl: settings['siteUrl'] as String?,
       image: dvAbsoluteAsset(
-        settings['image'] as String?,
-        settings['siteUrl'] as String?,
-      ),
+          settings['image'] as String?, settings['siteUrl'] as String?),
     );
 
     final before = index.readAsStringSync();
     var after = dvSeoApply(
-      before,
-      rootJsonLd.isEmpty ? head : '$head\n$rootJsonLd',
-    );
+        before, rootJsonLd.isEmpty ? head : '$head\n$rootJsonLd');
     // The application favicon, if the project configured one. Applied here as
     // well as to the inner pages, because a root wearing a different icon
     // from every other page on the site is the kind of inconsistency nobody
@@ -2731,10 +2533,8 @@ class BuildCommand extends Command<void> {
 
     final List<String> resolved = await dvResolveStaticPaths(root);
     if (resolved.isEmpty) {
-      Logger.log(
-        '   $templates parameterised route(s) resolved to no pages. '
-        'A model page needs generatePublicPages or a publicPathsResolver.',
-      );
+      Logger.log('   $templates parameterised route(s) resolved to no pages. '
+          'A model page needs generatePublicPages or a publicPathsResolver.');
       return concrete;
     }
 
@@ -2743,28 +2543,22 @@ class BuildCommand extends Command<void> {
     // was generating /products/pro-kit for an application whose router has no
     // /products at all: a crawler follows the link, gets HTML, and the app
     // boots and renders its own not-found page.
-    final List<String> served = dvServedStaticPaths(
-      resolved,
-      declared: declared,
-    );
+    final List<String> served =
+        dvServedStaticPaths(resolved, declared: declared);
     final int stranded = resolved.length - served.length;
     if (stranded > 0) {
       // generatePublicPages generates its own route, so what lands here is
       // a publicPathsResolver naming paths for a page the application has
       // not written. Saying which is the difference between a warning
       // someone can act on and one they cannot.
-      Logger.log(
-        '   $stranded page(s) were not written: no route serves '
-        'them. A publicPathsResolver names the paths for a page you write; '
-        'if you meant Dartvel to write it, use generatePublicPages: true.',
-      );
+      Logger.log('   $stranded page(s) were not written: no route serves '
+          'them. A publicPathsResolver names the paths for a page you write; '
+          'if you meant Dartvel to write it, use generatePublicPages: true.');
     }
     if (served.isEmpty) return concrete;
 
-    Logger.log(
-      '   $templates parameterised route(s) expanded to '
-      '${served.length} page(s).',
-    );
+    Logger.log('   $templates parameterised route(s) expanded to '
+        '${served.length} page(s).');
     return <String>{...concrete, ...served}.toList()..sort();
   }
 
@@ -2826,12 +2620,10 @@ class BuildCommand extends Command<void> {
     for (final String route in routes) {
       final File file = File(dvSemanticsPathFor(root, route));
       if (!file.existsSync()) continue;
-      findings.addAll(
-        dvAuditSemantics(
-          route: route,
-          nodes: DVSemanticNode.listFromJson(file.readAsStringSync()),
-        ),
-      );
+      findings.addAll(dvAuditSemantics(
+        route: route,
+        nodes: DVSemanticNode.listFromJson(file.readAsStringSync()),
+      ));
     }
 
     // A documented waiver sets a finding aside; a waiver with no reason, or
@@ -2851,16 +2643,12 @@ class BuildCommand extends Command<void> {
     }
     for (final DVA11yWaiver waiver in verdict.unused) {
       // Either a typo or a finding since fixed; either way not for ever.
-      Logger.log(
-        '   ⚠ waiver matched nothing: ${waiver.route} ${waiver.rule} '
-        '(${waiver.reason})',
-      );
+      Logger.log('   ⚠ waiver matched nothing: ${waiver.route} ${waiver.rule} '
+          '(${waiver.reason})');
     }
     if (verdict.ok) {
-      Logger.log(
-        '   Accessibility: ${routes.length} route(s), '
-        '${verdict.waived.isEmpty ? 'nothing to fix' : '${verdict.waived.length} waived'}.',
-      );
+      Logger.log('   Accessibility: ${routes.length} route(s), '
+          '${verdict.waived.isEmpty ? 'nothing to fix' : '${verdict.waived.length} waived'}.');
       return;
     }
 
@@ -2879,16 +2667,14 @@ class BuildCommand extends Command<void> {
   /// returns null and the caller falls back to the source-literal extractor,
   /// so a build with no browser still produces something rather than failing.
   String? _semanticHtmlFor(String root, String route) {
-    final String name = route == '/'
-        ? 'index'
-        : route.replaceAll(RegExp(r'^/|/$'), '').replaceAll('/', '_');
+    final String name =
+        route == '/' ? 'index' : route.replaceAll(RegExp(r'^/|/$'), '')
+            .replaceAll('/', '_');
     final file = File(
-      p.join(root, '.dart_tool', 'dartvel_semantics', '$name.json'),
-    );
+        p.join(root, '.dart_tool', 'dartvel_semantics', '$name.json'));
     if (!file.existsSync()) return null;
-    final String html = dvSemanticHtml(
-      DVSemanticNode.listFromJson(file.readAsStringSync()),
-    );
+    final String html =
+        dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
     return html.trim().isEmpty ? null : html;
   }
 
@@ -2930,9 +2716,8 @@ class BuildCommand extends Command<void> {
     // And what each one says it is. `@DVModel(schemaType:)` was in the same
     // state, so a statically built store announced every product as a plain
     // WebPage -- structured data that validates and says the wrong thing.
-    final Map<String, String> modelSchemaTypes = dvModelPageSchemaTypes(
-      modelPages,
-    );
+    final Map<String, String> modelSchemaTypes =
+        dvModelPageSchemaTypes(modelPages);
     var written = 0;
 
     for (final String route in routes) {
@@ -2944,12 +2729,12 @@ class BuildCommand extends Command<void> {
       final meta = _prerendered(web.path, route);
       final text = routeText[route] ?? const <String>[];
       // Null for a page no model owns, which stays a WebPage.
-      final String? modelTemplate = dvTemplateFor(route, modelSchemaTypes.keys);
+      final String? modelTemplate =
+          dvTemplateFor(route, modelSchemaTypes.keys);
       final page = dvStaticPage(
         shell: shell,
         route: route,
-        title:
-            meta?.title ??
+        title: meta?.title ??
             declared[route] ??
             '${_routeLabel(route)} — $baseTitle',
         description: dvSeoDescription(settings),
@@ -2962,15 +2747,11 @@ class BuildCommand extends Command<void> {
         favicon: dvBuildFavicon(
           root: root,
           webRoot: web,
-          declared: dvPageFavicon(
-            route,
-            modelFavicons,
-            application: seoFavicon,
-          ),
+          declared:
+              dvPageFavicon(route, modelFavicons, application: seoFavicon),
         ),
-        schemaType: modelTemplate == null
-            ? null
-            : modelSchemaTypes[modelTemplate],
+        schemaType:
+            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
       );
 
       // The semantics tree when there is one, the source-literal extractor
@@ -2981,11 +2762,9 @@ class BuildCommand extends Command<void> {
       final String? semantics = _semanticHtmlFor(root, route);
       File(p.join(web.path, target))
         ..parent.createSync(recursive: true)
-        ..writeAsStringSync(
-          semantics != null
-              ? dvApplyPageHtml(page, semantics)
-              : dvApplyPageText(page, text),
-        );
+        ..writeAsStringSync(semantics != null
+            ? dvApplyPageHtml(page, semantics)
+            : dvApplyPageText(page, text));
       written++;
     }
 
@@ -2998,31 +2777,26 @@ class BuildCommand extends Command<void> {
       routerSource: _routerSource(root),
       routes: routes,
     );
-    Logger.log(
-      '   Preloads: ${prefetch.pages} page(s) name their own code '
-      'and ${prefetch.images} image(s).',
-    );
+    Logger.log('   Preloads: ${prefetch.pages} page(s) name their own code '
+        'and ${prefetch.images} image(s).');
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       // dartvel.seo.sitemap: whether to write one at all, which routes to
       // leave out, and what to say about a page that said nothing itself.
-      final DVSitemapConfig sitemapConfig = dvSitemapConfig(
-        _dartvelSection(root),
-      );
+      final DVSitemapConfig sitemapConfig =
+          dvSitemapConfig(_dartvelSection(root));
       if (sitemapConfig.enabled) {
-        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(
-          dvSitemap(
-            routes: routes,
-            siteUrl: siteUrl,
-            // Sitemap-only: a mount with sitemap: exclude is still answered by
-            // the server and still redirected to, and is not advertised here.
-            federated: dvFederatedSitemapRoutes(root).keys.toList(),
-            guarded: dvGuardedRoutes(_routerSource(root)),
-            entries: dvSitemapEntries(_routerSource(root)),
-            defaults: sitemapConfig.defaults,
-            exclude: sitemapConfig.exclude,
-          ),
-        );
+        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
+          routes: routes,
+          siteUrl: siteUrl,
+          // Sitemap-only: a mount with sitemap: exclude is still answered by
+          // the server and still redirected to, and is not advertised here.
+          federated: dvFederatedSitemapRoutes(root).keys.toList(),
+          guarded: dvGuardedRoutes(_routerSource(root)),
+          entries: dvSitemapEntries(_routerSource(root)),
+          defaults: sitemapConfig.defaults,
+          exclude: sitemapConfig.exclude,
+        ));
       }
       File(p.join(web.path, 'robots.txt')).writeAsStringSync(
         // A robots.txt naming a sitemap the build did not write points a
@@ -3037,14 +2811,12 @@ class BuildCommand extends Command<void> {
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
       if (sitemapConfig.enabled &&
           !File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
-        stylesheet.writeAsStringSync(
-          dvSitemapStylesheet(
-            siteName: settings['siteName'] as String? ?? baseTitle,
-            tagline: dvSeoDescription(settings) ?? '',
-            accent: settings['accent'] as String? ?? '#2563EB',
-            ink: settings['ink'] as String? ?? '#0B1020',
-          ),
-        );
+        stylesheet.writeAsStringSync(dvSitemapStylesheet(
+          siteName: settings['siteName'] as String? ?? baseTitle,
+          tagline: dvSeoDescription(settings) ?? '',
+          accent: settings['accent'] as String? ?? '#2563EB',
+          ink: settings['ink'] as String? ?? '#0B1020',
+        ));
       }
 
       // Path URLs need the server to answer index.html for a route with no
@@ -3062,12 +2834,12 @@ class BuildCommand extends Command<void> {
       }
       Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
     } else {
-      Logger.log(
-        '   Wrote $written route pages. Set dartvel.seo.siteUrl for '
-        'a sitemap and robots.txt.',
-      );
+      Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
+          'a sitemap and robots.txt.');
     }
   }
+
+
 
   /// Write what a Dartvel server needs to build any page on request.
   ///
@@ -3093,19 +2865,15 @@ class BuildCommand extends Command<void> {
     // it by default, which is what makes a new project's dashboard work with
     // no configuration. Profile counts as release: a profile build is
     // something you hand to somebody.
-    final DVAdminMount admin = dvAdminMount(
-      _dartvelSection(root),
-      release: _isReleaseBuild(),
-    );
+    final DVAdminMount admin = dvAdminMount(_dartvelSection(root),
+        release: _isReleaseBuild());
     if (!admin.enabled) {
       // Said out loud rather than left as an empty directory. dartvel build
       // defaults to --profile release, so somebody trying the dashboard for the
       // first time gets a build without one and nothing telling them why.
-      Logger.log(
-        '   No admin dashboard in this build. A release build '
-        'serves one only when dartvel.admin.enabled says so; '
-        '--profile development gets it with no configuration.',
-      );
+      Logger.log('   No admin dashboard in this build. A release build '
+          'serves one only when dartvel.admin.enabled says so; '
+          '--profile development gets it with no configuration.');
       return;
     }
 
@@ -3118,8 +2886,8 @@ class BuildCommand extends Command<void> {
     final Object? declaredName = readPubspecYaml(root)?['name'];
     final String appName =
         declaredName is String && declaredName.trim().isNotEmpty
-        ? declaredName.trim()
-        : 'Dartvel application';
+            ? declaredName.trim()
+            : 'Dartvel application';
 
     final DartvelProjectGraph graph = await DartvelProjectGraph.build(
       root: root,
@@ -3137,10 +2905,8 @@ class BuildCommand extends Command<void> {
       File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
     }
 
-    Logger.log(
-      '   Admin dashboard at ${admin.path} '
-      '(${files.length} files, served by the backend).',
-    );
+    Logger.log('   Admin dashboard at ${admin.path} '
+        '(${files.length} files, served by the backend).');
   }
 
   /// Whether this build is a release or profile one.
@@ -3199,8 +2965,7 @@ class BuildCommand extends Command<void> {
         // replaces that whole block -- so a server without them served every
         // page stripped of its description, image and site name.
         site: DVSiteSeo(
-          name:
-              seo['siteName'] as String? ??
+          name: seo['siteName'] as String? ??
               dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
           description: dvSeoDescription(seo),
           image: seo['image'] as String?,
@@ -3208,9 +2973,7 @@ class BuildCommand extends Command<void> {
         // dartvel.web.server: how page data is waited for, and whether the
         // head goes out ahead of the body.
         server: DVWebServerSettings.parse(
-          (_dartvelSection(root)['web'] is Map
-              ? (_dartvelSection(root)['web']! as Map)['server']
-              : null),
+          (_dartvelSection(root)['web'] is Map ? (_dartvelSection(root)['web']! as Map)['server'] : null),
         ),
       ),
     );
@@ -3225,31 +2988,26 @@ class BuildCommand extends Command<void> {
       routerSource: _routerSource(root),
       routes: routes,
     );
-    Logger.log(
-      '   Preloads: $preloading route(s) name their own code for '
-      'the server to send.',
-    );
+    Logger.log('   Preloads: $preloading route(s) name their own code for '
+        'the server to send.');
 
     if (siteUrl != null && siteUrl.isNotEmpty) {
       // dartvel.seo.sitemap: whether to write one at all, which routes to
       // leave out, and what to say about a page that said nothing itself.
-      final DVSitemapConfig sitemapConfig = dvSitemapConfig(
-        _dartvelSection(root),
-      );
+      final DVSitemapConfig sitemapConfig =
+          dvSitemapConfig(_dartvelSection(root));
       if (sitemapConfig.enabled) {
-        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(
-          dvSitemap(
-            routes: routes,
-            siteUrl: siteUrl,
-            // Sitemap-only: a mount with sitemap: exclude is still answered by
-            // the server and still redirected to, and is not advertised here.
-            federated: dvFederatedSitemapRoutes(root).keys.toList(),
-            guarded: dvGuardedRoutes(_routerSource(root)),
-            entries: dvSitemapEntries(_routerSource(root)),
-            defaults: sitemapConfig.defaults,
-            exclude: sitemapConfig.exclude,
-          ),
-        );
+        File(p.join(web.path, 'sitemap.xml')).writeAsStringSync(dvSitemap(
+          routes: routes,
+          siteUrl: siteUrl,
+          // Sitemap-only: a mount with sitemap: exclude is still answered by
+          // the server and still redirected to, and is not advertised here.
+          federated: dvFederatedSitemapRoutes(root).keys.toList(),
+          guarded: dvGuardedRoutes(_routerSource(root)),
+          entries: dvSitemapEntries(_routerSource(root)),
+          defaults: sitemapConfig.defaults,
+          exclude: sitemapConfig.exclude,
+        ));
       }
       File(p.join(web.path, 'robots.txt')).writeAsStringSync(
         // A robots.txt naming a sitemap the build did not write points a
@@ -3264,16 +3022,13 @@ class BuildCommand extends Command<void> {
       final stylesheet = File(p.join(web.path, 'sitemap.xsl'));
       if (sitemapConfig.enabled &&
           !File(p.join(root, 'web', 'sitemap.xsl')).existsSync()) {
-        stylesheet.writeAsStringSync(
-          dvSitemapStylesheet(
-            siteName:
-                seo['siteName'] as String? ??
-                dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
-            tagline: dvSeoDescription(seo) ?? '',
-            accent: seo['accent'] as String? ?? '#2563EB',
-            ink: seo['ink'] as String? ?? '#0B1020',
-          ),
-        );
+        stylesheet.writeAsStringSync(dvSitemapStylesheet(
+          siteName: seo['siteName'] as String? ??
+              dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
+          tagline: dvSeoDescription(seo) ?? '',
+          accent: seo['accent'] as String? ?? '#2563EB',
+          ink: seo['ink'] as String? ?? '#0B1020',
+        ));
       }
 
       // Path URLs need the server to answer index.html for a route with no
@@ -3290,15 +3045,11 @@ class BuildCommand extends Command<void> {
         htaccess.writeAsStringSync(dvApacheConfig());
       }
     }
-    Logger.log(
-      '   Wrote dartvel_routes.json for ${routes.length} routes; '
-      'the server renders each page on request.',
-    );
+    Logger.log('   Wrote dartvel_routes.json for ${routes.length} routes; '
+        'the server renders each page on request.');
     if (removed > 0) {
-      Logger.log(
-        '   Removed $removed stale page(s) from an earlier static '
-        'build, which would have shadowed the rendered ones.',
-      );
+      Logger.log('   Removed $removed stale page(s) from an earlier static '
+          'build, which would have shadowed the rendered ones.');
     }
   }
 
@@ -3315,12 +3066,10 @@ class BuildCommand extends Command<void> {
     try {
       final decoded = jsonDecode(file.readAsStringSync());
       if (decoded is! Map) return const <String, List<String>>{};
-      return decoded.map(
-        (Object? route, Object? lines) => MapEntry<String, List<String>>(
-          '$route',
-          (lines as List<Object?>).map((Object? l) => '$l').toList(),
-        ),
-      );
+      return decoded.map((Object? route, Object? lines) => MapEntry<String, List<String>>(
+            '$route',
+            (lines as List<Object?>).map((Object? l) => '$l').toList(),
+          ));
     } on Object {
       // A half-written manifest is a page without its text, not a failed
       // build.
@@ -3346,15 +3095,15 @@ class BuildCommand extends Command<void> {
 
   /// The generated router's source, or empty when there is none.
   String _routerSource(String root) {
-    final router = File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
+    final router =
+        File(p.join(root, 'lib', 'dartvel_client', 'router.g.dart'));
     return router.existsSync() ? router.readAsStringSync() : '';
   }
 
   /// The generated model-page manifest's source, or empty when there is none.
   String _modelPagesSource(String root) {
-    final File manifest = File(
-      p.join(root, 'lib', 'dartvel_client', 'model_pages.g.dart'),
-    );
+    final File manifest =
+        File(p.join(root, 'lib', 'dartvel_client', 'model_pages.g.dart'));
     return manifest.existsSync() ? manifest.readAsStringSync() : '';
   }
 
@@ -3382,14 +3131,12 @@ class BuildCommand extends Command<void> {
     if (platform != 'web' && platform != 'web-server') {
       return const DVImageVariants();
     }
-    final DVImageVariants declared = DVImageVariants.parse(
-      _dartvelSection(root)['images'],
-    ).variants;
+    final DVImageVariants declared =
+        DVImageVariants.parse(_dartvelSection(root)['images']).variants;
     Object? assets;
     try {
-      final Object? doc = loadYaml(
-        File(p.join(root, 'pubspec.yaml')).readAsStringSync(),
-      );
+      final Object? doc =
+          loadYaml(File(p.join(root, 'pubspec.yaml')).readAsStringSync());
       final Object? flutter = doc is Map ? doc['flutter'] : null;
       assets = flutter is Map ? flutter['assets'] : null;
     } on Object {
@@ -3400,8 +3147,7 @@ class BuildCommand extends Command<void> {
       widths: declared.widths,
       quality: declared.quality,
       remoteHosts: declared.remoteHosts,
-      endpoint:
-          platform == 'web-server' &&
+      endpoint: platform == 'web-server' &&
           (widths.isNotEmpty || declared.remoteHosts.isNotEmpty),
       assetWidths: widths,
     );
@@ -3410,9 +3156,8 @@ class BuildCommand extends Command<void> {
   /// Every variant DVImageView can ask for, written into build/web.
   void _writeStaticImageVariants(String root, String platform) {
     // Said once per build, here, rather than every time the list is read.
-    for (final String problem in DVImageVariants.parse(
-      _dartvelSection(root)['images'],
-    ).problems) {
+    for (final String problem
+        in DVImageVariants.parse(_dartvelSection(root)['images']).problems) {
       Logger.log('   ⚠ $problem');
     }
     final DVImageVariants variants = _imageVariants(root, platform);
@@ -3422,10 +3167,8 @@ class BuildCommand extends Command<void> {
       webRoot: p.join(root, 'build', 'web'),
       variants: variants,
     );
-    Logger.log(
-      '   Image variants: ${written.images} image(s), '
-      '${written.written} file(s) written.',
-    );
+    Logger.log('   Image variants: ${written.images} image(s), '
+        '${written.written} file(s) written.');
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {
@@ -3493,6 +3236,7 @@ class BuildCommand extends Command<void> {
   /// so without this the build would install a toolchain and then immediately
   /// report it as missing.
   final _installedToolPaths = <String>[];
+
 
   /// Whether [platform]'s embedder bundles a Dart older than Dartvel's floor.
   ///
@@ -3571,10 +3315,8 @@ class BuildCommand extends Command<void> {
       );
       if (lookup.file == null) {
         Logger.log('');
-        Logger.log(
-          '⚠️  web-server: build/server will not be written. '
-          '${lookup.problem}',
-        );
+        Logger.log('⚠️  web-server: build/server will not be written. '
+            '${lookup.problem}');
       }
     }
 
@@ -3668,12 +3410,8 @@ class BuildCommand extends Command<void> {
     }
     try {
       final locator = Platform.isWindows ? 'where' : 'which';
-      final result = await Process.run(
-        locator,
-        [executable],
-        runInShell: true,
-        environment: _buildEnvironment,
-      );
+      final result = await Process.run(locator, [executable],
+          runInShell: true, environment: _buildEnvironment);
       return result.exitCode == 0;
     } catch (_) {
       return false;
@@ -3763,33 +3501,34 @@ EmbeddedBuildPlan _withScaffold(
 /// existing `pubspec.yaml` or `lib/main.dart` is never clobbered.
 ({String directory, List<String> arguments})? embeddedScaffoldFor(
   String platform,
-) => switch (platform) {
-  'tizen' => (
-    directory: 'tizen',
-    // The default scaffold is C#/.NET; cpp matches the native toolchain.
-    arguments: <String>[
-      'create',
-      '--platforms',
-      'tizen',
-      '--tizen-language',
-      'cpp',
-      '.',
-    ],
-  ),
-  'sony-elinux' => (
-    directory: 'elinux',
-    arguments: <String>['create', '--platforms', 'elinux', '.'],
-  ),
-  'webos' => (
-    directory: 'webos',
-    arguments: <String>['create', '--platforms', 'webos', '.'],
-  ),
-  'tvos' => (
-    directory: 'tvos',
-    arguments: <String>['create', '--platforms=tvos', '.'],
-  ),
-  _ => null,
-};
+) =>
+    switch (platform) {
+      'tizen' => (
+          directory: 'tizen',
+          // The default scaffold is C#/.NET; cpp matches the native toolchain.
+          arguments: <String>[
+            'create',
+            '--platforms',
+            'tizen',
+            '--tizen-language',
+            'cpp',
+            '.',
+          ],
+        ),
+      'sony-elinux' => (
+          directory: 'elinux',
+          arguments: <String>['create', '--platforms', 'elinux', '.'],
+        ),
+      'webos' => (
+          directory: 'webos',
+          arguments: <String>['create', '--platforms', 'webos', '.'],
+        ),
+      'tvos' => (
+          directory: 'tvos',
+          arguments: <String>['create', '--platforms=tvos', '.'],
+        ),
+      _ => null,
+    };
 
 class VSCodeArtifactValidation {
   const VSCodeArtifactValidation({
@@ -3820,13 +3559,13 @@ class VSCodeArtifactValidation {
   }
 }
 
-VSCodeArtifactValidation validateVSCodeArtifacts(
-  String root, {
-  DateTime? since,
-}) {
+VSCodeArtifactValidation validateVSCodeArtifacts(String root,
+    {DateTime? since}) {
   return VSCodeArtifactValidation(
-    hasExtensionHostOutput:
-        _containsJavaScriptFile(Directory(p.join(root, 'out')), since: since) ||
+    hasExtensionHostOutput: _containsJavaScriptFile(
+          Directory(p.join(root, 'out')),
+          since: since,
+        ) ||
         _containsJavaScriptFile(Directory(p.join(root, 'dist')), since: since),
     hasFlutterBootstrap: _existsAndIsFresh(
       File(p.join(root, 'build', 'web', 'flutter_bootstrap.js')),
@@ -3893,11 +3632,9 @@ const embeddedArchDefaults = <String, String>{'fuchsia': 'x64'};
 /// An explicit `--arch` always wins: a developer who has built an arm64
 /// Fuchsia engine should be able to use it, and the embedder's own error is
 /// clear if they have not.
-String resolveEmbeddedArch(
-  String platform,
-  String arch, {
-  bool explicit = false,
-}) => explicit ? arch : (embeddedArchDefaults[platform] ?? arch);
+String resolveEmbeddedArch(String platform, String arch,
+        {bool explicit = false}) =>
+    explicit ? arch : (embeddedArchDefaults[platform] ?? arch);
 
 /// How long a build may run before it is treated as stalled.
 ///
@@ -3944,10 +3681,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
       return _withScaffold(
-        'tizen',
-        'flutter-tizen',
-        List<String>.unmodifiable(args),
-      );
+          'tizen', 'flutter-tizen', List<String>.unmodifiable(args));
     case 'sony-elinux':
       // No external embedder command any more.
       //
@@ -3965,10 +3699,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         args.addAll(<String>['--device-profile', deviceProfile]);
       }
       return _withScaffold(
-        'webos',
-        'flutter-webos',
-        List<String>.unmodifiable(args),
-      );
+          'webos', 'flutter-webos', List<String>.unmodifiable(args));
     case 'tvos':
       // Device builds are AOT and require a configured Xcode signing team.
       // --simulator is the unsigned path, and the embedder accepts it only
@@ -3997,10 +3728,7 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       ];
       if (target != null) args.addAll(<String>['--target', target]);
       return _withScaffold(
-        'tvos',
-        'flutter-tvos',
-        List<String>.unmodifiable(args),
-      );
+          'tvos', 'flutter-tvos', List<String>.unmodifiable(args));
     case 'fuchsia':
       // Unlike the other three, Fuchsia's embedder is not a Flutter CLI
       // wrapper — there is no embedder binary at all. It is a Bazel workspace,
@@ -4012,9 +3740,8 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
       // `dartvel_fuchsia` is ever installed there — which is exactly how this
       // target reported "not found on PATH" and skipped on a runner that had
       // just installed the embedder successfully.
-      final root = dartvelToolchainRoot(
-        toolchainHome ?? resolveToolchainHome(),
-      );
+      final root =
+          dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
       final args = <String>[
         appPath ?? '.',
         '--cpu',
