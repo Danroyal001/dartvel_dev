@@ -234,7 +234,9 @@ jobs:
         continue-on-error: true
         timeout-minutes: 30
         run: |
-          set -uo pipefail
+          # Every attempt runs and is recorded whatever the one before it did:
+          # the runner starts this shell with -e.
+          set +e -uo pipefail
           out=/tmp/diag/ios-simulator-patch-attempt.txt
           export FLUTTER_STORAGE_BASE_URL=https://download.shorebird.dev
           SB=/tmp/sbflutter/bin/flutter
