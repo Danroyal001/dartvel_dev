@@ -181,6 +181,8 @@ void main() {
     expect(generated, contains('void configureDartvelHttp() {}'));
   });
 
+  diagnosticsMain(project);
+
   group('a hosts block the reader does not understand stops the build', () {
     final Map<String, (String, String)> cases = <String, (String, String)>{
       'a misspelt host key': (
@@ -219,5 +221,74 @@ void main() {
             reason: 'a build that fails must not leave half a client behind');
       });
     }
+  });
+}
+
+void _write(Directory project, String path, String source) {
+  File(p.join(project.path, path))
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(source);
+}
+
+// Declared outside main so the diagnostics group reads as its own section.
+void diagnosticsMain(Directory Function(String) project) {
+  group('outbound HTTP the build can see is wrong stops it', () {
+    test('DV-HTTP-001: a backend function calling a host nobody declared',
+        () async {
+      final Directory dir = project(_validHttp);
+      _write(dir, 'lib/backend/functions/charge.dart', '''
+Future<void> handler() async {
+  await DV.Http.post('https://api.paystak.co/charge', json: <String, Object?>{});
+}
+''');
+      await expectLater(
+        routes.generate(root_: dir.path),
+        throwsA(isA<StateError>().having((StateError e) => e.message, 'message',
+            allOf(contains('DV-HTTP-001'),
+                contains('lib/backend/functions/charge.dart:2')))),
+      );
+      expect(Directory(p.join(dir.path, 'lib', 'dartvel_client')).existsSync(),
+          isFalse);
+    });
+
+    test('DV-HTTP-005: a page using a host with a backend-scoped credential',
+        () async {
+      final Directory dir = project('''
+  secrets:
+    PAYSTACK_SECRET_KEY:
+      scope: backend
+$_validHttp''');
+      _write(dir, 'lib/pages/pay.page.dart', '''
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'Pay')
+Widget _payPage(BuildContext context) {
+  DV.Http.host('paystack').get('/balance');
+  return const DVText('Pay');
+}
+''');
+      await expectLater(
+        routes.generate(root_: dir.path),
+        throwsA(isA<StateError>().having((StateError e) => e.message, 'message',
+            allOf(contains('DV-HTTP-005'), contains('lib/pages/pay.page.dart:7')))),
+      );
+      expect(Directory(p.join(dir.path, 'lib', 'dartvel_client')).existsSync(),
+          isFalse);
+    });
+
+    test('the same call from a backend function builds', () async {
+      final Directory dir = project(_validHttp);
+      _write(dir, 'lib/backend/functions/balance.dart', '''
+Future<int> handler() async {
+  await DV.Http.host('paystack').get('/balance');
+  await DV.Http.get('https://ship.example.com/v2/quote');
+  return 1;
+}
+''');
+      await routes.generate(root_: dir.path);
+      expect(_read(dir, 'http.g.dart'), contains('configureDartvelHttp'));
+    });
   });
 }

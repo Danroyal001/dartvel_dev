@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart' show DVHttp;
 import 'package:path/path.dart' as p;
 
+import '../http/http_analysis.dart';
+import '../secrets/secrets_analysis.dart';
+
 /// `dartvel.http` read at generation, and the Dart the running application
 /// declares its hosts from.
 ///
@@ -33,6 +36,46 @@ class HttpHostsGenerator {
       throw StateError('${error.message}');
     }
     return http;
+  }
+
+  /// `DV-HTTP-001` and `DV-HTTP-005` over the project's own sources, before
+  /// anything is written.
+  ///
+  /// Client-reachable means lib/ minus [backendDir] and the generated client,
+  /// the same split the DV-SECRETS-001 check makes.
+  static void check({
+    required String root,
+    required String backendDir,
+    required Map<Object?, Object?>? http,
+  }) {
+    final Directory lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return;
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    final String backend = p.posix.normalize(backendDir.replaceAll(r'\', '/'));
+    final Map<String, String> clientFiles = <String, String>{};
+    final Map<String, String> backendFiles = <String, String>{};
+    for (final FileSystemEntity entity
+        in lib.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final String rel =
+          p.relative(entity.path, from: root).replaceAll(r'\', '/');
+      if (rel.startsWith('lib/dartvel_client/')) continue;
+      if (rel == backend || rel.startsWith('$backend/')) {
+        backendFiles[rel] = entity.readAsStringSync();
+      } else {
+        clientFiles[rel] = entity.readAsStringSync();
+      }
+    }
+    final List<DVHttpFinding> findings = dvAnalyseHttp(
+      hosts: http == null ? const {} : DVHttp.readConfig(http),
+      secrets: pubspec.existsSync()
+          ? dvParseSecretDeclarations(pubspec.readAsStringSync())
+          : const <String, DVSecretDeclaration>{},
+      clientFiles: clientFiles,
+      backendFiles: backendFiles,
+    );
+    if (findings.isEmpty) return;
+    throw StateError(findings.join('\n'));
   }
 
   /// Writes `http.g.dart` under `lib/dartvel_client`, whether or not hosts are
