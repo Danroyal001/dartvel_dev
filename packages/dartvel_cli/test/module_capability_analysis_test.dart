@@ -108,7 +108,11 @@ await DV.Http.get('https://api.stripe.com' + suffix);
             'hosts': <Object?, Object?>{
               'stripe': <Object?, Object?>{
                 'baseUrl': 'https://api.stripe.com',
-                'bearerSecret': 'STRIPE_KEY',
+                // The shape the specification and DVHttp.readConfig use.
+                // This test wrote bearerSecret, a key the pubspec reader has
+                // never read and now refuses, so a module declaring its
+                // credential correctly listed no secret.
+                'auth': <Object?, Object?>{'bearer': 'STRIPE_KEY'},
               },
             },
           },
