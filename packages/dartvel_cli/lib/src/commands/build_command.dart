@@ -1026,6 +1026,10 @@ class BuildCommand extends Command<void> {
         } else {
           await _writeStaticPages(root);
         }
+        // Last, after everything above has written into it: a host serves
+        // the upload with the modes it carries, and a directory others cannot
+        // enter turns every asset under it into index.html.
+        dvMakeWebOutputServable(Directory(p.join(root, 'build', 'web')));
       }
       if (platform == 'linux') _writeLinuxDesktopFiles(_projectRoot);
       if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
