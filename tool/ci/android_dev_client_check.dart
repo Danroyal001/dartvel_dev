@@ -211,7 +211,12 @@ Future<void> main() async {
     // Linux and Chrome, so with no terminal to choose at dartvel dev must run
     // no local app: one on the emulator would install over the development
     // build being paired.
-    if (!devLines.any((String l) => l.contains('serving pairing'))) {
+    // Device detection runs after the link is printed, so this is waited for.
+    if (!await _waitFor(
+      'dartvel dev chose no local app',
+      () async => devLines.any((String l) => l.contains('serving pairing')),
+      within: const Duration(minutes: 2),
+    )) {
       failures.add(
         'dartvel dev did not say it was serving pairing with no '
         'local app; it may have started one on the emulator',
