@@ -27,8 +27,11 @@ class DVAppLaunchResult {
   final DVInstanceLock? _lock;
   Timer? _timer;
 
-  DVAppLaunchResult._({required this.isPrimary, required this.forwarded, DVInstanceLock? lock})
-      : _lock = lock;
+  DVAppLaunchResult._({
+    required this.isPrimary,
+    required this.forwarded,
+    DVInstanceLock? lock,
+  }) : _lock = lock;
 
   /// Stops watching for later launches and releases the lock.
   void stop() {
@@ -61,13 +64,17 @@ class DVAppLaunch {
   /// Whether [argument] is a link rather than a route, a file or a flag.
   static bool isLink(String argument) {
     final Uri? uri = Uri.tryParse(argument.trim());
-    return uri != null && uri.hasScheme && uri.scheme != 'file' && !argument.trim().startsWith('/');
+    return uri != null &&
+        uri.hasScheme &&
+        uri.scheme != 'file' &&
+        !argument.trim().startsWith('/');
   }
 
   /// Where the lock lives for [appId]: the session's runtime directory
   /// where there is one, else the temp directory.
   static String lockPathFor(String appId) {
-    final String base = Platform.environment['XDG_RUNTIME_DIR'] ?? Directory.systemTemp.path;
+    final String base =
+        Platform.environment['XDG_RUNTIME_DIR'] ?? Directory.systemTemp.path;
     return '$base/dartvel-$appId.lock';
   }
 
@@ -95,6 +102,9 @@ class DVAppLaunch {
       return _pathAndQuery(uri.path.isEmpty ? '/' : uri.path, uri.query);
     }
     if (uri.scheme == 'javascript' || uri.scheme == 'data') return null;
+    // A development build's pairing link: the native tunnel reads it, and it
+    // names no page.
+    if (uri.scheme == 'dartvel-dev') return null;
     // A home widget's tap, before the general rule below gets hold of it.
     // Its host says what kind of link it is rather than naming a segment, so
     // folding the host into the path turned
@@ -104,7 +114,8 @@ class DVAppLaunch {
     final String? widgetRoute = dvHomeWidgetRouteForLink(text);
     if (widgetRoute != null) return widgetRoute;
     // dartvel://orders/42 -- the host is the first segment.
-    final String path = '/${<String>[if (uri.host.isNotEmpty) uri.host, ...uri.pathSegments].join('/')}';
+    final String path =
+        '/${<String>[if (uri.host.isNotEmpty) uri.host, ...uri.pathSegments].join('/')}';
     return _pathAndQuery(path, uri.query);
   }
 
@@ -117,7 +128,8 @@ class DVAppLaunch {
   /// whether or not this process can see it yet.
   static bool _looksLikeFile(String path) {
     final String bare = path.split('?').first;
-    if (FileSystemEntity.typeSync(bare) != FileSystemEntityType.notFound) return true;
+    if (FileSystemEntity.typeSync(bare) != FileSystemEntityType.notFound)
+      return true;
     final String last = bare.substring(bare.lastIndexOf('/') + 1);
     final int dot = last.lastIndexOf('.');
     return dot > 0 && dot < last.length - 1;
@@ -176,7 +188,8 @@ class DVAppLaunch {
   /// the same process -- a test building the router twice, an app that
   /// rebuilds it -- is the same application, not a second launch, and gets
   /// the same result back with its arguments queued.
-  static final Map<String, DVAppLaunchResult> _primaries = <String, DVAppLaunchResult>{};
+  static final Map<String, DVAppLaunchResult> _primaries =
+      <String, DVAppLaunchResult>{};
 
   /// Takes the lock for [appId], or hands [arguments] to the process that
   /// has it. The primary opens its own arguments' routes and, every [poll],
@@ -220,7 +233,11 @@ class DVAppLaunch {
     for (final String r in routes) {
       lock.send(r);
     }
-    final DVAppLaunchResult result = DVAppLaunchResult._(isPrimary: true, forwarded: const <String>[], lock: lock);
+    final DVAppLaunchResult result = DVAppLaunchResult._(
+      isPrimary: true,
+      forwarded: const <String>[],
+      lock: lock,
+    );
     _primaries[path] = result;
     bool draining = false;
     Future<void> drain() async {
