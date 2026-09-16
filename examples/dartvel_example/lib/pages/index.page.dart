@@ -36,6 +36,17 @@ Widget _indexPage(BuildContext context) => (() {
             to: DVRouteTarget('/gallery'),
             child: DVText('Gallery'),
           ),
+          // Config routes, from lib/routes.dart, by the same typed targets.
+          DVNavLink(
+            key: Key('link-settings'),
+            to: DVRoutes.settings,
+            child: DVText('Settings'),
+          ),
+          DVNavLink(
+            key: Key('link-team-home'),
+            to: DVRoutes.team,
+            child: DVText('Team'),
+          ),
         ], spacing: 12),
         ShowcaseHero(
           DV.Platform.currentPlatform,
