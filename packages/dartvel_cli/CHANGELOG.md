@@ -30,15 +30,6 @@
   so a tabs layout opening on the home page refused every other page in the
   folder as belonging to no tab (`DV-ROUTE-005`).
 
-- **`dartvel key cloud` sets the credentials cloud builds use as the
-  repository's Actions secrets.** `--android-keystore` with
-  `--android-key-alias` sets the keystore, its password (read from
-  `DARTVEL_ANDROID_KEYSTORE_PASSWORD`) and the alias that the cloud workflow
-  writes into `android/key.properties`. `--firebase-service-account` sets the
-  key `dartvel publish firebase` uploads with. Values go to `gh secret set` on
-  standard input and are never stored or printed; `--dry-run` names the
-  secrets and sets none.
-
 - **The web-server binary serves the admin dashboard.** `dartvel build
   web-server` wrote the dashboard into build/web/__admin and then left it out
   of build/server, because every web file the binary carries is served to
