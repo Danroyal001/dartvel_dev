@@ -1,4 +1,14 @@
 ## Unreleased
+
+- **The generated server starts DV.Privacy's background work.** Where
+  `DARTVEL_PRIVACY_KEY` is set, a web process creates the privacy walk's own
+  tables and registers its erasure and retention jobs before it serves; a
+  worker and a cron process now configure `DV.Privacy` over the shared
+  database too, so an erasure queued by a web process runs on a worker; and
+  the process that ticks the schedules sweeps retention daily and runs open
+  erasures ahead of their deadline hourly, each occurrence claimed through
+  the schedule lease.
+
 - **`DV-HTTP-001` and `DV-HTTP-005` stop the build.** `dartvel routes` reads
   every `DV.Http.host('name')` and every absolute URL written as a literal
   (directly, through `Uri.parse`, or as `send`'s second argument) before it

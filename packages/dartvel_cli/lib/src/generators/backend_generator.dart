@@ -1365,6 +1365,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
   if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
   configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
+  // The walk's own tables, and its erasure and retention jobs on the queue.
+  // Awaited before serving: a request for an erasure before its tables
+  // exist fails. Nothing, where DV.Privacy is not configured.
+  final Future<bool> dartvelPrivacyStarted = core.DVPrivacyRuntime.start();
   // The account endpoints send an address change's code through
   // DV.Notifications.mail in the generated template, and delete an account
   // through the DV.Privacy just configured -- each refused, naming what to
@@ -1407,6 +1411,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     // Null when dartvel.auth.deletionGraceDays declares no window.
     _dartvelAccountSweepTimer?.cancel();
     _dartvelAccountSweepTimer = dartvelStartAccountDeletionSweep(every: scheduleTick);
+    // Retention swept daily and open erasures run before their deadline,
+    // each occurrence claimed like the application's schedules. Null where
+    // DV.Privacy is not configured.
+    _dartvelPrivacyTimer?.cancel();
+    _dartvelPrivacyTimer = core.DVPrivacyRuntime.startSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease ?? stores.scheduleLeaseFor(processConfiguration), onFailure: core.DVServerCrashes.recordScheduled);
   } else if (dartvelBackendCronEntries.isNotEmpty) {
     stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
   }
@@ -1422,7 +1431,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // second entrypoint can still override either; the configuration is
   // what an application gets when it says nothing here, which is what
   // every generated entrypoint does.
-  return dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: router.bodyLimits);
+  return dartvelPrivacyStarted.then((_) => dv.serve(router.call, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: router.bodyLimits));
 }
 
 /// The schedule timer this process started, so a stopped process stops it.
@@ -1430,6 +1439,19 @@ Timer? _dartvelScheduleTimer;
 
 /// The account deletion sweep this process started, likewise.
 Timer? _dartvelAccountSweepTimer;
+
+/// The retention sweep and erasure deadline schedules, likewise.
+Timer? _dartvelPrivacyTimer;
+
+/// Configures DV.Analytics and DV.Privacy in a worker or cron process over
+/// the database it shares, as a web process does, and starts the privacy
+/// walk: its tables, and its erasure and retention jobs.
+Future<void> _dartvelStartBackendPrivacy(core.DVProcessStores stores) async {
+  final core.DVDatabaseAdapter? database = const core.DVDatabase().configuredAdapter ?? stores.database;
+  if (database != null) configureDartvelAnalytics(database: () => database);
+  configureDartvelBackendPrivacy(database: database, environment: Platform.environment);
+  await core.DVPrivacyRuntime.start();
+}
 
 bool _dartvelServerCrashesInstalled = false;
 
@@ -1508,6 +1530,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       await stopped;
       _dartvelScheduleTimer?.cancel();
       _dartvelAccountSweepTimer?.cancel();
+      _dartvelPrivacyTimer?.cancel();
       await handle.stop();
     case core.DVProcessRole.worker:
       // The same start a web process makes, less what only serving needs: a
@@ -1525,7 +1548,10 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       registerDartvelJobs();
       // The account erasure job, for a worker given its queue.
       configureDartvelBackendAccounts();
-      core.DVProcessStores.install();
+      final core.DVProcessStores workerStores = core.DVProcessStores.install();
+      // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
+      // here -- the account erasure job included.
+      await _dartvelStartBackendPrivacy(workerStores);
       if (!const core.DVQueues().adapterConfigured) {
         throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker has no queue adapter: DATABASE_URL is not set, so no queue is shared with the processes that dispatch jobs, and this worker would never receive one.');
       }
@@ -1569,10 +1595,14 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       final core.DVProcessHealth? cronHealth = await _dartvelServeHealth(process);
       final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: lease);
       final Timer? accountSweep = dartvelStartAccountDeletionSweep(every: scheduleTick);
+      // Retention and erasure deadlines, claimed through the same lease.
+      await _dartvelStartBackendPrivacy(stores);
+      final Timer? privacySchedules = core.DVPrivacyRuntime.startSchedules(every: scheduleTick, clock: scheduleClock, lease: lease, onFailure: core.DVServerCrashes.recordScheduled);
       stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
       await stopped;
       timer?.cancel();
       accountSweep?.cancel();
+      privacySchedules?.cancel();
       await cronHealth?.close();
   }
 }
