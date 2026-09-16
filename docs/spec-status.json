@@ -1951,6 +1951,23 @@
       "absent": "Built: dartvel publish takes a built application to Google Play, App Store Connect, TestFlight or Firebase App Distribution, declared under dartvel.publish in pubspec.yaml. Host support, then the tooling, then the work -- and here the work is an upload of a binary that took minutes to produce, so every refusal comes before it: a track nobody publishes to is refused rather than corrected to the nearest, because \"staging\" could mean internal or alpha and guessing puts a build in front of the wrong people; Play credentials that were never declared are refused rather than left to fastlane, which stops to ask and a pipeline has nobody to answer; App Store Connect is refused off macOS at the start rather than with \"command not found\" at the end of a long build. --dry-run prints the command instead of running it. The upload uploads and nothing else, because a publish that also promoted the build would be two things under one word. Designed, not built: privacy manifests and Play Data Safety generated from the model graph and the native binding manifest, with dartvel doctor reporting drift; store metadata and screenshots versioned in the repository, screenshots taken from declared goldens; credentials resolved by name through Secrets rather than held. Absent: the stores are driven through their own tools -- fastlane, xcrun altool, the firebase CLI -- rather than their APIs directly, so a machine without one is told to install it rather than having it fetched; no store has been published to from CI, which needs an account and a signing identity; and metadata, screenshots and staged rollouts are deliberately not touched."
     },
     {
+      "section": "Dartvel Cloud",
+      "stability": "Draft",
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/cloud/cloud_protocol.dart",
+        "packages/dartvel_core/test/cloud_protocol_test.dart",
+        "packages/dartvel_cli/lib/src/cloud/cloud_build.dart",
+        "packages/dartvel_cli/lib/src/cloud/cloud_client.dart",
+        "packages/dartvel_cli/lib/src/cloud/source_archive.dart",
+        "packages/dartvel_cli/test/cloud_build_test.dart",
+        "packages/dartvel_cli/test/build_cloud_flag_test.dart",
+        "packages/dartvel_cli/test/publish_cloud_test.dart",
+        "packages/dartvel_cli/test/key_cloud_test.dart"
+      ],
+      "absent": "Built in this repository: the protocol types in package:dartvel_core/cloud.dart, and the CLI side -- dartvel build <target> --cloud (the repository sent from git's file list with the app's directory named, the log streamed and resumed from the last event, artifacts kept only when size and SHA-256 match, an install link printed with a QR code), dartvel publish firebase --cloud, and dartvel key cloud <name> <file>|- with --delete and a listing that never prints values. A 402 exits 77 with the plans page: every cloud build is paid. Built outside this repository, in the private dartvel_enterprise repository: the service (queue per worker OS with lease requeue, event log, artifacts, install pages for Android development and profile builds, a per-project OTA patch source), the worker that runs the project's own dartvel build and publish, the credential vault sealed per account, project and name, and managed iOS signing through the App Store Connect API tested against a fake App Store Connect; that repository's CI runs this CLI against the service and a Linux worker. Absent: a hosted deployment at cloud.dartvel.dev and any hosted workers, including macOS machines; billing, so the plan is a field an operator sets; a dashboard; build caching and priority; publish --cloud to Google Play (dartvel build android writes no app bundle) and to App Store Connect or TestFlight (dartvel build ios does not sign, so managed signing has nothing to sign); iOS internal distribution; hosting web-server binaries; store metadata upload; push notification keys; triggers on push or schedule; and the service running as a Dartvel web-server application, which needs @DVBackendFunction(rawPath:) for uploads and downloads and that is not built."
+    },
+    {
       "section": "Takeaway",
       "kind": "narrative"
     }

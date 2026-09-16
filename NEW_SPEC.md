@@ -12635,6 +12635,104 @@ staged rollout refuses `--rollout` rather than uploading and ignoring it.
 - **Store account provisioning.** Creating accounts, agreements and bundle
   identifiers is the developer's, once, in the store's own console.
 
+# Dartvel Cloud
+
+Stability: `Draft` · Status: `Partial`
+
+Dartvel Cloud is the hosted service behind the CLI's cloud options. It builds
+on Dartvel-run workers, so a Linux or Windows machine builds iOS and macOS. It
+keeps signing and store credentials, publishes to the stores after a build,
+serves OTA patches and gives testers install links. It covers what Expo's EAS
+covers, through the commands a Dartvel developer already uses: a cloud build
+is `dartvel build ios --cloud`, not a new command.
+
+**Every cloud build is paid.** There is no free Cloud tier. An account with no
+plan is refused with 402 and the plans page, and the CLI exits 77 saying so.
+Everything a developer runs on their own machines stays free and never touches
+Cloud: `dartvel build` for every target, `dartvel publish`, `dartvel build
+web-server` with its SQLite database beside the binary, and OTA patches served
+from that binary with `dartvel updates --patch-source`.
+
+## The EAS map
+
+Each Expo and EAS product, what Dartvel does without Cloud, and what Cloud
+adds. "Service built" means the code exists and runs in CI. It does not mean
+cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
+
+| Expo / EAS | Without Cloud (free) | Dartvel Cloud (paid) | Status |
+|---|---|---|---|
+| EAS Build: cloud builds, iOS without a Mac | `dartvel build <target>` on your machine, host and toolchain checked first | `dartvel build <target> --cloud`: the source goes up, a worker for the target's OS builds it, the log streams back, the artifacts come down into `build/cloud/<target>` and are kept only when their SHA-256 matches | CLI and service built. A CI job runs the CLI against the service and a Linux worker for Android, and a macOS worker for iOS on dispatch. No hosted workers |
+| Build profiles (`eas.json`) | `--profile development\|profile\|release` | The same flag, sent with the build | Built |
+| Build queue and priority | None needed | First in, first out per worker OS. A build whose worker stops renewing its lease is queued again | FIFO and requeue built. Priority by plan designed |
+| Build caching | Your machine's pub, Gradle and CocoaPods caches | Warm caches per worker machine | Designed |
+| EAS Submit, `--auto-submit` | `dartvel publish play\|appstore\|testflight\|firebase`, `--dry-run` | `dartvel publish <store> --cloud`: build and upload in one run, with credentials from Cloud | Firebase built. Play refused: `dartvel build android` writes no app bundle. App Store and TestFlight refused: `dartvel build ios` does not sign |
+| EAS Update: channels, rollouts, rollback | `dartvel updates release\|patch\|rollback --patch-source` into your own web-server binary; `--channel`; staged rollout and rollback in `DV.Updates` | A patch source per project at `/updates/<account>/<project>`. Devices check without a token; publishing takes the account's Cloud token as `DARTVEL_UPDATES_TOKEN` | Service built and tested. Not yet exercised by a device against Cloud |
+| EAS Hosting | `dartvel build web-server` (one binary), `dartvel deploy`, `dartvel infra` | Running that binary on Cloud with a domain | Designed |
+| EAS Workflows | `dartvel task`, `dartvel sh`, `DV.$`, any CI running `dartvel` | Build then publish in one run | Chaining built. Triggers on push and schedules designed |
+| Credentials: keystores, certificates, profiles, push keys | Declared under `dartvel.publish`, held by you | `dartvel key cloud <name> <file>\|-`, sealed per account, project and name, released only to the worker building that project | Android keystore built and written into `android/key.properties` on the worker. Managed iOS signing (certificate and profile issued through the App Store Connect API) built against a fake App Store Connect and not called by a build. Push keys designed |
+| Internal distribution | `dartvel publish firebase`, `dartvel publish testflight` | An install page per development or profile build, printed with a QR code | Android built. iOS ad hoc (device registration, signed IPA) designed |
+| EAS Insights, Observe | Crash Reporting and Release Health; `dartvel logs`, `traces`, `metrics` | A dashboard across builds, releases and crashes | Designed |
+| EAS Metadata | Store metadata in the repository, screenshots from goldens (App Store Publishing) | Uploading it after a publish | Designed |
+| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. iOS simulator builds from Cloud designed |
+| Expo Orbit | Artifacts land in `build/` | Artifacts land in `build/cloud/<target>`; install page and QR | Download built. Installing onto a running simulator designed |
+| Config plugins, prebuild (CNG) | Platform folders are committed. Dartvel writes the native pieces it owns: deep-link files, splash, PWA icons, widget targets, kiosk manifests | Nothing extra | Regenerating whole platform folders is not designed |
+| `app.json` | The `dartvel:` block in `pubspec.yaml` | The same file | Built |
+
+## What the CLI sends
+
+`dartvel build <target> --cloud` checks the target has a worker OS, reads the
+project name from `pubspec.yaml`, and takes a token from `--cloud-token` or
+`DARTVEL_CLOUD_TOKEN`. Inside a git repository it sends the whole repository
+from git's own file list, so a path dependency on a sibling package resolves
+on the worker, and names the application's directory in the spec. Build
+output, tool caches, `.git` and `.env` files stay behind; `.env.example` goes.
+
+The build log prints as it arrives. A dropped stream resumes from the last
+event it saw. A failed build exits 1 with its reason and leaves nothing in
+`build/cloud`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | Built, and every artifact downloaded and matched its checksum |
+| 1 | The build failed, or an artifact arrived corrupt |
+| 64 | The target does not build in Cloud |
+| 65 | Cloud refused the request |
+| 69 | Cloud did not answer, or the log stream kept dropping |
+| 77 | No token, a token Cloud does not know, or no plan |
+| 78 | No `pubspec.yaml` naming a package |
+
+## The protocol
+
+The types both sides read are public, in `package:dartvel_core/cloud.dart`:
+the build spec, the build, its artifacts, the event stream and refusals. Pure
+Dart, so the CLI and the service cannot drift apart. A spec for a target no
+worker builds, a profile or store that does not exist, a project name that is
+a path, or an application directory that climbs out of the source is refused
+when it is read. So is an artifact name that climbs out of `build/cloud`.
+
+| Request | Answer |
+|---|---|
+| `POST /api/v1/builds`, spec in `X-Dartvel-Build`, source zip as the body | 201 and the build |
+| `GET /api/v1/builds/<id>` | the build |
+| `GET /api/v1/builds/<id>/events` | server-sent events; `Last-Event-ID` resumes |
+| `GET /api/v1/builds/<id>/artifacts/<name>` | the file |
+| `PUT\|DELETE /api/v1/projects/<project>/credentials/<name>` | 204 |
+| `GET /api/v1/projects/<project>/credentials` | the names kept, never the values |
+
+The service, its worker, the credential vault and managed iOS signing are not
+in this repository. They are in the private `dartvel_enterprise` repository,
+whose CI starts the service and a worker and runs this repository's CLI
+against them.
+
+## Deliberately absent
+
+- **A free Cloud tier.** Local builds, publishing, OTA from your own binary
+  and self-hosting your application are the free path, and they are complete.
+- **A Cloud-hosted universal dev shell like Expo Go.** It is gated by store
+  review. A development build is your own app.
+- **New commands.** Cloud is options on `build`, `publish` and `key`.
+- **Running the Cloud service on your own servers.** Not offered.
+
 # Takeaway
 
 - user says I want to build an app for X
