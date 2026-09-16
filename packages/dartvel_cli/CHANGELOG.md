@@ -1,5 +1,30 @@
 ## Unreleased
 
+- **`dartvel updates release`, `patch` and `rollback` take `--patch-source`.**
+  With a URL or a directory they work against a patch source the project
+  hosts instead of Shorebird's service: release builds with Shorebird's
+  Flutter at the project's Flutter version and keeps each architecture's
+  compiled Dart; patch diffs each architecture against its release with
+  Shorebird's patch tool and publishes the diff with the SHA-256 of the
+  patched library, over HTTP with `DARTVEL_UPDATES_TOKEN`; rollback marks a
+  patch rolled back on every architecture. The generated backend -- and so
+  the web-server binary, which keeps patches in `dartvel_data/updates` --
+  serves that patch source whenever `shorebird.yaml`'s `base_url` names
+  anything but Shorebird's service. Android only.
+
+- **iOS, macOS and Linux development builds pair with `dartvel dev`.**
+  `dartvel build ios|macos|linux --profile development` writes a native
+  tunnel (Objective-C on Network.framework, C++ on GIO) compiled into Debug
+  builds only. iOS opens the `dartvel-dev://` link through the scheme a
+  Debug-only `Info-Development.plist` declares; Linux takes the link as its
+  launch flag. `dartvel build ios --simulator` builds for the simulator.
+
+- **Pairing runs over TLS pinned to the key in the link.** `dartvel dev`
+  serves the bundle and the tunnel with a self-signed certificate for the
+  run's key, the link names an https server, and every device trusts only a
+  certificate carrying that key, so the token and the pages are unreadable
+  to the rest of the network.
+
 - **`dartvel build <target> --cloud` builds on Dartvel Cloud.** The project is
   zipped without build output, tool caches or `.env` files (git's own file
   list when there is one), sent with its build spec, and built on a Dartvel
