@@ -17,7 +17,7 @@ export '../shop/catalog.dart' show formatPrice;
 const double contentMaxWidth = 1080;
 
 /// Where the phone layout ends.
-const double wideLayoutFrom = 840;
+const double wideLayoutFrom = 600;
 
 /// A screen's scrolling body: centred, capped, and padded for the device.
 ///
@@ -588,18 +588,19 @@ class Wordmark extends StatelessWidget {
 
 /// The strip over the shop: the name, how this was built, and the bag.
 class ShopTopBar extends StatelessWidget {
-  const ShopTopBar({super.key, required this.bagCount});
+  const ShopTopBar({super.key, required this.bagCount, required this.heading});
 
   final int bagCount;
+
+  /// The page heading: under the bar on a phone, beside the actions on a
+  /// wide screen, where the rail already carries the name.
+  final Widget heading;
 
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     final bool wide = MediaQuery.sizeOf(context).width >= wideLayoutFrom;
-    return DVBox.row([
-      // The rail carries the name on a wide screen.
-      if (!wide) const Wordmark() else const SizedBox.shrink(),
-      const Spacer(),
+    final Widget actions = DVBox.row([
       DVNavLink(
         key: const Key('link-about'),
         to: DVRoutes.about,
@@ -628,6 +629,19 @@ class ShopTopBar extends StatelessWidget {
         ),
       ),
     ], spacing: 4, crossAlign: DVCrossAlign.center);
+    if (wide) {
+      return DVBox.row([
+        Expanded(child: heading),
+        actions,
+      ], spacing: 24, crossAlign: DVCrossAlign.start);
+    }
+    return DVBox.list([
+      DVBox.row([
+        const Expanded(child: Wordmark()),
+        actions,
+      ], crossAlign: DVCrossAlign.center),
+      heading,
+    ], spacing: 20);
   }
 }
 
@@ -660,9 +674,10 @@ class CoffeeClubBanner extends StatelessWidget {
                 .modifier(p.muted.fontSize(14)),
           ], spacing: 2),
         ),
-        const DVText('See plans').modifier(
-          p.headline.fontSize(14).color(p.accent),
-        ),
+        if (MediaQuery.sizeOf(context).width >= wideLayoutFrom)
+          const DVText('See plans').modifier(
+            p.headline.fontSize(14).color(p.accent),
+          ),
         Icon(Icons.arrow_forward, size: 18, color: p.accent),
       ], spacing: 14, crossAlign: DVCrossAlign.center).modifier(
         const DVModifier()
