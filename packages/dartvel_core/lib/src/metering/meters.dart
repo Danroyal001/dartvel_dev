@@ -353,8 +353,12 @@ class DVDatabaseMeterStore implements DVMeterStore {
   Future<void> _ensureTable() => _ready ??= _create();
 
   Future<void> _create() async {
+    // An amount is a Dart num, so it is kept as eight bytes: SQLite's REAL is
+    // that already, and PostgreSQL's REAL is four and rounds past seven
+    // digits without a word. An exact NUMERIC would buy nothing, since every
+    // amount is summed as a double once it is read.
     const String columns = 'dv_tenant TEXT NOT NULL, meter TEXT NOT NULL, '
-        'idempotency_key TEXT NOT NULL, amount REAL NOT NULL, '
+        'idempotency_key TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, '
         'at_us BIGINT NOT NULL, period_start_us BIGINT NOT NULL, '
         'period_end_us BIGINT NOT NULL';
     try {
