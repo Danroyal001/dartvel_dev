@@ -133,7 +133,7 @@ void main() {
           source,
           contains("import 'package:config_probe/routes.dart' as dv_config;"),
         );
-        expect(source, contains('routes: dvOrderGoRoutes(<RouteBase>['));
+        expect(source, contains('_dartvelRouteList() => dvOrderGoRoutes(<RouteBase>['));
         expect(source, contains('...dvConfigRoutes(\n'));
         expect(source, contains('dv_config.routes,'));
         expect(source, contains('seo: _defaultSeo,'));
@@ -253,7 +253,7 @@ FutureOr<String?> guard(BuildContext context, GoRouterState state) => null;
     await routes.generate(root_: root.path);
     final String source = router();
 
-    expect(source, contains('routes: dvOrderGoRoutes(<RouteBase>['));
+    expect(source, contains('_dartvelRouteList() => dvOrderGoRoutes(<RouteBase>['));
     expect(source, isNot(contains('dvConfigRoutes(')));
     expect(source, isNot(contains('dv_config')));
   });

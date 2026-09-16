@@ -73,7 +73,8 @@ String _router(Directory root) =>
 String _route(String router, String path) {
   final int at = router.indexOf("path: '$path'");
   expect(at, isNot(-1), reason: 'no route for $path');
-  final int list = router.indexOf('redirect: _globalRedirect', at);
+  // The end of the route list, which is its own function now.
+  final int list = router.indexOf('\n    ]);', at);
   final int next = router.indexOf('GoRoute(', at);
   final int end = next == -1 || (list != -1 && list < next) ? list : next;
   return router.substring(at, end == -1 ? router.length : end);
@@ -189,7 +190,7 @@ void main() {
       'account/profile.dart': _page('profile', '@DVPage()'),
     }));
     final String routeList = router.substring(
-        router.indexOf('routes: dvOrderGoRoutes('),
+        router.indexOf('_dartvelRouteList() => dvOrderGoRoutes('),
         router.indexOf('redirect: _globalRedirect'));
     expect(RegExp("path: '/account/profile'").allMatches(routeList), hasLength(1));
     expect(router, isNot(contains('DV.Auth.ProfilePage()')));

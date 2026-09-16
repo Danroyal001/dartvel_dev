@@ -674,6 +674,72 @@ or a `DVShellBranch` are written absolute and render inside the shell's
 builder. Shells nest. Each branch of a `DVStatefulShellRoute` may name its
 `initialLocation` as a `DVRouteTarget`.
 
+A route pushed over its parent takes the platform's push transition unless it
+names a `transition:` of its own, because that page is what carries the iOS
+edge swipe back; the custom transition page every other route gets has no
+gesture at all.
+
+### Tabs: a stack per tab
+
+Multiple navigation stacks that keep their state are what `go_router` users
+ask for most (go_router #99126, #99124), and `StatefulShellRoute` is the
+answer. Both sources reach it:
+
+- **Config**: `DVStatefulShellRoute` with a `DVShellBranch` per tab.
+- **Files**: a `_layout.dart` whose class extends `DartvelTabsLayout` makes its
+  folder tabs. The layout names the pages that open each tab, in order, by
+  their typed targets, and builds the frame around `shell`:
+
+```dart
+// lib/pages/(tabs)/_layout.dart -- (tabs) is a route group, so it adds nothing
+// to the paths below it.
+class LibraryTabs extends DartvelTabsLayout {
+  const LibraryTabs({super.key, required super.shell});
+
+  static const List<DVRouteTarget> tabs = <DVRouteTarget>[
+    DVRoutes.library,
+    DVRoutes.saved,
+  ];
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: shell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: shell.currentIndex,
+          onDestinationSelected: shell.goBranch,
+          destinations: const <Widget>[/* ... */],
+        ),
+      );
+}
+```
+
+Every page in the folder belongs to the tab whose path it extends, and is
+pushed over the page whose path it extends in turn: `library/[book].dart` is
+pushed over `library/index.dart`, inside the Library tab. A tab that is not a
+page in the folder, or a page that belongs to no tab, is `DV-ROUTE-005`. The
+tabs layout is the shell; it is not also wrapped around each page, and layouts
+above the folder still are.
+
+Each tab keeps its stack and its widgets' state while another is on screen,
+and back pops inside the tab on screen before anything else: the Android back
+button through the router's delegate, and the iOS edge swipe through the
+pushed page.
+
+A detail page beside its list would reduce to the list's typed target
+(`/library` and `/library/:book` are both `library`). The route with
+parameters takes them on the end instead, `DVRoutes.libraryBook(book: ...)`,
+where that used to stop the build. A config route says `name:` instead.
+
+### Async guards
+
+A redirect or a guard may be async, as a session check is. While the first
+location of a launch, a deep link or a reload is still being decided,
+`go_router` builds nothing (go_router #133746) and the screen is blank. The
+generated router is a `DVRouter`, a `GoRouter` that paints `DVRoutePending`
+there instead: the theme's page background and a progress indicator,
+announced as loading. After that the router always has a page, and keeps it on
+screen while the next location resolves.
+
 ### Deep links and web URLs
 
 A config route is a URL like any page. It is in `dartvelRouteManifest`, so a
@@ -694,8 +760,35 @@ a screen too heavy or too live to build on a hover.
 
 ### Bringing an existing go_router app
 
-An application that already has a `go_router` route list mounts it into the
-generated router instead of rewriting it:
+Both directions work, so an application can adopt Dartvel without handing
+over its router, or hand it over without rewriting its routes.
+
+**Keep the host's router.** The generated client offers its routes — pages,
+config routes and tabs — for the host's own `GoRouter`, as a sub-tree at the
+root or under a prefix:
+
+```dart
+final GoRouter router = GoRouter(
+  routes: <RouteBase>[
+    ...hostRoutes,
+    ...dartvelRoutes(at: '/app'),
+  ],
+);
+DVNavigation.attach(router);
+```
+
+Under a prefix every Dartvel path moves: each route, each tab's initial
+location, and every location a Dartvel redirect or guard returns, so a guard
+written as `return '/login'` still lands on Dartvel's sign-in page.
+`DV.Navigation`, `context.navigateToPage` and `DVNavLink` place a target under
+the prefix when Dartvel serves its path and hand it to the host's router as it
+is when not, so `DV.Navigation.navigate(DVRoutes.settings)` goes to
+`/app/settings` and a target for the host's `/profile` goes to `/profile`. The
+host keeps its own top-level redirect, error page and URL strategy;
+`createDartvelRouter` sets its own only when it owns the router.
+
+**Hand the router over.** An application that already has a `go_router` route
+list mounts it into the generated router instead of rewriting it:
 
 ```dart
 final List<DVRouteNode> routes = <DVRouteNode>[
@@ -719,6 +812,7 @@ remainder against pages meanwhile.
 | `DV-ROUTE-002` | two routes generate the same typed target in `DVRoutes` | build `error` |
 | `DV-ROUTE-003` | the routes file declares a route the build cannot read | build `error` |
 | `DV-ROUTE-004` | routes cannot be ordered so that every one is reachable | build `error` |
+| `DV-ROUTE-005` | a tabs layout names a tab that is not a page in its folder, or a page in its folder belongs to no tab | build `error` |
 
 ---
 
@@ -10163,13 +10257,15 @@ than a shrug. Designed, not built: `dartvel inspect` today answers `routes`,
 
 ## Coexistence, by what teams already have
 
-**Routing.** The generated router mounts into an existing `GoRouter` as a
-sub-tree rather than replacing it. A route defined in both is a build error
+**Routing.** The generated routes mount into an existing `GoRouter` as a
+sub-tree, at its root or under a prefix, rather than replacing it:
+`dartvelRoutes(at: '/app')` (Routing: Bringing an existing go_router app). A route defined in both is a build error
 naming both sources (`DV-ADOPT-002`) — not a precedence rule, because a
 silently shadowed route is a page that stops being reachable and nobody
-notices. For Navigator 1.0 and other routers the generated router mounts at a
-prefix as a nested navigator, and `DV.Navigation` delegates to the host router
-for routes it does not own. In the other direction, an existing route list mounts into
+notices. In a `GoRouter` host `DV.Navigation` delegates to the host router for the
+routes it does not own. For Navigator 1.0 and other routers the generated
+router mounting at a prefix as a nested navigator is designed and not built.
+In the other direction, an existing route list mounts into
 the generated router as `DVGoRoutes(...)` in `lib/routes.dart` (Routing: Config
 routes), which is how a `go_router` application adopts Dartvel one route at a
 time.

@@ -102,12 +102,13 @@ void main() {
     });
   });
 
-  test('the four DV-ROUTE codes are registered as build errors', () {
+  test('the DV-ROUTE codes are registered as build errors', () {
     for (final String code in <String>[
       'DV-ROUTE-001',
       'DV-ROUTE-002',
       'DV-ROUTE-003',
       'DV-ROUTE-004',
+      'DV-ROUTE-005',
     ]) {
       expect(DVDiagnostics.find(code)?.level, 'error', reason: code);
     }
