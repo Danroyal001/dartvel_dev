@@ -184,6 +184,15 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
+    name: 'compatibility-check',
+    description: 'Check the build\'s protocol against the clients an environment serves.',
+    options: <String>[
+      '    --against=<environment>    The environment whose clients the build is checked against, e.g. production. Needs --histogram.',
+      '    --histogram=<file>         JSON sessions per protocol version per day, exported from monitoring for that environment: {"samples": [{"protocol": 6, "day": "2026-09-10", "sessions": 1200}]}.',
+      '    --override=<reason>        Let a refused deploy through. The reason is logged with the histogram it overrode, in .dartvel/compatibility-overrides.jsonl.',
+    ],
+  ),
+  DocsCliCommand(
     name: 'create',
     description: 'Initialize a new Dartvel project with best practices. (Aliases: new)',
     aliases: <String>['new'],
