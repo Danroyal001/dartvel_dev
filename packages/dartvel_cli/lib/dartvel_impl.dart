@@ -21,6 +21,7 @@ import 'src/commands/engine_command.dart';
 import 'src/commands/ensure_path_command.dart';
 import 'src/commands/build_command.dart';
 import 'src/commands/cache_command.dart';
+import 'src/commands/compatibility_check_command.dart';
 import 'src/commands/db_command.dart';
 import 'src/commands/deploy_command.dart';
 import 'src/commands/import_command.dart';
@@ -95,6 +96,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(EngineCommand())
       ..addCommand(EnsurePathCommand())
       ..addCommand(DeployCommand())
+      ..addCommand(CompatibilityCheckCommand())
       ..addCommand(InfraCommand())
       ..addCommand(PublishCommand())
       ..addCommand(ImportCommand())
