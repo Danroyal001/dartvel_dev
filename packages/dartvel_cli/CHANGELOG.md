@@ -8,6 +8,19 @@
   `configureDartvelHttp()` the client runtime and the web, worker and cron
   server roles call before any application code runs.
 
+- **`dartvel.api.graphql` is read.** `dartvel routes` checks `maxDepth`,
+  `maxCost` (`auto` or a whole number of at least 1), `introspection`
+  (`development`, `never`, `authenticated`) and `persistedQueries` (`off`,
+  `prefer`, `require`) before it writes anything. A key nothing reads stops
+  the build, and so does a value the runtime cannot use. The generated
+  `buildBackendRouter` installs the declared settings on `DVGraphQL` before
+  its first route. A project that declares nothing leaves the runtime's
+  settings alone. `/graphql` and `/graphql/stream` pass the whole body to
+  `DVGraphQL.executeRequest` and `subscribeRequest`, so a persisted-query hash
+  now reaches the manifest. Under `require` the build prints that it extracts
+  no client queries yet, so only documents the application loads into
+  `DVGraphQL.persistedQueries` itself are answered.
+
 - **The GraphQL fields generated for a model ask its policy.** `posts`
   asks `Post.viewAny`, `post` asks `Post.view` on the record it found,
   `savePost` asks `Post.update` on the stored record (or `Post.create` on the

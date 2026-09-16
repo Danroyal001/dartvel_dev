@@ -20,6 +20,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/graphql_options.dart';
 import '../build/server_options.dart';
 import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
@@ -605,6 +606,12 @@ $openApiJson\'\'\';
     final String applicationFavicon =
         seoFavicon == null ? 'null' : "'${esc(seoFavicon)}'";
     final DVServerOptions server = dvServerOptions(root);
+    // dartvel.api.graphql: the budgets, introspection policy and
+    // persisted-query mode /graphql answers under, installed in
+    // buildBackendRouter so a mounted router gets them too. Nothing is
+    // emitted when the project declares none, which leaves whatever the
+    // application set on DVGraphQL in code.
+    final DVGraphQLApiOptions? graphqlOptions = dvGraphQLApiOptions(root);
     // dartvel.crashes, with the runtime's own parser: whether this backend
     // serves the crash endpoint, and what it accepts there.
     final DVCrashConfig crashes = _dvCrashConfig(root);
@@ -847,7 +854,7 @@ dv.Router buildBackendRouter() {
   // and what is left is a framework action the application registers itself.
   dartvelRegisterBackendPolicies();
   core.DVBackendPolicy.verifyRegistered(const <String>[${routeActions.map((String a) => "'$a'").join(', ')}]);
-  final router = dv.Router();
+${graphqlOptions?.installSource ?? ''}  final router = dv.Router();
 ${_dvAuthRouteSource()}  bool _hasHealth = false;
 ${backendEntries.map((e) {
       final path = esc(e['path'] ?? '');
@@ -1189,11 +1196,10 @@ $routeClose''';
   router.post(cfg.apiBasePath + '/graphql', (dv.Request req) => _dvStaged(req, () async {
     final text = await req.body.text();
     final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
-    final map = decoded is Map ? decoded : const <String, Object?>{};
-    final result = await core.DVGraphQL.execute(
-      '\${map['query'] ?? ''}',
-      variables: (map['variables'] as Map?)?.cast<String, Object?>(),
-      operationName: map['operationName'] as String?,
+    // The whole body, so the persisted-query hash at
+    // extensions.persistedQuery.sha256Hash reaches the manifest.
+    final result = await core.DVGraphQL.executeRequest(
+      decoded,
       authenticated: core.DVApiPrincipal.current != null || core.DVSessionPrincipal.current != null,
     );
     return dv.Response.json(result);
@@ -1206,14 +1212,11 @@ $routeClose''';
   router.post(cfg.apiBasePath + '/graphql/stream', (dv.Request req) => _dvStaged(req, () async {
     final text = await req.body.text();
     final decoded = text.isEmpty ? const <String, Object?>{} : conv.jsonDecode(text);
-    final map = decoded is Map ? decoded : const <String, Object?>{};
     // Subscribed here, inside the request's tenant and authentication, which
     // is who the subscription runs as: the stream below is written from
     // wherever the server calls it.
-    final events = core.DVGraphQL.subscribe(
-      '\${map['query'] ?? ''}',
-      variables: (map['variables'] as Map?)?.cast<String, Object?>(),
-      operationName: map['operationName'] as String?,
+    final events = core.DVGraphQL.subscribeRequest(
+      decoded,
       authenticated: core.DVApiPrincipal.current != null || core.DVSessionPrincipal.current != null,
     );
     return dv.Response.stream(
@@ -3848,6 +3851,17 @@ String _dvTenancyConfiguration(String root) {
 /// was advice nobody could take: the generated entrypoint made that call and
 /// read no configuration, so an application could not set a CORS policy at
 /// all and could not turn compression off.
+/// `dartvel.api.graphql` from the project's pubspec, or null when it
+/// declares none. Throws a [FormatException] naming a key the runtime cannot
+/// use.
+DVGraphQLApiOptions? dvGraphQLApiOptions(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return null;
+  return DVGraphQLApiOptions.parse(parsed['dartvel']);
+}
+
 DVServerOptions dvServerOptions(String root) {
   final File pubspec = File(p.join(root, 'pubspec.yaml'));
   if (!pubspec.existsSync()) return const DVServerOptions();
