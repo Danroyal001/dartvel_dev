@@ -113,21 +113,28 @@ Future<String> buildResponse(String input) async => 'ok \$input';
         p.join(root.path, 'lib', 'dartvel_client', 'functions.g.dart'),
       ).readAsStringSync();
 
+      // The function is written into a library of its own, which imports
+      // what its source file imports and reaches the file's public names
+      // through it.
+      final lowered = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_fn0.g.dart'),
+      ).readAsStringSync();
       expect(
-        routes,
+        lowered,
         contains(
-          'import \'package:backend_client_app/backend/functions/task.post.dart\' as f0;',
+          'import \'package:backend_client_app/backend/functions/task.post.dart\' as dvSource;',
         ),
       );
       expect(
-        routes,
+        lowered,
         // `async` is kept. Dropping it, as this once asserted, breaks any
         // body whose expression is not already a Future.
         contains(
-          '_dvBackendFn0(String input) async => f0.buildResponse(input);',
+          'dvBackendFn0(String input) async => dvSource.buildResponse(input);',
         ),
       );
-      expect(routes, contains('Object? result = await _dvBackendFn0('));
+      expect(routes, contains("import 'dartvel_backend_fn0.g.dart' as bf0;"));
+      expect(routes, contains('Object? result = await bf0.dvBackendFn0('));
       expect(routes, isNot(contains('f0._handler(')));
       expect(functions, contains('Future<String> handler('));
       expect(functions, isNot(contains('_handler(')));
@@ -172,7 +179,10 @@ Future<String> _handler(String input) async {
       final routes = File(
         p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
       ).readAsStringSync();
-      expect(routes, contains(r"return 'ok $input';"));
+      final lowered = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_fn0.g.dart'),
+      ).readAsStringSync();
+      expect(lowered, contains(r"return 'ok $input';"));
       expect(routes, isNot(contains('f0._handler(')));
     } finally {
       root.deleteSync(recursive: true);
