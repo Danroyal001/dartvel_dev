@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **An Android development build hot reloads over the network.**
+  `dartvel build android --profile development` writes a small tunnel into
+  the debug source set and builds from an entrypoint that starts it. Scanning
+  the QR code `dartvel dev --dev-client` prints pairs the phone: the phone
+  dials out, the dev server proves it holds the key from the link, and
+  Flutter's own `flutter attach` reaches the app's Dart VM service back
+  through the connection. The phone is brought up to date with a hot restart
+  on pairing, and every save hot reloads it. The phone's VM service never
+  listens on the network. A build missing a native binding the project now
+  needs is refused with `DV-DEVCLIENT-002` on both ends. With `--dev-client`
+  and no `-d`, `dartvel dev` no longer starts a local app, which would
+  install over the development build on a connected phone, and a backend
+  that fails to start no longer ends device serving.
+
 - **`dartvel dev` prints a QR code a phone can scan.** With the web-server
   device it prints the LAN address of the preview and a QR code of it, and
   with `--dev-client` a QR code of the `dartvel-dev://` pairing link, which

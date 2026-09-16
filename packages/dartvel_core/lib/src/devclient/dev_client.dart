@@ -48,6 +48,45 @@ const String dvDevClientPublicTrack = 'DV-DEVCLIENT-003';
 /// The path a dev server serves the current bundle on.
 const String dvDevClientBundlePath = '/_dartvel/dev-client/bundle';
 
+/// The path a development build opens its tunnel on.
+///
+/// The device dials out to the dev server and the dev server reaches the
+/// app's Dart VM service back through the connection, so nothing on the phone
+/// listens on the network: the VM service stays on the phone's loopback.
+const String dvDevClientTunnelPath = '/_dartvel/dev-client/tunnel';
+
+/// The `Upgrade` protocol a tunnel connection asks for, and the prefix of the
+/// challenge the server signs. The device's Java carries the same string.
+const String dvDevClientTunnelProtocol = 'dartvel-dev-tunnel-v1';
+
+/// The bytes a dev server signs to answer a device's [nonce].
+List<int> dvDevClientTunnelChallenge(String nonce) =>
+    utf8.encode('$dvDevClientTunnelProtocol\n$nonce');
+
+/// The `X-Dartvel-Proof` header answering [nonce]: a raw ES256 signature,
+/// base64url, by the key the device paired with.
+///
+/// The device refuses a connection without it before sending anything, so a
+/// machine that has the token but not the key -- anything that saw the link
+/// go over the network -- cannot have a device's VM service tunnelled to it.
+String dvDevClientTunnelProof(DVDevClientSigner signer, String nonce) =>
+    dvWebPushBase64Encode(signer.sign(dvDevClientTunnelChallenge(nonce)));
+
+/// Whether [proof] answers [nonce] under [publicKey].
+bool dvDevClientTunnelProofValid({
+  required String nonce,
+  required String proof,
+  required List<int> publicKey,
+}) {
+  final List<int> signature;
+  try {
+    signature = dvWebPushBase64Decode(proof);
+  } on FormatException {
+    return false;
+  }
+  return _verifyEs256(dvDevClientTunnelChallenge(nonce), signature, publicKey);
+}
+
 /// The scheme of a pairing link.
 const String dvDevClientLinkScheme = 'dartvel-dev';
 
@@ -161,7 +200,7 @@ DVDevClientRefusal? dvDevClientCompatibility({
     message:
         'This bundle needs ${missing.join(', ')}, which this shell was '
         'not built with. A native change needs a rebuilt shell: run '
-        '`dartvel build dev-client --target ${shell.target}` and install it.',
+        '`dartvel build ${shell.target} --profile development` and install it.',
   );
 }
 

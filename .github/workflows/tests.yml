@@ -54,6 +54,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The CLI compiles and runs the Java a development build carries
+      # (android_dev_tunnel_java_test.dart), which skips without a JDK. Set up
+      # explicitly rather than trusting whatever the image happens to ship.
+      - uses: actions/setup-java@v4
+        if: matrix.package == 'dartvel_cli'
+        with: { distribution: temurin, java-version: '17' }
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
