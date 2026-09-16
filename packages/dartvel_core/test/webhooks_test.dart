@@ -233,6 +233,38 @@ void main() {
 
       expect(wire.requests.map((DVHttpRequest r) => r.url.host).toList(),
           <String>['hooks.acme.test', 'moved.acme.test']);
+      expect(wire.requests.map((DVHttpRequest r) => r.connectAddress).toList(),
+          <String>['93.184.216.34', '93.184.216.36'],
+          reason: 'each hop connects to the address its own check approved');
+      expect(const DVWebhooks().delivery(sent.single.id)!.state,
+          DVWebhookDeliveryState.delivered);
+    });
+
+    test('the connection goes to the address the check approved, so a name '
+        'that answers a public address and then 127.0.0.1 cannot rebind',
+        () async {
+      int lookups = 0;
+      DVWebhooks.resolveHost = (String host) async {
+        lookups++;
+        // Subscribing and the attempt's own check see a public address; every
+        // lookup after that answers loopback, the way a rebinding name does.
+        return lookups <= 2 ? <String>['93.184.216.34'] : <String>['127.0.0.1'];
+      };
+      final List<String> connectedTo = <String>[];
+      DVHttp.transport = (DVHttpRequest request) async {
+        // A wire that is not told where to connect resolves the host itself.
+        connectedTo.add(request.connectAddress ??
+            (await DVWebhooks.resolveHost(request.url.host)).first);
+        return _reply(200);
+      };
+      await subscribe('https://hooks.acme.test/in');
+
+      final List<DVWebhookDelivery> sent = await const DVWebhooks()
+          .emit('order.shipped', <String, Object?>{'id': 10});
+      await const DVWebhooks().drainAll();
+
+      expect(connectedTo, <String>['93.184.216.34'],
+          reason: 'loopback passed no check and must never be connected to');
       expect(const DVWebhooks().delivery(sent.single.id)!.state,
           DVWebhookDeliveryState.delivered);
     });
