@@ -9238,7 +9238,40 @@ environment and a forgotten override cannot leak into the next test.
 Stability: `Draft` · Status: `Shipped`
 
 ## Monolith
-Single native backend binary. x64 linux by default, can be targeted optionally.
+
+Single native backend binary. x64 Linux by default, can be targeted
+optionally.
+
+```bash
+dartvel build web-server        # writes build/server
+./server                        # copied alone to any machine of that OS and arch
+```
+
+`dartvel build web-server` produces the web server, and the web server is one
+executable file that is the whole deployment. There is no build/web folder to
+upload beside it:
+
+- **It carries the web app.** The shell, the compiled app and its assets are
+  inside the binary, with the native server library. On start they are
+  written once per build into its data directory and served from there.
+  The admin dashboard and debug symbols are not carried.
+- **Pages are rendered on request.** The build writes no page per route.
+- **SQLite by default.** The data directory is `dartvel_data` beside the
+  binary (`DARTVEL_DATA_DIR` moves it). With no `DATABASE_URL`, the database
+  is `dartvel_data/data.db`, created on the first run with every model's
+  table, and a later run adds the columns a model gained. A second run
+  reuses the file and keeps its data. With `DATABASE_URL` naming PostgreSQL
+  or MySQL, that is used instead, and it is migrated with `dartvel db
+  migrate`, where a blocking change is gated.
+- **Nothing configured still has a database.** `DV.Database` is the shared
+  database when the application configured none.
+
+`dartvel deploy --target server` builds it, `dartvel infra` units start it as
+`/opt/<app>/server` with `DARTVEL_DATA_DIR=/var/lib/<app>`, and the same file
+runs as a worker or the cron process under `DARTVEL_ROLE`.
+
+`dartvel build web` is unrelated: the static build for a host that serves
+files, such as Apache or LiteSpeed.
 
 ## Function mode
 Each backend function can be deployed independently.
