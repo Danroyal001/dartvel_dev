@@ -1,4 +1,4 @@
-/// What `dartvel dev --dev-client` serves to a paired shell.
+/// What `dartvel dev` serves to a paired shell.
 ///
 /// One endpoint. A request without this run's token gets a 401 and nothing
 /// else; a request with it gets the current page documents sealed with this

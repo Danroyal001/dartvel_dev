@@ -484,7 +484,7 @@ class BuildCommand extends Command<void> {
           defaultsTo: DVBuildProfile.release.name,
           allowedHelp: const <String, String>{
             'development': 'Flutter debug (JIT). On Android it carries the '
-                'dev-client pairing, so `dartvel dev --dev-client` can hot '
+                'dev-client pairing, so `dartvel dev` can hot '
                 'reload it over the network.',
             'profile': 'Flutter profile mode.',
             'release': 'Flutter release mode.',
@@ -919,7 +919,7 @@ class BuildCommand extends Command<void> {
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
-    // A development build pairs with `dartvel dev --dev-client`: the tunnel,
+    // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
     if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
       if (!_writeAndroidDevClient(_projectRoot, target)) {
@@ -1320,7 +1320,7 @@ class BuildCommand extends Command<void> {
   }
 
   /// Writes what an Android development build needs to pair with `dartvel
-  /// dev --dev-client`, or says why it cannot and returns false.
+  /// dev`, or says why it cannot and returns false.
   ///
   /// The Java goes into the debug source set, so the profile and release
   /// builds of the same project never compile it.
@@ -1356,7 +1356,7 @@ class BuildCommand extends Command<void> {
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(file.value);
     }
-    Logger.log('   Development build: pairs with `dartvel dev --dev-client` '
+    Logger.log('   Development build: pairs with `dartvel dev` '
         '(${manifest.bindings.length} bindings recorded).');
     return true;
   }

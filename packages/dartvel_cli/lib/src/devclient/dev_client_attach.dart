@@ -1,4 +1,4 @@
-/// `flutter attach` for a device paired with `dartvel dev --dev-client`.
+/// `flutter attach` for a device paired with `dartvel dev`.
 ///
 /// Flutter's own attach does the work -- the incremental compiler, the DevFS
 /// upload, the reload and restart RPCs -- pointed at the loopback URL the

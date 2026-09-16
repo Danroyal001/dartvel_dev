@@ -1,4 +1,4 @@
-// The tunnel a development build opens to `dartvel dev --dev-client`, so the
+// The tunnel a development build opens to `dartvel dev`, so the
 // dev server can reach the app's Dart VM service on the device.
 //
 // The device dials out; nothing on the phone listens on the network. Its VM
