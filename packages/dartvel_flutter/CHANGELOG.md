@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **A page with a grid can be covered by another route.** Selection beneath a
+  covering route was switched off by removing the selection registrar, which
+  rebuilt every child of a lazy grid or list into a different widget outside
+  its layout, and the sliver asserted as soon as a link was followed. A
+  covered page now selects into a registrar that keeps nothing.
+
 - **`DV.Updates` works on a Shorebird build.** `updates.check`,
   `updates.apply` and `updates.rollback` are bound to the Shorebird updater's
   C API over FFI (`DynamicLibrary.process()`, on Android and iOS alike), each
