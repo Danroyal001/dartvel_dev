@@ -61,8 +61,7 @@ import '../utils/build_runner.dart';
 import '../generators/client_generator.dart' show ClientGenerator;
 import '../utils/logger.dart';
 import '../utils/toolchain.dart';
-import '../utils/android_sdk.dart' show dvAndroidSdkInstalled;
-import '../devclient/dev_client_project.dart';
+import '../build/build_profile.dart';
 
 // Re-exported: DVRenderBackend moved beside the other build helpers so the
 // client generator can name it without importing a command, and every caller
@@ -476,8 +475,17 @@ class BuildCommand extends Command<void> {
           allowed: buildPlatformArguments,
           defaultsTo: 'all',
           help: 'Target platform (or pass it positionally)')
-      ..addFlag('release', defaultsTo: true, help: 'Build in release mode')
-      ..addFlag('profile', defaultsTo: false, help: 'Build in profile mode')
+      ..addOption('profile',
+          allowed: DVBuildProfile.names,
+          defaultsTo: DVBuildProfile.release.name,
+          allowedHelp: const <String, String>{
+            'development': 'Flutter debug (JIT). On Android it carries the '
+                'dev-client pairing, so `dartvel dev --dev-client` can hot '
+                'reload it over the network.',
+            'profile': 'Flutter profile mode.',
+            'release': 'Flutter release mode.',
+          },
+          help: 'What kind of build to make.')
       ..addOption('target', abbr: 't', help: 'Target entry point')
       ..addOption('format',
           allowed: ['bundle', 'iso', 'img'],
@@ -544,65 +552,9 @@ class BuildCommand extends Command<void> {
     );
   }
 
-  /// Builds a dev-client shell for [target], or says why not before writing
-  /// anything.
-  Future<void> _buildDevClient(String root, String? target) async {
-    if (target == null || target.trim().isEmpty) {
-      Logger.log('❌ Name the platform: dartvel build dev-client --target '
-          '${dvDevClientTargets.join('|')}');
-      exitCode = 64; // EX_USAGE
-      return;
-    }
-    final DVDevClientBuildPlan plan = dvDevClientBuildPlan(
-      root: root,
-      target: target,
-      host: Platform.operatingSystem,
-      onPath: _isOnPath,
-      androidSdkInstalled: target == 'android' && dvAndroidSdkInstalled(),
-    );
-    if (!plan.ok) {
-      Logger.log('❌ Cannot build a $target dev-client shell:');
-      for (final String problem in plan.problems) {
-        Logger.log('   $problem');
-      }
-      exitCode = 78; // EX_CONFIG
-      return;
-    }
-
-    File(plan.entrypointPath)
-      ..createSync(recursive: true)
-      ..writeAsStringSync(plan.entrypointSource);
-    Logger.log('🔨 Building a $target dev-client shell with '
-        '${plan.manifest.bindings.length} recorded bindings...');
-    final ProcessResult result = await _processRun(
-      plan.executable,
-      plan.arguments,
-      workingDirectory: root,
-      runInShell: true,
-    );
-    if (result.exitCode != 0) {
-      Logger.log('❌ ${plan.executable} exited ${result.exitCode}');
-      final String error = '${result.stderr}'.trim();
-      if (error.isNotEmpty) Logger.log(error);
-      exitCode = result.exitCode;
-      return;
-    }
-    Logger.log('✅ Dev-client shell built. It is for internal tracks only; '
-        '`dartvel publish` refuses it anywhere else.');
-  }
-
   @override
   Future<void> run() async {
     final root = _projectRoot;
-
-    // `dartvel build dev-client --target <platform>`. Here --target names the
-    // platform, as the specification writes it, rather than an entrypoint: a
-    // shell has one entrypoint and it is generated.
-    final List<String> rest = argResults?.rest ?? const <String>[];
-    if (rest.isNotEmpty && rest.first == 'dev-client') {
-      await _buildDevClient(root, argResults?['target'] as String?);
-      return;
-    }
 
     final String rawPlatform;
     try {
@@ -616,8 +568,8 @@ class BuildCommand extends Command<void> {
       exit(64); // EX_USAGE
     }
 
-    final isRelease = argResults?['release'] as bool;
-    final isProfile = argResults?['profile'] as bool;
+    final buildProfile = DVBuildProfile.parse(argResults?['profile'] as String);
+    final isRelease = buildProfile == DVBuildProfile.release;
     final target = argResults?['target'] as String?;
     final formatFlag = argResults?['format'] as String?;
     final deviceProfile = argResults?['device-profile'] as String?;
@@ -773,8 +725,7 @@ class BuildCommand extends Command<void> {
       );
     }
 
-    final buildMode =
-        isProfile ? '--profile' : (isRelease ? '--release' : '--debug');
+    final buildMode = buildProfile.flutterFlag;
 
     // A terminal-only build must not reach the desktop branch below. It used
     // to, which is how `dartvel build linux-cli` produced a GUI binary and
@@ -2825,11 +2776,11 @@ class BuildCommand extends Command<void> {
         release: _isReleaseBuild());
     if (!admin.enabled) {
       // Said out loud rather than left as an empty directory. dartvel build
-      // defaults to --release, so somebody trying the dashboard for the
+      // defaults to --profile release, so somebody trying the dashboard for the
       // first time gets a build without one and nothing telling them why.
       Logger.log('   No admin dashboard in this build. A release build '
           'serves one only when dartvel.admin.enabled says so; '
-          '--no-release gets it with no configuration.');
+          '--profile development gets it with no configuration.');
       return;
     }
 
@@ -2872,7 +2823,7 @@ class BuildCommand extends Command<void> {
   /// comes from rather than guessed, and profile counts as release here: a
   /// profile build is something you hand to somebody.
   bool _isReleaseBuild() =>
-      argResults?['release'] == true || argResults?['profile'] == true;
+      argResults?['profile'] != DVBuildProfile.development.name;
 
   /// No per-route HTML: the server writes those, which is the point of the
   /// target. The sitemap and robots stay files, because each is one document

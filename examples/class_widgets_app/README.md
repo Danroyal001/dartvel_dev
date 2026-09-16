@@ -38,7 +38,7 @@ flutter run -d chrome
 
 ### 4. Build for Production
 ```bash
-dart run dartvel_cli:dartvel build web --release
+dart run dartvel_cli:dartvel build web --profile release
 ```
 
 `dartvel build web` rather than `flutter build web`: the prerendered pages,

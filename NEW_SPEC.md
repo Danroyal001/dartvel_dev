@@ -9592,12 +9592,14 @@ colleague's phone is the step nobody has specified, and Preview Environments
 already refers to "the installed dev-client shell" as though it exists.
 
 ```bash
-dartvel build dev-client --target android
-dartvel build dev-client --target ios
+dartvel build android --profile development
+dartvel build ios --profile development
 ```
 
-The output is a signed shell: an application that contains the engine, the
-native bindings the project declares, and no application code. It connects to
+There is no separate shell build. `--profile` takes `development`, `profile`
+or `release` (the default), and a development build is the Flutter debug build
+any Flutter developer already makes, with the engine and the native bindings
+the project declares. It connects to
 a `dartvel dev` server or a preview environment and loads bundles in the OTA
 format — the same format, the same signature check, and the same idempotent
 apply, because a second delivery mechanism for the same bytes is a second
@@ -9613,13 +9615,11 @@ have: reload, the inspectors `dartvel inspect` answers, the capability report
 for the device it is actually running on, a log view, and kiosk staff mode so
 a locked surface can be inspected without unlocking the policy.
 
-This is why it is a separate artifact rather than a flag. A dev menu compiled
-into a release build behind a runtime check is one condition away from
+This is why it is a build profile rather than a runtime flag. A dev menu
+compiled into a release build behind a runtime check is one condition away from
 shipping, and the condition is usually an environment variable somebody set in
-the wrong place. On store-signed targets the shell takes its own application
-id, so it installs beside the real application instead of replacing it; on
-desktop and embedded it is a launch flag, because those targets have no store
-identity to collide with.
+the wrong place. `--profile development` decides what is compiled in; a
+`release` build never contains it.
 
 ## What it cannot do
 
