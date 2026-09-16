@@ -177,6 +177,9 @@ void main() {
         body: 'x',
         attempts: 1,
         connectAddress: '127.0.0.1',
+        // As a webhook delivery sends it: the subscriber's URL is not a declared
+        // host, and the pinned address is what its caller checked instead.
+        allowUndeclaredHost: true,
       );
       expect(response.status, 307);
       expect(seen, hasLength(1));

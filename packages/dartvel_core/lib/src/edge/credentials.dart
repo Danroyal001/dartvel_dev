@@ -203,6 +203,10 @@ class DVRangeQueryBreachedPasswords implements DVBreachedPasswords {
   DVRangeQueryBreachedPasswords(this.fetchRange);
 
   /// A range query over `DV.Http`, asking [endpoint] for each prefix.
+  ///
+  /// The endpoint must be under a declared host (`dartvel.http.hosts`), which
+  /// is where its timeout and retries come from; one that is not is refused
+  /// with `DV-HTTP-001` and surfaces as [DVBreachedPasswordsUnavailable].
   factory DVRangeQueryBreachedPasswords.overHttp(
     Uri Function(String prefix) endpoint, {
     DVHttp http = const DVHttp(),

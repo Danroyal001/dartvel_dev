@@ -272,6 +272,42 @@ void main() {
           DVWebhookDeliveryState.delivered);
     });
 
+    test('a subscriber URL nobody declared is delivered to, and one under a '
+        'declared host never carries that host\'s credential', () async {
+      // Outbound HTTP refuses an absolute URL no declared host covers, and a
+      // subscriber's endpoint is data no pubspec can list, so deliveries opt
+      // out of the declaration -- and out of it entirely. A subscriber who
+      // points an endpoint at the payment gateway's own API must not have
+      // the application's secret key sent there for them.
+      DVSecrets.configure(<String, String>{
+        'WEBHOOK_KEY_A_V1': 'first-key-for-a',
+        'GATEWAY_KEY': 'sk_live_gateway',
+      });
+      const DVHttp().declare(
+        'gateway',
+        const DVHttpHostConfig(
+          baseUrl: 'https://hooks.acme.test',
+          bearerSecret: 'GATEWAY_KEY',
+        ),
+      );
+      final _Wire wire = _Wire((_, __) => _reply(200));
+      DVHttp.transport = wire.send;
+      await subscribe('https://hooks.acme.test/in');
+      await subscribe('https://hooks.beta.test/in');
+
+      await const DVWebhooks().emit('order.shipped', <String, Object?>{'id': 11});
+      await const DVWebhooks().drainAll();
+
+      expect(wire.requests.map((DVHttpRequest r) => r.url.host).toSet(),
+          <String>{'hooks.acme.test', 'hooks.beta.test'});
+      for (final DVHttpRequest request in wire.requests) {
+        expect(request.headers.containsKey('authorization'), isFalse,
+            reason: request.url.toString());
+        expect(request.connectAddress, isNotNull,
+            reason: 'still pinned to the address its check approved');
+      }
+    });
+
     test('the address is checked again when the delivery goes out, because '
         'DNS can change after subscribing', () async {
       final _Wire wire = _Wire((_, __) => _reply(200));
