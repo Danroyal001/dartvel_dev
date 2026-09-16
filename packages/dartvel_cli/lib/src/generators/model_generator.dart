@@ -1105,9 +1105,12 @@ class ModelGenerator {
           sb.writeln('  /// A model loaded from the database, or copied from one, is');
           sb.writeln('  /// saved at the version it was read and refused with');
           sb.writeln('  /// [DVConflictError] when the row has moved since. One built');
-          sb.writeln('  /// by hand has read nothing and replaces what is there, at');
-          sb.writeln('  /// the version it finds.');
-          sb.writeln('  static Future<$className> save($className model) async {');
+          sb.writeln('  /// by hand has read nothing: it creates a record that does');
+          sb.writeln('  /// not exist, and is refused over one that does');
+          sb.writeln('  /// (DV-HISTORY-001), because it cannot know what it would');
+          sb.writeln('  /// replace. Pass [onConflict] to decide otherwise at the');
+          sb.writeln('  /// call, such as DVConflict.lastWriteWins to replace it.');
+          sb.writeln('  static Future<$className> save($className model, {DVConflict onConflict = DVConflict.ask}) async {');
           sb.writeln('    final read = _dvRead[model];');
           sb.writeln('    final written = await _dvRecords().write(');
           sb.writeln('      <String, Object?>{');
@@ -1116,11 +1119,13 @@ class ModelGenerator {
           }
           sb.writeln('      },');
           sb.writeln('      base: read,');
-          sb.writeln(
-            '      onConflict: read == null ? DVConflict.lastWriteWins : DVConflict.ask,',
-          );
+          // A write with no read version used to replace the row at whatever
+          // version it found: the lost update, for every model built by hand.
+          sb.writeln('      onConflict: onConflict,');
           sb.writeln('    );');
-          sb.writeln('    if (read != null) _dvRead[model] = written.record;');
+          // The writer that created or wrote the row knows its version, so it
+          // saves again against that; a discarded write left the row alone.
+          sb.writeln('    if (!written.discarded) _dvRead[model] = written.record;');
           sb.writeln('    await DVModelSync.publish<$className>(');
           sb.writeln('      model,');
           sb.writeln('      kind: written.inserted');
@@ -1371,8 +1376,10 @@ class ModelGenerator {
         // Instance persistence, per the spec's `await user.sync()`.
         if (fields.isNotEmpty) {
           sb.writeln();
-          sb.writeln('  /// Upserts this model and publishes the change.');
-          sb.writeln('  Future<$className> save() => $className.save(this);');
+          sb.writeln('  /// Stores this model and publishes the change, checked');
+          sb.writeln('  /// against the version it was read at; see [$className.save].');
+          sb.writeln('  Future<$className> save({DVConflict onConflict = DVConflict.ask}) =>');
+          sb.writeln('      $className.save(this, onConflict: onConflict);');
           sb.writeln();
           sb.writeln('  /// Removes this model and publishes the deletion.');
           sb.writeln('  Future<void> destroy() => $className.destroy(this);');
@@ -1633,6 +1640,17 @@ class ModelGenerator {
         }
         sb.writeln('}');
         sb.writeln();
+        if (keyField != null) {
+          sb.writeln('/// [model] as GraphQL returns it: its public fields, and the');
+          sb.writeln('/// version it was read at for the client to send back.');
+          sb.writeln(
+            'Map<String, Object?> _dvGraphQL$className($className model) => <String, Object?>{',
+          );
+          sb.writeln('  ...model.toPublicJson(),');
+          sb.writeln("  'dvVersion': $className._dvRead[model]?.version,");
+          sb.writeln('};');
+          sb.writeln();
+        }
         // A plain function, not a lazy final: a lazy runs once per isolate,
         // which makes re-registration after a test reset silently a no-op.
         sb.writeln('void _register$className() {');
@@ -1643,6 +1661,16 @@ class ModelGenerator {
         sb.writeln('    encode: ($className model) => model.toJson(),');
         sb.writeln('    decode: ${className}Parser.fromJson,');
         sb.writeln('  );');
+        if (keyField != null) {
+          // A form rebuilds the model it returns from JSON; the edit inherits
+          // the read of the model it edits, or it saves as unread.
+          sb.writeln(
+            '  registerDVModelReadCarrier<$className>(($className read, $className edited) {',
+          );
+          sb.writeln('    final dvRead = $className._dvRead[read];');
+          sb.writeln('    if (dvRead != null) $className._dvRead[edited] = dvRead;');
+          sb.writeln('  });');
+        }
         sb.writeln(
           '  registerFormControlsFactory<$className>((model, {onSubmit, onReset}) {',
         );
@@ -1705,11 +1733,21 @@ class ModelGenerator {
           sb.writeln('  DVGraphQL.registerType(DVGraphQLObjectType(');
           sb.writeln("    '$className',");
           sb.writeln('    const <DVGraphQLField>[');
+          if (fields.any((Map<String, String> f) => f['name'] == 'dvVersion')) {
+            throw StateError(
+              'Dartvel: $sourceClassName declares a field named dvVersion. '
+              'GraphQL carries the version a record was read at under that '
+              'name, so an update can be checked against it. Rename the field.',
+            );
+          }
           for (final f in publicFields) {
             sb.writeln(
               "      DVGraphQLField('${f['name']}', '${sdlType(f)}'),",
             );
           }
+          // The version the record was read at. A client sends it back with
+          // saveX, and an update without it is refused (DV-HISTORY-001).
+          sb.writeln("      DVGraphQLField('dvVersion', 'Int'),");
           sb.writeln('    ],');
           sb.writeln('  ));');
           // Every resolver asks the model's policy before it reads or writes,
@@ -1727,7 +1765,7 @@ class ModelGenerator {
           );
           sb.writeln('      return (await $className.all())');
           sb.writeln(
-            '          .map(($className m) => m.toPublicJson())',
+            '          .map(_dvGraphQL$className)',
           );
           sb.writeln('          .toList();');
           sb.writeln('    },');
@@ -1744,7 +1782,7 @@ class ModelGenerator {
           sb.writeln(
             "      await DVGraphQL.authorizeModel('$className.view', resource: model, $caller);",
           );
-          sb.writeln('      return model.toPublicJson();');
+          sb.writeln('      return _dvGraphQL$className(model);');
           sb.writeln('    },');
           sb.writeln('  ));');
 
@@ -1770,6 +1808,7 @@ class ModelGenerator {
           for (final f in publicFields) {
             sb.writeln("      '${f['name']}': '${sdlType(f)}',");
           }
+          sb.writeln("      'dvVersion': 'Int',");
           sb.writeln('    },');
           sb.writeln('    resolve: (args, parent) async {');
           // Runtime argument values: never const, whatever the source
@@ -1785,13 +1824,25 @@ class ModelGenerator {
           sb.writeln(
             "        await DVGraphQL.authorizeModel('$className.update', resource: stored, $caller);",
           );
+          // The update is checked against the version the client says it
+          // read. Without one it read nothing, and save refuses it rather
+          // than replacing the row at whatever version it holds now.
+          sb.writeln("        final dvClaimed = args['dvVersion'];");
+          sb.writeln('        final dvStored = $className._dvRead[stored];');
+          sb.writeln('        if (dvClaimed is int && dvStored != null) {');
+          sb.writeln('          $className._dvRead[candidate] = DVRecord(');
+          sb.writeln('            key: dvStored.key,');
+          sb.writeln('            version: dvClaimed,');
+          sb.writeln('            values: dvStored.values,');
+          sb.writeln('          );');
+          sb.writeln('        }');
           sb.writeln('      } else {');
           sb.writeln(
             "        await DVGraphQL.authorizeModel('$className.create', resource: candidate, $caller);",
           );
           sb.writeln('      }');
           sb.writeln(
-            '      return (await $className.save(candidate)).toPublicJson();',
+            '      return _dvGraphQL$className(await $className.save(candidate));',
           );
           sb.writeln('    },');
           sb.writeln('  ));');

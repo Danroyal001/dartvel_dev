@@ -912,3 +912,28 @@ T? deserializeDVModel<T>(Map<String, Object?> json) {
   if (deserializer == null) return null;
   return deserializer(json) as T;
 }
+
+/// How an edited [T] keeps the version its record was read at.
+///
+/// A generated model remembers the record it was loaded from beside itself,
+/// and saves against that version. A form rebuilds the model it returns from
+/// JSON, which remembers nothing, so without this every edit made in a form
+/// would reach save as a model nobody read -- refused as a write with no read
+/// version (`DV-HISTORY-001`).
+typedef DVModelReadCarrier<T> = void Function(T read, T edited);
+
+final Map<Type, void Function(Object? read, Object? edited)>
+    dvModelReadCarriers = {};
+
+/// Registers how an edit of a [T] inherits the read of the [T] it edits.
+void registerDVModelReadCarrier<T>(DVModelReadCarrier<T> carry) {
+  dvModelReadCarriers[T] =
+      (Object? read, Object? edited) => carry(read as T, edited as T);
+}
+
+/// Makes [edited] carry the version [read] was loaded at, when [T] registered
+/// a carrier; otherwise does nothing.
+void carryDVModelRead<T>(T read, T edited) {
+  if (identical(read, edited)) return;
+  dvModelReadCarriers[T]?.call(read, edited);
+}

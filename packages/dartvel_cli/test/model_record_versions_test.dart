@@ -80,6 +80,7 @@ import 'dart:async';
 
 import 'package:model_versions_probe/dartvel_client/dartvel_client.dart';
 import 'package:model_versions_probe/dartvel_client/privacy.g.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final String dbPath = const String.fromEnvironment('DB');
@@ -168,6 +169,79 @@ void main() {
 
     await const Order(id: 'o2', userId: '1042', note: 'second order').save();
     await const Order(id: 'o3', userId: '7', note: "bob's").save();
+  });
+
+  test('a model built by hand is refused over a stored row, and the row is kept', () async {
+    await const Order(id: 'desk', userId: '7', note: 'as stored').save();
+    final int before = await version(db, 'orders', 'desk');
+
+    // Two writers. One reads the order; the other builds one by hand with
+    // the same id, having read nothing.
+    final Order reader = (await Order.find('desk'))!;
+    const Order handBuilt = Order(id: 'desk', userId: '7', note: 'blind write');
+
+    DVConflictError? refused;
+    try {
+      await handBuilt.save();
+    } on DVConflictError catch (error) {
+      refused = error;
+    }
+    expect(refused, isNotNull, reason: 'a write that read nothing replaced the row');
+    expect(refused!.code, 'DV-HISTORY-001');
+    expect(refused.base, isNull);
+    expect(refused.expectedVersion, isNull);
+    expect(refused.theirs['note'], 'as stored');
+    expect((await Order.find('desk'))!.note, 'as stored');
+    expect(await version(db, 'orders', 'desk'), before);
+
+    // The writer who read is not affected by the refused one.
+    await reader.copyWith(note: 'edited after reading').save();
+    expect((await Order.find('desk'))!.note, 'edited after reading');
+
+    // Replacing without reading is a decision, and says so at the call.
+    await const Order(id: 'desk', userId: '7', note: 'replaced on purpose')
+        .save(onConflict: DVConflict.lastWriteWins);
+    expect((await Order.find('desk'))!.note, 'replaced on purpose');
+  });
+
+  test('a model the writer created saves again at the version it wrote', () async {
+    final Order created = Order(id: 'fresh', userId: '7', note: 'new');
+    await created.save();
+    await created.copyWith(note: 'then edited').save();
+    expect((await Order.find('fresh'))!.note, 'then edited');
+  });
+
+  testWidgets('an edit made in the generated form saves at the version it read', (WidgetTester tester) async {
+    final Order loaded = (await tester.runAsync<Order?>(() async {
+      await const Order(id: 'formed', userId: '7', note: 'before').save();
+      return Order.find('formed');
+    }))!;
+    registerDartvelModels();
+    Order? edited;
+    await tester.pumpWidget(MaterialApp(
+      home: Material(child: Order.Form(loaded, (Order o) => edited = o)),
+    ));
+    await tester.pumpAndSettle();
+    // Fields follow the serialized map: id, userId, note.
+    await tester.enterText(find.byType(EditableText).at(2), 'typed in a form');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(edited, isNotNull);
+
+    await tester.runAsync(() => edited!.save());
+    final Order? stored = await tester.runAsync<Order?>(() => Order.find('formed'));
+    expect(stored!.note, 'typed in a form');
+
+    // The same form over a record that moved underneath it is refused.
+    Object? error;
+    await tester.runAsync(() async {
+      try {
+        await loaded.copyWith(note: 'stale').save();
+      } catch (e) {
+        error = e;
+      }
+    });
+    expect(error, isA<DVConflictError>());
   });
 
   test('history records the generated writes', () async {
@@ -357,6 +431,12 @@ dependency_overrides:
       'a row from before the version column is updated at version one':
           'success',
       'every generated write moves the version, and a stale save is refused':
+          'success',
+      'a model built by hand is refused over a stored row, and the row is kept':
+          'success',
+      'a model the writer created saves again at the version it wrote':
+          'success',
+      'an edit made in the generated form saves at the version it read':
           'success',
       'history records the generated writes': 'success',
       'an order moved to someone else between the walk and its write is not '

@@ -634,8 +634,11 @@ export 'package:dartvel_core/dartvel.dart'
         DVHomeWidgetSpec,
         dvModelDeserializers,
         dvModelFactories,
+        dvModelReadCarriers,
         dvModelSerializers,
+        carryDVModelRead,
         registerDVModelDeserializer,
+        registerDVModelReadCarrier,
         registerDVModelFactory,
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
@@ -3139,6 +3142,10 @@ class _DVFormState<T> extends State<DVForm<T>> {
           'after annotating the model with @DVModel().',
         );
       }
+      // Rebuilt from JSON, the edit remembers no read; it inherits the
+      // one the model it edits was loaded at, or its save is refused as a
+      // write with no read version.
+      carryDVModelRead<T>(formValue, value);
       return value;
     } on FormatException catch (error) {
       // A half-typed number reaches here as text the model cannot hold.

@@ -86,6 +86,67 @@ void main() {
     );
   });
 
+  test(
+      'an update names the version it read: without one it is refused, and '
+      'the stored row is unchanged', () async {
+    Map<Object?, Object?> saved(Map<String, Object?> result) =>
+        (result['data']! as Map<Object?, Object?>)['saveUser']
+            as Map<Object?, Object?>;
+
+    final created = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "ada", name: "Ada", email: "ada@example.com",
+                 published: true) { slug dvVersion }
+      }
+    ''');
+    expect(created['errors'], isNull);
+    expect(saved(created)['dvVersion'], 1);
+
+    final read = await DVGraphQL.execute(
+      '{ user(slug: "ada") { name dvVersion } }',
+    );
+    expect((read['data']! as Map)['user'],
+        <String, Object?>{'name': 'Ada', 'dvVersion': 1});
+
+    // A client that read nothing cannot know what it would replace.
+    final blind = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "ada", name: "Mallory", email: "m@example.com",
+                 published: true) { slug }
+      }
+    ''');
+    expect((blind['data']! as Map)['saveUser'], isNull);
+    expect(
+      (blind['errors']! as List<Object?>).first,
+      containsPair('message', contains('DV-HISTORY-001')),
+    );
+    expect((await User.find('ada'))!.name, 'Ada');
+
+    // At the version it read, the update lands and moves the version.
+    final edited = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "ada", name: "Ada Lovelace", email: "ada@example.com",
+                 published: true, dvVersion: 1) { name dvVersion }
+      }
+    ''');
+    expect(edited['errors'], isNull);
+    expect(saved(edited),
+        <String, Object?>{'name': 'Ada Lovelace', 'dvVersion': 2});
+
+    // A second client that also read version one is now stale.
+    final stale = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "ada", name: "Countess", email: "ada@example.com",
+                 published: true, dvVersion: 1) { name }
+      }
+    ''');
+    expect(
+      (stale['errors']! as List<Object?>).first,
+      containsPair('message', contains('DV-HISTORY-001')),
+    );
+    expect((await User.find('ada'))!.name, 'Ada Lovelace');
+  });
+
   test('sensitive fields cannot be selected, even by name', () async {
     await const User(
       slug: 'ada',
