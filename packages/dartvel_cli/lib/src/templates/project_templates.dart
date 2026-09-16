@@ -181,21 +181,29 @@ class $className extends StatelessWidget {
 }
 ''';
 
+  // Backend functions in the form the generator compiles: a private
+  // annotated function, with the client's typed call generated from it. A
+  // function named handler is read as a raw handler taking the request, and
+  // these took none, so a new project's backend did not compile.
   static const String healthFunctionTemplate = '''// GET /api/health
-Map<String, Object?> handler() {
-  return {
-    'status': 'ok',
-    'timestamp': DateTime.now().toIso8601String(),
-  };
-}
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Map<String, Object?> _health() => <String, Object?>{
+      'status': 'ok',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
 ''';
 
   static const String contactFormTemplate =
       '''// POST /api/contact (filename without method = POST by default)
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 
-Future<Map<String, Object?>> handler(
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<Map<String, Object?>> _contact(
     {required String name, required String email, required String message}) async {
   // Validate inputs
   if (name.isEmpty || email.isEmpty || message.isEmpty) {
@@ -400,12 +408,13 @@ Create a new file in `lib/backend/functions/`:
 
 ```dart
 // lib/backend/functions/hello.get.dart
-Map<String, Object?> handler() {
-  return {'message': 'Hello World!'};
-}
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Map<String, Object?> _hello() => <String, Object?>{'message': 'Hello World!'};
 ```
 
-Endpoint is automatically available at `GET /api/hello`.
+Endpoint is automatically available at `GET /api/hello`, and pages call it as `hello()`.
 
 ### Building for Production
 

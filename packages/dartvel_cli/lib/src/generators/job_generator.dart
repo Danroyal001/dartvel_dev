@@ -376,38 +376,10 @@ class JobGenerator {
     if (!seen.add(p.normalize(file.absolute.path)) || !file.existsSync()) {
       return null;
     }
-    final String clientDir = p.join(root, 'lib', 'dartvel_client');
-    const String generatedClient = 'the generated client, which exports Flutter';
     for (final match in _directive.allMatches(file.readAsStringSync())) {
-      final String uri = match.group(1)!;
-      if (uri == 'dart:ui') return uri;
-      if (uri.startsWith('dart:')) continue;
-      String? target;
-      if (uri.startsWith('package:')) {
-        final String rest = uri.substring('package:'.length);
-        final int slash = rest.indexOf('/');
-        if (slash < 0) continue;
-        final String package = rest.substring(0, slash);
-        if (package != pkgName) {
-          if (_flutterPackages.contains(package) ||
-              _dependsOnFlutter(root, package)) {
-            return uri;
-          }
-          continue;
-        }
-        target = p.join(root, 'lib', rest.substring(slash + 1));
-      } else {
-        target = p.normalize(p.join(p.dirname(path), uri));
-      }
-      // The generated client is regenerated after this runs, so it is judged
-      // by what it is rather than read: everything in it but this server
-      // half is reached through the barrel, which exports dartvel_flutter.
-      if (p.isWithin(clientDir, target)) {
-        if (p.basename(target) == 'jobs.g.dart') continue;
-        return '$uri, $generatedClient';
-      }
-      final String? reached = _flutterReachedFrom(
-        target,
+      final String? reached = _flutterReachedThrough(
+        match.group(1)!,
+        from: path,
         root: root,
         pkgName: pkgName,
         seen: seen,
@@ -415,6 +387,60 @@ class JobGenerator {
       if (reached != null) return reached;
     }
     return null;
+  }
+
+  /// The import through which one directive's [uri], written in the file at
+  /// [from], reaches Flutter, or null when it does not.
+  static String? flutterReachedThrough(
+    String uri, {
+    required String from,
+    required String root,
+    required String pkgName,
+  }) =>
+      _flutterReachedThrough(uri,
+          from: from, root: root, pkgName: pkgName, seen: <String>{});
+
+  static String? _flutterReachedThrough(
+    String uri, {
+    required String from,
+    required String root,
+    required String pkgName,
+    required Set<String> seen,
+  }) {
+    final String clientDir = p.join(root, 'lib', 'dartvel_client');
+    const String generatedClient = 'the generated client, which exports Flutter';
+    if (uri == 'dart:ui') return uri;
+    if (uri.startsWith('dart:')) return null;
+    String? target;
+    if (uri.startsWith('package:')) {
+      final String rest = uri.substring('package:'.length);
+      final int slash = rest.indexOf('/');
+      if (slash < 0) return null;
+      final String package = rest.substring(0, slash);
+      if (package != pkgName) {
+        if (_flutterPackages.contains(package) ||
+            _dependsOnFlutter(root, package)) {
+          return uri;
+        }
+        return null;
+      }
+      target = p.join(root, 'lib', rest.substring(slash + 1));
+    } else {
+      target = p.normalize(p.join(p.dirname(from), uri));
+    }
+    // The generated client is regenerated after this runs, so it is judged
+    // by what it is rather than read: everything in it but this server
+    // half is reached through the barrel, which exports dartvel_flutter.
+    if (p.isWithin(clientDir, target)) {
+      if (p.basename(target) == 'jobs.g.dart') return null;
+      return '$uri, $generatedClient';
+    }
+    return _flutterReachedFrom(
+      target,
+      root: root,
+      pkgName: pkgName,
+      seen: seen,
+    );
   }
 
   /// Whether [package] declares a Flutter SDK dependency, read through the

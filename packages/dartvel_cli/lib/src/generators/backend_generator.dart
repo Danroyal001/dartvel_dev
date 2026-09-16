@@ -257,6 +257,16 @@ class BackendGenerator {
     await _validateMiddlewareAnnotations(root);
     backendOut.createSync(recursive: true);
     libClientDir.createSync(recursive: true);
+    // One library per lowered function, numbered by position: a function
+    // removed since the last generation must not leave a file behind that
+    // the next one could be mistaken for.
+    for (final FileSystemEntity stale in backendOut.listSync()) {
+      if (stale is File &&
+          RegExp(r'^dartvel_backend_fn\d+\.g\.dart$')
+              .hasMatch(p.basename(stale.path))) {
+        stale.deleteSync();
+      }
+    }
 
     // Backend routes (functions): the application's own, and every mounted
     // module whose functions this backend is the one that answers them.
@@ -308,7 +318,7 @@ class BackendGenerator {
       final privateExpression = _privateBackendExpression(src, rel);
       final sourceSymbols = _topLevelPublicSourceSymbols(src);
       // Symbols that stayed in the source file are reached through its
-      // import; the body itself moves into the generated route.
+      // import; the body itself moves into a generated library of its own.
       final String privateBodySource = privateExpression == null
           ? ''
           : (privateExpression.body.isBlock
@@ -316,9 +326,9 @@ class BackendGenerator {
               : privateExpression.body.expression!);
       final qualifiedPrivateExpression = privateExpression == null
           ? ''
-          : _qualifySourceSymbols(privateBodySource, 'f$i', sourceSymbols);
-      if (privateExpression == null ||
-          qualifiedPrivateExpression != privateBodySource) {
+          : _qualifySourceSymbols(
+              privateBodySource, _dvSourcePrefix, sourceSymbols);
+      if (privateExpression == null) {
         backendImports.add("import '$importPath' as f$i;");
       }
       // Prefer explicit handler(RequestType/Request) for compatibility
@@ -344,7 +354,6 @@ class BackendGenerator {
       String tnamed = '0';
       String rtype = '';
       String invocation = '';
-      String helper = '';
       // Whether the function's first parameter is a DVContext.
       //
       // The public API rules say such a parameter is injected and is not a
@@ -375,25 +384,35 @@ class BackendGenerator {
       if (privateExpression != null) {
         typedName = privateExpression.publicName;
         rtype = privateExpression.returnType;
-        invocation = '_dvBackendFn$i';
+        invocation = 'bf$i.dvBackendFn$i';
         RouteUtils.extractParams(privateExpression.parameters, collect,
             onNamed: (v) => tnamed = v);
         final String modifier = privateExpression.body.modifier == null
             ? ''
             : ' ${privateExpression.body.modifier}';
-        // The injected context's type, as the generated file names it. The
-        // parameter list was copied verbatim, and this file imports
-        // dartvel_core as core, so `DVContext context` named a type that does
-        // not exist here and no private function taking the context compiled.
-        final String helperParameters = injectsContext
-            ? privateExpression.parameters.replaceFirst(
-                RegExp(r'(?<![\w.$])DVContext\b'), 'core.DVContext')
-            : privateExpression.parameters;
-        // A block keeps its braces; dropping `async` here would make the
-        // helper return a value where the route awaits a Future.
-        helper = privateExpression.body.isBlock
-            ? '${privateExpression.returnType} _dvBackendFn$i($helperParameters)$modifier {\n$qualifiedPrivateExpression\n}'
-            : '${privateExpression.returnType} _dvBackendFn$i($helperParameters)$modifier => $qualifiedPrivateExpression;';
+        // In a library of its own that imports what the source file imports.
+        // Lowered into the routes file, which imports nothing of the
+        // application's, the first jsonEncode, relative helper or `as` prefix
+        // a body used stopped the whole backend compiling. With the source's
+        // own imports the parameters and the body mean what they meant where
+        // they were written, DVContext included. A block keeps its braces,
+        // and `async` is kept: without it the function returns a value where
+        // the route awaits a Future.
+        final String function = privateExpression.body.isBlock
+            ? '${privateExpression.returnType} dvBackendFn$i(${privateExpression.parameters})$modifier {\n$qualifiedPrivateExpression\n}'
+            : '${privateExpression.returnType} dvBackendFn$i(${privateExpression.parameters})$modifier => $qualifiedPrivateExpression;';
+        File(p.join(backendOut.path, 'dartvel_backend_fn$i.g.dart'))
+            .writeAsStringSync(_loweredFunctionLibrary(
+          source: src,
+          sourcePath: abs,
+          relative: rel,
+          packageName: fnFiles[i].packageName,
+          sourceImport: importPath,
+          qualified: qualifiedPrivateExpression != privateBodySource,
+          function: function,
+          outDir: backendOut.path,
+        ));
+        backendImports.add("import 'dartvel_backend_fn$i.g.dart' as bf$i;");
       } else {
         // 1) Try to find a function whose name matches the sanitized filename
         final regCandidate = RegExp(
@@ -483,7 +502,6 @@ class BackendGenerator {
         'rtype': rtype,
         'src': src,
         'invocation': invocation,
-        'helper': helper,
         // The policy the function declares. Read here so the handler can
         // refuse before it runs: the specification asks backend functions to
         // enforce policies even if the UI guard is bypassed, and until now
@@ -671,7 +689,6 @@ ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' 
 const String _dvOpenApiJson = r\'\'\'
 $openApiJson\'\'\';
 
-${backendEntries.map((e) => e['helper'] ?? '').where((helper) => helper.isNotEmpty).join('\n')}
 
 // Multipart structures and parser (bytes): collects text fields and files
 class DvMultipartFile {
@@ -2999,6 +3016,68 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     if (base.startsWith('List')) return 'array';
     if (base.startsWith('Map')) return 'object';
     return 'string';
+  }
+
+  /// The prefix a lowered body reaches its own file's public names through.
+  static const String _dvSourcePrefix = 'dvSource';
+
+  static final RegExp _importDirective = RegExp(
+    r'''^\s*import\s+(['"])([^'"]+)\1([^;]*);''',
+    multiLine: true,
+  );
+
+  /// A lowered backend function, in a library whose imports are its source
+  /// file's.
+  ///
+  /// Relative imports are rewritten for where this library is. An import
+  /// that reaches Flutter is left out: a server cannot compile it, and a body
+  /// that did not use it compiled before imports were carried.
+  static String _loweredFunctionLibrary({
+    required String source,
+    required String sourcePath,
+    required String relative,
+    required String packageName,
+    required String sourceImport,
+    required bool qualified,
+    required String function,
+    required String outDir,
+  }) {
+    final String projectRoot = p.normalize(
+      sourcePath.substring(0, sourcePath.length - relative.length),
+    );
+    final String lib = p.join(projectRoot, 'lib');
+    final StringBuffer out = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('//')
+      ..writeln("// The backend function in $relative, with that file's imports.")
+      ..writeln('// ignore_for_file: unused_import, directives_ordering, '
+          'duplicate_import, unnecessary_import')
+      ..writeln();
+    for (final RegExpMatch match in _importDirective.allMatches(source)) {
+      final String uri = match.group(2)!;
+      if (JobGenerator.flutterReachedThrough(uri,
+              from: sourcePath, root: projectRoot, pkgName: packageName) !=
+          null) {
+        continue;
+      }
+      String target = uri;
+      if (!uri.startsWith('dart:') && !uri.startsWith('package:')) {
+        final String resolved =
+            p.normalize(p.join(p.dirname(sourcePath), uri));
+        target = p.isWithin(lib, resolved)
+            ? 'package:$packageName/'
+                '${p.relative(resolved, from: lib).replaceAll(r'\', '/')}'
+            : p.relative(resolved, from: outDir).replaceAll(r'\', '/');
+      }
+      out.writeln("import '$target'${match.group(3)};");
+    }
+    if (qualified) {
+      out.writeln("import '$sourceImport' as $_dvSourcePrefix;");
+    }
+    out
+      ..writeln()
+      ..writeln(function);
+    return out.toString();
   }
 
   static ({

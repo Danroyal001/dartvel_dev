@@ -96,17 +96,22 @@ Future<String> generatedRoutes({
     'reindex.post.dart': _reindex,
   },
   Map<String, String> parentFunctions = const <String, String>{},
-}) async =>
-    File(p.join(
-      (await generate(
-        deployment: deployment,
-        moduleFunctions: moduleFunctions,
-        parentFunctions: parentFunctions,
-      ))
-          .path,
-      '.dart_tool',
-      'dartvel_backend_routes.g.dart',
-    )).readAsStringSync();
+}) async {
+  final Directory root = await generate(
+    deployment: deployment,
+    moduleFunctions: moduleFunctions,
+    parentFunctions: parentFunctions,
+  );
+  // The routes, and the library each lowered function is written into.
+  return <String>[
+    File(p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'))
+        .readAsStringSync(),
+    for (final FileSystemEntity lowered
+        in Directory(p.join(root.path, '.dart_tool')).listSync())
+      if (p.basename(lowered.path).startsWith('dartvel_backend_fn'))
+        (lowered as File).readAsStringSync(),
+  ].join('\n');
+}
 
 void main() {
   test('an embedded module\'s function is served by the parent', () async {
