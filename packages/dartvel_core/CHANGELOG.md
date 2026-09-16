@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`DVAdminServer` serves the admin dashboard from the backend.** The mount
+  (`DVAdminMount`), the decision (`dvAdminFor`) and the file resolution
+  (`dvAdminAsset`: the mount root is `index.html`, a path that climbs out of
+  the admin root is refused however its dots are encoded, and each file goes
+  out with its content type and `cache-control: no-store`) moved here from
+  dartvel_cli, so the generated backend can use them. `respond` answers null
+  for a caller who may not see the admin, and the application answers that
+  request as it answers any route it does not serve. A mount that requires a
+  sign-in is opened only by a live session of the application's own, read by
+  `DVSessionAuthentication` on the request's tenant.
+
 - **`dartvel infra` units give the web-server binary a writable data
   directory.** They set `DARTVEL_DATA_DIR=/var/lib/<app>`, the state
   directory systemd makes writable, because `ProtectSystem=strict` makes
