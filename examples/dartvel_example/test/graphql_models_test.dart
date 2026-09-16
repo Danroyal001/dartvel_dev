@@ -3,11 +3,17 @@
 // resolvers, backed by real SQLite. Registration itself is under test too —
 // configureDartvelRuntime() must force it, since the lazy blocks run for
 // nobody on their own.
+//
+// Every generated field asks the model's policy before it reads or writes, so
+// each test registers a User policy whose answer it controls. The last test
+// has it refuse.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late SqliteDVDatabaseAdapter database;
+  // What the registered User policy answers, for every action.
+  late bool allowed;
 
   setUp(() async {
     database = SqliteDVDatabaseAdapter.memory();
@@ -21,6 +27,19 @@ void main() {
     ).createTableSql);
     DVGraphQL.reset();
     registerDartvelModels();
+    allowed = true;
+    for (final String action in <String>[
+      'viewAny',
+      'view',
+      'create',
+      'update',
+      'delete',
+    ]) {
+      DV.Auth.authorization.register<Object?, User?>(
+        action,
+        (Object? user, User? record) => allowed,
+      );
+    }
   });
 
   tearDown(() async {
@@ -108,5 +127,56 @@ void main() {
       'mutation { deleteUser(slug: "ada") }',
     );
     expect((again['data']! as Map)['deleteUser'], isFalse);
+  });
+
+  test('a policy that refuses stops the read, the write and the delete',
+      () async {
+    await const User(
+      slug: 'ada',
+      name: 'Ada',
+      email: 'a@example.com',
+      published: true,
+      recoveryToken: 't',
+    ).save();
+    allowed = false;
+
+    Object? codeOf(Map<String, Object?> result) {
+      final Map<Object?, Object?> error =
+          (result['errors']! as List<Object?>).first! as Map<Object?, Object?>;
+      return (error['extensions'] as Map<Object?, Object?>?)?['code'];
+    }
+
+    final listed = await DVGraphQL.execute('{ users { slug } }');
+    expect(codeOf(listed), 'FORBIDDEN');
+
+    final read = await DVGraphQL.execute('{ user(slug: "ada") { name } }');
+    expect((read['data']! as Map)['user'], isNull);
+    expect(codeOf(read), 'FORBIDDEN');
+
+    // An update of a stored record, and a create of a new one: neither is
+    // written.
+    final updated = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "ada", name: "Mallory", email: "m@example.com",
+                 published: true) { slug }
+      }
+    ''');
+    expect(codeOf(updated), 'FORBIDDEN');
+    expect((await User.find('ada'))!.name, 'Ada');
+
+    final created = await DVGraphQL.execute('''
+      mutation {
+        saveUser(slug: "bob", name: "Bob", email: "b@example.com",
+                 published: true) { slug }
+      }
+    ''');
+    expect(codeOf(created), 'FORBIDDEN');
+    expect(await User.find('bob'), isNull);
+
+    final deleted =
+        await DVGraphQL.execute('mutation { deleteUser(slug: "ada") }');
+    expect((deleted['data']! as Map)['deleteUser'], isNull);
+    expect(codeOf(deleted), 'FORBIDDEN');
+    expect(await User.find('ada'), isNotNull);
   });
 }
