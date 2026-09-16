@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **`DVProcessStores.install(fallback:)`** names the store to use when
+  `DATABASE_URL` is not set. A web-server binary passes its SQLite file,
+  which opening creates. `DATABASE_URL` still wins.
+
 - **Files can travel inside a compiled executable.** `DVBinaryPayload`
   (`package:dartvel_core/binary_payload.dart`) splices named sections into
   a `dart compile exe` binary and reads them back from the running one.

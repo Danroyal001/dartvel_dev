@@ -153,6 +153,37 @@ void main() {
       expect(const DVQueues().adapterConfigured, isFalse);
     });
 
+    test('with no DATABASE_URL a fallback is the store, created if missing',
+        () async {
+      // A web-server binary's SQLite file: what a deployment with nothing
+      // configured keeps its data in, created on the first run.
+      final String fallback = '${dir.path}/data/data.db';
+      Directory('${dir.path}/data').createSync();
+      final DVProcessStores stores = DVProcessStores.install(
+        read: reading(const <String, String>{}),
+        fallback: DVDatabaseConnection(
+          engine: DVDatabaseEngine.sqlite,
+          database: fallback,
+        ),
+      );
+      expect(stores.database, isNotNull);
+      expect(stores.connection?.database, fallback);
+      expect(File(fallback).existsSync(), isTrue);
+      expect(const DVQueues().adapterConfigured, isTrue);
+    });
+
+    test('DATABASE_URL wins over a fallback', () {
+      final DVProcessStores stores = DVProcessStores.install(
+        read: reading(<String, String>{'DATABASE_URL': 'sqlite://$file'}),
+        fallback: DVDatabaseConnection(
+          engine: DVDatabaseEngine.sqlite,
+          database: '${dir.path}/unused.db',
+        ),
+      );
+      expect(stores.connection?.database, file);
+      expect(File('${dir.path}/unused.db').existsSync(), isFalse);
+    });
+
     test(
       'DATABASE_URL puts the queue on that database, and leaves DV.Database',
       () async {
