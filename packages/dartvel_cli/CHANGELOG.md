@@ -1,5 +1,30 @@
 ## Unreleased
 
+- **`dartvel build <target> --cloud` builds on Dartvel Cloud.** The project is
+  zipped without build output, tool caches or `.env` files (git's own file
+  list when there is one), sent with its build spec, and built on a Dartvel
+  worker: iOS and macOS on macOS, so this machine needs no SDK for the target.
+  The build log prints as it arrives, a dropped stream resumes from the last
+  event, and the artifacts are downloaded into `build/cloud/<target>` and kept
+  only when their size and SHA-256 match. Every cloud build needs a paid plan:
+  an account without one exits 77 with the plans page. The token is
+  `--cloud-token` or `DARTVEL_CLOUD_TOKEN`.
+
+- **`dartvel publish firebase --cloud` builds and uploads on Dartvel Cloud.**
+  The declaration is checked locally before anything is sent, and `--dry-run`
+  makes the worker print the upload. `play`, `appstore` and `testflight` are
+  refused with the reason: Play takes an app bundle and `dartvel build android`
+  writes an APK, and App Store Connect takes a signed IPA and `dartvel build
+  ios` does not sign.
+
+- **`dartvel key cloud <name> <file>` keeps a signing or store credential in
+  Dartvel Cloud for this project.** `-` reads the value from standard input,
+  so a password is never an argument; `--delete` removes one; with no name it
+  lists what is kept and what can be. Values are never printed. The names are
+  the protocol's own: the Android keystore, its password and alias, Firebase
+  and Play service accounts, an App Store Connect API key, an iOS distribution
+  certificate and a provisioning profile.
+
 - **An index page inside a route group is its folder's index.**
   `lib/pages/(tabs)/index.page.dart` was routed at `/index` rather than `/`,
   so a tabs layout opening on the home page refused every other page in the
@@ -26,17 +51,11 @@
   signed-in session; anybody else gets what a route that does not exist gets.
   `startBackend` and `dartvelMain` take `admin` and `adminRoot`.
 
+
 - **`dartvel preview` resolves admin files with dartvel_core's
   `dvAdminAsset`**, the same code the web-server binary serves the dashboard
   with, instead of a copy of its own. `DVAdminMount`, `dvAdminFor` and the
   hidden status and headers are re-exported from where they were.
-
-- **`dartvel publish firebase --cloud` builds and uploads in one run on the
-  repository's own Actions.** The declaration is checked locally before the
-  dispatch, and `--dry-run` makes the runner print the upload instead of
-  making it. `play`, `appstore` and `testflight` are refused with the reason:
-  Play takes an app bundle and `dartvel build android` writes an APK, and App
-  Store Connect takes a signed IPA and `dartvel build ios` does not sign.
 
 - **A web application registers the browser bindings.** The generated
   `registerPlatformBindings()` returned on the web before registering
@@ -44,17 +63,6 @@
   framework's own tests, so `DV.Platform.clipboard`, sharing and the other
   browser bindings threw "not registered" in every web build. It now
   registers them on the web and still skips the native classes there.
-
-- **`dartvel build <target> --cloud` builds on the repository's own GitHub
-  Actions.** iOS and macOS go to a macOS runner, so a Linux or Windows machine
-  can build them. The command writes `.github/workflows/dartvel-cloud.yml`,
-  refuses to dispatch until the copy on the branch is the one it writes,
-  dispatches it with `GH_TOKEN`, `GITHUB_TOKEN` or `gh auth token`, prints each
-  step as it changes, and unzips the artifact into `build/cloud/<target>`.
-  It exits 77 with no token and 78 with no GitHub remote, a detached HEAD or a
-  workflow that is not pushed. `GITHUB_API_URL` points it at GitHub Enterprise
-  Server. The Flutter the runner uses is `dartvel.cloud.flutter`, or the local
-  one.
 
 - **`dartvel upgrade --plan` says what upgrading to this CLI's release
   changes, and changes nothing.** It checks the SDK constraint and the

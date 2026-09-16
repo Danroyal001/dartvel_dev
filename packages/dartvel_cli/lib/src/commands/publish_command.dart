@@ -42,11 +42,14 @@ class PublishCommand extends Command<void> {
       ..addFlag('cloud',
           defaultsTo: false,
           negatable: false,
-          help: 'Build and publish on this repository\'s own GitHub Actions, '
-              'in one run of the workflow dartvel build --cloud writes. With '
-              '--dry-run the run prints the upload instead of making it. '
-              'Firebase only for now: Play needs an app bundle and App Store '
-              'Connect a signed IPA, and dartvel build makes neither yet.');
+          help: 'Build and publish on Dartvel Cloud, with the credentials kept '
+              'there by dartvel key cloud. With --dry-run the worker prints the '
+              'upload instead of making it. Firebase only for now: Play needs '
+              'an app bundle and App Store Connect a signed IPA, and dartvel '
+              'build makes neither yet. Needs a paid Dartvel Cloud plan.')
+      ..addOption('cloud-token',
+          help: 'The Dartvel Cloud token for --cloud. Defaults to '
+              'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
   }
 
   static Future<ProcessResult> _defaultRun(
@@ -60,7 +63,7 @@ class PublishCommand extends Command<void> {
 
   final PublishProcessRun _processRun;
   final String? _root;
-  final DVCloudBuild? _cloud;
+  final DVCloudBuilder? _cloud;
 
   @override
   final String name = 'publish';
@@ -178,10 +181,10 @@ class PublishCommand extends Command<void> {
         'writes an APK. Build the bundle and run dartvel publish play where '
         'it is.',
     'appstore': 'App Store Connect takes a signed IPA, and dartvel build ios '
-        'builds without code signing. Signing on the runner is designed and '
+        'builds without code signing. Signing on a Cloud worker is designed and '
         'not built.',
     'testflight': 'TestFlight takes a signed IPA, and dartvel build ios '
-        'builds without code signing. Signing on the runner is designed and '
+        'builds without code signing. Signing on a Cloud worker is designed and '
         'not built.',
   };
 
@@ -198,7 +201,7 @@ class PublishCommand extends Command<void> {
       return 64; // EX_USAGE
     }
     // The declaration is checked here, where a refusal costs nothing, rather
-    // than on a runner after the build.
+    // than on a worker after the build.
     final DVPublishPlan plan =
         dvPublishPlan(store: store, root: root, host: 'linux');
     if (!plan.ok) {
@@ -208,12 +211,13 @@ class PublishCommand extends Command<void> {
       }
       return 78; // EX_CONFIG
     }
-    return (_cloud ?? DVCloudBuild()).run(DVCloudBuildRequest(
+    return (_cloud ?? DVCloudBuilder()).run(DVCloudBuildRequest(
       root: root,
       target: target,
       profile: 'release',
       publish: store,
       dryRun: argResults?['dry-run'] == true,
+      token: argResults?['cloud-token'] as String?,
     ));
   }
 

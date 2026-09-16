@@ -1,6 +1,6 @@
 // `dartvel publish <store> --cloud`: the build and the upload in one run on
-// the repository's own Actions. Only what the runner can really finish is
-// dispatched; the rest is refused here, before a runner starts.
+// a Dartvel Cloud worker. Only what the worker can really finish is
+// sent; the rest is refused here, before anything is uploaded.
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -9,7 +9,7 @@ import 'package:dartvel_cli/src/commands/publish_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-class _RecordingCloud extends DVCloudBuild {
+class _RecordingCloud extends DVCloudBuilder {
   final List<DVCloudBuildRequest> requests = <DVCloudBuildRequest>[];
 
   @override
@@ -53,8 +53,8 @@ void main() {
 
   test('Firebase builds a release APK and publishes it in the same run', () async {
     declare('dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n');
-    // Nothing is built here: the artifact is the runner's.
-    await publish(<String>['firebase', '--cloud', '--dry-run']);
+    // Nothing is built here: the artifact is the worker's.
+    await publish(<String>['firebase', '--cloud', '--dry-run', '--cloud-token', 'tok']);
     expect(exitCode, 0);
     expect(ran, isEmpty);
     final DVCloudBuildRequest request = cloud.requests.single;
@@ -62,6 +62,7 @@ void main() {
     expect(request.profile, 'release');
     expect(request.publish, 'firebase');
     expect(request.dryRun, isTrue);
+    expect(request.token, 'tok');
   });
 
   test('a declaration the upload would refuse is refused before the dispatch', () async {

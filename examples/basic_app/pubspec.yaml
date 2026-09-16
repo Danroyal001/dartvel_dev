@@ -51,18 +51,6 @@ dartvel:
   webPrerender: false
   ota: false
 
-  # The Flutter a cloud build pins its runner to. .github/workflows/cloud-builds.yml
-  # builds this app with `dartvel build android --cloud` and `ios --cloud`.
-  cloud:
-    flutter: 3.44.5
-
-  # A Firebase App Distribution declaration for that workflow's
-  # `dartvel publish firebase --cloud --dry-run`, which checks the plan and
-  # prints the upload. The app id is a placeholder and nothing is uploaded.
-  publish:
-    firebase:
-      app: "1:000000000000:android:0000000000000000"
-
   transitions:
     default: fade
     durationMs: 200

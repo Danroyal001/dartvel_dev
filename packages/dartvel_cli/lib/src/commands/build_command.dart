@@ -528,15 +528,17 @@ class BuildCommand extends Command<void> {
       ..addFlag('cloud',
           defaultsTo: false,
           negatable: false,
-          help: 'Build on this repository\'s own GitHub Actions instead of '
-              'this machine: iOS and macOS on a macOS runner, whatever the '
-              'host. Writes .github/workflows/dartvel-cloud.yml, dispatches '
-              'it with GH_TOKEN or gh\'s login, follows the run and downloads '
-              'the artifact into build/cloud/<target>.');
+          help: 'Build on Dartvel Cloud instead of this machine, which needs '
+              'no SDK for the target: iOS and macOS build on a macOS worker. '
+              'Prints the build log as it runs and downloads the artifacts '
+              'into build/cloud/<target>. Needs a paid Dartvel Cloud plan.')
+      ..addOption('cloud-token',
+          help: 'The Dartvel Cloud token for --cloud. Defaults to '
+              'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
   }
 
   final String? _root;
-  final DVCloudBuild? _cloud;
+  final DVCloudBuilder? _cloud;
 
   /// The profile of the build being run, set once `run` has parsed it.
   DVBuildProfile _profile = DVBuildProfile.release;
@@ -595,10 +597,11 @@ class BuildCommand extends Command<void> {
         exitCode = 64; // EX_USAGE
         return;
       }
-      exitCode = await (_cloud ?? DVCloudBuild()).run(DVCloudBuildRequest(
+      exitCode = await (_cloud ?? DVCloudBuilder()).run(DVCloudBuildRequest(
         root: root,
         target: cloudTarget,
         profile: argResults?['profile'] as String,
+        token: argResults?['cloud-token'] as String?,
       ));
       return;
     }
