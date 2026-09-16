@@ -688,6 +688,7 @@ export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
+export 'src/routing/account_pages.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_mfa.dart';

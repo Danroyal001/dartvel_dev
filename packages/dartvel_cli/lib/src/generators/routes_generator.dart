@@ -61,6 +61,11 @@ Future<void> generate({
   // description App Tracking Transparency needs.
   AnalyticsGenerator.checkTargets(root: root, settings: analyticsSettings);
 
+  // dartvel.auth.pages, checked before anything is written: a misspelt page
+  // or a path that is not one would otherwise be skipped into a route the
+  // application believes it configured.
+  AccountGenerator.readPages(dv);
+
   // Every model's privacy declaration, before anything is written. A
   // sensitive field no subject path reaches (DV-PRIVACY-001) is a table an
   // erasure would leave behind while reporting success, so it stops the

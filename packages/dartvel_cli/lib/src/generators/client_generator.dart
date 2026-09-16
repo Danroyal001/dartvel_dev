@@ -16,6 +16,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVPublicEnvLibrary,
         dvGeneratePublicEnvLibrary;
 
+import 'account_generator.dart';
 import 'annotation_args.dart';
 import 'function_body.dart';
 import '../graph/module_mounts.dart';
@@ -1325,10 +1326,20 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     //
     // Page routes only. Model public pages are public by annotation, and a
     // module mount carries its own `sitemap: include|exclude`.
+    // dartvel.auth.pages: the prebuilt account pages, each at its configured
+    // path. A page the application put at the same path is the application's
+    // and gets no generated route; its entry still points there.
+    final accountPages = AccountGenerator.readPages(dv);
+    final servedAccountPages = <AccountPageRoute>[
+      for (final page in accountPages)
+        if (!pageEntries.any((e) => e.route == page.path)) page,
+    ];
     final guardedRoutes = <String>{
       for (final e in pageEntries)
         if (guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa).isNotEmpty)
           e.route,
+      for (final page in servedAccountPages)
+        if (page.requiresSession) page.path,
     };
     final guardedRoutesSrc = guardedRoutes.isEmpty
         ? '<String>[]'
@@ -1392,6 +1403,22 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     ),'''
         : '';
 
+    // Behind DVAccountPages.requireSession but sign-up. The endpoints each
+    // page calls refuse without a session anyway; the gate is what makes that
+    // a sign-in rather than a page of failed requests.
+    final accountRoutesSrc = servedAccountPages
+        .map((page) => '''
+    GoRoute(
+      path: '${esc(page.path)}',
+${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.requireSession(context, state),\n' : ''}      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: Scaffold(body: SafeArea(child: DV.Auth.${page.widget}())),
+      ),
+    ),''')
+        .join('\n');
+    final accountEntriesSrc = accountPages.isEmpty
+        ? '<DVAccountPageEntry>[]'
+        : '<DVAccountPageEntry>[\n${accountPages.map((page) => "  DVAccountPageEntry(DVAccountPage.${page.key}, DVRouteTarget('${esc(page.path)}')),").join('\n')}\n]';
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
       modelRoutesSrc,
@@ -1399,6 +1426,7 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       moduleRoutesSrc,
       oauthConsentRouteSrc,
       secondFactorRouteSrc,
+      accountRoutesSrc,
     ]);
 
     final generatedPageWidgets = pageEntries.map((e) {
@@ -1578,6 +1606,14 @@ $generatedPageWidgets
 /// available to an application that wants to hide a link it would not be
 /// allowed to follow.
 const List<String> dartvelGuardedRoutes = $guardedRoutesSrc;
+
+/// The prebuilt account pages this application serves, where
+/// `dartvel.auth.pages` put them, for its own navigation.
+///
+/// `DVAccountPages.visible(dartvelAccountPages, signedIn: ...)` is what a
+/// menu offers: a signed-out person is not offered a page that only sends
+/// them to sign in.
+const List<DVAccountPageEntry> dartvelAccountPages = $accountEntriesSrc;
 
 /// What each page's `@DVPage(sitemap: ...)` said about how it should be
 /// crawled, by route.
