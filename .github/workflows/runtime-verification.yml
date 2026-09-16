@@ -1459,10 +1459,18 @@ jobs:
       - name: Every route must be rendered, and rendered differently
         run: |
           set -euo pipefail
-          cd sites/dartvel_site
-          dart run dartvel_cli:dartvel preview --port 8097 &
+          # The deployment is one file. Copied alone into an empty directory
+          # and started with nothing configured, it has to serve the web app
+          # from inside itself, assemble each page when it is asked for, and
+          # create its SQLite database on the first run. `dartvel preview`
+          # serves build/web beside the project, so it proves none of that.
+          test -x sites/dartvel_site/build/server
+          DEPLOY=$(mktemp -d)
+          cp sites/dartvel_site/build/server "$DEPLOY/server"
+          test ! -e "$DEPLOY/dartvel_data/data.db"
+          (cd "$DEPLOY" && exec env -i PATH=/usr/bin:/bin DARTVEL_PORT=8097 ./server > /tmp/diag/server.log 2>&1) &
           SERVER=$!
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             curl -sf -o /dev/null http://127.0.0.1:8097/ && break
             sleep 1
           done
@@ -1470,7 +1478,14 @@ jobs:
           for route in / /docs /features /cloud; do
             curl -sf "http://127.0.0.1:8097$route" > "/tmp/diag/page$(echo "$route" | tr '/' '_').html"
           done
+          curl -sf -o /dev/null http://127.0.0.1:8097/main.dart.js
           kill $SERVER 2>/dev/null || true
+
+          if [ ! -f "$DEPLOY/dartvel_data/data.db" ]; then
+            echo "::error::the binary did not create its SQLite database on the first run"
+            cat /tmp/diag/server.log
+            exit 1
+          fi
 
           dart "$GITHUB_WORKSPACE/tool/ci/prerendered_pages_check.dart" /tmp/diag 4
 
