@@ -44,6 +44,7 @@ import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/scene3d/scene_viewport.dart';
@@ -695,6 +696,7 @@ export 'src/platform/windows/windows_bindings.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/config_routes.dart';
+export 'src/routing/mount.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_mfa.dart';
@@ -8382,7 +8384,7 @@ class DVRouteTarget {
 
 extension DartvelNavigationX on BuildContext {
   void navigateToPage(DVRouteTarget target) {
-    go(target.path);
+    go(DVNavigation.locationOf(target));
   }
 }
 
@@ -8421,6 +8423,15 @@ class DVNavigation {
     return router;
   }
 
+  /// The location [target] is at in the attached router.
+  ///
+  /// Its own path, unless Dartvel's routes are mounted under a prefix in a
+  /// host application's router (`dartvelRoutes(at: '/app')`): then a path
+  /// Dartvel serves is placed under the prefix, and any other path is the
+  /// host's and is left as it is.
+  static String locationOf(DVRouteTarget target) =>
+      dvMountedLocation(target.path);
+
   /// Whether a router has been attached. Navigating without one throws, so
   /// widgets built outside a Dartvel app can check first.
   bool get isAttached => _router != null;
@@ -8445,11 +8456,11 @@ class DVNavigation {
   VoidCallback to(DVRouteTarget target) => () => navigate(target);
 
   /// Navigates to [target] now, replacing the current location.
-  void navigate(DVRouteTarget target) => _active.go(target.path);
+  void navigate(DVRouteTarget target) => _active.go(locationOf(target));
 
   /// Pushes [target] onto the navigation stack, keeping the current page.
   Future<T?> push<T extends Object?>(DVRouteTarget target) =>
-      _active.push<T>(target.path);
+      _active.push<T>(locationOf(target));
 
   /// Pops the top page when there is one to pop.
   void back<T extends Object?>([T? result]) {
