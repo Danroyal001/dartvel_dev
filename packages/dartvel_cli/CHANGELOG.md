@@ -22,6 +22,11 @@
   Flutter developer makes, rather than a separate artifact built from a
   generated entrypoint with no application code in it.
 
+- **An async backend function's typed client needs no mapper for a known
+  type.** The return type was converted with its `Future` still attached, so
+  `Future<String>` or `Future<Map<String, Object?>>` matched nothing and the
+  generated wrapper demanded `fromJson`. Only a custom type needs one now.
+
 - **A comment in a backend function's parameter list no longer breaks the
   generated client.** The list was split on commas as text, so
   `DVContext context, // injected` made the comment part of the next
