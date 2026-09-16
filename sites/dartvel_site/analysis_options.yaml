@@ -9,6 +9,9 @@ analyzer:
     # "unused" is what a correctly written Dartvel component looks like, and
     # the diagnostic carries no information in this project.
     unused_element: ignore
+    # A docs page's file name is its URL, and a URL takes hyphens:
+    # lib/pages/docs/backend-functions.dart is /docs/backend-functions.
+    file_names: ignore
 
   exclude:
     - "lib/dartvel_client/**"

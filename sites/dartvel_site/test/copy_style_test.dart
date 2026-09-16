@@ -152,11 +152,22 @@ List<Literal> literalsIn(String file, String source) {
   return found;
 }
 
+/// Generated files that quote other text verbatim: compiled code samples and
+/// the CLI's own help. Their copy belongs to the samples project and the
+/// command table, and rewriting it here would make the docs disagree with
+/// what dartvel --help prints. The docs pages around them are scanned.
+const List<String> _quoted = <String>[
+  'components/docs_samples.dart',
+  'components/docs_cli_reference.dart',
+];
+
 List<Literal> siteCopy() => <Literal>[
       for (final String dir in <String>['lib/pages', 'lib/components'])
         for (final FileSystemEntity entity
             in Directory(dir).listSync(recursive: true)..sort((a, b) => a.path.compareTo(b.path)))
-          if (entity is File && entity.path.endsWith('.dart'))
+          if (entity is File &&
+              entity.path.endsWith('.dart') &&
+              !_quoted.any(entity.path.endsWith))
             ...literalsIn(entity.path, entity.readAsStringSync()),
     ];
 
