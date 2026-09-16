@@ -197,7 +197,7 @@ const Map<String, String> _dynamicSites = <String, String>{
       'The history table is built from dvHistoryColumns, each with a type.',
   'dartvel_cli/lib/src/generators/model_generator.dart':
       "A model's columns are TEXT and dvRecordColumns, each with a type.",
-  'dartvel_cli/lib/src/commands/db_command.dart':
+  'dartvel_core/lib/src/schema/generated_schema.dart':
       "dvAddColumnSql writes the change's type, TEXT when none is recorded.",
 };
 
