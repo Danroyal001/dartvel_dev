@@ -1,4 +1,20 @@
 ## Unreleased
+- **The prebuilt account pages have routes.** The generated router serves
+  `DV.Auth.ProfilePage`, `SecurityPage`, `SessionsPage` and `DeletePage` at
+  `/account/profile`, `/account/security`, `/account/sessions` and
+  `/account/delete`, each behind `DVAccountPages.requireSession`, and
+  `SignUpPage` at `/sign-up` with no gate. `dartvel.auth.pages` moves a page
+  (`security: /settings/security`), leaves one out (`delete: false`) or all of
+  them (`pages: false`). A page the application put at the same path is the
+  application's and gets no generated route. `dartvel routes` stops before
+  writing anything, naming the key, on a misspelt page, a value that is not a
+  path or `false`, a path with a parameter or a query, two pages at one path,
+  and `/login`, `/second-factor` or `/oauth/consent` -- a page behind sign-in
+  at the sign-in path would redirect to itself. `router.g.dart` lists
+  `dartvelAccountPages`, a `DVAccountPageEntry` per page at its configured
+  path, and the gated routes are in `dartvelGuardedRoutes`, so the sitemap
+  leaves them out.
+
 - **The generated server wires the account endpoints to mail and erasure.**
   `dartvel routes` writes `account.g.dart` -- `dartvelEmailVerificationMail`,
   the address-change mail with the project's `seo.siteName` (else its package
