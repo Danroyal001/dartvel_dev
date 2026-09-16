@@ -1,4 +1,13 @@
 ## Unreleased
+- **The generated server wires the account endpoints to mail and erasure.**
+  `dartvel routes` writes `account.g.dart` -- `dartvelEmailVerificationMail`,
+  the address-change mail with the project's `seo.siteName` (else its package
+  name) in the subject and the code only in the body -- and the generated
+  server installs it after configuring `DV.Privacy`. An application that
+  passes only its provider to `DVAuthEndpoints.install` gets an address change
+  that mails the new address and a deletion that erases, or a 503 naming what
+  is missing where the process has no mail or no `DARTVEL_PRIVACY_KEY`.
+
 - **A project with a mounted module builds a second time.** `dartvel build`
   checks each module's code against its grant before generating, and that
   check reads the module's generated client too. Once the client existed,

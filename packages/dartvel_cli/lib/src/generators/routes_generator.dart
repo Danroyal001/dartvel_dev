@@ -6,6 +6,7 @@ import '../build/render_backends.dart';
 import '../config/dartvel_config.dart';
 import '../graph/module_mounts.dart';
 import '../utils/logger.dart';
+import 'account_generator.dart';
 import 'analytics_generator.dart';
 import 'backend_generator.dart';
 import 'client_generator.dart';
@@ -213,6 +214,13 @@ Future<void> generate({
     root: root,
     settings: analyticsSettings,
     privacy: privacyDeclarations,
+  );
+
+  // What the generated server gives the account endpoints: the mail an
+  // address change sends, under the name a person knows the application by.
+  AccountGenerator.generate(
+    root: root,
+    appName: seoSiteName.isNotEmpty ? seoSiteName : pkgName,
   );
 
   // The scope registry, rate plans and OAuth settings, which the client and

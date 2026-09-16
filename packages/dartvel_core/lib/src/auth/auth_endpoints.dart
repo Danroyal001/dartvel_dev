@@ -30,6 +30,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../dartvel.dart'
+    show DVMailAddress, DVMailMessage, DVNotificationMail, DVNotificationsService;
+import '../analytics/analytics_runtime.dart' show DVPrivacyRuntime;
 import '../edge/bot_protection.dart';
 import '../edge/credentials.dart';
 import '../http/client_address.dart';
@@ -38,6 +41,7 @@ import '../middleware/body_limit.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart' show DVErasureResult, DVPrivacy;
 import '../tenancy/tenants.dart';
+import 'account_mail.dart';
 import 'api_scopes.dart' show DVApiPrincipal;
 import 'auth.dart';
 import 'second_factor.dart';
@@ -121,6 +125,8 @@ class DVAuthEndpoints {
   static Duration _stepUpWindow = const Duration(minutes: 10);
   static Future<void> Function(String email, String code)? _sendEmailVerification;
   static DVPrivacy? _privacy;
+  static DVEmailVerificationMail? _emailVerificationMail;
+  static DVEmailVerificationMail? _generatedEmailVerificationMail;
   static DVAuthTokens _verificationTokens =
       DVAuthTokens(lifetime: const Duration(minutes: 30));
 
@@ -134,10 +140,15 @@ class DVAuthEndpoints {
   /// keep the account after the session is revoked.
   ///
   /// [sendEmailVerification] delivers the code that proves a new address
-  /// receives mail -- typically `DV.Notifications.mail` -- and changing an
-  /// address is refused until one is installed. [privacy] is the project's
-  /// Data Compliance erasure, which deleting an account runs before the
-  /// account is removed. [verificationTokens] keeps those codes, hashed.
+  /// receives mail. Without it the code goes through `DV.Notifications.mail`
+  /// from `DV.Notifications.useMailSender`, as [emailVerificationMail] builds
+  /// it -- or the template the generated server installs -- and an address
+  /// change is refused, naming what to configure, while mail has nowhere to
+  /// go. [privacy] is the project's Data Compliance erasure, which deleting
+  /// an account runs before the account is removed; without it the
+  /// `DV.Privacy` the generated server configures from `DARTVEL_PRIVACY_KEY`
+  /// runs, and deletion is refused while neither exists.
+  /// [verificationTokens] keeps the codes, hashed.
   static void install({
     required DVCredentialGuard credentials,
     DVSecondFactors? secondFactors,
@@ -146,6 +157,7 @@ class DVAuthEndpoints {
     Future<void> Function(String email, String code)? sendEmailVerification,
     DVPrivacy? privacy,
     DVAuthTokens? verificationTokens,
+    DVEmailVerificationMail? emailVerificationMail,
   }) {
     _credentials = credentials;
     _secondFactors = secondFactors;
@@ -153,6 +165,7 @@ class DVAuthEndpoints {
     _stepUpWindow = stepUpWindow;
     _sendEmailVerification = sendEmailVerification;
     _privacy = privacy;
+    _emailVerificationMail = emailVerificationMail;
     _verificationTokens =
         verificationTokens ?? DVAuthTokens(lifetime: const Duration(minutes: 30));
   }
@@ -165,8 +178,33 @@ class DVAuthEndpoints {
     _stepUpWindow = const Duration(minutes: 10);
     _sendEmailVerification = null;
     _privacy = null;
+    _emailVerificationMail = null;
+    _generatedEmailVerificationMail = null;
     _verificationTokens = DVAuthTokens(lifetime: const Duration(minutes: 30));
   }
+
+  /// The verification mail the generated server builds from the project --
+  /// its name in the subject. Called by the generated server; an
+  /// `emailVerificationMail` passed to [install] wins over it, and it
+  /// survives [install] because the application installs its provider
+  /// without knowing the server did this.
+  static void useGeneratedEmailVerificationMail(DVEmailVerificationMail template) {
+    _generatedEmailVerificationMail = template;
+  }
+
+  /// The mail a verification code goes out in when nothing more specific is
+  /// installed.
+  static DVMailMessage defaultEmailVerificationMail(DVEmailVerification v) =>
+      DVMailMessage(
+        from: v.from,
+        to: <DVMailAddress>[DVMailAddress(v.to)],
+        subject: 'Confirm your new e-mail address',
+        text: 'Enter this code to confirm this address for your account:\n\n'
+            '${v.code}\n\n'
+            'It works once, for ${v.validFor.inMinutes} minutes. If you did not '
+            'ask to change your address, ignore this message: nothing changes '
+            'until the code is entered.',
+      );
 
   /// Whether a provider is installed in this process.
   static bool get installed => _credentials != null;
@@ -680,10 +718,14 @@ class DVAuthEndpoints {
         final DVCredentialGuard? guard = _credentials;
         if (guard == null) return _notConfigured();
         final Object? provider = guard.provider;
-        final Future<void> Function(String, String)? send = _sendEmailVerification;
-        if (provider is! DVAccountProvider || send == null) {
-          return _accountChangesNotConfigured();
-        }
+        if (provider is! DVAccountProvider) return _accountChangesNotConfigured();
+        // Before anything is minted or recorded: a change that answered 202
+        // with no mail able to leave would show the person a pending address
+        // and a code that never arrives.
+        final Object sender = _verificationSender();
+        if (sender is Response) return sender;
+        final Future<void> Function(String, String) send =
+            sender as Future<void> Function(String, String);
         final _Body body = await _body(request);
         final Response? refused = body.refused;
         if (refused != null) return refused;
@@ -713,9 +755,55 @@ class DVAuthEndpoints {
             expiresAt: DateTime.now().add(_verificationTokens.lifetime),
           ),
         );
-        await send(email, code);
+        try {
+          await send(email, code);
+        } on Object {
+          // Nothing went out, so nothing is pending: the code is unusable
+          // without its target, and the account does not show an address the
+          // person was never sent anything at.
+          await _verificationTokens.store.delete(_emailTargetKey(userId));
+          rethrow;
+        }
         return _json(202, <String, Object?>{'pendingEmail': email});
       });
+
+  /// How a verification code is delivered: the installed
+  /// `sendEmailVerification`, or `DV.Notifications.mail` from its configured
+  /// sender. A [Response] refusing the change when neither can send.
+  static Object _verificationSender() {
+    final Future<void> Function(String, String)? installed = _sendEmailVerification;
+    if (installed != null) return installed;
+    if (!const DVNotificationMail().isConfigured) {
+      return _mailNotConfigured(
+          'no mail provider is registered. Register one with '
+          'DV.Notifications.mail.useProvider(...)');
+    }
+    final DVMailAddress? from = const DVNotificationsService().mailSender;
+    if (from == null) {
+      return _mailNotConfigured(
+          'no sender is configured. Call DV.Notifications.useMailSender(...) '
+          'with an address the application is authorised to send from');
+    }
+    final DVEmailVerificationMail template = _emailVerificationMail ??
+        _generatedEmailVerificationMail ??
+        defaultEmailVerificationMail;
+    return (String email, String code) => const DVNotificationMail().send(
+          template(DVEmailVerification(
+            from: from,
+            to: email,
+            code: code,
+            validFor: _verificationTokens.lifetime,
+          )),
+        );
+  }
+
+  static Response _mailNotConfigured(String why) => _error(
+        503,
+        'mail_not_configured',
+        'Changing an address sends a code to the new address through '
+            'DV.Notifications.mail, and $why, or pass sendEmailVerification to '
+            'DVAuthEndpoints.install. Nothing was changed.',
+      );
 
   /// `POST /auth/account/email/verify`: `code`, as the new address received
   /// it. The address changes now, and the session rotates.
@@ -777,6 +865,13 @@ class DVAuthEndpoints {
         if (guard == null) return _notConfigured();
         final Object? provider = guard.provider;
         if (provider is! DVAccountProvider) return _accountChangesNotConfigured();
+        // Checked before the password or a code is spent. Deleting the
+        // account without the erasure removes the row a person signs in with
+        // and keeps everything else about them -- the deletion Data Compliance
+        // says an account deletion must not be -- and answers as if it worked.
+        final DVPrivacy? privacy = _privacy ??
+            (DVPrivacyRuntime.isConfigured ? DVPrivacyRuntime.current : null);
+        if (privacy == null) return _erasureNotConfigured();
         final _Body body = await _body(request);
         final Response? refused = body.refused;
         if (refused != null) return refused;
@@ -821,15 +916,23 @@ class DVAuthEndpoints {
           );
           if (failed != null) return failed;
         }
-        final DVPrivacy? privacy = _privacy;
-        final DVErasureResult? erasure = privacy == null
-            ? null
-            : await privacy.erase(
-                subject: userId,
-                reason: 'The account holder deleted their account.',
-                requestedBy: userId,
-                runBy: 'DVAuthEndpoints.deleteAccount',
-              );
+        final DVErasureResult erasure = await privacy.erase(
+          subject: userId,
+          reason: 'The account holder deleted their account.',
+          requestedBy: userId,
+          runBy: 'DVAuthEndpoints.deleteAccount',
+        );
+        if (!erasure.complete) {
+          // DV-PRIVACY-009: the person's data is still wherever the walk could
+          // not reach. The account stays, so the deletion can be asked for
+          // again and the walk -- which is repeatable -- finishes the job.
+          return _json(503, <String, Object?>{
+            'error': 'erasure_incomplete',
+            'message': 'The account was not deleted: the erasure could not '
+                'reach ${erasure.unreached.join(', ')}. Try again later.',
+            'unreached': erasure.unreached,
+          });
+        }
         if (factors != null) {
           await factors.removeTotp(userId);
           await factors.removeRecoveryCodes(userId);
@@ -845,13 +948,11 @@ class DVAuthEndpoints {
           200,
           <String, Object?>{
             'deleted': true,
-            'erasure': erasure == null
-                ? null
-                : <String, Object?>{
-                    'complete': erasure.complete,
-                    'unreached': erasure.unreached,
-                    'codes': erasure.codes,
-                  },
+            'erasure': <String, Object?>{
+              'complete': erasure.complete,
+              'unreached': erasure.unreached,
+              'codes': erasure.codes,
+            },
           },
           headers: <String, String>{
             'set-cookie': stage.cookie.clearHeader(development: stage.development),
@@ -902,8 +1003,16 @@ class DVAuthEndpoints {
         503,
         'account_changes_not_configured',
         'Changing or deleting an account needs a provider that is a '
-            'DVAccountProvider, and changing an address needs '
-            'sendEmailVerification, both passed to DVAuthEndpoints.install.',
+            'DVAccountProvider, passed to DVAuthEndpoints.install.',
+      );
+
+  static Response _erasureNotConfigured() => _error(
+        503,
+        'erasure_not_configured',
+        'The account was not deleted. Deleting an account runs the Data '
+            'Compliance erasure, and DV.Privacy is not configured in this '
+            'process: set DARTVEL_PRIVACY_KEY in the server environment, or '
+            'pass privacy to DVAuthEndpoints.install.',
       );
 
   // --- issuing ---------------------------------------------------------------
