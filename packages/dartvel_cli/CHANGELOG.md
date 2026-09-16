@@ -1,4 +1,13 @@
 ## Unreleased
+- **`dartvel routes` reads `dartvel.http` and installs its hosts at startup.**
+  The block was documented and read by nothing, so a project that declared
+  its payment gateway in pubspec.yaml met `DV-HTTP-001` on its first
+  `DV.Http.host(...)`. Generation now checks the block through the reader the
+  running application uses, stops on any key or value it does not understand
+  before writing a file, and emits `http.g.dart`, whose
+  `configureDartvelHttp()` the client runtime and the web, worker and cron
+  server roles call before any application code runs.
+
 - **The GraphQL fields generated for a model ask its policy.** `posts`
   asks `Post.viewAny`, `post` asks `Post.view` on the record it found,
   `savePost` asks `Post.update` on the stored record (or `Post.create` on the

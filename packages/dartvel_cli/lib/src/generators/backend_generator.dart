@@ -653,6 +653,7 @@ import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartve
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
+import 'package:$pkgName/dartvel_client/http.g.dart' show configureDartvelHttp;
 import 'package:$pkgName/dartvel_client/account.g.dart' show configureDartvelBackendAccounts, dartvelStartAccountDeletionSweep;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
@@ -1340,6 +1341,9 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // Crash reporting, labelled with this process's role, before anything
   // that can fail a request.
   _dartvelInstallServerCrashes(processConfiguration.role);
+  // The hosts dartvel.http declares, before a backend function, a job or a
+  // webhook can send: the same declaration the client runtime installs.
+  configureDartvelHttp();
   registerDartvelJobs();
   final core.DVProcessStores stores = core.DVProcessStores.install();
   if (processConfiguration.roleDeclared && !const core.DVQueues().adapterConfigured) {
@@ -1509,6 +1513,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       // A job that fails until it is dead-lettered is this worker's crash.
       _dartvelInstallServerCrashes(process.role);
+      configureDartvelHttp();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // The codecs and the handlers a server can run, and the queue this
@@ -1541,6 +1546,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       // A schedule that throws is this cron process's crash.
       _dartvelInstallServerCrashes(process.role);
+      configureDartvelHttp();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // A schedule may dispatch a job, and that job has to reach the worker.
