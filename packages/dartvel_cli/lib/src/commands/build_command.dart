@@ -68,6 +68,7 @@ import '../cloud/cloud_build.dart';
 import '../devclient/android_dev_client.dart';
 import '../devclient/apple_dev_client.dart';
 import '../devclient/linux_dev_client.dart';
+import '../devclient/windows_dev_client.dart';
 import '../devclient/dev_client_project.dart';
 
 // Re-exported: DVRenderBackend moved beside the other build helpers so the
@@ -487,7 +488,8 @@ class BuildCommand extends Command<void> {
           allowed: DVBuildProfile.names,
           defaultsTo: DVBuildProfile.release.name,
           allowedHelp: const <String, String>{
-            'development': 'Flutter debug (JIT). On Android, iOS, macOS and Linux it '
+            'development': 'Flutter debug (JIT). On Android, iOS, macOS, Linux and '
+                'Windows it '
                 'carries the dev-client pairing, so `dartvel dev` can hot '
                 'reload it over the network.',
             'profile': 'Flutter profile mode.',
@@ -998,6 +1000,7 @@ class BuildCommand extends Command<void> {
       final bool written = switch (platform) {
         'ios' || 'macos' => _writeAppleDevClient(_projectRoot, platform, target),
         'linux' => _writeLinuxDevClient(_projectRoot, target),
+        'windows' => _writeWindowsDevClient(_projectRoot, target),
         _ => _writeAndroidDevClient(_projectRoot, target),
       };
       if (!written) return _PlatformBuildResult.failed;
@@ -1008,6 +1011,8 @@ class BuildCommand extends Command<void> {
       _stripAppleDevClient(_projectRoot, platform);
     } else if (platform == 'linux') {
       _stripLinuxDevClient(_projectRoot);
+    } else if (platform == 'windows') {
+      _stripWindowsDevClient(_projectRoot);
     }
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
@@ -1562,6 +1567,64 @@ class BuildCommand extends Command<void> {
         'with the link it prints (${manifest.bindings.length} bindings '
         'recorded).');
     return true;
+  }
+
+  /// Writes what a Windows development build needs to pair with `dartvel
+  /// dev`, or says why it cannot and returns false: the tunnel, and the line
+  /// in the runner's CMakeLists.txt that adds it to the Debug configuration.
+  bool _writeWindowsDevClient(String root, String? target) {
+    final DVDevClientManifest manifest;
+    try {
+      manifest = dvProjectDevClientManifest(root, 'windows');
+    } on DVDevClientProjectException catch (error) {
+      Logger.log('❌ ${error.message}');
+      return false;
+    }
+    final Object? name = readPubspecYaml(root)?['name'];
+    if (name is! String || name.isEmpty) {
+      Logger.log('❌ pubspec.yaml names no package, so the development '
+          'entrypoint cannot import the application.');
+      return false;
+    }
+    final File cmake = File(p.join(root, dvWindowsRunnerCmakePath));
+    if (!cmake.existsSync()) {
+      Logger.log('❌ $dvWindowsRunnerCmakePath is not there, so a development '
+          'build has nowhere to compile the tunnel. Run flutter create '
+          '--platforms=windows . first.');
+      return false;
+    }
+    final String before = cmake.readAsStringSync();
+    final String after = dvWindowsRunnerCmakeWithDevClient(before, enabled: true);
+    if (!after.contains('dartvel_dev_client.cpp')) {
+      Logger.log('❌ $dvWindowsRunnerCmakePath has no add_executable(\${BINARY_NAME} '
+          '...) this recognises, so the tunnel was not added.');
+      return false;
+    }
+    final Map<String, String> files = <String, String>{
+      dvWindowsDevTunnelPath: dvWindowsDevTunnelSource(manifest),
+      dvDevelopmentEntrypoint: dvDevelopmentEntrypointSource(
+        package: name,
+        target: target ?? 'lib/main.dart',
+      ),
+    };
+    for (final MapEntry<String, String> file in files.entries) {
+      File(p.join(root, file.key))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(file.value);
+    }
+    if (after != before) cmake.writeAsStringSync(after);
+    Logger.log('   Development build: pairs with `dartvel dev` when launched '
+        'with the link it prints (${manifest.bindings.length} bindings '
+        'recorded).');
+    return true;
+  }
+
+  void _stripWindowsDevClient(String root) {
+    final File cmake = File(p.join(root, dvWindowsRunnerCmakePath));
+    if (!cmake.existsSync()) return;
+    final String before = cmake.readAsStringSync();
+    final String after = dvWindowsRunnerCmakeWithDevClient(before, enabled: false);
+    if (after != before) cmake.writeAsStringSync(after);
   }
 
   void _stripLinuxDevClient(String root) {
