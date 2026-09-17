@@ -8751,6 +8751,41 @@ Studio provides:
   A workflow fails loudly: an unknown action or variable stops the run and
   names the step, rather than yielding null and reporting success.
 
+## Where Studio lives today
+
+The open-source Studio is `DVStudioScreen` in `dartvel_flutter`. It is a
+Flutter widget with a dark navigation rail of sections:
+
+- **Pages** opens on a site overview. It has the page list with a new-page
+  field, counts of stored pages, open windows, installed sections and the last
+  publish, and a thumbnail card per stored page drawn by the application's own
+  renderer. Opening a page brings up the editor described below.
+- **Windows** lists every window the application has open, with a way to close
+  one.
+- **Flags** appears when `DVStudioScreen(flags:)` is given, and is described in
+  Feature Flags and Staged Rollout.
+- **Operations** appears when `alerting:` or `incidents:` is given, and shows
+  service levels, alerts, incidents and the status page (Alerting, SLOs and
+  Status Pages).
+- With `content:` and `actor:` the editor follows Content Workflow: a state
+  pill, a primary action decided by the actor's policy, a review panel,
+  scheduling, history with a node-level diff, and signed preview links.
+
+An application adds its own sections with `DVStudioSection` and hooks into the
+editor with `DVStudioEditorHook`. Approval, multi-user editing, saved revision
+history, reusable components, Figma import and the workflow builder above are
+Studio Pro. Pro lives in `dartvel_studio_pro` in the private enterprise
+repository and attaches through those same seams, so an open-source build
+shows no tab that opens onto nothing. No `DVWorkflowDocument` exists in this
+repository.
+
+`dartvel admin generate` writes `lib/pages/_dartvel_admin/studio.page.dart`,
+which opens `DVStudioScreen` behind the `viewAdmin` policy. When the backend
+serves the admin mount (see Admin, Devtools, and Scaffolding), the client
+stops compiling those generated pages. The dashboard the backend serves at
+`/__studio` is a static page over the project graph, and it does not yet
+contain the page builder.
+
 ## The page builder
 
 The builder manipulates **real widgets, not a canvas facsimile**. No
@@ -8770,6 +8805,29 @@ be rebuilt with it.
 - View-code at any time (Figma/Webflow-style), and full code export: a page
   document exports to the same private `@DVPage` source a hand-written page
   uses, with no builder runtime required afterwards.
+
+The editor is laid out like the design tools it is compared with:
+
+- **Toolbar.** Back to the overview, the route with a Published or Draft badge,
+  desktop, tablet and phone widths, Fit, 50% and 100% zoom, undo and redo,
+  Code, Revert and Publish. Below about 760 pixels the viewport controls go
+  first, then the labels on Code and Revert.
+- **Artboard.** `DVStudioCanvas(viewportWidth:, zoom:)` lays the page out at
+  the device's width on a dotted workspace. The selected node gets an outline,
+  a chip naming it and corner handles. Hovering outlines only the innermost
+  node. Tapping the workspace clears the selection, and Delete, Escape, undo
+  and redo work from the keyboard.
+- **Layers.** `DVStudioLayers` shows the document as a tree with collapsible
+  containers, shares its selection with the canvas, and moves a node when a
+  row is dragged onto a container. It reaches nodes the canvas cannot, such as
+  a spacer with no height.
+- **Insert.** `DVStudioPalette` is searchable and grouped into basics and
+  layouts. A tile drags onto the canvas, or a tap inserts it into the selected
+  container, beside a selected leaf, or into the page.
+- **Inspector.** `DVStudioInspector` opens on a header naming the node, then
+  groups properties: content, layout, size and spacing, typography, fill,
+  border, effects and interaction. Any property no group names lands in Other,
+  and a test holds every property reachable on every kind of node.
 
 The load-bearing primitive is the **page document**: a serializable widget
 tree (`DVPageDocument`) that the builder edits, the renderer instantiates as
@@ -8990,23 +9048,83 @@ Dartvel should generate them from the same metadata used by models, pages,
 jobs, signals, policies, and middleware.
 
 ```bash
-dartvel devtools
 dartvel admin generate
+dartvel devtools                # writes the same pages as admin generate
+dartvel admin grant <user-id>   # let an account open Studio on a deployment
+dartvel admin revoke <user-id>
+dartvel admin list
 ```
 
-Generated admin/devtools include:
-- model CRUD admin
-- queue/job dashboard
-- failed job retry/discard controls
-- mail/notification outbox
-- policy and permission explorer
-- route/page explorer
-- cache/tag explorer
-- model sync channel inspector
-- search index status
-- billing/customer/entitlement views
-- logs/metrics/traces views
+`dartvel admin generate` (and `dartvel devtools`, which writes the same files)
+puts Flutter pages under `lib/pages/_dartvel_admin`, each behind the
+`viewAdmin` policy, which refuses when the application has configured nothing
+to answer it:
 
+- Studio, the page builder (`DVStudioScreen`)
+- model CRUD admin, which asks the model's policy before it offers an action
+  and again before it writes
+- queue and job dashboard with retry and discard for failed jobs
+  (`DVQueueAdmin`)
+- mail and notification outbox
+- policy and permission explorer, with the model sync channel inspector
+- route and page explorer
+- cache and tag explorer
+- billing and product analytics records from the local providers
+  (`DVTelemetryAdmin`)
+
+## The admin mount
+
+The admin belongs to the backend. A web-server build carries a dashboard and
+serves it at a mount, `/__studio` unless `dartvel.admin.path` moves it. The
+path is a default so a new project works with no configuration, and a setting
+because a fixed admin path is the first thing a scanner tries. A path that
+does not start with `/`, is `/` itself or contains `:` or `*` is refused, and
+so is an application page inside the mount, with both the file and the setting
+named.
+
+```yaml
+dartvel:
+  admin:
+    path: /__studio     # the default
+    enabled: true       # required for a release or profile build
+```
+
+- A development build serves it with no configuration. A release or profile
+  build serves it only with `enabled: true`.
+- When the mount is enabled, the client stops compiling the pages in
+  `lib/pages/_dartvel_admin`, so the editor is not shipped to every user.
+- On a release mount the caller must be signed in **and** allowed the
+  `Studio.access` action by `DV.Auth.authorization`. Nobody is allowed by
+  default, so a customer who signed up to the application does not get in.
+  `dartvel admin grant <user-id>` writes a grant into the database the
+  application runs with, and `revoke` and `list` read the same table. They
+  take `--database` for a SQLite file such as a web-server binary's
+  `dartvel_data/data.db`, else `DATABASE_URL`, else `dartvel.database`, and
+  `--tenant` for a tenant other than the default. A database file that does
+  not exist is refused. An application that already knows its operators
+  registers its own `Studio.access` action instead.
+- A caller who may not see the admin gets exactly the answer a route that does
+  not exist gets: the same status, no `WWW-Authenticate`, nothing naming a
+  studio. Everything under the mount is hidden with it. Admin responses are
+  never stored by a shared cache.
+
+`DVAdminServer` in `dartvel_core` makes these decisions, and `dartvel preview`
+and the generated backend both call it. The dashboard itself is a static page
+that loads nothing from another host, with only relative references so moving
+the mount does not break it. It shows the project graph: models, routes,
+backend functions and jobs, each with the file that declares it.
+
+The dashboard reads the graph captured at build time. Queues, cache tags and
+the page builder are not in it yet, and `dartvel dev` does not serve it. To
+see it locally, run `dartvel build web-server` and then `dartvel preview`.
+
+## Still to generate
+
+Stability: `Draft` · Status: `Designed`
+
+- search index status
+- logs, metrics and traces views
+- the local request recorder below
 
 ## The local request recorder
 
@@ -9406,8 +9524,10 @@ Stability: `Draft` · Status: `Shipped`
 
 ## Monolith
 
-Single native backend binary. x64 Linux by default, can be targeted
-optionally.
+Single native backend binary. Today that binary is linux-x64 only, because
+`dartvel_shelf` ships its native server library prebuilt for that host and the
+binary embeds it. Other hosts are designed. macOS also needs a way to add the
+payload without breaking the executable's signature.
 
 ```bash
 dartvel build web-server        # writes build/server
@@ -9421,7 +9541,16 @@ upload beside it:
 - **It carries the web app.** The shell, the compiled app and its assets are
   inside the binary, with the native server library. On start they are
   written once per build into its data directory and served from there.
-  The admin dashboard and debug symbols are not carried.
+  Debug symbols are not carried.
+- **It carries the admin dashboard.** The dashboard sits in a payload section
+  of its own, apart from the web files served to anybody. On start it is
+  written to `dartvel_data/.admin` and served at the admin mount (`/__studio`
+  by default). A development build carries it with no configuration; a
+  release or profile build carries it only with `dartvel.admin.enabled: true`
+  and opens it only to an account allowed `Studio.access`, such as one granted
+  with `dartvel admin grant <user-id> --database dartvel_data/data.db`. Anyone
+  else, a signed-in customer included, gets the answer a missing route gets.
+  Admin, Devtools, and Scaffolding has the rules.
 - **Pages are rendered on request.** The build writes no page per route.
 - **SQLite by default.** The data directory is `dartvel_data` beside the
   binary (`DARTVEL_DATA_DIR` moves it). With no `DATABASE_URL`, the database
@@ -9435,7 +9564,9 @@ upload beside it:
 
 `dartvel deploy --target server` builds it, `dartvel infra` units start it as
 `/opt/<app>/server` with `DARTVEL_DATA_DIR=/var/lib/<app>`, and the same file
-runs as a worker or the cron process under `DARTVEL_ROLE`.
+runs as a worker or the cron process under `DARTVEL_ROLE`. The provisioner
+does not copy the binary onto the host yet, so those units are enabled and
+wait until something puts `/opt/<app>/server` there.
 
 `dartvel build web` is unrelated: the static build for a host that serves
 files, such as Apache or LiteSpeed.
@@ -10506,9 +10637,10 @@ dartvel logs          # dartvel metrics | dartvel traces
 ```
 
 `dartvel build web-server` writes the whole backend and web app as one
-executable. Studio is served by that binary at `/__studio` to accounts granted
-`Studio.access` with `dartvel admin grant`; there is no `dartvel studio`
-command.
+executable. That binary serves the admin dashboard at `/__studio`, in a
+release build only with `dartvel.admin.enabled: true` and only to accounts
+granted `Studio.access` with `dartvel admin grant`. There is no `dartvel
+studio` command.
 
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
 migrate-code` complete the last step. All three exist; applying an upgrade
@@ -11929,9 +12061,25 @@ dartvel:
   web:
     server:
       pageDataMode: stale-while-revalidate
+      cacheTtlSeconds: 300
+      staleForSeconds: 300
       cache: redis
       streaming: true
 ```
+
+`pageDataMode` is `await` (the default), `cache`, `stale-while-revalidate` or
+`defer`. A page is fresh for `cacheTtlSeconds`, 60 when unset, and can be
+served stale for `staleForSeconds` after that, which defaults to the ttl. With
+`cache` set the kept pages go to the application's `DVCacheAdapter`, so a
+second instance serves what the first resolved. CI proves that against a real
+Redis. The resolver for a public model page is generated from the model
+(`model_pages.g.dart`), and `@DVModel(schemaType: 'Product')` sets the JSON-LD
+`@type`. Hidden pages answer 404 and unauthorized ones 401, each as the shell
+with none of the data.
+
+The same binary also answers `/_dartvel/image` (Media Pipeline) and the admin
+mount (Admin, Devtools, and Scaffolding). Rendering Flutter widgets to HTML on
+the server is not part of this section.
 
 `streaming: true` sends the head as its own write, after the page data has
 resolved. `streaming: shell` sends the shell's head before the data: base,
