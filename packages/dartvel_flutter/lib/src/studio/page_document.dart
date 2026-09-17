@@ -273,8 +273,7 @@ class DVPageDocument {
     return '${buffer}Page';
   }
 
-  static String _escape(String value) =>
-      value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+  static String _escape(String value) => _escapeSource(value);
 
   /// The spacing and alignment arguments an exported box carries.
   ///
@@ -1578,8 +1577,14 @@ String? _paddingEdgeSource(String side, Map<String, Object?> properties) {
 }
 
 /// A single-quoted Dart literal's contents.
-String _escapeSource(String value) =>
-    value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+/// [value] as the inside of a single-quoted Dart literal: a dollar sign would
+/// start an interpolation and a line break would end the literal.
+String _escapeSource(String value) => value
+    .replaceAll(r'\', r'\\')
+    .replaceAll("'", r"\'")
+    .replaceAll(r'$', r'\$')
+    .replaceAll('\n', r'\n')
+    .replaceAll('\r', r'\r');
 
 String? _numberSource(String name, Object? value) =>
     value is num ? '.$name(${value.toDouble()})' : null;
