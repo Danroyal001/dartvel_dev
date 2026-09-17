@@ -194,6 +194,11 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   // Studio
   SpecCoverage('Admin, Devtools, and Scaffolding', 'Studio',
       DVRoutes.docsmodels, 'Add an admin screen', anchor: 'admin'),
+  SpecCoverage('Dartvel Studio', 'Studio', DVRoutes.studio,
+      'Drag a page together, then keep it as an ordinary @DVPage.'),
+  SpecCoverage('Content Workflow', 'Data', DVRoutes.studio, 'Content review'),
+  SpecCoverage('Documentation Generation', 'Reference', DVRoutes.studio,
+      'Project docs'),
 
   // Reference
   SpecCoverage('CLI', 'Reference', DVRoutes.docscli, 'Status',
@@ -223,9 +228,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'XR: Spatial Presentation': 'App',
   'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
-  // Data
-  'Content Workflow': 'Data',
-
   // Backend
   'Web Server Rendering': 'Backend',
   'Protocol Versioning and Client Compatibility': 'Backend',
@@ -245,10 +247,4 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Backend Release Management': 'Operations',
   'Preview Environments': 'Operations',
   'Product Analytics and Consent': 'Operations',
-
-  // Studio
-  'Dartvel Studio': 'Studio',
-
-  // Reference
-  'Documentation Generation': 'Reference',
 };
