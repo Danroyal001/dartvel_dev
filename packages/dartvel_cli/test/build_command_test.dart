@@ -916,6 +916,19 @@ dependencies:
       expect(resolveEmbeddedArch('sony-elinux', 'arm64'), 'arm64');
     });
 
+    test('sony-elinux defaults to the host, the one arch it can assemble', () {
+      // The bundle is assembled from the host's own desktop build, which does
+      // not cross-compile, so the arm64 default refused every plain
+      // `dartvel build sony-elinux` on an x64 machine -- including a Dartvel
+      // Cloud worker, which has no --arch to pass.
+      expect(resolveEmbeddedArch('sony-elinux', 'arm64', host: 'x64'), 'x64');
+      expect(resolveEmbeddedArch('sony-elinux', 'x64', host: 'arm64'), 'arm64');
+      expect(
+          resolveEmbeddedArch('sony-elinux', 'arm64', explicit: true, host: 'x64'),
+          'arm64');
+      expect(resolveEmbeddedArch('tizen', 'arm64', host: 'x64'), 'arm64');
+    });
+
     test('an explicit --arch still wins, engine present or not', () {
       // Someone who has built an arm64 engine should be able to use it, and
       // the embedder says so clearly enough if they have not.

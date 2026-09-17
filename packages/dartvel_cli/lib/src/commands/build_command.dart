@@ -876,7 +876,8 @@ class BuildCommand extends Command<void> {
       if (p == 'sony-elinux') {
         final result = await _buildELinuxBundle(
           root: root,
-          arch: resolveEmbeddedArch(p, arch, explicit: archExplicit),
+          arch: resolveEmbeddedArch(p, arch,
+              explicit: archExplicit, host: _hostArchitecture()),
           isRelease: isRelease,
           buildMode: buildMode,
           timeout: buildTimeout,
@@ -4037,9 +4038,17 @@ const embeddedArchDefaults = <String, String>{'fuchsia': 'x64'};
 /// An explicit `--arch` always wins: a developer who has built an arm64
 /// Fuchsia engine should be able to use it, and the embedder's own error is
 /// clear if they have not.
+///
+/// sony-elinux defaults to [host] when it is given: its bundle is assembled
+/// from the host's own desktop build, which does not cross-compile, so any
+/// other default is a refusal.
 String resolveEmbeddedArch(String platform, String arch,
-        {bool explicit = false}) =>
-    explicit ? arch : (embeddedArchDefaults[platform] ?? arch);
+        {bool explicit = false, String? host}) =>
+    explicit
+        ? arch
+        : (embeddedArchDefaults[platform] ??
+            (platform == 'sony-elinux' ? host : null) ??
+            arch);
 
 /// How long a build may run before it is treated as stalled.
 ///
