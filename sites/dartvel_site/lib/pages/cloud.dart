@@ -15,33 +15,21 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           children: <Widget>[
             Eyebrow('DARTVEL CLOUD'),
             Heading(
-              'Ship to iPhone and Android without owning a Mac.',
+              'Build for iOS, macOS, Windows, Linux, Android and the web from any computer.',
               level: 1,
             ),
             Bullets(<String>[
-              'You run one command, and your app builds on our machines.',
-              'Signing keys, store uploads and OTA patches live in the same place.',
+              'Add --cloud to dartvel build. The build runs on our machines and its '
+                  'log streams to your terminal.',
+              'The output downloads into build/cloud and is checked against its '
+                  'SHA-256 before it is kept.',
               'Cloud is not open yet. Every cloud build will be on a paid plan.',
             ]),
             CodeBlock(<String>[
-              'dartvel build ios --cloud   # builds on a macOS worker, lands in build/cloud/ios',
-            ]),
-          ],
-        ),
-        const Section(
-          tint: true,
-          children: <Widget>[
-            Eyebrow('CLOUD BUILDS'),
-            Heading('Build iOS, Android, macOS and Windows from any computer.'),
-            Bullets(<String>[
-              'You watch the build log in your terminal while it runs.',
-              'Your files download into build/cloud and are checked against their '
-                  'SHA-256 before they are kept.',
-            ]),
-            CodeBlock(<String>[
               'export DARTVEL_CLOUD_TOKEN=...',
-              'dartvel build android --cloud --profile development',
-              'dartvel build macos --cloud',
+              'dartvel build ios --cloud          # on a macOS worker',
+              'dartvel build windows --cloud      # on a Windows worker',
+              'dartvel build web-server --cloud   # on a Linux worker',
             ]),
           ],
         ),
@@ -116,7 +104,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             Eyebrow('HOSTING'),
             Heading('Run your web-server binary on Cloud.'),
             Bullets(<String>[
-              'Today you run that one file on any Linux host for free, with SQLite '
+              'Today you run that one file on your own server for free, with SQLite '
                   'created beside it.',
             ]),
             CodeBlock(<String>[
