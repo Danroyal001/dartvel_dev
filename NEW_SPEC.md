@@ -2181,6 +2181,7 @@ one-way: `dartvel theme check` reports drift between the design file and the
 committed tokens, in both directions. A design system that has diverged from
 the application is the normal state of affairs, and the useful thing a tool can
 do is say so on a schedule rather than silently overwrite one side.
+The import and `dartvel theme check` are designed and not built.
 
 ## Diagnostics
 
@@ -9541,6 +9542,9 @@ documentation, because a pipeline pasted once drifts from the framework's
 requirements the first time they change, and the gates that stop a bad release
 are exactly the ones that get dropped from a hand-edited file.
 
+`dartvel ci init` is designed. The CLI has no such command today, so a
+project's pipeline is still written by hand.
+
 ## Diagnostics
 
 | Code | Reason | Level |
@@ -10231,9 +10235,15 @@ dartvel generate
 dartvel db migrate
 dartvel test          # or: e2e | golden | native | accessibility | release
 dartvel build android # see Build targets
-dartvel deploy        # or: cloud-run | lambda | container | fly | railway
-dartvel logs          # dartvel metrics | dartvel traces | dartvel studio
+dartvel build web-server
+dartvel deploy        # or: --functions --function-target lambda | cloud-run | container | edge | fly | railway | bare-metal
+dartvel logs          # dartvel metrics | dartvel traces
 ```
+
+`dartvel build web-server` writes the whole backend and web app as one
+executable. Studio is served by that binary at `/__studio` to accounts granted
+`Studio.access` with `dartvel admin grant`; there is no `dartvel studio`
+command.
 
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
 migrate-code` complete the last step. All three exist; applying an upgrade
@@ -10777,7 +10787,7 @@ after the first incident.
 
 ## Publishing
 
-Modules are published to pub.dev like any Dart package. `dartvel module
+Modules are published to pub.dev like any Dart package. `dartvel modules
 publish` runs the ordinary publish and attaches a manifest: the module's
 version, the Dartvel range it supports, and the **complete list of
 capabilities it uses**.
@@ -10791,7 +10801,7 @@ dartvel:
       egress: ['api.stripe.com']
 ```
 
-The manifest is not a promise the module makes about itself. `dartvel module
+The manifest is not a promise the module makes about itself. `dartvel modules
 publish` derives the list from the code by the same reachability analysis
 Secrets and Environments uses, and refuses to publish when the declaration and
 the code disagree — in either direction. A capability declared and never used
@@ -12112,6 +12122,10 @@ dartvel analyze performance
 dartvel build --report
 dartvel benchmark
 ```
+
+Only `dartvel analyze performance` exists. It reads what a running
+application measured and prints the findings. `dartvel build --report` and
+`dartvel benchmark` are designed and have no command yet.
 
 ## Pluggability and escape hatches
 
