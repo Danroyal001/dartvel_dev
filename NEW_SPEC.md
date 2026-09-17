@@ -64,20 +64,21 @@ Stability: `Contract` · Status: `Partial`
 
 ```text
 lib/
-
-pages/
-models/
-backend/
-components/
-styles/
-services/
-
-main.dart
+  pages/
+  models/
+  backend/
+  components/
+  styles/
+  services/
+  main.dart
 ```
 
 These paths are the defaults. Projects may override them under the `dartvel:`
-key in `pubspec.yaml`, including glob patterns for file groups, directories, and
-subdirectories. The `dartvel:` key may also point to a Dart config file:
+key in `pubspec.yaml` (`pagesDir`, `modelsDir`, `backendDir`, `componentsDir`,
+`stylesDir`, `servicesDir`), including glob patterns for file groups,
+directories, and subdirectories. Glob patterns are designed and not built:
+today each key takes one directory. The `dartvel:` key may also point to a
+Dart config file:
 
 ```yaml
 dartvel: dartvel_config.dart
@@ -87,7 +88,6 @@ That file must expose a public class extending `DartvelConfig`. The class name
 must start with an uppercase letter and must not start with `_`, so the CLI can
 import it. YAML config is internally normalized into the same strongly typed
 config shape.
-
 
 No controllers.
 
@@ -117,19 +117,18 @@ under
 dartvel:
 ```
 
-Including
+or in the Dart config file that key can name instead (Project Structure).
 
-* App config
-* Auth
-* Permissions
-* Deployment
-* SEO
-* PWA
-* Multi-tenancy
-* AI
-* Storage
-* Database
-* Providers
+That includes, among others:
+
+* Auth and its providers (`auth`), permissions (`permissions`)
+* Servers, store publishing and the admin mount (`infra`, `publish`, `admin`)
+* SEO (`seo`) and PWA (`pwa`)
+* Multi-tenancy (`multiTenancy`)
+* AI (`ai`), storage (`storage`) and the database (`database`)
+* Modules (`module`, `modules`), secrets (`secrets`) and tasks (`tasks`)
+
+Each section of this specification names the keys it reads.
 
 ---
 
@@ -137,8 +136,7 @@ Including
 
 Stability: `Contract` · Status: `Shipped`
 
-Two primitives.
-Dartvel keeps the primitive surface area small:
+Two primitives. Dartvel keeps the primitive surface area small:
 
 ```dart
 DVBox(...)
@@ -147,31 +145,18 @@ DVBox.list(...)
 DVText(...)
 ```
 
-Everything else is built from them.
+Everything else is built from them, with a `DVModifier` (Styling):
 
-Images ( .backgroundImage() modifier on DVBox )
-
-Cards ( .card() modifier on DVBox )
-
-Text inputs ( .input() modifier on DVText )
-
-Rows (`DVBox.row(children)`)
-
-Columns (`DVBox.list(children)`)
-
-Buttons ( .onTap() or .onPressed() alias modifier on DVBox or DVText )
-
-Forms ( DVForm does exist )
-
-Lists (`DVBox.list(children)`)
-
-Grids (`DVBox.grid(children)`)
-
-Masonry (`DVBox.masonry(children)`)
-
-Navigation
-
-Containers and Layouts
+- Images: `DVModifier().backgroundImage(...)` on a `DVBox`
+- Cards: `DVModifier().card()`
+- Text inputs: `DVModifier().input(label: ...)` on a `DVText`
+- Buttons: `DVModifier().onTap(...)`, or its alias `.onPressed(...)`
+- Rows: `DVBox.row(children)`
+- Columns and lists: `DVBox.list(children)`
+- Grids: `DVBox.grid(children)`
+- Masonry: `DVBox.masonry(children)`
+- Forms: `DVForm<T>` (Forms)
+- Navigation: `DV.Navigation` and `DVNavLink` (Routing)
 
 ---
 
@@ -223,8 +208,10 @@ use `wrapLine`.
 
 ## Dynamic Collections
 
-Runtime collections use `DVBox.builder`. The default is vertical, lazy, and
-virtualized where the target platform supports it.
+Runtime collections use `DVBox.builder`. The default is vertical. The vertical,
+grid and horizontally scrollable layouts build items lazily through Flutter's
+builder lists, and do so on demand once the box is `.scrollable()`; row, wrap,
+stack and masonry build every item.
 
 ```dart
 DVBox.builder(
@@ -233,9 +220,9 @@ DVBox.builder(
 )
 ```
 
-`DVBox.builder(...)` returns `DVBoxBuilder`, which is not itself a widget. A
-layout method such as `.list()`, `.grid(...)`, `.wrapLine()`, `.masonry()`,
-or `.horizontalScrollable()` must be called.
+`DVBox.builder(...)` returns a `DVBox` that is already a widget. A layout
+method such as `.row()`, `.grid(...)`, `.wrapLine()`, `.masonry()`, `.stack()`
+or `.horizontalScrollable()` changes its layout.
 
 Builder collections support the same layout modes:
 
@@ -254,41 +241,35 @@ DVBox.builder(stories, (story) => StoryCard(story)).horizontalScrollable()
 Generated model components are application components, not layout primitives.
 They compose `DVBox`, `DVText`, and generated controls internally.
 
-```dart
-User.Form()
-User.List()
-User.Grid()
-User.Masonry()
-User.Table()
-User.Page() // generated default page with a title and User.List()
-```
-
 Annotated models are private generation inputs. `@DVModel() class _User ...`
 generates the public `User` class in `dartvel_client`, and application code
 imports that generated public class from `dartvel_client/dartvel_client.dart`.
-The generated public class owns the ergonomic static model-aware API:
+The generated public class owns the model-aware static API:
 
 ```dart
-User.Form(user);
+User.Form(user, (edited) => save(edited)); // DVForm<User> over one record
 User.List(users, builder: (user) => UserCard(user));
-User.Table(users, columns: 3);
-User.Page(users);
+User.Table(users);                          // a sortable table
+User.Card(user);
+User.Page.fromId(id);                       // also User.Page(...), .async, .signal
 ```
 
-The annotated `_User` class is not exported and should not be referenced by
-application code. Do not generate or call extra top-level model component
-wrappers; generated public model methods are the only model component API.
+`User.List` is a lazy `DVBox.builder` list that falls back to `User.Card`
+when no builder is given. The annotated `_User` class is not exported and
+should not be referenced by application code. Do not generate or call extra
+top-level model component wrappers; generated public model methods are the
+only model component API.
 
-Tables remain model-generated because they include sorting, filtering,
-pagination, resizing, keyboard navigation, virtualization, accessibility, and
-column management. Tables use the platform-styled table/list design with a
-Material data table fallback.
+Tables remain model-generated. `User.Table` renders a `DVTable` with one column
+per field that is not sensitive: a header row, sorting on the columns whose
+type has an order, arrow-key navigation between cells, and table semantics for
+screen readers. Passing `builder:` renders a card grid instead. Filtering,
+pagination, column resizing, virtualization and column management are designed
+and not built.
 
-```dart
-User.List().builder((context, user) => UserCard(user))
-
-User.Table().builder((context, user) => UserRow(user))
-```
+`User.Grid()` and `User.Masonry()` are designed and not generated. Until they
+are, a grid of records is `DVBox.builder(users, UserCard).grid(columns: 3)`
+and masonry is the same builder with `.masonry()`.
 
 This intentionally avoids `DVRow`, `DVColumn`, `DVGrid`, `DVList`,
 `DVMasonry`, and `DVWrap`. `DVBox` is the universal layout primitive, `DVText`
@@ -301,47 +282,56 @@ from models.
 
 Stability: `Contract` · Status: `Shipped`
 
-Built on Mix.
-
-Supports EVERY Mix modifier.
+Styling is a `DVModifier`: an immutable chain of style, interaction and
+accessibility settings that a `DVBox` or `DVText` applies. It is Dartvel's own
+chain, rendered with Flutter widgets. The `mix` package is a declared
+dependency of `dartvel_flutter`, and the primitives do not call it yet, so a
+Mix modifier with no `DVModifier` counterpart is not available through the
+chain.
 
 Shared styles:
 
 ```dart
-final primary =
-    DVStyleModifier()
-        .padding(12)
-        .rounded(12);
+final primary = const DVModifier()
+    .padding(12)
+    .rounded(12);
 ```
-
-N/B: Let's actually use `DVModifier` since it covers widget functionality too, not just styles. We'll keep `DVStyleModifier` as an alias for backword compatibility
-
 
 Usage
 
 ```dart
-DVText("Save")
-    .styleModifier(primary);
+DVText('Save').modifier(primary);
+DVBox(DVText('Save'), primary);   // or as the constructor's second argument
 ```
 
-N/B: Let's actually use `.modifier()` since it covers widget functionality too, not just styles. We'll keep `.styleModifier()` as an alias for backword compatibility
+`DVStyleModifier` is an alias of `DVModifier`, and `.styleModifier()` an alias
+of `.modifier()`. Both are kept for code written before the rename, and
+`dartvel migrate-code` rewrites them.
 
-
-Fluent modifiers
+Fluent modifiers include
 
 ```dart
-.padding()
+.padding()          // also paddingOnly, paddingSymmetric
 .margin()
-.color()
+.color()            // text colour
 .backgroundColor()
+.gradient()
+.border()
+.rounded()
 .shadow()
 .width()
 .height()
+.opacity()
+.rotate()           // degrees
+.blur()
 .card()
-.rounded()
+.input()
+.onTap()            // alias: onPressed
+.semanticLabel()
 ```
 
-No manual Mix `.wrap()`. Dartvel handles wrapping where necessary.
+`merge` combines two modifiers, the argument winning where both set a value.
+No manual `.wrap()`. Dartvel builds the wrapping widgets itself.
 
 ---
 
@@ -398,9 +388,9 @@ Page shell options are configured on the annotation with const values:
     centerTitle: true,
     backgroundColor: 0xFFFFFFFF,
     appBarBackgroundColor: 0xFFF8FAFC,
-    appBarActions: const [],
-    appBarLeading: null,
-    // all Material and Cupertino scaffold features are unified here
+    extendBody: false,
+    resizeToAvoidBottomInset: true,
+    selectable: true,
 )
 Widget _settingsPage(BuildContext context) {
     return DVBox.list([
@@ -408,6 +398,10 @@ Widget _settingsPage(BuildContext context) {
     ]);
 }
 ```
+
+The annotation also takes `path`, `policy`, `mfa` and `sitemap`. App bar
+actions, a leading widget and the rest of the Material and Cupertino scaffold
+options are designed and not yet on the annotation.
 
 `DVPageShellMode` supports `adaptive`, `material`, `cupertino`, and `none`.
 `adaptive` renders Cupertino page chrome on iOS/macOS and Material page chrome
@@ -432,7 +426,7 @@ Pages Router.
 pages/index.dart
 ```
 
-Generated route clients must import each `DVPage` with Dart deferred imports under the hood.
+The generated router imports each `@DVPage` page as a Dart deferred library.
 The generated `dartvel_client/dartvel_client.dart` barrel exposes generated page
 wrappers, and route tables instantiate those wrappers instead of importing page
 source files eagerly. On web this allows large applications to load each page
@@ -475,25 +469,32 @@ pages/users/[id].dart
 /users/:id
 ```
 
-Navigation is strongly typed.
+Navigation is strongly typed. Every route is a member of the generated
+`DVRoutes` class, and a route with parameters is a function taking them as
+named `String` arguments. A detail page beside its list, like
+`users/[id].dart` beside `users.dart`, takes its parameters onto the end of
+the name.
 
 ```dart
-.navigateToPage(.users)
+context.navigateToPage(DVRoutes.users);
 
 // For routes with parameters
-.navigateToPage(
-    .users(id)
-)
+context.navigateToPage(DVRoutes.usersId(id: '1'));
 ```
 
 Example:
 
 ```dart
-DVBox(DVText("Navigate to users")).onPressed(DV.Navigation.to(DVPages.users));
+DVBox(
+  DVText('Navigate to users'),
+  DVModifier().onPressed(DV.Navigation.to(DVRoutes.users)),
+);
 
 // For routes with parameters
-DVBox(DVText("Navigate to user 1"))
-    .onPressed(DV.Navigation.to(DVPages.user(id: 1)));
+DVBox(
+  DVText('Navigate to user 1'),
+  DVModifier().onPressed(DV.Navigation.to(DVRoutes.usersId(id: '1'))),
+);
 ```
 
 ## Routing engine
@@ -502,7 +503,7 @@ The generated router targets **`go_router`** as its runtime engine. This is a
 deliberate, load-bearing choice, not an incidental dependency:
 
 - Type safety and code generation are Dartvel's responsibility, not the
-  router's. Dartvel emits the strongly typed `DVPages`/`DVRoutes` surface, so
+  router's. Dartvel emits the strongly typed `DVRoutes` surface, so
   `go_router`'s own (stringly-typed by default) API is never exposed to
   application code, and a second code generator such as `auto_route`'s
   `build_runner` pass is intentionally avoided — it would compete with Dartvel's
@@ -513,7 +514,7 @@ deliberate, load-bearing choice, not an incidental dependency:
   deep links resolve to paths directly with no separate mapping layer.
 
 `go_router` is an implementation detail behind the generated navigation surface.
-Application code must use `DV.Navigation`, `DVPages`, and `.navigateToPage(...)`
+Application code must use `DV.Navigation`, `DVRoutes`, and `.navigateToPage(...)`
 rather than importing or calling `go_router` directly, so the engine can evolve
 (for example, generating onto `StatefulShellRoute` for nested-stack navigation)
 without breaking application code.
@@ -604,7 +605,10 @@ takes its parameters on the end instead (Tabs, below). `name:` is an
 identifier, not a path, so it repeats nothing.
 
 ```dart
-DVBox(DVText('Settings')).onPressed(DV.Navigation.to(DVRoutes.settings));
+DVBox(
+  DVText('Settings'),
+  DVModifier().onPressed(DV.Navigation.to(DVRoutes.settings)),
+);
 DVNavLink(to: DVRoutes.order(id: '42'), child: DVText('Order 42'));
 ```
 
@@ -848,9 +852,17 @@ or
 signal(context, 0);
 ```
 
-The `DV.signal()` helper can also work without a Flutter `BuildContext` in pure
-Dart apps. `DVContext` is a universal context object for Flutter, server, CLI,
-and web environments.
+Both take a Flutter `BuildContext` and live in `dartvel_flutter`.
+
+## Signals outside Flutter
+
+Stability: `Draft` · Status: `Designed`
+
+Signals without a `BuildContext`, for pure Dart applications, are designed and
+not built. There is no `DV.signal()` helper and no `DVContext.builder` yet.
+`DVContext` exists in `dartvel_core` as the context a backend function and
+`DV.transaction` receive. The design makes it a universal context object for
+Flutter, server, CLI and web environments:
 
 ```dart
 DVContext.builder((DVContext context) {
@@ -864,9 +876,7 @@ exposes Dartvel-specific context for non-Flutter platforms. Unsupported
 Flutter-only context operations fail clearly outside Flutter instead of silently
 pretending to work.
 
----
-
-Global
+## Global
 
 Register
 
@@ -908,10 +918,10 @@ Read-only
 
 ```dart
 counter.read();
-user.read();
+user.signal(context).read();
 ```
 
-Internally powered by Riverpod, so it works in Flutter and pure Dart.
+Internally powered by Riverpod, through `flutter_riverpod`.
 Normal `signal()` tracks by parent widget or context. `DV.global` tracks by
 data type, so each type must be unique. Setting the same type replaces the
 previous value for that type.
@@ -924,10 +934,12 @@ Stability: `Contract` · Status: `Shipped`
 
 ```dart
 @DVModel()
-class _User(
-    String name,
-    String email,
-);
+class _User {
+  final String name;
+  final String email;
+
+  const _User({required this.name, required this.email});
+}
 ```
 
 Annotated models are private schema inputs by validation: `@DVModel() class
@@ -968,16 +980,20 @@ it came from: the generator refuses one that does, naming the symbol, rather
 than emitting generated code that does not compile. Public annotated functional
 widget inputs always fail.
 
-Using the new native Dart data-class syntax. Automatically generates:
+The generator reads a model's `final` fields. Primary constructor syntax
+(`class _User(String name, String email);`) is designed for when Dart ships
+it, and is not read today. A model automatically generates:
 * Database schema
 * CRUD
 * Validation
 * Serialization
-* Equality, .copyWith, .merge, and .hashCode
+* `.copyWith`
 * Forms, Pages, Lists, Tables, and generated components (`.Form`, `.Page`)
 * APIs
 * Queries
 * Model sync and presence
+
+Generated `==`, `hashCode` and `.merge` are designed and not built.
 
 ---
 
@@ -1150,52 +1166,54 @@ Automatic
 DVForm<User>()
 ```
 
-Or alias
-
-```dart
-User.Form()
-// The base class
-```
-
----
+With no record, the form starts from the model's generated default.
 
 Editing
 
 ```dart
-// Accepts the model as a positional Arg. The Arg type is DVModel, base class for all the models
-DVForm<User>(user)
-// An instance of the base class
+DVForm<User>(user, (edited) => save(edited))
 ```
 
-Or alias
+Or the aliases, which build the same `DVForm<User>`:
 
 ```dart
-// The instantiated object
+User.Form(user, (edited) => save(edited))
 user.Form()
 ```
+
+Without the second argument a form is display-only: it has nobody to hand the
+edited record to, and shows no submit or reset controls. The automatic form
+renders each field the model serializes as a text input
+(`DVModifier().input(...)`).
 
 Manual
 
 ```dart
-DVForm<User>.builder((formControls) { return someComposedWidget; })
+DVForm<User>.builder((controls) => someComposedWidget)
 ```
 
 Editing
 
 ```dart
-// Accepts the model as a positional Arg. The Arg type is DVModel, base class for all the models
-DVForm<User>.builder((formControls) {}, user)
+DVForm<User>.builder((controls) => someComposedWidget, user)
 ```
 
-Generated controls, such as `formControls.email`. These render with
-`DVText.input()`.
+The builder receives the generated `UserFormControls`, typed as its base
+`DVFormControls`:
 
-Generated validation, such as `formControls.emailIsValid`.
+- one getter per field that is not sensitive, such as `controls.email`, which
+  reads the field's current value
+- a validity getter for each `String` field, such as `controls.emailIsValid`.
+  A field whose name contains `email` must contain `@`; any other must not be
+  blank
+- `controls.submit()` and `controls.reset()`
 
-Generated submit ( formControls.submit(), .reset() ).
-
+A sensitive field is left out of the controls unless it was opted back in with
+`@DVModel.sensitiveField(showInForms: true)`.
 
 ## A half-filled form survives
+
+Stability: `Draft` · Status: `Designed`
 
 A long form loses everything to a crash, a dead battery, or a tab closed by
 mistake, and the framework already has the place to keep it:
@@ -1214,6 +1232,8 @@ Drafts expire, and sensitive fields are excluded from them by construction —
 the same exclusion set that keeps them out of logs and AI context, for the same
 reason. A recovered draft is offered rather than restored silently, since
 someone who abandoned a form deliberately should not find it waiting.
+
+None of this is built. `DVForm` takes no `autosave` argument yet.
 
 ---
 
