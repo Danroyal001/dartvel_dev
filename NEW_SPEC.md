@@ -1,6 +1,16 @@
-# New Spec v2
+# Dartvel Specification
 
-# Dartvel — The Complete Vision, to be implemented
+This is the design of the whole platform. Parts of it are built and parts are
+not yet. Each section that describes a surface opens with two labels:
+stability says how much its shape can still change, and status says how much
+of it exists in code. The labels are recorded in `docs/spec-status.json` with
+the files that prove them, and `dart run tool/spec_status_check.dart` fails
+when a cited file is missing or a label here disagrees with the index.
+Specification Status, near the end, explains both labels.
+
+Last checked against `main` on 2026-09-17.
+
+# Dartvel: The Complete Vision
 
 > **Flutter's Laravel, Flutter's Expo, Flutter's Next.js, Flutter's Hasura.**
 >
