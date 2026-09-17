@@ -359,6 +359,117 @@ void main() {
     });
   });
 
+  group('fields that are not text, numbers or flags', () {
+    const DVStudioModelSpec order = DVStudioModelSpec(
+      model: 'Order',
+      table: 'orders',
+      key: 'id',
+      fields: <DVStudioFieldSpec>[
+        DVStudioFieldSpec(name: 'id', type: 'String'),
+        DVStudioFieldSpec(
+          name: 'status',
+          type: 'OrderStatus?',
+          options: <String>['placed', 'roasting', 'shipped'],
+        ),
+        DVStudioFieldSpec(name: 'tags', type: 'List<String>'),
+        DVStudioFieldSpec(name: 'extras', type: 'Map<String, Object?>?'),
+        DVStudioFieldSpec(name: 'userSlug', type: 'String', relation: 'User'),
+      ],
+    );
+
+    setUp(() async {
+      server = DVAdminServer(
+        mount: _guarded,
+        root: root.path,
+        authenticated: (Request _) async => true,
+        models: <DVStudioModelSpec>[..._models, order],
+        database: database,
+      );
+    });
+
+    Future<Response> create(Map<String, Object?> values) async =>
+        (await server.respond(
+          _request(
+            'POST',
+            '/__studio/api/models/Order/records',
+            json: <String, Object?>{'values': values},
+          ),
+        ))!;
+
+    Map<String, Object?> valid() => <String, Object?>{
+      'id': 'o1',
+      'status': 'roasting',
+      'tags': <String>['gift', 'express'],
+      'extras': <String, Object?>{'note': 'ring twice'},
+      'userSlug': 'ada',
+    };
+
+    test('are stored and read back as what they are', () async {
+      final Response created = await create(valid());
+      expect(created.status, 201, reason: '${await _json(created)}');
+
+      final Response? read = await server.respond(
+        _request('GET', '/__studio/api/models/Order/records/o1'),
+      );
+      final Map<String, Object?> values =
+          ((await _json(read!))! as Map<String, Object?>)['values']!
+              as Map<String, Object?>;
+      expect(values['status'], 'roasting');
+      expect(values['tags'], <String>['gift', 'express']);
+      expect(values['extras'], <String, Object?>{'note': 'ring twice'});
+      expect(values['userSlug'], 'ada');
+    });
+
+    test('an option the enum does not have is refused', () async {
+      final Response created = await create(
+        <String, Object?>{...valid(), 'status': 'teleported'},
+      );
+      expect(created.status, 400);
+      expect(
+        ((await _json(created))! as Map<String, Object?>)['message'],
+        contains('placed, roasting, shipped'),
+      );
+    });
+
+    test('a list that is not a list, or a map that is not one, is refused',
+        () async {
+      expect((await create(<String, Object?>{...valid(), 'tags': 'gift'})).status,
+          400);
+      expect(
+        (await create(<String, Object?>{...valid(), 'extras': <Object?>[1]}))
+            .status,
+        400,
+      );
+    });
+
+    test('a reference to a record that does not exist is refused', () async {
+      final Response created = await create(
+        <String, Object?>{...valid(), 'userSlug': 'nobody'},
+      );
+      expect(created.status, 400);
+      expect(
+        ((await _json(created))! as Map<String, Object?>)['error'],
+        'bad_relation',
+      );
+    });
+
+    test('a nullable field can be emptied', () async {
+      final Response created = await create(
+        <String, Object?>{...valid(), 'status': null, 'extras': null},
+      );
+      expect(created.status, 201, reason: '${await _json(created)}');
+    });
+
+    test('the model list says what each field can hold', () async {
+      final Response? listed = await server.respond(
+        _request('GET', '/__studio/api/models'),
+      );
+      final String body = jsonEncode(await _json(listed!));
+      expect(body, contains('"options":["placed","roasting","shipped"]'));
+      expect(body, contains('"relation":"User"'));
+    });
+  });
+
   group('pages', () {
     test('a document published through Studio is listed and stored', () async {
       final Response? saved = await server.respond(

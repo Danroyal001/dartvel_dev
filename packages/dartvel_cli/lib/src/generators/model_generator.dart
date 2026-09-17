@@ -112,6 +112,22 @@ class ModelGenerator {
 
     final classesGenerated = <String>[];
 
+    // What Studio needs to know about a field beyond its type: the values an
+    // enum declared among the models can take, and which declared model a
+    // field such as accountId points at. Read up front, because a field can
+    // name a model declared in a file read after its own.
+    final Map<String, List<String>> studioEnums = <String, List<String>>{};
+    final Set<String> studioModelNames = <String>{};
+    for (final file in files) {
+      final String text = await file.readAsString();
+      studioEnums.addAll(dvStudioEnumValues(text));
+      for (final RegExpMatch m in RegExp(
+        r'@DVModel\b[\s\S]*?class\s+_([A-Za-z0-9_]+)\b',
+      ).allMatches(dvMaskAnnotationArgs(text, 'DVModel'))) {
+        studioModelNames.add(m.group(1)!);
+      }
+    }
+
     for (final file in files) {
       final content = await file.readAsString();
       // Scan for @DVModel(...) classes.
@@ -1554,7 +1570,7 @@ class ModelGenerator {
             "    table: '$tableName',\n"
             "    key: '$keyField',\n"
             '    fields: <DVStudioFieldSpec>[\n'
-            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}),\n").join()}'
+            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}),\n").join()}'
             '    ],\n'
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
@@ -2638,6 +2654,22 @@ class ModelGenerator {
     );
   }
 
+  /// The options or relation a field's Studio spec carries, as source.
+  static String _studioFieldExtras(
+    Map<String, String> field,
+    Map<String, List<String>> enums,
+    Set<String> models,
+    String own,
+  ) {
+    final String base = field['type']!.replaceAll('?', '').trim();
+    final List<String>? values = enums[base];
+    if (values != null && values.isNotEmpty) {
+      return ", options: <String>[${values.map((String v) => "'$v'").join(', ')}]";
+    }
+    final String? related = dvStudioRelationOf(field['name']!, base, models, own);
+    return related == null ? '' : ", relation: '$related'";
+  }
+
   /// A default value for [name].
   ///
   /// [sequenced] is only true inside a factory's create(), which declares an
@@ -2947,4 +2979,82 @@ String _columnLabel(String field) {
     }
   }
   return out.toString().replaceAll('_', ' ');
+}
+
+
+/// Every enum declared in [source], with its values in order.
+///
+/// An enhanced enum's values are the part before its first `;`, each one an
+/// identifier with the arguments of its constructor after it.
+Map<String, List<String>> dvStudioEnumValues(String source) {
+  final Map<String, List<String>> enums = <String, List<String>>{};
+  for (final RegExpMatch m in RegExp(
+    r'\benum\s+([A-Za-z0-9_]+)\b[^{]*\{',
+  ).allMatches(source)) {
+    // The body up to the matching brace, so a value with a const map or a
+    // nested brace in its arguments does not end it early.
+    int depth = 1;
+    int at = m.end;
+    while (at < source.length && depth > 0) {
+      final String c = source[at];
+      if (c == '{') depth++;
+      if (c == '}') depth--;
+      at++;
+    }
+    String body = source.substring(m.end, at - 1);
+    body = body.replaceAll(RegExp(r'//[^\n]*'), '');
+    // The values end at the first semicolon outside parentheses.
+    int parens = 0;
+    int end = body.length;
+    for (int i = 0; i < body.length; i++) {
+      final String c = body[i];
+      if (c == '(' || c == '[' || c == '{') parens++;
+      if (c == ')' || c == ']' || c == '}') parens--;
+      if (c == ';' && parens == 0) {
+        end = i;
+        break;
+      }
+    }
+    final List<String> values = <String>[];
+    parens = 0;
+    final StringBuffer part = StringBuffer();
+    void take() {
+      final RegExpMatch? name = RegExp(r'^\s*(?:@\w+(?:\([^)]*\))?\s*)*([A-Za-z_][A-Za-z0-9_]*)')
+          .firstMatch(part.toString());
+      if (name != null) values.add(name.group(1)!);
+      part.clear();
+    }
+    for (int i = 0; i < end; i++) {
+      final String c = body[i];
+      if (c == '(' || c == '[' || c == '{') parens++;
+      if (c == ')' || c == ']' || c == '}') parens--;
+      if (c == ',' && parens == 0) {
+        take();
+      } else {
+        part.write(c);
+      }
+    }
+    take();
+    enums[m.group(1)!] = values;
+  }
+  return enums;
+}
+
+/// The declared model a field refers to by name: `accountId`, `accountSlug`
+/// or `accountKey` of a String or int is a reference to `Account` when the
+/// project declares one. Null otherwise, and never the model's own name.
+String? dvStudioRelationOf(
+  String field,
+  String baseType,
+  Set<String> models,
+  String own,
+) {
+  if (baseType != 'String' && baseType != 'int') return null;
+  final RegExpMatch? m =
+      RegExp(r'^([a-z][A-Za-z0-9]*?)(Id|Slug|Key)$').firstMatch(field);
+  if (m == null) return null;
+  final String stem = m.group(1)!;
+  final String name = '${stem[0].toUpperCase()}${stem.substring(1)}';
+  if (name == own || !models.contains(name)) return null;
+  return name;
 }

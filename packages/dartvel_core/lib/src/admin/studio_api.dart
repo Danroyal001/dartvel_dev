@@ -40,9 +40,29 @@ class DVStudioFieldSpec {
     required this.name,
     required this.type,
     this.sensitive = false,
+    this.options,
+    this.relation,
   });
 
   final String name;
+
+  /// The values an enum field can take, stored by name.
+  final List<String>? options;
+
+  /// The model, by the name Studio lists it under, that this field holds the
+  /// key of: `userSlug` holding a `User`'s slug.
+  final String? relation;
+
+  /// Whether the value is a list, set or map, kept as JSON.
+  bool get isCollection {
+    final String base = type.replaceAll('?', '').trim();
+    return base.startsWith('List<') ||
+        base.startsWith('Set<') ||
+        base.startsWith('Map<') ||
+        base == 'List' ||
+        base == 'Map' ||
+        base == 'Set';
+  }
 
   /// The declared Dart type, with `?` when nullable.
   final String type;
@@ -54,6 +74,8 @@ class DVStudioFieldSpec {
     'name': name,
     'type': type,
     if (sensitive) 'sensitive': true,
+    'options': ?options,
+    'relation': ?relation,
   };
 }
 
@@ -401,7 +423,7 @@ class DVStudioApi {
     DVRecordTable table,
     Map<String, Object?> body,
   ) async {
-    final Map<String, Object?> values = _in(spec, body['values']);
+    final Map<String, Object?> values = await _in(spec, body['values']);
     final Object? key = values[spec.key];
     if (key == null || '$key'.isEmpty) {
       throw _StudioRefusal(
@@ -427,7 +449,7 @@ class DVStudioApi {
     String key,
     Map<String, Object?> body,
   ) async {
-    final Map<String, Object?> values = _in(spec, body['values']);
+    final Map<String, Object?> values = await _in(spec, body['values']);
     if (values.containsKey(spec.key) && '${values[spec.key]}' != key) {
       throw _StudioRefusal(
         400,
@@ -459,7 +481,7 @@ class DVStudioApi {
 
   /// What Studio sent, checked against the model and stored the way the
   /// generated model stores it.
-  Map<String, Object?> _in(DVStudioModelSpec spec, Object? values) {
+  Future<Map<String, Object?>> _in(DVStudioModelSpec spec, Object? values) async {
     if (values is! Map) {
       throw _StudioRefusal(400, 'bad_values', 'values has to be an object.');
     }
@@ -484,8 +506,38 @@ class DVStudioApi {
         );
       }
       stored[name] = _stored(field, entry.value);
+      if (field.relation != null && stored[name] != null) {
+        await _checkRelation(spec, field, stored[name]!);
+      }
     }
     return stored;
+  }
+
+  /// Refuses a key no record of the related model has: a reference to
+  /// nothing saves, and then every page that follows it breaks.
+  Future<void> _checkRelation(
+    DVStudioModelSpec spec,
+    DVStudioFieldSpec field,
+    Object key,
+  ) async {
+    final String relation = field.relation!;
+    final DVStudioModelSpec? related = models
+            .where((DVStudioModelSpec m) =>
+                spec.module != null && m.id == '${spec.module}.$relation')
+            .firstOrNull ??
+        models.where((DVStudioModelSpec m) => m.id == relation).firstOrNull;
+    // A relation to a model Studio does not know is shown and not checked.
+    if (related == null) return;
+    final DVRecordTable table = _table(related);
+    await table.ensureSchema();
+    if (await table.read(key) == null) {
+      throw _StudioRefusal(
+        400,
+        'bad_relation',
+        '${field.name} has to be the ${related.key} of a ${related.model}, '
+            'and no ${related.model} has ${related.key} $key.',
+      );
+    }
   }
 
   static String _base(String type) => type.replaceAll('?', '').trim();
@@ -506,6 +558,29 @@ class DVStudioApi {
       'bad_values',
       '${field.name} has to be a ${_base(field.type)}.',
     );
+    final List<String>? options = field.options;
+    if (options != null) {
+      if (options.contains('$value')) return '$value';
+      throw _StudioRefusal(
+        400,
+        'bad_values',
+        '${field.name} has to be one of ${options.join(', ')}.',
+      );
+    }
+    if (field.isCollection) {
+      Object? decoded = value;
+      if (value is String) {
+        try {
+          decoded = jsonDecode(value);
+        } on FormatException {
+          throw _StudioRefusal(
+              400, 'bad_values', '${field.name} is not valid JSON.');
+        }
+      }
+      final bool map = _base(field.type).startsWith('Map');
+      if (map ? decoded is! Map : decoded is! List) wrong();
+      return jsonEncode(decoded);
+    }
     switch (_base(field.type)) {
       case 'String':
         return '$value';
@@ -530,6 +605,14 @@ class DVStudioApi {
   /// number or a flag can come back as a string.
   Object? _out(DVStudioFieldSpec field, Object? value) {
     if (value == null) return null;
+    if (field.isCollection) {
+      if (value is List || value is Map) return value;
+      try {
+        return jsonDecode('$value');
+      } on FormatException {
+        return '$value';
+      }
+    }
     switch (_base(field.type)) {
       case 'int':
         return value is num ? value.toInt() : int.tryParse('$value') ?? value;
