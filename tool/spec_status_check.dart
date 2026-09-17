@@ -181,16 +181,47 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Routing': 'Routing',
     'State Management': 'State',
     'Models & Forms': 'Models',
-    'Backend Runtime': 'Backend Functions',
+    'Record History': 'Record History and Optimistic Concurrency',
+    'Offline-First Models': 'Offline-First Models',
+    'Backend Runtime': 'Backend',
     'Database': 'Database',
     'Cache': 'Cache',
+    'File Storage': 'File Storage',
     'Queues & Jobs': 'Queues, Jobs, and Signals',
     'Authentication': 'Authentication',
+    'Sessions & Second Factor': 'Sessions and Account Management',
+    'Outbound HTTP': 'Outbound HTTP',
+    'Outbound Webhooks': 'Outbound Webhooks',
     'Platform APIs': 'Platform',
     'Notifications': 'Mail and Notifications',
+    'Search': 'Search',
+    'Semantic Search': 'Semantic Search and Embeddings',
     'AI Integration': 'AI',
     'PWA': 'PWA',
     'SEO': 'SEO',
+    'Feature Flags': 'Feature Flags and Staged Rollout',
+    'OTA Updates': 'OTA Updates',
+    'Crash Reporting': 'Crash Reporting and Release Health',
+    'Usage Metering': 'Usage Metering and Quotas',
+    'Observability': 'Monitoring and Observability',
+    'Sensitive Fields': 'Sensitive Model Fields',
+    'Lifecycle Signals': 'Lifecycle Signals',
+    'Modules': 'Modules',
+    'Reversible Transactions': 'Reversible Transactions',
+    'Scheduling': 'Scheduling',
+    'Testing': 'Testing',
+    'Deployment': 'Deployment',
+    'Dartvel Studio': 'Dartvel Studio',
+    'Development Builds': 'Dev Client',
+    'Dartvel Cloud': 'Dartvel Cloud',
+    'Data Workflows': 'Data Import, Export, and Reporting',
+    'Secrets': 'Secrets and Environments',
+    'i18n': 'Internationalization and Localization',
+    'Accessibility': 'Accessibility',
+    'Terminal Rendering': 'Terminal Rendering',
+    'Multi-Window': 'Multi-Window',
+    'Kiosk Mode': 'Kiosk Mode',
+    'Build Targets': 'Embedded, Television, and Extension Build Targets',
   };
 
   final status = <String, String>{
@@ -203,18 +234,33 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
   final rowPattern = RegExp(r'^\| \*\*(.+?)\*\* \|.*\| (.+?) \|$', multiLine: true);
   for (final match in rowPattern.allMatches(readme.readAsStringSync())) {
     final row = match.group(1)!;
-    final section = rowToSection[row];
-    if (section == null) continue;
-    final recorded = status[section];
-    if (recorded == null) continue;
-
     final badge = match.group(2)!;
     final claimed = badge.contains('✅')
         ? 'Shipped'
         : badge.contains('⚠️')
             ? 'Partial'
-            : null;
+            : badge.contains('📐')
+                ? 'Designed'
+                : null;
     if (claimed == null) continue;
+
+    // A badged row nobody mapped used to be skipped, which is how a row can
+    // claim a status for years with nothing comparing it. Unmapped is a
+    // failure, and so is a mapping to a section the index does not have:
+    // 'Backend Runtime' pointed at 'Backend Functions', which never existed,
+    // so that row was never checked either.
+    final section = rowToSection[row];
+    if (section == null) {
+      problems.add('README feature table row "$row" carries a status badge '
+          'and no spec section in rowToSection, so nothing checks it.');
+      continue;
+    }
+    final recorded = status[section];
+    if (recorded == null) {
+      problems.add('README feature table row "$row" maps to "$section", '
+          'which docs/spec-status.json does not record.');
+      continue;
+    }
     if (claimed != recorded) {
       problems.add(
         'README feature table says "$row" is $claimed; docs/spec-status.json '
