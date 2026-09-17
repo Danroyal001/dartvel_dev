@@ -116,7 +116,9 @@ String? sessionIdOf(Map<String, Object?> answer) {
 Future<void> main() async {
   final String mode = Platform.environment['PROBE_MODE'] ?? 'installed';
   final MemoryDVDatabaseAdapter db = MemoryDVDatabaseAdapter();
-  const DVDatabase().configure(db);
+  // With a database the server keeps accounts in it by default, so the
+  // unconfigured server is one with no database as well.
+  if (mode != 'unconfigured') const DVDatabase().configure(db);
   final Map<String, Object?> out = <String, Object?>{};
   final List<String> tokens = <String>[];
   void keep(Map<String, Object?> answer) {
@@ -620,8 +622,8 @@ Future<String> _whoami(DVContext context) async => describeCaller(context);
     });
   });
 
-  test('without an auth provider installed, signing in is a configuration '
-      'error that says what to install', () async {
+  test('without an auth provider installed or a database to keep accounts '
+      'in, signing in is a configuration error that says what to install', () async {
     final (Map<String, Object?> r, String _) =
         await probe(const <String, String>{'PROBE_MODE': 'unconfigured'});
     final Map<String, Object?> answer = r['signIn']! as Map<String, Object?>;

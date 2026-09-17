@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`DVDatabaseAuthProvider` keeps accounts in the application's database.**
+  `LocalAuthProvider` holds them in memory, so a server using it forgot every
+  account on restart. The new provider keeps an id, the address, a name and a
+  PBKDF2 hash in `dv_accounts` over any `DVDatabaseAdapter`, answers a wrong
+  password and an unknown address with the same refusal, and lets the table's
+  unique key decide between two sign-ups for one address at once. It
+  implements `DVAccountProvider` and `DVPasswordProvider`, so the account
+  endpoints can change an address or a password and delete an account.
+
 - **A Dartvel Cloud build spec carries `format` and `codesign`.** `aab` is
   accepted for android and `ipa` for ios, and anything else is refused when the
   spec is read.

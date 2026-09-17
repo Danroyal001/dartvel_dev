@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A web-server binary can sign people up and in, so a granted account can
+  open Studio.** The generated server served sign-up and sign-in and installed
+  no provider behind them, and a web-server binary runs no application code
+  before it starts, so every call answered 503 and `dartvel admin grant` had
+  nobody to grant. A server with a database now keeps accounts in it with
+  `DVDatabaseAuthProvider` when the application installed no provider of its
+  own; one it did install is still the one used, and a server with no
+  database still answers 503.
+
 - **Store submission is `dartvel deploy --store`.** `dartvel deploy` already
   shipped a web build and a server, so a second verb for shipping an
   application was a second place to look. `dartvel publish play` is now
