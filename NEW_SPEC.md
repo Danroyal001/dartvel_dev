@@ -7770,7 +7770,7 @@ three presentations; the scene is written once.
 
 ```dart
 final showroom = await DV.Window.open(
-  DVPages.showroom,
+  DVRoutes.showroom,
   options: DVWindowOptions(
     kind: DVWindowKind.volume,
     volume: DVVolumeOptions(size: DVVec3(1.2, 0.8, 0.8)),
@@ -7778,7 +7778,7 @@ final showroom = await DV.Window.open(
 );
 
 final tour = await DV.Window.open(
-  DVPages.factoryTour,
+  DVRoutes.factoryTour,
   options: DVWindowOptions(
     kind: DVWindowKind.immersive,
     immersion: DVImmersion.passthrough,   // passthrough | full
@@ -8058,8 +8058,8 @@ subject to the same middleware, policies, tenant scope and locale as any
 navigated page, because it is one. A window with no route is not expressible.
 
 **Identity is the canonical URL.** Route *and* parameters:
-`DVPages.order(id: 1)` and `DVPages.order(id: 2)` are two distinct windows;
-opening `DVPages.order(id: 1)` twice focuses the existing one. Query
+`DVRoutes.order(id: '1')` and `DVRoutes.order(id: '2')` are two distinct windows;
+opening `DVRoutes.order(id: '1')` twice focuses the existing one. Query
 parameters participate in identity only when the page declares them as
 identity (`@DVPage(windowIdentity: [...])`); undeclared query parameters are
 view state and do not create a second window.
@@ -8081,7 +8081,7 @@ DV.Window.kiosks                   // DVSignal<List<DVWindow>> — windows in ki
 DV.Window.shared                   // DVWindowSharedStore
 
 final win = await DV.Window.open(
-  DVPages.orders,
+  DVRoutes.orders,
   options: DVWindowOptions(
     size: Size(900, 620),
     constraints: BoxConstraints(minWidth: 480, minHeight: 320),
@@ -8112,15 +8112,15 @@ DVDisplayHint.byIndex(1)
 DVDisplayHint.byId(id)
 DVDisplayHint.byName('Customer')   // device profiles name displays; see Kiosk Mode
 
-DV.Window.byRoute(DVPages.orders);   // DVWindow? — existing window for a URL
+DV.Window.byRoute(DVRoutes.orders);   // DVWindow? — existing window for a URL
 await DV.Window.closeAll(except: [DV.Window.main]);
 ```
 
 `DV.Navigation` gains a target rather than a second API:
 
 ```dart
-DV.Navigation.to(DVPages.orders, window: DVWindowTarget.newWindow);
-DV.Navigation.to(DVPages.orders, window: DVWindowTarget.current);   // default
+DV.Navigation.to(DVRoutes.orders, window: DVWindowTarget.newWindow);
+DV.Navigation.to(DVRoutes.orders, window: DVWindowTarget.current);   // default
 ```
 
 ### DVWindow
@@ -8194,7 +8194,7 @@ one kiosk window per display.
 
 ```dart
 final customer = await DV.Window.open(
-  DVPages.customerDisplay,
+  DVRoutes.customerDisplay,
   options: DVWindowOptions(
     kind: DVWindowKind.kiosk,
     display: DVDisplayHint.byName('Customer'),
@@ -8623,7 +8623,7 @@ DV.Test.fakeWindowing(
 );
 DV.Test.fakeWindowing(DVWindowingCapability.desktop());
 
-final win = await DV.Window.open(DVPages.orders);
+final win = await DV.Window.open(DVRoutes.orders);
 expect(win.presentation, DVWindowPresentation.page);
 expect(win.degradation, DVWindowDegradation.capabilityUnsupported);
 ```
@@ -8695,9 +8695,9 @@ the tab strip, reordering, tear-out and re-dock, wired to `DV.Window`.
 @DVPage(title: 'Workspace')
 Widget _workspacePage(BuildContext context) => DVTabWorkspace(
       initialTabs: [
-        DVTab(DVPages.orders),
-        DVTab(DVPages.customers),
-        DVTab(DVPages.reports),
+        DVTab(DVRoutes.orders),
+        DVTab(DVRoutes.customers),
+        DVTab(DVRoutes.reports),
       ],
       workspace: 'default',          // persistence name; null disables
     );
