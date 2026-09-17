@@ -62,23 +62,20 @@
   own; one it did install is still the one used, and a server with no
   database still answers 503.
 
-- **Store submission is `dartvel deploy --store`.** `dartvel deploy` already
-  shipped a web build and a server, so a second verb for shipping an
-  application was a second place to look. `dartvel publish play` is now
-  `dartvel deploy --store play`, with `--dry-run`, `--artifact`, `--cloud` and
-  `--cloud-token` as before; the stores are `play`, `appstore`, `testflight`
-  and `firebase-app-distribution`. `--store` takes none of `--target`,
-  `--provider`, `--functions` or `--function-target`, and the store options
-  are refused without it rather than ignored.
-- **`dartvel publish` is deprecated** and goes in the next release. It still
-  works, is hidden from `dartvel --help`, and prints the deploy command to
-  use instead, with a command-line token left out of that line.
-- **`--provider firebase` is now `--provider firebase-hosting`.** Firebase
-  named Hosting on `deploy` and App Distribution on `publish`; with both on
-  one command neither spelling can be bare. `--provider firebase` still
-  deploys Hosting for one release and says so. The pubspec declaration stays
-  `dartvel.publish.firebase` and the Dartvel Cloud request still sends
-  `firebase`, so declared projects and running workers are unchanged.
+- **`dartvel publish` is removed; store submission is `dartvel deploy
+  --store`.** `dartvel deploy` already shipped a web build and a server, so a
+  second verb for shipping an application was a second place to look. There
+  is no alias: `dartvel publish` is the unknown-command error.
+  `dartvel deploy --store play|appstore|testflight|firebase-app-distribution`
+  takes `--dry-run`, `--artifact`, `--cloud` and `--cloud-token`, refuses
+  `--target`, `--provider`, `--functions` and `--function-target`, and the
+  store options are refused without `--store` rather than ignored.
+- **Stores are declared under `dartvel.deploy.stores.<store>`**, by the name
+  `--store` takes. A `dartvel.publish` block is refused before anything runs,
+  naming the key each store moved to.
+- **`--provider firebase` is refused; Firebase Hosting is
+  `--provider firebase-hosting`.** Firebase is a host and a tester store, so
+  the bare word names neither, and the refusal names both.
 
 - **A streaming backend function sends JSON events.** The generated server
   wrote each value with `toString()`, so a `Stream<Tick>` went out as
@@ -877,7 +874,7 @@
   run. `concurrency: 1` narrowed it without ending it, because the engine
   hands a suite's slot on before the suite has closed. `admin`, `devtools`,
   `ai`, `analyze`, `build`, `db`, `generate`, `import`, `inspect`, `plugin`,
-  `preview`, `publish`, `task` and `test` now take a `root` and read the
+  `preview`, `task` and `test` now take a `root` and read the
   working directory only when given none, which is what the CLI does;
   `task` runs its command in that root and `test` starts its runner there,
   as `build` now starts `flutter`, the terminal toolchain and the embedders,
