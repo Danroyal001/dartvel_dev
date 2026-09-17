@@ -15,6 +15,7 @@ const List<String> pitchPages = <String>[
   'lib/pages/index.dart',
   'lib/pages/features.dart',
   'lib/pages/cloud.dart',
+  'lib/pages/studio.dart',
 ];
 
 void main() {

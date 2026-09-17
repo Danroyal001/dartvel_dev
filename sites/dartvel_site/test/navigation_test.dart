@@ -25,7 +25,7 @@ GoRouter siteRouter(Widget subject) => GoRouter(
           builder: (BuildContext context, GoRouterState state) =>
               Scaffold(body: SelectionArea(child: subject)),
         ),
-        for (final String path in const <String>['/docs', '/features', '/cloud'])
+        for (final String path in const <String>['/docs', '/features', '/studio', '/cloud'])
           GoRoute(
             path: path,
             builder: (BuildContext context, GoRouterState state) =>
@@ -54,6 +54,7 @@ void main() {
   for (final (String label, String path) in const <(String, String)>[
     ('Docs', '/docs'),
     ('Features', '/features'),
+    ('Studio', '/studio'),
     ('Cloud', '/cloud'),
   ]) {
     testWidgets('the $label link navigates when tapped',

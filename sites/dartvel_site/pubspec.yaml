@@ -40,6 +40,9 @@ flutter:
       fonts:
         - asset: fonts/RobotoMono.ttf
   uses-material-design: true
+  # Screenshots of the real Studio, shown on /studio and the home page.
+  assets:
+    - assets/studio/
 
 dartvel:
   backendHost: 0.0.0.0

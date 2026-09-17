@@ -31,6 +31,7 @@ Widget routed(Widget page) => MaterialApp.router(
           for (final String path in const <String>[
             '/docs',
             '/features',
+            '/studio',
             '/cloud',
           ])
             GoRoute(
@@ -72,6 +73,7 @@ final Map<String, Widget Function()> _pages = <String, Widget Function()>{
   'docs': () => const DocsPageGeneratedPage(),
   'features': () => const FeaturesPageGeneratedPage(),
   'cloud': () => const CloudPageGeneratedPage(),
+  'studio': () => const StudioPageGeneratedPage(),
 };
 
 void main() {
@@ -100,6 +102,7 @@ void main() {
     await FeaturesPageGeneratedPage.loadLibrary();
     await DocsPageGeneratedPage.loadLibrary();
     await CloudPageGeneratedPage.loadLibrary();
+    await StudioPageGeneratedPage.loadLibrary();
   });
 
   setUp(dvResetDeferredPages);
