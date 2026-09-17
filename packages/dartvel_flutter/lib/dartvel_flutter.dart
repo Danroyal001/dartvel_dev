@@ -6002,7 +6002,7 @@ class DVAuth {
 
   /// Signing in with an e-mail address and a password. Once signed in it goes
   /// to [from] when that is a path in this application -- where the generated
-  /// account pages' gate was sending the person -- and stays otherwise.
+  /// account pages' gate was sending the person -- and to `/` otherwise.
   Widget SignInWithEmailAndPasswordPage({String? from}) =>
       _EmailPasswordAuthPage(auth: this, from: from);
 
@@ -6524,7 +6524,13 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
       _deletionCancelled = DVSessionClient.installed?.deletionCancelled ?? false;
       final String? from = widget.from;
       final GoRouter? router = DVNavigation._router;
-      if (!_awaitingCode && from != null && router != null) {
+      // Somewhere to go once signed in: where the gate was sending the
+      // person, else home. Staying on the form after an accepted sign-in
+      // looked as if nothing had happened. A sign-in that cancelled a
+      // pending deletion with nowhere named stays to say so.
+      if (!_awaitingCode &&
+          router != null &&
+          (from != null || !_deletionCancelled)) {
         router.go(DVPageMfa.safeReturn(from));
       }
     } on DVMfaRequired {

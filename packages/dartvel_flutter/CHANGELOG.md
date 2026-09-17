@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **The sign-in page leaves once signed in.** Opened without a `from`, the
+  generated `/login` stayed on its form after the server accepted the
+  sign-in, as if nothing had happened; it now goes to `/`. A `from` is still
+  followed when it is a path in the application.
+
 - **Studio's button element is a button, and a page card shows the page.**
   A Button from the palette is filled, padded and rounded through ordinary
   properties the inspector shows, a stored button with no styling is drawn
