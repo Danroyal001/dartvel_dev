@@ -136,6 +136,79 @@ Widget _aboutPage(BuildContext context) => const DVText('about');
       expect(graph.routes.map((DVGraphRoute r) => r.path), <String>['/', '/about']);
       expect(graph.routes.first.source, startsWith('lib/pages/index.page.dart:'));
     });
+
+    // The Studio routes tab reads this graph, and it listed only files under
+    // lib/pages: the account pages the router generates and every route a
+    // mounted module contributes were served and never shown.
+    test('the generated account pages are routes, where dartvel.auth.pages puts them',
+        () async {
+      final DartvelProjectGraph graph = await graphFor(<String, String>{
+        'pubspec.yaml': '''
+name: graph_app
+dartvel:
+  auth:
+    pages:
+      signUp: /join
+      delete: false
+''',
+      });
+
+      final Map<String, DVGraphRoute> byPath = <String, DVGraphRoute>{
+        for (final DVGraphRoute r in graph.routes) r.path: r,
+      };
+      expect(byPath.keys, containsAll(<String>['/login', '/join', '/account/profile']));
+      expect(byPath.keys, isNot(contains('/sign-up')));
+      expect(byPath.keys, isNot(contains('/account/delete')));
+      expect(byPath['/login']!.page, 'SignInWithEmailAndPasswordPage');
+      expect(byPath['/join']!.source, 'pubspec.yaml: dartvel.auth.pages.signUp');
+      expect(byPath['/login']!.kind, 'account page');
+    });
+
+    test('a mounted module contributes its routes under the mount point',
+        () async {
+      const String page = """
+import 'package:flutter/widgets.dart';
+
+@DVPage(title: 'Notes')
+Widget _notesPage(BuildContext context) => const Text('notes');
+""";
+      final DartvelProjectGraph graph = await graphFor(<String, String>{
+        'pubspec.yaml': '''
+name: graph_app
+dartvel:
+  auth:
+    pages: false
+  modules:
+    notes:
+      source:
+        path: modules/notes
+      mount: /notes
+''',
+        'modules/notes/pubspec.yaml': '''
+name: notes
+dartvel:
+  module:
+    id: notes
+''',
+        'modules/notes/lib/pages/index.page.dart': page,
+        'modules/notes/lib/pages/view/[id].page.dart': page,
+      });
+
+      final List<String> paths =
+          graph.routes.map((DVGraphRoute r) => r.path).toList();
+      expect(paths, containsAll(<String>['/notes', '/notes/view/:id']));
+      final DVGraphRoute view =
+          graph.routes.firstWhere((DVGraphRoute r) => r.path == '/notes/view/:id');
+      expect(view.source, 'modules/notes/lib/pages/view/[id].page.dart:3');
+      expect(view.kind, 'module page');
+      expect(view.module, 'notes');
+      expect(view.toJson()['module'], 'notes');
+    });
+
+    test('a project with no pubspec has only its pages', () async {
+      final DartvelProjectGraph graph = await graphFor(<String, String>{});
+      expect(graph.routes, isEmpty);
+    });
   });
 
   group('backend functions', () {
