@@ -517,8 +517,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Dev Client',
     'dartvel dev',
-    'Present: an Android development build pairs by QR code and hot reloads '
-        'on every save over your network. Absent: pairing on iOS.',
+    'Present: Android, iOS, macOS and Linux development builds pair over TLS '
+        'and hot reload on every save. Absent: Windows.',
   ),
   (
     'Package Structure',
