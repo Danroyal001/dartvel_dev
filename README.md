@@ -434,8 +434,11 @@ itself on the first run, with a table per model, and reuses it after that.
 the head, structured data and crawler-visible text generated from each page's
 data.
 
-The binary also carries Studio, the admin dashboard, at `/__studio`
-(`dartvel.admin.path` moves it). A development build serves it with no
+The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
+it): the page builder, a table of each model's records with an edit form, the
+build's routes, functions and jobs, and the list of Studio grants. The build
+compiles it with Flutter alongside the web app, and it reads and writes through
+the binary's own database. A development build serves it with no
 configuration. A release build includes it only when `pubspec.yaml` asks:
 
 ```yaml
