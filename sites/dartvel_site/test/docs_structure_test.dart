@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
     <String, (Widget Function(), Future<void> Function())>{
   '/docs': (() => const DocsPageGeneratedPage(), DocsPageGeneratedPage.loadLibrary),
+  '/docs/adopting': (() => const DocsAdoptingPageGeneratedPage(), DocsAdoptingPageGeneratedPage.loadLibrary),
   '/docs/ui': (() => const DocsUiPageGeneratedPage(), DocsUiPageGeneratedPage.loadLibrary),
   '/docs/routing': (() => const DocsRoutingPageGeneratedPage(), DocsRoutingPageGeneratedPage.loadLibrary),
   '/docs/state': (() => const DocsStatePageGeneratedPage(), DocsStatePageGeneratedPage.loadLibrary),

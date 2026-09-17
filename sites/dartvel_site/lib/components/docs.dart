@@ -19,6 +19,8 @@ import 'site.dart';
 const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docs, 'Getting started',
       'Install the CLI, create an app and run it', 'Getting started'),
+  DocsPageInfo(DVRoutes.docsadopting, 'Existing Flutter apps',
+      'Add Dartvel to an app you already have', 'Getting started'),
   DocsPageInfo(DVRoutes.docsui, 'UI and styling',
       'DVBox, DVText, modifiers and layouts', 'App'),
   DocsPageInfo(DVRoutes.docsrouting, 'Routing',
