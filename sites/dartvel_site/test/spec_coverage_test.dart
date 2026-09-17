@@ -32,7 +32,7 @@ final Map<String, String> built = <String, String>{
     if (entry is Map &&
         entry['kind'] != 'narrative' &&
         (entry['status'] == 'Shipped' || entry['status'] == 'Partial'))
-      entry['section']! as String: entry['status']! as String,
+      siteName(entry['section']! as String): entry['status']! as String,
 };
 
 /// The source file that declares the page served at [path].
@@ -169,3 +169,7 @@ void main() {
             '${wrong.join('\n')}');
   });
 }
+
+/// A section title as the site writes it: site copy has no em dashes, so
+/// "XR — Spatial Presentation" is "XR: Spatial Presentation".
+String siteName(String section) => section.replaceAll(' — ', ': ');

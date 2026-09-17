@@ -37,10 +37,9 @@ class SpecCoverage {
   String get href => anchor == null ? target.path : '${target.path}#$anchor';
 }
 
-/// The section title as the site prints it. Site copy has no em dashes.
-String specSectionLabel(String section) => section.replaceAll(' — ', ': ');
-
-/// Built sections and where each is covered.
+/// Built sections and where each is covered. A section is named as
+/// docs/spec-status.json names it, with a colon in place of an em dash, which
+/// site copy does not use.
 const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   // Getting started
   SpecCoverage('Project Structure', 'Getting started', DVRoutes.docs,
@@ -185,7 +184,7 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Kiosk Mode': 'App',
   'Media Playback and Capture': 'App',
   '3D Scenes': 'App',
-  'XR — Spatial Presentation': 'App',
+  'XR: Spatial Presentation': 'App',
   'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
   // Data
