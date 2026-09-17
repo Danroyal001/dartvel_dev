@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **A streaming backend function sends JSON events.** The generated server
+  wrote each value with `toString()`, so a `Stream<Tick>` went out as
+  `Instance of 'Tick'`, which the client dropped without a word, and a string
+  with a newline in it arrived as two events. Each event is now one JSON value,
+  which the generated client decodes into the declared type.
+
 - **A backend function can return a type of the application's own.** The
   generated client copied the function's return and parameter types into its
   signatures and imported none of them, so `Future<Tick>` or `Stream<Tick>`,

@@ -1251,7 +1251,10 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
               'cache-control': 'no-cache',
               'connection': 'keep-alive',
             }),
-            body: result.map((e) => 'data: \${e.toString().replaceAll('\\n', '\\ndata: ')}\\n\\n').map(conv.utf8.encode),
+            // One JSON value per event, which is what the generated client
+            // decodes. toString() sent an object as "Instance of ...", and a
+            // newline split one value into two events; JSON has neither.
+            body: result.map((e) => 'data: \${conv.jsonEncode(e)}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
@@ -1281,7 +1284,10 @@ $requestPrelude$mfaGate$policyGate$contextPrelude
               'cache-control': 'no-cache',
               'connection': 'keep-alive',
             }),
-            body: result.map((e) => 'data: \${e.toString().replaceAll('\\n', '\\ndata: ')}\\n\\n').map(conv.utf8.encode),
+            // One JSON value per event, which is what the generated client
+            // decodes. toString() sent an object as "Instance of ...", and a
+            // newline split one value into two events; JSON has neither.
+            body: result.map((e) => 'data: \${conv.jsonEncode(e)}\\n\\n').map(conv.utf8.encode),
             isStream: true);
       }
       if (result is String) return dv.Response.text(result);
