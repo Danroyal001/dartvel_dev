@@ -117,20 +117,21 @@ extension PaletteType on Palette {
 /// Material's themes, made from the palettes, so the controls Dartvel draws
 /// with Material -- a form's fields, the navigation bar -- match the rest.
 ThemeData shopTheme(Palette p) {
-  final ColorScheme scheme = ColorScheme.fromSeed(
-    seedColor: p.accent,
-    brightness: p.brightness,
-  ).copyWith(
-    primary: p.accent,
-    onPrimary: p.onAccent,
-    surface: p.surface,
-    onSurface: p.ink,
-    onSurfaceVariant: p.inkMuted,
-    outline: p.line,
-    outlineVariant: p.line,
-    secondaryContainer: p.accentSoft,
-    onSecondaryContainer: p.ink,
-  );
+  final ColorScheme scheme =
+      ColorScheme.fromSeed(
+        seedColor: p.accent,
+        brightness: p.brightness,
+      ).copyWith(
+        primary: p.accent,
+        onPrimary: p.onAccent,
+        surface: p.surface,
+        onSurface: p.ink,
+        onSurfaceVariant: p.inkMuted,
+        outline: p.line,
+        outlineVariant: p.line,
+        secondaryContainer: p.accentSoft,
+        onSecondaryContainer: p.ink,
+      );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,

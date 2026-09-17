@@ -5,24 +5,25 @@ import '../../components/shop_ui.dart';
 import '../../theme/palette.dart';
 
 /// A brew guide, by its slug.
-@DVPage(
-  title: 'Brew guide',
-  showAppBar: true,
-)
+@DVPage(title: 'Brew guide')
 @pragma('vm:entry-point')
 Widget _blogIdPage(BuildContext context) => (() {
-      final Palette p = Palette.of(context);
-      final String id = context.dvParams['id'] ?? '';
-      final BrewGuide guide = brewGuides[id] ?? brewGuides['pour-over']!;
-      return ShopScroll(children: <Widget>[
-        PageHeading(guide.title, overline: 'Brew guide', subtitle: guide.intro),
-        DVBox.wrapLine([
-          for (final MapEntry<String, String> fact in guide.facts.entries)
-            CoffeeFact(fact.key, fact.value),
-        ], spacing: 10),
-        DVBox.list([
-          for (int i = 0; i < guide.steps.length; i++)
-            DVBox.row([
+  final Palette p = Palette.of(context);
+  final String id = context.dvParams['id'] ?? '';
+  final BrewGuide guide = brewGuides[id] ?? brewGuides['pour-over']!;
+  return ShopScroll(
+    maxWidth: readingMaxWidth,
+    children: <Widget>[
+      const BackToShop(),
+      PageHeading(guide.title, overline: 'Brew guide', subtitle: guide.intro),
+      DVBox.wrapLine([
+        for (final MapEntry<String, String> fact in guide.facts.entries)
+          CoffeeFact(fact.key, fact.value),
+      ], spacing: 10),
+      DVBox.list([
+        for (int i = 0; i < guide.steps.length; i++)
+          DVBox.row(
+            [
               DVText('${i + 1}').modifier(
                 p.headline
                     .color(p.accent)
@@ -33,10 +34,14 @@ Widget _blogIdPage(BuildContext context) => (() {
                     .backgroundColor(p.accentSoft),
               ),
               Expanded(child: DVText(guide.steps[i]).modifier(p.body)),
-            ], spacing: 14, crossAlign: DVCrossAlign.start),
-        ], spacing: 16).modifier(cardStyle(p, padding: 22).maxWidth(720)),
-      ]);
-    })();
+            ],
+            spacing: 14,
+            crossAlign: DVCrossAlign.start,
+          ),
+      ], spacing: 16).modifier(cardStyle(p, padding: 22).maxWidth(720)),
+    ],
+  );
+})();
 
 class BrewGuide {
   const BrewGuide(this.title, this.intro, this.facts, this.steps);

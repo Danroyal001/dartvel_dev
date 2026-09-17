@@ -111,7 +111,8 @@ class Roastery {
         return;
       }
       final int at = orderStages.indexOf(order.status);
-      final String next = orderStages[(at + 1).clamp(0, orderStages.length - 1)];
+      final String next =
+          orderStages[(at + 1).clamp(0, orderStages.length - 1)];
       if (at + 1 >= orderStages.length - 1) {
         timer.cancel();
         _timers.remove(orderId);

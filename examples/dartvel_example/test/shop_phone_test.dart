@@ -7,8 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'shop_test_support.dart';
 
 void main() {
-  testWidgets('a phone gets the catalogue, bottom tabs and a working bag',
-      (WidgetTester tester) async {
+  testWidgets('a phone gets the catalogue, bottom tabs and a working bag', (
+    WidgetTester tester,
+  ) async {
     await pumpShop(tester);
 
     // Navigation for a thumb, not a rail.
@@ -26,8 +27,11 @@ void main() {
     final Rect screen = Offset.zero & tester.view.physicalSize / phoneRatio;
     for (final String link in <String>['link-about', 'link-pricing']) {
       final Rect rect = tester.getRect(find.byKey(Key(link)));
-      expect(screen.contains(rect.center), isTrue,
-          reason: '$link is off screen on a phone');
+      expect(
+        screen.contains(rect.center),
+        isTrue,
+        reason: '$link is off screen on a phone',
+      );
     }
 
     // A filter is a signal: only dark roasts are left.

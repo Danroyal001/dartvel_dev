@@ -18,11 +18,7 @@ import 'package:dartvel_core/dartvel.dart';
 /// project's dartvel.nativeCurrency. A model declaring one without that
 /// setting fails the build, because a hundred of a guessed currency is a
 /// plausible number nothing catches.
-@DVModel(
-  publicPathsResolver: productPaths,
-  billable: true,
-  nativePrice: 2499,
-)
+@DVModel(publicPathsResolver: productPaths, billable: true, nativePrice: 2499)
 @pragma('vm:entry-point')
 class _Product {
   final String slug;
@@ -58,7 +54,4 @@ class _Product {
 
 /// The slugs static generation should render: the coffees on the shelf this
 /// week, not every one the roastery has ever sold.
-Future<List<String>> productPaths() async => <String>[
-      'huila',
-      'yirgacheffe',
-    ];
+Future<List<String>> productPaths() async => <String>['huila', 'yirgacheffe'];

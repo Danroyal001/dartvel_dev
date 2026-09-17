@@ -48,8 +48,8 @@ class Cart {
     ];
   }
 
-  int subtotalCents(Iterable<Product> catalog) => linesIn(catalog)
-      .fold(0, (int sum, CartLine l) => sum + l.totalCents);
+  int subtotalCents(Iterable<Product> catalog) =>
+      linesIn(catalog).fold(0, (int sum, CartLine l) => sum + l.totalCents);
 
   int shippingCentsFor(Iterable<Product> catalog) {
     final int subtotal = subtotalCents(catalog);
@@ -62,9 +62,9 @@ class Cart {
       subtotalCents(catalog) + shippingCentsFor(catalog);
 
   /// "2 × Huila, 1 × Nyeri", as the receipt lists it.
-  String summary(Iterable<Product> catalog) => linesIn(catalog)
-      .map((CartLine l) => '${l.quantity} × ${l.coffee.name}')
-      .join(', ');
+  String summary(Iterable<Product> catalog) => linesIn(
+    catalog,
+  ).map((CartLine l) => '${l.quantity} × ${l.coffee.name}').join(', ');
 }
 
 class CartLine {

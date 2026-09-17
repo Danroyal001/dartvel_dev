@@ -16,6 +16,9 @@ export '../shop/catalog.dart' show formatPrice;
 /// Content narrower than this reads as a column rather than a line.
 const double contentMaxWidth = 1080;
 
+/// The width a single column of rows is capped at.
+const double readingMaxWidth = 720;
+
 /// Where the phone layout ends.
 const double wideLayoutFrom = 600;
 
@@ -24,10 +27,19 @@ const double wideLayoutFrom = 600;
 /// The scroll view is the full width of the screen and the content is capped
 /// inside it, so a wheel or a trackpad scrolls from anywhere on a desktop.
 class ShopScroll extends StatelessWidget {
-  const ShopScroll({super.key, required this.children, this.spacing = 28});
+  const ShopScroll({
+    super.key,
+    required this.children,
+    this.spacing = 28,
+    this.maxWidth = contentMaxWidth,
+  });
 
   final List<Widget> children;
   final double spacing;
+
+  /// A single column of rows reads badly at full width: an account, an
+  /// order and a bag cap narrower than a grid does.
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -36,9 +48,10 @@ class ShopScroll extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(side, width < 600 ? 12 : 32, side, 40),
       child: Center(
-        child: DVBox.list(children, spacing: spacing).modifier(
-          const DVModifier().maxWidth(contentMaxWidth),
-        ),
+        child: DVBox.list(
+          children,
+          spacing: spacing,
+        ).modifier(const DVModifier().maxWidth(maxWidth)),
       ),
     );
   }
@@ -56,7 +69,8 @@ class PageHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     return DVBox.list([
-      if (overline != null) DVText(overline!.toUpperCase()).modifier(p.overline),
+      if (overline != null)
+        DVText(overline!.toUpperCase()).modifier(p.overline),
       DVText(title).modifier(p.display.semanticHeading(1)),
       if (subtitle != null)
         DVText(subtitle!).modifier(p.muted.fontSize(16).maxWidth(620)),
@@ -98,18 +112,19 @@ Color bagColorFor(String slug, Brightness brightness) {
     Color(0xFFA7775C),
   ];
   final Color base =
-      colors[slug] ?? others[slug.codeUnits.fold(0, (int a, int b) => a + b) % others.length];
+      colors[slug] ??
+      others[slug.codeUnits.fold(0, (int a, int b) => a + b) % others.length];
   return brightness == Brightness.dark
       ? Color.lerp(base, const Color(0xFF000000), 0.28)!
       : base;
 }
 
 int roastLevel(String roast) => switch (roast) {
-      'light' => 1,
-      'medium' => 2,
-      'dark' => 3,
-      _ => 2,
-    };
+  'light' => 1,
+  'medium' => 2,
+  'dark' => 3,
+  _ => 2,
+};
 
 /// Three dots, filled to the roast.
 class RoastDots extends StatelessWidget {
@@ -132,7 +147,9 @@ class RoastDots extends StatelessWidget {
                 .width(7)
                 .height(7)
                 .rounded(4)
-                .backgroundColor(i <= level ? ink : ink.withValues(alpha: 0.28)),
+                .backgroundColor(
+                  i <= level ? ink : ink.withValues(alpha: 0.28),
+                ),
           ),
       ], spacing: 4),
     );
@@ -152,49 +169,52 @@ class BagArt extends StatelessWidget {
     final Brightness brightness = Theme.of(context).brightness;
     const Color label = Color(0xFFFFFBF6);
     return ExcludeSemantics(
-      child: DVBox.stack([
-        // The label on the bag.
-        Positioned(
-          left: large ? 28 : 16,
-          right: large ? 28 : 16,
-          bottom: large ? 28 : 16,
-          child: DVBox.list([
-            DVText(coffee.origin.split(',').last.trim().toUpperCase()).modifier(
-              const DVModifier()
-                  .fontSize(large ? 12 : 10)
-                  .fontWeight(FontWeight.w700)
-                  .letterSpacing(1.4)
-                  .color(label.withValues(alpha: 0.82)),
+      child:
+          DVBox.stack([
+            // The label on the bag.
+            Positioned(
+              left: large ? 28 : 16,
+              right: large ? 28 : 16,
+              bottom: large ? 28 : 16,
+              child: DVBox.list([
+                DVText(
+                  coffee.origin.split(',').last.trim().toUpperCase(),
+                ).modifier(
+                  const DVModifier()
+                      .fontSize(large ? 12 : 10)
+                      .fontWeight(FontWeight.w700)
+                      .letterSpacing(1.4)
+                      .color(label.withValues(alpha: 0.82)),
+                ),
+                DVText(coffee.name).modifier(
+                  const DVModifier()
+                      .fontSize(large ? 34 : 19)
+                      .fontWeight(FontWeight.w700)
+                      .letterSpacing(-0.4)
+                      .lineHeight(1.1)
+                      .maxLines(2)
+                      .color(label),
+                ),
+                RoastDots(coffee.roast, color: label),
+              ], spacing: large ? 10 : 6),
             ),
-            DVText(coffee.name).modifier(
-              const DVModifier()
-                  .fontSize(large ? 34 : 19)
-                  .fontWeight(FontWeight.w700)
-                  .letterSpacing(-0.4)
-                  .lineHeight(1.1)
-                  .maxLines(2)
-                  .color(label),
+            // The fold at the top of the bag.
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: const DVBox(null).modifier(
+                const DVModifier()
+                    .height(large ? 22 : 14)
+                    .backgroundColor(const Color(0x1F000000)),
+              ),
             ),
-            RoastDots(coffee.roast, color: label),
-          ], spacing: large ? 10 : 6),
-        ),
-        // The fold at the top of the bag.
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          child: const DVBox(null).modifier(
+          ]).modifier(
             const DVModifier()
-                .height(large ? 22 : 14)
-                .backgroundColor(const Color(0x1F000000)),
+                .height(height)
+                .rounded(large ? 20 : 14)
+                .backgroundColor(bagColorFor(coffee.slug, brightness)),
           ),
-        ),
-      ]).modifier(
-        const DVModifier()
-            .height(height)
-            .rounded(large ? 20 : 14)
-            .backgroundColor(bagColorFor(coffee.slug, brightness)),
-      ),
     );
   }
 }
@@ -208,7 +228,12 @@ DVModifier cardStyle(Palette p, {double padding = 16}) => const DVModifier()
 
 /// A coffee in the grid.
 class CoffeeCard extends StatelessWidget {
-  const CoffeeCard(this.coffee, {super.key, required this.onOpen, required this.onAdd});
+  const CoffeeCard(
+    this.coffee, {
+    super.key,
+    required this.onOpen,
+    required this.onAdd,
+  });
 
   final Product coffee;
   final VoidCallback onOpen;
@@ -228,11 +253,14 @@ class CoffeeCard extends StatelessWidget {
           DVBox.list([
             DVText(coffee.name).modifier(p.headline.maxLines(1)),
             DVText(coffee.notes).modifier(p.muted.fontSize(13).maxLines(1)),
-          ], spacing: 2).modifier(const DVModifier().paddingSymmetric(horizontal: 4)),
+          ], spacing: 2).modifier(
+            const DVModifier().paddingSymmetric(horizontal: 4),
+          ),
           DVBox.row([
             Expanded(
-              child: DVText(formatPrice(coffee.priceCents))
-                  .modifier(p.headline.fontSize(15)),
+              child: DVText(
+                formatPrice(coffee.priceCents),
+              ).modifier(p.headline.fontSize(15)),
             ),
             IconButton.filledTonal(
               key: Key('add-${coffee.slug}'),
@@ -268,18 +296,18 @@ class ResponsiveGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double width = constraints.maxWidth;
-          final int columns = ((width + spacing) / (minTileWidth + spacing))
-              .floor()
-              .clamp(1, maxColumns);
-          final double tile = (width - spacing * (columns - 1)) / columns;
-          return DVBox.wrapLine([
-            for (final Widget child in children)
-              SizedBox(width: tile.floorToDouble(), child: child),
-          ], spacing: spacing);
-        },
-      );
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final double width = constraints.maxWidth;
+      final int columns = ((width + spacing) / (minTileWidth + spacing))
+          .floor()
+          .clamp(1, maxColumns);
+      final double tile = (width - spacing * (columns - 1)) / columns;
+      return DVBox.wrapLine([
+        for (final Widget child in children)
+          SizedBox(width: tile.floorToDouble(), child: child),
+      ], spacing: spacing);
+    },
+  );
 }
 
 /// Something is on its way: the shape of the content, without the content.
@@ -293,20 +321,33 @@ class LoadingTiles extends StatelessWidget {
     final Palette p = Palette.of(context);
     return Semantics(
       label: 'Loading',
-      child: ResponsiveGrid(children: [
-        for (int i = 0; i < count; i++)
-          DVBox.list([
-            const DVBox(null).modifier(
-              const DVModifier().height(150).rounded(14).backgroundColor(p.sunken),
-            ),
-            const DVBox(null).modifier(
-              const DVModifier().height(14).maxWidth(120).rounded(7).backgroundColor(p.sunken),
-            ),
-            const DVBox(null).modifier(
-              const DVModifier().height(12).maxWidth(80).rounded(6).backgroundColor(p.sunken),
-            ),
-          ], spacing: 10).modifier(cardStyle(p, padding: 10)),
-      ]),
+      child: ResponsiveGrid(
+        children: [
+          for (int i = 0; i < count; i++)
+            DVBox.list([
+              const DVBox(null).modifier(
+                const DVModifier()
+                    .height(150)
+                    .rounded(14)
+                    .backgroundColor(p.sunken),
+              ),
+              const DVBox(null).modifier(
+                const DVModifier()
+                    .height(14)
+                    .maxWidth(120)
+                    .rounded(7)
+                    .backgroundColor(p.sunken),
+              ),
+              const DVBox(null).modifier(
+                const DVModifier()
+                    .height(12)
+                    .maxWidth(80)
+                    .rounded(6)
+                    .backgroundColor(p.sunken),
+              ),
+            ], spacing: 10).modifier(cardStyle(p, padding: 10)),
+        ],
+      ),
     );
   }
 }
@@ -329,20 +370,23 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    return DVBox.list([
-      DVBox(Icon(icon, size: 28, color: p.accent)).modifier(
-        const DVModifier()
-            .width(64)
-            .height(64)
-            .rounded(32)
-            .backgroundColor(p.accentSoft)
-            .align(Alignment.center),
-      ),
-      DVText(title).modifier(p.title.semanticHeading(2)),
-      DVText(message).modifier(p.muted.maxWidth(360)),
-      if (action != null) action!,
-    ], spacing: 12, crossAlign: DVCrossAlign.center)
-        .modifier(cardStyle(p, padding: 36));
+    return DVBox.list(
+      [
+        DVBox(Icon(icon, size: 28, color: p.accent)).modifier(
+          const DVModifier()
+              .width(64)
+              .height(64)
+              .rounded(32)
+              .backgroundColor(p.accentSoft)
+              .align(Alignment.center),
+        ),
+        DVText(title).modifier(p.title.semanticHeading(2)),
+        DVText(message).modifier(p.muted.maxWidth(360)),
+        if (action != null) action!,
+      ],
+      spacing: 12,
+      crossAlign: DVCrossAlign.center,
+    ).modifier(cardStyle(p, padding: 36));
   }
 }
 
@@ -364,28 +408,29 @@ class QuantityStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    return DVBox.row([
-      IconButton(
-        key: const Key('quantity-decrease'),
-        tooltip: 'Fewer',
-        onPressed: value > min ? () => onChanged(value - 1) : null,
-        icon: const Icon(Icons.remove, size: 18),
-      ),
-      Semantics(
-        label: '$label $value',
-        excludeSemantics: true,
-        child: DVText('$value').modifier(
-          p.headline.minWidth(24),
+    return DVBox.row(
+      [
+        IconButton(
+          key: const Key('quantity-decrease'),
+          tooltip: 'Fewer',
+          onPressed: value > min ? () => onChanged(value - 1) : null,
+          icon: const Icon(Icons.remove, size: 18),
         ),
-      ),
-      IconButton(
-        key: const Key('quantity-increase'),
-        tooltip: 'More',
-        onPressed: () => onChanged(value + 1),
-        icon: const Icon(Icons.add, size: 18),
-      ),
-    ], spacing: 2, crossAlign: DVCrossAlign.center)
-        .modifier(const DVModifier().rounded(12).backgroundColor(p.sunken));
+        Semantics(
+          label: '$label $value',
+          excludeSemantics: true,
+          child: DVText('$value').modifier(p.headline.minWidth(24)),
+        ),
+        IconButton(
+          key: const Key('quantity-increase'),
+          tooltip: 'More',
+          onPressed: () => onChanged(value + 1),
+          icon: const Icon(Icons.add, size: 18),
+        ),
+      ],
+      spacing: 2,
+      crossAlign: DVCrossAlign.center,
+    ).modifier(const DVModifier().rounded(12).backgroundColor(p.sunken));
   }
 }
 
@@ -401,40 +446,44 @@ class StatusTracker extends StatelessWidget {
     final int at = orderStages.indexOf(status);
     return DVBox.list([
       for (int i = 0; i < orderStages.length; i++)
-        DVBox.row([
-          DVBox(
-            i < at || (i == at && i == orderStages.length - 1)
-                ? Icon(Icons.check, size: 14, color: p.onAccent)
-                : null,
-          ).modifier(
-            const DVModifier()
-                .width(22)
-                .height(22)
-                .rounded(11)
-                .align(Alignment.center)
-                .backgroundColor(i <= at ? p.accent : p.sunken)
-                .border(Border.all(
-                  color: i == at ? p.accent : p.line,
-                  width: i == at ? 5 : 1,
-                ))
-                .animate(const Duration(milliseconds: 400)),
-          ),
-          Expanded(
-            child: DVText(stageLabels[orderStages[i]]!).modifier(
-              i == at
-                  ? p.headline
-                  : (i < at ? p.body : p.muted.fontSize(15)),
+        DVBox.row(
+          [
+            DVBox(
+              i < at || (i == at && i == orderStages.length - 1)
+                  ? Icon(Icons.check, size: 14, color: p.onAccent)
+                  : null,
+            ).modifier(
+              const DVModifier()
+                  .width(22)
+                  .height(22)
+                  .rounded(11)
+                  .align(Alignment.center)
+                  .backgroundColor(i <= at ? p.accent : p.sunken)
+                  .border(
+                    Border.all(
+                      color: i == at ? p.accent : p.line,
+                      width: i == at ? 5 : 1,
+                    ),
+                  )
+                  .animate(const Duration(milliseconds: 400)),
             ),
-          ),
-          if (i == at && i < orderStages.length - 1)
-            const DVText('Now').modifier(
-              p.overline
-                  .color(p.accent)
-                  .paddingSymmetric(horizontal: 8, vertical: 3)
-                  .rounded(8)
-                  .backgroundColor(p.accentSoft),
+            Expanded(
+              child: DVText(stageLabels[orderStages[i]]!).modifier(
+                i == at ? p.headline : (i < at ? p.body : p.muted.fontSize(15)),
+              ),
             ),
-        ], spacing: 14, crossAlign: DVCrossAlign.center),
+            if (i == at && i < orderStages.length - 1)
+              const DVText('Now').modifier(
+                p.overline
+                    .color(p.accent)
+                    .paddingSymmetric(horizontal: 8, vertical: 3)
+                    .rounded(8)
+                    .backgroundColor(p.accentSoft),
+              ),
+          ],
+          spacing: 14,
+          crossAlign: DVCrossAlign.center,
+        ),
     ], spacing: 18);
   }
 }
@@ -444,8 +493,18 @@ String statusLabel(String status) => stageLabels[status] ?? status;
 /// "12 Sep", from milliseconds since the epoch.
 String shortDate(int millis) {
   const List<String> months = <String>[
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final DateTime d = DateTime.fromMillisecondsSinceEpoch(millis);
   return '${d.day} ${months[d.month - 1]}';
@@ -476,28 +535,36 @@ class ListRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: DVBox.row([
-          DVBox(Icon(icon, size: 20, color: p.inkMuted)).modifier(
-            const DVModifier()
-                .width(38)
-                .height(38)
-                .rounded(10)
-                .align(Alignment.center)
-                .backgroundColor(p.sunken),
-          ),
-          Expanded(
-            child: DVBox.list([
-              DVText(title).modifier(p.headline.fontSize(15)),
-              if (subtitle != null)
-                DVText(subtitle!).modifier(p.muted.fontSize(13).maxLines(2)),
-            ], spacing: 2),
-          ),
-          trailing ??
-              (onTap == null
-                  ? const SizedBox.shrink()
-                  : Icon(Icons.chevron_right, color: p.inkFaint)),
-        ], spacing: 14, crossAlign: DVCrossAlign.center)
-            .modifier(const DVModifier().paddingSymmetric(horizontal: 8, vertical: 10)),
+        child:
+            DVBox.row(
+              [
+                DVBox(Icon(icon, size: 20, color: p.inkMuted)).modifier(
+                  const DVModifier()
+                      .width(38)
+                      .height(38)
+                      .rounded(10)
+                      .align(Alignment.center)
+                      .backgroundColor(p.sunken),
+                ),
+                Expanded(
+                  child: DVBox.list([
+                    DVText(title).modifier(p.headline.fontSize(15)),
+                    if (subtitle != null)
+                      DVText(
+                        subtitle!,
+                      ).modifier(p.muted.fontSize(13).maxLines(2)),
+                  ], spacing: 2),
+                ),
+                trailing ??
+                    (onTap == null
+                        ? const SizedBox.shrink()
+                        : Icon(Icons.chevron_right, color: p.inkFaint)),
+              ],
+              spacing: 14,
+              crossAlign: DVCrossAlign.center,
+            ).modifier(
+              const DVModifier().paddingSymmetric(horizontal: 8, vertical: 10),
+            ),
       ),
     );
   }
@@ -562,16 +629,17 @@ class Wordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    final Widget mark = DVBox(
-      Icon(Icons.coffee_outlined, size: 18, color: p.onAccent),
-    ).modifier(
-      const DVModifier()
-          .width(34)
-          .height(34)
-          .rounded(10)
-          .align(Alignment.center)
-          .backgroundColor(p.accent),
-    );
+    final Widget mark =
+        DVBox(
+          Icon(Icons.coffee_outlined, size: 18, color: p.onAccent),
+        ).modifier(
+          const DVModifier()
+              .width(34)
+              .height(34)
+              .rounded(10)
+              .align(Alignment.center)
+              .backgroundColor(p.accent),
+        );
     if (compact) return Semantics(label: 'Oakline Coffee', child: mark);
     return DVBox.row([
       mark,
@@ -600,40 +668,46 @@ class ShopTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     final bool wide = MediaQuery.sizeOf(context).width >= wideLayoutFrom;
-    final Widget actions = DVBox.row([
-      DVNavLink(
-        key: const Key('link-about'),
-        to: DVRoutes.about,
-        semanticLabel: 'Under the hood',
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        // A phone has room for the icon; the name is still what a screen
-        // reader announces.
-        child: MediaQuery.sizeOf(context).width < 520
-            ? Icon(Icons.code, size: 22, color: p.inkMuted)
-            : DVBox.row([
-                Icon(Icons.code, size: 18, color: p.inkMuted),
-                const DVText('Under the hood')
-                    .modifier(p.muted.fontWeight(FontWeight.w600)),
-              ], spacing: 6),
-      ),
-      IconButton(
-        key: const Key('open-bag'),
-        tooltip: 'Bag',
-        onPressed: () => DV.Navigation.navigate(DVRoutes.cart),
-        icon: Badge(
-          isLabelVisible: bagCount > 0,
-          label: Text('$bagCount'),
-          backgroundColor: p.accent,
-          textColor: p.onAccent,
-          child: Icon(Icons.shopping_bag_outlined, color: p.ink),
+    final Widget actions = DVBox.row(
+      [
+        DVNavLink(
+          key: const Key('link-about'),
+          to: DVRoutes.about,
+          semanticLabel: 'Under the hood',
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          // A phone has room for the icon; the name is still what a screen
+          // reader announces.
+          child: MediaQuery.sizeOf(context).width < 520
+              ? Icon(Icons.code, size: 22, color: p.inkMuted)
+              : DVBox.row([
+                  Icon(Icons.code, size: 18, color: p.inkMuted),
+                  const DVText(
+                    'Under the hood',
+                  ).modifier(p.muted.fontWeight(FontWeight.w600)),
+                ], spacing: 6),
         ),
-      ),
-    ], spacing: 4, crossAlign: DVCrossAlign.center);
+        IconButton(
+          key: const Key('open-bag'),
+          tooltip: 'Bag',
+          onPressed: () => DV.Navigation.navigate(DVRoutes.cart),
+          icon: Badge(
+            isLabelVisible: bagCount > 0,
+            label: Text('$bagCount'),
+            backgroundColor: p.accent,
+            textColor: p.onAccent,
+            child: Icon(Icons.shopping_bag_outlined, color: p.ink),
+          ),
+        ),
+      ],
+      spacing: 4,
+      crossAlign: DVCrossAlign.center,
+    );
     if (wide) {
-      return DVBox.row([
-        Expanded(child: heading),
-        actions,
-      ], spacing: 24, crossAlign: DVCrossAlign.start);
+      return DVBox.row(
+        [Expanded(child: heading), actions],
+        spacing: 24,
+        crossAlign: DVCrossAlign.start,
+      );
     }
     return DVBox.list([
       DVBox.row([
@@ -657,34 +731,41 @@ class CoffeeClubBanner extends StatelessWidget {
       to: DVRoutes.pricing,
       semanticLabel: 'Coffee Club: see plans',
       padding: EdgeInsets.zero,
-      child: DVBox.row([
-        DVBox(Icon(Icons.local_shipping_outlined, color: p.accent, size: 22))
-            .modifier(
-          const DVModifier()
-              .width(44)
-              .height(44)
-              .rounded(12)
-              .align(Alignment.center)
-              .backgroundColor(p.surface),
-        ),
-        Expanded(
-          child: DVBox.list([
-            const DVText('Coffee Club').modifier(p.headline),
-            DVText('A fresh bag every two weeks, from ${Product.nativePrice == null ? '' : formatPrice(Product.nativePrice!.amount)} a month.')
-                .modifier(p.muted.fontSize(14)),
-          ], spacing: 2),
-        ),
-        if (MediaQuery.sizeOf(context).width >= wideLayoutFrom)
-          const DVText('See plans').modifier(
-            p.headline.fontSize(14).color(p.accent),
+      child:
+          DVBox.row(
+            [
+              DVBox(
+                Icon(Icons.local_shipping_outlined, color: p.accent, size: 22),
+              ).modifier(
+                const DVModifier()
+                    .width(44)
+                    .height(44)
+                    .rounded(12)
+                    .align(Alignment.center)
+                    .backgroundColor(p.surface),
+              ),
+              Expanded(
+                child: DVBox.list([
+                  const DVText('Coffee Club').modifier(p.headline),
+                  DVText(
+                    'A fresh bag every two weeks, from ${Product.nativePrice == null ? '' : formatPrice(Product.nativePrice!.amount)} a month.',
+                  ).modifier(p.muted.fontSize(14)),
+                ], spacing: 2),
+              ),
+              if (MediaQuery.sizeOf(context).width >= wideLayoutFrom)
+                const DVText(
+                  'See plans',
+                ).modifier(p.headline.fontSize(14).color(p.accent)),
+              Icon(Icons.arrow_forward, size: 18, color: p.accent),
+            ],
+            spacing: 14,
+            crossAlign: DVCrossAlign.center,
+          ).modifier(
+            const DVModifier()
+                .padding(14)
+                .rounded(18)
+                .backgroundColor(p.accentSoft),
           ),
-        Icon(Icons.arrow_forward, size: 18, color: p.accent),
-      ], spacing: 14, crossAlign: DVCrossAlign.center).modifier(
-        const DVModifier()
-            .padding(14)
-            .rounded(18)
-            .backgroundColor(p.accentSoft),
-      ),
     );
   }
 }
@@ -699,10 +780,14 @@ class CoffeeFact extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    return DVBox.list([
-      DVText(label.toUpperCase()).modifier(p.overline),
-      DVText(value).modifier(p.headline.fontSize(15)),
-    ], spacing: 4).modifier(
+    return DVBox.list(
+      [
+        DVText(label.toUpperCase()).modifier(p.overline),
+        DVText(value).modifier(p.headline.fontSize(15)),
+      ],
+      spacing: 4,
+      crossAlign: DVCrossAlign.start,
+    ).modifier(
       const DVModifier()
           .paddingSymmetric(horizontal: 14, vertical: 10)
           .rounded(12)
@@ -714,8 +799,13 @@ class CoffeeFact extends StatelessWidget {
 
 /// A label and an amount on one line, as a receipt has them.
 class SummaryLine extends StatelessWidget {
-  const SummaryLine(this.label, this.value,
-      {super.key, this.note, this.strong = false});
+  const SummaryLine(
+    this.label,
+    this.value, {
+    super.key,
+    this.note,
+    this.strong = false,
+  });
 
   final String label;
   final String value;
@@ -725,8 +815,9 @@ class SummaryLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    final DVModifier style =
-        strong ? p.headline.fontSize(18) : p.body.color(p.inkMuted);
+    final DVModifier style = strong
+        ? p.headline.fontSize(18)
+        : p.body.color(p.inkMuted);
     return DVBox.list([
       DVBox.row([
         Expanded(child: DVText(label).modifier(style)),
@@ -755,7 +846,9 @@ class StatusPill extends StatelessWidget {
             .color(done ? p.success : p.accent)
             .paddingSymmetric(horizontal: 10, vertical: 4)
             .rounded(999)
-            .backgroundColor(done ? p.success.withValues(alpha: 0.12) : p.accentSoft),
+            .backgroundColor(
+              done ? p.success.withValues(alpha: 0.12) : p.accentSoft,
+            ),
       ),
     ]);
   }
@@ -768,11 +861,73 @@ class LiveDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    return DVBox.row([
-      const DVBox(null).modifier(
-        const DVModifier().width(8).height(8).rounded(4).backgroundColor(p.success),
-      ),
-      const DVText('Live').modifier(p.overline.color(p.success)),
-    ], spacing: 6, crossAlign: DVCrossAlign.center);
+    return DVBox.row(
+      [
+        const DVBox(null).modifier(
+          const DVModifier()
+              .width(8)
+              .height(8)
+              .rounded(4)
+              .backgroundColor(p.success),
+        ),
+        const DVText('Live').modifier(p.overline.color(p.success)),
+      ],
+      spacing: 6,
+      crossAlign: DVCrossAlign.center,
+    );
   }
+}
+
+/// The way back to the shop from a page outside the tabs.
+class BackToShop extends StatelessWidget {
+  const BackToShop({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final Palette p = Palette.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DVNavLink(
+        key: const Key('back-to-shop'),
+        to: DVRoutes.index,
+        semanticLabel: 'Back to the shop',
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: DVBox.row(
+          [Icon(Icons.arrow_back, size: 20, color: p.ink), const Wordmark()],
+          spacing: 12,
+          crossAlign: DVCrossAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+/// A coffee's colour and the first letter of its name, for a list row.
+class BagThumb extends StatelessWidget {
+  const BagThumb(this.coffee, {super.key, this.size = 56});
+
+  final Product coffee;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child:
+        DVBox(
+          DVText(coffee.name.characters.first).modifier(
+            const DVModifier()
+                .fontSize(22)
+                .fontWeight(FontWeight.w700)
+                .color(const Color(0xFFFFFBF6)),
+          ),
+        ).modifier(
+          const DVModifier()
+              .width(size)
+              .height(size)
+              .rounded(14)
+              .align(Alignment.center)
+              .backgroundColor(
+                bagColorFor(coffee.slug, Theme.of(context).brightness),
+              ),
+        ),
+  );
 }

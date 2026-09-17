@@ -10,17 +10,21 @@ import '../theme/palette.dart';
 @DVPage(title: 'Sign in')
 @pragma('vm:entry-point')
 Widget _signInPage(BuildContext context) => (() {
-      final Palette p = Palette.of(context);
-      final String from = context.dvQuery['from'] ?? '/';
+  final Palette p = Palette.of(context);
+  final String from = context.dvQuery['from'] ?? '/';
 
-      return ShopScroll(children: <Widget>[
-        DVBox.list([
-          const Wordmark(),
-          const PageHeading('Sign in',
-              subtitle: 'To check out and follow your orders.'),
-          SignInForm(from: from),
-        ], spacing: 24).modifier(
-          cardStyle(p, padding: 28).maxWidth(440).centered(),
+  return ShopScroll(
+    children: <Widget>[
+      const BackToShop(),
+      DVBox.list([
+        const PageHeading(
+          'Sign in',
+          subtitle: 'To check out and follow your orders.',
         ),
-      ]);
-    })();
+        SignInForm(from: from),
+      ], spacing: 24).modifier(
+        cardStyle(p, padding: 28).maxWidth(440).centered(),
+      ),
+    ],
+  );
+})();

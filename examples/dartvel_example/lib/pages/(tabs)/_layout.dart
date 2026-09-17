@@ -26,11 +26,11 @@ class ShopTabs extends DartvelTabsLayout {
 
   static const List<(String, IconData, IconData)> destinations =
       <(String, IconData, IconData)>[
-    ('Shop', Icons.storefront_outlined, Icons.storefront),
-    ('Orders', Icons.receipt_long_outlined, Icons.receipt_long),
-    ('Saved', Icons.bookmark_border, Icons.bookmark),
-    ('Account', Icons.person_outline, Icons.person),
-  ];
+        ('Shop', Icons.storefront_outlined, Icons.storefront),
+        ('Orders', Icons.receipt_long_outlined, Icons.receipt_long),
+        ('Saved', Icons.bookmark_border, Icons.bookmark),
+        ('Account', Icons.person_outline, Icons.person),
+      ];
 
   @override
   Widget build(BuildContext context) {
