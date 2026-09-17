@@ -401,20 +401,46 @@ class _DVStudioTable extends StatelessWidget {
   final void Function(int index)? onTap;
   final int? selected;
 
+  /// The narrowest a column is drawn. Below it the table scrolls sideways
+  /// rather than squeezing a heading until it breaks mid-word.
+  static const double minColumnWidth = 112;
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        final double needed = headers.length * minColumnWidth;
+        if (!box.maxWidth.isFinite || box.maxWidth >= needed) {
+          return _table();
+        }
+        return Scrollbar(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: needed, child: _table()),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _table() {
     Widget cell(String text, {bool header = false}) => Padding(
           padding: const EdgeInsets.symmetric(
               horizontal: DVStudioStyle.space3, vertical: 9),
-          child: header
-              ? DVStudioStyle.overline(text)
-              : Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13, color: DVStudioStyle.ink),
-                ),
+          // One line, both kinds: a heading that wraps breaks a word in two.
+          child: Text(
+            header ? text.toUpperCase() : text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: header
+                ? const TextStyle(
+                    fontSize: 11,
+                    color: DVStudioStyle.muted,
+                    fontWeight: FontWeight.w600,
+                  )
+                : const TextStyle(fontSize: 13, color: DVStudioStyle.ink),
+          ),
         );
     return DVStudioStyle.card(
       padding: EdgeInsets.zero,
