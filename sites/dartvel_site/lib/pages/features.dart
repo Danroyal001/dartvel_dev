@@ -166,7 +166,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'CSRF Protection',
     'On by default',
-    'Every state-changing request is checked for a CSRF token.',
+    'Every state-changing call to a generated function needs a CSRF token, '
+        'and the generated client sends it.',
   ),
   (
     'Reversible Transactions',
@@ -177,8 +178,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Background and Durable Work',
     '@DVJob',
-    'background: true and durable: true on a backend function compile onto '
-        'the job queue.',
+    'A backend function dispatches a generated job and answers at once. A '
+        'worker runs it from your database, Redis, SQS, RabbitMQ, Pub/Sub or Kafka.',
   ),
   (
     'Static Web Generation',
@@ -220,7 +221,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Middleware',
     '@DVUseMiddleware',
-    'Present: nine built-in middlewares run in the order you declare. Absent: '
+    'Present: ten built-in middlewares run in the order you declare. Absent: '
         'page middleware that preloads data or sets SEO context.',
   ),
   (

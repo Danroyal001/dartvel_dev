@@ -139,6 +139,11 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       anchor: 'configure'),
   SpecCoverage('AI Operations', 'Backend', DVRoutes.docsai,
       'Run a prompt with a budget and a fallback', anchor: 'operations'),
+  SpecCoverage('Backend Function Request Lifecycle', 'Backend',
+      DVRoutes.docsbackendfunctions, 'Watch a request move through its stages',
+      anchor: 'lifecycle'),
+  SpecCoverage('CSRF Protection', 'Backend', DVRoutes.docsbackendfunctions,
+      'CSRF protection is on for every function', anchor: 'csrf'),
 
   // Operations
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
@@ -205,8 +210,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Media Pipeline': 'Data',
 
   // Backend
-  'Backend Function Request Lifecycle': 'Backend',
-  'CSRF Protection': 'Backend',
   'Organizations, Membership and Invitations': 'Backend',
   'Web Server Rendering': 'Backend',
   'Protocol Versioning and Client Compatibility': 'Backend',
