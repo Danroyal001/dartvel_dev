@@ -60,6 +60,7 @@ export 'src/auth/platform_api_config.dart';
 export 'src/auth/secret_hash.dart';
 export 'src/admin/admin_server.dart';
 export 'src/admin/studio_access.dart';
+export 'src/admin/studio_api.dart';
 export 'src/auth/session_authentication.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
