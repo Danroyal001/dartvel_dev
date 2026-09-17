@@ -48,8 +48,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Run dartvel init', anchor: 'init'),
   SpecCoverage('Package Structure', 'Getting started', DVRoutes.docs,
       'One package with every import'),
-  SpecCoverage('Dev Client', 'Getting started', DVRoutes.index,
-      'Scan a QR code and hot reload on your phone.'),
+  SpecCoverage('Dev Client', 'Getting started', DVRoutes.docsdevclient,
+      'Pair it with dartvel dev', anchor: 'pair'),
 
   // App
   SpecCoverage('UI', 'App', DVRoutes.docsui, 'Wrap one child with DVBox',
