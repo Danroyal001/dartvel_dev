@@ -2615,7 +2615,10 @@ class ModelGenerator {
     // is the answer to how it was mounted and that is not known until it is.
     File(p.join(clientDir.path, 'model_pages.g.dart')).writeAsStringSync(
       '${generatedHeader}library dartvel_client_model_pages;\n\n'
-      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec, DVStudioFieldSpec, DVStudioModelSpec"
+      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec"
+      // A field spec is only named inside a model's spec, and a shown name
+      // nothing uses is an analyzer warning in the application.
+      "${studioSpecs.isEmpty ? '' : ', DVStudioFieldSpec'}, DVStudioModelSpec"
       '${ownModuleId == null ? '' : ', DVModuleData'};\n\n'
       '${ownModuleId == null ? '' : "const DVModuleData _dvModule = DVModuleData('$ownModuleId');\n\n"}'
       '/// Where each public model page\'s rows are and which fields carry its\n'
