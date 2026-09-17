@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Studio's model specs say what a field can hold.** A field whose type is
+  an enum declared among the models carries its values, and a String or int
+  field named `<model>Id`, `<model>Slug` or `<model>Key` for a declared model
+  carries the relation.
+
 - **A mounted module's models are in Studio.** A module's generated
   `dartvelStudioModels` names the module and resolves its table through the
   mount, and the generated backend hands every embedded or backend-only
