@@ -48,8 +48,8 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel_dev/actions/runs/31554165981) |
 | `tvos` | ✅ Builds and **runs** (simulator, debug) | **Verified on a macOS runner**: scaffold auto-generated, then `build/tvos/Debug-appletvsimulator/Runner.app`. The `appletvsimulator` path is the proof it is a tvOS app and not the iPhone app an earlier mapping produced. Run [32538073146](https://github.com/Danroyal001/dartvel_dev/actions/runs/32538073146). Installed on an Apple TV simulator, launched and photographed in run [35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988): the screenshot shows the example's home page reporting `Platform: tvos` and `Device: tv`. Device (signed) builds are not verified. See [tvOS](#tvos) |
 | `tizen` / `tpk` | ✅ Builds | Signed 9.3MB TPK with engine + assets, built on a laptop with Tizen Studio installed. CI can only ever *skip* it — the SDK is licence-gated and Dartvel must not install it unattended — so the workflow asserts the skip names that reason. See [Tizen](#tizen-samsung) |
-| `sony-elinux` | ✅ Builds and **runs** (release) | Runs on a virtual device (Weston on Xvfb) in CI, in **both debug and release**. Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
-| `webos` | ✅ App runs in a Wayland window on ARM under emulation; not run on a television | Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
+| `sony-elinux` | ✅ Release bundle assembles; a bundle assembled the same way **runs** | `dartvel build sony-elinux` does not use `flutter-elinux`: it assembles a **release** bundle from the Linux desktop release build and Sony's embedder artifacts, refuses debug and profile, and **skips when those artifacts are not installed** under `~/.dartvel/toolchains/dartvel_elinux/artifacts`, which is what the platform build matrix sees. The runtime-verification workflow assembles debug and release bundles the same way in its own steps and runs both on a virtual device (Weston on Xvfb). Release needs the from-source engine, since the official standalone one is JIT. See [Sony eLinux](#sony-elinux) |
+| `webos` | ⚠️ `dartvel build webos` skips; a package assembled in CI runs in a Wayland window on ARM under emulation; not run on a television | `dartvel build webos` drives LG's `flutter-webos`, which bundles Dart 3.10.9 and cannot resolve a Dartvel project, so it skips naming that. The runtime-verification and `webos-window` workflows assemble the package without it, from stock Flutter 3.44.5 and LG's engine. Not a vendor secret: LG's engine exports `FlutterEngineRun` and is an ordinary Custom Embedder API build. It is **ELF 32-bit ARM**, and Google publishes `linux-arm64` but no 32-bit `linux-arm`. See [webOS](#webos-lg) |
 | `fuchsia` | ❌ Blocked, same class as webOS | The five build-plumbing walls are fixed: `--build-only` in the fork, `postInstall` bootstrap, submodule handling, the bootstrap's workspace variable, and skipping an unfetchable `googletest` pin. It now clones, bootstraps and stages the app — then dies in `pub get` because the fork's bundled Flutter is **older than Dart 3.4**: `dartvel_example requires SDK version >=3.4.0 <4.0.0, version solving failed`. That is not a Dartvel bug and not a `mix` problem; the embedder's Flutter submodule is simply ancient. Unblocking needs the fork re-pinned to a modern Flutter **and its engine rebuilt from source**, because bootstrap.sh warns the engine and the Flutter pin must stay aligned. See [Fuchsia](#fuchsia) |
 | `vscode` | ✅ Builds | `out/src/extension.js`, `out/lib/vscode_api.handlers.js`, `build/web/flutter_bootstrap.js`, `build/web/assets/` |
 | `chrome-extension` | ✅ Builds and **runs** | `build/chrome-extension` (41 MB): MV3 manifest with a `service_worker` background, `index.html`, `main.dart.js`, `background.js`, icons. Loaded unpacked in Chrome and its page photographed rendering the example in run [35025146988](https://github.com/Danroyal001/dartvel_dev/actions/runs/35025146988). See [Browser extensions](#browser-extensions) |
@@ -480,8 +480,10 @@ What running found that building could not:
   `VK_ERROR_INCOMPATIBLE_DRIVER`, and never gets a context — which reads as an
   embedder fault and is not one.
 
-Not yet covered: Android, Windows, macOS, iOS and tvOS. Each needs a different
-runner or emulator, and none has been run.
+The table above is the first four jobs. The same workflow also runs Android on
+an emulator, Windows, macOS and iOS, tvOS on a simulator, webOS on ARM, both
+browser extensions, the web server and the PWA, and every one of those jobs
+passed in run [35172461725](https://github.com/Danroyal001/dartvel_dev/actions/runs/35172461725).
 
 **Release now runs, and the engine question is settled.** The from-source
 release engine built by `engine-build.yml` does run an AOT bundle: the
@@ -563,9 +565,10 @@ data/flutter_assets/      from the desktop build
 data/icudtl.dat
 ```
 
-48 MB. **It has not been run** — that needs an eLinux device with Wayland or
-DRM, which this host is not. Assembled and structurally verified is a weaker
-claim than working, and is the one being made.
+48 MB. It was not run on this host, which has no Wayland or DRM; the
+runtime-verification workflow has since run a release bundle assembled this
+way, with the from-source release engine in place of the official one, on a
+virtual device.
 
 **Terminal builds and native assets do not currently compose, and that is
 Flutter's constraint rather than Dartvel's.** `dartvel-cli-flt` assembles a bundle
@@ -849,23 +852,24 @@ compiles against 3.44.5. Worth stating plainly because it is the counterexample:
 being behind the floor does not by itself mean an engine build, and the way to
 tell is to check whether the artifact exists rather than to assume.
 
-webOS, Sony eLinux and Fuchsia are all blocked by an embedder shipping a Dart
-older than Dartvel needs. The distances are very different, and conflating them
+webOS, Sony eLinux and Fuchsia each met an embedder tool shipping a Dart older
+than Dartvel needs. The distances are very different, and conflating them
 would send the work in the wrong direction:
 
-| Target | Embedder's Dart | Short by | Cheapest unblock |
+| Target | Embedder's Dart | Short by | Where it stands |
 | --- | --- | --- | --- |
-| webOS | 3.10.9 | 1.1 against `dartvel_mix`'s 3.12 floor | Engine rebuild, or lower our own fork's pin |
-| Sony eLinux | 3.7.2 | Well short of `dartvel_mix` | Engine rebuild |
+| webOS | 3.10.9 | 1.1 against the 3.12 floor | `dartvel build webos` skips; CI assembles and runs the package without `flutter-webos` |
+| Sony eLinux | 3.7.2 | Well short of 3.12 | No longer the wall: `dartvel build sony-elinux` assembles without `flutter-elinux` |
 | Fuchsia | **older than 3.4** | Short of Dartvel's own example, before the UI layer is reached | Re-pin the fork's Flutter **and rebuild its engine** |
 
 **webOS changed shape once `dartvel_mix` existed, and got further away
 rather than closer.** This section previously asked whether pub's `mix 2.1.0`
 really needed Dart 3.11 or was merely conservative, because an older published
 `mix` would have cleared webOS's 3.10.9 by a hair. That question is now
-retired: `dartvel_flutter` does not depend on pub's `mix` at all. It depends on
-`dartvel_mix`, which pins Dart 3.12 to stay level with every other Dartvel
-fork — so the gap widened from 0.0.1 to 1.1.
+retired, twice over. `dartvel_flutter` now declares pub's `mix ^2.2.0-beta.5`,
+which needs Dart 3.11, and imports nothing from it: `DVBox` and `DVText` are
+Dartvel's own modifier layer over Flutter widgets. The floor that stops webOS
+is the 3.12 every Dartvel package declares, so the gap is 1.1.
 
 The useful part is that **the floor is now a Dartvel decision rather than an
 upstream fact.** Nobody has to pin a pre-release UI dependency for the whole
@@ -888,7 +892,15 @@ requires.
 
 ### Sony eLinux
 
-**Verified Flutter: 3.29.3 / Dart 3.7.2 — target is blocked.**
+**`dartvel build sony-elinux` no longer uses `flutter-elinux`, so the Dart
+3.7.2 wall below is history.** It assembles a release bundle from the Linux
+desktop release build and Sony's embedder artifacts (see
+`packages/dartvel_cli/lib/src/build/elinux_bundle.dart`), refuses debug and
+profile, and skips when the artifacts are not installed. The runtime-verification
+workflow runs debug and release bundles assembled the same way. What follows is
+what the `flutter-elinux` route hit, kept because it is why the route changed.
+
+**Through `flutter-elinux`: Flutter 3.29.3 / Dart 3.7.2 — blocked.**
 
 The embedder installs and runs, and the engine artifacts download fine
 (`elinux-x64-{debug,profile,release}.zip` at engine `cf56914b32`, all HTTP
@@ -920,7 +932,10 @@ un-made, not a limit the vendor imposes on us.
 
 ### webOS (LG)
 
-**Verified Flutter: 3.38.10 / Dart 3.10.9 — target is blocked.**
+**Verified Flutter: 3.38.10 / Dart 3.10.9 — `dartvel build webos` is blocked.**
+A package assembled without `flutter-webos` renders on ARM in CI; see
+[What actually blocks webOS](#runtime-verification) above. No `dartvel`
+command builds that package yet.
 
 The embedder and the `ares` CLI both install cleanly through auto-install, and
 `dartvel build webos` now generates the `webos/` scaffold itself rather than
