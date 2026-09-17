@@ -44,6 +44,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   // Getting started
   SpecCoverage('Project Structure', 'Getting started', DVRoutes.docs,
       'Project structure', anchor: 'structure'),
+  SpecCoverage('Adoption', 'Getting started', DVRoutes.docsadopting,
+      'Run dartvel init', anchor: 'init'),
   SpecCoverage('Package Structure', 'Getting started', DVRoutes.docs,
       'One package with every import'),
   SpecCoverage('Dev Client', 'Getting started', DVRoutes.index,
@@ -204,7 +206,6 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
 const Map<String, String> kSpecKnownGaps = <String, String>{
   // Getting started
   'The Golden Path': 'Getting started',
-  'Adoption': 'Getting started',
   'Unified Development, Transparency, and Contracts': 'Getting started',
   'Generated Code Determinism': 'Getting started',
 
