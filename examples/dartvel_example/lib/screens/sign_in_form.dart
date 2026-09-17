@@ -5,7 +5,10 @@ import '../shop/account.dart';
 import '../shop/orders.dart';
 import '../theme/palette.dart';
 
-/// Email and password against DV.Auth, filled in with the demo account.
+/// Email and password against DV.Auth, filled in with the demo account when
+/// the app is the on-device demo. Served by its own server it signs in
+/// against the accounts that server keeps, where the demo account does not
+/// exist, so the form starts empty there.
 class SignInForm extends StatefulWidget {
   const SignInForm({super.key, required this.from});
 
@@ -17,9 +20,12 @@ class SignInForm extends StatefulWidget {
 }
 
 class _SignInFormState extends State<SignInForm> {
-  final TextEditingController _email = TextEditingController(text: demoEmail);
-  final TextEditingController _password = TextEditingController(
-    text: demoPassword,
+  final bool _demo = !DVAuth.servedByOwnServer;
+  late final TextEditingController _email = TextEditingController(
+    text: _demo ? demoEmail : '',
+  );
+  late final TextEditingController _password = TextEditingController(
+    text: _demo ? demoPassword : '',
   );
   bool _busy = false;
   String? _error;
@@ -85,9 +91,10 @@ class _SignInFormState extends State<SignInForm> {
           onPressed: _busy ? null : _submit,
           child: Text(_busy ? 'Signing in…' : 'Sign in'),
         ),
-        const DVText(
-          'This is a demo account. Everything you do stays on this device.',
-        ).modifier(p.muted.fontSize(13)),
+        if (_demo)
+          const DVText(
+            'This is a demo account. Everything you do stays on this device.',
+          ).modifier(p.muted.fontSize(13)),
       ], spacing: 14),
     );
   }
