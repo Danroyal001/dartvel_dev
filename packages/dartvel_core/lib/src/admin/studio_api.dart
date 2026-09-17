@@ -118,6 +118,50 @@ class DVStudioModelSpec {
   final bool versioned;
   final bool softDelete;
 
+  /// Everything a development server needs to serve this model's records
+  /// without the generated code: [fromManifest] reads it back. The build
+  /// writes the application's own models this way; a module's resolve their
+  /// tables through a mount only a running backend has.
+  Map<String, Object?> toManifest() => <String, Object?>{
+    'model': model,
+    'table': table,
+    'key': key,
+    'fields': <Object?>[
+      for (final DVStudioFieldSpec field in fields) field.toJson(),
+    ],
+    'tenantScoped': tenantScoped,
+    'versioned': versioned,
+    'softDelete': softDelete,
+  };
+
+  /// A spec from [toManifest]'s output.
+  factory DVStudioModelSpec.fromManifest(Map<String, Object?> json) =>
+      DVStudioModelSpec(
+        model: '${json['model']}',
+        table: '${json['table']}',
+        key: '${json['key']}',
+        tenantScoped: json['tenantScoped'] == true,
+        versioned: json['versioned'] != false,
+        softDelete: json['softDelete'] == true,
+        fields: <DVStudioFieldSpec>[
+          for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
+            if (field is Map)
+              DVStudioFieldSpec(
+                name: '${field['name']}',
+                type: '${field['type']}',
+                sensitive: field['sensitive'] == true,
+                options: field['options'] is List
+                    ? <String>[
+                        for (final Object? option in field['options'] as List)
+                          '$option',
+                      ]
+                    : null,
+                relation:
+                    field['relation'] is String ? field['relation'] as String : null,
+              ),
+        ],
+      );
+
   Map<String, Object?> toJson() => <String, Object?>{
     'model': id,
     'module': ?module,
