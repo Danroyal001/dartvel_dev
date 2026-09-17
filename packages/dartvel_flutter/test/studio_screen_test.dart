@@ -43,6 +43,35 @@ void main() {
     expect(find.text('Select or create a page to edit.'), findsOneWidget);
   });
 
+  testWidgets('a page card shows the page: legible, on a page-coloured sheet',
+      (WidgetTester tester) async {
+    // The thumbnail was a 1280-pixel page shrunk into a 200-pixel card: its
+    // text was two pixels tall, and the white sheet stopped where the text
+    // did, so the card read as an empty grey box.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await const DVPageStore().save(documentFor('/pricing', 'Plans'));
+
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+
+    final Finder thumbnail =
+        find.byKey(const ValueKey<String>('dv-studio-thumbnail-/pricing'));
+    expect(thumbnail, findsOneWidget);
+    final Finder text =
+        find.descendant(of: thumbnail, matching: find.text('Plans'));
+    expect(text, findsOneWidget);
+    expect(tester.getRect(text).height, greaterThanOrEqualTo(5),
+        reason: 'the page text is too small to recognise');
+    final Finder sheet = find.descendant(
+        of: thumbnail,
+        matching: find.byKey(const ValueKey<String>('dv-studio-thumbnail-sheet')));
+    expect(tester.getRect(sheet).bottom,
+        greaterThanOrEqualTo(tester.getRect(thumbnail).bottom - 0.5),
+        reason: 'the page does not fill its card');
+  });
+
   testWidgets('an empty store says so rather than looking broken',
       (WidgetTester tester) async {
     await tester.pumpWidget(host());
