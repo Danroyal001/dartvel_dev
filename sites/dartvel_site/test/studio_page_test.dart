@@ -158,4 +158,12 @@ void main() {
           reason: '$shot is not declared under flutter: assets:');
     }
   });
+
+  test('the home page has a Studio section that links to /studio', () {
+    final String home = code('lib/pages/index.dart');
+    final String studio = sectionFrom(home, "Eyebrow('STUDIO'");
+    expect(studio, isNotEmpty);
+    expect(studio, contains("'/studio'"));
+    expect(studio, contains('Studio Pro'));
+  });
 }
