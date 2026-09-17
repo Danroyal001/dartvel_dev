@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Studio has Queues and Cache sections.** Queues lists every queue the
+  build declares with its waiting jobs and dead letters, each with the error
+  it died of and Retry and Discard. Cache lists each tag with the keys it
+  covers and revalidates one, saying how many keys went.
+
 - **Studio's Access section grants and revokes.** An account is granted by
   its sign-in address or id, a refusal says why, each grant shows the
   account's address, the caller's own row is highlighted, and revoking your
