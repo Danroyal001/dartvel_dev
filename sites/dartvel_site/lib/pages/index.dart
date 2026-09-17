@@ -429,7 +429,7 @@ Widget _targets(BuildContext context) => Section(
   dark: true,
   children: <Widget>[
     const Eyebrow('BUILD TARGETS', onDark: true),
-    const Heading('Fifteen targets build today.', onDark: true),
+    const Heading('Fourteen targets build today.', onDark: true),
     DVBox.wrapLine(<Widget>[
       // Named the way you type them after dartvel build, and checked against
       // docs/build-targets.md by platform_breadth_test.dart.
@@ -444,7 +444,6 @@ Widget _targets(BuildContext context) => Section(
         'fireos',
         'tvos',
         'tizen',
-        'webos',
         'sony-elinux',
         'vscode',
         'chrome-extension',
@@ -454,12 +453,12 @@ Widget _targets(BuildContext context) => Section(
     ], spacing: 8),
     const Bullets(onDark: true, <String>[
       'Verified means the build ran and its output was inspected.',
-      'Terminal apps build for Linux. Fuchsia and terminal apps on macOS and '
+      'Terminal apps build for Linux. webOS, Fuchsia and terminal apps on macOS and '
           'Windows are in progress.',
     ]),
     const Stats(onDark: true, <Figure>[
-      Figure('15', 'targets that build'),
-      Figure('3', 'targets in progress'),
+      Figure('14', 'targets that build'),
+      Figure('4', 'targets in progress'),
       Figure('6', 'packages on pub.dev'),
     ]),
     const ExternalLink('Check the build log for each target', kBuildTargetsUrl,

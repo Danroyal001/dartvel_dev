@@ -24,7 +24,7 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Styling',
     'Fluent modifiers',
     'Padding, corners, colour, type, shadows, blur and rotation in degrees, '
-        'on one DVModifier chain over Flutter widgets.',
+        'on one DVModifier chain.',
   ),
   (
     'Pages',
