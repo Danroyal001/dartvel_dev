@@ -500,7 +500,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'CLI',
     'One tool',
-    'Present: create, dev, build, deploy, publish, updates, admin, key and '
+    'Present: create, dev, build, deploy, updates, admin, key and '
         'more, with generation inside dev and build. Absent: the crashes and '
         'meters commands, deploy --plan and rollback, and most flags '
         'subcommands.',
@@ -623,14 +623,14 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'App Store Publishing and Privacy Manifests',
-    'dartvel publish',
-    'Present: dartvel publish uploads an App Bundle to Play or an IPA to App '
+    'dartvel deploy --store',
+    'Present: dartvel deploy --store uploads an App Bundle to Play or an IPA to App '
         'Store Connect. Absent: generated privacy manifests.',
   ),
   (
     'Dartvel Cloud',
     'dartvel build ios --cloud',
-    'Present: the --cloud options on build, publish and key. Absent: the '
+    'Present: the --cloud options on build, deploy and key. Absent: the '
         'hosted machines that run cloud builds.',
   ),
 ];

@@ -95,6 +95,7 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'dartvel deploy --target web --provider vercel',
               'dartvel deploy --environment staging',
               'dartvel deploy --functions --function-target cloud-run',
+              'dartvel deploy --store play --dry-run',
             ]),
             Bullets(<String>[
               'It builds first, unless you pass --no-build.',
@@ -102,6 +103,10 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'anything ships.',
               '--functions writes a deployment artifact per backend function, '
                   'such as a Dockerfile and fly.toml, into build/deploy.',
+              '--store sends an application you built with dartvel build to '
+                  'play, appstore, testflight or firebase-app-distribution, as '
+                  'declared under dartvel.publish in pubspec.yaml. It does not '
+                  'build, and it takes no --target or --provider.',
             ]),
             DocsStatus('Deployment', missing: <String>[
               'dartvel deploy calls each cloud\'s own CLI. It holds no cloud '
