@@ -94,6 +94,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Change Data Capture and Warehouse Sync', 'Data',
       DVRoutes.docschangecapture, 'Record every write in order',
       anchor: 'log'),
+  SpecCoverage('Media Pipeline', 'Data', DVRoutes.docsmedia,
+      'Serve each image at the width it needs', anchor: 'variants'),
   SpecCoverage('Sensitive Model Fields', 'Data', DVRoutes.docsmodels,
       'Protect sensitive fields', anchor: 'sensitive'),
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
@@ -213,7 +215,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
 
   // Data
   'Content Workflow': 'Data',
-  'Media Pipeline': 'Data',
 
   // Backend
   'Organizations, Membership and Invitations': 'Backend',
