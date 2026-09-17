@@ -72,6 +72,8 @@ class ModelGenerator {
     final sb = StringBuffer();
     // The public pages' specs, for the backend that cannot import this file.
     final List<String> pageSpecs = <String>[];
+    // Where each model's records are, for Studio on the same backend.
+    final List<String> studioSpecs = <String>[];
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
     sb.writeln("import 'dart:core';");
@@ -1542,6 +1544,24 @@ class ModelGenerator {
         // gives them, which is where a migration has to read them from.
         if (ownModuleId == null) {
           if (tenantScoped) scopedTables.add(tableName);
+          // The table, the key generated find() uses and the fields, so
+          // Studio on the backend reads and writes the rows this class does.
+          // A module's table is its parent's decision, made at run time.
+          if (keyField != null) {
+            studioSpecs.add(
+              '  DVStudioModelSpec(\n'
+              "    model: '$className',\n"
+              "    table: '$tableName',\n"
+              "    key: '$keyField',\n"
+              '    fields: <DVStudioFieldSpec>[\n'
+              '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}),\n").join()}'
+              '    ],\n'
+              '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
+              '${versioned ? '' : '    versioned: false,\n'}'
+              '${softDelete ? '    softDelete: true,\n' : ''}'
+              '  ),',
+            );
+          }
           schemaTables.add(<String, Object?>{
             'table': tableName,
             'model': className,
@@ -2595,7 +2615,7 @@ class ModelGenerator {
     // is the answer to how it was mounted and that is not known until it is.
     File(p.join(clientDir.path, 'model_pages.g.dart')).writeAsStringSync(
       '${generatedHeader}library dartvel_client_model_pages;\n\n'
-      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec"
+      "import 'package:dartvel_core/dartvel.dart' show DVModelPageSpec, DVStudioFieldSpec, DVStudioModelSpec"
       '${ownModuleId == null ? '' : ', DVModuleData'};\n\n'
       '${ownModuleId == null ? '' : "const DVModuleData _dvModule = DVModuleData('$ownModuleId');\n\n"}'
       '/// Where each public model page\'s rows are and which fields carry its\n'
@@ -2603,6 +2623,11 @@ class ModelGenerator {
       '/// page\'s data from these on request.\n'
       '${ownModuleId == null ? 'const' : 'final'} List<DVModelPageSpec> dartvelModelPages = <DVModelPageSpec>[\n'
       '${pageSpecs.join('\n')}${pageSpecs.isEmpty ? '' : '\n'}'
+      '];\n\n'
+      '/// Where each model\'s records are, for Studio on the backend: the\n'
+      '/// table, the key its find() uses, and which fields are sensitive.\n'
+      'const List<DVStudioModelSpec> dartvelStudioModels = <DVStudioModelSpec>[\n'
+      '${studioSpecs.join('\n')}${studioSpecs.isEmpty ? '' : '\n'}'
       '];\n',
     );
   }
