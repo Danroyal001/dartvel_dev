@@ -25,7 +25,7 @@ void main() {
   late List<List<String>> ran;
 
   setUp(() {
-    root = Directory.systemTemp.createTempSync('dartvel_publish_cloud_');
+    root = Directory.systemTemp.createTempSync('dartvel_store_cloud_');
     cloud = _RecordingCloud();
     ran = <List<String>>[];
     exitCode = 0;
@@ -52,7 +52,7 @@ void main() {
       .run(<String>['deploy', '--store', ...args]);
 
   test('Firebase builds a release APK and publishes it in the same run', () async {
-    declare('dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n');
+    declare('dartvel:\n  deploy:\n    stores:\n      firebase-app-distribution:\n        app: "1:1:android:ab"\n');
     // Nothing is built here: the artifact is the worker's.
     await publish(<String>['firebase-app-distribution', '--cloud', '--dry-run', '--cloud-token', 'tok']);
     expect(exitCode, 0);
@@ -60,24 +60,24 @@ void main() {
     final DVCloudBuildRequest request = cloud.requests.single;
     expect(request.target, 'android');
     expect(request.profile, 'release');
-    expect(request.publish, 'firebase');
+    expect(request.store, 'firebase');
     expect(request.dryRun, isTrue);
     expect(request.token, 'tok');
   });
 
   test('a declaration the upload would refuse is refused before the dispatch', () async {
-    declare('dartvel:\n  publish:\n    firebase:\n      groups: [qa]\n');
+    declare('dartvel:\n  deploy:\n    stores:\n      firebase-app-distribution:\n        groups: [qa]\n');
     await publish(<String>['firebase-app-distribution', '--cloud']);
     expect(exitCode, 78);
     expect(cloud.requests, isEmpty);
   });
 
   test('Google Play builds an App Bundle in release and uploads it', () async {
-    declare('dartvel:\n  publish:\n    play:\n      track: internal\n      credentials: play.json\n');
+    declare('dartvel:\n  deploy:\n    stores:\n      play:\n        track: internal\n        credentials: play.json\n');
     await publish(<String>['play', '--cloud']);
     expect(exitCode, 0);
     final DVCloudBuildRequest request = cloud.requests.single;
-    expect((request.target, request.format, request.profile, request.publish),
+    expect((request.target, request.format, request.profile, request.store),
         ('android', 'aab', 'release', 'play'));
     expect(request.codesign, isTrue);
   });
@@ -85,18 +85,18 @@ void main() {
   test('App Store Connect and TestFlight build a signed IPA and upload it', () async {
     for (final String store in <String>['appstore', 'testflight']) {
       exitCode = 0;
-      declare('dartvel:\n  publish:\n    $store:\n      apiKey: K\n      apiIssuer: I\n');
+      declare('dartvel:\n  deploy:\n    stores:\n      $store:\n        apiKey: K\n        apiIssuer: I\n');
       // From Linux: the upload runs on a macOS worker, where Xcode is.
       await publish(<String>[store, '--cloud']);
       expect(exitCode, 0, reason: store);
       final DVCloudBuildRequest request = cloud.requests.last;
-      expect((request.target, request.format, request.publish), ('ios', 'ipa', store));
+      expect((request.target, request.format, request.store), ('ios', 'ipa', store));
       expect(request.codesign, isTrue);
     }
   });
 
   test('an App Store declaration with no key is still refused before anything is sent', () async {
-    declare('dartvel:\n  publish:\n    appstore:\n      apiIssuer: I\n');
+    declare('dartvel:\n  deploy:\n    stores:\n      appstore:\n        apiIssuer: I\n');
     await publish(<String>['appstore', '--cloud']);
     expect(exitCode, 78);
     expect(cloud.requests, isEmpty);

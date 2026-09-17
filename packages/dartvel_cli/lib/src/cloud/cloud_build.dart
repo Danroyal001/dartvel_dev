@@ -25,7 +25,7 @@ class DVCloudBuildRequest {
     required this.root,
     required this.target,
     this.profile = 'release',
-    this.publish,
+    this.store,
     this.dryRun = false,
     this.token,
     this.format,
@@ -53,10 +53,11 @@ class DVCloudBuildRequest {
   final String target;
   final String profile;
 
-  /// A store `dartvel deploy --store` sends the build to once it is built.
-  final String? publish;
+  /// The store `dartvel deploy --store` sends the build to once it is
+  /// built, by its protocol name (dvCloudStoreName).
+  final String? store;
 
-  /// Passed to that publish as `--dry-run`.
+  /// Passed to that deploy as `--dry-run`.
   final bool dryRun;
 
   /// `--cloud-token`; `DARTVEL_CLOUD_TOKEN` when null.
@@ -186,7 +187,7 @@ class DVCloudBuilder {
           project: project,
           target: request.target,
           profile: request.profile,
-          publish: request.publish,
+          publish: request.store,
           dryRun: request.dryRun,
           app: app,
           format: request.format,
