@@ -885,6 +885,17 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  DV.log(\'\${invoices.length} invoices for acme\');',
     '});',
   ],
+  'testing-factories': <String>[
+    'setUp(ProductFactory.resetSequence);',
+    '',
+    'test(\'each product the factory makes is its own record\', () {',
+    '  final List<Product> products =',
+    '      const ProductFactory(published: false).createMany(3);',
+    '',
+    '  expect(products.map((Product p) => p.slug).toSet(), hasLength(3));',
+    '  expect(products.every((Product p) => !p.published), isTrue);',
+    '});',
+  ],
   'testing-fakes': <String>[
     'import \'package:docs_samples/dartvel_client/dartvel_client.dart\';',
     'import \'package:flutter_test/flutter_test.dart\';',
