@@ -237,8 +237,8 @@ Widget _proof(BuildContext context) => const Section(
       '}',
     ]),
     Bullets(<String>[
-      'No build_runner and no generated files to commit. dartvel dev '
-          'regenerates when you save.',
+      'dartvel dev regenerates the form, table, admin and typed client '
+          'each time you save the class.',
       'Post.Form(...) validates input against the fields you declared.',
       'authorEmail stays out of logs, search and the admin until a policy '
           'allows it.',
@@ -277,18 +277,18 @@ Widget _backendProof(BuildContext context) => const Section(
 /// on the first run in dartvel_data beside the executable, the way PocketBase
 /// keeps pb_data beside its own. Every line in the terminal is what the binary
 /// printed when it was copied alone into a directory and started, shown at
-/// the /srv path a server would keep it under, and the size is the measured
-/// size of that file.
+/// the /srv path a server would keep it under. No size is given: the file grows
+/// with the backend it carries.
 @DVFunctionalWidget()
 Widget _oneFileBackend(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
     Eyebrow('ONE-FILE BACKEND'),
-    Heading('Ship your app and its database as one 30 MB file.'),
+    Heading('Ship your app and its database as one file.'),
     CodeBlock(<String>[
       r'$ dartvel build web-server',
-      'build/server (29.9 MB): the backend, the web app and the native '
-          'server, in one file.',
+      'build/server: the backend, the web app and the native server, in one '
+          'file.',
       '',
       r'$ cd /srv/shop && ./server',
       'dartvel: no DATABASE_URL, creating SQLite database /srv/shop/dartvel_data/data.db',
@@ -296,8 +296,8 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'dartvel backend listening on http://0.0.0.0:3000/api',
     ]),
     Bullets(<String>[
-      'Copy one file to a Linux x64 server and run it. The first run creates '
-          'your tables.',
+      'Copy one file to your server and run it. The first run creates your '
+          'tables.',
       'The database lives in dartvel_data next to the binary, so you back up '
           'one folder.',
       'The web app, the API, the admin and the pages rendered on request all '
