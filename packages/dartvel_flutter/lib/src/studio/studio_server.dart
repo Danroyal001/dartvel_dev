@@ -53,6 +53,23 @@ DVStudioTransport dvStudioBrowserTransport() {
       transport.dvStudioSend(method, path, body: body, csrf: csrf);
 }
 
+/// The page documents published on the server that served this page, from
+/// its `/_dartvel/pages`. Empty when it answers anything else.
+Future<List<DVPageDocument>> dvPublishedPagesFromServer() async {
+  final DVStudioReply reply =
+      await transport.dvStudioSend('GET', '/_dartvel/pages', csrf: '');
+  final Object? body = reply.body;
+  if (reply.status != 200 || body is! Map || body['pages'] is! List) {
+    return const <DVPageDocument>[];
+  }
+  return <DVPageDocument>[
+    for (final Object? page in body['pages']! as List)
+      if (page is Map && page['document'] is Map)
+        DVPageDocument.fromJson(
+            (page['document']! as Map).cast<String, Object?>()),
+  ];
+}
+
 /// A request the backend refused, with what it said.
 class DVStudioRemoteError implements Exception {
   const DVStudioRemoteError(this.status, this.code, this.message);
