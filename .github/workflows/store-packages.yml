@@ -1,0 +1,90 @@
+name: Store packages
+
+# `dartvel build android --format aab` and `dartvel build ios --format ipa`,
+# the packages Google Play and App Store Connect take, built from basic_app and
+# checked for what they are: an App Bundle with BundleConfig.pb, a manifest,
+# dex and compiled Dart; an Xcode archive whose app is a Mach-O. Then
+# `dartvel publish play --dry-run` is run against the bundle, which checks the
+# plan finds it and prints the upload.
+#
+# The iOS build is unsigned (--no-codesign), and that is all this proves: this
+# repository holds no Apple signing identity, so a signed IPA and an App Store
+# upload are not verified here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/dartvel_cli/lib/src/commands/build_command.dart
+      - packages/dartvel_cli/lib/src/commands/publish_command.dart
+      - packages/dartvel_cli/lib/src/publish/**
+      - tool/ci/cloud_artifact_check.dart
+      - .github/workflows/store-packages.yml
+  workflow_dispatch:
+
+concurrency:
+  group: store-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: dartvel build ${{ matrix.target }} --format ${{ matrix.format }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: android, format: aab, runner: ubuntu-latest, args: '', check: aab, out: build/app/outputs/bundle/release }
+          - { target: ios, format: ipa, runner: macos-latest, args: '--no-codesign', check: ipa-archive, out: build/ios/archive }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with: { distribution: temurin, java-version: '17' }
+
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cbindgen
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+
+      - name: Resolve dependencies
+        working-directory: examples/basic_app
+        run: flutter pub get
+
+      - name: dartvel build ${{ matrix.target }} --format ${{ matrix.format }} ${{ matrix.args }}
+        working-directory: examples/basic_app
+        env:
+          TARGET: ${{ matrix.target }}
+          FORMAT: ${{ matrix.format }}
+          ARGS: ${{ matrix.args }}
+        run: |
+          # shellcheck disable=SC2086
+          dart run dartvel_cli:dartvel build "$TARGET" --format "$FORMAT" --profile release $ARGS
+
+      - name: The package is what a store takes
+        env:
+          CHECK: ${{ matrix.check }}
+          OUT: ${{ matrix.out }}
+        run: |
+          ls -laR "examples/basic_app/$OUT" | head -40
+          dart tool/ci/cloud_artifact_check.dart "$CHECK" "examples/basic_app/$OUT"
+
+      - name: dartvel publish play --dry-run finds the bundle
+        if: matrix.target == 'android'
+        working-directory: examples/basic_app
+        run: |
+          set -euo pipefail
+          # Declared here and not committed: the example publishes nowhere.
+          printf '\n  publish:\n    play:\n      track: internal\n      credentials: ci-play-key.json\n' >> pubspec.yaml
+          dart run dartvel_cli:dartvel publish play --dry-run | tee "$RUNNER_TEMP/publish.log"
+          grep -q 'fastlane supply --aab .*app-release.aab --track internal' "$RUNNER_TEMP/publish.log"
