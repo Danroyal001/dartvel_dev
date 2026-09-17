@@ -3039,6 +3039,17 @@ class BuildCommand extends Command<void> {
     final siteUrl = settings['siteUrl'] as String?;
 
     final routes = await _pagesToGenerate(root);
+    // Before the early return, so an application with no pages left also
+    // loses the ones it used to have.
+    final List<String> stale = dvRemoveStaleRoutePages(
+      webRoot: web,
+      sourceWeb: Directory(p.join(root, 'web')),
+      routes: routes,
+    );
+    if (stale.isNotEmpty) {
+      Logger.log('   Removed ${stale.length} page(s) for routes that no '
+          'longer exist: ${stale.join(', ')}');
+    }
     if (routes.isEmpty) return;
     final routeText = _routeText(root);
 

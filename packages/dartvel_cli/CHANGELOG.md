@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel build web` removes the pages of routes that are gone.**
+  `build/web` is not emptied between builds, so a route removed from the
+  application kept its `index.html` there and was uploaded with everything
+  else. A rebuild now deletes a route page it wrote before for a route that no
+  longer exists, and its folder when that is left empty. Files Flutter copied
+  from `web/`, and HTML Dartvel did not write as a route page, stay.
+
 - **`dartvel test --watch` watches.** It handed `--watch` to `dart test` or
   `flutter test`, neither of which accepts it, so the command failed at once.
   It now runs the suite, then reruns a changed test file on its own, or the

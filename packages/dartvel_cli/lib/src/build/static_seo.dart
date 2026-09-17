@@ -10,6 +10,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'structured_data.dart';
 
 import 'seo_head.dart';
@@ -650,4 +653,59 @@ String dvSitemapStylesheet({
   </xsl:template>
 </xsl:stylesheet>
 ''';
+}
+/// The head region every route page [dvStaticPage] writes carries.
+const String _routePageMarker = '<!-- dartvel:seo -->';
+
+/// Removes route pages an earlier build wrote for routes [routes] no longer
+/// has, and returns their paths relative to [webRoot].
+///
+/// build/web is not emptied between builds, so a page for a removed route
+/// stayed there and was deployed with everything else. Only a nested
+/// `index.html` carrying a route page's head is removed, and never one with a
+/// counterpart in the project's [sourceWeb], which Flutter copies into the
+/// output and which is the project's own file. A folder left empty goes with
+/// it; one holding anything else keeps it.
+List<String> dvRemoveStaleRoutePages({
+  required Directory webRoot,
+  required Directory sourceWeb,
+  required Iterable<String> routes,
+}) {
+  if (!webRoot.existsSync()) return const <String>[];
+  final Set<String> current = <String>{
+    for (final String route in routes) ?dvStaticRoutePath(route),
+  };
+  final List<String> removed = <String>[];
+  final List<File> candidates = <File>[
+    for (final FileSystemEntity entity
+        in webRoot.listSync(recursive: true, followLinks: false))
+      if (entity is File && p.basename(entity.path) == 'index.html')
+        entity,
+  ];
+  for (final File file in candidates) {
+    final List<String> parts =
+        p.split(p.relative(file.path, from: webRoot.path));
+    final String relative = p.posix.joinAll(parts);
+    if (parts.length < 2 || current.contains(relative)) continue;
+    if (File(p.joinAll(<String>[sourceWeb.path, ...parts])).existsSync()) {
+      continue;
+    }
+    final String html;
+    try {
+      html = file.readAsStringSync();
+    } on FileSystemException {
+      continue;
+    }
+    if (!html.contains(_routePageMarker)) continue;
+    file.deleteSync();
+    removed.add(relative);
+
+    Directory parent = file.parent;
+    while (!p.equals(parent.path, webRoot.path) &&
+        parent.listSync().isEmpty) {
+      parent.deleteSync();
+      parent = parent.parent;
+    }
+  }
+  return removed;
 }
