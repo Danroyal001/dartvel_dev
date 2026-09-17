@@ -1,4 +1,4 @@
-// `dartvel publish`, and the four ways it declines.
+// `dartvel deploy --store`, and the four ways it declines.
 //
 // Host support, then the tooling, then the work -- and here the work is an
 // upload of a binary that took minutes to produce, so every refusal has to
@@ -6,7 +6,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:dartvel_cli/src/commands/publish_command.dart';
+import 'package:dartvel_cli/src/commands/deploy_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -47,24 +47,22 @@ $publish
 
   Future<void> publish(List<String> arguments) async {
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
-      ..addCommand(PublishCommand(root: root.path, processRun: (
+      ..addCommand(DeployCommand(root: root.path, processRun: (
         String executable,
         List<String> args, {
-        String? workingDirectory,
         bool runInShell = false,
       }) async {
         ran.add(<String>[executable, ...args]);
         return ProcessResult(0, 0, '', '');
       }));
-    await runner.run(<String>['publish', ...arguments]);
+    await runner.run(<String>['deploy', '--store', ...arguments]);
   }
 
   test('naming no store is a usage error, not a guess', () async {
     declare(_play);
 
-    await publish(<String>[]);
-
-    expect(exitCode, 64);
+    // --store with no value, which the parser refuses before the command runs.
+    await expectLater(publish(<String>[]), throwsA(isA<UsageException>()));
     expect(ran, isEmpty);
   });
 

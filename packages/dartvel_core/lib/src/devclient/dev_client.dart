@@ -99,7 +99,7 @@ const String dvDevClientLinkScheme = 'dartvel-dev';
 ///
 /// The shell's widget references it, so AOT compilation keeps it; nothing an
 /// application reaches references it, so tree shaking drops it from every
-/// release build. `dartvel publish` looks for it in the snapshot inside an
+/// release build. `dartvel deploy --store` looks for it in the snapshot inside an
 /// artifact, which recognises a shell by what it is rather than by its
 /// filename.
 const String dvDevClientShellMarker = 'dartvel-dev-client-shell-v1';

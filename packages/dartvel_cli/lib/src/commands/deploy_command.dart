@@ -3,7 +3,10 @@ import '../graph/project_graph.dart';
 import '../deploy/function_deploy.dart';
 import '../secrets/secrets_analysis.dart';
 import 'dart:io';
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import '../cloud/cloud_build.dart';
+import '../publish/store_deploy.dart';
 import '../utils/logger.dart';
 
 typedef DeployProcessRun = Future<ProcessResult> Function(
@@ -13,8 +16,24 @@ typedef DeployProcessRun = Future<ProcessResult> Function(
 });
 
 class DeployCommand extends Command<void> {
-  DeployCommand({DeployProcessRun? processRun})
-      : _processRun = processRun ?? Process.run {
+  /// [root] and [cloud] are for the store form; null reads the working
+  /// directory and reaches the real Dartvel Cloud.
+  DeployCommand({
+    DeployProcessRun? processRun,
+    String? root,
+    DVCloudBuilder? cloud,
+  })  : _processRun = processRun ?? Process.run,
+        _store = DVStoreDeploy(
+          // The upload runs in the project, which is the working directory
+          // this command already runs everything else in.
+          processRun: processRun == null
+              ? null
+              : (String executable, List<String> arguments,
+                      {String? workingDirectory, bool runInShell = false}) =>
+                  processRun(executable, arguments, runInShell: runInShell),
+          root: root,
+          cloud: cloud,
+        ) {
     argParser
       ..addOption('target',
           abbr: 't',
@@ -22,8 +41,19 @@ class DeployCommand extends Command<void> {
           defaultsTo: 'all',
           help: 'Deployment target')
       ..addOption('provider',
-          allowed: ['firebase', 'vercel', 'netlify', 'cloudflare', 'custom'],
-          help: 'Cloud provider')
+          allowed: [
+            'firebase-hosting',
+            'vercel',
+            'netlify',
+            'cloudflare',
+            'custom',
+            // Deprecated: Firebase is also a store, through App Distribution.
+            'firebase',
+          ],
+          allowedHelp: {
+            'firebase': 'Deprecated spelling of firebase-hosting.',
+          },
+          help: 'Where the web build or the server is hosted.')
       ..addOption('environment',
           abbr: 'e',
           defaultsTo: 'production',
@@ -38,19 +68,98 @@ class DeployCommand extends Command<void> {
               '${dvFunctionDeployTargets.join(', ')}.',
           defaultsTo: 'container')
       ..addFlag('build', defaultsTo: true, help: 'Build before deploying')
-      ..addFlag('verify', defaultsTo: true, help: 'Verify deployment');
+      ..addFlag('verify', defaultsTo: true, help: 'Verify deployment')
+      ..addOption('store',
+          allowed: dvDeployStores.keys,
+          allowedHelp: {
+            'play': 'Google Play, to the track dartvel.publish.play names.',
+            'appstore': 'App Store Connect.',
+            'testflight': 'TestFlight.',
+            'firebase-app-distribution':
+                'Firebase App Distribution, to its tester groups.',
+          },
+          help: 'Deploy a built application to a store or a tester group '
+              'instead of a web build or a server. Declared under '
+              'dartvel.publish in pubspec.yaml; build it first with '
+              'dartvel build. Takes none of --target, --provider, --functions '
+              'or --function-target.')
+      ..addFlag('dry-run',
+          defaultsTo: false,
+          negatable: false,
+          help: 'With --store: print the upload that would run, and run '
+              'nothing.')
+      ..addOption('artifact',
+          help: 'With --store: the file to upload, when it is not where the '
+              'build puts it.')
+      ..addFlag('cloud',
+          defaultsTo: false,
+          negatable: false,
+          help: 'With --store: build and deploy on Dartvel Cloud, with the '
+              'credentials kept there by dartvel key cloud. With --dry-run '
+              'the worker prints the upload instead of making it. Play gets '
+              'an App Bundle and App Store Connect a signed IPA, both built '
+              'in release. Needs a paid Dartvel Cloud plan.')
+      ..addOption('cloud-token',
+          help: 'The Dartvel Cloud token for --cloud. Defaults to '
+              'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
   }
 
   final DeployProcessRun _processRun;
+  final DVStoreDeploy _store;
+
+  /// The options that only mean something with --store, and the ones that
+  /// mean something only without it.
+  static const List<String> _storeOnly = <String>[
+    'dry-run',
+    'artifact',
+    'cloud',
+    'cloud-token',
+  ];
+  static const List<String> _hostOnly = <String>[
+    'target',
+    'provider',
+    'functions',
+    'function-target',
+  ];
 
   @override
   final String name = 'deploy';
 
   @override
-  String get description => 'Deploy to production (web/server).';
+  String get description =>
+      'Deploy to production: a web build or a server (--provider), or an '
+      'application to a store (--store).';
 
   @override
   Future<void> run() async {
+    final ArgResults args = argResults!;
+    final String? store = args['store'] as String?;
+    // Refused rather than ignored: a --dry-run that a web deploy did not
+    // honour would ship while the person thought they were looking.
+    final List<String> misplaced = <String>[
+      for (final String option in store == null ? _storeOnly : _hostOnly)
+        if (args.wasParsed(option)) '--$option',
+    ];
+    if (misplaced.isNotEmpty) {
+      usageException(store == null
+          ? '${misplaced.join(', ')} only applies with --store.'
+          : '--store deploys an application to a store, so '
+              '${misplaced.join(', ')} does not apply to it.');
+    }
+    if (store != null) {
+      // No production build and no secrets gate: a store artifact is built
+      // by dartvel build for its target, and the secrets a server resolves at
+      // runtime are not in the binary a store receives.
+      exitCode = await _store.run(
+        store: store,
+        dryRun: args['dry-run'] == true,
+        artifact: args['artifact'] as String?,
+        cloud: args['cloud'] == true,
+        cloudToken: args['cloud-token'] as String?,
+      );
+      return;
+    }
+
     final target = argResults?['target'] as String;
     final provider = argResults?['provider'] as String?;
     final shouldBuild = argResults?['build'] as bool;
@@ -102,6 +211,12 @@ class DeployCommand extends Command<void> {
     bool deployed = false;
     switch (provider) {
       case 'firebase':
+        Logger.log('⚠️  --provider firebase is deprecated: use '
+            '--provider firebase-hosting. Firebase App Distribution is '
+            '--store firebase-app-distribution.');
+        deployed = await _deployFirebase(target);
+        break;
+      case 'firebase-hosting':
         deployed = await _deployFirebase(target);
         break;
       case 'vercel':

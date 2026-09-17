@@ -18,7 +18,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// The stores `dartvel publish` knows.
+/// The stores a project declares under `dartvel.publish`, by the name it
+/// declares them with. `dartvel deploy --store` spells `firebase` out; see
+/// dvDeployStores.
 const List<String> dvPublishStores = <String>[
   'play',
   'appstore',
