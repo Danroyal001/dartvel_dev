@@ -68,6 +68,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Create a signal with context.signal', anchor: 'signals'),
   SpecCoverage('Lifecycle Signals', 'App', DVRoutes.docsstate,
       'Observe the app lifecycle', anchor: 'lifecycle'),
+  SpecCoverage('Platform Memory', 'App', DVRoutes.docsworkers,
+      'Reserve memory up front', anchor: 'arena'),
 
   // Data
   SpecCoverage('Models', 'Data', DVRoutes.docsmodels, 'Declare a model',
@@ -146,6 +148,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       anchor: 'lifecycle'),
   SpecCoverage('CSRF Protection', 'Backend', DVRoutes.docsbackendfunctions,
       'CSRF protection is on for every function', anchor: 'csrf'),
+  SpecCoverage('Compute: Workers and Native Offload', 'Backend',
+      DVRoutes.docsworkers, 'Run a task on a worker', anchor: 'run'),
 
   // Operations
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
@@ -195,7 +199,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Internationalization and Localization': 'App',
   'PWA': 'App',
   'Platform': 'App',
-  'Platform Memory': 'App',
   'Multi-Window': 'App',
   'Tab Workspaces': 'App',
   'Home Widgets': 'App',
@@ -218,7 +221,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Purchases and Entitlements': 'Backend',
   'Commerce: Tax, Promotions, Disputes and Payouts': 'Backend',
   'Usage Metering and Quotas': 'Backend',
-  'Compute: Workers and Native Offload': 'Backend',
   'Modules': 'Backend',
   'Module Distribution and Trust': 'Backend',
 

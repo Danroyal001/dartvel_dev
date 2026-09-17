@@ -129,3 +129,16 @@ dartvel:
         adapter: postgres
         backup: { schedule: "0 2 * * *", retain: 30d }
   # docs:end
+
+  # docs:start yaml-memory
+  memory:
+    budget: 1GB
+    touchPages: desktop
+    targets:
+      android: { budget: 512MB, segment: 64MB }
+  deviceProfiles:
+    lobby-screen:
+      platform: tizen
+      ram: 1GB
+      memory: { budget: 128MB, segment: 32MB }
+  # docs:end

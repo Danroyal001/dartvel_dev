@@ -45,6 +45,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Policies under DV.Auth.authorization', 'Backend'),
   DocsPageInfo(DVRoutes.docsqueues, 'Queues and jobs',
       'Work that runs after the response', 'Backend'),
+  DocsPageInfo(DVRoutes.docsworkers, 'Workers and memory',
+      'Heavy work on other cores, and memory reserved up front', 'Backend'),
   DocsPageInfo(DVRoutes.docscache, 'Cache',
       'Remember values and drop them by tag', 'Services'),
   DocsPageInfo(DVRoutes.docsnotifications, 'Notifications and mail',
