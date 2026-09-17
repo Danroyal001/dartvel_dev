@@ -27,7 +27,7 @@ const String _example = 'examples/dartvel_example';
 const String _package = 'com.example.dartvel_example';
 const String _diag = '/tmp/diag';
 const String _page = '$_example/lib/pages/(tabs)/index.page.dart';
-const String _anchor = 'return ShopScroll(children: <Widget>[';
+const String _anchor = 'return ShopScroll(\n    children: <Widget>[';
 
 String _marker(String n) => 'DEVCLIENT-EDIT-$n';
 

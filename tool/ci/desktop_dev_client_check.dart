@@ -39,13 +39,17 @@ String get _page => [
   'dartvel_example',
   'lib',
   'pages',
+  '(tabs)',
   'index.page.dart',
 ].join(_sep);
-const String _anchor = 'return DVBox.list([';
+const String _anchor = 'return ShopScroll(\n    children: <Widget>[';
 
 String _marker(String n) => 'DEVCLIENT-EDIT-$n';
 
-String _withMarker(String source, String marker) {
+String _withMarker(String original, String marker) {
+  // A Windows checkout is CRLF; the anchor is matched on LF, which Dart reads
+  // the same.
+  final String source = original.replaceAll('\r\n', '\n');
   final int at = source.indexOf(_anchor);
   if (at < 0) {
     throw StateError('$_page no longer contains "$_anchor"; update the check.');
