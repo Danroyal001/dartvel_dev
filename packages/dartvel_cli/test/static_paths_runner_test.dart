@@ -66,6 +66,11 @@ void main() {
     expect(source, contains("DARTVEL_STATIC_PATHS_SQLITE"));
     expect(source, contains('DVDatabaseConnection.fromEnvironment'));
     expect(configure, lessThan(source.indexOf('resolveDartvelStaticPaths(')));
+    // The client barrel exports a Platform of its own, so an unprefixed
+    // Platform.environment did not compile in the application and the
+    // resolver exited 1 on the first real build.
+    expect(source, contains("import 'dart:io' as io;"));
+    expect(RegExp(r'(?<!io\.)\bPlatform\.').hasMatch(source), isFalse);
   });
 
   group('what the build says about providers that did not resolve', () {
