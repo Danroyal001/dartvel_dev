@@ -84,6 +84,15 @@ dartvel:
     source: subdomain
   # docs:end
 
+  # docs:start yaml-search
+  search:
+    synonyms:
+      refund: [return, chargeback]
+    typoTolerance: true
+    highlightPre: "<em>"
+    highlightPost: "</em>"
+  # docs:end
+
   # docs:start yaml-graphql
   api:
     graphql:
