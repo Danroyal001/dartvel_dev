@@ -488,6 +488,10 @@ class _DVNavLinkState extends State<DVNavLink> {
       // about pricing, Read more" -- which is worse than the bare label the
       // caller was trying to improve on.
       excludeSemantics: widget.semanticLabel != null,
+      // And so the tap has to be here too. Excluding the child took the
+      // gesture detector's tap action with its text, and a labelled link
+      // announced itself as a link with nothing to activate.
+      onTap: widget.semanticLabel != null && widget.enabled ? _activate : null,
       child: MouseRegion(
         cursor: widget.enabled
             ? SystemMouseCursors.click
