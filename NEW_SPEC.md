@@ -11099,12 +11099,16 @@ Future<Product> _getProduct(String id) async => Product.find(id);
 ```
 
 `rawPath` exposes an exact custom path. `rawPathSuffix` keeps the generated path
-and appends a suffix (`/dartvel/functions/products/getProduct/public`). The two
+and appends a suffix (`<apiBasePath>/products/get_product/public` for
+`functions/products/get_product.get.dart`). The two
 are mutually exclusive.
 
-The configuration above is designed. `@DVBackendFunction` takes `policy` and
-`mfa` today. `transaction`, `authentication`, `rateLimit`, `rawPath` and
-`rawPathSuffix` are not parameters yet, and the generator does not read them.
+`@DVBackendFunction` takes `policy`, `mfa`, `rawPath` and `rawPathSuffix`
+today. A raw path is a string literal of plain segments, without path
+parameters, and the generated client calls the function where it is served.
+A POST to a raw path still needs the CSRF token every generated POST needs.
+`transaction`, `authentication` and `rateLimit` are designed and are not
+parameters yet.
 
 ---
 

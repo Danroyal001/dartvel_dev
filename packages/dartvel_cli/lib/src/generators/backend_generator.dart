@@ -15,6 +15,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:file/local.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
+import 'raw_path.dart';
 import 'job_generator.dart';
 import 'symbol_qualifier.dart';
 import 'package:glob/glob.dart';
@@ -515,10 +516,25 @@ class BackendGenerator {
           'DVAuthEndpoints.install and use the generated endpoint.',
         );
       }
+      final DVRawPath raw = dvRawPathFromSource(src, rel: rel);
+      if (raw.rawPathSuffix != null &&
+          dvReservedAuthPaths.contains('$urlPath${raw.rawPathSuffix}')) {
+        throw StateError(
+          '$rel declares ${method.toUpperCase()} '
+          '$urlPath${raw.rawPathSuffix}, which the generated backend serves '
+          'for signing in. The function would never run. Choose another '
+          'rawPathSuffix.',
+        );
+      }
       backendEntries.add({
         'i': '$i',
         'method': method,
         'path': urlPath,
+        // Where the function is served when that is not its generated path:
+        // rawPath outside the API base path, rawPathSuffix after the
+        // generated path. The generated path still names the client function.
+        'rawPath': raw.rawPath ?? '',
+        'rawPathSuffix': raw.rawPathSuffix ?? '',
         'typed': typedName,
         'tparams': typedParams,
         'ttypes': typedTypes,
@@ -553,6 +569,25 @@ class BackendGenerator {
         // Whether to build a DVContext and pass it first.
         'ctx': injectsContext ? '1' : '0',
       });
+    }
+
+    // Two functions served at one address. A raw path can land on another
+    // function's, and one router answers with only one of them: the other is
+    // a 404, or someone else's answer.
+    final Map<String, String> servedAt = <String, String>{};
+    for (final Map<String, String> e in backendEntries) {
+      final String served = (e['rawPath'] ?? '').isNotEmpty
+          ? e['rawPath']!
+          : '<api>${e['path']}${e['rawPathSuffix'] ?? ''}';
+      final String key = '${e['method']!.toUpperCase()} $served';
+      final String? first = servedAt[key];
+      if (first != null) {
+        throw StateError(
+          'dartvel: ${e['rel']} and $first are both served at $key. Change '
+          'one rawPath or rawPathSuffix.',
+        );
+      }
+      servedAt[key] = e['rel'] ?? '';
     }
 
     // @DVPolicy classes in the application and the modules it merges: which
@@ -612,7 +647,10 @@ class BackendGenerator {
         for (final e in backendEntries)
           OpenApiOperation(
             method: e['method']!,
-            path: e['path']!,
+            path: (e['rawPath'] ?? '').isNotEmpty
+                ? e['rawPath']!
+                : '${e['path']!}${e['rawPathSuffix'] ?? ''}',
+            outsideApiBase: (e['rawPath'] ?? '').isNotEmpty,
             name: e['typed'] ?? '',
             parameterNames: (e['tparams'] ?? '')
                 .split(',')
@@ -962,6 +1000,12 @@ ${graphqlOptions?.installSource ?? ''}  final router = dv.Router();
 ${_dvAuthRouteSource()}  bool _hasHealth = false;
 ${backendEntries.map((e) {
       final path = esc(e['path'] ?? '');
+      // The address the route is registered at: a rawPath as written, outside
+      // the API base path, or the generated path with any suffix.
+      final String rawPath = e['rawPath'] ?? '';
+      final String routeTarget = rawPath.isNotEmpty
+          ? "'${esc(rawPath)}'"
+          : "cfg.apiBasePath + '$path${esc(e['rawPathSuffix'] ?? '')}'";
       final method = e['method']!;
       final i = e['i']!;
       final typed = e['typed'] ?? '';
@@ -1122,7 +1166,7 @@ ${backendEntries.map((e) {
         // No shortcut for the plainest raw handler any more. It used to be
         // registered bare, which meant the one kind of route that reads the
         // request itself ran with no tenant scope around it.
-        return '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen$mfaGate$policyGate
+        return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate
     return await f$i.handler(req);
 $routeClose''';
       }
@@ -1238,7 +1282,7 @@ $readBody
       // middleware that guessed which would be the same silence again.
       if (path == '/health' && method.toLowerCase() == 'get') {
         return "  _hasHealth = true;\n"
-            '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen
+            '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -1271,7 +1315,7 @@ $contextFailed
     }
 $routeClose''';
       }
-      return '''$limitDeclarations  router.$method(cfg.apiBasePath + '$path', $handlerOpen
+      return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen
 $requestPrelude$mfaGate$policyGate$contextPrelude
     try {
       Object? result = await $invocation($callArgs);$contextDone
@@ -2027,6 +2071,15 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final urlPath = e['path']!;
       final colon = RouteUtils.toColonPath(urlPath);
       final fname = RouteUtils.funcNameForFromUrl(method, urlPath);
+      // Where the client sends the call: the rawPath from the host root, or
+      // the generated path and its suffix under the API base path.
+      final String clientRawPath = e['rawPath'] ?? '';
+      final String clientPath = clientRawPath.isNotEmpty
+          ? clientRawPath
+          : RouteUtils.toColonPath('$urlPath${e['rawPathSuffix'] ?? ''}');
+      final String runtimeUrl = clientRawPath.isNotEmpty
+          ? 'DartvelRuntime.raw'
+          : 'DartvelRuntime.api';
       final paramSig = RouteUtils.paramsListFor(colon);
       final hasParams = paramSig.isNotEmpty;
       final sig =
@@ -2043,11 +2096,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
       sbClient.writeln('Future<DVHttpResponse> $fname($sig) async {');
       sbClient
-          .writeln("  String routePath = '${esc(colon)}';");
+          .writeln("  String routePath = '${esc(clientPath)}';");
       sbClient.writeln('  final Map<String, Object?> pp = $paramMap;');
       sbClient.writeln(
           "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
-      sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
+      sbClient.writeln('  final base = $runtimeUrl(routePath);');
       if (method == 'get' || method == 'head') {
         sbClient.writeln('  final q = <String, String>{};');
         sbClient.writeln(
@@ -2214,11 +2267,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           }
 
           sbClient.writeln(
-              "  String routePath = '${esc(colon)}';");
+              "  String routePath = '${esc(clientPath)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
-          sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
+          sbClient.writeln('  final base = $runtimeUrl(routePath);');
           final qp = StringBuffer();
           qp.writeln('  final qq = <String, String>{};');
           qp.writeln(
@@ -2312,11 +2365,11 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
                 'Future<$clientReturnType> $fnameApi($sigApi) async {');
           }
           sbClient.writeln(
-              "  String routePath = '${esc(colon)}';");
+              "  String routePath = '${esc(clientPath)}';");
           sbClient.writeln('  final Map<String, Object?> pp = $ppExpr;');
           sbClient.writeln(
               "  pp.forEach((k, v) { final rep = (v is List) ? v.map((e)=>e.toString()).join('/') : ((v?.toString()) ?? ''); routePath = routePath.replaceAll(':\$k', Uri.encodeComponent(rep)); });");
-          sbClient.writeln('  final base = DartvelRuntime.api(routePath);');
+          sbClient.writeln('  final base = $runtimeUrl(routePath);');
           // Build both query and form bodies; choose at runtime per method
           final qp = StringBuffer();
           qp.writeln('  final qq = <String, String>{};');
