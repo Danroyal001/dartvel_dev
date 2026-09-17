@@ -9,6 +9,7 @@
 library;
 
 import 'dart:ffi' as ffi;
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -30,23 +31,37 @@ void embedNativeServerLibrary(List<int> bytes) {
   _embedded = bytes;
 }
 
-/// The platform directory and file name the package ships the library under.
-({String subdir, String name}) nativeServerLibraryLocation() => (
-      subdir: Platform.isMacOS
-          ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
-          : Platform.isLinux
-              ? (Platform.version.contains('aarch64')
-                  ? 'linux-arm64'
-                  : 'linux-x64')
-              : (Platform.version.contains('ARM64')
-                  ? 'windows-arm64'
-                  : 'windows-x64'),
-      name: Platform.isWindows
-          ? 'dartvel_shelf.dll'
-          : Platform.isMacOS
-              ? 'libdartvel_shelf.dylib'
-              : 'libdartvel_shelf.so',
-    );
+/// The platform directory and file name the package ships the library under,
+/// for this process.
+///
+/// Throws [UnsupportedError] on a host the server is not built for, rather
+/// than naming another host's library.
+({String subdir, String name}) nativeServerLibraryLocation() {
+  final ({String subdir, String name})? location =
+      nativeServerLibraryFor(Abi.current());
+  if (location == null) {
+    throw UnsupportedError(
+        'dartvel: no native server library is built for ${Abi.current()}.');
+  }
+  return location;
+}
+
+/// The directory and file name of the server library for [abi], or null for
+/// an ABI the server is not built for.
+///
+/// Read from the ABI, never from Platform.version: that string says
+/// `linux_arm64` and `windows_arm64`, and a check for `aarch64` or `ARM64`
+/// sent both arm64 hosts to the x64 library.
+({String subdir, String name})? nativeServerLibraryFor(Abi abi) =>
+    switch (abi) {
+      Abi.linuxX64 => (subdir: 'linux-x64', name: 'libdartvel_shelf.so'),
+      Abi.linuxArm64 => (subdir: 'linux-arm64', name: 'libdartvel_shelf.so'),
+      Abi.macosArm64 => (subdir: 'macos-arm64', name: 'libdartvel_shelf.dylib'),
+      Abi.macosX64 => (subdir: 'macos-x64', name: 'libdartvel_shelf.dylib'),
+      Abi.windowsX64 => (subdir: 'windows-x64', name: 'dartvel_shelf.dll'),
+      Abi.windowsArm64 => (subdir: 'windows-arm64', name: 'dartvel_shelf.dll'),
+      _ => null,
+    };
 
 /// Opens the native server library, and says where it came from.
 ///
