@@ -968,6 +968,14 @@ ${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost 
     final sub  = path.startsWith('/') ? path : '/\$path';
     return Uri.parse('\$base\$api\$sub');
   }
+
+  /// [path] from the backend's root, outside the API base path: where a
+  /// backend function declaring `rawPath` is served.
+  static Uri raw(String path) {
+    final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final sub  = path.startsWith('/') ? path : '/\$path';
+    return Uri.parse('\$base\$sub');
+  }
 }
 """;
     File(

@@ -19,7 +19,12 @@ class OpenApiOperation {
   /// The Dart return type, `Future<...>`/`Stream<...>` included.
   final String returnType;
 
+  /// Whether [path] is a `rawPath`, served from the host root rather than
+  /// under the API base path the document's servers name.
+  final bool outsideApiBase;
+
   const OpenApiOperation({
+    this.outsideApiBase = false,
     required this.method,
     required this.path,
     required this.name,
@@ -132,7 +137,16 @@ Map<String, Object?> buildOpenApiDocument({
       },
     };
 
-    (paths[openApiPath] ??= <String, Object?>{})[method] = operation;
+    final Map<String, Object?> item = paths[openApiPath] ??= <String, Object?>{};
+    if (op.outsideApiBase) {
+      // A path-level servers entry overrides the document's, so a client
+      // reading the document calls /payments/webhook and not
+      // /api/payments/webhook.
+      item['servers'] = const <Object?>[
+        <String, Object?>{'url': '/'},
+      ];
+    }
+    item[method] = operation;
   }
 
   return <String, Object?>{

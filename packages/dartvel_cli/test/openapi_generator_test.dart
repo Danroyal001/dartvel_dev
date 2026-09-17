@@ -155,4 +155,30 @@ void main() {
     expect((decoded['info']! as Map)['version'], '1.2.3');
     expect((decoded['servers']! as List).single, {'url': '/api'});
   });
+  test('a rawPath is documented from the host root, not under the API base', () {
+    final doc = build(const <OpenApiOperation>[
+      OpenApiOperation(
+        method: 'get',
+        path: '/payments/webhook',
+        name: 'paymentWebhook',
+        parameterNames: <String>[],
+        parameterTypes: <String>[],
+        returnType: 'Future<String>',
+        outsideApiBase: true,
+      ),
+      OpenApiOperation(
+        method: 'get',
+        path: '/catalog/public',
+        name: 'catalogItem',
+        parameterNames: <String>[],
+        parameterTypes: <String>[],
+        returnType: 'Future<String>',
+      ),
+    ]);
+    final Map paths = doc['paths']! as Map;
+    expect((paths['/payments/webhook'] as Map)['servers'], <Object?>[
+      <String, Object?>{'url': '/'},
+    ]);
+    expect((paths['/catalog/public'] as Map).containsKey('servers'), isFalse);
+  });
 }

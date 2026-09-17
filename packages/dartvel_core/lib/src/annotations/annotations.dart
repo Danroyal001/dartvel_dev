@@ -628,7 +628,25 @@ class DVBackendFunction {
   /// the client asks for a code and retries rather than signing out.
   final DVMfa? mfa;
 
-  const DVBackendFunction({this.policy, this.mfa});
+  /// The exact path the function is served at, outside the API base path,
+  /// such as `'/payments/webhook'`. Mutually exclusive with [rawPathSuffix].
+  ///
+  /// A string literal of plain segments: the build reads it from source and
+  /// refuses anything else, path parameters included.
+  final String? rawPath;
+
+  /// Appended to the generated path: `'/public'` on
+  /// `functions/catalog.get.dart` serves `<apiBasePath>/catalog/public`.
+  /// Mutually exclusive with [rawPath].
+  final String? rawPathSuffix;
+
+  const DVBackendFunction({
+    this.policy,
+    this.mfa,
+    this.rawPath,
+    this.rawPathSuffix,
+  }) : assert(rawPath == null || rawPathSuffix == null,
+            'rawPath and rawPathSuffix are mutually exclusive');
 }
 
 /// Annotation for a Backend Cron Job
