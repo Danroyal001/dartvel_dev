@@ -80,7 +80,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Any host works if it serves index.html for paths with no file.',
               'dartvel deploy --target web --provider netlify runs the provider\'s '
-                  'own CLI. firebase, vercel and cloudflare work the same way.',
+                  'own CLI. firebase-hosting, vercel and cloudflare work the same way.',
             ]),
           ],
         ),
