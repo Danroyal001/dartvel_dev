@@ -5799,6 +5799,29 @@ class DVAuth {
     _defaultProvider = provider;
   }
 
+  /// Whether this build is served by its own generated server, which signs
+  /// accounts up and in at `/auth/sign-in`.
+  ///
+  /// `dartvel build web-server` states it through `DARTVEL_SERVER_AUTH`: the
+  /// page cannot tell at run time what binary served it. When it is true the
+  /// in-memory [DVLocalAuthProvider] -- a development adapter -- yields to the
+  /// installed default provider, so the prebuilt account pages and every
+  /// `DV.Auth` call reach the accounts the server keeps rather than a map in
+  /// the browser tab. A provider the application wrote is never overridden.
+  static bool servedWithServerAuth =
+      const bool.fromEnvironment('DARTVEL_SERVER_AUTH');
+
+  static DVAuthProvider? get _activeProvider {
+    final DVAuthProvider? configured = _provider;
+    final DVAuthProvider? fallback = _defaultProvider;
+    if (servedWithServerAuth &&
+        fallback != null &&
+        configured.runtimeType == DVLocalAuthProvider) {
+      return fallback;
+    }
+    return configured ?? fallback;
+  }
+
   DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
 
@@ -5953,7 +5976,7 @@ class DVAuth {
   }
 
   DVSessionClient get _sessionClient {
-    final DVAuthProvider? provider = _provider ?? _defaultProvider;
+    final DVAuthProvider? provider = _activeProvider;
     if (provider is DVSessionAuthProvider) return provider.client;
     return DVSessionClient.installed ??
         (throw StateError(
@@ -5963,7 +5986,7 @@ class DVAuth {
   }
 
   DVAuthProvider get _configuredProvider {
-    final provider = _provider ?? _defaultProvider;
+    final provider = _activeProvider;
     if (provider == null) {
       throw StateError(
         'DV.Auth has no configured provider. Configure an auth adapter before signing in.',
@@ -6387,6 +6410,8 @@ extension DVFlutterTestHarness on DVTestHarness {
     DVAuth._currentUser = null;
     DVAuth._provider = null;
     DVAuth._defaultProvider = null;
+    DVAuth.servedWithServerAuth =
+        const bool.fromEnvironment('DARTVEL_SERVER_AUTH');
   }
 
   void resetBillingProvider() {
