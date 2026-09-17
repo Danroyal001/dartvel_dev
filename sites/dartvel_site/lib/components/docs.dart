@@ -31,6 +31,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'A create or edit form for every model', 'Data'),
   DocsPageInfo(DVRoutes.docssearch, 'Search',
       'Full text, hosted engines and semantic search', 'Data'),
+  DocsPageInfo(DVRoutes.docssync, 'Sync and offline',
+      'Model changes, presence and offline writes', 'Data'),
   DocsPageInfo(DVRoutes.docsdatabase, 'Database',
       'SQLite, Postgres, MySQL and migrations', 'Data'),
   DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
