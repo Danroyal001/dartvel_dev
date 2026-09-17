@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **`dartvel publish play` and `appstore` have something to upload, locally
+  and with `--cloud`.** `dartvel build android --format aab` writes the bundle
+  Play takes and `dartvel build ios --format ipa` the IPA App Store Connect
+  takes. The plan now uploads whichever `.ipa` Flutter wrote, whatever it is
+  named, and reads a Play service account key from
+  `DARTVEL_PLAY_SERVICE_ACCOUNT` when that names one. `publish play --cloud`
+  builds an App Bundle, and `publish appstore --cloud` and `testflight --cloud`
+  build a signed IPA on a macOS worker; the declaration is checked for the
+  worker's operating system before anything is sent.
+
 - **Studio is closed to signed-in customers.** The generated backend served
   the admin on a release mount to any signed-in session. It now installs
   `DVStudioGrants` over its database, so Studio opens only for a person
