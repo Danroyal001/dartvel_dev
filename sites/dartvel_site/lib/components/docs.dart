@@ -101,7 +101,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Database': 'Shipped',
   'Deployment': 'Shipped',
   'Error, Empty, and Loading States': 'Partial',
-  'File Storage': 'Shipped',
+  'File Storage': 'Partial',
   'Generated Model Pages': 'Partial',
   'Lifecycle Signals': 'Partial',
   'Mail and Notifications': 'Partial',
@@ -125,7 +125,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Theme': 'Partial',
   'UI': 'Shipped',
   'APIs': 'Shipped',
-  'Queues, Jobs, and Signals': 'Shipped',
+  'Queues, Jobs, and Signals': 'Partial',
   'Streaming Functions': 'Shipped',
   'Reversible Transactions': 'Shipped',
 };
