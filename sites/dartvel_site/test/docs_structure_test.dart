@@ -204,6 +204,10 @@ void main() {
     await tester.tap(find.text('Docs menu'));
     await settle(tester);
     expect(find.byType(DocsNav), findsOneWidget);
+    // The menu folds its groups, so open the one the page is in.
+    await tester.tap(find.descendant(
+        of: find.byType(DocsNav), matching: find.text('BACKEND')));
+    await settle(tester);
     final Finder link = find.descendant(
         of: find.byType(DocsNav), matching: find.text('Queues and jobs'));
     await tester.ensureVisible(link);
