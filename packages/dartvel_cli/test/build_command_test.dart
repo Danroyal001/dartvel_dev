@@ -463,6 +463,16 @@ void main() {
         expect(isPlatformAvailableOn(platform, 'linux'), isFalse);
       }
     });
+
+    test('a terminal target builds where its base platform builds', () {
+      // The embedder links a host engine and does not cross-build, so the
+      // answer is the base platform's. Asked as linux-cli, because preflight
+      // has to be asked under that name to check the embedder at all.
+      expect(isPlatformAvailableOn('linux-cli', 'linux'), isTrue);
+      expect(isPlatformAvailableOn('linux-tui', 'linux'), isTrue);
+      expect(isPlatformAvailableOn('linux-cli', 'macos'), isFalse);
+      expect(isPlatformAvailableOn('windows-cli', 'linux'), isFalse);
+    });
   });
 
   group('validateVSCodeArtifacts', () {
@@ -535,6 +545,32 @@ void main() {
   });
 
   group('BuildCommand', () {
+    test('a terminal build is preflighted under its own name, so the embedder is checked', () async {
+      // Preflighted as plain linux, the embedder was never among the missing
+      // tools, never installed, and the terminal build skipped on every
+      // machine that did not already have it.
+      final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
+      final preflightPlatforms = <String>[];
+      final command = BuildCommand(
+        root: temp.path,
+        preflight: (String platform, {bool? autoInstall}) async {
+          preflightPlatforms.add(platform);
+          return false;
+        },
+        processRun: (String executable, List<String> arguments,
+                {String? workingDirectory, bool runInShell = false}) async =>
+            ProcessResult(0, 0, '', ''),
+        hasBuildRunner: (String root) => false,
+      );
+      try {
+        await (CommandRunner<void>('dartvel', 'test')..addCommand(command))
+            .run(<String>['build', 'linux-tui']);
+      } finally {
+        temp.deleteSync(recursive: true);
+      }
+      expect(preflightPlatforms, <String>['linux-cli']);
+    });
+
     test('skips generation when target preflight skips every platform',
         () async {
       final temp = Directory.systemTemp.createTempSync('dartvel_build_test_');
@@ -1114,6 +1150,25 @@ void terminalRenderingTests() {
         expect(plan.usesFlutterDesktopBuild, isFalse,
             reason: '$platform-cli must not run a GUI build');
       }
+    });
+
+    test('the plan passes dartvel-cli-flt only the options it accepts', () {
+      // Its build command takes --project, --out and --release. The plan
+      // used to append the Flutter mode flag, so a development build ran
+      // `dartvel-cli-flt build linux --debug` and clap refused it: the target
+      // never built through `dartvel build` at all.
+      const accepted = <String>{'--project', '--out', '--release'};
+      for (final mode in <String>['--debug', '--profile', '--release']) {
+        final plan = terminalBuildPlan('linux', buildMode: mode);
+        final flags = plan.arguments.where((String a) => a.startsWith('--'));
+        expect(accepted, containsAll(flags), reason: mode);
+      }
+      expect(terminalBuildPlan('linux', buildMode: '--debug').arguments,
+          isNot(contains('--release')));
+      // A release is asked for as one, and the embedder refuses it by name
+      // rather than being handed a debug build under a release profile.
+      expect(terminalBuildPlan('linux', buildMode: '--release').arguments,
+          contains('--release'));
     });
   });
 

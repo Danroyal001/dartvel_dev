@@ -221,6 +221,26 @@ void main() {
       expect(embedder.executable, contains('dartvel-cli-flt'));
     });
 
+    test('the install puts the binary where preflight looks for it', () {
+      // It used to be `cargo install --git <fork> dartvel-cli-flt`, and no
+      // package in the fork is called that -- the binary belongs to flt-cli --
+      // so the install failed on every machine and the target skipped.
+      //
+      // Followed the way cargo follows it: `--root R --bin B` writes R/bin/B,
+      // from the package at --path, which must be inside what was cloned.
+      final embedder =
+          toolRequirementsFor('linux-cli', home: '/home/dev').single;
+      final clone = embedder.installCommand!;
+      expect(clone.take(2), <String>['git', 'clone']);
+      final String checkout = clone.last;
+
+      final install = embedder.postInstall!;
+      expect(install.take(2), <String>['cargo', 'install']);
+      String option(String name) => install[install.indexOf(name) + 1];
+      expect(option('--path'), startsWith('$checkout/'));
+      expect('${option('--root')}/bin/${option('--bin')}', embedder.executable);
+    });
+
     test('every terminal target names the same embedder', () {
       // -cli and -tui are one target under two names, and macos-cli must not
       // quietly require something different from linux-cli.

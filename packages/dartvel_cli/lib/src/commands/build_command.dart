@@ -256,10 +256,13 @@ TerminalBuildPlan terminalBuildPlan(
     // because that is where Dartvel installs it — and a plan naming something
     // nothing installs is the Fuchsia defect.
     toolchain: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
+    // dartvel-cli-flt takes --release and nothing for any other mode: it
+    // refuses a release by name, since it has no AOT yet, rather than being
+    // handed a Flutter mode flag it does not parse.
     arguments: <String>[
       'build',
       platform,
-      if (buildMode != null) buildMode,
+      if (buildMode == '--release') '--release',
     ],
   );
 }
@@ -428,6 +431,14 @@ String? embeddedHostRequirement(String platform) => switch (platform) {
     };
 
 bool isPlatformAvailableOn(String platform, String hostOs) {
+  // A terminal build needs the host its base platform needs: the embedder
+  // links a host engine and does not cross-build.
+  for (final suffix in const <String>['-cli', '-tui']) {
+    if (!platform.endsWith(suffix)) continue;
+    final base = platform.substring(0, platform.length - suffix.length);
+    return terminalCapablePlatforms.contains(base) &&
+        isPlatformAvailableOn(base, hostOs);
+  }
   switch (platform) {
     case 'web':
     case 'web-server':
@@ -736,8 +747,14 @@ class BuildCommand extends Command<void> {
     var skipped = 0;
     final buildablePlatforms = <String>[];
     final preflight = _preflightOverride ?? _preflight;
+    // A terminal-only build is checked under its terminal name, which is
+    // what brings the embedder into the check and the install.
+    final bool terminalOnlyBuild =
+        renderBackends.contains(DVRenderBackend.terminal) &&
+            !renderBackends.contains(DVRenderBackend.gui);
     for (final platform in platforms) {
-      if (await preflight(platform, autoInstall: autoInstall)) {
+      final String checked = terminalOnlyBuild ? '$platform-cli' : platform;
+      if (await preflight(checked, autoInstall: autoInstall)) {
         buildablePlatforms.add(platform);
       } else {
         skipped += 1;
@@ -3717,11 +3734,19 @@ class BuildCommand extends Command<void> {
     }
 
     final home = resolveToolchainHome();
-    var missing = missingRequirements(
-      platform,
-      isInstalled: isExecutableOnPath,
-      home: home,
-    );
+    // A terminal build still runs the desktop build for its native-asset
+    // compiler settings, so it needs the base platform's tools and the
+    // embedder.
+    final String base = normalizeBuildTarget(platform).platform;
+    var missing = <ToolRequirement>[
+      if (base != platform)
+        ...missingRequirements(base, isInstalled: isExecutableOnPath, home: home),
+      ...missingRequirements(
+        platform,
+        isInstalled: isExecutableOnPath,
+        home: home,
+      ),
+    ];
     if (missing.isEmpty) return true;
 
     Logger.log('');
