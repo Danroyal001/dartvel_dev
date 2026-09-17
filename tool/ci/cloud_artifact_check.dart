@@ -3,6 +3,13 @@
 ///
 ///   dart tool/ci/cloud_artifact_check.dart android examples/basic_app/build/cloud/android
 ///   dart tool/ci/cloud_artifact_check.dart ios examples/basic_app/build/cloud/ios
+///   dart tool/ci/cloud_artifact_check.dart aab examples/basic_app/build/app/outputs/bundle/release
+///   dart tool/ci/cloud_artifact_check.dart ipa-archive examples/basic_app/build/ios/archive
+///
+/// An App Bundle is a zip laid out by module: base/manifest/AndroidManifest.xml,
+/// base/dex/classes.dex, compiled Dart under base/lib, and BundleConfig.pb,
+/// which is what makes it a bundle Play accepts and not an APK renamed. An
+/// unsigned IPA build stops at Runner.xcarchive, whose app is a Mach-O.
 ///
 /// An APK is a zip whose central directory names AndroidManifest.xml and
 /// classes.dex. An iOS build is a Runner.app with an Info.plist and a Mach-O
@@ -17,7 +24,7 @@ import 'dart:typed_data';
 
 void main(List<String> args) {
   if (args.length != 2) {
-    stderr.writeln('usage: cloud_artifact_check.dart <android|ios> <dir>');
+    stderr.writeln('usage: cloud_artifact_check.dart <android|ios|aab|ipa-archive> <dir>');
     exit(64);
   }
   final Directory dir = Directory(args[1]);
@@ -37,6 +44,34 @@ void main(List<String> args) {
         }
         stdout.writeln('ok: ${apk.path} (${apk.lengthSync()} bytes, ${names.length} entries)');
       }
+    case 'aab':
+      final List<File> bundles = files.where((File f) => f.path.endsWith('.aab')).toList();
+      if (bundles.isEmpty) _fail('no .aab under ${dir.path}');
+      for (final File bundle in bundles) {
+        final Set<String> names = _zipNames(bundle);
+        for (final String wanted in <String>[
+          'BundleConfig.pb',
+          'base/manifest/AndroidManifest.xml',
+          'base/dex/classes.dex',
+        ]) {
+          if (!names.contains(wanted)) _fail('${bundle.path} has no $wanted');
+        }
+        if (!names.any((String n) => n.startsWith('base/lib/') && n.endsWith('libapp.so'))) {
+          _fail('${bundle.path} carries no compiled Dart (base/lib/*/libapp.so)');
+        }
+        stdout.writeln('ok: ${bundle.path} (${bundle.lengthSync()} bytes, ${names.length} entries)');
+      }
+    case 'ipa-archive':
+      final File? info = files
+          .where((File f) => f.path.endsWith('.xcarchive/Info.plist'))
+          .firstOrNull;
+      if (info == null) _fail('no .xcarchive/Info.plist under ${dir.path}');
+      final File? app = files
+          .where((File f) => RegExp(r'\.xcarchive/Products/Applications/[^/]+\.app/Runner$').hasMatch(f.path))
+          .firstOrNull;
+      if (app == null) _fail('the archive has no Products/Applications/*.app/Runner');
+      _machO(app);
+      stdout.writeln('ok: ${app.path} (${app.lengthSync()} bytes, Mach-O, unsigned archive)');
     case 'ios':
       final File? plist = files
           .where((File f) => f.path.endsWith('Runner.app/Info.plist'))
@@ -44,14 +79,18 @@ void main(List<String> args) {
       if (plist == null) _fail('no Runner.app/Info.plist under ${dir.path}');
       final File binary = File('${plist.parent.path}/Runner');
       if (!binary.existsSync()) _fail('Runner.app has no Runner executable');
-      final Uint8List head = binary.openSync().readSync(4);
-      final int magic = head.length < 4 ? 0 : ByteData.sublistView(head).getUint32(0, Endian.little);
-      if (magic != 0xfeedfacf && magic != 0xcafebabe && magic != 0xbebafeca) {
-        _fail('${binary.path} is not a Mach-O executable (magic ${magic.toRadixString(16)})');
-      }
+      _machO(binary);
       stdout.writeln('ok: ${binary.path} (${binary.lengthSync()} bytes, Mach-O)');
     default:
       _fail('no check for ${args[0]}');
+  }
+}
+
+void _machO(File binary) {
+  final Uint8List head = binary.openSync().readSync(4);
+  final int magic = head.length < 4 ? 0 : ByteData.sublistView(head).getUint32(0, Endian.little);
+  if (magic != 0xfeedfacf && magic != 0xcafebabe && magic != 0xbebafeca) {
+    _fail('${binary.path} is not a Mach-O executable (magic ${magic.toRadixString(16)})');
   }
 }
 
