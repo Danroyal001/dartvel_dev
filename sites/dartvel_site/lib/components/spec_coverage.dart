@@ -149,6 +149,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       DVRoutes.docsplatformapi, 'Issue an API key', anchor: 'keys'),
   SpecCoverage('Multi-tenancy', 'Backend', DVRoutes.docstenancy,
       'Resolve the tenant from the request', anchor: 'resolve'),
+  SpecCoverage('Organizations, Membership and Invitations', 'Backend',
+      DVRoutes.docsorganizations, 'Invite people by email', anchor: 'invite'),
   SpecCoverage('AI', 'Backend', DVRoutes.docsai, 'Pick a provider',
       anchor: 'configure'),
   SpecCoverage('AI Operations', 'Backend', DVRoutes.docsai,
@@ -222,7 +224,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Content Workflow': 'Data',
 
   // Backend
-  'Organizations, Membership and Invitations': 'Backend',
   'Web Server Rendering': 'Backend',
   'Protocol Versioning and Client Compatibility': 'Backend',
   'Billing': 'Backend',
