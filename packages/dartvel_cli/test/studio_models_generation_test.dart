@@ -6,9 +6,11 @@
 // public page specs, where each model's rows are -- the table, the key the
 // generated find() uses, which fields are sensitive, whether rows belong to a
 // tenant -- and the backend hands that to the admin server it mounts.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/backend_generator.dart';
+import 'package:dartvel_core/dartvel.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'package:dartvel_cli/src/generators/model_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -89,6 +91,29 @@ void main() {
     // No String field: the first field is the key, as the model's own.
     expect(note, contains("key: 'order'"));
     expect(note, contains('versioned: false'));
+  });
+
+  test('the models are also written as a manifest a development server reads',
+      () async {
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'shop', buildId: 'b');
+    final File manifest =
+        File(p.join(root.path, '.dart_tool', 'dartvel_studio_models.json'));
+
+    expect(manifest.existsSync(), isTrue);
+    final List<Object?> models =
+        (jsonDecode(manifest.readAsStringSync()) as Map)['models'] as List<Object?>;
+    final DVStudioModelSpec account = DVStudioModelSpec.fromManifest(
+      (models.cast<Map>().firstWhere((Map m) => m['model'] == 'Account'))
+          .cast<String, Object?>(),
+    );
+    expect(account.table, 'accounts');
+    expect(account.key, 'id');
+    expect(account.tenantScoped, isTrue);
+    expect(
+      account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'secret').sensitive,
+      isTrue,
+    );
   });
 
   test('an enum field carries its values, and a field naming another model '
