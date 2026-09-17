@@ -23,6 +23,26 @@ void main() {
       expect(tenants.resolve(Uri.parse('http://localhost:8080/')), isNull);
     });
 
+    test('an IP address names no tenant', () {
+      // 127.0.0.1 has four dot-separated parts and no subdomain. Read as one,
+      // every request to a server by its address ran on a tenant called
+      // "127" (or "0", or "10"), and whatever it wrote landed there.
+      for (final String url in <String>[
+        'http://127.0.0.1:8080/',
+        'http://0.0.0.0/',
+        'https://10.1.2.3/orders',
+        'http://[::1]:8080/',
+        'http://[2001:db8::1]/',
+        'http://[::ffff:192.168.0.1]/',
+      ]) {
+        expect(tenants.resolve(Uri.parse(url)), isNull, reason: url);
+        expect(tenants.adopt(Uri.parse(url)), DVTenants.defaultTenant,
+            reason: url);
+      }
+      // The control: a hostname that merely starts with digits is still one.
+      expect(tenants.resolve(Uri.parse('https://123.example.com/')), '123');
+    });
+
     test('www is the site, not a tenant', () {
       expect(tenants.resolve(Uri.parse('https://www.example.com/')), isNull);
     });

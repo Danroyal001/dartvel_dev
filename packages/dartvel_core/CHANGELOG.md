@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **An IP-address host names no tenant.** `DVTenants.resolve` read the first
+  label of every host with three or more dots as a subdomain, so a request to
+  `127.0.0.1` ran on a tenant called `127`, one to `10.0.0.5` on `10`, and so
+  on. IPv4 and IPv6 hosts now resolve to no tenant, and so to the default one.
+  **Data written through an IP-address host before this fix is under that
+  numeric tenant** (`127`, `0`, `10`, ...), not `default`, and so are sessions
+  issued there, which now fail to authenticate. Move or copy those rows to
+  the default tenant if they should be kept.
+
 - **`DVShorebirdPatchSource` answers `Request`/`Response`, and publishes.**
   `respond()` serves the updater's check, downloads and events in the shape a
   Dartvel server answers in, builds download URLs from the host the device
