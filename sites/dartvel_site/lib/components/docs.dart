@@ -191,6 +191,52 @@ void dvDocsGoTo(BuildContext context, String id) {
   );
 }
 
+/// Scrolls to the section the address names after `#`, once the page is up.
+///
+/// A link such as dartvel.dev/cloud#plans is printed by the CLI, and Flutter
+/// does not scroll to a fragment by itself: the page would open at the top
+/// and the reader would never see the section the link was for. The section
+/// is found by its key in the enclosing [DocsAnchors]. Frames are retried a
+/// few times, because a page that loads deferred code builds its sections a
+/// frame or two after this is first built.
+class ScrollToFragment extends StatefulWidget {
+  const ScrollToFragment({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ScrollToFragment> createState() => _ScrollToFragmentState();
+}
+
+class _ScrollToFragmentState extends State<ScrollToFragment> {
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final String fragment =
+        GoRouter.maybeOf(context)?.routeInformationProvider.value.uri.fragment ?? '';
+    if (fragment.isNotEmpty) _scroll(fragment, 10);
+  }
+
+  void _scroll(String id, int tries) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final BuildContext? target = DocsAnchors.maybeOf(context)?[id]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(target);
+      } else if (tries > 0) {
+        _scroll(id, tries - 1);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 /// A docs page: its title, what it covers, its sections, and the way on.
 @DVFunctionalWidget()
 Widget _docsArticle(
