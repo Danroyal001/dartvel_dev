@@ -12,6 +12,8 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
+import 'package:dartvel_shelf/src/native_library.dart'
+    show nativeServerLibraryLocation;
 import 'package:test/test.dart';
 
 void main() {
@@ -110,16 +112,11 @@ bool _exports(ffi.DynamicLibrary library, String symbol) {
   }
 }
 
+// The library this host loads, by the lookup the server itself uses. This
+// had a table of its own that sent every Windows host to windows-x64, and
+// on windows-arm64 the check failed with "not a valid Win32 application"
+// against a library that was never the one under test.
 String _libraryPath() {
-  if (Platform.isMacOS) {
-    final arch = _arch();
-    return 'lib/native/macos-$arch/libdartvel_shelf.dylib';
-  }
-  if (Platform.isWindows) {
-    return 'lib/native/windows-x64/dartvel_shelf.dll';
-  }
-  return 'lib/native/linux-${_arch()}/libdartvel_shelf.so';
+  final location = nativeServerLibraryLocation();
+  return 'lib/native/${location.subdir}/${location.name}';
 }
-
-String _arch() =>
-    Platform.version.contains('arm64') ? 'arm64' : 'x64';
