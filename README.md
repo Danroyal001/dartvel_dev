@@ -94,9 +94,9 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Outbound HTTP** | `DV.Http` with declared hosts, retries, a per-host circuit breaker and test fakes. A native client speaks HTTP/2 and HTTP/3 ([details](docs/http-transport.md)). No provider adapters use `DV.Http` yet | ⚠️ Partial |
 | **Outbound Webhooks** | `DVWebhooks`: durable deliveries on queues, HMAC signing with key rotation, private-address refusal on every hop, dead letters. Subscriptions are not generated models yet | ⚠️ Partial |
 | **Database** | SQLite (file and in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines | ✅ Shipped |
-| **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker | ✅ Shipped |
+| **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker. No delayed jobs, backoff schedule or uniqueness keys yet | ⚠️ Partial |
 | **Cache** | Memory, database, Redis, Memcached and multi-node distributed adapters, with tags and revalidation | ✅ Shipped |
-| **File Storage** | Memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage | ✅ Shipped |
+| **File Storage** | Memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No local disk adapter or streaming put and get yet | ⚠️ Partial |
 | **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
 | **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
 | **Semantic Search** | `DVSemanticIndex`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The index is wired by hand and the only vector adapter is in-memory | ⚠️ Partial |

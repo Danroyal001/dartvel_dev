@@ -1561,7 +1561,7 @@ is showing.
 
 # Queues, Jobs, and Signals
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Dartvel has a durable background work layer inspired by Laravel queues and a
 typed signal model inspired by Qt signals/slots, Dart streams, Riverpod, and
@@ -3232,7 +3232,7 @@ annotation or `DVInboundMessage` type yet.
 
 # File Storage
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Unified API, supports:
 

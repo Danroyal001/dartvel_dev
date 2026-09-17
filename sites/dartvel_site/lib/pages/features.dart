@@ -69,12 +69,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'that reads it.',
   ),
   (
-    'Queues, Jobs, and Signals',
-    'DV.Jobs and DV.Queues',
-    'Seven queue adapters, from in-memory to Kafka. The network adapters are '
-        'tested against real brokers in CI. Absent: a completed job state.',
-  ),
-  (
     'Authorization',
     'DV.Auth.authorization',
     'Typed policies over models, functions and pages. A policy nobody '
@@ -98,12 +92,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'dartvel import openapi',
     'Import an OpenAPI spec or a Postman collection as models and typed '
         'functions.',
-  ),
-  (
-    'File Storage',
-    'S3, Azure Blob, GCS',
-    'One storage API over three object stores. Azure and GCS run against '
-        'Azurite and fake-gcs-server in CI.',
   ),
   (
     'Cache',
@@ -567,6 +555,19 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'revocation feed beyond a local key list.',
   ),
   (
+    'Queues, Jobs, and Signals',
+    'DV.Jobs and DV.Queues',
+    'Present: seven queue adapters, from in-memory to Kafka, tested against '
+        'real brokers in CI. Absent: delayed jobs, a backoff schedule and '
+        'uniqueness keys.',
+  ),
+  (
+    'File Storage',
+    'S3, Azure Blob, GCS',
+    'Present: one storage API over three object stores, run against Azurite '
+        'and fake-gcs-server in CI. Absent: a local disk adapter and streams.',
+  ),
+  (
     'Generated Model Pages',
     'Model.Page(...)',
     'Present: public pages per model with .async, .signal and .fromId. '
@@ -648,9 +649,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Thirty shipped sections.', level: 1),
+        Heading('Twenty-eight shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy more are partial, and each card says what is missing.',
+          'Seventy-two more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
