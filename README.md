@@ -6,18 +6,18 @@
 
 ---
 
-## ⚠️ Alpha status — read this first
+## ⚠️ Alpha status: read this first
 
 Dartvel is an **alpha**. It is usable and much of it is real, but it is not
 finished, and this section exists so you can tell the difference without
 reading the source.
 
-**[NEW_SPEC.md](NEW_SPEC.md) is a design specification, not a description of
-what ships today.** Where the spec and this README disagree with the code, the
+**[NEW_SPEC.md](NEW_SPEC.md) is a design specification.** It describes where
+Dartvel is going. Where the spec or this README disagrees with the code, the
 code wins.
 
-**Published**, and installable three ways — see
-[Getting Started](#-getting-started) rather than a second copy of it here.
+**Published**, and installable three ways. See
+[Getting Started](#-getting-started).
 
 [dartvel.dev](https://dartvel.dev) is built with Dartvel, which is the reason
 several of its worst bugs are fixed: Flutter's hash URLs silently sent every
@@ -25,53 +25,42 @@ deep link to `/`, the semantics tree was never built so no crawler and no
 screen reader saw anything, and links tore the document down and rebuilt the
 whole application instead of routing. None of those show up in a unit test.
 
-**What is actually built** is not listed here, deliberately. A hand-written
-table of recent work is out of date the week after it is written, and this one
-was. [`docs/spec-status.json`](docs/spec-status.json) carries a status per spec
-section and `dart run tool/spec_status_check.dart` fails when a section claims
-to be built and the evidence it names does not exist. `dartvel spec status`
-prints the same thing.
+**Status lives in one file, and a tool checks it.**
+[`docs/spec-status.json`](docs/spec-status.json) records every spec section
+with two labels: how much its public surface can still move (`Draft` or
+`Contract`) and how much is built (`Designed`, `Partial` or `Shipped`). A
+partial section says what is missing. `dart run tool/spec_status_check.dart`
+fails when a section claims to be built and the evidence it names does not
+exist, and `dartvel spec status` prints the summary. This README does not
+repeat the totals, because a count copied by hand is wrong a week later.
 
-**Implemented, but not equally mature.** The feature table below marks each
-area. Anything flagged ⚠️ Partial has an API surface and prebuilt pieces, but
-is incomplete in the way the row names — expect to fill gaps yourself.
-📐 Designed means the contract is settled in NEW_SPEC.md and **no
-implementation exists behind it**; it is listed so the shape is public, not
-because you can use it.
+The feature table below uses the same labels. ⚠️ Partial means there is an API
+and working pieces, with gaps the index names. 📐 Designed means the contract
+is settled and nothing is built behind it yet.
 
-**How "verified" is used here.** A target marked ✅ had its build run and its
-artifact inspected — the file listed, its type checked. That proves it
-compiles and links; it does not prove the application starts.
+**How "verified" is used here.** A target marked ✅ in
+[docs/build-targets.md](docs/build-targets.md) had its build run and its
+artifact inspected. That proves it compiles and links. It does not prove the
+application starts, so most targets go further: the
+[runtime verification workflow](.github/workflows/runtime-verification.yml)
+launches the app on every push and photographs what it drew: Linux, Linux in a
+terminal, the web, Android on an emulator, macOS, iOS and tvOS on simulators,
+Windows, Sony eLinux on a virtual device, and both browser extensions. The
+web-server build is started and asked for each route. A capture is checked for
+*pixels*. Every job used to end at `test -s capture.png`, which a blank screen
+satisfies: a crash before the first frame still writes a full-size image of
+one colour.
 
-Eleven targets go further and are run in CI: Linux, Linux in a terminal, the
-web, a web server rendering each route, Android, macOS, iOS, Windows, tvOS,
-Sony eLinux, and both browser extensions. The app is launched on a virtual
-device, an emulator or a real browser and screenshotted, and the screenshot is
-checked for *pixels* rather than for existing. That check earned itself. Every job used to end at
-`test -s capture.png`, which a blank screen satisfies — a crash before the
-first frame produces a full-size image of one colour, a few kilobytes on disk,
-and a green build.
-
-**Where it says shipped, a tool agrees.** Per-section status lives in
-[`docs/spec-status.json`](docs/spec-status.json), checked by
-`dart run tool/spec_status_check.dart`, which fails when a section claims to be
-built and the evidence it names does not exist. Each entry carries two labels
-— how much the public surface can still move, and how much is built — so a
-frozen contract that is deliberately unbuilt reads as the scope rule working
-rather than as a gap. Twenty-two sections are shipped; thirty-three are
-partial and say what is missing.
-
-**Build targets** are individually verified with evidence in
-[docs/build-targets.md](docs/build-targets.md). Thirteen of fifteen build.
-webOS builds and runs in a Wayland window on ARM under emulation — its engine
-is a 32-bit ARM build Google does not publish, so Dartvel builds it from
-source — though it has not been run on a television. Fuchsia is blocked on its
+webOS runs in a Wayland window on ARM under emulation in its own workflow. Its
+engine is a 32-bit ARM build Google does not publish, so Dartvel builds it
+from source. It has not been run on a television. Fuchsia is blocked on its
 engine, which does not build at Flutter 3.44.5: four attempts are recorded,
-and the last matches the embedder fork's own invocation exactly and still
-fails on a Dart VM thread-local being linked into a shared library.
+and the last matches the embedder fork's own invocation and still fails on a
+Dart VM thread-local linked into a shared library. Tizen and VS Code build and
+have not been run.
 
 If you hit something that claims to work and does not, that is a bug in these
-docs as much as in the code — please report it.
+docs as much as in the code. Please report it.
 
 ---
 
@@ -92,36 +81,51 @@ Everything else is automatically compiled, generated, or served by the framework
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
-| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling built on `Mix` | ✅ Implemented |
-| **Routing** | File-based pages router with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Implemented |
-| **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Implemented |
-| **Models & Forms** | `@DVModel` annotation + `DVForm<T>` automatic & manual controls | ✅ Implemented |
-| **Backend Runtime** | Axum/Tokio Rust server calling Dart FFI, supporting SSE streams | ✅ Implemented |
-| **Platform APIs** | `DV.Platform` on six platforms — Linux, web, Windows, Android, iOS, macOS — through `dart:ffi` and jnigen, never platform channels. Biometrics, NFC, Bluetooth and tray need an `Activity` or a desktop the web has not got; each absence is recorded with its reason | ⚠️ Partial |
-| **Authentication** | Local provider with salted password hashes, OAuth2 (PKCE) with Google/GitHub/GitLab/Bitbucket/Microsoft presets, LDAP, SAML 2.0, passkeys (WebAuthn) and Sign-In with Ethereum | ✅ Implemented |
-| **Outbound HTTP** | Protocol negotiation with ordered fallback, RFC 8297 early hints, and a native HTTP/2 client on the `h2` crate verified against a live server; HTTP/3 is not complete | ⚠️ Partial |
-| **Terminal rendering** | `-cli`/`-tui` targets resolve, build-time backend selection, `DV.Platform.surface`, launch negotiation. The terminal backend itself is not built | ⚠️ Partial |
-| **Database** | SQLite (file + in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines so Aurora, Neon, Supabase, PlanetScale and Cloud SQL are reachable | ✅ Implemented |
-| **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters -- in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four network ones are verified in CI against a real broker | ✅ Implemented |
-| **Cache** | A pluggable cache with memory, database, Redis, Memcached and multi-node distributed adapters, tags and revalidation | ✅ Implemented |
-| **Mail & Notifications** | SMTP plus HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM push, APNS over native HTTP/2, Web Push (RFC 8291/8292), and Twilio SMS | ✅ Implemented |
-| **SEO** | `dartvel build web` writes the head tags, JSON-LD, per-route HTML built from the semantics tree, `sitemap.xml` with a styled stylesheet, and `robots.txt` | ✅ Implemented |
-| **PWA** | Manifest, a viewport meta on every built page, icons generated from web/icon.png, a service worker that precaches the build's routes and keeps an outbox of writes made offline, replayed in order once the network is back -- verified in a real Chrome on every push -- a self-contained offline page, and `DV.Platform.install` for the install prompt | ✅ Shipped |
-| **AI Integration** | HTTP adapters for Claude, OpenAI, Gemini, OpenRouter, and Ollama, plus the deterministic local adapter | ✅ Implemented |
-| **Sensitive Fields** | `@DVModel.sensitiveField()` redacts fields from public serialization, cards, logs, and AI context; `encrypted: true` adds AES-256-GCM at rest, keyed from `DARTVEL_FIELD_KEYS` on the server | ✅ Implemented |
-| **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction` | ✅ Implemented |
-| **Modules** | `DV.Modules.<id>` registry with per-module lifecycle and mount-point independence | ✅ Implemented |
-| **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Implemented |
-| **Observability** | Structured logs, Prometheus metrics on `/metrics`, real health checks on `/health`, and W3C Trace Context propagation with sampling decided from the trace id | ✅ Implemented |
-| **Scheduling** | `@DVBackendCron` and `@DVClientCron` collected into generated entries, a CLDR-correct cron evaluator, and `DVScheduler` to run them | ✅ Implemented |
-| **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with per-call sequences | ✅ Implemented |
-| **Deployment** | `dartvel deploy` to Firebase, Vercel, Netlify and Cloudflare, plus function mode writing a per-function artifact for Lambda, Cloud Run, containers, edge, Fly, Railway and bare metal. It refuses to ship an environment whose required secrets do not resolve | ✅ Implemented |
-| **Data workflows** | CSV, NDJSON and Excel import/export, resumable chunked imports through queues, policy-filtered and streamed exports, scheduled reports | ✅ Implemented |
-| **Secrets** | Declared under `dartvel.secrets`; `DV-SECRETS-001` fails the build when a backend-scoped secret is reached from client code. Rotation hooks and platform key stores are not built | ⚠️ Partial |
-| **i18n** | CLDR plural rules, typed translation keys, and `dartvel i18n extract`/`check` over ARB catalogues. No route locale negotiation or localized mail templates yet | ⚠️ Partial |
-| **Accessibility** | Contrast and tap-target checks, semantic modifiers, and `DVTable` with keyboard navigation, focus that survives a sort and per-cell announcements. Nothing fails a release on a regression yet | ⚠️ Partial |
-| **Multi-Window & Kiosk** | Specified as a contract — a window is a route, `open()` never fails, kiosk is a per-device or per-display policy. `DV.Window` degrades correctly on every target; **no native window bindings exist, so no OS window is created yet** | 📐 Designed |
-| **Build Targets** | Mobile, web, desktop, plus TV/embedded via vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial — see [table](#-build-targets) |
+| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling built on `mix` | ✅ Shipped |
+| **Routing** | File-based pages with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Shipped |
+| **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Shipped |
+| **Models & Forms** | `@DVModel` generates schema, CRUD, validation, serialization, `User.Form(...)`, `User.Table(...)` and `User.Page(...)` | ✅ Shipped |
+| **Record History** | Versioned writes refused on conflict, opt-in history with revert, soft delete and restore on generated models. No Studio history view or scheduled retention yet | ⚠️ Partial |
+| **Offline-First Models** | `DVOfflineStore`: local writes, an ordered mutation log replayed on reconnect, dead letters. `@DVModel(offline:)` is not generated yet, so it is wired by hand | ⚠️ Partial |
+| **Backend Runtime** | Axum/Tokio Rust server calling Dart over FFI, with SSE streams | ✅ Shipped |
+| **Platform APIs** | `DV.Platform` through `dart:ffi` and jnigen, never platform channels. Coverage differs a lot per target and iOS binds the fewest; `dart tool/binding_coverage.dart` counts it from the source | ⚠️ Partial |
+| **Authentication** | Local provider with salted password hashes, OAuth2 (PKCE) presets for Google, GitHub, GitLab, Bitbucket and Microsoft, LDAP, SAML 2.0, passkeys (WebAuthn) and Sign-In with Ethereum | ✅ Shipped |
+| **Sessions & Second Factor** | Hashed session tokens rotated at every privilege change, device lists and revocation, TOTP with recovery codes, served by the generated backend. No passkey second factor or per-tenant MFA policy yet | ⚠️ Partial |
+| **Outbound HTTP** | `DV.Http` with declared hosts, retries, a per-host circuit breaker and test fakes. A native client speaks HTTP/2 and HTTP/3 ([details](docs/http-transport.md)). No provider adapters use `DV.Http` yet | ⚠️ Partial |
+| **Outbound Webhooks** | `DVWebhooks`: durable deliveries on queues, HMAC signing with key rotation, private-address refusal on every hop, dead letters. Subscriptions are not generated models yet | ⚠️ Partial |
+| **Database** | SQLite (file and in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines | ✅ Shipped |
+| **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker | ✅ Shipped |
+| **Cache** | Memory, database, Redis, Memcached and multi-node distributed adapters, with tags and revalidation | ✅ Shipped |
+| **File Storage** | Memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage | ✅ Shipped |
+| **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
+| **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
+| **Semantic Search** | `DVSemanticIndex`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The index is wired by hand and the only vector adapter is in-memory | ⚠️ Partial |
+| **SEO** | `dartvel build web` writes head tags, JSON-LD, per-route HTML from the semantics tree, `sitemap.xml` and `robots.txt` | ✅ Shipped |
+| **PWA** | Manifest, icons, a service worker that precaches routes and replays writes made offline (tested in a real Chrome on every push), an offline page, and `DV.Platform.install` | ✅ Shipped |
+| **AI Integration** | Adapters for Claude, OpenAI, Gemini, OpenRouter and Ollama plus a deterministic local one, structured output, tool calling and agents | ✅ Shipped |
+| **Feature Flags** | Typed flags from `@DVFlags`, percentage and targeted rollout, `dartvel flags list` and `prune`. Nothing publishes rules per environment yet | ⚠️ Partial |
+| **OTA Updates** | `dartvel updates release`, `patch` and `rollback` over Shorebird, or into a patch source your own web-server binary hosts. Patches apply on Android; iOS is not proven | ⚠️ Partial |
+| **Crash Reporting** | Crashes written by the handler and sent on the next launch, breadcrumbs, fingerprints, release health. No native signal or JVM handlers yet | ⚠️ Partial |
+| **Usage Metering** | Per-tenant counters and gauges with limits, billing periods and reporting to a billing provider. No `@DVMeter` generation or CLI yet | ⚠️ Partial |
+| **Observability** | Prometheus metrics on `/metrics`, real health checks on `/health`, W3C Trace Context with sampling decided from the trace id. There is no log sink and no OTLP exporter | ⚠️ Partial |
+| **Sensitive Fields** | `@DVModel.sensitiveField()` keeps fields out of public serialization, logs and AI context; `encrypted: true` adds AES-256-GCM at rest on the generated model's own read and write path | ⚠️ Partial |
+| **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction`. Some states are not emitted yet | ⚠️ Partial |
+| **Modules** | `DV.Modules.<id>` with modules mounted at build time, their pages, backend functions, cron and tables merged into the parent | ⚠️ Partial |
+| **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Shipped |
+| **Scheduling** | `@DVBackendCron` and `@DVClientCron`, a cron evaluator, and database leases so one process runs each occurrence. No per-target capability report yet | ⚠️ Partial |
+| **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences | ✅ Shipped |
+| **Deployment** | `dartvel build web-server` makes one executable with the backend, the web app and Studio. `dartvel deploy` ships to Firebase, Vercel, Netlify and Cloudflare, or writes a per-function artifact | ✅ Shipped |
+| **Dartvel Studio** | The admin dashboard and visual page editor. The web-server binary serves it at `/__studio`: always in a development build, and in a release build only when `dartvel.admin.enabled` is set | ✅ Shipped |
+| **Development Builds** | `dartvel dev` pairs with a `--profile development` build over TLS and hot reloads it on save, on Android, iOS, macOS, Linux and Windows | ⚠️ Partial |
+| **Dartvel Cloud** | The CLI side of hosted builds and store publishing (`--cloud`). The hosted service has not launched | ⚠️ Partial |
+| **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
+| **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
+| **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
+| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, switch control, and a release gate in `dartvel build web` that audits the semantics tree a real browser produced | ✅ Shipped |
+| **Terminal Rendering** | `-cli`/`-tui` targets, build-time backend selection, terminal size and graphics detection. The renderer lives in the `dartvel_cli_flt` fork, which a build needs installed | ⚠️ Partial |
+| **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
+| **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
+| **Build Targets** | Mobile, web, desktop, TV and embedded through vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial, see [Build Targets](#-build-targets) |
 
 ---
 
@@ -174,34 +178,42 @@ specification by hand.
 ```bash
 dartvel build              # every target this host can build
 dartvel build web
+dartvel build web-server   # one executable: backend, web app and Studio
+dartvel build android --profile development   # a build dartvel dev can pair with
 dartvel build tizen        # alias: dartvel build tpk
-dartvel build sony-elinux  # also: sony-elinux-iso, sony-elinux-img
+dartvel build sony-elinux --format iso        # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
+dartvel build tvos --simulator   # the only unsigned tvOS build
+dartvel build linux-cli    # the terminal backend and no GUI code
 dartvel build vscode       # VS Code extension host + Flutter webview
 ```
 
-Verified on Linux x64 against `examples/dartvel_example`. "Verified" means the command was run and the artifact inspected:
+A short version of [docs/build-targets.md](docs/build-targets.md), which has
+the evidence for every row. "Runs" means the application was launched and
+what it drew was checked, usually on every push.
 
 | Target | Status |
 | :--- | :--- |
-| `linux` | ✅ Builds **and runs** — an integration test launches it under Xvfb in CI on every push |
-| `web`, `android`, `fireos` | ✅ Build, artifacts verified |
-| `windows` | ✅ Verified on a CI host — `dartvel_example.exe` is a PE32+ x86-64 binary beside `dartvel_shelf.dll` |
-| `macos` | ✅ Verified on a CI host — a Mach-O **universal binary** (x86_64 + arm64) with the Rust runtime bundled as a framework |
-| `ios`, `tvos` | ✅ Verified on a CI host — `Runner.app`, and for tvOS an `appletvsimulator` build rather than an iPhone one |
-| `tizen` / `tpk` | ✅ Signed 9.3MB TPK containing the engine and assets |
-| `chrome-extension`, `firefox-extension` | ✅ Build — MV3 service worker and event-page manifests, verified to differ |
-| `vscode` | ✅ Builds — verified extension host JS and Flutter webview artifacts |
-| `webos`, `sony-elinux` | ❌ Blocked — both embedders ship a Dart below `mix`'s ≥3.11 floor. Ours to fix by re-pinning the forks, not a vendor limit |
-| `fuchsia` | ⚠️ Builds the Flutter bundle and stages the app; the fork needs a build-only entry point |
+| `linux`, `web`, `android`, `macos`, `ios`, `windows` | ✅ Build and run in CI (emulator and simulator for the mobile targets) |
+| `web-server` | ✅ Builds and runs on linux-x64, the only host `dartvel_shelf` ships its library prebuilt for |
+| `tvos` | ✅ Builds and runs on a simulator in debug. Signed device builds are not verified |
+| `sony-elinux` | ✅ Builds and runs on a virtual device, debug and release |
+| `chrome-extension`, `firefox-extension` | ✅ Build and run, loaded in the real browser |
+| `linux-cli` | ✅ Runs in a pty in CI, with the terminal embedder built there. Locally the build needs `dartvel_cli_flt` installed |
+| `webos` | ✅ Runs in a Wayland window on ARM under emulation. Not run on a television |
+| `fireos` | ✅ Builds (the Android toolchain) |
+| `tizen` / `tpk` | ✅ Builds a signed TPK where Tizen Studio is installed. CI can only check that it skips, since the SDK is licence-gated |
+| `vscode` | ✅ Builds. Not run |
+| `fuchsia` | ❌ Blocked: the Fuchsia embedder engine does not build at Flutter 3.44.5 |
 
-Flutter has **no desktop cross-compilation** — Windows needs Windows, the Apple targets need macOS. `dartvel build` skips what the host cannot build instead of failing the whole run, and the [CI matrix](.github/workflows/platform-build-matrix.yml) covers the hosts this repository's development machine does not have.
+Flutter has **no desktop cross-compilation**. Windows needs Windows, and the
+Apple targets need macOS. `dartvel build` skips what the host cannot build
+instead of failing the whole run, and the
+[CI matrix](.github/workflows/platform-build-matrix.yml) covers the hosts a
+development machine does not have.
 
-**Twelve of sixteen targets build with an inspected artifact. One — `linux` — is verified by actually running.** That distinction is deliberate: an artifact existing proves compilation, not that the application starts.
-
-**→ Full detail, evidence, and per-target setup: [docs/build-targets.md](docs/build-targets.md)**
-
-**→ New here? [docs/getting-started.md](docs/getting-started.md)** — create a project, add a page, add a model, add a backend function. Every command on that page was run against a fresh project before it was written.
+**New here? [docs/getting-started.md](docs/getting-started.md)** walks through
+a project, a page, a model and a backend function.
 
 ### Toolchain preflight
 
@@ -216,20 +228,27 @@ dartvel doctor --target tizen            # just check
 
 Under CI (`CI=true`, `GITHUB_ACTIONS`, and friends) it installs unattended, so a pipeline never hangs on a prompt. Anything installed mid-run is added to `PATH` immediately, so the build that installed a toolchain can use it.
 
-Dartvel auto-installs the embedders (from its forks), the webOS `ares` CLI, and Linux desktop dependencies. It deliberately does **not** auto-install licence-gated or multi-gigabyte vendor SDKs — Xcode, Visual Studio, the Android SDK, Tizen Studio — and prints instructions for those instead.
+Dartvel auto-installs the embedders (from its forks), the webOS `ares` CLI, and Linux desktop dependencies. It deliberately does **not** auto-install licence-gated or multi-gigabyte vendor SDKs (Xcode, Visual Studio, the Android SDK, Tizen Studio) and prints instructions for those instead.
 
 ### Embedder forks
 
-Embedded/TV targets run through the vendor's dedicated Flutter embedder, never plain `flutter build`. Dartvel forks each one so it can be pinned and patched against the Flutter version Dartvel ships:
+Embedded, TV and terminal targets run through a dedicated Flutter embedder, never plain `flutter build`. Dartvel forks each one so it can be pinned and patched against the Flutter version Dartvel ships:
 
 | Target | Embedder fork | Upstream | Vendor |
 | :--- | :--- | :--- | :--- |
 | `tizen` | [Danroyal001/dartvel_tizen](https://github.com/Danroyal001/dartvel_tizen) | [flutter-tizen/flutter-tizen](https://github.com/flutter-tizen/flutter-tizen) | Samsung |
 | `sony-elinux` | [Danroyal001/dartvel_elinux](https://github.com/Danroyal001/dartvel_elinux) | [sony/flutter-elinux](https://github.com/sony/flutter-elinux) | Sony |
 | `webos` | [Danroyal001/dartvel_webos](https://github.com/Danroyal001/dartvel_webos) | [lg-flutter-webos/flutter-webos](https://github.com/lg-flutter-webos/flutter-webos) | LG |
+| `fuchsia` | [Danroyal001/dartvel_fuchsia](https://github.com/Danroyal001/dartvel_fuchsia) | [fuchsia/flutter-embedder](https://fuchsia.googlesource.com/flutter-embedder/) | Fuchsia |
 | `vscode` | [Danroyal001/dartvel_vscode](https://github.com/Danroyal001/dartvel_vscode) | [SlowGen/flutter_vscode](https://github.com/SlowGen/flutter_vscode) | VS Code |
+| `tvos` | [Danroyal001/dartvel_tvos](https://github.com/Danroyal001/dartvel_tvos) | [fluttertv/flutter-tvos](https://github.com/fluttertv/flutter-tvos) | Apple TV (community) |
+| `<desktop>-cli` | [Danroyal001/dartvel_cli_flt](https://github.com/Danroyal001/dartvel_cli_flt) | [jiahaog/flt](https://github.com/jiahaog/flt) | Terminal (community) |
 
-These embedders download a *vendor-built* Flutter engine per version, so a target can lag behind Dartvel's Flutter — and a version-pin bump alone cannot fix that. For Sony eLinux the binding constraint is the opposite direction and worth stating precisely: the embedder's Flutter is too **old** for Dartvel's own dependency floor. Details and evidence are in [docs/build-targets.md](docs/build-targets.md).
+Vendor embedders download a prebuilt Flutter engine per version, so a target
+can lag behind Dartvel's Flutter, and bumping a version pin cannot fix that.
+The webOS and eLinux release engines are built from source for this reason. An
+embedder's Flutter can also be too old for Dartvel's floor of Dart 3.12 and
+Flutter 3.44. Details are in [docs/build-targets.md](docs/build-targets.md).
 
 ---
 
