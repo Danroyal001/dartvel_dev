@@ -9,7 +9,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The targets docs/build-targets.md's main table marks as building.
+/// The targets docs/build-targets.md's main table marks as building, each
+/// once. A target verified on several hosts has a row per host -- web-server
+/// has six -- and is still one target.
 List<String> buildingTargets() {
   final List<String> lines = File('../../docs/build-targets.md').readAsLinesSync();
   final int header = lines.indexWhere((String l) => l.startsWith('| Target | Status | Evidence |'));
@@ -18,7 +20,8 @@ List<String> buildingTargets() {
     if (!line.startsWith('|')) break;
     final List<String> cells = line.split('|');
     if (!cells[2].contains('✅')) continue;
-    targets.add(RegExp('`([^`]+)`').firstMatch(cells[1])!.group(1)!);
+    final String target = RegExp('`([^`]+)`').firstMatch(cells[1])!.group(1)!;
+    if (!targets.contains(target)) targets.add(target);
   }
   return targets;
 }
