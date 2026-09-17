@@ -3,10 +3,10 @@
 /// The development entrypoint calls [DVDevClientSession.start] before the
 /// application's own `main`. It hands this app's Dart VM service URI to the
 /// native code the build wrote -- Java on Android over JNI; Objective-C on iOS
-/// and macOS, and C++ on Linux, over FFI -- which holds the pairing link and
-/// runs the tunnel the dev server reaches the VM service through. The tunnel
-/// is native because a hot restart kills every Dart isolate, and the restart
-/// travels over it.
+/// and macOS, and C++ on Linux and Windows, over FFI -- which holds the
+/// pairing link and runs the tunnel the dev server reaches the VM service
+/// through. The tunnel is native because a hot restart kills every Dart
+/// isolate, and the restart travels over it.
 library;
 
 import 'dart:developer' as developer;
@@ -23,7 +23,7 @@ abstract final class DVDevClientSession {
   /// form. The CLI's tests assert it is the same string the build uses.
   static const String androidClass = 'dev/dartvel/devclient/DartvelDevClient';
 
-  /// The C functions `dartvel build ios|macos|linux --profile development`
+  /// The C functions `dartvel build ios|macos|linux|windows --profile development`
   /// writes.
   /// The CLI's tests assert they are the names the build uses.
   static const String appleVmServiceSymbol = 'dartvel_dev_client_vm_service';
@@ -51,9 +51,10 @@ abstract final class DVDevClientSession {
         !(Platform.isAndroid ||
             Platform.isIOS ||
             Platform.isMacOS ||
-            Platform.isLinux)) {
+            Platform.isLinux ||
+            Platform.isWindows)) {
       return 'no dev client on this platform; a development build pairs on '
-          'Android, iOS, macOS and Linux';
+          'Android, iOS, macOS, Linux and Windows';
     }
     // The VM service can still be starting when main runs; waited for
     // briefly rather than reported missing.
@@ -97,8 +98,8 @@ abstract final class DVDevClientSession {
     final DynamicLibrary process = DynamicLibrary.process();
     if (!process.providesSymbol(appleVmServiceSymbol)) {
       return 'the tunnel is not in this build (no $appleVmServiceSymbol). It '
-          'is written by `dartvel build ios|macos|linux --profile development`; an '
-          'app built with plain `flutter build` does not have it.';
+          'is written by `dartvel build <target> --profile development`; '
+          'an app built with plain `flutter build` does not have it.';
     }
     final Pointer<Utf8> Function(Pointer<Utf8>) start = process
         .lookupFunction<

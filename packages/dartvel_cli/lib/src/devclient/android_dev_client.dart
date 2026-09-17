@@ -733,7 +733,8 @@ String dvAndroidDevClientDebugManifest(String? manifest) {
 ///
 /// Android's tunnel is Java; iOS's and macOS's are Objective-C (see
 /// apple_dev_client.dart); Linux's is C++ on GIO (see linux_dev_client.dart),
-/// paired by the link passed as a launch argument. A debug build on a physical iPhone does not start
+/// paired by the link passed as a launch argument; Windows's is C++ on
+/// Schannel (see windows_dev_client.dart), paired the same way. A debug build on a physical iPhone does not start
 /// from the home screen without a debugger attached, so there it pairs when
 /// launched from Xcode or `flutter run`; the simulator has no such limit.
 const Set<String> dvDevClientPlatforms = <String>{
@@ -741,6 +742,7 @@ const Set<String> dvDevClientPlatforms = <String>{
   'ios',
   'macos',
   'linux',
+  'windows',
 };
 
 /// The entrypoint `flutter build` is given for [platform] under [profile]:
