@@ -36,7 +36,10 @@ Future<void> registerDemoAccount(DVLocalAuthProvider provider) async {
 
 /// Signs in through DV.Auth and publishes the account. Throws what the
 /// provider throws for a wrong password.
-Future<Account> signIn({required String email, required String password}) async {
+Future<Account> signIn({
+  required String email,
+  required String password,
+}) async {
   await DV.Auth.signInWithEmailAndPassword(email: email, password: password);
   final Account account = Account(DV.Auth.currentUser);
   DV.global<Account>(account);

@@ -39,7 +39,9 @@ final List<DVRouteNode> routes = <DVRouteNode>[
       await Future<void>.delayed(const Duration(milliseconds: 600));
       return currentAccount.signedIn
           ? null
-          : DVRouteTarget('/sign-in?from=${Uri.encodeQueryComponent(state.path)}');
+          : DVRouteTarget(
+              '/sign-in?from=${Uri.encodeQueryComponent(state.path)}',
+            );
     },
     builder: (BuildContext context, DVRouteState state, Widget child) =>
         SignedInFrame(child: child),

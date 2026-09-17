@@ -11,25 +11,26 @@ import '../components/shop_ui.dart';
 /// 400-pixel slot needs on the screen it is on, and the link here prefetches
 /// that same file before anybody taps it. A denser screen needs a different
 /// file, which is the point of the slot being narrower than the image.
-@DVPage(
-  title: 'Gallery',
-  showAppBar: true,
-)
+@DVPage(title: 'Gallery')
 @pragma('vm:entry-point')
-Widget _galleryPage(BuildContext context) => const ShopScroll(children: <Widget>[
-      PageHeading(
-        'Responsive images',
-        subtitle: 'The build writes this image at every configured width, and '
-            'the page asks for the one its slot needs on this screen.',
+Widget _galleryPage(BuildContext context) => const ShopScroll(
+  children: <Widget>[
+    BackToShop(),
+    PageHeading(
+      'Responsive images',
+      subtitle:
+          'The build writes this image at every configured width, and '
+          'the page asks for the one its slot needs on this screen.',
+    ),
+    DVImageView(
+      DVImage.asset(
+        'assets/social-card.png',
+        alt: 'The Dartvel social card',
+        width: 1200,
+        height: 630,
       ),
-      DVImageView(
-        DVImage.asset(
-          'assets/social-card.png',
-          alt: 'The Dartvel social card',
-          width: 1200,
-          height: 630,
-        ),
-        width: 400,
-        height: 210,
-      ),
-    ]);
+      width: 400,
+      height: 210,
+    ),
+  ],
+);

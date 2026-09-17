@@ -12,7 +12,6 @@ import '../theme/palette.dart';
 // come back quietly.
 @DVPage(
   title: 'Coffee Club',
-  showAppBar: true,
   sitemap: DVPageSitemap(
     priority: 0.8,
     changeFrequency: DVSitemapChangeFrequency.weekly,
@@ -20,19 +19,25 @@ import '../theme/palette.dart';
 )
 @pragma('vm:entry-point')
 Widget _pricingPage(BuildContext context) => (() {
-      final Palette p = Palette.of(context);
-      // The price the model declares, read rather than repeated. A static the
-      // generator emits and nothing calls is the same gap the annotation had
-      // before it was emitted at all -- this page is where a compiler and a
-      // screenshot both see it.
-      final int club = Product.nativePrice?.amount.toInt() ?? 2499;
-      return ShopScroll(children: <Widget>[
-        const PageHeading(
-          'Coffee Club',
-          subtitle: 'Fresh coffee on a schedule. Skip, pause or cancel from '
-              'your account whenever you like.',
-        ),
-        ResponsiveGrid(minTileWidth: 260, maxColumns: 3, children: <Widget>[
+  final Palette p = Palette.of(context);
+  // The price the model declares, read rather than repeated. A static the
+  // generator emits and nothing calls is the same gap the annotation had
+  // before it was emitted at all -- this page is where a compiler and a
+  // screenshot both see it.
+  final int club = Product.nativePrice?.amount.toInt() ?? 2499;
+  return ShopScroll(
+    children: <Widget>[
+      const BackToShop(),
+      const PageHeading(
+        'Coffee Club',
+        subtitle:
+            'Fresh coffee on a schedule. Skip, pause or cancel from '
+            'your account whenever you like.',
+      ),
+      ResponsiveGrid(
+        minTileWidth: 260,
+        maxColumns: 3,
+        children: <Widget>[
           const PlanCard(
             name: 'Occasional',
             price: 'Pay as you go',
@@ -59,11 +64,14 @@ Widget _pricingPage(BuildContext context) => (() {
             ],
             featured: false,
           ),
-        ]),
-        DVText('Prices in ${Product.nativePrice?.currency ?? 'USD'}.')
-            .modifier(p.muted.fontSize(13)),
-      ]);
-    })();
+        ],
+      ),
+      DVText(
+        'Prices in ${Product.nativePrice?.currency ?? 'USD'}.',
+      ).modifier(p.muted.fontSize(13)),
+    ],
+  );
+})();
 
 class PlanCard extends StatelessWidget {
   const PlanCard({
@@ -112,7 +120,10 @@ class PlanCard extends StatelessWidget {
         ),
     ], spacing: 14).modifier(
       cardStyle(p, padding: 22).border(
-        Border.all(color: featured ? p.accent : p.line, width: featured ? 1.5 : 1),
+        Border.all(
+          color: featured ? p.accent : p.line,
+          width: featured ? 1.5 : 1,
+        ),
       ),
     );
   }

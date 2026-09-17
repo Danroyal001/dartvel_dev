@@ -20,8 +20,9 @@ void main() {
     final List<Map<String, Object?>> second = await catalog();
     expect(first, hasLength(catalogRows.length));
     expect(second, hasLength(catalogRows.length));
-    final List<Map<String, Object?>> stored =
-        await database.query('SELECT slug FROM shop_catalog');
+    final List<Map<String, Object?>> stored = await database.query(
+      'SELECT slug FROM shop_catalog',
+    );
     expect(stored, hasLength(catalogRows.length));
   });
 
@@ -31,9 +32,14 @@ void main() {
       "UPDATE shop_catalog SET published = 0 WHERE slug = 'nyeri'",
     );
     final List<Map<String, Object?>> rows = await catalog();
-    final List<Object?> names = rows.map((Map<String, Object?> r) => r['name']).toList();
+    final List<Object?> names = rows
+        .map((Map<String, Object?> r) => r['name'])
+        .toList();
     expect(names, isNot(contains('Nyeri')));
-    expect(names, <Object?>[...names]..sort((Object? a, Object? b) => '$a'.compareTo('$b')));
+    expect(
+      names,
+      <Object?>[...names]..sort((Object? a, Object? b) => '$a'.compareTo('$b')),
+    );
     expect(rows.first['priceCents'], isA<int>());
   });
 }

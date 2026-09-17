@@ -7,7 +7,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Huila, Colombia',
     'roast': 'medium',
     'notes': 'Red apple, panela, cocoa',
-    'description': 'Grown by a co-operative of forty smallholders above '
+    'description':
+        'Grown by a co-operative of forty smallholders above '
         '1,700 metres. Sweet and round, with enough body to take milk.',
     'priceCents': 1700,
     'weightGrams': 250,
@@ -19,7 +20,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Gedeo, Ethiopia',
     'roast': 'light',
     'notes': 'Jasmine, bergamot, lemon curd',
-    'description': 'Washed heirloom varieties, dried on raised beds for '
+    'description':
+        'Washed heirloom varieties, dried on raised beds for '
         'twelve days. Floral and bright, best as a pour-over.',
     'priceCents': 1900,
     'weightGrams': 250,
@@ -31,7 +33,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Nyeri, Kenya',
     'roast': 'light',
     'notes': 'Blackcurrant, grapefruit, cane sugar',
-    'description': 'SL28 and SL34 from the slopes of Mount Kenya. Juicy and '
+    'description':
+        'SL28 and SL34 from the slopes of Mount Kenya. Juicy and '
         'vivid; try it as a cold brew.',
     'priceCents': 2100,
     'weightGrams': 250,
@@ -43,7 +46,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Brazil and Guatemala',
     'roast': 'dark',
     'notes': 'Dark chocolate, hazelnut, molasses',
-    'description': 'Our house espresso. Built to be forgiving in a home '
+    'description':
+        'Our house espresso. Built to be forgiving in a home '
         'machine and to cut through a flat white.',
     'priceCents': 1500,
     'weightGrams': 500,
@@ -55,7 +59,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Huehuetenango, Guatemala',
     'roast': 'medium',
     'notes': 'Toffee, orange peel, almond',
-    'description': 'From the highlands near the Mexican border, where dry '
+    'description':
+        'From the highlands near the Mexican border, where dry '
         'winds let the cherries ripen slowly. Balanced and sweet.',
     'priceCents': 1800,
     'weightGrams': 250,
@@ -67,7 +72,8 @@ const List<Map<String, Object?>> catalogRows = <Map<String, Object?>>[
     'origin': 'Cauca, Colombia',
     'roast': 'medium',
     'notes': 'Milk chocolate, plum, brown sugar',
-    'description': 'Decaffeinated with sugarcane ethyl acetate at origin, so '
+    'description':
+        'Decaffeinated with sugarcane ethyl acetate at origin, so '
         'it still tastes like coffee at nine in the evening.',
     'priceCents': 1600,
     'weightGrams': 250,

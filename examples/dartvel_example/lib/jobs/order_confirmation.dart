@@ -23,10 +23,14 @@ class _SendOrderConfirmation {
 Future<void> _handleSendOrderConfirmation(SendOrderConfirmation job) =>
     DV.Notifications.mail.send(
       DVMailMessage(
-        from: const DVMailAddress('orders@oakline.coffee', name: 'Oakline Coffee'),
+        from: const DVMailAddress(
+          'orders@oakline.coffee',
+          name: 'Oakline Coffee',
+        ),
         to: <DVMailAddress>[DVMailAddress(job.email)],
         subject: 'Your order ${job.orderId}',
-        text: 'Thanks for your order: ${job.summary}. '
+        text:
+            'Thanks for your order: ${job.summary}. '
             'Total \$${(job.totalCents / 100).toStringAsFixed(2)}. '
             'We roast on Tuesdays and Fridays and will tell you when it ships.',
       ),

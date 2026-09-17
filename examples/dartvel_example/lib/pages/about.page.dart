@@ -6,50 +6,65 @@ import '../theme/palette.dart';
 
 /// How the shop is built, for the developer reading it: each piece of
 /// Dartvel, where it is used, and the file to open.
-@DVPage(title: 'Under the hood', showAppBar: true)
+@DVPage(title: 'Under the hood')
 @pragma('vm:entry-point')
 Widget _aboutPage(BuildContext context) => (() {
-      final Palette p = Palette.of(context);
-      return ShopScroll(children: <Widget>[
-        const PageHeading(
-          'Under the hood',
-          overline: 'Built with Dartvel',
-          subtitle: 'Oakline is a small shop written the way a Flutter '
-              'developer would write one with Dartvel. This is what each '
-              'screen stands on, and where to look.',
-        ),
-        ResponsiveGrid(minTileWidth: 300, maxColumns: 2, children: <Widget>[
+  final Palette p = Palette.of(context);
+  return ShopScroll(
+    children: <Widget>[
+      const BackToShop(),
+      const PageHeading(
+        'Under the hood',
+        overline: 'Built with Dartvel',
+        subtitle:
+            'Oakline is a small shop written the way a Flutter '
+            'developer would write one with Dartvel. This is what each '
+            'screen stands on, and where to look.',
+      ),
+      ResponsiveGrid(
+        minTileWidth: 300,
+        maxColumns: 2,
+        children: <Widget>[
           for (final HoodPiece piece in hoodPieces) HoodCard(piece),
-        ]),
-        DVBox.list([
-          const SectionHeading('Also in this app'),
-          DVBox.wrapLine([
-            for (final (String label, DVRouteTarget to) in <(String, DVRouteTarget)>[
-              ('Notes module, mounted at /notes', const DVRouteTarget('/notes')),
-              ('Responsive images', DVRoutes.gallery),
-              ('Home screen widget', DVRoutes.nextShift),
-              ('Config routes', DVRoutes.settings),
-              ('Guarded staff screen', DVRoutes.adminReports),
-              ('Brew guide, a guarded dynamic route', DVRoutes.blog(id: 'pour-over')),
-            ])
-              DVNavLink(
-                to: to,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: DVText(label).modifier(p.headline.fontSize(14)),
-              ),
-          ], spacing: 8),
-        ], spacing: 12),
-        DVBox.list([
-          const SectionHeading('This device'),
-          DVBox.wrapLine([
-            CoffeeFact('Platform', DV.Platform.currentPlatform),
-            CoffeeFact('Device', DV.Platform.deviceType),
-            CoffeeFact('Breakpoint', DV.Platform.breakpoint),
-            CoffeeFact('Orientation', DV.Platform.orientation.name),
-          ], spacing: 10),
-        ], spacing: 12),
-      ]);
-    })();
+        ],
+      ),
+      DVBox.list([
+        const SectionHeading('Also in this app'),
+        DVBox.wrapLine([
+          for (final (String label, DVRouteTarget to)
+              in <(String, DVRouteTarget)>[
+                (
+                  'Notes module, mounted at /notes',
+                  const DVRouteTarget('/notes'),
+                ),
+                ('Responsive images', DVRoutes.gallery),
+                ('Home screen widget', DVRoutes.nextShift),
+                ('Config routes', DVRoutes.settings),
+                ('Guarded staff screen', DVRoutes.adminReports),
+                (
+                  'Brew guide, a guarded dynamic route',
+                  DVRoutes.blog(id: 'pour-over'),
+                ),
+              ])
+            DVNavLink(
+              to: to,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: DVText(label).modifier(p.headline.fontSize(14)),
+            ),
+        ], spacing: 8),
+      ], spacing: 12),
+      DVBox.list([
+        const SectionHeading('This device'),
+        DVBox.wrapLine([
+          CoffeeFact('Platform', DV.Platform.currentPlatform),
+          CoffeeFact('Device', DV.Platform.deviceType),
+          CoffeeFact('Breakpoint', DV.Platform.breakpoint),
+          CoffeeFact('Orientation', DV.Platform.orientation.name),
+        ], spacing: 10),
+      ], spacing: 12),
+    ],
+  );
+})();
 
 class HoodPiece {
   const HoodPiece(this.title, this.body, this.file, this.icon);
@@ -127,29 +142,40 @@ class HoodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
-    return DVBox.list([
-      DVBox.row([
-        DVBox(Icon(piece.icon, size: 20, color: p.accent)).modifier(
-          const DVModifier()
-              .width(38)
-              .height(38)
-              .rounded(10)
-              .align(Alignment.center)
-              .backgroundColor(p.accentSoft),
+    return DVBox.list(
+      [
+        DVBox.row(
+          [
+            DVBox(Icon(piece.icon, size: 20, color: p.accent)).modifier(
+              const DVModifier()
+                  .width(38)
+                  .height(38)
+                  .rounded(10)
+                  .align(Alignment.center)
+                  .backgroundColor(p.accentSoft),
+            ),
+            Expanded(
+              child: DVText(
+                piece.title,
+              ).modifier(p.headline.semanticHeading(2)),
+            ),
+          ],
+          spacing: 12,
+          crossAlign: DVCrossAlign.center,
         ),
-        Expanded(child: DVText(piece.title).modifier(p.headline.semanticHeading(2))),
-      ], spacing: 12, crossAlign: DVCrossAlign.center),
-      DVText(piece.body).modifier(p.muted),
-      DVText(piece.file).modifier(
-        const DVModifier()
-            .fontFamily('monospace')
-            .fontSize(12.5)
-            .color(p.inkMuted)
-            .paddingSymmetric(horizontal: 8, vertical: 4)
-            .rounded(6)
-            .backgroundColor(p.sunken),
-      ),
-    ], spacing: 10, crossAlign: DVCrossAlign.start)
-        .modifier(cardStyle(p, padding: 18));
+        DVText(piece.body).modifier(p.muted),
+        DVText(piece.file).modifier(
+          const DVModifier()
+              .fontFamily('monospace')
+              .fontSize(12.5)
+              .color(p.inkMuted)
+              .paddingSymmetric(horizontal: 8, vertical: 4)
+              .rounded(6)
+              .backgroundColor(p.sunken),
+        ),
+      ],
+      spacing: 10,
+      crossAlign: DVCrossAlign.start,
+    ).modifier(cardStyle(p, padding: 18));
   }
 }
