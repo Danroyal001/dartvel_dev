@@ -300,7 +300,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Multi-tenancy',
     'tenantScoped: true',
     'Present: tenant resolution, filtered reads and writes on generated '
-        'models, and jobs that run as the tenant that queued them. Absent: '
+        'models, and jobs that run as their tenant. Absent: '
         'creating the per-tenant schemas and databases.',
   ),
   (
