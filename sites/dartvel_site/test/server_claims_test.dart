@@ -32,4 +32,27 @@ void main() {
       expect(source, isNot(contains('Linux x64')), reason: 'narrows the server to Linux x64');
     });
   }
+
+  // The deployment docs named Linux x64 as the only host a server binary is
+  // built for, which stopped being true when dartvel_shelf shipped its library
+  // for the other five and CI built and ran the binary on each of them (the
+  // web-server hosts workflow). The docs page says which hosts, so a reader on
+  // a Mac or on Windows is not told to go and find a Linux machine.
+  test('the deployment docs name every host the server binary runs on', () {
+    final String source = File('lib/pages/docs/deploying.dart')
+        .readAsLinesSync()
+        .where((String l) => !l.trimLeft().startsWith('//'))
+        .join('\n');
+    expect(source, isNot(contains('Linux x64 only')));
+    for (final String host in <String>[
+      'Linux',
+      'macOS',
+      'Windows',
+      'arm64',
+      'x64',
+      'server.exe',
+    ]) {
+      expect(source, contains(host), reason: 'the hosts note leaves out $host');
+    }
+  });
 }
