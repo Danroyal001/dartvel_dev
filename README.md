@@ -117,7 +117,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Deployment** | `dartvel build web-server` makes one executable with the backend, the web app and Studio. `dartvel deploy` ships to Firebase, Vercel, Netlify and Cloudflare, or writes a per-function artifact | ✅ Shipped |
 | **Dartvel Studio** | The admin dashboard and visual page editor. The web-server binary serves it at `/__studio`: always in a development build, and in a release build only when `dartvel.admin.enabled` is set | ✅ Shipped |
 | **Development Builds** | `dartvel dev` pairs with a `--profile development` build over TLS and hot reloads it on save, on Android, iOS, macOS, Linux and Windows | ⚠️ Partial |
-| **Dartvel Cloud** | The CLI side of hosted builds and store publishing (`--cloud`). The hosted service has not launched | ⚠️ Partial |
+| **Dartvel Cloud** | The CLI side of hosted builds and store deploys (`--cloud`). The hosted service has not launched | ⚠️ Partial |
 | **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
 | **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
