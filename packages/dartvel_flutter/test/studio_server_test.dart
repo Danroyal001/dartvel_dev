@@ -356,6 +356,50 @@ void main() {
       expect(server.calls.map((_Call c) => c.path), contains('api/pages'));
     });
 
+    testWidgets('Studio follows the system\'s dark mode, and back',
+        (WidgetTester tester) async {
+      // Light and dark screenshots of Studio were byte-identical: the palette
+      // was fixed, whatever the browser asked for.
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+
+      // The nearest filled box behind a piece of text: what the text sits on.
+      Color behind(String text) {
+        for (final Element element in find
+            .ancestor(
+                of: find.text(text).last,
+                matching: find.byWidgetPredicate(
+                    (Widget w) => w is DecoratedBox || w is ColoredBox))
+            .evaluate()) {
+          final Widget widget = element.widget;
+          final Color? color = widget is ColoredBox
+              ? widget.color
+              : switch ((widget as DecoratedBox).decoration) {
+                  final BoxDecoration box => box.color,
+                  _ => null,
+                };
+          if (color != null && color.a > 0.5) return color;
+        }
+        throw StateError('nothing is painted behind $text');
+      }
+
+      expect(behind('How Studio works').computeLuminance(), lessThan(0.1),
+          reason: 'a dark system got a light Studio');
+      expect(DVStudioStyle.ink.computeLuminance(), greaterThan(0.6));
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+
+      expect(behind('How Studio works').computeLuminance(), greaterThan(0.8));
+      expect(DVStudioStyle.ink.computeLuminance(), lessThan(0.1));
+    });
+
     testWidgets('a model shows its records, with no sensitive column',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);

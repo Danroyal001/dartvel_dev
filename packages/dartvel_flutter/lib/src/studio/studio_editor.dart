@@ -875,7 +875,10 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
           width: width,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: DVStudioStyle.surface,
+              // The page's own white, in a dark Studio too: the document is
+              // drawn as it ships, and a page styled for a white background
+              // on Studio's dark surface is a page nobody can read.
+              color: const Color(0xFFFFFFFF),
               borderRadius: BorderRadius.circular(3),
               boxShadow: DVStudioStyle.shadowLarge,
             ),
@@ -1088,7 +1091,7 @@ class _DVStudioDotGrid extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()..color = const Color(0xFFD7D7E2);
+    final Paint paint = Paint()..color = DVStudioStyle.lineStrong;
     for (double y = 10; y < size.height; y += 20) {
       for (double x = 10; x < size.width; x += 20) {
         canvas.drawCircle(Offset(x, y), 0.9, paint);
