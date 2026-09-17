@@ -21,7 +21,7 @@ Future<void> main() async {
 
   const host = '0.0.0.0';
   const port = 8080;
-  print('[dartvel_shelf] Starting Actix-web server on http://$host:$port');
+  print('[dartvel_shelf] Starting the Axum server on http://$host:$port');
   final handle =
       await serve(router.call, host: host, port: port, tls: null, h2c: true);
   print('[dartvel_shelf] - Try: curl http://$host:$port/hello');
