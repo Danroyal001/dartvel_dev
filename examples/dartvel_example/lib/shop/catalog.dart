@@ -10,6 +10,10 @@ final List<Product> seedCatalog = <Product>[
     ProductParser.fromJson(row),
 ];
 
+/// Where a web-server build reads the shelf: the server's Product records,
+/// through the catalogue backend function. A test replaces it.
+Future<List<Map<String, Object?>>> Function() serverCatalog = getCatalogApi;
+
 /// Opens the store the shop reads: the tables its models need, and the
 /// catalogue on first run. Safe to call more than once.
 Future<void> openShopStore() => _opening ??= _open();
@@ -33,6 +37,21 @@ Future<void> _open() async {
       placedAt: 0,
     ).createTableSql,
   );
+  if (DVAuth.servedByOwnServer) {
+    // Served by its own web-server, the shelf is that server's Product
+    // records -- the ones Studio lists and edits -- and not a copy seeded in
+    // this browser tab, which Studio could never reach.
+    final List<Map<String, Object?>> rows = await serverCatalog();
+    for (final Product stale in await Product.all()) {
+      await stale.destroy();
+    }
+    for (final Map<String, Object?> row in rows) {
+      await ProductParser.fromJson(
+        row,
+      ).save(onConflict: DVConflict.lastWriteWins);
+    }
+    return;
+  }
   if ((await Product.all()).isEmpty) {
     for (final Product coffee in seedCatalog) {
       await coffee.save();
