@@ -97,8 +97,22 @@ Future<void> main() async {
       out['otherSource'] = await post(port, report('g', 'install-5', 'elsewhere'),
           <String, String>{'x-forwarded-for': '203.0.113.50'});
       out['malformed'] = await post(port, utf8.encode('{"message": "$secret"'));
-      out['tooLarge'] =
-          await post(port, report('e', 'install-3', 'x' * 8000));
+      // The server answers 413 and closes without reading the rest of the
+      // body, so the client can still be writing when the connection goes:
+      // 20 of 300 posts here lost the answer to a broken pipe. That is the
+      // refusal arriving early, not a different answer, so the post is
+      // repeated until one reads the status the server sent.
+      for (int attempt = 1;; attempt++) {
+        try {
+          out['tooLarge'] =
+              await post(port, report('e', 'install-3', 'x' * 8000));
+          break;
+        } on HttpException {
+          if (attempt == 10) rethrow;
+        } on SocketException {
+          if (attempt == 10) rethrow;
+        }
+      }
       out['rows'] =
           (await const DVDatabase().query('SELECT * FROM dv_crash_reports'))
               .length;
