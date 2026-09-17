@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - packages/dartvel_cli/lib/src/commands/build_command.dart
+      - packages/dartvel_cli/lib/src/commands/deploy_command.dart
       - packages/dartvel_cli/lib/src/commands/publish_command.dart
       - packages/dartvel_cli/lib/src/publish/**
       - tool/ci/cloud_artifact_check.dart
