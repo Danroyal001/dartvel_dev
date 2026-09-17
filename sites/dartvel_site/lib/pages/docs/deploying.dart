@@ -57,9 +57,16 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'A --profile development build serves the admin to anyone who '
                   'can reach it, for local work. Never deploy one.',
             ]),
-            DocsNote('Linux x64 only',
-                'The server binary embeds a native library that ships for '
-                'linux-x64, so build it for a Linux x64 host.'),
+            DocsNote('Build it on the kind of machine it runs on',
+                'build/server runs on the operating system and CPU it was '
+                'built on. CI builds and runs it on Linux x64 and arm64, '
+                'macOS arm64 and x64, and Windows x64 and arm64, where the '
+                'file is build/server.exe. To deploy to a Linux arm64 server, '
+                'build on Linux arm64.'),
+            DocsNote('macOS signing',
+                'The macOS binary has only the ad-hoc signature the Dart '
+                'compiler gives it. CI runs a copy of it on the Mac that built '
+                'it. A copy downloaded through a browser has not been tested.'),
           ],
         ),
         DocsSection(
