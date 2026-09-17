@@ -20,15 +20,15 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docs, 'Getting started',
       'Install the CLI, create an app and run it', 'Getting started'),
   DocsPageInfo(DVRoutes.docsui, 'UI and styling',
-      'DVBox, DVText, modifiers and layouts', 'Frontend'),
+      'DVBox, DVText, modifiers and layouts', 'App'),
   DocsPageInfo(DVRoutes.docsrouting, 'Routing',
-      'File pages, parameters, layouts and links', 'Frontend'),
+      'File pages, parameters, layouts and links', 'App'),
   DocsPageInfo(DVRoutes.docsstate, 'State',
-      'Signals, derived signals and globals', 'Frontend'),
+      'Signals, derived signals and globals', 'App'),
   DocsPageInfo(DVRoutes.docsaccessibility, 'Accessibility',
-      'Build-time audit, switch control and remote keys', 'Frontend'),
+      'Build-time audit, switch control and remote keys', 'App'),
   DocsPageInfo(DVRoutes.docslocalization, 'Localization',
-      'Typed translation keys, plurals and ARB files', 'Frontend'),
+      'Typed translation keys, plurals and ARB files', 'App'),
   DocsPageInfo(DVRoutes.docsmodels, 'Models',
       'One class gives you storage, forms, tables and pages', 'Data'),
   DocsPageInfo(DVRoutes.docsforms, 'Forms',
@@ -43,6 +43,14 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'An ordered log of writes, copied to a warehouse', 'Data'),
   DocsPageInfo(DVRoutes.docsdatabase, 'Database',
       'SQLite, Postgres, MySQL and migrations', 'Data'),
+  DocsPageInfo(DVRoutes.docscache, 'Cache',
+      'Remember values and drop them by tag', 'Data'),
+  DocsPageInfo(DVRoutes.docsstorage, 'File storage',
+      'Put and get files on S3, GCS or Azure', 'Data'),
+  DocsPageInfo(DVRoutes.docsmedia, 'Images',
+      'Resized image variants for web builds', 'Data'),
+  DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',
+      'Export and erase a person\'s data', 'Data'),
   DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
       'A function in lib/backend is an endpoint', 'Backend'),
   DocsPageInfo(DVRoutes.docsauth, 'Auth and sessions',
@@ -53,38 +61,30 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Work that runs after the response', 'Backend'),
   DocsPageInfo(DVRoutes.docsworkers, 'Workers and memory',
       'Heavy work on other cores, and memory reserved up front', 'Backend'),
-  DocsPageInfo(DVRoutes.docscache, 'Cache',
-      'Remember values and drop them by tag', 'Services'),
   DocsPageInfo(DVRoutes.docsnotifications, 'Notifications and mail',
-      'Email, in-app and push through one service', 'Services'),
-  DocsPageInfo(DVRoutes.docsstorage, 'File storage',
-      'Put and get files on S3, GCS or Azure', 'Services'),
-  DocsPageInfo(DVRoutes.docsmedia, 'Images',
-      'Resized image variants for web builds', 'Services'),
+      'Email, in-app and push through one service', 'Backend'),
   DocsPageInfo(DVRoutes.docshttp, 'Outbound HTTP',
-      'Call APIs you have declared, with retries', 'Services'),
+      'Call APIs you have declared, with retries', 'Backend'),
   DocsPageInfo(DVRoutes.docsai, 'AI',
-      'Chat, structured output, embeddings and tools', 'Services'),
+      'Chat, structured output, embeddings and tools', 'Backend'),
   DocsPageInfo(DVRoutes.docswebhooks, 'Webhooks',
-      'Signed events your customers subscribe to', 'Platform'),
+      'Signed events your customers subscribe to', 'Backend'),
   DocsPageInfo(DVRoutes.docsgraphql, 'GraphQL and OpenAPI',
-      'The API your models and functions already have', 'Platform'),
+      'The API your models and functions already have', 'Backend'),
   DocsPageInfo(DVRoutes.docsplatformapi, 'Platform API',
-      'API keys, scopes and OAuth clients', 'Platform'),
-  DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
-      'Sign-in limits, WAF rules and query budgets', 'Platform'),
+      'API keys, scopes and OAuth clients', 'Backend'),
   DocsPageInfo(DVRoutes.docstenancy, 'Multi-tenancy',
-      'One deployment, many customers', 'Platform'),
+      'One deployment, many customers', 'Backend'),
   DocsPageInfo(DVRoutes.docsorganizations, 'Organizations',
-      'Members, roles, invitations and seats', 'Platform'),
-  DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',
-      'Export and erase a person\'s data', 'Platform'),
+      'Members, roles, invitations and seats', 'Backend'),
+  DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
+      'Sign-in limits, WAF rules and query budgets', 'Operations'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
-      'dartvel build for every platform, with its status', 'Ship'),
+      'dartvel build for every platform, with its status', 'Shipping'),
   DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',
-      'dartvel build web on Apache or LiteSpeed', 'Ship'),
+      'dartvel build web on Apache or LiteSpeed', 'Shipping'),
   DocsPageInfo(DVRoutes.docsdeploying, 'Servers and deploying',
-      'Run the backend, deploy and provision hosts', 'Ship'),
+      'Run the backend, deploy and provision hosts', 'Shipping'),
   DocsPageInfo(DVRoutes.docstesting, 'Testing',
       'DV.Test fakes, model factories and test modes', 'Reference'),
   DocsPageInfo(DVRoutes.docscli, 'CLI reference',
@@ -103,13 +103,10 @@ const List<String> kDocsGroupOrder = <String>[
   'Reference',
 ];
 
-/// The groups, in sidebar order.
+/// The groups that have pages, in sidebar order.
 List<String> get docsGroups => <String>[
-      for (final DocsPageInfo page in kDocsPages)
-        if (kDocsPages
-                .indexWhere((DocsPageInfo p) => p.group == page.group) ==
-            kDocsPages.indexOf(page))
-          page.group,
+      for (final String group in kDocsGroupOrder)
+        if (kDocsPages.any((DocsPageInfo p) => p.group == group)) group,
     ];
 
 /// The page at [path], or null when [path] is not a docs page.
@@ -618,24 +615,72 @@ Widget _docsPagerLink(
 
 /// Every docs page, grouped. The sidebar on a wide screen and the menu on a
 /// narrow one.
+///
+/// In the sidebar every group is open. In the phone menu the groups fold, so
+/// a reader sees the whole outline on one screen: the group holding
+/// [current] starts open, and a tap on a heading opens that group instead.
 @DVFunctionalWidget()
-Widget _docsNav(BuildContext context, {required String current}) {
+Widget _docsNav(
+  BuildContext context, {
+  required String current,
+  bool folding = false,
+}) {
   final Palette palette = Palette.of(context);
   final List<String> groups = docsGroups;
+  final DVSignal<String?> openGroup =
+      context.signal<String?>(docsPageAt(current)?.group ?? groups.first);
+  final bool fold = folding;
   return DVBox.list(<Widget>[
     for (final String group in groups)
       DVBox.list(<Widget>[
-        DVText(group.toUpperCase()).modifier(const DVModifier()
-            .fontSize(12)
-            .fontWeight(FontWeight.w700)
-            .letterSpacing(1.2)
-            .color(palette.faint)
-            .semanticHeading(2)),
-        for (final DocsPageInfo page in kDocsPages)
-          if (page.group == group)
-            DocsNavLink(page: page, active: page.path == current),
+        if (fold)
+          MergeSemantics(
+            child: Semantics(
+              button: true,
+              expanded: openGroup.value == group,
+              child: DVBox(
+                DVBox.row(<Widget>[
+                  Flexible(
+                    child: DVText(group.toUpperCase()).modifier(const DVModifier()
+                        .fontSize(13)
+                        .fontWeight(FontWeight.w700)
+                        .letterSpacing(1.2)
+                        .color(openGroup.value == group
+                            ? palette.ink
+                            : palette.muted)),
+                  ),
+                  ExcludeSemantics(
+                    child: DVText(openGroup.value == group ? '−' : '+')
+                        .modifier(const DVModifier()
+                            .fontSize(18)
+                            .fontWeight(FontWeight.w600)
+                            .color(palette.faint)),
+                  ),
+                ],
+                    spacing: 12,
+                    align: DVAlign.spaceBetween,
+                    crossAlign: DVCrossAlign.center),
+                const DVModifier()
+                    .width(double.infinity)
+                    .paddingSymmetric(vertical: 10)
+                    .onTap(() => openGroup.value =
+                        openGroup.value == group ? null : group),
+              ),
+            ),
+          )
+        else
+          DVText(group.toUpperCase()).modifier(const DVModifier()
+              .fontSize(12)
+              .fontWeight(FontWeight.w700)
+              .letterSpacing(1.2)
+              .color(palette.faint)
+              .semanticHeading(2)),
+        if (!fold || openGroup.value == group)
+          for (final DocsPageInfo page in kDocsPages)
+            if (page.group == group)
+              DocsNavLink(page: page, active: page.path == current),
       ], spacing: 2, crossAlign: DVCrossAlign.start),
-  ], spacing: 22, crossAlign: DVCrossAlign.start);
+  ], spacing: fold ? 4 : 22, crossAlign: DVCrossAlign.start);
 }
 
 /// One link in the docs navigation.
@@ -712,7 +757,7 @@ Widget _docsFrame(
           ? DVBox(
               SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(22, 20, 22, 40),
-                child: DocsNav(current: current),
+                child: DocsNav(current: current, folding: true),
               ),
               const DVModifier().width(double.infinity).backgroundColor(palette.page),
             )
