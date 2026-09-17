@@ -13,6 +13,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysWrapping,
         dvPageMiddlewareRefusal;
 import 'package:file/local.dart';
+import 'client_type_imports.dart';
 import 'function_body.dart';
 import 'job_generator.dart';
 import 'symbol_qualifier.dart';
@@ -539,6 +540,11 @@ class BackendGenerator {
             '',
         // Where it was declared, for a refusal that has to name the file.
         'rel': rel,
+        // And where that is on disk, in which package, so the client can
+        // import the types the function names from the files that declare
+        // them.
+        'abs': abs,
+        'pkg': fnFiles[i].packageName,
         // The middleware the function declares, in declaration order. Read
         // here for the same reason: @DVUseMiddleware had one reader in the
         // repository and it was a spelling check, so nineteen keys were
@@ -2008,6 +2014,8 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
             '${e['method']!.toUpperCase()} ${e['path']!}',
     };
 
+    // The application's types the typed wrappers below name.
+    final Set<String> clientTypeImports = <String>{};
     for (final e in backendEntries) {
       final method = e['method']!;
       final urlPath = e['path']!;
@@ -2126,6 +2134,22 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           }
         }
         final qpAdd = qpLines.join('\n  ');
+
+        final String abs = e['abs'] ?? '';
+        final String rel = e['rel'] ?? '';
+        if (abs.isNotEmpty && rel.isNotEmpty) {
+          clientTypeImports.addAll(dvClientTypeImports(
+            source: e['src'] ?? '',
+            sourcePath: abs,
+            projectRoot: abs.substring(0, abs.length - rel.length),
+            packageName: e['pkg'] ?? pkgName,
+            types: <String>[
+              clientReturnType,
+              for (var i2 = 0; i2 < tparams.length; i2++)
+                if (i2 < ttypes.length) ttypes[i2],
+            ],
+          ));
+        }
 
         final hasDvBackendFn =
             (e['src'] ?? '').contains('@DVBackendFunction') ||
@@ -2334,7 +2358,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // Emitted only when the body actually uses it. An unconditional import
     // warns on every project whose backend functions happen not to need the
     // runtime, and a warning in generated code is one nobody can fix.
-    final clientBody = sbClient.toString();
+    const String coreImport = "import 'package:dartvel_core/dartvel.dart';";
+    final clientBody = sbClient.toString().replaceFirst(
+        coreImport,
+        coreImport +
+            (clientTypeImports.toList()..sort())
+                .map((String uri) => "\nimport '$uri';")
+                .join());
     const runtimeSymbols = <String>['DartvelRuntime', 'dartvelBaseUrl',
         'dartvelApiBase', 'DartvelConfigRuntime'];
     final needsRuntime =
