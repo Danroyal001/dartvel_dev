@@ -187,12 +187,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Every state-changing request is checked for a CSRF token.',
   ),
   (
-    'Backend Function Request Lifecycle',
-    'context.lifecycle.request',
-    'Each call reports its current stage as a read-only signal. Absent: a '
-        'completed state, because a streamed response may still be sending.',
-  ),
-  (
     'Reversible Transactions',
     'DV.transaction',
     'context.afterCommit and context.compensate undo what ran when a later '
@@ -553,6 +547,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'Absent: loading and route-transition states.',
   ),
   (
+    'Backend Function Request Lifecycle',
+    'context.lifecycle.request',
+    'Present: DVContext injected first, and the stage as a read-only signal. '
+        'Absent: most stages between received and response, and the '
+        'transaction, authentication, rateLimit and rawPath options.',
+  ),
+  (
     'Modules',
     'DV.Modules',
     'Present: a module is a whole Dartvel app mounted under a path. Absent: '
@@ -646,9 +647,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Thirty-two shipped sections.', level: 1),
+        Heading('Thirty-one shipped sections.', level: 1),
         Bullets(<String>[
-          'Sixty-eight more are partial, and each card says what is missing.',
+          'Sixty-nine more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
