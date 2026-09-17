@@ -7,6 +7,12 @@
   `/`, was handed to `where` because the path check asked only for `\`, so an
   installed embedder read as missing and the target skipped.
 
+- **Middleware declared with a typed list runs.** `@DVUseMiddleware(<DVMiddlewareKey>[...])`
+  was read as declaring nothing: the reader wanted `[` straight after `(`, so
+  the route was served with no auth, no rate limit and no headers, and the
+  build succeeded. The typed form and `const` are read now, on backend
+  functions and pages alike, and an unknown key in them fails the build.
+
 - **A cloud build brings a macOS app home runnable, and web-server builds on
   the worker OS asked for.** `dartvel build <target> --cloud` wrote every
   download as a plain file: a macOS app lost its Mach-O's executable bit and

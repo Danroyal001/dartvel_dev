@@ -113,6 +113,38 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
     }
   });
 
+  test('a typed middleware list is wrapped around the route too', () async {
+    // `@DVUseMiddleware(<DVMiddlewareKey>[...])` is the form the docs showed.
+    // The reader wanted `[` straight after `(`, so the type argument hid the
+    // list: the route was served with no auth and no rate limit, and the
+    // build said nothing.
+    final root = await _createProject();
+    try {
+      File(p.join(root.path, 'lib', 'backend', 'functions', 'reports.get.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVUseMiddleware(<DVMiddlewareKey>[
+  DVMiddlewares.auth,
+  DVMiddlewares.rateLimit,
+])
+Future<List<String>> reports() async => <String>['2026-08'];
+''');
+
+      await _generate(root);
+
+      final routes = File(
+        p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
+      ).readAsStringSync();
+      expect(
+        dvRouteSource(routes, '/reports'),
+        contains("_dvGuarded(req, const <String>['auth', 'rateLimit'],"),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('a middleware nothing implements fails the build and says why',
       () async {
     // rateLimitCheckout was accepted by the old whitelist and implemented
