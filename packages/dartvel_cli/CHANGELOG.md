@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **Studio is closed to signed-in customers.** The generated backend served
+  the admin on a release mount to any signed-in session. It now installs
+  `DVStudioGrants` over its database, so Studio opens only for a person
+  granted `Studio.access`, or allowed by the application's own
+  `registerAction('Studio.access', ...)`. Nobody is granted by default.
+  Anybody else gets what a route that does not exist gets. A
+  `--profile development` build still serves the admin with no sign-in.
+- **`dartvel admin grant <user-id>`, `revoke` and `list`** manage who may
+  open Studio, in the database the application runs with: `--database` for a
+  SQLite file such as a web-server binary's `dartvel_data/data.db`, else
+  `DATABASE_URL`, else `dartvel.database`. `--tenant` names the tenant the
+  account signs in on. A database file that does not exist is refused, not
+  created.
+
 - **`dartvel updates release`, `patch` and `rollback` take `--patch-source`.**
   With a URL or a directory they work against a patch source the project
   hosts instead of Shorebird's service: release builds with Shorebird's
