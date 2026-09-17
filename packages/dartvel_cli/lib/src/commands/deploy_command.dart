@@ -41,24 +41,14 @@ class DeployCommand extends Command<void> {
           defaultsTo: 'all',
           help: 'Deployment target')
       ..addOption('provider',
-          allowed: [
-            'firebase-hosting',
-            'vercel',
-            'netlify',
-            'cloudflare',
-            'custom',
-            // Deprecated: Firebase is also a store, through App Distribution.
-            'firebase',
-          ],
-          allowedHelp: {
-            'firebase-hosting': 'Firebase Hosting, with the firebase CLI.',
-            'vercel': 'Vercel, with the vercel CLI.',
-            'netlify': 'Netlify, with the netlify CLI.',
-            'cloudflare': 'Cloudflare Pages, with wrangler.',
-            'custom': 'Build only; deploy from build/ yourself.',
-            'firebase': 'Deprecated spelling of firebase-hosting.',
-          },
-          help: 'Where the web build or the server is hosted.')
+          // Checked in run() rather than by `allowed`, so a bare firebase is
+          // answered with the two things it could mean instead of the
+          // parser's "not an allowed value".
+          valueHelp: _providers.join('|'),
+          help: 'Where the web build or the server is hosted: '
+              'firebase-hosting (Firebase Hosting, with the firebase CLI), '
+              'vercel, netlify, cloudflare (Cloudflare Pages, with wrangler), '
+              'or custom to build only and deploy from build/ yourself.')
       ..addOption('environment',
           abbr: 'e',
           defaultsTo: 'production',
@@ -114,6 +104,14 @@ class DeployCommand extends Command<void> {
 
   /// The options that only mean something with --store, and the ones that
   /// mean something only without it.
+  static const List<String> _providers = <String>[
+    'firebase-hosting',
+    'vercel',
+    'netlify',
+    'cloudflare',
+    'custom',
+  ];
+
   static const List<String> _storeOnly = <String>[
     'dry-run',
     'artifact',
@@ -145,6 +143,16 @@ class DeployCommand extends Command<void> {
       for (final String option in store == null ? _storeOnly : _hostOnly)
         if (args.wasParsed(option)) '--$option',
     ];
+    final String? provider = args['provider'] as String?;
+    if (provider == 'firebase') {
+      usageException('--provider firebase could mean two things. Use '
+          '--provider firebase-hosting for Firebase Hosting, or '
+          '--store firebase-app-distribution for Firebase App Distribution.');
+    }
+    if (provider != null && !_providers.contains(provider)) {
+      usageException('"$provider" is not a provider. The providers are '
+          '${_providers.join(', ')}.');
+    }
     if (misplaced.isNotEmpty) {
       usageException(store == null
           ? '${misplaced.join(', ')} only applies with --store.'
@@ -166,7 +174,6 @@ class DeployCommand extends Command<void> {
     }
 
     final target = argResults?['target'] as String;
-    final provider = argResults?['provider'] as String?;
     final shouldBuild = argResults?['build'] as bool;
     final verify = argResults?['verify'] as bool;
 
@@ -215,12 +222,6 @@ class DeployCommand extends Command<void> {
 
     bool deployed = false;
     switch (provider) {
-      case 'firebase':
-        Logger.log('⚠️  --provider firebase is deprecated: use '
-            '--provider firebase-hosting. Firebase App Distribution is '
-            '--store firebase-app-distribution.');
-        deployed = await _deployFirebase(target);
-        break;
       case 'firebase-hosting':
         deployed = await _deployFirebase(target);
         break;
