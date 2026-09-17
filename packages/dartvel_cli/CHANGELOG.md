@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel capture pty` runs on macOS and Windows, and can end with Ctrl+C.**
+  It called util-linux `script -e -c`, which BSD `script` reads as a file name,
+  and Windows has no `script`; there it now opens a ConPTY pseudo console
+  through `dart:ffi`. `--interrupt` types Ctrl+C at the end of the window and
+  fails unless the application exits 0, which is the difference between a
+  terminal app that started and one that gives the terminal back.
+
 - **`dartvel build macos-cli` and `windows-cli` get as far as the embedder.**
   Both ran `flutter build linux` first for native-asset compiler settings that
   only a Linux project reads, which neither host can run. On Windows the
