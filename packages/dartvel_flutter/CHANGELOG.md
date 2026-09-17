@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **A deep link over a page with a scroll view no longer asserts.** The page
+  underneath is built covered and never laid out, and its scroll view made a
+  selection scope of its own under the inert registrar, then sorted its text
+  by screen position through an overscroll transform with no size. A page
+  that has never been on top now has no selection registrar until it is.
+
 - **A global can be registered again after the scope that read it is
   disposed.** Starting an application twice in one process, as every
   integration test of the real entrypoint does, made `DV.global` write to

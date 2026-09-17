@@ -8732,15 +8732,30 @@ class DVPageShell extends StatefulWidget {
 /// own layout, and the sliver asserted. `SelectionContainer.disabled` did
 /// exactly that, so any page with a DVBox.grid threw once a route covered it.
 class _DVSelectionWhileOnTop extends StatelessWidget {
-  const _DVSelectionWhileOnTop({required this.onTop, required this.child});
+  const _DVSelectionWhileOnTop({
+    required this.onTop,
+    required this.everOnTop,
+    required this.child,
+  });
 
   final bool onTop;
+
+  /// Whether the page has been on top since it was built. One built beneath
+  /// another -- a deep link to a page pushed over it -- has never been laid
+  /// out, and has no registrar at all until it is shown: an inert one still
+  /// lets a scroll view inside the page make a selection scope of its own,
+  /// which sorted its text by screen position through the scroll view's
+  /// overscroll transform, never laid out, and asserted. The grid problem
+  /// above is a page that was laid out losing its registrar, which a page
+  /// that never was cannot do.
+  final bool everOnTop;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final SelectionRegistrar? registrar = SelectionContainer.maybeOf(context);
     if (registrar == null) return child;
+    if (!onTop && !everOnTop) return SelectionContainer.disabled(child: child);
     return SelectionRegistrarScope(
       registrar: onTop ? registrar : const _DVInertSelectionRegistrar(),
       child: child,
@@ -8767,6 +8782,9 @@ class _DVPageShellState extends State<DVPageShell> {
   /// Keeps the page's own state when selection is switched off beneath a
   /// covering route and on again when it is uncovered.
   final GlobalKey _contentKey = GlobalKey(debugLabel: 'DVPageShell content');
+
+  /// Whether this page has been on top since it was built.
+  bool _everOnTop = false;
 
   DVPageScaffoldSpec get spec => widget.spec;
   Widget get child => widget.child;
@@ -8879,6 +8897,7 @@ class _DVPageShellState extends State<DVPageShell> {
     // while building the page underneath. Selection there is off until the
     // page is on top again. The key keeps the page's state across the switch.
     final bool onTop = ModalRoute.of(context)?.isCurrent ?? true;
+    if (onTop) _everOnTop = true;
     final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
     final content = selectable
         ? SelectionArea(
@@ -8888,7 +8907,11 @@ class _DVPageShellState extends State<DVPageShell> {
             // subsequent one was off by one. It still takes focus when a
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
-            child: _DVSelectionWhileOnTop(onTop: onTop, child: keyed),
+            child: _DVSelectionWhileOnTop(
+              onTop: onTop,
+              everOnTop: _everOnTop,
+              child: keyed,
+            ),
           )
         : keyed;
     final Widget framed = spec.safeArea ? SafeArea(child: content) : content;
