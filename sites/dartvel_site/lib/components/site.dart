@@ -13,6 +13,7 @@
 // handed white.
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import 'docs.dart' show kDocsSpecStatus;
 import 'record.dart';
 
 /// The palette, resolved for whichever brightness is in effect.
@@ -253,6 +254,7 @@ Widget _siteCard(
   String title,
   String body, {
   bool? built,
+  String? section,
 }) {
   final Palette palette = Palette.of(context);
   // Copied to a local before it is tested. The body of a
@@ -260,7 +262,20 @@ Widget _siteCard(
   // `built` is a field -- and Dart does not promote a nullable field, so
   // `if (built != null) ... built ? a : b` compiles here and fails there,
   // in a file nobody wrote.
-  final bool? status = built;
+  //
+  // A card that names a spec section takes its badge from the status the
+  // index records for it, so a partly built section reads Partial and
+  // cannot be badged Built by hand.
+  final String? named = section;
+  final bool? declared = built;
+  final String? recorded = named == null ? null : kDocsSpecStatus[named];
+  final String? label = recorded != null
+      ? (recorded == 'Shipped'
+          ? 'Built'
+          : (recorded == 'Partial' ? 'Partial' : 'Planned'))
+      : (declared == null ? null : (declared ? 'Built' : 'Planned'));
+  final bool? status = label == null ? null : label != 'Planned';
+  final bool partial = label == 'Partial';
   return DVBox(
     DVBox.list(<Widget>[
       DVBox.wrapLine(<Widget>[
@@ -268,15 +283,20 @@ Widget _siteCard(
             .fontSize(17)
             .fontWeight(FontWeight.w700)
             .color(palette.ink)),
-        if (status != null)
-          DVText(status ? 'Built' : 'Planned').modifier(const DVModifier()
+        if (status != null && label != null)
+          DVText(label).modifier(const DVModifier()
               .fontSize(11)
               .fontWeight(FontWeight.w700)
-              .color(status ? palette.accent : palette.faint)
+              .color(partial
+                  ? palette.ink
+                  : (status ? palette.accent : palette.faint))
               .paddingSymmetric(horizontal: 8, vertical: 3)
-              .backgroundColor(status
-                  ? palette.accent.withValues(alpha: 0.10)
-                  : palette.rule.withValues(alpha: 0.45))
+              // The same amber the docs pages give a partial section.
+              .backgroundColor(partial
+                  ? const Color(0xFFFFC857).withValues(alpha: 0.45)
+                  : (status
+                      ? palette.accent.withValues(alpha: 0.10)
+                      : palette.rule.withValues(alpha: 0.45)))
               .rounded(999)),
       ], spacing: 8),
       DVText(body).modifier(
