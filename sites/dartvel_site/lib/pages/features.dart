@@ -146,7 +146,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Dartvel Studio',
     'Visual page builder',
     'Drag and drop, an inspector, undo and export to an ordinary @DVPage. '
-        'Figma import, history and multi-user editing are in the paid Pro tier.',
+        'The workflow builder, Figma import, history and multi-user editing '
+        'are in the paid Pro tier.',
   ),
   (
     'Admin, Devtools, and Scaffolding',
