@@ -303,6 +303,20 @@ void main() {
     );
   });
 
+  test('the help names every provider, not only the deprecated one', () {
+    // Describing one allowed value hides the list of the others.
+    final String usage = DeployCommand().argParser.usage;
+    for (final String provider in <String>[
+      'firebase-hosting',
+      'vercel',
+      'netlify',
+      'cloudflare',
+      'custom',
+    ]) {
+      expect(usage, contains('[$provider]'), reason: provider);
+    }
+  });
+
   group('publish, the deprecated alias', () {
     test(
       'still publishes, and prints the deploy form to use instead',
