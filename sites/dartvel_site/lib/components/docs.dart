@@ -55,6 +55,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Email, in-app and push through one service', 'Services'),
   DocsPageInfo(DVRoutes.docsstorage, 'File storage',
       'Put and get files on S3, GCS or Azure', 'Services'),
+  DocsPageInfo(DVRoutes.docsmedia, 'Images',
+      'Resized image variants for web builds', 'Services'),
   DocsPageInfo(DVRoutes.docshttp, 'Outbound HTTP',
       'Call APIs you have declared, with retries', 'Services'),
   DocsPageInfo(DVRoutes.docsai, 'AI',

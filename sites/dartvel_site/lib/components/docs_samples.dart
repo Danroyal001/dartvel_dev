@@ -510,6 +510,18 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  text: \'It arrives on Friday.\',',
     '));',
   ],
+  'media-image-view': <String>[
+    'Widget hero() => const DVImageView(',
+    '      DVImage.asset(',
+    '        \'assets/hero.png\', // listed under flutter: assets: in pubspec.yaml',
+    '        alt: \'A team planning a release\',',
+    '        width: 2400,',
+    '        height: 1260,',
+    '      ),',
+    '      width: 400,',
+    '      height: 210,',
+    '    );',
+  ],
   'memory-arena': <String>[
     'final DVPlatformMemory arena = DV.Memory.allocate(megabytes: 512);',
     'final MemorySlice<double> samples = arena.float64(10000000)..fill(0);',
@@ -1296,6 +1308,12 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '      baseUrl: https://api.paystack.co',
     '      timeout: 10s',
     '      retries: { attempts: 2, backoff: exponential }',
+  ],
+  'yaml-images': <String>[
+    'images:',
+    '  widths: [320, 640, 1080, 1920]',
+    '  quality: 75',
+    '  remoteHosts: [images.example.com]',
   ],
   'yaml-infra': <String>[
     'infra:',

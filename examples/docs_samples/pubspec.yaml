@@ -93,6 +93,13 @@ dartvel:
     highlightPost: "</em>"
   # docs:end
 
+  # docs:start yaml-images
+  images:
+    widths: [320, 640, 1080, 1920]
+    quality: 75
+    remoteHosts: [images.example.com]
+  # docs:end
+
   # docs:start yaml-graphql
   api:
     graphql:
