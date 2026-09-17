@@ -1,6 +1,6 @@
 # dartvel_shelf
 
-WinterCG-first (Fetch-like) Shelf-style Dart API powered by Actix Web via **ffigen**-generated FFI. No IPC.
+WinterCG-first (Fetch-like) Shelf-style Dart API powered by Axum (Tokio) via **ffigen**-generated FFI. No IPC.
 
 ## Features
 - HTTP/1.1 today; HTTP/2 automatically via ALPN when you pass TLS (Rustls 0.23).
