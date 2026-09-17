@@ -5518,9 +5518,9 @@ CI:
   targets
 - `dartvel test accessibility` runs generated semantics checks
 - `dartvel test release` runs the pre-release gate used before tags/releases
-- `dartvel test --watch` is designed to rerun affected tests on file changes.
-  Today it forwards `--watch` to `flutter test` or `dart test`, and neither
-  accepts it
+- `dartvel test --watch` runs the suite, then reruns on file changes: a
+  changed test file reruns that file, and any other Dart change reruns the
+  suite. It does not trace imports to pick the affected tests
 - `dartvel test golden --update-goldens` refreshes approved golden snapshots
 - test sharding and per-file isolation are available in CI
 - snapshots and golden tests are first-class
