@@ -141,5 +141,13 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
             ]),
           ],
         ),
+        DocsSection(
+          id: 'status',
+          title: 'Status',
+          children: <Widget>[
+            DocsStatus('UI'),
+            DocsStatus('Styling'),
+          ],
+        ),
       ],
     );
