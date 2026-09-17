@@ -134,7 +134,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             DVBox.wrapLine(<Widget>[
               SiteCard(
                 'The --cloud options',
-                'dartvel build, publish and key cloud pack your app, follow the '
+                'dartvel build, deploy and key cloud pack your app, follow the '
                     'log and download the result.',
                 built: true,
               ),
@@ -253,7 +253,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           tint: true,
           children: <Widget>[
             Eyebrow('TODAY'),
-            Heading('Build, publish and patch from your own machine for free.'),
+            Heading('Build, deploy and patch from your own machine for free.'),
             CodeBlock(<String>[
               'dartvel build android --profile release',
               'dartvel deploy --store firebase-app-distribution',

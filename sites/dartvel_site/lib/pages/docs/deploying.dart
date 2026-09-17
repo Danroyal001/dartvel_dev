@@ -112,7 +112,7 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'such as a Dockerfile and fly.toml, into build/deploy.',
               '--store sends an application you built with dartvel build to '
                   'play, appstore, testflight or firebase-app-distribution, as '
-                  'declared under dartvel.publish in pubspec.yaml. It does not '
+                  'declared under dartvel.deploy.stores in pubspec.yaml. It does not '
                   'build, and it takes no --target or --provider.',
             ]),
             DocsStatus('Deployment', missing: <String>[
