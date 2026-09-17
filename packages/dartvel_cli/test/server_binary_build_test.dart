@@ -163,7 +163,12 @@ Future<String> _ping() async => 'pong from one file';
     final StringBuffer output = StringBuffer();
     server.stdout.transform(utf8.decoder).listen(output.write);
     server.stderr.transform(utf8.decoder).listen(output.write);
-    addTearDown(() => server.kill());
+    // Stopped and waited for: on Windows a running executable cannot be
+    // deleted, and the directory holding it is removed right after this.
+    addTearDown(() async {
+      server.kill();
+      await server.exitCode;
+    });
 
     final HttpClient client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 2);
@@ -263,7 +268,10 @@ Future<String> _ping() async => 'pong from one file';
       final StringBuffer output = StringBuffer();
       server.stdout.transform(utf8.decoder).listen(output.write);
       server.stderr.transform(utf8.decoder).listen(output.write);
-      addTearDown(() => server.kill());
+      addTearDown(() async {
+        server.kill();
+        await server.exitCode;
+      });
 
       Future<({int status, String type, String cache, String body})> get(
           String path,
