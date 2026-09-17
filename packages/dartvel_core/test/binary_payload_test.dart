@@ -114,10 +114,43 @@ void main() {
       'FILE assets/big.bin 300000',
       'FILE index.html 15',
     ]);
-  }, skip: Platform.isMacOS
-      ? 'a Mach-O executable is signed, and changing its bytes breaks the '
-          'signature'
-      : false);
+  });
+
+  // Only the Linux executable ends with the snapshot trailer. On Windows
+  // `dart compile exe` puts the snapshot in a PE section, and on macOS in a
+  // Mach-O segment, and the runtime finds it there -- so neither ends the way
+  // a Linux one does, and splicing refused both: a web-server build on either
+  // host stopped with "not a compiled Dart executable". Bytes after the end of
+  // either image are never mapped, and CI ran such a file on windows-x64,
+  // macos-arm64 and macos-x64 (run 35224245361).
+  for (final (String format, List<int> magic) in <(String, List<int>)>[
+    ('a Windows (PE)', <int>[0x4d, 0x5a]),
+    ('a 64-bit macOS (Mach-O)', <int>[0xcf, 0xfa, 0xed, 0xfe]),
+  ]) {
+    test('$format executable carries sections after its image', () {
+      final Uint8List image = Uint8List(4096)..setRange(0, magic.length, magic);
+      for (int i = magic.length; i < image.length; i++) {
+        image[i] = (i * 7) % 251;
+      }
+      final Uint8List spliced = DVBinaryPayload.splice(
+        image,
+        <String, List<int>>{'greeting': utf8.encode('hello from inside')},
+      );
+      expect(Uint8List.sublistView(spliced, 0, image.length), image,
+          reason: 'the image itself is left exactly as it was');
+      final File out = File(p.join(work.path, 'image-${magic.first}'))
+        ..writeAsBytesSync(spliced);
+      final DVBinaryPayload? payload = DVBinaryPayload.read(out.path);
+      expect(payload?.names, <String>['greeting']);
+      expect(utf8.decode(payload!.section('greeting')), 'hello from inside');
+    });
+  }
+
+  test('an image with nothing spliced in carries nothing', () {
+    final File plain = File(p.join(work.path, 'plain-image'))
+      ..writeAsBytesSync(Uint8List(4096)..setRange(0, 2, <int>[0x4d, 0x5a]));
+    expect(DVBinaryPayload.read(plain.path), isNull);
+  });
 
   test('a file that is not a compiled Dart executable is refused', () {
     expect(

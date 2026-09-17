@@ -12,6 +12,15 @@
 /// the snapshot say where the payload starts. Reading needs two seeks from
 /// the end of the file.
 ///
+/// That is the Linux executable. On Windows `dart compile exe` puts the
+/// snapshot in a section of the PE image and on macOS in a segment of the
+/// Mach-O image, and the runtime finds it through the image's own headers, so
+/// neither ends with the trailer. Bytes after the end of those images are
+/// never mapped, so there the payload is appended, followed by 16 bytes: where
+/// it starts, and `DVPAYEND`. A macOS executable keeps its ad-hoc signature,
+/// which covers the image and not what follows it; `codesign --verify` calls
+/// such a file invalid under strict validation, and the kernel runs it.
+///
 /// Both halves of the format are here, so the writer and the reader cannot
 /// come to disagree.
 library;
@@ -30,6 +39,7 @@ const int _alignment = 65536;
 
 const String _locatorMagic = 'DVPAYLOC';
 const String _payloadMagic = 'DVPAYLD1';
+const String _appendedMagic = 'DVPAYEND';
 
 /// Named sections read out of an executable.
 final class DVBinaryPayload {
@@ -69,18 +79,27 @@ final class DVBinaryPayload {
       final int length = raf.lengthSync();
       if (length < 32) return null;
       raf.setPositionSync(length - 16);
-      final ByteData trailer = ByteData.sublistView(raf.readSync(16));
-      if (trailer.getUint64(8, Endian.little) != _snapshotMagic) return null;
-      final int snapshot = trailer.getUint64(0, Endian.little);
-      if (snapshot < 16 || snapshot > length - 16) return null;
-      raf.setPositionSync(snapshot - 16);
-      final Uint8List locator = raf.readSync(16);
-      if (ascii.decode(locator.sublist(8), allowInvalid: true) !=
-          _locatorMagic) {
-        return null;
+      final Uint8List end = raf.readSync(16);
+      final ByteData trailer = ByteData.sublistView(end);
+      final int start;
+      if (ascii.decode(end.sublist(8), allowInvalid: true) == _appendedMagic) {
+        // Windows and macOS: after the image.
+        start = trailer.getUint64(0, Endian.little);
+        if (start > length - 28) return null;
+      } else {
+        // Linux: between the runtime and the snapshot.
+        if (trailer.getUint64(8, Endian.little) != _snapshotMagic) return null;
+        final int snapshot = trailer.getUint64(0, Endian.little);
+        if (snapshot < 16 || snapshot > length - 16) return null;
+        raf.setPositionSync(snapshot - 16);
+        final Uint8List locator = raf.readSync(16);
+        if (ascii.decode(locator.sublist(8), allowInvalid: true) !=
+            _locatorMagic) {
+          return null;
+        }
+        start = ByteData.sublistView(locator).getUint64(0, Endian.little);
       }
-      final int start =
-          ByteData.sublistView(locator).getUint64(0, Endian.little);
+      if (start < 0 || start > length - 12) return null;
       raf.setPositionSync(start);
       final Uint8List head = raf.readSync(12);
       if (head.length < 12 ||
@@ -123,9 +142,13 @@ final class DVBinaryPayload {
     final ByteData bytes = ByteData.sublistView(executable);
     if (bytes.getUint64(executable.length - 8, Endian.little) !=
         _snapshotMagic) {
+      if (_isPortableExecutable(executable) || _isMachO(executable)) {
+        return _append(executable, sections);
+      }
       throw const FormatException(
         'not a compiled Dart executable: it does not end with the snapshot '
-        'trailer `dart compile exe` writes',
+        'trailer `dart compile exe` writes, and it is not a Windows or macOS '
+        'executable image',
       );
     }
     final int snapshot = bytes.getUint64(executable.length - 16, Endian.little);
@@ -133,6 +156,54 @@ final class DVBinaryPayload {
       throw const FormatException('the snapshot trailer points past the file');
     }
 
+    final Uint8List block = _block(sections);
+    final int start = snapshot;
+    final int end = start + block.length;
+    final int moved = ((end + 16 + _alignment - 1) ~/ _alignment) * _alignment;
+
+    final BytesBuilder out = BytesBuilder(copy: false)
+      ..add(Uint8List.sublistView(executable, 0, snapshot))
+      ..add(block)
+      ..add(Uint8List(moved - 16 - end));
+    final ByteData locator = ByteData(16)
+      ..setUint64(0, start, Endian.little);
+    final Uint8List locatorBytes = locator.buffer.asUint8List();
+    locatorBytes.setRange(8, 16, ascii.encode(_locatorMagic));
+    out
+      ..add(locatorBytes)
+      ..add(Uint8List.sublistView(executable, snapshot, executable.length - 16));
+    final ByteData trailer = ByteData(16)
+      ..setUint64(0, moved, Endian.little)
+      ..setUint64(8, _snapshotMagic, Endian.little);
+    out.add(trailer.buffer.asUint8List());
+    return out.takeBytes();
+  }
+
+  /// [executable] with [sections] after its image, and the 16 bytes that say
+  /// where they start.
+  static Uint8List _append(
+    Uint8List executable,
+    Map<String, List<int>> sections,
+  ) {
+    final Uint8List block = _block(sections);
+    final Uint8List end = Uint8List(16);
+    ByteData.sublistView(end).setUint64(0, executable.length, Endian.little);
+    end.setRange(8, 16, ascii.encode(_appendedMagic));
+    return (BytesBuilder(copy: false)
+          ..add(executable)
+          ..add(block)
+          ..add(end))
+        .takeBytes();
+  }
+
+  static bool _isPortableExecutable(Uint8List bytes) =>
+      bytes[0] == 0x4d && bytes[1] == 0x5a; // MZ
+
+  static bool _isMachO(Uint8List bytes) =>
+      ByteData.sublistView(bytes).getUint32(0, Endian.little) == 0xfeedfacf;
+
+  /// The payload itself: its magic, the section index, and the sections.
+  static Uint8List _block(Map<String, List<int>> sections) {
     final List<Map<String, Object?>> index = <Map<String, Object?>>[];
     final BytesBuilder body = BytesBuilder(copy: false);
     for (final MapEntry<String, List<int>> section in sections.entries) {
@@ -160,32 +231,14 @@ final class DVBinaryPayload {
       if (settled) break;
     }
 
-    final int start = snapshot;
     final Uint8List head = Uint8List(12);
     head.setRange(0, 8, ascii.encode(_payloadMagic));
     ByteData.sublistView(head).setUint32(8, header.length, Endian.little);
-    final Uint8List content = body.takeBytes();
-    final int end = start + 12 + header.length + content.length;
-    final int moved = ((end + 16 + _alignment - 1) ~/ _alignment) * _alignment;
-
-    final BytesBuilder out = BytesBuilder(copy: false)
-      ..add(Uint8List.sublistView(executable, 0, snapshot))
-      ..add(head)
-      ..add(header)
-      ..add(content)
-      ..add(Uint8List(moved - 16 - end));
-    final ByteData locator = ByteData(16)
-      ..setUint64(0, start, Endian.little);
-    final Uint8List locatorBytes = locator.buffer.asUint8List();
-    locatorBytes.setRange(8, 16, ascii.encode(_locatorMagic));
-    out
-      ..add(locatorBytes)
-      ..add(Uint8List.sublistView(executable, snapshot, executable.length - 16));
-    final ByteData trailer = ByteData(16)
-      ..setUint64(0, moved, Endian.little)
-      ..setUint64(8, _snapshotMagic, Endian.little);
-    out.add(trailer.buffer.asUint8List());
-    return out.takeBytes();
+    return (BytesBuilder(copy: false)
+          ..add(head)
+          ..add(header)
+          ..add(body.takeBytes()))
+        .takeBytes();
   }
 }
 
