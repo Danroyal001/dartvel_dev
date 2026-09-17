@@ -11,7 +11,7 @@ void main() {
             File('../../docs/spec-status.json').readAsStringSync())
         as Map<String, Object?>)['sections']! as List<Object?>)
       if (entry is Map && entry['status'] != null)
-        entry['section']! as String: entry['status']! as String,
+        siteName(entry['section']! as String): entry['status']! as String,
   };
 
   test('every label matches docs/spec-status.json', () {
@@ -35,3 +35,6 @@ void main() {
     expect(missing, isEmpty, reason: missing.join('\n'));
   });
 }
+
+/// A section title as the site writes it: site copy has no em dashes.
+String siteName(String section) => section.replaceAll(' — ', ': ');

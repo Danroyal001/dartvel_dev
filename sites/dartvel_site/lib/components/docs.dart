@@ -203,7 +203,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Unified Development, Transparency, and Contracts': 'Partial',
   'Usage Metering and Quotas': 'Partial',
   'Web Server Rendering': 'Partial',
-  'XR \u2014 Spatial Presentation': 'Partial',
+  'XR: Spatial Presentation': 'Partial',
 };
 
 /// The keys of one docs page's sections, so its contents can scroll to them.
