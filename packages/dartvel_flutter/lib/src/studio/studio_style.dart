@@ -20,59 +20,64 @@ import '../../dartvel_flutter.dart';
 abstract final class DVStudioStyle {
   // --- colour ---------------------------------------------------------------
 
+  /// Whether Studio is drawn dark. `DVStudioApp` sets it from the system's
+  /// setting, the browser's `prefers-color-scheme` on the web, and rebuilds
+  /// Studio when it changes. Every colour below reads it.
+  static bool dark = false;
+
   /// Primary text.
-  static const Color ink = Color(0xFF16161D);
+  static const Color ink = DVStudioColor(0xFF16161D, 0xFFF0F0F5);
 
   /// Secondary text: labels, metadata, headings over a list.
-  static const Color muted = Color(0xFF6B6B7B);
+  static const Color muted = DVStudioColor(0xFF6B6B7B, 0xFFA6A6B4);
 
   /// Tertiary text: placeholders, disabled labels, hints.
-  static const Color faint = Color(0xFF9A9AA8);
+  static const Color faint = DVStudioColor(0xFF9A9AA8, 0xFF72727F);
 
   /// Rules between panes, and control borders.
-  static const Color line = Color(0xFFE4E4EB);
+  static const Color line = DVStudioColor(0xFFE4E4EB, 0xFF2B2B35);
 
   /// A border that has to be seen: a focused field's resting state, a card.
-  static const Color lineStrong = Color(0xFFD2D2DC);
+  static const Color lineStrong = DVStudioColor(0xFFD2D2DC, 0xFF3B3B47);
 
   /// Panels that hold controls.
-  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surface = DVStudioColor(0xFFFFFFFF, 0xFF1B1B22);
 
   /// Behind the panels: the workspace a canvas sits in.
-  static const Color canvas = Color(0xFFF3F3F7);
+  static const Color canvas = DVStudioColor(0xFFF3F3F7, 0xFF111116);
 
   /// A row or control under the pointer.
-  static const Color hover = Color(0xFFF4F4F8);
+  static const Color hover = DVStudioColor(0xFFF4F4F8, 0xFF25252E);
 
   /// The background of the row that is open.
-  static const Color selected = Color(0xFFEFEBFF);
+  static const Color selected = DVStudioColor(0xFFEFEBFF, 0xFF2C2548);
 
   /// The selected tab, the open row, a primary action, the selection outline.
-  static const Color accent = Color(0xFF6C4BF4);
+  static const Color accent = DVStudioColor(0xFF6C4BF4, 0xFF8E74F8);
 
   /// A primary action under the pointer.
-  static const Color accentStrong = Color(0xFF5A38E6);
+  static const Color accentStrong = DVStudioColor(0xFF5A38E6, 0xFFA38EFA);
 
   /// A tint of the accent, for badges and soft highlights.
-  static const Color accentSoft = Color(0xFFE9E3FF);
+  static const Color accentSoft = DVStudioColor(0xFFE9E3FF, 0xFF2F2757);
 
   /// Published, healthy, done.
-  static const Color success = Color(0xFF1F9D63);
+  static const Color success = DVStudioColor(0xFF1F9D63, 0xFF36C47F);
 
   /// Draft, pending, needs a look.
-  static const Color warning = Color(0xFFD48A0C);
+  static const Color warning = DVStudioColor(0xFFD48A0C, 0xFFE8A53F);
 
   /// Failed, destructive, refused.
-  static const Color danger = Color(0xFFD1344B);
+  static const Color danger = DVStudioColor(0xFFD1344B, 0xFFF2596E);
 
   /// The navigation rail: dark, so the workspace reads as the bright thing.
-  static const Color rail = Color(0xFF15151C);
+  static const Color rail = DVStudioColor(0xFF15151C, 0xFF0B0B10);
 
   /// Labels on the rail.
-  static const Color railInk = Color(0xFFB9B9C6);
+  static const Color railInk = DVStudioColor(0xFFB9B9C6, 0xFF9C9CAA);
 
   /// The selected item on the rail.
-  static const Color railSelected = Color(0xFF2A2A36);
+  static const Color railSelected = DVStudioColor(0xFF2A2A36, 0xFF23232D);
 
   // --- spacing, radius, elevation ------------------------------------------
 
@@ -953,4 +958,48 @@ abstract final class DVStudioIcons {
     }
     return box;
   }
+}
+
+
+/// A Studio colour with a light and a dark value, still `const`.
+///
+/// Every Studio screen, and every section somebody attached to one, names
+/// its colours as `const` expressions over [DVStudioStyle]. Turning those
+/// constants into getters would have broken each of them; a colour whose
+/// channels read [DVStudioStyle.dark] keeps every one compiling and still
+/// changes when the system does, once the tree that painted it rebuilds.
+class DVStudioColor extends Color {
+  const DVStudioColor(this.light, this.darkValue) : super(light);
+
+  /// The colour in light mode, as `0xAARRGGBB`.
+  final int light;
+
+  /// The colour in dark mode, as `0xAARRGGBB`.
+  final int darkValue;
+
+  int get _current => DVStudioStyle.dark ? darkValue : light;
+
+  @override
+  double get a => ((_current >> 24) & 0xff) / 255;
+
+  @override
+  double get r => ((_current >> 16) & 0xff) / 255;
+
+  @override
+  double get g => ((_current >> 8) & 0xff) / 255;
+
+  @override
+  double get b => (_current & 0xff) / 255;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Color &&
+      other.a == a &&
+      other.r == r &&
+      other.g == g &&
+      other.b == b &&
+      other.colorSpace == colorSpace;
+
+  @override
+  int get hashCode => Object.hash(a, r, g, b, colorSpace);
 }

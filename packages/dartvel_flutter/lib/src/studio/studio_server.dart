@@ -373,9 +373,31 @@ class DVStudioApp extends StatelessWidget {
       title: title,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: DVStudioStyle.accent),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C4BF4)),
         scaffoldBackgroundColor: DVStudioStyle.canvas,
+        canvasColor: DVStudioStyle.canvas,
       ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF8E74F8),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: DVStudioStyle.canvas,
+        canvasColor: DVStudioStyle.canvas,
+      ),
+      // The system's setting: prefers-color-scheme in a browser. Studio's
+      // colours read DVStudioStyle.dark when they paint, and the subtree is
+      // rebuilt under a new key when it changes, so no widget built for the
+      // other mode is kept.
+      builder: (BuildContext context, Widget? child) {
+        final bool dark =
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+        DVStudioStyle.dark = dark;
+        return KeyedSubtree(
+          key: ValueKey<bool>(dark),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: Material(
         child: DVStudioScreen(
           store: DVStudioRemotePageStore(client),
