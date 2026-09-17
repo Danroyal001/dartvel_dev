@@ -1,0 +1,157 @@
+name: Terminal builds on macOS and Windows
+
+# `dartvel build macos-cli` and `dartvel build windows-cli`, built the way a
+# developer builds them and then run.
+#
+# Each job starts from a runner with no Dartvel toolchain: the build installs
+# the dartvel_cli_flt embedder itself (git clone and cargo install, unattended
+# because CI is detected), builds the example into build/terminal, and the
+# bundle is run under a pseudo-terminal -- BSD script on macOS, a ConPTY pseudo
+# console on Windows -- for 25 seconds, then sent Ctrl+C. It has to have drawn
+# escape sequences and exited 0. A job that built and captured nothing is a
+# failure, which is the rule every runtime-verification job follows.
+#
+# Two macOS runners because the embedder links a universal engine and flt is
+# built for the runner's own architecture: arm64 and Intel are separate
+# binaries, and one passing says nothing about the other.
+#
+# linux-cli is in runtime-verification.yml. The repository is public, so the
+# macOS and Windows minutes here are free; the timeouts bound wall-clock.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dartvel_cli/lib/src/commands/build_command.dart'
+      - 'packages/dartvel_cli/lib/src/commands/pty_capture_command.dart'
+      - 'packages/dartvel_cli/lib/src/build/pty_capture.dart'
+      - 'packages/dartvel_cli/lib/src/build/conpty_windows.dart'
+      - 'packages/dartvel_cli/lib/src/utils/toolchain.dart'
+      - '.github/workflows/terminal-hosts.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: terminal-hosts-${{ github.sha }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.5
+
+jobs:
+  build-and-run:
+    name: ${{ matrix.target }} (${{ matrix.arch }}) — build, run in a pty, Ctrl+C
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-latest, target: macos-cli, arch: arm64, launcher: run.sh, exe: flt, engine: lib/FlutterEmbedder.framework }
+          - { runner: macos-15-intel, target: macos-cli, arch: x64, launcher: run.sh, exe: flt, engine: lib/FlutterEmbedder.framework }
+          - { runner: windows-latest, target: windows-cli, arch: x64, launcher: run.cmd, exe: flt.exe, engine: flutter_engine.dll }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
+
+      # The example's Rust runtime hook runs cbindgen during the bundle build.
+      - name: Cache cbindgen
+        id: cbindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cbindgen
+            ~/.cargo/bin/cbindgen.exe
+          key: cbindgen-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cbindgen
+        if: steps.cbindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --locked
+
+      - name: Open the diagnostics directory
+        run: mkdir -p "$RUNNER_TEMP/diag"
+
+      - name: dartvel build ${{ matrix.target }}
+        run: |
+          set -uo pipefail
+          exec > >(tee -a "$RUNNER_TEMP/diag/build.log") 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          # --profile development: the embedder runs JIT and refuses a
+          # release by name rather than shipping a debug bundle as one.
+          dart run dartvel_cli:dartvel build ${{ matrix.target }} \
+            --profile development --auto-install
+          status=$?
+          echo "=== build/terminal ==="
+          find build/terminal -maxdepth 2 2>/dev/null | sort
+          exit $status
+
+      - name: The bundle has what this host's loader needs
+        run: |
+          set -euo pipefail
+          B=examples/dartvel_example/build/terminal
+          for f in "${{ matrix.launcher }}" "${{ matrix.exe }}" "${{ matrix.engine }}" \
+                   data/icudtl.dat data/flutter_assets/kernel_blob.bin; do
+            test -e "$B/$f" || { echo "::error::build/terminal is missing $f"; exit 1; }
+          done
+          # No GUI runner: a -cli bundle ships no desktop app.
+          if find "$B" -name '*.app' -o -name 'dartvel_example.exe' | grep -q .; then
+            echo "::error::build/terminal contains a GUI application"; exit 1
+          fi
+          du -sh "$B"
+
+      - name: The macOS binary loads the bundled engine
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          B=examples/dartvel_example/build/terminal
+          file "$B/flt"
+          otool -L "$B/flt" | grep FlutterEmbedder
+          otool -l "$B/flt" | grep -A2 LC_RPATH
+          otool -l "$B/flt" | grep -q "@executable_path/lib"
+
+      # Run from a copy outside the checkout, with the embedder's cargo output
+      # moved aside, so nothing but the bundle can satisfy the loader.
+      - name: Run it in a pseudo-terminal, then Ctrl+C
+        run: |
+          set -uo pipefail
+          exec > >(tee -a "$RUNNER_TEMP/diag/run.log") 2>&1
+          cp -R examples/dartvel_example/build/terminal "$RUNNER_TEMP/bundle"
+          TARGET_DIR="$HOME/.dartvel/toolchains/dartvel_cli_flt/src/target"
+          if [ -d "$TARGET_DIR" ]; then mv "$TARGET_DIR" "$TARGET_DIR.aside"; fi
+          LAUNCHER="$RUNNER_TEMP/bundle/${{ matrix.launcher }}"
+          if [ "$RUNNER_OS" = "Windows" ]; then LAUNCHER=$(cygpath -w "$LAUNCHER"); fi
+          cd examples/dartvel_example
+          dart run dartvel_cli:dartvel capture pty \
+            "$RUNNER_TEMP/diag/terminal-output.bin" --seconds 25 --interrupt \
+            -- "$LAUNCHER"
+          status=$?
+          if [ -d "$TARGET_DIR.aside" ]; then mv "$TARGET_DIR.aside" "$TARGET_DIR"; fi
+          cp "$RUNNER_TEMP/bundle/app.log" "$RUNNER_TEMP/diag/app.log" 2>/dev/null || true
+          exit $status
+
+      - name: The capture must show a rendered frame
+        run: |
+          set -euo pipefail
+          CAP="$RUNNER_TEMP/diag/terminal-output.bin"
+          test -s "$CAP" || { echo "::error::${{ matrix.target }} produced no capture"; exit 1; }
+          BYTES=$(wc -c < "$CAP" | tr -d ' ')
+          ESC=$(tr -cd '\033' < "$CAP" | wc -c | tr -d ' ')
+          # Colour writes: the ANSI renderer sets a 24-bit colour per half
+          # block, so a frame is thousands of these; a prompt is none.
+          RGB=$(grep -ao $'\x1b\\[[34]8;2;' "$CAP" | wc -l | tr -d ' ')
+          echo "${{ matrix.target }} (${{ matrix.arch }}): $BYTES bytes, $ESC escapes, $RGB true-colour writes"
+          echo "--- first bytes, escaped ---"
+          head -c 400 "$CAP" | cat -v || true
+          echo
+          if [ "$ESC" -lt 50 ]; then echo "::error::too few escape sequences; nothing was drawn"; exit 1; fi
+          if [ "$RGB" -lt 100 ]; then echo "::error::no true-colour frame in the capture"; exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terminal-${{ matrix.target }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/diag/
+          if-no-files-found: warn
