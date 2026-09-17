@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **A link with a `semanticLabel` can be activated from a screen reader.** The
+  label excludes the child's semantics, and the tap action went with them, so
+  a labelled link was announced as a link with nothing to activate.
+
 - **A deep link over a page with a scroll view no longer asserts.** The page
   underneath is built covered and never laid out, and its scroll view made a
   selection scope of its own under the inert registrar, then sorted its text
