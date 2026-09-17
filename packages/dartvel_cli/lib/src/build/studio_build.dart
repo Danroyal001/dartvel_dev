@@ -69,7 +69,8 @@ String dvStudioIndexHtml({required String mount, required String appName}) =>
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="same-origin">
   <title>Studio · ${_html(appName)}</title>
-  <style>html,body{margin:0;height:100%;background:#F3F3F7}</style>
+  <meta name="color-scheme" content="light dark">
+  <style>html,body{margin:0;height:100%;background:#F3F3F7}@media (prefers-color-scheme: dark){html,body{background:#111116}}</style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

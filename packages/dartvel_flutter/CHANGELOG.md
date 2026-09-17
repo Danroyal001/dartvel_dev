@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Studio follows dark mode.** `DVStudioApp` reads the system's setting,
+  `prefers-color-scheme` in a browser, and redraws when it changes. Each
+  `DVStudioStyle` colour is a `DVStudioColor` with a light and a dark value,
+  still `const`, so sections written against the palette change with it and
+  keep compiling. The artboard stays the page's white.
+
 - **A web app served by its own server shows the pages Studio published
   there.** `DVPageStore` reads its documents from the server's
   `/_dartvel/pages` when `DVAuth.servedByOwnServer`, rather than from
