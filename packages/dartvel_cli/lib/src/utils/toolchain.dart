@@ -77,6 +77,15 @@ class ToolRequirement {
 /// Where Dartvel installs toolchains it manages itself.
 String dartvelToolchainRoot(String home) => '$home/.dartvel/toolchains';
 
+/// The terminal embedder binary under the toolchain [root].
+///
+/// Where `cargo install --root <root>/dartvel_cli_flt --bin dartvel-cli-flt`
+/// writes it, which on Windows carries `.exe`. A bare name there would be
+/// reported missing while installed, and the build would skip.
+String terminalEmbedderExecutable(String root, {String? hostOs}) =>
+    '$root/dartvel_cli_flt/bin/dartvel-cli-flt'
+    '${(hostOs ?? Platform.operatingSystem) == 'windows' ? '.exe' : ''}';
+
 /// A Dartvel app is an ordinary Flutter package, so nothing Dartvel-specific
 /// is handed to the embedder: this is the same entry point a plain
 /// `flutter create` app uses, and the fork keeps it that way so it stays a
@@ -96,7 +105,11 @@ const String fuchsiaAppBuildScript = 'scripts/build_flutter_app.sh';
 /// Host support is a separate question answered by `isPlatformAvailableOn`;
 /// this describes what must be *installed*, assuming the host can build the
 /// target at all.
-List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
+List<ToolRequirement> toolRequirementsFor(
+  String platform, {
+  String home = '',
+  String? hostOs,
+}) {
   final root = dartvelToolchainRoot(home);
 
   switch (platform) {
@@ -291,7 +304,7 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           // name. A bare name is looked up on PATH, and a plan naming a
           // command that nothing installs is how the Fuchsia target stayed
           // green for weeks while being unbuildable.
-          executable: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
+          executable: terminalEmbedderExecutable(root, hostOs: hostOs),
           name: 'Dartvel terminal embedder (dartvel_cli_flt)',
           installHint:
               'git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git '
@@ -523,12 +536,19 @@ AutoInstallDecision decideAutoInstall({
   return AutoInstallDecision.prompt;
 }
 
+/// Whether [executable] is a location rather than a name to look up.
+///
+/// Either slash: toolchain paths are built with '/', which Windows accepts,
+/// and asking for Platform.pathSeparator alone sent those to `where`.
+bool namesALocation(String executable) =>
+    executable.contains('/') || executable.contains(r'\');
+
 /// Whether [executable] resolves on the current PATH.
 bool isExecutableOnPath(String executable) {
   // An absolute path is a location, not a PATH lookup. The Fuchsia embedder is
   // a checkout rather than a binary on PATH, and asking `which` about a path
   // that does not exist yet answers a different question.
-  if (executable.contains(Platform.pathSeparator)) {
+  if (namesALocation(executable)) {
     return File(executable).existsSync();
   }
   try {
