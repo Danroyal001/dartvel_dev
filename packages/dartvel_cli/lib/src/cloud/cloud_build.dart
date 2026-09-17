@@ -30,7 +30,11 @@ class DVCloudBuildRequest {
     this.token,
     this.format,
     this.codesign = true,
+    this.simulator = false,
   });
+
+  /// `--simulator`: the tvOS build Dartvel Cloud makes.
+  final bool simulator;
 
   /// `aab` or `ipa`: the store package to build instead of an APK or an
   /// unsigned app.
@@ -131,6 +135,14 @@ class DVCloudBuilder {
           '${dvCloudTargets.keys.join(', ')}.');
       return 64;
     }
+    if (request.simulator != dvCloudSimulatorOnlyTargets.contains(request.target)) {
+      _log(request.simulator
+          ? '❌ ${request.target} does not build for a simulator in Dartvel Cloud.'
+          : '❌ ${request.target} builds in Dartvel Cloud for the simulator only: a '
+              'device build is signed with a team Dartvel Cloud does not keep. '
+              'Pass --simulator.');
+      return 64;
+    }
     final String root = p.normalize(Directory(p.absolute(request.root)).resolveSymbolicLinksSync());
     final String? project = dvCloudProjectName(root);
     if (project == null) {
@@ -163,6 +175,7 @@ class DVCloudBuilder {
           app: app,
           format: request.format,
           codesign: request.codesign,
+          simulator: request.simulator,
         ),
         archive.file,
       );
