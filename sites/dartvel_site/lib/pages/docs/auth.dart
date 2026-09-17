@@ -37,6 +37,30 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'enterprise',
+          title: 'Verify passkeys, SAML, LDAP and Ethereum sign-in',
+          children: <Widget>[
+            DocsTable(columns: <String>[
+              'In dartvel_core',
+              'Does',
+            ], rows: <List<String>>[
+              <String>['DVWebAuthn', 'verifyAssertion checks a passkey '
+                  'signature against the stored credential'],
+              <String>['DVSaml', 'validateResponse checks a SAML 2.0 response '
+                  'and its signature'],
+              <String>['DVLdapClient', 'connect, then authenticate a user name '
+                  'and password against a directory'],
+              <String>['dvVerifySiwe', 'Checks a Sign-In with Ethereum message, '
+                  'its signature, domain and nonce'],
+            ]),
+            Bullets(<String>[
+              'These run on the server, where your backend functions call them.',
+              'CI runs the LDAP client against a real directory server.',
+              'DVLdapClient needs dart:io, so it is not available on the web.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'second-factor',
           title: 'Add a second factor',
           children: <Widget>[
@@ -48,6 +72,11 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
               'completeSecondFactor(recoveryCode: ...) signs in with a recovery '
                   'code.',
             ]),
+            DocsText('To ask for the factor before a page or a function, add '
+                'mfa: DVMfa.required, or mfa: DVMfa.recent(Duration(minutes: 5)) '
+                'for one entered in the last five minutes, to @DVPage or '
+                '@DVBackendFunction. A generated call that is refused shows the '
+                'challenge and sends the call again.'),
           ],
         ),
         DocsSection(
