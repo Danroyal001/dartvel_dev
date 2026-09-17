@@ -30,12 +30,13 @@ on:
 # queue and every one of them finishes against a branch that has already moved
 # on -- which is not a cost problem, it is a feedback one: the answer arrives
 # for a commit nobody is looking at any more.
-# On main each run is the evidence for the commit it ran on, so the group is
-# the commit and a later push does not cancel it. Anywhere else a newer push
-# supersedes the older run.
+# On main a run that has started finishes, so main always has a verdict on a
+# recent commit; a newer push waits behind it and replaces any run waiting.
+# A group per commit instead queued a run for every push, faster than the
+# runners could finish them. Anywhere else a newer push cancels the older run.
 concurrency:
-  group: webos-window-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: true
+  group: webos-window-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   FLUTTER_VERSION: 3.44.5
