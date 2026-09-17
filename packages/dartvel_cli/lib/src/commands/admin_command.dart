@@ -1,6 +1,16 @@
 import 'dart:io';
 
 import '../generators/annotation_args.dart';
+import '../utils/logger.dart';
+import 'db_command.dart' show dvDatabaseSettings;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVDatabaseAdapter,
+        DVDatabaseConnection,
+        DVStudioGrant,
+        DVStudioGrants,
+        DVTenants,
+        SqliteDVDatabaseAdapter;
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
@@ -9,13 +19,199 @@ class AdminCommand extends Command<void> {
   final String name = 'admin';
 
   @override
-  String get description => 'Generate Dartvel admin surfaces.';
+  String get description =>
+      'Generate Dartvel admin surfaces, and say who may open Studio.';
 
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
-  /// by every suite in the process.
-  AdminCommand({String? root}) {
+  /// by every suite in the process. [environment], [out] and [setExitCode]
+  /// are the process's own when null.
+  AdminCommand({
+    String? root,
+    Map<String, String>? environment,
+    void Function(String line)? out,
+    void Function(int code)? setExitCode,
+  }) {
+    final _AdminIo io = _AdminIo(
+      root: root,
+      environment: environment ?? Platform.environment,
+      out: out ?? Logger.log,
+      setExitCode: setExitCode ?? ((int code) => exitCode = code),
+    );
     addSubcommand(AdminGenerateCommand(root: root));
+    addSubcommand(_AdminGrantCommand(io));
+    addSubcommand(_AdminRevokeCommand(io));
+    addSubcommand(_AdminListCommand(io));
+  }
+}
+
+class _AdminIo {
+  _AdminIo({
+    required this._root,
+    required this.environment,
+    required this.out,
+    required this.setExitCode,
+  });
+
+  final String? _root;
+  final Map<String, String> environment;
+  final void Function(String line) out;
+  final void Function(int code) setExitCode;
+
+  String get root => _root ?? Directory.current.path;
+
+  void fail(String message) {
+    out(message);
+    setExitCode(1);
+  }
+}
+
+/// What `grant`, `revoke` and `list` share: the database the grants live in.
+///
+/// Studio opens on a deployed application only for a person granted
+/// `Studio.access`, and the running backend reads those grants from its own
+/// database. So these write to that database and nowhere else: `--database`
+/// names a SQLite file (a web-server binary keeps its own in
+/// `dartvel_data/data.db` beside itself), else `DATABASE_URL`, else the
+/// SQLite file `dartvel.database` names. A file that does not exist is
+/// refused rather than created, because a grant written into a new empty
+/// database is one no server reads, reported as done.
+abstract class _AdminGrantsCommand extends Command<void> {
+  _AdminGrantsCommand(this.io, {bool takesTenant = true}) {
+    argParser.addOption('database',
+        help: 'The SQLite file the application uses, such as '
+            'dartvel_data/data.db beside a web-server binary. Defaults to '
+            'DATABASE_URL, then dartvel.database.');
+    // list shows every tenant's grants, so it takes none.
+    if (takesTenant) {
+      argParser.addOption('tenant',
+          defaultsTo: DVTenants.defaultTenant,
+          help: 'The tenant the account signs in on.');
+    }
+  }
+
+  final _AdminIo io;
+
+  DVDatabaseAdapter? openDatabase() {
+    final String? declared = argResults?['database'] as String?;
+    if (declared != null && declared.trim().isNotEmpty) {
+      final String file =
+          p.isAbsolute(declared) ? declared : p.join(io.root, declared);
+      if (!File(file).existsSync()) {
+        io.fail('No database exists at $file. Point --database at the SQLite '
+            'file the application runs with.');
+        return null;
+      }
+      return SqliteDVDatabaseAdapter.file(file);
+    }
+    final DVDatabaseConnection? connection;
+    try {
+      connection = DVDatabaseConnection.fromEnvironment(io.environment);
+    } on Object catch (error) {
+      io.fail('DATABASE_URL cannot be read: $error');
+      return null;
+    }
+    if (connection != null) return connection.open();
+    final ({String provider, String path}) settings =
+        dvDatabaseSettings(io.root);
+    if (settings.provider != 'sqlite') {
+      io.fail('dartvel.database uses ${settings.provider}, and DATABASE_URL is '
+          'not set, so there is no connection to it. Set DATABASE_URL.');
+      return null;
+    }
+    final String file = p.isAbsolute(settings.path)
+        ? settings.path
+        : p.join(io.root, settings.path);
+    if (!File(file).existsSync()) {
+      io.fail('No database exists at $file. Set --database or DATABASE_URL '
+          'to the database the application runs with.');
+      return null;
+    }
+    return SqliteDVDatabaseAdapter.file(file);
+  }
+
+  String get tenant => '${argResults?['tenant'] ?? DVTenants.defaultTenant}';
+
+  /// The one account the command names, or null having said why.
+  String? account() {
+    final List<String> rest = argResults?.rest ?? const <String>[];
+    if (rest.length != 1 || rest.single.trim().isEmpty) {
+      io.fail('Name one account: dartvel admin $name <user-id>. The id is the '
+          'one the application signs the person in as.');
+      return null;
+    }
+    return rest.single.trim();
+  }
+}
+
+class _AdminGrantCommand extends _AdminGrantsCommand {
+  _AdminGrantCommand(super.io);
+
+  @override
+  final String name = 'grant';
+
+  @override
+  String get description =>
+      'Let an account open Studio (Studio.access) on a deployed application.';
+
+  @override
+  Future<void> run() async {
+    final String? user = account();
+    if (user == null) return;
+    final DVDatabaseAdapter? database = openDatabase();
+    if (database == null) return;
+    await DVStudioGrants(database).grant(user, tenant: tenant);
+    io.out('$user may open Studio on tenant $tenant.');
+  }
+}
+
+class _AdminRevokeCommand extends _AdminGrantsCommand {
+  _AdminRevokeCommand(super.io);
+
+  @override
+  final String name = 'revoke';
+
+  @override
+  String get description => 'Take an account\'s Studio access away.';
+
+  @override
+  Future<void> run() async {
+    final String? user = account();
+    if (user == null) return;
+    final DVDatabaseAdapter? database = openDatabase();
+    if (database == null) return;
+    if (!await DVStudioGrants(database).revoke(user, tenant: tenant)) {
+      io.fail('$user holds no Studio grant on tenant $tenant, so nothing was '
+          'revoked.');
+      return;
+    }
+    io.out('$user may no longer open Studio on tenant $tenant.');
+  }
+}
+
+class _AdminListCommand extends _AdminGrantsCommand {
+  _AdminListCommand(super.io) : super(takesTenant: false);
+
+  @override
+  final String name = 'list';
+
+  @override
+  String get description => 'List the accounts that may open Studio.';
+
+  @override
+  Future<void> run() async {
+    final DVDatabaseAdapter? database = openDatabase();
+    if (database == null) return;
+    final List<DVStudioGrant> grants = await DVStudioGrants(database).list();
+    if (grants.isEmpty) {
+      io.out('Nobody may open Studio. Grant an account with '
+          'dartvel admin grant <user-id>.');
+      return;
+    }
+    for (final DVStudioGrant grant in grants) {
+      io.out('${grant.userId}  tenant ${grant.tenant}  granted '
+          '${grant.grantedAt.toIso8601String()}');
+    }
   }
 }
 
