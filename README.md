@@ -161,8 +161,8 @@ dartvel updates patch
 dartvel updates rollback --release-version 1.2.0 --patch-number 3
 
 # Stores and deployment
-dartvel publish play               # also: appstore, testflight, firebase
-dartvel deploy --provider vercel
+dartvel deploy --store play        # also: appstore, testflight, firebase-app-distribution
+dartvel deploy --provider vercel    # also: firebase-hosting, netlify, cloudflare
 
 # Database
 dartvel db migrate
@@ -475,7 +475,7 @@ it connects over TLS, checks that the server holds the key from the link, and
 hot reloads on every save. Each run of `dartvel dev` uses a fresh key and token.
 The pairing port defaults to 8787 (`--pairing-port`).
 
-`dartvel publish` refuses a development build for Play's alpha, beta and
+`dartvel deploy --store` refuses a development build for Play's alpha, beta and
 production tracks and for the App Store. Play internal testing, TestFlight and
 Firebase accept one.
 
@@ -525,7 +525,7 @@ dartvel key cloud android-keystore ./upload.jks   # keep a signing credential th
 dartvel key cloud                      # list them by name, never by value
 dartvel build android --cloud          # streams the log, downloads to build/cloud/android
 dartvel build ios --cloud              # runs on a macOS worker
-dartvel publish play --cloud           # builds an App Bundle in release and uploads it
+dartvel deploy --store play --cloud    # builds an App Bundle in release and uploads it
 ```
 
 Every cloud build is paid; there is no free tier for builds. Plans open when the
@@ -1039,7 +1039,7 @@ want some of these:
 | An all-in-one SDK with auth, push, storage and analytics set up | Framework services you configure in `pubspec.yaml` and code. Nothing is copied into your project to maintain |
 | Over-the-air updates | `dartvel updates` over Shorebird, with `DV.Updates` bound over FFI and an optional self-hosted patch source. Proven on Android; see [Over-the-air updates](#-over-the-air-updates) |
 | Development builds | `--profile development` builds that pair with `dartvel dev` by QR code. See [Development builds](#-development-builds-and-pairing) |
-| Cloud builds, credentials and store submission (EAS) | The CLI for [Dartvel Cloud](#-dartvel-cloud) is built and the hosted service has not launched. Locally, `dartvel publish` hands the upload for Play, the App Store, TestFlight or Firebase to that store's own tool |
+| Cloud builds, credentials and store submission (EAS) | The CLI for [Dartvel Cloud](#-dartvel-cloud) is built and the hosted service has not launched. Locally, `dartvel deploy --store` hands the upload for Play, the App Store, TestFlight or Firebase to that store's own tool |
 
 ---
 
