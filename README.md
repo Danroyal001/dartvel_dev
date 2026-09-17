@@ -311,7 +311,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.3.0
+  dartvel_dev: ^0.5.0
 ```
 
 Or the pieces directly, where you want only some of them:
@@ -321,7 +321,10 @@ cache, queues, auth, notifications, AI),
 signals, native platform APIs),
 [`dartvel_shelf`](https://pub.dev/packages/dartvel_shelf) (the Rust runtime),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
-dev server, deploy).
+dev server, deploy). Every package needs Dart 3.12 and Flutter 3.44 or newer.
+
+To add Dartvel to a Flutter project you already have, run `dartvel init`. It
+adds the dependency and the `dartvel:` key and nothing else.
 
 ### 3. Start it
 
@@ -333,65 +336,82 @@ dartvel dev
 
 `dartvel dev` runs generation, the Flutter app and the backend together, and
 reloads only what changed: a page edit hot-reloads Flutter, a backend edit
-restarts the server, a Rust edit rebuilds the native library.
+restarts the server, a Rust edit rebuilds the native library. It also prints a
+QR code for [development builds](#-development-builds-and-pairing) on your
+phone.
 
-### 4. Declare Reactive Models
-Annotated models automatically generate DB schemas, validation, forms, and serializations:
+Generation is the CLI's job. `dartvel dev` and `dartvel build` run it first,
+and `dartvel routes` runs it alone. It writes the client under
+`lib/dartvel_client/`, and application code imports that one barrel.
+
+### 4. Add a page
+
+Routing is file-based. `lib/pages/about.dart` is served at `/about`:
+
 ```dart
-// lib/models/user.dart
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPage(title: 'About us')
+Widget _aboutPage(BuildContext context) => const DVBox.list(<Widget>[
+      DVText('About us'),
+      DVText('We make tools for Flutter teams.'),
+    ]);
+```
+
+The annotated function is private. Dartvel generates the public route from it.
+
+### 5. Declare a model
+
+```dart
+// lib/models/article.dart
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class _User {
-  final String name;
-  final String email;
+class _Article {
+  final String slug;
+  final String title;
+  final bool published;
 
-  const _User({required this.name, required this.email});
+  const _Article({
+    required this.slug,
+    required this.title,
+    required this.published,
+  });
 }
 ```
 
-### 5. Build Safe Reactive Forms
-Render custom-designed form layouts with auto-generated controls, validation states, and submit triggers:
-```dart
-// lib/pages/index.page.dart
-import 'package:your_app/dartvel_client/dartvel_client.dart';
+`_Article` generates the public `Article`, with its table, CRUD, validation,
+serialization and widgets. Application code uses `Article`:
 
-@DVPage()
-Widget _indexPage(BuildContext context) {
-  return DVForm<User>.builder(
-    (formControls) {
-      final userControls = formControls as UserFormControls;
-      return DVBox.list([
-        DVText(userControls.name).modifier(DVModifier().input()),
-        DVText(userControls.email).modifier(DVModifier().input()),
-        DVText('Save').modifier(
-          DVModifier().onPressed(
-            userControls.emailIsValid ? userControls.submit : null,
-          ),
-        ),
-      ]);
-    },
-    const User(name: 'John Doe', email: 'john@example.com'),
-  );
-}
+```dart
+final Article article = Article(slug: 'hello-world', title: 'Hello', published: false);
+await article.save();
+final Article? found = await Article.find('hello-world');
+
+Widget editor(Article article) =>
+    Article.Form(article, (Article edited) => edited.save());
+Widget table(List<Article> articles) => Article.Table(articles);
 ```
 
-### 6. Create FFI Backend Functions
-Write plain Dart functions that are compiled into a high-performance Rust runtime using Axum and FFI:
+### 6. Write a backend function
+
 ```dart
-// lib/backend/functions/hello.get.dart
+// lib/backend/functions/hello.get.dart is served at GET /api/hello.
 import 'package:dartvel_core/dartvel.dart';
-import 'package:your_app/dartvel_client/dartvel_client.dart';
 
 @DVBackendFunction()
-Future<User> _getUser(String id) async {
-  return User(name: 'User $id', email: 'user$id@example.com');
-}
+Future<Map<String, Object?>> _hello(String name) async =>
+    <String, Object?>{'greeting': 'Hello, $name'};
 ```
 
-Call it directly from your frontend code:
+The file name sets the route and the HTTP method. The Axum server calls the
+function over FFI, and the generated client calls it by name from anywhere in
+the app:
+
 ```dart
-final user = await getUser('101');
+final Map<String, Object?> greeting = await hello(name: 'Ada');
 ```
 
 ---
@@ -517,20 +537,42 @@ machines and hosting your own web-server binary stay free.
 
 ## 🔒 Authentication
 
-Support Clerk-style authentication and native OS login flows out-of-the-box:
+Sign-in methods, prebuilt pages, and server-side sessions:
 
 ```dart
-// Core Methods
+// Sign in
 await DV.Auth.signInWithEmailAndPassword(email: email, password: password);
 await DV.Auth.signInWithProvider('google');
 await DV.Auth.signInWithPasskey();
 await DV.Auth.signInWithWeb3();
 
-// Prebuilt Widgets & Pages
+// Prebuilt pages
 DV.Auth.SignInWithEmailAndPasswordPage();
 DV.Auth.SignInWithProviderPage();
 DV.Auth.SignInWithPasskeyPage();
 ```
+
+An account with a second factor stops halfway through sign-in and asks for a
+code. TOTP enrollment, recovery codes and device sessions are on `DV.Auth` too:
+
+```dart
+try {
+  await DV.Auth.signInWithEmailAndPassword(email: email, password: password);
+} on DVMfaRequired {
+  await DV.Auth.completeSecondFactor(code: await askForCode());
+}
+
+final DVTotpEnrollment enrollment = await DV.Auth.enrollTotp();
+await DV.Auth.confirmTotp(await askForCode());
+
+final List<DVSession> sessions = await DV.Auth.sessions();
+await DV.Auth.revoke(sessions.last.id);   // sign one device out
+await DV.Auth.revokeOthers();             // every device but this one
+```
+
+Session tokens are stored only as hashes and replaced at every privilege
+change. A browser gets a `__Host-` cookie and a native client gets a bearer
+token. Passkeys as a second factor and per-tenant MFA policy are not built yet.
 
 ---
 
@@ -666,6 +708,11 @@ is a miss rather than an exception, because a cache outage should not become an
 application outage. Locks run on the primary alone, so two callers cannot each
 win on a different node.
 
+`DVMemcachedCacheAdapter` is available beside the Redis one. The database
+adapter stores values as JSON, so a value that cannot be encoded raises
+`ArgumentError`, and a `List<String>` comes back as `List<Object?>`.
+`DVMemoryCacheAdapter` keeps the Dart object and has neither restriction.
+
 ---
 
 ## 📬 Durable queues
@@ -729,9 +776,9 @@ and MinIO require it; pass `usePathStyle: false` for virtual-hosted AWS
 buckets. A missing object reports `DVFileStorageException.isNotFound` rather
 than a generic failure, and deleting an object that is already gone succeeds.
 
-Azure Blob and Google Cloud Storage adapters are **not** implemented yet.
-
----
+`AzureBlobFileStorageAdapter` and `GcsFileStorageAdapter` cover Azure Blob
+Storage and Google Cloud Storage. CI runs them against Azurite and
+fake-gcs-server, the emulators for each.
 
 ---
 
@@ -783,8 +830,6 @@ conditional, verified by a passing `flutter build web` and Wasm dry run.
 
 ---
 
----
-
 ## 💬 SMS
 
 `TwilioSmsProvider` fills the `sms` notification channel:
@@ -820,8 +865,6 @@ anonymous POST because anyone who learned the endpoint could otherwise send to
 it. P-256 ECDH, HKDF and AES-GCM come from `pointycastle`, which this project
 already depends on — the earlier note that no bundled library provided them was
 looking only at `crypto`.
-
----
 
 ---
 
@@ -879,15 +922,9 @@ object on 7.x but a bare integer on 6.x. It authenticates with HTTP Basic when
 given credentials, an `ApiKey` header when given a key, and neither for an open
 cluster.
 
-A PostgreSQL full-text provider is **not** implemented yet.
-
----
-
-The database-backed cache adapter stores values as JSON, so only JSON-encodable
-values can be cached — a value that cannot be encoded raises `ArgumentError`
-rather than being silently dropped. The round trip is JSON's, not Dart's: a
-`List<String>` comes back as `List<Object?>`. `DVMemoryCacheAdapter` has no
-such restriction. Redis/Memcached adapters are **not** implemented yet.
+`DVPostgresSearchProvider` uses PostgreSQL's own full-text engine over a
+table you name, so the index lives in the database and cannot go stale
+relative to its rows.
 
 ---
 
