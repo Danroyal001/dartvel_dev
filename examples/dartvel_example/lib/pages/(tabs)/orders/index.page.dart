@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../components/shop_ui.dart';
 import '../../../dartvel_client/dartvel_client.dart';
 import '../../../shop/account.dart';
-import '../../../shop/orders.dart';
 import '../../../theme/palette.dart';
 
 /// Every order the signed-in person has placed, newest first. Live: a status
