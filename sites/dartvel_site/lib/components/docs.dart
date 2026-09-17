@@ -47,6 +47,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Put and get files on S3, GCS or Azure', 'Services'),
   DocsPageInfo(DVRoutes.docshttp, 'Outbound HTTP',
       'Call APIs you have declared, with retries', 'Services'),
+  DocsPageInfo(DVRoutes.docsai, 'AI',
+      'Chat, structured output, embeddings and tools', 'Services'),
   DocsPageInfo(DVRoutes.docswebhooks, 'Webhooks',
       'Signed events your customers subscribe to', 'Platform'),
   DocsPageInfo(DVRoutes.docsgraphql, 'GraphQL and OpenAPI',
