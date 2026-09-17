@@ -341,6 +341,165 @@ void main() {
   });
 
   group('grants', () {
+    late DVDatabaseAuthProvider accounts;
+    late String owner;
+    late String colleague;
+    late DVAdminServer asOwner;
+
+    setUp(() async {
+      accounts = DVDatabaseAuthProvider(
+        database,
+        hasher: DVPasswordHasher(iterations: 1000),
+      );
+      owner = (await accounts.signUp('owner@example.com', 'a-long-password'))!
+          .id;
+      colleague =
+          (await accounts.signUp('sam@example.com', 'a-long-password'))!.id;
+      await DVStudioGrants(database).grant(owner);
+      asOwner = DVAdminServer(
+        mount: _guarded,
+        root: root.path,
+        authenticated: (Request _) async => true,
+        caller: (Request _) async => owner,
+        accounts: accounts,
+        models: _models,
+        database: database,
+      );
+    });
+
+    Future<List<Map<String, Object?>>> listed() async {
+      final Response? response = await asOwner.respond(
+        _request('GET', '/__studio/api/grants'),
+      );
+      return <Map<String, Object?>>[
+        for (final Object? grant
+            in ((await _json(response!))! as Map<String, Object?>)['grants']!
+                as List<Object?>)
+          (grant! as Map).cast<String, Object?>(),
+      ];
+    }
+
+    test('each grant names the account\'s address and marks the caller',
+        () async {
+      final List<Map<String, Object?>> grants = await listed();
+
+      expect(grants.single['userId'], owner);
+      expect(grants.single['email'], 'owner@example.com');
+      expect(grants.single['you'], isTrue);
+    });
+
+    test('an account is granted by its address', () async {
+      final Response? response = await asOwner.respond(
+        _request(
+          'POST',
+          '/__studio/api/grants',
+          json: <String, Object?>{'account': 'Sam@Example.com'},
+        ),
+      );
+
+      expect(response?.status, 201, reason: '${await _json(response!)}');
+      expect(await DVStudioGrants(database).isGranted(colleague), isTrue);
+      expect(
+        (await listed()).map((Map<String, Object?> g) => g['email']),
+        containsAll(<String>['owner@example.com', 'sam@example.com']),
+      );
+    });
+
+    test('an address nobody signed up with is refused, and nothing is granted',
+        () async {
+      final Response? response = await asOwner.respond(
+        _request(
+          'POST',
+          '/__studio/api/grants',
+          json: <String, Object?>{'account': 'nobody@example.com'},
+        ),
+      );
+
+      expect(response?.status, 404);
+      expect(await DVStudioGrants(database).list(), hasLength(1));
+    });
+
+    test('a grant or revoke without the CSRF header is refused', () async {
+      final Response? grant = await asOwner.respond(
+        _request(
+          'POST',
+          '/__studio/api/grants',
+          json: <String, Object?>{'account': 'sam@example.com'},
+          csrf: false,
+        ),
+      );
+      final Response? revoke = await asOwner.respond(
+        _request(
+          'DELETE',
+          '/__studio/api/grants?userId=$owner&confirm=true',
+          csrf: false,
+        ),
+      );
+
+      expect(grant?.status, 403);
+      expect(revoke?.status, 403);
+      expect(await DVStudioGrants(database).isGranted(colleague), isFalse);
+      expect(await DVStudioGrants(database).isGranted(owner), isTrue);
+    });
+
+    test('a caller who may not open Studio cannot grant', () async {
+      granted = false;
+      final Response? response = await server.respond(
+        _request(
+          'POST',
+          '/__studio/api/grants',
+          json: <String, Object?>{'account': 'sam@example.com'},
+        ),
+      );
+
+      expect(response, isNull);
+      expect(await DVStudioGrants(database).isGranted(colleague), isFalse);
+    });
+
+    test('a colleague\'s grant is revoked', () async {
+      await DVStudioGrants(database).grant(colleague);
+
+      final Response? response = await asOwner.respond(
+        _request('DELETE', '/__studio/api/grants?userId=$colleague'),
+      );
+
+      expect(response?.status, 200, reason: '${await _json(response!)}');
+      expect(await DVStudioGrants(database).isGranted(colleague), isFalse);
+    });
+
+    test('revoking your own grant needs confirmation', () async {
+      await DVStudioGrants(database).grant(colleague);
+
+      final Response? unconfirmed = await asOwner.respond(
+        _request('DELETE', '/__studio/api/grants?userId=$owner'),
+      );
+      expect(unconfirmed?.status, 409);
+      expect(
+        ((await _json(unconfirmed!))! as Map<String, Object?>)['error'],
+        'confirm_self',
+      );
+      expect(await DVStudioGrants(database).isGranted(owner), isTrue);
+
+      final Response? confirmed = await asOwner.respond(
+        _request('DELETE', '/__studio/api/grants?userId=$owner&confirm=true'),
+      );
+      expect(confirmed?.status, 200);
+      expect(await DVStudioGrants(database).isGranted(owner), isFalse);
+    });
+
+    test('revoking the last grant needs confirmation', () async {
+      // Nobody could open Studio afterwards, from Studio.
+      final Response? unconfirmed = await asOwner.respond(
+        _request('DELETE', '/__studio/api/grants?userId=$owner'),
+      );
+      expect(unconfirmed?.status, 409);
+      expect(
+        ((await _json(unconfirmed!))! as Map<String, Object?>)['error'],
+        'confirm_last',
+      );
+      expect(await DVStudioGrants(database).isGranted(owner), isTrue);
+    });
+
     test('lists who may open Studio', () async {
       await DVStudioGrants(database).grant('owner-1');
 
@@ -352,7 +511,10 @@ void main() {
       final List<Object?> grants =
           ((await _json(response!))! as Map<String, Object?>)['grants']!
               as List<Object?>;
-      expect((grants.single! as Map<String, Object?>)['userId'], 'owner-1');
+      expect(
+        grants.map((Object? g) => (g! as Map<String, Object?>)['userId']),
+        contains('owner-1'),
+      );
     });
   });
 }
