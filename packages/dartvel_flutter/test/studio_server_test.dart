@@ -11,6 +11,7 @@ import 'dart:convert';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// One request the fake server saw.
@@ -259,6 +260,37 @@ void main() {
         'values': <String, Object?>{'name': 'Ada Lovelace'},
       });
       expect(find.text('Ada Lovelace'), findsWidgets);
+    });
+
+    testWidgets(
+        'a column heading stays on one line when the form narrows the table',
+        (WidgetTester tester) async {
+      // A heading broken mid-word ("DESCRIPTI / ON") is unreadable, and a
+      // table squeezed by the edit form did exactly that.
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-record-ada')));
+      await tester.pumpAndSettle();
+
+      for (final String heading in <String>['PUBLISHED', 'SLUG', 'NAME']) {
+        final Finder text = find.text(heading);
+        expect(text, findsWidgets, reason: heading);
+        for (final Element at in text.evaluate()) {
+          final RenderParagraph paragraph = at.renderObject! as RenderParagraph;
+          final double oneLine = paragraph
+              .getFullHeightForCaret(const TextPosition(offset: 0));
+          expect(paragraph.size.height, lessThanOrEqualTo(oneLine + 0.5),
+              reason: '$heading wrapped onto a second line');
+        }
+      }
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('routes and functions come from the build\'s manifest',
