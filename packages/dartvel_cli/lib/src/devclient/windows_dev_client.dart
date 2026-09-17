@@ -47,25 +47,30 @@ String dvWindowsRunnerCmakeWithDevClient(
   String cmake, {
   required bool enabled,
 }) {
+  // A Windows checkout is usually CRLF, and what is written matches the file.
+  final String eol = cmake.contains('\r\n') ? '\r\n' : '\n';
   final RegExp block = RegExp(
-    '${RegExp.escape(_cmakeStart)}.*?${RegExp.escape(_cmakeEnd)}',
+    r'# dartvel\.devclient: begin\r?\n.*?# dartvel\.devclient: end\r?\n',
     dotAll: true,
   );
   final String stripped = cmake.replaceAll(block, '');
   if (!enabled) return stripped;
-  const String insert =
-      '$_cmakeStart'
-      '# A development build pairs with `dartvel dev`. The Debug configuration\n'
-      '# only: a generator expression, because this generator builds every\n'
-      '# configuration from one project.\n'
-      r'target_sources(${BINARY_NAME} PRIVATE "$<$<CONFIG:Debug>:dartvel_dev_client.cpp>")'
-      '\n'
-      '$_cmakeEnd';
+  final String insert = <String>[
+    _cmakeStart.trimRight(),
+    '# A development build pairs with `dartvel dev`. The Debug configuration',
+    '# only: a generator expression, because this generator builds every',
+    '# configuration from one project.',
+    r'target_sources(${BINARY_NAME} PRIVATE "$<$<CONFIG:Debug>:dartvel_dev_client.cpp>")',
+    _cmakeEnd.trimRight(),
+    '',
+  ].join(eol);
   final int start = stripped.indexOf(r'add_executable(${BINARY_NAME}');
   if (start < 0) return stripped;
-  final int close = stripped.indexOf('\n)\n', start);
-  if (close < 0) return stripped;
-  final int at = close + 3;
+  final Match? close = RegExp(
+    r'\r?\n\)\r?\n',
+  ).firstMatch(stripped.substring(start));
+  if (close == null) return stripped;
+  final int at = start + close.end;
   return '${stripped.substring(0, at)}$insert${stripped.substring(at)}';
 }
 
