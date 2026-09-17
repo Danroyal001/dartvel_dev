@@ -234,6 +234,22 @@ class DVStudioClient {
   Future<List<Map<String, Object?>>> grants() async =>
       _list(await _send('GET', 'api/grants'), 'grants');
 
+  /// Lets [account], an address or an account id, open Studio.
+  Future<void> grant(String account) =>
+      _send('POST', 'api/grants', body: <String, Object?>{'account': account});
+
+  /// Takes [userId]'s grant on [tenant] away. The server refuses the
+  /// caller's own grant and the last one on a tenant with a 409 unless
+  /// [confirm] says the person meant it.
+  Future<void> revoke(String userId,
+          {required String tenant, bool confirm = false}) =>
+      _send(
+        'DELETE',
+        'api/grants?userId=${Uri.encodeQueryComponent(userId)}'
+            '&tenant=${Uri.encodeQueryComponent(tenant)}'
+            '${confirm ? '&confirm=true' : ''}',
+      );
+
   /// The project graph the build wrote beside Studio: models, routes,
   /// functions and jobs, with the file each is declared in.
   Future<Map<String, Object?>> manifest() async =>
@@ -431,10 +447,16 @@ class _DVStudioTable extends StatelessWidget {
     this.rowKeys,
     this.onTap,
     this.selected,
+    this.trailing,
   });
 
   final List<String> headers;
   final List<List<String>> rows;
+
+  /// A widget at the end of each row, such as the row's action.
+  final List<Widget>? trailing;
+
+  static const double trailingWidth = 40;
   final List<Key>? rowKeys;
   final void Function(int index)? onTap;
   final int? selected;
@@ -493,6 +515,10 @@ class _DVStudioTable extends StatelessWidget {
             child: Row(children: <Widget>[
               for (final String header in headers)
                 Expanded(child: cell(header, header: true)),
+              // The trailing column is a fixed width in the header and the
+              // rows alike, so the headings sit over their cells.
+              if (trailing != null)
+                const SizedBox(width: trailingWidth + DVStudioStyle.space2),
             ]),
           ),
           for (int i = 0; i < rows.length; i++)
@@ -515,6 +541,15 @@ class _DVStudioTable extends StatelessWidget {
                   child: Row(children: <Widget>[
                     for (final String value in rows[i])
                       Expanded(child: cell(value)),
+                    if (trailing != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            right: DVStudioStyle.space2),
+                        child: SizedBox(
+                          width: trailingWidth,
+                          child: Center(child: trailing![i]),
+                        ),
+                      ),
                   ]),
                 ),
               ),
@@ -1066,11 +1101,74 @@ class _DVStudioAccessSection extends StatefulWidget {
 }
 
 class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
-  late final Future<List<Map<String, Object?>>> _grants =
-      widget.client.grants();
+  late Future<List<Map<String, Object?>>> _grants = widget.client.grants();
+  String _account = '';
+  int _field = 0;
+  bool _busy = false;
+  String? _error;
+
+  /// The grant waiting for a yes, with the server's reason for asking.
+  ({String userId, String tenant, String message})? _confirming;
+
+  void _reload() {
+    setState(() {
+      _grants = widget.client.grants();
+    });
+  }
+
+  Future<void> _grant() async {
+    final String account = _account.trim();
+    if (account.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.client.grant(account);
+      if (!mounted) return;
+      setState(() {
+        _account = '';
+        // A fresh field, so the address granted does not stay typed in it.
+        _field += 1;
+      });
+      _reload();
+    } on DVStudioRemoteError catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _revoke(String userId, String tenant,
+      {bool confirm = false}) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.client.revoke(userId, tenant: tenant, confirm: confirm);
+      if (!mounted) return;
+      setState(() => _confirming = null);
+      _reload();
+    } on DVStudioRemoteError catch (error) {
+      if (!mounted) return;
+      setState(() {
+        if (error.status == 409 && !confirm) {
+          _confirming =
+              (userId: userId, tenant: tenant, message: error.message);
+        } else {
+          _error = error.message;
+        }
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final ({String userId, String tenant, String message})? confirming =
+        _confirming;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1086,26 +1184,134 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
+                  DVStudioStyle.overline('Grant access'),
+                  const SizedBox(height: DVStudioStyle.space2),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: KeyedSubtree(
+                          key: const ValueKey<String>(
+                              'dv-studio-grant-account'),
+                          child: DVStudioTextInput(
+                            key: ValueKey<int>(_field),
+                            placeholder: 'Their sign-in address, or account id',
+                            icon: Icons.person_add_alt_1_outlined,
+                            onChanged: (String value) => _account = value,
+                            onSubmitted: (_) => unawaited(_grant()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: DVStudioStyle.space2),
+                      GestureDetector(
+                        key: const ValueKey<String>('dv-studio-grant'),
+                        onTap: _busy ? null : () => unawaited(_grant()),
+                        child: DVStudioStyle.control('Grant',
+                            enabled: !_busy, primary: true, icon: Icons.add),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: DVStudioStyle.space2),
+                  DVStudioStyle.caption(
+                    'The person signs up to the application first. A grant '
+                    'lets them open Studio; it gives them nothing else.',
+                  ),
+                  if (_error != null) ...<Widget>[
+                    const SizedBox(height: DVStudioStyle.space3),
+                    DVStudioStyle.body(_error!, color: DVStudioStyle.danger),
+                  ],
+                  if (confirming != null) ...<Widget>[
+                    const SizedBox(height: DVStudioStyle.space4),
+                    Container(
+                      padding: const EdgeInsets.all(DVStudioStyle.space3),
+                      decoration: BoxDecoration(
+                        color: Color.alphaBlend(
+                          DVStudioStyle.warning.withValues(alpha: 0.1),
+                          DVStudioStyle.surface,
+                        ),
+                        border: Border.all(
+                            color:
+                                DVStudioStyle.warning.withValues(alpha: 0.4)),
+                        borderRadius:
+                            BorderRadius.circular(DVStudioStyle.radiusSmall),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 18, color: DVStudioStyle.warning),
+                          const SizedBox(width: DVStudioStyle.space2),
+                          Expanded(
+                              child: DVStudioStyle.body(confirming.message)),
+                          const SizedBox(width: DVStudioStyle.space2),
+                          GestureDetector(
+                            key: const ValueKey<String>(
+                                'dv-studio-revoke-cancel'),
+                            onTap: () => setState(() => _confirming = null),
+                            child: DVStudioStyle.control('Keep it',
+                                enabled: true),
+                          ),
+                          const SizedBox(width: DVStudioStyle.space2),
+                          GestureDetector(
+                            key: const ValueKey<String>(
+                                'dv-studio-revoke-confirm'),
+                            onTap: _busy
+                                ? null
+                                : () => unawaited(_revoke(
+                                    confirming.userId, confirming.tenant,
+                                    confirm: true)),
+                            child: DVStudioStyle.control('Revoke anyway',
+                                enabled: !_busy,
+                                primary: true,
+                                icon: Icons.remove_circle_outline),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: DVStudioStyle.space5),
                   if (grants.isEmpty)
                     DVStudioStyle.body('Nobody holds a grant. This Studio is '
                         'open because the application answers Studio.access '
                         'itself, or because this is a development build.')
                   else
                     _DVStudioTable(
-                      headers: const <String>['Account', 'Tenant', 'Granted'],
+                      headers: const <String>[
+                        'Email',
+                        'Account',
+                        'Tenant',
+                        'Granted',
+                      ],
                       rows: <List<String>>[
                         for (final Map<String, Object?> grant in grants)
                           <String>[
+                            _cell(grant['email']),
                             _cell(grant['userId']),
                             _cell(grant['tenant']),
-                            _cell(grant['grantedAt']),
+                            _grantedAt(grant['grantedAt']),
                           ],
+                      ],
+                      // The caller's own grant, highlighted: the one to
+                      // think twice about.
+                      selected: grants.indexWhere(
+                          (Map<String, Object?> g) => g['you'] == true),
+                      trailing: <Widget>[
+                        for (final Map<String, Object?> grant in grants)
+                          DVStudioIconButton(
+                            key: ValueKey<String>(
+                                'dv-studio-revoke-${grant['userId']}'),
+                            icon: Icons.person_remove_outlined,
+                            tooltip: 'Revoke',
+                            onTap: _busy
+                                ? null
+                                : () => unawaited(_revoke(
+                                    '${grant['userId']}',
+                                    '${grant['tenant'] ?? 'default'}')),
+                          ),
                       ],
                     ),
                   const SizedBox(height: DVStudioStyle.space4),
                   DVStudioStyle.caption(
-                    'Grant or revoke on the server with dartvel admin grant '
-                    '<user-id> and dartvel admin revoke <user-id>, pointed at '
+                    'On the server, dartvel admin grant <user-id> and '
+                    'dartvel admin revoke <user-id> do the same, pointed at '
                     'this deployment\'s database with --database.',
                   ),
                 ],
@@ -1115,5 +1321,10 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
         ),
       ],
     );
+  }
+
+  static String _grantedAt(Object? value) {
+    final DateTime? at = DateTime.tryParse('${value ?? ''}');
+    return at == null ? _cell(value) : _formatMoment(at);
   }
 }

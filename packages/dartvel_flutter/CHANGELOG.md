@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Studio's Access section grants and revokes.** An account is granted by
+  its sign-in address or id, a refusal says why, each grant shows the
+  account's address, the caller's own row is highlighted, and revoking your
+  own grant or the last one asks before it goes (`DVStudioClient.grant`,
+  `DVStudioClient.revoke`).
+
 - **The sign-in page leaves once signed in.** Opened without a `from`, the
   generated `/login` stayed on its form after the server accepted the
   sign-in, as if nothing had happened; it now goes to `/`. A `from` is still
