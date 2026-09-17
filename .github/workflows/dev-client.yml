@@ -27,6 +27,7 @@ on:
       - tool/ci/android_dev_client_check.dart
       - tool/ci/ios_dev_client_check.dart
       - tool/ci/linux_dev_client_check.dart
+      - tool/ci/desktop_dev_client_check.dart
       - packages/dartvel_flutter/lib/src/windowing/app_launch.dart
       - .github/workflows/dev-client.yml
 
@@ -147,18 +148,6 @@ jobs:
           test -n "$found" || { echo "::error::dartvel_dev_client_vm_service is not exported"; exit 1; }
           echo "tunnel exported from $found"
 
-      - name: The macOS development build compiles the same tunnel
-        run: |
-          set -euo pipefail
-          exec > >(tee -a /tmp/diag/macos-devclient-build.log) 2>&1
-          cd examples/dartvel_example
-          dart run dartvel_cli:dartvel build macos --profile development
-          app=$(find build/macos/Build/Products/Debug -maxdepth 1 -name '*.app' | head -1)
-          test -n "$app"
-          /usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Contents/Info.plist" | grep -q dartvel-dev
-          codesign -d --entitlements - "$app" 2>/dev/null | grep -q network.client
-          nm -gU "$app"/Contents/MacOS/* 2>/dev/null | grep -q _dartvel_dev_client_vm_service
-
       # Flutter's attach compiles with the flutter-tester device's toolchain;
       # fetched here rather than halfway through the device step's timeout.
       - name: Precache the tester artifacts
@@ -240,3 +229,107 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: dev-client-linux, path: /tmp/diag/, if-no-files-found: warn }
+
+  # macOS desktop: the development app run on the runner and launched with the
+  # pairing link, which the Objective-C tunnel reads from its arguments. Its
+  # sandbox allows the outgoing connection through the Debug entitlements the
+  # build writes. See tool/ci/desktop_dev_client_check.dart.
+  macos-desktop:
+    name: macOS desktop — launch with the link, edit, hot reload
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /tmp/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the development app
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /tmp/diag/macos-devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build macos --profile development
+          app=build/macos/Build/Products/Debug/dartvel_example.app
+          test -d "$app"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Contents/Info.plist" | grep -q dartvel-dev
+          codesign -d --entitlements - "$app" 2>/dev/null | grep -q network.client
+          nm -gU "$app"/Contents/MacOS/* 2>/dev/null | grep -q _dartvel_dev_client_vm_service
+
+      - name: Precache the tester artifacts
+        run: flutter precache --macos
+
+      - name: Launch with the link, edit and reload
+        id: run
+        continue-on-error: true
+        timeout-minutes: 40
+        run: dart tool/ci/desktop_dev_client_check.dart macos
+
+      - name: The desktop app agreed
+        run: |
+          set -euo pipefail
+          test -f /tmp/diag/macos-devclient-verdict.txt \
+            || { echo "no verdict: the desktop check did not finish"; exit 1; }
+          cat /tmp/diag/macos-devclient-verdict.txt
+          head -1 /tmp/diag/macos-devclient-verdict.txt | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dev-client-macos, path: /tmp/diag/, if-no-files-found: warn }
+
+  # Windows desktop: the development app launched with the pairing link. The
+  # C++ tunnel pairs over Schannel TLS pinned to the key in the link. The
+  # repository is public, so the Windows runner costs nothing; the job is
+  # bounded by its timeout. See tool/ci/desktop_dev_client_check.dart.
+  windows-desktop:
+    name: Windows desktop — launch with the link, edit, hot reload
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Open the diagnostics directory
+        run: mkdir -p /c/diag
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked || true
+
+      - name: Build the development app
+        run: |
+          set -euo pipefail
+          exec > >(tee -a /c/diag/windows-devclient-build.log) 2>&1
+          cd examples/dartvel_example
+          flutter pub get
+          dart run dartvel_cli:dartvel build windows --profile development --no-auto-install
+          test -f build/windows/x64/runner/Debug/dartvel_example.exe
+          grep -q 'dartvel_dev_client.cpp' windows/runner/CMakeLists.txt
+
+      - name: Precache the tester artifacts
+        run: flutter precache --windows
+
+      - name: Launch with the link, edit and reload
+        id: run
+        continue-on-error: true
+        timeout-minutes: 45
+        run: dart tool/ci/desktop_dev_client_check.dart windows
+
+      - name: The desktop app agreed
+        run: |
+          set -euo pipefail
+          test -f /c/diag/windows-devclient-verdict.txt \
+            || { echo "no verdict: the desktop check did not finish"; exit 1; }
+          cat /c/diag/windows-devclient-verdict.txt
+          head -1 /c/diag/windows-devclient-verdict.txt | tr -d '\r' | grep -qx passed
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dev-client-windows, path: C:\diag, if-no-files-found: warn }
