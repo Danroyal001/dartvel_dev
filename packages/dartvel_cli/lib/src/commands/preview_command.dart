@@ -8,7 +8,15 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 import 'package:yaml/yaml.dart';
 
-import '../build/admin_mount.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVAdminMount,
+        DVAdminServer,
+        DVDatabaseAdapter,
+        DVPublishedPages,
+        DVStudioDevGrant;
+
+import '../build/dev_studio.dart';
 import '../build/web_server.dart';
 import '../preview/preview_cli.dart';
 
@@ -142,16 +150,36 @@ class PreviewCommand extends Command<void> {
         // development server, so the mount is read with release: false --
         // which is what makes a new project's dashboard work with no
         // configuration, and what makes a deployed one have to ask.
-        final DVAdminMount admin = dvAdminMount(_dartvelSection(root), release: false);
+        final DVAdminMount admin = dvDevStudioMount(_dartvelSection(root));
+        // Studio's data as well as its files, over the project's database,
+        // for the browser that opens the development grant's link.
+        final DVDatabaseAdapter? database =
+            dvDevStudioDatabase(root, Platform.environment);
+        final DVStudioDevGrant grant = DVStudioDevGrant.generate();
         if (admin.enabled) {
-          Logger.log('   Admin at ${admin.path} '
+          Logger.log('   Studio at ${admin.path}, for the browser that opens '
+              '${grant.link('http://localhost:$port', admin)} '
               '(dartvel.admin.path moves it, dartvel.admin.enabled turns it off).');
+          if (database == null) {
+            Logger.log('   Studio has no database to read: set DATABASE_URL '
+                'for the dartvel.database this project uses.');
+          }
         }
         server = await shelf_io.serve(
           dvWebServerHandler(
             webRoot: buildDir.path,
             admin: admin,
             adminRoot: p.join(buildDir.path, '__admin'),
+            adminServer: admin.enabled
+                ? DVAdminServer(
+                    mount: admin,
+                    root: p.join(buildDir.path, '__admin'),
+                    devGrant: grant,
+                    models: dvDevStudioModels(root),
+                    database: database,
+                  )
+                : null,
+            publishedPages: DVPublishedPages(database: () => database),
           ),
           host,
           port,
