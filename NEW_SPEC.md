@@ -8874,9 +8874,12 @@ repository.
 `dartvel admin generate` writes `lib/pages/_dartvel_admin/studio.page.dart`,
 which opens `DVStudioScreen` behind the `viewAdmin` policy. When the backend
 serves the admin mount (see Admin, Devtools, and Scaffolding), the client
-stops compiling those generated pages. The dashboard the backend serves at
-`/__studio` is a static page over the project graph, and it does not yet
-contain the page builder.
+stops compiling those generated pages and compiles Studio on its own
+instead: `dartvel build web-server` builds `DVStudioApp` into the admin root,
+and the backend serves it at `/__studio`. That is `DVStudioScreen` with the
+page builder publishing to the server's `dartvel_pages`, a Models section
+listing each model's records with an edit form, Routes, Functions and Jobs
+from the build's project graph, and Access listing the Studio grants.
 
 ## The page builder
 
@@ -9206,14 +9209,34 @@ dartvel:
   never stored by a shared cache.
 
 `DVAdminServer` in `dartvel_core` makes these decisions, and `dartvel preview`
-and the generated backend both call it. The dashboard itself is a static page
-that loads nothing from another host, with only relative references so moving
-the mount does not break it. It shows the project graph: models, routes,
-backend functions and jobs, each with the file that declares it.
+and the generated backend both call it.
 
-The dashboard reads the graph captured at build time. Queues, cache tags and
-the page builder are not in it yet, and `dartvel dev` does not serve it. To
-see it locally, run `dartvel build web-server` and then `dartvel preview`.
+What the mount serves is Studio: `DVStudioApp`, compiled by `dartvel build
+web-server` as a Flutter web application of its own with its base at the
+mount and its renderer carried rather than fetched from a CDN. It imports
+nothing of the application. It reads through the mount:
+
+- `<mount>/api/models` and `<mount>/api/models/<Model>/records[/<key>]`: each
+  model's records, read and written through `DVRecordTable` on the request's
+  tenant. An edit carries the version it was read at and is refused with 409
+  when the record has moved. Sensitive fields are never sent and a write that
+  names one is refused. The generated backend learns each model's table, key
+  and fields from `dartvelStudioModels`, written beside the public page specs.
+- `<mount>/api/pages`: the page builder's documents, in `dartvel_pages`.
+- `<mount>/api/grants`: who holds a Studio grant.
+- `<mount>/graph.json`: the project graph captured at build time, for the
+  Routes, Functions and Jobs sections.
+
+The API sits behind the same decision as the files, so a caller who may not
+open Studio gets the missing-route answer there too. Writes must carry the
+`x-dartvel-csrf-token` header.
+
+Not built yet: queues and cache tags in Studio, grant and revoke from Studio
+(they are CLI only), editing fields whose type is not a scalar, and the models
+of a mounted module. `dartvel preview` serves Studio's files but not its API,
+so its sections show an error there. `dartvel dev` does not serve Studio. A
+page published from Studio is stored on the server, and the web client does
+not read `dartvel_pages` from the server yet.
 
 ## Still to generate
 
@@ -9639,7 +9662,7 @@ upload beside it:
   inside the binary, with the native server library. On start they are
   written once per build into its data directory and served from there.
   Debug symbols are not carried.
-- **It carries the admin dashboard.** The dashboard sits in a payload section
+- **It carries Studio.** Studio, compiled with the build, sits in a payload section
   of its own, apart from the web files served to anybody. On start it is
   written to `dartvel_data/.admin` and served at the admin mount (`/__studio`
   by default). A development build carries it with no configuration; a
@@ -10747,7 +10770,7 @@ dartvel logs          # dartvel metrics | dartvel traces
 ```
 
 `dartvel build web-server` writes the whole backend and web app as one
-executable. That binary serves the admin dashboard at `/__studio`, in a
+executable. That binary serves Studio at `/__studio`, in a
 release build only with `dartvel.admin.enabled: true` and only to accounts
 granted `Studio.access` with `dartvel admin grant`. There is no `dartvel
 studio` command.
