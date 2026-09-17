@@ -228,4 +228,160 @@ void main() {
     }));
     await _fails('tizen', runnerOnly, 'libflutter_engine.so');
   });
+
+  test('a macOS build is an app bundle whose executable runs and whose frameworks keep their links', () async {
+    // FlutterMacOS.framework and App.framework are versioned bundles: their
+    // top-level Resources and binary are symlinks into Versions/Current,
+    // and the engine finds flutter_assets through them.
+    void app(String dir, {bool links = true, bool executable = true, String platform = 'MacOSX'}) {
+      _file(dir, 'basic_app.app/Contents/Info.plist', '<plist>CFBundleSupportedPlatforms $platform</plist>');
+      _file(dir, 'basic_app.app/Contents/MacOS/basic_app', _machO);
+      if (executable) Process.runSync('chmod', <String>['755', p.join(dir, 'basic_app.app/Contents/MacOS/basic_app')]);
+      for (final String framework in <String>['App', 'FlutterMacOS']) {
+        final String root = p.join(dir, 'basic_app.app/Contents/Frameworks/$framework.framework');
+        _file(root, 'Versions/A/$framework', _machO);
+        _file(root, 'Versions/A/Resources/Info.plist', '<plist/>');
+        if (framework == 'App') _file(root, 'Versions/A/Resources/flutter_assets/AssetManifest.bin', <int>[1]);
+        if (links) {
+          Link(p.join(root, 'Versions/Current')).createSync('A');
+          Link(p.join(root, 'Resources')).createSync('Versions/Current/Resources');
+          Link(p.join(root, framework)).createSync('Versions/Current/$framework');
+        }
+      }
+    }
+
+    final String good = _dir('mac');
+    app(good);
+    await _passes('macos', good);
+
+    // What a download that dropped every symlink leaves.
+    final String unlinked = _dir('unlinked');
+    app(unlinked, links: false);
+    await _fails('macos', unlinked, 'flutter_assets');
+
+    final String modeless = _dir('modeless');
+    app(modeless, executable: false);
+    await _fails('macos', modeless, 'not executable');
+
+    final String phone = _dir('phone');
+    _file(phone, 'Runner.app/Info.plist', 'iphoneos');
+    _file(phone, 'Runner.app/Runner', _machO);
+    await _fails('macos', phone, 'Contents/Info.plist');
+  });
+
+  test('a Windows build is a PE executable beside the Flutter DLL and its data', () async {
+    List<int> pe({required bool dll}) {
+      final Uint8List b = Uint8List(0x100);
+      b[0] = 0x4d;
+      b[1] = 0x5a;
+      ByteData.sublistView(b).setUint32(0x3c, 0x80, Endian.little);
+      b.setAll(0x80, <int>[0x50, 0x45, 0, 0]);
+      ByteData.sublistView(b).setUint16(0x80 + 4 + 18, dll ? 0x2022 : 0x0022, Endian.little);
+      return b;
+    }
+
+    final String good = _dir('windows');
+    _file(good, 'basic_app.exe', pe(dll: false));
+    _file(good, 'flutter_windows.dll', pe(dll: true));
+    _file(good, 'data/icudtl.dat', <int>[1]);
+    _file(good, 'data/app.so', <int>[1]);
+    _file(good, 'data/flutter_assets/AssetManifest.bin', <int>[1]);
+    await _passes('windows', good);
+
+    final String linux = _dir('linux-bundle');
+    _file(linux, 'basic_app', _elf);
+    _file(linux, 'lib/libflutter_linux_gtk.so', _elf);
+    await _fails('windows', linux, '.exe');
+
+    File(p.join(good, 'basic_app.exe')).writeAsBytesSync(pe(dll: true));
+    await _fails('windows', good, 'is a DLL');
+
+    File(p.join(good, 'basic_app.exe')).writeAsBytesSync(pe(dll: false));
+    File(p.join(good, 'flutter_windows.dll')).writeAsBytesSync(_elf);
+    await _fails('windows', good, 'not a PE');
+  });
+
+  test('a Linux build is the GTK runner bundle, its executable runnable', () async {
+    final String good = _dir('linux');
+    _file(good, 'basic_app', _elf);
+    Process.runSync('chmod', <String>['755', p.join(good, 'basic_app')]);
+    _file(good, 'lib/libflutter_linux_gtk.so', _elf);
+    _file(good, 'lib/libapp.so', _elf);
+    _file(good, 'data/icudtl.dat', <int>[1]);
+    _file(good, 'data/flutter_assets/AssetManifest.bin', <int>[1]);
+    await _passes('linux', good);
+
+    final String terminal = _dir('terminal');
+    _file(terminal, 'flt', _elf);
+    _file(terminal, 'lib/libflutter_engine.so', _elf);
+    _file(terminal, 'data/icudtl.dat', <int>[1]);
+    await _fails('linux', terminal, 'libflutter_linux_gtk.so');
+
+    Process.runSync('chmod', <String>['644', p.join(good, 'basic_app')]);
+    await _fails('linux', good, 'not executable');
+  });
+
+  test('a web build is index.html, the bootstrap and the compiled app', () async {
+    final String good = _dir('web');
+    _file(good, 'index.html', '<html><script src="flutter_bootstrap.js" async></script></html>');
+    _file(good, 'flutter_bootstrap.js', '//');
+    _file(good, 'main.dart.js', 'x' * 20000);
+    await _passes('web', good);
+
+    File(p.join(good, 'main.dart.js')).writeAsStringSync('');
+    await _fails('web', good, 'main.dart.js');
+
+    final String server = _dir('server-only');
+    _file(server, 'server', _elf);
+    await _fails('web', server, 'index.html');
+  });
+
+  test('a web-server build is one executable that starts alone and serves /', () async {
+    // A real program, compiled here: the check starts it.
+    final String source = p.join(_root.path, 'server.dart');
+    File(source).writeAsStringSync(r'''
+import 'dart:io';
+Future<void> main() async {
+  final int port = int.parse(Platform.environment['DARTVEL_PORT']!);
+  final HttpServer server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+  await for (final HttpRequest request in server) {
+    if (request.uri.path == '/') {
+      request.response.headers.contentType = ContentType.html;
+      request.response.write('<html><head><title>shop</title></head></html>');
+    } else if (request.uri.path == '/main.dart.js') {
+      request.response.write('x' * 20000);
+    } else {
+      request.response.statusCode = 404;
+    }
+    await request.response.close();
+  }
+}
+''');
+    final String good = _dir('web-server');
+    Directory(good).createSync();
+    final String name = Platform.isWindows ? 'server.exe' : 'server';
+    final ProcessResult compiled = await Process.run(
+        Platform.resolvedExecutable, <String>['compile', 'exe', source, '-o', p.join(good, name)]);
+    expect(compiled.exitCode, 0, reason: '${compiled.stdout}${compiled.stderr}');
+    await _passes('web-server', good);
+
+    // An executable that does not serve.
+    final String silent = _dir('silent');
+    final String quiet = p.join(_root.path, 'quiet.dart');
+    File(quiet).writeAsStringSync('void main() {}');
+    Directory(silent).createSync();
+    final ProcessResult q = await Process.run(
+        Platform.resolvedExecutable, <String>['compile', 'exe', quiet, '-o', p.join(silent, name)]);
+    expect(q.exitCode, 0, reason: '${q.stdout}${q.stderr}');
+    await _fails('web-server', silent, 'never answered');
+
+    if (!Platform.isWindows) {
+      Process.runSync('chmod', <String>['644', p.join(good, name)]);
+      await _fails('web-server', good, 'not executable');
+    }
+
+    final String script = _dir('script');
+    _file(script, name, '#!/bin/sh\n');
+    await _fails('web-server', script, 'not a native executable');
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
