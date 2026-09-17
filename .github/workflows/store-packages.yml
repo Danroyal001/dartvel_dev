@@ -17,8 +17,8 @@ on:
     paths:
       - packages/dartvel_cli/lib/src/commands/build_command.dart
       - packages/dartvel_cli/lib/src/commands/deploy_command.dart
-      - packages/dartvel_cli/lib/src/commands/publish_command.dart
-      - packages/dartvel_cli/lib/src/publish/**
+      - packages/dartvel_cli/lib/src/deploy/store_deploy.dart
+      - packages/dartvel_cli/lib/src/deploy/store_plan.dart
       - tool/ci/cloud_artifact_check.dart
       - .github/workflows/store-packages.yml
   workflow_dispatch:
@@ -89,6 +89,6 @@ jobs:
         run: |
           set -euo pipefail
           # Declared here and not committed: the example publishes nowhere.
-          printf '\n  publish:\n    play:\n      track: internal\n      credentials: ci-play-key.json\n' >> pubspec.yaml
+          printf '\n  deploy:\n    stores:\n      play:\n        track: internal\n        credentials: ci-play-key.json\n' >> pubspec.yaml
           dart run dartvel_cli:dartvel deploy --store play --dry-run | tee "$RUNNER_TEMP/publish.log"
           grep -q 'fastlane supply --aab .*app-release.aab --track internal' "$RUNNER_TEMP/publish.log"
