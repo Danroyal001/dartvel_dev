@@ -316,4 +316,57 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     }
   });
+
+  testWidgets('a deep link over a page with a scroll view builds both', (
+    WidgetTester tester,
+  ) async {
+    // The page underneath is built covered and never laid out. A scroll view
+    // on it made a selection scope of its own even under an inert registrar,
+    // and sorted its text by screen position through its overscroll
+    // transform, which had no size: the example shop's shelf under a coffee.
+    final GoRouter router = GoRouter(
+      initialLocation: '/list/1',
+      routes: dvConfigRoutes(<DVRouteNode>[
+        DVRoute(
+          path: '/list',
+          builder: (BuildContext context, DVRouteState state) => DVPageShell(
+            spec: const DVPageScaffoldSpec(),
+            child: SingleChildScrollView(
+              child: Column(
+                children: <Widget>[
+                  for (int i = 0; i < 3; i++)
+                    Transform.scale(scale: 1, child: Text('row $i')),
+                  const Counter(),
+                ],
+              ),
+            ),
+          ),
+          routes: <DVRouteNode>[
+            DVRoute(
+              path: ':item',
+              builder: (BuildContext context, DVRouteState state) =>
+                  const DVPageShell(
+                spec: DVPageScaffoldSpec(),
+                child: Center(child: Text('detail')),
+              ),
+            ),
+          ],
+        ),
+      ], transition: PageTransitionSpec.none),
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('detail'), findsOneWidget);
+
+    // Shown for the first time, and selectable, and still what it was.
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('inbox taps 0'));
+    await tester.pumpAndSettle();
+    expect(find.text('inbox taps 1'), findsOneWidget);
+    expect(find.byType(SelectableRegion), findsOneWidget);
+  });
 }
