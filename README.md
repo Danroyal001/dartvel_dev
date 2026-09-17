@@ -215,7 +215,7 @@ what it drew was checked, usually on every push.
 | Target | Status |
 | :--- | :--- |
 | `linux`, `web`, `android`, `macos`, `ios`, `windows` | ✅ Build and run in CI (emulator and simulator for the mobile targets) |
-| `web-server` | ✅ Builds and runs on linux-x64, the only host `dartvel_shelf` ships its library prebuilt for |
+| `web-server` | ✅ Builds and runs on the host it is built on: linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64 and windows-arm64, each verified in CI |
 | `tvos` | ✅ Builds and runs on a simulator in debug. Signed device builds are not verified |
 | `sony-elinux` | ✅ Builds and runs on a virtual device, debug and release |
 | `chrome-extension`, `firefox-extension` | ✅ Build and run, loaded in the real browser |
@@ -419,8 +419,9 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 ## 🖥️ One binary: web-server and Studio
 
 `dartvel build web-server` writes `build/server`, a single executable that
-carries the backend, the native server library and the web app. Copy it to a
-Linux x64 machine and start it:
+carries the backend, the native server library and the web app. It runs on
+the operating system and CPU it was built on, so build on the kind of machine
+you deploy to, then copy it there and start it:
 
 ```bash
 dartvel build web-server
@@ -457,9 +458,16 @@ dartvel admin list --database dartvel_data/data.db
 dartvel admin revoke user_123 --database dartvel_data/data.db
 ```
 
-Limits today: `dartvel_shelf` ships its native library prebuilt for linux-x64
-only, so that is the one host a binary is built for. PostgreSQL and MySQL are
-not migrated automatically on start.
+Hosts: `dartvel_shelf` ships its native library for linux-x64, linux-arm64,
+macos-arm64, macos-x64, windows-x64 and windows-arm64, and CI builds the binary
+on each one, copies it alone into an empty directory and checks that it serves
+a page, writes to the SQLite file it creates and keeps that across a restart.
+On Windows the file is `build/server.exe`. There is no cross-building: a Linux
+arm64 server needs a binary built on Linux arm64.
+
+Limits today: the macOS binary has only the ad-hoc signature `dart compile exe`
+gives it, and a copy downloaded through a browser has not been tried.
+PostgreSQL and MySQL are not migrated automatically on start.
 
 ---
 
