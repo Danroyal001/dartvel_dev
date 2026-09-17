@@ -623,7 +623,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'as part of build or dev.',
   ),
   (
-    'App Store Publishing and Privacy Manifests',
+    'App Store Deployment and Privacy Manifests',
     'dartvel deploy --store',
     'Present: dartvel deploy --store uploads an App Bundle to Play or an IPA to App '
         'Store Connect. Absent: generated privacy manifests.',
