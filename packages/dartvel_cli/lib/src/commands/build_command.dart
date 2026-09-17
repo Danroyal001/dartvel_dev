@@ -245,6 +245,7 @@ TerminalBuildPlan terminalBuildPlan(
   String platform, {
   String? buildMode,
   String? toolchainHome,
+  String? hostOs,
 }) {
   final root = dartvelToolchainRoot(toolchainHome ?? resolveToolchainHome());
   return TerminalBuildPlan(
@@ -256,7 +257,7 @@ TerminalBuildPlan terminalBuildPlan(
     // An absolute path under the toolchain root rather than a bare name,
     // because that is where Dartvel installs it — and a plan naming something
     // nothing installs is the Fuchsia defect.
-    toolchain: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
+    toolchain: terminalEmbedderExecutable(root, hostOs: hostOs),
     // dartvel-cli-flt takes --release and nothing for any other mode: it
     // refuses a release by name, since it has no AOT yet, rather than being
     // handed a Flutter mode flag it does not parse.
@@ -267,6 +268,16 @@ TerminalBuildPlan terminalBuildPlan(
     ],
   );
 }
+
+/// Whether a terminal build of [platform] first needs the desktop build's
+/// compiler settings for the project's build hooks.
+///
+/// Linux only. Flutter reads a Linux hook compiler from the desktop build's
+/// CMakeCache.txt, which `flutter build bundle` never writes. It takes the Mac
+/// compiler from Xcode and the Windows one from vswhere, and neither host can
+/// run `flutter build linux` at all.
+bool terminalBuildNeedsDesktopCompilerSettings(String platform) =>
+    platform == 'linux';
 
 /// Whether a terminal build can proceed, and what to say when it cannot.
 class TerminalBuildOutcome {
@@ -1224,7 +1235,8 @@ class BuildCommand extends Command<void> {
     // a second artifact, and nothing from it ships.
     final String mode = plan.arguments.contains('--release') ? 'release' : 'debug';
     final String root = _projectRoot;
-    if (!await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
+    if (terminalBuildNeedsDesktopCompilerSettings(plan.platform) &&
+        !await _configureNativeAssets(root, mode: mode, timeout: timeout)) {
       return _PlatformBuildResult.failed;
     }
 
