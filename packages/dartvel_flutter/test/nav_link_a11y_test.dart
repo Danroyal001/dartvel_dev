@@ -8,6 +8,7 @@
 // These press the key.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -216,6 +217,44 @@ void main() {
       expect(
         tester.getSemantics(find.byType(DVNavLink)).label,
         'Read more about pricing',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('a labelled link can still be followed from a screen reader',
+        (WidgetTester tester) async {
+      // The label replaces the child's semantics, and the tap action lived on
+      // the child's gesture detector: a labelled link announced itself as a
+      // link and offered nothing to activate. The example shop's icon-only
+      // Under the hood link was one.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pump(tester, const DVNavLink(
+        to: DVRouteTarget('/one'),
+        semanticLabel: 'Under the hood',
+        child: Icon(Icons.code),
+      ));
+
+      final SemanticsNode node = tester.getSemantics(find.byType(DVNavLink));
+      expect(node, isSemantics(isLink: true, hasTapAction: true));
+      tester.semantics.tap(find.semantics.byLabel('Under the hood'));
+      await tester.pumpAndSettle();
+      expect(find.text('at /one'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('a labelled link that is disabled offers no tap either',
+        (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pump(tester, const DVNavLink(
+        to: DVRouteTarget('/one'),
+        enabled: false,
+        semanticLabel: 'Under the hood',
+        child: Icon(Icons.code),
+      ));
+
+      expect(
+        tester.getSemantics(find.byType(DVNavLink)),
+        isNot(isSemantics(hasTapAction: true)),
       );
       handle.dispose();
     });
