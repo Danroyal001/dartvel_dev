@@ -8,7 +8,6 @@
 // Studio could not sign in through the application's own sign-in page.
 import 'dart:convert';
 
-import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
