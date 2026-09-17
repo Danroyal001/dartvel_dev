@@ -50,6 +50,7 @@ Widget _docsStoragePage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsStatus('File Storage', missing: <String>[
               'No adapter for the local disk.',
+              'No putStream or getStream, so a file is read and written whole.',
             ]),
           ],
         ),
