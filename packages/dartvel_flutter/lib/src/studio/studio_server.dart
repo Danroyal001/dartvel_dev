@@ -250,6 +250,31 @@ class DVStudioClient {
             '${confirm ? '&confirm=true' : ''}',
       );
 
+  /// Every queue the build declares, with its pending jobs and dead letters.
+  Future<List<Map<String, Object?>>> queues() async =>
+      _list(await _send('GET', 'api/queues'), 'queues');
+
+  /// Puts a dead-lettered job back on its queue.
+  Future<void> retryJob(String id) =>
+      _send('POST', 'api/queues/jobs/${_segment(id)}/retry');
+
+  /// Drops a dead-lettered job for good.
+  Future<void> discardJob(String id) =>
+      _send('POST', 'api/queues/jobs/${_segment(id)}/discard');
+
+  /// Every cache tag, with the keys under it.
+  Future<List<Map<String, Object?>>> cacheTags() async =>
+      _list(await _send('GET', 'api/cache/tags'), 'tags');
+
+  /// Drops every key under [tag], and returns the keys dropped.
+  Future<List<String>> revalidateTag(String tag) async => <String>[
+        for (final Object? key in (_map(await _send(
+                    'POST', 'api/cache/tags/${_segment(tag)}/revalidate'))[
+                'dropped'] as List?) ??
+            const <Object?>[])
+          '$key',
+      ];
+
   /// The project graph the build wrote beside Studio: models, routes,
   /// functions and jobs, with the file each is declared in.
   Future<Map<String, Object?>> manifest() async =>
@@ -367,6 +392,18 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
             <String>['source', 'Declared in'],
           ],
         ),
+      ),
+      DVStudioSection(
+        id: 'queues',
+        label: 'Queues',
+        icon: Icons.inbox_outlined,
+        build: (BuildContext context) => _DVStudioQueuesSection(client: client),
+      ),
+      DVStudioSection(
+        id: 'cache',
+        label: 'Cache',
+        icon: Icons.bolt_outlined,
+        build: (BuildContext context) => _DVStudioCacheSection(client: client),
       ),
       DVStudioSection(
         id: 'access',
@@ -1087,6 +1124,382 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
         ],
       );
     }, waiting: 'Loading the build manifest…');
+  }
+}
+
+/// The build's queues: what waits, what died and why, and the two things an
+/// operator can do about a dead letter.
+class _DVStudioQueuesSection extends StatefulWidget {
+  const _DVStudioQueuesSection({required this.client});
+
+  final DVStudioClient client;
+
+  @override
+  State<_DVStudioQueuesSection> createState() => _DVStudioQueuesSectionState();
+}
+
+class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
+  List<Map<String, Object?>>? _queues;
+  String? _open;
+  String? _error;
+  String? _notice;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final List<Map<String, Object?>> queues = await widget.client.queues();
+      if (!mounted) return;
+      setState(() {
+        _queues = queues;
+        _error = null;
+        // The first queue with something dead in it is what somebody opening
+        // this is most likely here for.
+        _open ??= (queues.firstWhere(
+                  (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
+                  orElse: () => queues.isEmpty
+                      ? const <String, Object?>{}
+                      : queues.first,
+                )['name'] as String?);
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  static List<Map<String, Object?>> _jobs(Map<String, Object?> queue, String kind) =>
+      <Map<String, Object?>>[
+        for (final Object? job in (queue[kind] as List?) ?? const <Object?>[])
+          if (job is Map) job.cast<String, Object?>(),
+      ];
+
+  Future<void> _act(String id, {required bool retry}) async {
+    setState(() {
+      _busy = true;
+      _notice = null;
+    });
+    try {
+      if (retry) {
+        await widget.client.retryJob(id);
+      } else {
+        await widget.client.discardJob(id);
+      }
+      if (mounted) {
+        setState(() => _notice = retry
+            ? 'Job $id is back on its queue.'
+            : 'Job $id was discarded.');
+      }
+      await _load();
+    } on DVStudioRemoteError catch (error) {
+      if (mounted) setState(() => _notice = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Map<String, Object?>>? queues = _queues;
+    if (queues == null) {
+      return _error == null
+          ? DVStudioStyle.placeholder('Loading queues…')
+          : DVStudioStyle.emptyState(
+              icon: Icons.cloud_off_outlined,
+              title: 'The server did not answer',
+              message: '$_error',
+            );
+    }
+    final Map<String, Object?>? open = queues
+        .where((Map<String, Object?> q) => q['name'] == _open)
+        .firstOrNull;
+    return DVStudioStyle.panes(
+      listWidth: 220,
+      list: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          DVStudioStyle.panelHeader(
+              title: 'Queues', subtitle: '${queues.length}'),
+          const SizedBox(height: DVStudioStyle.space2),
+          for (final Map<String, Object?> queue in queues)
+            DVStudioListRow(
+              key: ValueKey<String>('dv-studio-queue-${queue['name']}'),
+              title: '${queue['name']}',
+              subtitle: '${_jobs(queue, 'pending').length} waiting · '
+                  '${_jobs(queue, 'deadLetters').length} failed',
+              icon: Icons.inbox_outlined,
+              selected: queue['name'] == _open,
+              trailing: _jobs(queue, 'deadLetters').isEmpty
+                  ? null
+                  : DVStudioStyle.dot(DVStudioStyle.danger),
+              onTap: () => setState(() => _open = '${queue['name']}'),
+            ),
+        ],
+      ),
+      detail: open == null
+          ? DVStudioStyle.placeholder('Choose a queue.')
+          : _detail(open),
+    );
+  }
+
+  Widget _detail(Map<String, Object?> queue) {
+    final List<Map<String, Object?>> pending = _jobs(queue, 'pending');
+    final List<Map<String, Object?>> dead = _jobs(queue, 'deadLetters');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        DVStudioStyle.panelHeader(
+          title: '${queue['name']}',
+          subtitle: '${pending.length} waiting, ${dead.length} failed',
+          actions: <Widget>[
+            DVStudioIconButton(
+              key: const ValueKey<String>('dv-studio-queues-refresh'),
+              icon: Icons.refresh,
+              tooltip: 'Refresh',
+              onTap: () => unawaited(_load()),
+            ),
+          ],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(DVStudioStyle.space5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (queue['unreadable'] != null) ...<Widget>[
+                  DVStudioStyle.body(
+                      'This queue\'s broker cannot list its jobs: '
+                      '${queue['unreadable']}',
+                      color: DVStudioStyle.warning),
+                  const SizedBox(height: DVStudioStyle.space4),
+                ],
+                if (_notice != null) ...<Widget>[
+                  DVStudioStyle.body(_notice!, color: DVStudioStyle.muted),
+                  const SizedBox(height: DVStudioStyle.space4),
+                ],
+                DVStudioStyle.overline('Failed'),
+                const SizedBox(height: DVStudioStyle.space2),
+                if (dead.isEmpty)
+                  DVStudioStyle.caption('No failed jobs.')
+                else
+                  for (final Map<String, Object?> job in dead)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: DVStudioStyle.space3),
+                      child: _deadLetter(job),
+                    ),
+                const SizedBox(height: DVStudioStyle.space5),
+                DVStudioStyle.overline('Waiting'),
+                const SizedBox(height: DVStudioStyle.space2),
+                if (pending.isEmpty)
+                  DVStudioStyle.caption('Nothing waiting.')
+                else
+                  _DVStudioTable(
+                    headers: const <String>[
+                      'Job',
+                      'Type',
+                      'Attempts',
+                      'Queued',
+                    ],
+                    rows: <List<String>>[
+                      for (final Map<String, Object?> job in pending)
+                        <String>[
+                          _cell(job['id']),
+                          _cell(job['type']),
+                          '${job['attempts']}/${job['maxAttempts']}',
+                          _momentText(job['createdAt']),
+                        ],
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _deadLetter(Map<String, Object?> job) {
+    final String id = '${job['id']}';
+    return DVStudioStyle.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.error_outline,
+                  size: 16, color: DVStudioStyle.danger),
+              const SizedBox(width: DVStudioStyle.space2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    DVStudioStyle.body(id),
+                    DVStudioStyle.caption(
+                      '${_cell(job['type'])} · gave up after '
+                      '${job['attempts']} of ${job['maxAttempts']} · '
+                      '${_momentText(job['createdAt'])}',
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                key: ValueKey<String>('dv-studio-job-discard-$id'),
+                onTap: _busy ? null : () => unawaited(_act(id, retry: false)),
+                child: DVStudioStyle.control('Discard',
+                    enabled: !_busy, icon: Icons.delete_outline),
+              ),
+              const SizedBox(width: DVStudioStyle.space2),
+              GestureDetector(
+                key: ValueKey<String>('dv-studio-job-retry-$id'),
+                onTap: _busy ? null : () => unawaited(_act(id, retry: true)),
+                child: DVStudioStyle.control('Retry',
+                    enabled: !_busy, primary: true, icon: Icons.replay),
+              ),
+            ],
+          ),
+          const SizedBox(height: DVStudioStyle.space2),
+          // Why it died is why anybody is here: retrying blind is guessing.
+          DVStudioStyle.body(
+            '${job['lastError'] ?? 'Failed with no recorded error.'}',
+            color: DVStudioStyle.danger,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A moment the server sent as ISO 8601, as tables show one.
+String _momentText(Object? value) {
+  final DateTime? at = DateTime.tryParse('${value ?? ''}');
+  return at == null ? _cell(value) : _formatMoment(at);
+}
+
+/// The cache tags the backend holds, what each covers, and revalidation.
+class _DVStudioCacheSection extends StatefulWidget {
+  const _DVStudioCacheSection({required this.client});
+
+  final DVStudioClient client;
+
+  @override
+  State<_DVStudioCacheSection> createState() => _DVStudioCacheSectionState();
+}
+
+class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
+  List<Map<String, Object?>>? _tags;
+  String? _error;
+  String? _notice;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final List<Map<String, Object?>> tags = await widget.client.cacheTags();
+      if (mounted) {
+        setState(() {
+          _tags = tags;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _revalidate(String tag) async {
+    try {
+      final List<String> dropped = await widget.client.revalidateTag(tag);
+      if (!mounted) return;
+      // The count is the point: revalidating a tag that covered nothing looks
+      // the same as one that cleared a hundred entries.
+      setState(() => _notice = 'Revalidated $tag: ${dropped.length} '
+          '${dropped.length == 1 ? 'key' : 'keys'} dropped.');
+      await _load();
+    } on DVStudioRemoteError catch (error) {
+      if (mounted) setState(() => _notice = error.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Map<String, Object?>>? tags = _tags;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        DVStudioStyle.panelHeader(
+          title: 'Cache tags',
+          subtitle: tags == null ? null : '${tags.length} on this server',
+          actions: <Widget>[
+            DVStudioIconButton(
+              key: const ValueKey<String>('dv-studio-cache-refresh'),
+              icon: Icons.refresh,
+              tooltip: 'Refresh',
+              onTap: () => unawaited(_load()),
+            ),
+          ],
+        ),
+        Expanded(
+          child: tags == null
+              ? (_error == null
+                  ? DVStudioStyle.placeholder('Loading cache tags…')
+                  : DVStudioStyle.emptyState(
+                      icon: Icons.cloud_off_outlined,
+                      title: 'The server did not answer',
+                      message: '$_error',
+                    ))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(DVStudioStyle.space5),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (_notice != null) ...<Widget>[
+                        DVStudioStyle.body(_notice!,
+                            color: DVStudioStyle.success),
+                        const SizedBox(height: DVStudioStyle.space4),
+                      ],
+                      if (tags.isEmpty)
+                        DVStudioStyle.body('Nothing on this server is cached '
+                            'under a tag right now. DV.Cache.tag puts a key '
+                            'under one; revalidating the tag drops them all.')
+                      else
+                        _DVStudioTable(
+                          headers: const <String>['Tag', 'Keys', 'Covers'],
+                          rows: <List<String>>[
+                            for (final Map<String, Object?> tag in tags)
+                              <String>[
+                                _cell(tag['tag']),
+                                '${((tag['keys'] as List?) ?? const <Object?>[]).length}',
+                                ((tag['keys'] as List?) ?? const <Object?>[])
+                                    .join(', '),
+                              ],
+                          ],
+                          trailing: <Widget>[
+                            for (final Map<String, Object?> tag in tags)
+                              DVStudioIconButton(
+                                key: ValueKey<String>(
+                                    'dv-studio-cache-revalidate-${tag['tag']}'),
+                                icon: Icons.refresh,
+                                tooltip: 'Revalidate',
+                                onTap: () =>
+                                    unawaited(_revalidate('${tag['tag']}')),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+      ],
+    );
   }
 }
 

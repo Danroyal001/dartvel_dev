@@ -36,6 +36,10 @@ class _FakeServer {
   };
   final Map<String, Map<String, Object?>> pages =
       <String, Map<String, Object?>>{};
+  final List<String> deadLetters = <String>['job-1'];
+  final Map<String, List<String>> tags = <String, List<String>>{
+    'products': <String>['product:ethiopia', 'product:colombia'],
+  };
   final List<Map<String, Object?>> grants = <Map<String, Object?>>[
     <String, Object?>{
       'userId': 'owner-1',
@@ -136,6 +140,60 @@ class _FakeServer {
       grants.removeWhere(
           (Map<String, Object?> g) => g['userId'] == query['userId']);
       return reply(200, <String, Object?>{'revoked': query['userId']});
+    }
+    if (method == 'GET' && path == 'api/queues') {
+      return reply(200, <String, Object?>{
+        'queues': <Object?>[
+          <String, Object?>{
+            'name': 'default',
+            'pending': <Object?>[],
+            'deadLetters': <Object?>[],
+          },
+          <String, Object?>{
+            'name': 'mail',
+            'pending': <Object?>[
+              <String, Object?>{
+                'id': 'job-2',
+                'type': 'SendReceipt',
+                'state': 'pending',
+                'attempts': 0,
+                'maxAttempts': 3,
+                'createdAt': '2026-09-17T12:00:00.000Z',
+              },
+            ],
+            'deadLetters': <Object?>[
+              for (final String id in deadLetters)
+                <String, Object?>{
+                  'id': id,
+                  'type': 'SendReceipt',
+                  'state': 'failed',
+                  'attempts': 3,
+                  'maxAttempts': 3,
+                  'createdAt': '2026-09-17T11:00:00.000Z',
+                  'lastError': 'SMTP 550: mailbox unavailable',
+                },
+            ],
+          },
+        ],
+      });
+    }
+    if (method == 'POST' && path.startsWith('api/queues/jobs/')) {
+      final List<String> parts = path.split('/');
+      deadLetters.remove(parts[3]);
+      return reply(200, <String, Object?>{parts[4]: parts[3]});
+    }
+    if (method == 'GET' && path == 'api/cache/tags') {
+      return reply(200, <String, Object?>{
+        'tags': <Object?>[
+          for (final MapEntry<String, List<String>> tag in tags.entries)
+            <String, Object?>{'tag': tag.key, 'keys': tag.value},
+        ],
+      });
+    }
+    if (method == 'POST' && path.startsWith('api/cache/tags/')) {
+      final String tag = Uri.decodeComponent(path.split('/')[3]);
+      final List<String> dropped = tags.remove(tag) ?? <String>[];
+      return reply(200, <String, Object?>{'tag': tag, 'dropped': dropped});
     }
     if (method == 'GET' && path == 'graph.json') {
       return reply(200, <String, Object?>{
@@ -381,6 +439,60 @@ void main() {
 
       expect(find.text('owner-1'), findsOneWidget);
       expect(find.text('owner@example.com'), findsOneWidget);
+    });
+
+    Future<void> openSection(WidgetTester tester, String id) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey<String>('dv-studio-section-$id')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('queues show what waits and what died, and why',
+        (WidgetTester tester) async {
+      await openSection(tester, 'queues');
+      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-queue-mail')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('job-2'), findsOneWidget);
+      expect(find.text('job-1'), findsOneWidget);
+      expect(find.textContaining('SMTP 550'), findsOneWidget);
+    });
+
+    testWidgets('a dead letter is retried from Studio',
+        (WidgetTester tester) async {
+      await openSection(tester, 'queues');
+      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-queue-mail')));
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-job-retry-job-1')));
+      await tester.pumpAndSettle();
+
+      expect(server.calls.map((_Call c) => '${c.method} ${c.path}'),
+          contains('POST api/queues/jobs/job-1/retry'));
+      expect(find.text('job-1'), findsNothing,
+          reason: 'the queue is read again after the retry');
+    });
+
+    testWidgets('cache tags list their keys and revalidate',
+        (WidgetTester tester) async {
+      await openSection(tester, 'cache');
+
+      expect(find.text('products'), findsOneWidget);
+      expect(find.textContaining('product:ethiopia'), findsOneWidget);
+
+      await tester.tap(
+          find.byKey(const ValueKey<String>('dv-studio-cache-revalidate-products')));
+      await tester.pumpAndSettle();
+
+      expect(server.calls.map((_Call c) => '${c.method} ${c.path}'),
+          contains('POST api/cache/tags/products/revalidate'));
+      expect(find.textContaining('2 keys dropped'), findsOneWidget);
+      expect(find.text('products'), findsNothing);
     });
 
     Future<void> openAccess(WidgetTester tester) async {
