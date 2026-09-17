@@ -51,6 +51,11 @@ class DeployCommand extends Command<void> {
             'firebase',
           ],
           allowedHelp: {
+            'firebase-hosting': 'Firebase Hosting, with the firebase CLI.',
+            'vercel': 'Vercel, with the vercel CLI.',
+            'netlify': 'Netlify, with the netlify CLI.',
+            'cloudflare': 'Cloudflare Pages, with wrangler.',
+            'custom': 'Build only; deploy from build/ yourself.',
             'firebase': 'Deprecated spelling of firebase-hosting.',
           },
           help: 'Where the web build or the server is hosted.')
