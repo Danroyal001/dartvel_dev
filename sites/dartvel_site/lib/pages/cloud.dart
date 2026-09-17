@@ -15,7 +15,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           children: <Widget>[
             Eyebrow('DARTVEL CLOUD'),
             Heading(
-              'Build for iOS, macOS, Windows, Linux, Android and the web from any computer.',
+              'Build for Android, iOS, Apple TV, Samsung TVs, Linux devices and browser extensions from any computer.',
               level: 1,
             ),
             Bullets(<String>[
@@ -27,9 +27,10 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             ]),
             CodeBlock(<String>[
               'export DARTVEL_CLOUD_TOKEN=...',
-              'dartvel build ios --cloud          # on a macOS worker',
-              'dartvel build windows --cloud      # on a Windows worker',
-              'dartvel build web-server --cloud   # on a Linux worker',
+              'dartvel build tizen --cloud              # a signed TPK, no Tizen Studio here',
+              'dartvel build tvos --cloud --simulator   # on a macOS worker',
+              'dartvel build vscode --cloud             # the extension and its web build',
+              'dartvel build ios --cloud                # on a macOS worker',
             ]),
           ],
         ),
@@ -136,6 +137,18 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                 'dartvel build, publish and key cloud pack your app, follow the '
                     'log and download the result.',
                 built: true,
+              ),
+              SiteCard(
+                'Ten targets built end to end',
+                'Android, Fire OS, iOS, Apple TV, Tizen, Sony eLinux, terminal apps, '
+                    'and Chrome, Firefox and VS Code extensions, each built by a '
+                    'worker in our CI and checked when it came back.',
+                built: true,
+              ),
+              SiteCard(
+                'macOS, Windows, Linux and web on Cloud',
+                'Cloud takes these builds. Our CI has not built them end to end yet.',
+                built: false,
               ),
               SiteCard(
                 'Hosted build machines',

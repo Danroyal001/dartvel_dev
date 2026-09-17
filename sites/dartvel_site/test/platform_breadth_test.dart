@@ -47,9 +47,12 @@ void main() {
     expect(cloud, isNot(contains("Eyebrow('CLOUD BUILDS')")));
     final RegExpMatch hero = RegExp(r"Heading\(\s*'([^']+)',\s*level: 1").firstMatch(cloud)!;
     final String heading = hero.group(1)!;
-    final int named = <String>['Android', 'iOS', 'macOS', 'Windows', 'Linux', 'web']
-        .where(heading.contains)
-        .length;
+    // Named from what Cloud has built end to end as well as the desktops,
+    // since the heading claims only targets CI has built there.
+    final int named = <String>[
+      'Android', 'iOS', 'Apple TV', 'Samsung', 'Linux', 'extensions',
+      'macOS', 'Windows', 'web',
+    ].where(heading.contains).length;
     expect(named, greaterThanOrEqualTo(4), reason: heading);
   });
 }
