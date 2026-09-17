@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
 
@@ -1865,10 +1865,38 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
     final fallback = widget.fallback;
     if (fallback != null) return fallback;
     return widget.notFound?.call(widget.route) ??
-        DVBox.list(<Widget>[
-          const DVText('404'),
-          DVText("No page at '${widget.route}'"),
-        ]);
+        _DVNotFoundPage(route: widget.route);
+  }
+}
+
+/// The page a route with nothing to serve renders.
+///
+/// A router's error page has no Scaffold above it, so bare text there took
+/// Flutter's fallback style: red, with yellow double underlines. A Material
+/// supplies the app theme's text style and canvas colour, light or dark.
+class _DVNotFoundPage extends StatelessWidget {
+  final String route;
+
+  const _DVNotFoundPage({required this.route});
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme text = Theme.of(context).textTheme;
+    return Material(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text('404', style: text.displaySmall),
+              const SizedBox(height: 8),
+              Text("No page at '$route'", style: text.bodyLarge),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

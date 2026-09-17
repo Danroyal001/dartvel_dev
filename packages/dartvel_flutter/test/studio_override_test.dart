@@ -110,6 +110,27 @@ void main() {
     expect(find.textContaining('/nothing-here'), findsOneWidget);
   });
 
+  testWidgets('the 404 is drawn inside the app theme, not as a debug text style',
+      (WidgetTester tester) async {
+    // A router's error page has no Scaffold above it. Text there took the
+    // fallback style: red, with yellow double underlines, which is what a
+    // web-server build showed for every unknown path.
+    await tester.pumpWidget(
+      const MaterialApp(home: DVStudioPageRoute('/nothing-here')),
+    );
+    await tester.pumpAndSettle();
+
+    final Text text = tester.widget<Text>(find.text('404'));
+    expect(text, isNotNull);
+    final BuildContext context = tester.element(find.text('404'));
+    expect(DefaultTextStyle.of(context).style.decoration,
+        isNot(TextDecoration.underline));
+    expect(DefaultTextStyle.of(context).style.debugLabel,
+        isNot(contains('fallback style')));
+    expect(find.ancestor(of: find.text('404'), matching: find.byType(Material)),
+        findsWidgets);
+  });
+
   testWidgets('a document saved before priming still wins on first paint',
       (WidgetTester tester) async {
     // Cold start: prime() reads the store, and a save that landed first must
