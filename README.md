@@ -81,7 +81,7 @@ Everything else is automatically compiled, generated, or served by the framework
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
-| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling built on `mix` | ✅ Shipped |
+| **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling through `DVModifier` | ✅ Shipped |
 | **Routing** | File-based pages with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Shipped |
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Shipped |
 | **Models & Forms** | `@DVModel` generates schema, CRUD, validation, serialization, `User.Form(...)`, `User.Table(...)` and `User.Page(...)` | ✅ Shipped |
