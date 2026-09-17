@@ -290,6 +290,12 @@ class DVStudioApi {
       for (final DVStudioFieldSpec field in spec.fields)
         if (field.sensitive) field.name,
     },
+    // A generated model declares every field column TEXT (its createTableSql),
+    // and Studio reads and writes that same table.
+    types: <String, String>{
+      if (spec.tenantScoped) dvTenantColumn: 'TEXT',
+      for (final DVStudioFieldSpec field in spec.fields) field.name: 'TEXT',
+    },
     versioned: spec.versioned,
     softDelete: spec.softDelete,
     scope: spec.tenantScoped
