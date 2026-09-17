@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`DVStudioDevGrant` opens Studio on a development server to the person
+  running it.** A random token, printed as a link: opening it sets an
+  HttpOnly, SameSite=Strict cookie scoped to the mount and redirects the
+  token out of the address, and `DVAdminServer(devGrant:)` serves the mount
+  only to a browser holding that cookie. `DVStudioModelSpec.toManifest` and
+  `fromManifest` carry a model's spec to a server without the generated code.
+
 - **`DVPublishedPages` serves Studio's published pages.** It answers
   `GET /_dartvel/pages` (`dvPublishedPagesPath`) with every document in
   `dartvel_pages`, revalidated on each load, and an empty list where nothing

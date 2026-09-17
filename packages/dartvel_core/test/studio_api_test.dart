@@ -90,6 +90,35 @@ void main() {
     });
   });
 
+  test('a model spec survives the manifest a development server reads', () {
+    const DVStudioModelSpec spec = DVStudioModelSpec(
+      model: 'Order',
+      table: 'orders',
+      key: 'id',
+      tenantScoped: true,
+      versioned: false,
+      softDelete: true,
+      fields: <DVStudioFieldSpec>[
+        DVStudioFieldSpec(name: 'id', type: 'String'),
+        DVStudioFieldSpec(name: 'secret', type: 'String', sensitive: true),
+        DVStudioFieldSpec(
+            name: 'status', type: 'Status?', options: <String>['a', 'b']),
+        DVStudioFieldSpec(name: 'userSlug', type: 'String', relation: 'User'),
+      ],
+    );
+
+    final DVStudioModelSpec read = DVStudioModelSpec.fromManifest(
+      jsonDecode(jsonEncode(spec.toManifest())) as Map<String, Object?>,
+    );
+
+    expect(jsonEncode(read.toManifest()), jsonEncode(spec.toManifest()));
+    expect(read.table, 'orders');
+    expect(read.tenantScoped, isTrue);
+    expect(read.fields[1].sensitive, isTrue);
+    expect(read.fields[2].options, <String>['a', 'b']);
+    expect(read.fields[3].relation, 'User');
+  });
+
   group('who reaches it', () {
     test(
       'a caller who may not open Studio gets nothing, not a refusal',

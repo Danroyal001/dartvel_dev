@@ -25,6 +25,7 @@ import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
 import 'studio_access.dart';
 import 'studio_api.dart';
+import 'studio_dev_grant.dart';
 
 /// Everything below the mount belongs to the admin.
 class DVAdminMount {
@@ -240,7 +241,9 @@ class DVAdminServer {
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
     List<String>? queues,
-  })  : _authenticated = authenticated ?? dvAdminAuthorized,
+    this.devGrant,
+  })  : _authenticated =
+            authenticated ?? devGrant?.check ?? dvAdminAuthorized,
         api = DVStudioApi(
           models: models,
           database: database,
@@ -259,6 +262,10 @@ class DVAdminServer {
 
   final Future<bool> Function(Request request) _authenticated;
 
+  /// The development grant, on a development server: the mount serves the
+  /// browser that opened the grant's link, and nobody else.
+  final DVStudioDevGrant? devGrant;
+
   /// Studio's data, under `<mount>/api/`: a model's records, the page
   /// builder's documents and the grants, for exactly the callers the
   /// dashboard's files are served to.
@@ -276,6 +283,8 @@ class DVAdminServer {
   Future<Response?> respond(Request request) async {
     final String path = request.url.path.isEmpty ? '/' : request.url.path;
     if (!mount.owns(path)) return null;
+    final Response? claimed = devGrant?.claim(request, mount);
+    if (claimed != null) return claimed;
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
