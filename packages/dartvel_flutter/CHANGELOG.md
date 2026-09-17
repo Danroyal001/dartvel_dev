@@ -1,8 +1,8 @@
 ## Unreleased
 
 - **A web-server build signs in through its own server, even over the
-  development auth provider.** `DVAuth.servedWithServerAuth`, set by
-  `DARTVEL_SERVER_AUTH`, makes a configured `DVLocalAuthProvider` yield to the
+  development auth provider.** `DVAuth.servedByOwnServer`, set by
+  `DARTVEL_WEB_SERVER`, makes a configured `DVLocalAuthProvider` yield to the
   generated session provider, so `/login` and every `DV.Auth` call reach the
   accounts the server keeps. A provider the application wrote is still used.
 

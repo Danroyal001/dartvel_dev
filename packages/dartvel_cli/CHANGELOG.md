@@ -19,9 +19,11 @@
   sets on a top-level redirect.
 
 - **`dartvel build web-server` tells the app its server keeps the accounts.**
-  It passes `--dart-define=DARTVEL_SERVER_AUTH=true`, so an application that
+  It passes `--dart-define=DARTVEL_WEB_SERVER=true`, so an application that
   configures the in-memory development auth provider still signs people in
   through the binary's `/api/auth/sign-in` rather than in the browser tab.
+  The generated runtime also calls the API on the page's own origin in that
+  build, rather than `dartvel.prodBackendHost`.
 
 - **A web-server binary can sign people up and in, so a granted account can
   open Studio.** The generated server served sign-up and sign-in and installed

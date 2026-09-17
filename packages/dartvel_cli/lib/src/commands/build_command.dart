@@ -4276,7 +4276,7 @@ List<String> resolveFlutterBuildArguments({
   // and DV.Auth signs in there rather than through a development provider
   // that checks passwords in the browser tab.
   if (platform == 'web-server') {
-    args.add('--dart-define=DARTVEL_SERVER_AUTH=true');
+    args.add('--dart-define=DARTVEL_WEB_SERVER=true');
   }
 
   if (platform == 'android' && splitPerAbi && !bundle) {

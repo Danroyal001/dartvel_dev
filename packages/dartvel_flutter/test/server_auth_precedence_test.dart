@@ -72,7 +72,7 @@ void main() {
 
   test('served with server auth, the development provider yields to the server',
       () async {
-    DVAuth.servedWithServerAuth = true;
+    DVAuth.servedByOwnServer = true;
     DV.Auth.configure(DVLocalAuthProvider());
 
     await DV.Auth.signInWithEmailAndPassword(
@@ -87,7 +87,7 @@ void main() {
 
   test('without a server, the configured development provider is used',
       () async {
-    DVAuth.servedWithServerAuth = false;
+    DVAuth.servedByOwnServer = false;
     DV.Auth.configure(DVLocalAuthProvider());
 
     await expectLater(
@@ -103,7 +103,7 @@ void main() {
   test('a provider the application wrote is still the one used', () async {
     // Only the development adapter yields: an identity service the
     // application configured is its decision, server or not.
-    DVAuth.servedWithServerAuth = true;
+    DVAuth.servedByOwnServer = true;
     DV.Auth.configure(_NamedProvider());
 
     await expectLater(
@@ -117,9 +117,9 @@ void main() {
   });
 
   test('resetting the auth provider forgets the served flag', () {
-    DVAuth.servedWithServerAuth = true;
+    DVAuth.servedByOwnServer = true;
     DV.Test.resetAuthProvider();
-    expect(DVAuth.servedWithServerAuth,
-        const bool.fromEnvironment('DARTVEL_SERVER_AUTH'));
+    expect(DVAuth.servedByOwnServer,
+        const bool.fromEnvironment('DARTVEL_WEB_SERVER'));
   });
 }
