@@ -96,7 +96,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Authorization': 'Shipped',
   'Background and Durable Work': 'Shipped',
   'Cache': 'Shipped',
-  'CLI': 'Shipped',
+  'CLI': 'Partial',
   'Data Compliance and Lifecycle': 'Partial',
   'Database': 'Shipped',
   'Deployment': 'Shipped',
