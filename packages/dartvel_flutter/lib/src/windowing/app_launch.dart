@@ -128,8 +128,9 @@ class DVAppLaunch {
   /// whether or not this process can see it yet.
   static bool _looksLikeFile(String path) {
     final String bare = path.split('?').first;
-    if (FileSystemEntity.typeSync(bare) != FileSystemEntityType.notFound)
+    if (FileSystemEntity.typeSync(bare) != FileSystemEntityType.notFound) {
       return true;
+    }
     final String last = bare.substring(bare.lastIndexOf('/') + 1);
     final int dot = last.lastIndexOf('.');
     return dot > 0 && dot < last.length - 1;
