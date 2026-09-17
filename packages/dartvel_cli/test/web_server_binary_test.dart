@@ -368,6 +368,12 @@ Future<List<String>> _notes() async => <String>[
       final DVIssuedSession issued =
           await DVSessions(store: DVDatabaseSessionStore(database))
               .create('operator', tenant: tenant);
+      // Closed as soon as the session is written. Left open, this process
+      // holds the binary's database file for the rest of the run, and on
+      // Windows a file held open cannot be deleted: the tests passed and
+      // tearDownAll failed. The SQLite adapter's close() is not on the
+      // exported interface.
+      (database as dynamic).close();
 
       // Signed in, and granted nothing: every customer of the application is
       // exactly this, and gets exactly what a path that does not exist gets.
