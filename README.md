@@ -131,44 +131,64 @@ Everything else is automatically compiled, generated, or served by the framework
 
 ## 🛠️ CLI Commands
 
-Manage the full-stack lifecycle directly with the Dartvel CLI:
+A selection. `dartvel --help` lists every command and `dartvel help <command>`
+explains one.
 
 ```bash
-# Project initialization
-dartvel create [name]
+# Start a project
+dartvel create my_app              # alias: new
+dartvel init                       # add Dartvel to an existing Flutter project
 dartvel doctor
 dartvel doctor --target tizen      # check one target's toolchain
 
-# Development — one loop: generation, hot reload, backend, native runtime
-dartvel dev
-dartvel run                        # alias
+# Develop: generation, hot reload, backend, native runtime, device pairing
+dartvel dev                        # aliases: run, start
 
-# Production builds (see Build Targets below)
+# Build (see Build Targets below)
 dartvel build [platform]
-dartvel build web --no-auto-install
+dartvel build web-server
+dartvel build ios --profile development
+dartvel build android --cloud      # on Dartvel Cloud, once it launches
 
-# Database management
+# Studio access on a deployed web-server binary
+dartvel admin grant <user-id> --database dartvel_data/data.db
+dartvel admin revoke <user-id> --database dartvel_data/data.db
+dartvel admin list --database dartvel_data/data.db
+
+# Over-the-air updates
+dartvel updates release
+dartvel updates patch
+dartvel updates rollback --release-version 1.2.0 --patch-number 3
+
+# Stores and deployment
+dartvel publish play               # also: appstore, testflight, firebase
+dartvel deploy --provider vercel
+
+# Database
 dartvel db migrate
 dartvel db push
 dartvel db pull
 dartvel db seed
 
 # Generators
+dartvel routes                     # regenerate the client without a build
 dartvel generate page
 dartvel generate model
 dartvel generate backend-function
 dartvel generate form
 
-# Diagnostics — look up a code the runtime logged
-dartvel explain DV-WINDOW-004      # what it means, and how serious it is
+# Look around
+dartvel inspect routes             # also: models, functions, jobs
+dartvel spec status                # what is built, per spec section
+dartvel flags list
+dartvel explain DV-WINDOW-004      # what a diagnostic code means
 dartvel explain DV-KIOSK           # every code in a family
-dartvel explain                    # which families exist
 ```
 
-Dartvel degrades rather than throwing where a target cannot do what was asked —
-a phone has no second window, a web popup outside a user gesture is blocked —
-and every degradation carries a stable code that never changes meaning between
-releases. `dartvel explain` is how you read one without searching the
+Dartvel degrades rather than throwing where a target cannot do what was asked.
+A phone has no second window, and a web popup outside a user gesture is
+blocked. Every degradation carries a stable code that keeps its meaning between
+releases, and `dartvel explain` is how you read one without searching the
 specification by hand.
 
 ---
@@ -373,6 +393,125 @@ Call it directly from your frontend code:
 ```dart
 final user = await getUser('101');
 ```
+
+---
+
+## 🖥️ One binary: web-server and Studio
+
+`dartvel build web-server` writes `build/server`, a single executable that
+carries the backend, the native server library and the web app. Copy it to a
+Linux x64 machine and start it:
+
+```bash
+dartvel build web-server
+scp build/server host:/srv/my_app/
+ssh host 'cd /srv/my_app && DARTVEL_PORT=8080 ./server'
+```
+
+With no `DATABASE_URL` it creates a SQLite database in `dartvel_data/` beside
+itself on the first run, with a table per model, and reuses it after that.
+`DARTVEL_DATA_DIR` moves that directory. Pages are rendered on request, with
+the head, structured data and crawler-visible text generated from each page's
+data.
+
+The binary also carries Studio, the admin dashboard, at `/__studio`
+(`dartvel.admin.path` moves it). A development build serves it with no
+configuration. A release build includes it only when `pubspec.yaml` asks:
+
+```yaml
+dartvel:
+  admin:
+    enabled: true
+```
+
+Even then it opens only for a signed-in person allowed the `Studio.access`
+action, and by default nobody is. Grants live in the application's own
+database, so you give them on the server:
+
+```bash
+dartvel admin grant user_123 --database dartvel_data/data.db
+dartvel admin list --database dartvel_data/data.db
+dartvel admin revoke user_123 --database dartvel_data/data.db
+```
+
+Limits today: `dartvel_shelf` ships its native library prebuilt for linux-x64
+only, so that is the one host a binary is built for. PostgreSQL and MySQL are
+not migrated automatically on start.
+
+---
+
+## 📲 Development builds and pairing
+
+There is no separate dev-client app to install. A development build is an
+ordinary build with a profile:
+
+```bash
+dartvel build android --profile development   # also ios, macos, linux, windows
+```
+
+That is a Flutter debug build carrying Dartvel's pairing code. `dartvel dev`
+always serves pairing: it prints a QR code, and a development build that scans
+it connects over TLS, checks that the server holds the key from the link, and
+hot reloads on every save. Each run of `dartvel dev` uses a fresh key and token.
+The pairing port defaults to 8787 (`--pairing-port`).
+
+`dartvel publish` refuses a development build for Play's alpha, beta and
+production tracks and for the App Store. Play internal testing, TestFlight and
+Firebase accept one.
+
+CI pairs, edits and hot reloads on an Android emulator, an iOS simulator, and
+Linux, macOS and Windows desktops.
+
+---
+
+## 🚚 Over-the-air updates
+
+`dartvel updates` drives [Shorebird](https://shorebird.dev), the Flutter code
+push tool, and `DV.Updates.check()` and `apply()` call its updater over FFI in
+the running app.
+
+```bash
+dartvel updates release --platform android
+dartvel updates patch --platform android
+dartvel updates rollback --release-version 1.2.0 --patch-number 3
+```
+
+Patches do not have to go through Shorebird's service. With `--patch-source`,
+releases and patches are published into a patch source your own web-server
+binary serves, and no Shorebird account is needed:
+
+```bash
+export DARTVEL_UPDATES_TOKEN=...   # the token the server was started with
+dartvel updates patch --patch-source https://app.example.com/
+```
+
+CI releases the example this way, patches it into its running web-server
+binary, and checks that an Android emulator picks the patch up after a
+relaunch. `--patch-source` is Android only for now, and applying a patch on
+iOS has not been proven, because it needs a physical device and a signing
+team.
+
+---
+
+## ☁️ Dartvel Cloud
+
+Dartvel Cloud runs builds and store uploads on machines Dartvel operates, so
+an iOS build does not need a Mac on your desk. The CLI side is in this
+repository:
+
+```bash
+export DARTVEL_CLOUD_TOKEN=...
+dartvel key cloud android-keystore ./upload.jks   # keep a signing credential there
+dartvel key cloud                      # list them by name, never by value
+dartvel build android --cloud          # streams the log, downloads to build/cloud/android
+dartvel build ios --cloud              # runs on a macOS worker
+dartvel publish play --cloud           # builds an App Bundle in release and uploads it
+```
+
+Every cloud build is paid; there is no free tier for builds. Plans open when the
+hosted service launches ([dartvel.dev/cloud](https://dartvel.dev/cloud#plans));
+until then the `--cloud` flags have no service to talk to. Building on your own
+machines and hosting your own web-server binary stay free.
 
 ---
 
@@ -839,30 +978,31 @@ spinning.
 
 ---
 
-## 📱 Platform Expo-style Native APIs
+## 📱 Platform: Expo-style native APIs
 
-Access local hardware or OS APIs using a unified static interface:
+Hardware and OS APIs sit behind one static interface:
 
 ```dart
 final photoBytes = await DV.Platform.camera.takePhoto();
-final location = await DV.Platform.location.getCurrentLocation();
+final coordinates = await DV.Platform.location.getCoordinates();
 await DV.Platform.haptics.impact();
 ```
 
-All permissions are centrally managed under the `dartvel` block in `pubspec.yaml`.
+Each call goes to a binding registered through `dart:ffi` or jnigen. On a target
+with no binding for a call, the call throws a "not registered" error. How many
+calls each target binds varies a lot, and `dart tool/binding_coverage.dart`
+counts them. Android permissions are declared under `dartvel.android.permissions` in
+`pubspec.yaml`.
 
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
-want one of three things, and Dartvel covers them unevenly:
+want some of these:
 
 | What Expo gives you | Dartvel today |
 | :--- | :--- |
-| An all-in-one SDK — auth, push, storage, analytics preconfigured | Covered, and then some: these are framework services rather than a starter template you copy once and maintain forever |
-| Over-the-air updates | `dartvel updates release/patch/rollback` drives [Shorebird](https://shorebird.dev), the Flutter code-push framework. The CLI wrapper works; `DV.Updates.check()`/`apply()` has no native binding yet |
-| Zero-config cloud builds, certificates and store submission (Expo Launch) | **Not covered.** Dartvel emits GitHub Actions and Codemagic configuration and `dartvel deploy` ships web and function targets, but it does not manage signing certificates or provisioning profiles, and there is no hosted build service |
-
-The third row is the honest gap. If cloud builds and store submission are what
-you came for, Expo Launch added Flutter support in 2025 and does that job;
-Dartvel is the framework underneath, not the pipeline around it.
+| An all-in-one SDK with auth, push, storage and analytics set up | Framework services you configure in `pubspec.yaml` and code. Nothing is copied into your project to maintain |
+| Over-the-air updates | `dartvel updates` over Shorebird, with `DV.Updates` bound over FFI and an optional self-hosted patch source. Proven on Android; see [Over-the-air updates](#-over-the-air-updates) |
+| Development builds | `--profile development` builds that pair with `dartvel dev` by QR code. See [Development builds](#-development-builds-and-pairing) |
+| Cloud builds, credentials and store submission (EAS) | The CLI for [Dartvel Cloud](#-dartvel-cloud) is built and the hosted service has not launched. Locally, `dartvel publish` hands the upload for Play, the App Store, TestFlight or Firebase to that store's own tool |
 
 ---
 
