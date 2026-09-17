@@ -1749,6 +1749,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(DVStudioStyle.radiusLarge - 1)),
                 child: Container(
+                  key: ValueKey<String>('dv-studio-thumbnail-$route'),
                   height: 150,
                   color: DVStudioStyle.canvas,
                   child: document == null
@@ -1784,14 +1785,21 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
     );
   }
 
-  /// The page drawn at desktop width and scaled into the card, clipped to the
-  /// top of it — what a person recognises a page by.
+  /// The page drawn at a fixed scale into the card, clipped to the top of it
+  /// -- what a person recognises a page by.
+  ///
+  /// At a fixed scale rather than fitted from desktop width: a 1280-pixel
+  /// page shrunk into a card this size drew its text two pixels tall, which
+  /// is an empty box. The sheet is at least the card's height, so the page's
+  /// own colour fills it however little is on the page.
   static Widget _thumbnail(DVPageDocument document) {
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints box) {
-          const double pageWidth = 1280;
-          final double scale = box.maxWidth / pageWidth;
+          const double scale = 0.42;
+          final double pageWidth = box.maxWidth / scale;
+          final double pageHeight =
+              (box.maxHeight.isFinite ? box.maxHeight : 150) / scale;
           return ClipRect(
             child: OverflowBox(
               alignment: Alignment.topLeft,
@@ -1803,8 +1811,11 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
                 scale: scale,
                 alignment: Alignment.topLeft,
                 child: Container(
+                  key: const ValueKey<String>('dv-studio-thumbnail-sheet'),
                   width: pageWidth,
+                  constraints: BoxConstraints(minHeight: pageHeight),
                   color: const Color(0xFFFFFFFF),
+                  alignment: Alignment.topLeft,
                   child: DVPageDocumentRenderer(document),
                 ),
               ),
