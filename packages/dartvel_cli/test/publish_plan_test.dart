@@ -77,6 +77,19 @@ void main() {
       expect(plan.arguments, contains(plan.artifact));
     });
 
+    test('a service account key in DARTVEL_PLAY_SERVICE_ACCOUNT is used as declared', () {
+      // A Cloud worker writes the kept key outside the project and names it
+      // here, so the pubspec does not have to point at a file in the repo.
+      final DVPublishPlan plan = dvPublishPlan(
+        store: 'play',
+        root: workspace(_play.replaceAll('      credentials: secrets/play.json\n', '')).path,
+        host: 'linux',
+        environment: const <String, String>{'DARTVEL_PLAY_SERVICE_ACCOUNT': '/run/keys/play.json'},
+      );
+      expect(plan.problems, isEmpty);
+      expect(plan.arguments, containsAllInOrder(<String>['--json_key', '/run/keys/play.json']));
+    });
+
     test('a track nobody publishes to is refused', () {
       final DVPublishPlan plan = dvPublishPlan(
         store: 'play',
@@ -117,6 +130,17 @@ void main() {
       expect(plan.arguments, contains('--apiKey'));
       expect(plan.arguments, contains('ABC123'));
       expect(plan.artifact, endsWith('.ipa'));
+    });
+
+    test('the IPA uploaded is the one flutter build ipa wrote, whatever its name', () {
+      // Flutter names the IPA after the app, not "app.ipa".
+      final Directory root = workspace(_appStore);
+      File(p.join(root.path, 'build', 'ios', 'ipa', 'Shopfront.ipa'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('ipa');
+      final DVPublishPlan plan = dvPublishPlan(store: 'appstore', root: root.path, host: 'macos');
+      expect(plan.artifact, p.join(root.path, 'build', 'ios', 'ipa', 'Shopfront.ipa'));
+      expect(plan.arguments, contains(plan.artifact));
     });
 
     test('it is refused off macOS, before anything is built', () {

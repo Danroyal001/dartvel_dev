@@ -44,9 +44,9 @@ class PublishCommand extends Command<void> {
           negatable: false,
           help: 'Build and publish on Dartvel Cloud, with the credentials kept '
               'there by dartvel key cloud. With --dry-run the worker prints the '
-              'upload instead of making it. Firebase only for now: Play needs '
-              'an app bundle and App Store Connect a signed IPA, and dartvel '
-              'build makes neither yet. Needs a paid Dartvel Cloud plan.')
+              'upload instead of making it. Play gets an App Bundle and App '
+              'Store Connect a signed IPA, both built in release. Needs a paid '
+              'Dartvel Cloud plan.')
       ..addOption('cloud-token',
           help: 'The Dartvel Cloud token for --cloud. Defaults to '
               'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
@@ -99,6 +99,7 @@ class PublishCommand extends Command<void> {
           : Platform.isWindows
               ? 'windows'
               : 'linux',
+      environment: Platform.environment,
     );
 
     if (!plan.ok) {
@@ -171,39 +172,28 @@ class PublishCommand extends Command<void> {
     Logger.log('✅ Published to $store.');
   }
 
-  /// What each store is built from in the cloud, and why a store is not.
-  static const Map<String, String> _cloudTargets = <String, String>{
-    'firebase': 'android',
-  };
-
-  static const Map<String, String> _cloudRefusals = <String, String>{
-    'play': 'Google Play takes an app bundle, and dartvel build android '
-        'writes an APK. Build the bundle and run dartvel publish play where '
-        'it is.',
-    'appstore': 'App Store Connect takes a signed IPA, and dartvel build ios '
-        'builds without code signing. Signing on a Cloud worker is designed and '
-        'not built.',
-    'testflight': 'TestFlight takes a signed IPA, and dartvel build ios '
-        'builds without code signing. Signing on a Cloud worker is designed and '
-        'not built.',
+  /// What each store is built from in the cloud: the target, the package
+  /// format, and the operating system the upload runs on.
+  static const Map<String, (String, String?, String)> _cloudBuilds =
+      <String, (String, String?, String)>{
+    'firebase': ('android', null, 'linux'),
+    'play': ('android', 'aab', 'linux'),
+    'appstore': ('ios', 'ipa', 'macos'),
+    'testflight': ('ios', 'ipa', 'macos'),
   };
 
   Future<int> _publishInTheCloud(String store, String root) async {
-    final String? refusal = _cloudRefusals[store];
-    if (refusal != null) {
-      Logger.log('❌ Cannot publish to $store from the cloud yet. $refusal');
-      return 78; // EX_CONFIG
-    }
-    final String? target = _cloudTargets[store];
-    if (target == null) {
+    final (String, String?, String)? build = _cloudBuilds[store];
+    if (build == null) {
       Logger.log('❌ "$store" is not a store Dartvel publishes to. The ones it '
           'knows are ${dvPublishStores.join(', ')}.');
       return 64; // EX_USAGE
     }
     // The declaration is checked here, where a refusal costs nothing, rather
     // than on a worker after the build.
+    final (String target, String? format, String workerOs) = build;
     final DVPublishPlan plan =
-        dvPublishPlan(store: store, root: root, host: 'linux');
+        dvPublishPlan(store: store, root: root, host: workerOs);
     if (!plan.ok) {
       Logger.log('❌ Cannot publish to $store:');
       for (final String problem in plan.problems) {
@@ -215,6 +205,7 @@ class PublishCommand extends Command<void> {
       root: root,
       target: target,
       profile: 'release',
+      format: format,
       publish: store,
       dryRun: argResults?['dry-run'] == true,
       token: argResults?['cloud-token'] as String?,
