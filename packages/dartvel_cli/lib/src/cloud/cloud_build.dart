@@ -31,7 +31,12 @@ class DVCloudBuildRequest {
     this.format,
     this.codesign = true,
     this.simulator = false,
+    this.os,
   });
+
+  /// `--cloud-os`: the worker OS for a target in [dvCloudHostTargets], by
+  /// name. Null builds on the OS the target has.
+  final String? os;
 
   /// `--simulator`: the tvOS build Dartvel Cloud makes.
   final bool simulator;
@@ -143,6 +148,17 @@ class DVCloudBuilder {
               'Pass --simulator.');
       return 64;
     }
+    final DVCloudWorkerOs home = dvCloudTargets[request.target]!;
+    final DVCloudWorkerOs? os = request.os == null
+        ? null
+        : DVCloudWorkerOs.values.where((DVCloudWorkerOs o) => o.name == request.os).firstOrNull;
+    if (request.os != null && (os == null || (os != home && !dvCloudHostTargets.contains(request.target)))) {
+      _log(os == null
+          ? '❌ "${request.os}" is not a Dartvel Cloud worker OS: linux, macos or windows.'
+          : '❌ ${request.target} builds on a ${home.name} worker in Dartvel Cloud. Only '
+              '${dvCloudHostTargets.join(', ')} builds for the worker OS asked for.');
+      return 64;
+    }
     final String root = p.normalize(Directory(p.absolute(request.root)).resolveSymbolicLinksSync());
     final String? project = dvCloudProjectName(root);
     if (project == null) {
@@ -176,6 +192,7 @@ class DVCloudBuilder {
           format: request.format,
           codesign: request.codesign,
           simulator: request.simulator,
+          os: os,
         ),
         archive.file,
       );
@@ -199,7 +216,21 @@ class DVCloudBuilder {
       final Directory out = Directory(p.join(root, 'build', 'cloud', request.target));
       if (out.existsSync()) out.deleteSync(recursive: true);
       for (final DVCloudArtifact artifact in build.artifacts) {
-        final File file = File(p.joinAll(<String>[out.path, ...artifact.name.split('/')]));
+        final String path = p.joinAll(<String>[out.path, ...artifact.name.split('/')]);
+        if (artifact.link != null) {
+          // Made here, not fetched: what a framework reaches its binary and
+          // resources through. Links are the protocol's own and were checked
+          // to stay inside the download when the build was read.
+          Directory(p.dirname(path)).createSync(recursive: true);
+          try {
+            Link(path).createSync(p.joinAll(artifact.link!.split('/')));
+          } on FileSystemException catch (error) {
+            _log('⚠️  ${artifact.name} is a link to ${artifact.link}, and this machine '
+                'would not make it: ${error.osError?.message ?? error.message}');
+          }
+          continue;
+        }
+        final File file = File(path);
         await client.download(build.id, artifact.name, file);
         final int size = file.lengthSync();
         final String digest = '${await sha256.bind(file.openRead()).first}';
@@ -208,6 +239,13 @@ class DVCloudBuilder {
           _log('❌ ${artifact.name} arrived with the wrong checksum, so it was '
               'not kept. Run the build again.');
           return 1;
+        }
+        if (artifact.executable && !Platform.isWindows) {
+          final ProcessResult chmod = await Process.run('chmod', <String>['755', file.path]);
+          if (chmod.exitCode != 0) {
+            _log('❌ ${artifact.name} is a program and could not be made executable: ${chmod.stderr}');
+            return 1;
+          }
         }
       }
       _log('✅ Built in Dartvel Cloud: ${build.artifacts.length} file(s) in '

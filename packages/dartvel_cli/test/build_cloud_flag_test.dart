@@ -94,4 +94,11 @@ void main() {
     expect(cloud.requests.single.target, 'tvos');
     expect(cloud.requests.single.simulator, isTrue);
   });
+
+  test('--cloud-os reaches the cloud build', () async {
+    final _RecordingCloud cloud = _RecordingCloud();
+    await build(cloud, <String>['web-server', '--cloud', '--cloud-os', 'macos']);
+    expect(cloud.requests.single.target, 'web-server');
+    expect(cloud.requests.single.os, 'macos');
+  });
 }
