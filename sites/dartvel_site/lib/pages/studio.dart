@@ -67,6 +67,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'gets the same 404 as a page that does not exist.',
           'Edit model records in a form. An edit made against a row that '
               'changed after you opened it is refused.',
+          'While you work, dartvel dev serves Studio too, and prints the '
+              'private link that opens it.',
         ]),
         StudioShot(
           'assets/studio/model-records.png',
@@ -92,10 +94,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         Objection(
           'Does publishing need a rebuild?',
-          'Not in an app that embeds Studio. A published page takes over its '
-              'route at once, and Revert brings the compiled page back. On a '
-              'web-server binary, pages save to the server, and the web app '
-              'does not read them from there yet.',
+          'No. A published page takes over its route without a rebuild, on a '
+              'web-server binary as well as in an app that embeds Studio. '
+              'Revert brings the compiled page back.',
         ),
       ],
     ),
