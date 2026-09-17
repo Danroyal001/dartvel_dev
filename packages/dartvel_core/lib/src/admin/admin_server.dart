@@ -13,6 +13,7 @@
 /// a Dartvel application, that it has a studio, and where.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -174,6 +175,27 @@ String dvAdminContentType(String relative) {
   return 'application/octet-stream';
 }
 
+/// The queues the project graph in [root] names: every `@DVJob`'s queue.
+///
+/// The build writes the graph beside Studio, and it is the one place a
+/// server knows its queue names from. Read on each request, so a graph that
+/// is missing or unreadable lists no queue of its own rather than failing.
+List<String> dvAdminGraphQueues(String root) {
+  final File graph = File('$root${Platform.pathSeparator}graph.json');
+  try {
+    final Object? decoded = jsonDecode(graph.readAsStringSync());
+    final Object? jobs = decoded is Map ? decoded['jobs'] : null;
+    return <String>{
+      if (jobs is List)
+        for (final Object? job in jobs)
+          if (job is Map && job['queue'] is String && '${job['queue']}'.isNotEmpty)
+            '${job['queue']}',
+    }.toList();
+  } on Object {
+    return const <String>[];
+  }
+}
+
 /// Whether [request] comes from somebody allowed to open Studio.
 ///
 /// Two questions, and a session answers only the first. The request has to
@@ -217,12 +239,16 @@ class DVAdminServer {
     DVDatabaseAdapter? database,
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
+    List<String>? queues,
   })  : _authenticated = authenticated ?? dvAdminAuthorized,
         api = DVStudioApi(
           models: models,
           database: database,
           caller: caller,
           accounts: accounts,
+          queues: queues == null
+              ? () => dvAdminGraphQueues(root)
+              : () => queues,
         );
 
   final DVAdminMount mount;

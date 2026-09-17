@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Studio's API shows queues and cache tags.** `GET <mount>/api/queues`
+  lists every queue the build's graph names, and `default`, with its pending
+  jobs and dead letters (a broker that cannot list says so);
+  `POST <mount>/api/queues/jobs/<id>/retry` and `.../discard` act on a dead
+  letter and answer 404 for a job that is not one. `GET <mount>/api/cache/tags`
+  lists each tag with its keys and `POST <mount>/api/cache/tags/<tag>/revalidate`
+  drops them, saying which.
+
 - **Studio grants and revokes access itself.** `POST <mount>/api/grants`
   grants an account named by address (through the new `DVAccountLookup`,
   which `DVDatabaseAuthProvider` implements) or by id, and refuses an address

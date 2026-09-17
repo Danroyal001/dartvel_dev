@@ -19,6 +19,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import '../../dartvel.dart'
+    show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
@@ -119,8 +121,14 @@ class DVStudioApi {
     this.database,
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
+    List<String> Function()? queues,
   })  : _caller = caller ?? dvStudioSessionUserId,
-        _accounts = accounts;
+        _accounts = accounts,
+        _queues = queues ?? (() => const <String>['default']);
+
+  /// The queues the build declares, which Studio lists. Jobs are stored per
+  /// queue, so there is nothing to enumerate them from but the build.
+  final List<String> Function() _queues;
 
   final List<DVStudioModelSpec> models;
 
@@ -164,6 +172,10 @@ class DVStudioApi {
           return await _pages(request, method);
         case 'grants':
           if (segments.length == 1) return await _grantsAt(request, method);
+        case 'queues':
+          return await _queuesAt(method, segments.sublist(1));
+        case 'cache':
+          return await _cacheAt(method, segments.sublist(1));
       }
       throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
     } on _StudioRefusal catch (refusal) {
@@ -557,6 +569,105 @@ class DVStudioApi {
         return _reply(<String, Object?>{'deleted': route});
     }
     _notAllowed();
+  }
+
+  // ---- queues ------------------------------------------------------------
+
+  static const DVQueues _jobs = DVQueues();
+
+  Future<Response> _queuesAt(String method, List<String> path) async {
+    if (path.isEmpty) {
+      if (method != 'GET') _notAllowed();
+      final List<String> names =
+          <String>{'default', ..._queues()}.toList()..sort();
+      return _reply(<String, Object?>{
+        'queues': <Object?>[
+          for (final String name in names) await _queue(name),
+        ],
+      });
+    }
+    // jobs/<id>/retry, jobs/<id>/discard
+    if (path.length == 3 && path.first == 'jobs') {
+      if (method != 'POST') _notAllowed();
+      final String id = path[1];
+      final bool applied;
+      switch (path[2]) {
+        case 'retry':
+          applied = await _jobs.retry(id);
+        case 'discard':
+          applied = await _jobs.discard(id);
+        default:
+          throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+      }
+      if (!applied) {
+        // Reporting success for a job the adapter did not find would leave
+        // an operator believing a dead letter was dealt with.
+        throw _StudioRefusal(
+            404, 'not_found', 'No dead-lettered job has the id $id.');
+      }
+      return _reply(<String, Object?>{path[2]: id});
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+  }
+
+  Future<Map<String, Object?>> _queue(String name) async {
+    List<DVJobEnvelope<DVJobPayload>> pending;
+    List<DVJobEnvelope<DVJobPayload>> dead;
+    String? unreadable;
+    try {
+      pending = await _jobs.pending(name);
+      dead = await _jobs.deadLetters(name);
+    } on Object catch (error) {
+      // A broker that cannot list (Kafka, Pub/Sub) still has the queue; it
+      // says why nothing is shown rather than showing an empty one.
+      pending = const <DVJobEnvelope<DVJobPayload>>[];
+      dead = const <DVJobEnvelope<DVJobPayload>>[];
+      unreadable = '$error';
+    }
+    return <String, Object?>{
+      'name': name,
+      'pending': <Object?>[for (final job in pending) _jobJson(job)],
+      'deadLetters': <Object?>[for (final job in dead) _jobJson(job)],
+      'unreadable': ?unreadable,
+    };
+  }
+
+  static Map<String, Object?> _jobJson(DVJobEnvelope<DVJobPayload> job) =>
+      <String, Object?>{
+        'id': job.id,
+        'type': '${job.payloadType}',
+        'state': job.state.name,
+        'attempts': job.attempts,
+        'maxAttempts': job.maxAttempts,
+        'priority': job.priority,
+        'createdAt': job.createdAt.toUtc().toIso8601String(),
+        'lastError': ?job.lastError,
+        'tenant': ?job.tenant,
+      };
+
+  // ---- cache -------------------------------------------------------------
+
+  Future<Response> _cacheAt(String method, List<String> path) async {
+    const DVCacheTags tags = DVCacheTags();
+    if (path.length == 1 && path.first == 'tags') {
+      if (method != 'GET') _notAllowed();
+      final List<String> names = tags.tags.toList()..sort();
+      return _reply(<String, Object?>{
+        'tags': <Object?>[
+          for (final String tag in names)
+            <String, Object?>{
+              'tag': tag,
+              'keys': tags.keysForTag(tag).toList()..sort(),
+            },
+        ],
+      });
+    }
+    if (path.length == 3 && path.first == 'tags' && path[2] == 'revalidate') {
+      if (method != 'POST') _notAllowed();
+      final List<String> dropped = tags.revalidateTag(path[1]).toList()..sort();
+      return _reply(<String, Object?>{'tag': path[1], 'dropped': dropped});
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
   }
 
   // ---- grants ------------------------------------------------------------
