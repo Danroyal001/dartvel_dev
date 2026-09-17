@@ -13326,7 +13326,7 @@ cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
 
 | Expo / EAS | Without Cloud (free) | Dartvel Cloud (paid) | Status |
 |---|---|---|---|
-| EAS Build: cloud builds, iOS without a Mac | `dartvel build <target>` on your machine, host and toolchain checked first | `dartvel build <target> --cloud`: the source goes up, a worker for the target's OS builds it, the log streams back, the artifacts come down into `build/cloud/<target>` and are kept only when their SHA-256 matches | CLI and service built. Android verified end to end in CI: the CLI sent 2,702 files (13.9 MB), a Linux worker built them, and the 157 MB APK came back matching its checksum. iOS on a macOS worker is set up and has not run. No hosted workers |
+| EAS Build: cloud builds, iOS without a Mac | `dartvel build <target>` on your machine, host and toolchain checked first | `dartvel build <target> --cloud`: the source goes up, a worker for the target's OS builds it, the log streams back, the artifacts come down into `build/cloud/<target>` and are kept only when their SHA-256 matches | CLI and service built. Ten targets built end to end in CI (dartvel_enterprise run 35232282996): Android, Fire OS, Chrome and Firefox extensions, a VS Code extension, linux-cli, sony-elinux and a signed Tizen TPK on a Linux worker; iOS and a tvOS simulator app on a macOS worker. See Cloud targets. No hosted workers |
 | Build profiles (`eas.json`) | `--profile development\|profile\|release` | The same flag, sent with the build | Built |
 | Build queue and priority | None needed | First in, first out per worker OS. A build whose worker stops renewing its lease is queued again | FIFO and requeue built. Priority by plan designed |
 | Build caching | Your machine's pub, Gradle and CocoaPods caches | Warm caches per worker machine | Designed |
@@ -13338,10 +13338,44 @@ cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
 | Internal distribution | `dartvel deploy --store firebase-app-distribution`, `dartvel deploy --store testflight` | An install page per development or profile build, printed with a QR code | Android built, and in the same CI run the install page served the APK as `application/vnd.android.package-archive`. iOS ad hoc (device registration, signed IPA) designed |
 | EAS Insights, Observe | Crash Reporting and Release Health; `dartvel logs`, `traces`, `metrics` | A dashboard across builds, releases and crashes | Designed |
 | EAS Metadata | Store metadata in the repository, screenshots from goldens (App Store Publishing) | Uploading it after a publish | Designed |
-| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. iOS simulator builds from Cloud designed |
+| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. A tvOS simulator app built on a macOS worker. iOS simulator builds from Cloud designed |
 | Expo Orbit | Artifacts land in `build/` | Artifacts land in `build/cloud/<target>`; install page and QR | Download built. Installing onto a running simulator designed |
 | Config plugins, prebuild (CNG) | Platform folders are committed. Dartvel writes the native pieces it owns: deep-link files, splash, PWA icons, widget targets, kiosk manifests | Nothing extra | Regenerating whole platform folders is not designed |
 | `app.json` | The `dartvel:` block in `pubspec.yaml` | The same file | Built |
+
+## Cloud targets
+
+A target is on Cloud when `dartvel build <target>` finishes on a worker for
+its operating system. The worker runs the project's own CLI with
+`--auto-install`, so it fetches the embedders the CLI fetches anywhere; what
+the CLI must not install is part of the worker image.
+
+| Target | Worker | The worker image provides |
+|---|---|---|
+| `android`, `fireos` | Linux | Java 17 and the Android SDK |
+| `web`, `web-server` | Linux | Nothing extra |
+| `linux` | Linux | The Linux desktop build packages |
+| `linux-cli` | Linux | The Linux desktop build packages and Rust |
+| `chrome-extension`, `firefox-extension` | Linux | Nothing extra |
+| `vscode` | Linux | Node |
+| `sony-elinux` | Linux | Sony's `flutter-client` and the from-source release engine |
+| `tizen` | Linux | Tizen Studio's CLI, native toolchain and rootstrap, installed with its licence accepted, and an author certificate |
+| `ios`, `macos` | macOS | Xcode |
+| `tvos` | macOS | Xcode. Built for the simulator only: `--simulator` is required, and a device build is refused before upload because it is signed with a team Cloud does not keep |
+| `windows` | Windows | Visual Studio with the C++ workload |
+
+`android`, `fireos`, `ios`, `tvos`, `chrome-extension`, `firefox-extension`,
+`vscode`, `linux-cli`, `sony-elinux` and `tizen` are built end to end in CI,
+and each download is checked for what that target builds, not for a
+directory: an APK with a manifest, dex and compiled Dart; a Mach-O app whose
+plist names Apple TV; a signed TPK carrying the engine; ELF bundles with no GTK
+runner in them. `macos`, `windows`, `linux`, `web` and `web-server` are
+accepted and have not been built end to end.
+
+Not on Cloud, because the local build cannot finish: `webos`, whose embedder
+bundles Dart 3.10.9, below Dartvel's floor; `fuchsia`, whose embedder is older
+still; and `windows-cli` and `macos-cli`, because the terminal embedder builds
+for Linux only.
 
 ## What the CLI sends
 
