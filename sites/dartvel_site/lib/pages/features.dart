@@ -299,8 +299,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Multi-tenancy',
     'tenantScoped: true',
-    'Present: tenant resolution and filtered reads and writes on generated '
-        'models. Absent: the tenant does not travel with a queued job.',
+    'Present: tenant resolution, filtered reads and writes on generated '
+        'models, and jobs that run as the tenant that queued them. Absent: '
+        'creating the per-tenant schemas and databases.',
   ),
   (
     'Organizations, Membership and Invitations',
@@ -456,9 +457,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Data Import, Export, and Reporting',
-    'Order.Import.csv',
-    'Present: CSV, NDJSON and Excel import and export per model. Absent: PDF '
-        'export.',
+    'OrderImport.csv',
+    'Present: CSV, NDJSON and tab-separated import, CSV, JSON, NDJSON and '
+        'Excel export, and monthly reports, per model. Absent: PDF export.',
   ),
   (
     'Change Data Capture and Warehouse Sync',
