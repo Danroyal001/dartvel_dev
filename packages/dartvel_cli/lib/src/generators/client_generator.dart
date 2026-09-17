@@ -1702,11 +1702,6 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
         "    return state.uri.replace(path: path.substring(0, "
         "path.length - 'index.html'.length - 1)).toString();");
     sbRedirect.writeln('  }');
-    if (notFoundRedirect.isNotEmpty) {
-      sbRedirect.writeln(
-        "  if (state.error != null) return '${esc(notFoundRedirect)}';",
-      );
-    }
     if (normalizeTrailing) {
       sbRedirect.writeln("  if (path.length > 1 && path.endsWith('/')) {");
       sbRedirect.writeln(
@@ -1733,6 +1728,17 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
         sbRedirect.writeln('    return newUri.toString();');
         sbRedirect.writeln('  } }');
       }
+    }
+    // Last, so a path with a redirect or a trailing slash of its own is sent
+    // there rather than to the not-found page. Asked through a helper that
+    // checks whether anything matched: go_router never sets state.error on
+    // the state a top-level redirect receives, and a check on it was how
+    // this setting came to be generated and never applied.
+    if (notFoundRedirect.isNotEmpty) {
+      sbRedirect.writeln(
+        "  final notFound = dvNotFoundRedirect(state, '${esc(notFoundRedirect)}');",
+      );
+      sbRedirect.writeln('  if (notFound != null) return notFound;');
     }
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');

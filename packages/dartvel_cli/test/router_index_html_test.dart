@@ -91,4 +91,19 @@ void main() {
 
     expect(router, contains('dvKioskRouteRedirect(path)'));
   });
+
+  test('notFoundRedirect is applied, after the configured redirects', () async {
+    // It tested state.error, which go_router never sets on the state a
+    // top-level redirect receives: the setting was generated and never applied.
+    // It also has to run last, or an /old path with a redirect of its own is
+    // sent to the not-found page instead.
+    final router = await routerSource();
+    final body = router.substring(router.indexOf('_globalRedirect'));
+    final redirect = body.substring(0, body.indexOf('\n}\n'));
+
+    expect(redirect, isNot(contains('state.error')));
+    expect(redirect, contains("dvNotFoundRedirect(state, '/')"));
+    expect(redirect.indexOf('dvNotFoundRedirect'),
+        greaterThan(redirect.indexOf("path.endsWith('/')")));
+  });
 }

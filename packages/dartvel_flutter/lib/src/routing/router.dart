@@ -16,7 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../dartvel_flutter.dart' show DvDefaultLoading;
+import '../../dartvel_flutter.dart' show DVPageStore, DvDefaultLoading;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -155,4 +155,26 @@ class _FixedRoutingConfig extends ValueListenable<RoutingConfig> {
 
   @override
   void removeListener(VoidCallback listener) {}
+}
+
+/// Where `dartvel.notFoundRedirect` sends a path no route serves, or null to
+/// leave the location alone.
+///
+/// Called from the generated top-level redirect. It asks whether anything
+/// matched ([GoRouterState.topRoute] is null only when nothing did) rather
+/// than reading [GoRouterState.error]: go_router never sets `error` on the
+/// state a top-level redirect receives, so a check on it is never true and
+/// the setting was silently ignored.
+///
+/// Leaves alone a path that already is [to], so a target that is itself
+/// unserved renders the 404 page instead of redirecting forever, and a path
+/// a Studio page document is stored for, since that page is served by the
+/// router's error builder and redirecting would make it unreachable.
+String? dvNotFoundRedirect(GoRouterState state, String to) {
+  if (to.isEmpty) return null;
+  if (state.topRoute != null) return null;
+  final String path = state.uri.path;
+  if (path == to) return null;
+  if (DVPageStore.cached(path) != null) return null;
+  return to;
 }
