@@ -6,6 +6,11 @@
 ///   dart tool/ci/cloud_artifact_check.dart aab examples/basic_app/build/app/outputs/bundle/release
 ///   dart tool/ci/cloud_artifact_check.dart ipa-archive examples/basic_app/build/ios/archive
 ///
+/// And for the other cloud targets: fireos, chrome-extension, firefox-extension,
+/// vscode, tvos (a simulator app whose Info.plist names appletv), linux-cli and
+/// sony-elinux (ELF bundles with no GTK runner in them) and tizen (a signed
+/// TPK carrying the engine and compiled Dart).
+///
 /// An App Bundle is a zip laid out by module: base/manifest/AndroidManifest.xml,
 /// base/dex/classes.dex, compiled Dart under base/lib, and BundleConfig.pb,
 /// which is what makes it a bundle Play accepts and not an APK renamed. An
@@ -24,14 +29,14 @@ import 'dart:typed_data';
 
 void main(List<String> args) {
   if (args.length != 2) {
-    stderr.writeln('usage: cloud_artifact_check.dart <android|ios|aab|ipa-archive> <dir>');
+    stderr.writeln('usage: cloud_artifact_check.dart <target|aab|ipa-archive> <dir>');
     exit(64);
   }
   final Directory dir = Directory(args[1]);
   if (!dir.existsSync()) _fail('${dir.path} does not exist');
   final List<File> files = dir.listSync(recursive: true).whereType<File>().toList();
   switch (args[0]) {
-    case 'android':
+    case 'android' || 'fireos':
       final List<File> apks = files.where((File f) => f.path.endsWith('.apk')).toList();
       if (apks.isEmpty) _fail('no .apk under ${dir.path}');
       for (final File apk in apks) {
@@ -81,9 +86,117 @@ void main(List<String> args) {
       if (!binary.existsSync()) _fail('Runner.app has no Runner executable');
       _machO(binary);
       stdout.writeln('ok: ${binary.path} (${binary.lengthSync()} bytes, Mach-O)');
+    case 'chrome-extension' || 'firefox-extension':
+      final Map<String, Object?> manifest = _json(File('${dir.path}/manifest.json'));
+      final Object? background = manifest['background'];
+      final bool chrome = args[0] == 'chrome-extension';
+      if (manifest['manifest_version'] != 3) _fail('manifest.json is not manifest_version 3');
+      if (background is! Map) _fail('manifest.json has no background');
+      if (chrome && background['service_worker'] is! String) {
+        _fail('a Chromium extension needs background.service_worker');
+      }
+      if (!chrome && background['scripts'] is! List) {
+        _fail('a Firefox extension needs background.scripts');
+      }
+      for (final String wanted in <String>['index.html', 'main.dart.js']) {
+        _nonEmpty(File('${dir.path}/$wanted'));
+      }
+      stdout.writeln('ok: ${args[0]} bundle in ${dir.path} (${files.length} files)');
+    case 'vscode':
+      final Map<String, Object?> package = _json(File('${dir.path}/package.json'));
+      final Object? engines = package['engines'];
+      if (engines is! Map || engines['vscode'] is! String) {
+        _fail('package.json names no engines.vscode');
+      }
+      final String main = '${package['main'] ?? ''}'.replaceFirst(RegExp(r'^\./'), '');
+      final String entry = main.endsWith('.js') ? main : '$main.js';
+      if (main.isEmpty) _fail('package.json names no main extension.js');
+      _nonEmpty(File('${dir.path}/$entry'));
+      _nonEmpty(File('${dir.path}/build/web/flutter_bootstrap.js'));
+      _nonEmpty(File('${dir.path}/build/web/main.dart.js'));
+      stdout.writeln('ok: VS Code extension $entry with its Flutter web build');
+    case 'tvos':
+      final File? plist = files
+          .where((File f) => RegExp(r'Runner\.app/Info\.plist$').hasMatch(f.path))
+          .firstOrNull;
+      if (plist == null) _fail('no Runner.app/Info.plist under ${dir.path}');
+      // Binary or XML, the platform name is stored as plain ASCII.
+      if (!latin1.decode(plist.readAsBytesSync()).contains('appletv')) {
+        _fail('${plist.path} names no appletv platform: this is not a tvOS app');
+      }
+      final File binary = File('${plist.parent.path}/Runner');
+      if (!binary.existsSync()) _fail('Runner.app has no Runner executable');
+      _machO(binary);
+      stdout.writeln('ok: ${binary.path} (${binary.lengthSync()} bytes, Mach-O, Apple TV)');
+    case 'linux-cli':
+      _noGtk(files);
+      _elf(File('${dir.path}/flt'));
+      _elf(File('${dir.path}/lib/libflutter_engine.so'));
+      _nonEmpty(File('${dir.path}/run.sh'));
+      _nonEmpty(File('${dir.path}/data/icudtl.dat'));
+      if (!Directory('${dir.path}/data/flutter_assets').existsSync()) {
+        _fail('the terminal bundle has no data/flutter_assets');
+      }
+      stdout.writeln('ok: terminal bundle in ${dir.path}: flt, its engine and the assets');
+    case 'sony-elinux':
+      _noGtk(files);
+      _elf(File('${dir.path}/flutter-client'));
+      _elf(File('${dir.path}/lib/libflutter_engine.so'));
+      _elf(File('${dir.path}/lib/libapp.so'));
+      _nonEmpty(File('${dir.path}/data/icudtl.dat'));
+      if (!Directory('${dir.path}/data/flutter_assets').existsSync()) {
+        _fail('the eLinux bundle has no data/flutter_assets');
+      }
+      stdout.writeln('ok: eLinux bundle in ${dir.path}: flutter-client, engine and AOT libapp.so');
+    case 'tizen':
+      final List<File> tpks = files.where((File f) => f.path.endsWith('.tpk')).toList();
+      if (tpks.isEmpty) _fail('no .tpk under ${dir.path}');
+      for (final File tpk in tpks) {
+        final Set<String> names = _zipNames(tpk);
+        for (final String wanted in <String>['tizen-manifest.xml', 'author-signature.xml']) {
+          if (!names.contains(wanted)) _fail('${tpk.path} has no $wanted');
+        }
+        if (!names.any((String n) => n.endsWith('libflutter_engine.so'))) {
+          _fail('${tpk.path} carries no libflutter_engine.so: the runner without Flutter');
+        }
+        if (!names.any((String n) => n.endsWith('libapp.so') || n.endsWith('kernel_blob.bin'))) {
+          _fail('${tpk.path} carries no compiled Dart (libapp.so or kernel_blob.bin)');
+        }
+        stdout.writeln('ok: ${tpk.path} (${tpk.lengthSync()} bytes, ${names.length} entries)');
+      }
     default:
       _fail('no check for ${args[0]}');
   }
+}
+
+Map<String, Object?> _json(File file) {
+  if (!file.existsSync()) _fail('no ${file.path}');
+  try {
+    final Object? value = jsonDecode(file.readAsStringSync());
+    if (value is Map<String, Object?>) return value;
+  } on FormatException {
+    // Reported below.
+  }
+  _fail('${file.path} is not a JSON object');
+}
+
+void _nonEmpty(File file) {
+  if (!file.existsSync() || file.lengthSync() == 0) _fail('${file.path} is missing or empty');
+}
+
+void _elf(File file) {
+  if (!file.existsSync()) _fail('no ${file.path}');
+  final Uint8List head = file.openSync().readSync(4);
+  if (head.length < 4 || head[0] != 0x7f || head[1] != 0x45 || head[2] != 0x4c || head[3] != 0x46) {
+    _fail('${file.path} is not an ELF binary');
+  }
+}
+
+/// A bundle built without a GUI carries no GTK runner library: the GUI build
+/// under a terminal or device name would.
+void _noGtk(List<File> files) {
+  final File? gtk = files.where((File f) => f.path.endsWith('libflutter_linux_gtk.so')).firstOrNull;
+  if (gtk != null) _fail('${gtk.path} is the GTK runner: this is the desktop GUI build');
 }
 
 void _machO(File binary) {

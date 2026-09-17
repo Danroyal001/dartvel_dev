@@ -380,6 +380,9 @@ jobs:
 
       - name: Check the declared floors
         run: dart test test/unit/sdk_floor_test.dart
+      # What decides that a cloud build returned the target it was asked for.
+      - name: The cloud artifact checks
+        run: dart test test/unit/cloud_artifact_check_test.dart
       # The npm launchers' own checks, and the bump that wrote a version into
       # dartvel_dev's bin: 0.5.0 shipped `npx dartvel_dev` pointing at a file
       # named 0.5.0, and the check that would have said so was never run.
