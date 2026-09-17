@@ -58,6 +58,7 @@ export 'src/auth/platform_api_management.dart';
 export 'src/auth/platform_api_config.dart';
 export 'src/auth/secret_hash.dart';
 export 'src/admin/admin_server.dart';
+export 'src/admin/studio_access.dart';
 export 'src/auth/session_authentication.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
@@ -4133,6 +4134,17 @@ class _DVPolicyEntry {
   /// `(User, Order)`, for a refusal that has to say what the check takes.
   final String signature;
 
+  /// A check that takes any caller and any resource, and decides itself.
+  static _DVPolicyEntry untyped(
+    FutureOr<bool> Function(Object? caller, Object? resource) check,
+  ) =>
+      _DVPolicyEntry(
+        check,
+        (Object? user, Object? resource) => true,
+        '(Object?, Object?)',
+        true,
+      );
+
   static _DVPolicyEntry of<TUser, TResource>(
     DVPolicyCheck<TUser, TResource> check,
   ) =>
@@ -4210,6 +4222,47 @@ class DVAuthAuthorization {
   ) {
     _declared[_keyOf<TResource>(action)] =
         _DVPolicyEntry.of<TUser, TResource>(check);
+  }
+
+  /// Registers the application's own answer for [action], named as
+  /// `Resource.action`, where there is no Dart type for the resource.
+  ///
+  /// `Studio.access` is one: Studio is the application's admin, not a model,
+  /// so there is no `Studio` type to register a policy against with
+  /// [register]. The check is handed whoever is calling -- a
+  /// `DVSessionPrincipal`, or the application's user where it resolves one --
+  /// and no resource. Like [register], it wins over a declared answer.
+  void registerAction(
+    String action,
+    FutureOr<bool> Function(Object? caller, Object? resource) check,
+  ) {
+    _policies[_actionKey(action)] = _DVPolicyEntry.untyped(check);
+  }
+
+  /// A framework default for [action], asked only where the application
+  /// registered nothing for it.
+  void registerDeclaredAction(
+    String action,
+    FutureOr<bool> Function(Object? caller, Object? resource) check,
+  ) {
+    _declared[_actionKey(action)] = _DVPolicyEntry.untyped(check);
+  }
+
+  static String _actionKey(String action) {
+    final int dot = action.indexOf('.');
+    if (dot <= 0 || dot == action.length - 1) {
+      throw ArgumentError.value(
+          action, 'action', 'An action is named as Resource.action.');
+    }
+    return DVApiScopes.policyKeyOf(action);
+  }
+
+  /// Forgets every registered policy. For a test: a process registers its
+  /// policies once, at start.
+  static void reset() {
+    _policies.clear();
+    _declared.clear();
+    _explained.clear();
   }
 
   _DVPolicyEntry? _entry(String key) => _policies[key] ?? _declared[key];
