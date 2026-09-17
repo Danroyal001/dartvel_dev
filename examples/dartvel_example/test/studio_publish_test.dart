@@ -7,6 +7,7 @@
 // generated router repeatedly in one isolate is unreliable, so the wiring is
 // integration-tested once here and the logic is unit-tested there.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_example/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,8 +82,11 @@ void main() {
 
     // The builder edits and saves again; saving is publishing.
     await store.save(marketingPage('/promo', 'Summer Sale'));
-    // Leave and return, so the route rebuilds and re-reads the store.
-    router.go('/nothing-here');
+    // Leave and return, so the route rebuilds and re-reads the store. To
+    // another saved page: an unknown path is redirected home, whose shop
+    // reads globals this test does not set up.
+    await store.save(marketingPage('/elsewhere', 'Elsewhere'));
+    router.go('/elsewhere');
     await settle(tester);
     router.go('/promo');
     await settle(tester);
@@ -113,8 +117,13 @@ void main() {
 
 
 
-  testWidgets('an unknown route renders 404 rather than a blank screen',
-      (WidgetTester tester) async {
+  // The example sets dartvel.notFoundRedirect: /, so an unknown path is the
+  // shop rather than a 404 page. The 404 page an application without one
+  // gets is covered in dartvel_flutter/test/not_found_redirect_test.dart.
+  testWidgets('an unknown route goes where notFoundRedirect sends it, not '
+      'to a blank screen', (WidgetTester tester) async {
+    // The shop is what it lands on, and the shop reads the app's globals.
+    configureDartvelExample();
     final router = createDartvelRouter();
     addTearDown(router.dispose);
     router.go('/nothing-here');
@@ -123,8 +132,10 @@ void main() {
     );
     await settle(tester);
 
-    expect(find.text('404'), findsOneWidget);
-    expect(find.textContaining('/nothing-here'), findsOneWidget);
+    expect(DV.Navigation.currentPath, '/');
+    expect(find.text('404'), findsNothing);
+    // The shop's tabs, which only the home route is inside.
+    expect(find.text('Orders'), findsWidgets);
   });
 
   testWidgets('a save while the page is on screen updates it live',
