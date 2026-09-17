@@ -1199,6 +1199,35 @@ void terminalRenderingTests() {
     });
   });
 
+  group('terminal builds on each host', () {
+    test('only Linux needs the desktop build for native-asset settings', () {
+      // Flutter reads a Linux project's hook compiler from the desktop
+      // build's CMakeCache.txt, so linux-cli runs that build first. macOS
+      // takes its compiler from Xcode and Windows from vswhere, and neither
+      // host can run `flutter build linux` -- running it there failed every
+      // macos-cli and windows-cli build before the embedder was reached.
+      expect(terminalBuildNeedsDesktopCompilerSettings('linux'), isTrue);
+      expect(terminalBuildNeedsDesktopCompilerSettings('macos'), isFalse);
+      expect(terminalBuildNeedsDesktopCompilerSettings('windows'), isFalse);
+    });
+
+    test('a terminal target builds on its own host and no other', () {
+      expect(isPlatformAvailableOn('macos-cli', 'macos'), isTrue);
+      expect(isPlatformAvailableOn('windows-cli', 'windows'), isTrue);
+      expect(isPlatformAvailableOn('macos-cli', 'windows'), isFalse);
+      expect(isPlatformAvailableOn('windows-tui', 'macos'), isFalse);
+    });
+
+    test('the plan names the host the embedder builds for', () {
+      for (final String host in <String>['macos', 'windows']) {
+        final plan = terminalBuildPlan(host,
+            buildMode: '--debug', toolchainHome: '/h', hostOs: host);
+        expect(plan.arguments.take(2), <String>['build', host]);
+        expect(plan.usesFlutterDesktopBuild, isFalse);
+      }
+    });
+  });
+
   group('terminal target resolution', () {
     test('-cli resolves to the base platform with a terminal presentation',
         () {

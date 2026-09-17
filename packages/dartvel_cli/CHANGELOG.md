@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel build macos-cli` and `windows-cli` get as far as the embedder.**
+  Both ran `flutter build linux` first for native-asset compiler settings that
+  only a Linux project reads, which neither host can run. On Windows the
+  embedder was looked for without `.exe`, and its absolute path, built with
+  `/`, was handed to `where` because the path check asked only for `\`, so an
+  installed embedder read as missing and the target skipped.
+
 - **A cloud build brings a macOS app home runnable, and web-server builds on
   the worker OS asked for.** `dartvel build <target> --cloud` wrote every
   download as a plain file: a macOS app lost its Mach-O's executable bit and
@@ -186,7 +193,6 @@
   dashboard only when `dartvel.admin.enabled: true`, and serves it only to a
   signed-in session; anybody else gets what a route that does not exist gets.
   `startBackend` and `dartvelMain` take `admin` and `adminRoot`.
-
 
 - **`dartvel preview` resolves admin files with dartvel_core's
   `dvAdminAsset`**, the same code the web-server binary serves the dashboard
@@ -992,7 +998,6 @@
   `@freezed` generated no model at all and said nothing, because the model
   generator's pattern steps over `@pragma` only.
 
-
 - **`dartvel.memory` reaches the running application, and doctor checks it.**
   The generated client installs the `memory` section and each device
   profile's `platform`, `ram` and `memory` override with `DVMemory.configure`
@@ -1080,7 +1085,6 @@
   cannot carry (flags hold `bool`, `String`, `int`, `double` and enums; a
   structure is configuration), an impossible date, and a name declared twice.
   A flag past its expiry is a `DV-FLAGS-004` warning naming its owner.
-
 
 - **`dartvel create` refuses to scaffold over a project it did not create
   (`DV-ADOPT-005`).** One of its steps replaces `pubspec.yaml` with the

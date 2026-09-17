@@ -251,6 +251,42 @@ void main() {
       expect(executables, hasLength(1));
     });
 
+    test('on Windows the embedder is the .exe cargo installs', () {
+      // cargo writes `--root R --bin B` to R/bin/B.exe on Windows. Checking
+      // for the bare name there reports an installed embedder as missing,
+      // reinstalls it on every build, and then skips anyway.
+      final embedder = toolRequirementsFor('windows-cli',
+              home: r'C:\Users\dev', hostOs: 'windows')
+          .single;
+      expect(embedder.executable, endsWith('/bin/dartvel-cli-flt.exe'));
+
+      final install = embedder.postInstall!;
+      String option(String name) => install[install.indexOf(name) + 1];
+      expect('${option('--root')}/bin/${option('--bin')}.exe',
+          embedder.executable);
+    });
+
+    test('off Windows the embedder has no extension', () {
+      for (final String host in <String>['linux', 'macos']) {
+        final embedder = toolRequirementsFor('$host-cli',
+                home: '/home/dev', hostOs: host)
+            .single;
+        expect(embedder.executable, endsWith('/bin/dartvel-cli-flt'),
+            reason: host);
+      }
+    });
+
+    test('the Windows build runs exactly what Windows checks', () {
+      final plan = terminalBuildPlan('windows',
+          toolchainHome: r'C:\Users\dev', hostOs: 'windows');
+      expect(
+          toolRequirementsFor('windows-cli',
+                  home: r'C:\Users\dev', hostOs: 'windows')
+              .single
+              .executable,
+          plan.toolchain);
+    });
+
     test('the build runs exactly what this checks', () {
       // The invariant the embedder targets are held to, applied here before
       // this target grows the same defect.
@@ -299,6 +335,17 @@ void main() {
     test('an absolute requirement is checked as a path, not a PATH lookup', () {
       // `which /some/path` answers a different question from "is it there".
       expect(isExecutableOnPath('/definitely/not/here/bootstrap.sh'), isFalse);
+    });
+
+    test('a path is a path on Windows too, whichever slash it uses', () {
+      // Toolchain paths are built with '/', and the check used to ask for
+      // Platform.pathSeparator -- '\' on Windows -- so there an installed
+      // embedder's absolute path went to `where`, which answered no.
+      expect(namesALocation('C:/Users/dev/.dartvel/toolchains/x/bin/a.exe'),
+          isTrue);
+      expect(namesALocation(r'C:\Users\dev\bin\a.exe'), isTrue);
+      expect(namesALocation('/home/dev/bin/a'), isTrue);
+      expect(namesALocation('flutter'), isFalse);
     });
   });
 }
