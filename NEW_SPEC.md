@@ -9798,94 +9798,162 @@ a stale link from the last successful run.
 
 Stability: `Draft` · Status: `Partial`
 
-`dartvel dev` reloads a running application. Getting that application onto a
-colleague's phone is the step nobody has specified, and Preview Environments
-already refers to "the installed dev-client shell" as though it exists.
+`dartvel dev` reloads a running application on the developer's own machine. The
+dev client is how the same loop reaches a phone, a simulator or another
+desktop without a cable.
 
 ```bash
 dartvel build android --profile development
-dartvel build ios --profile development
+dartvel build ios --profile development      # --simulator for the simulator
+dartvel build macos --profile development
+dartvel build linux --profile development
+dartvel build windows --profile development
+dartvel dev
 ```
 
 There is no separate shell build. `--profile` takes `development`, `profile`
 or `release` (the default), and a development build is the Flutter debug build
 any Flutter developer already makes, with the engine and the native bindings
-the project declares. It connects to
-a `dartvel dev` server or a preview environment and loads bundles in the OTA
-format — the same format, the same signature check, and the same idempotent
-apply, because a second delivery mechanism for the same bytes is a second
-thing to keep correct.
+the project declares. `--profile development` adds one thing to it: a small
+native tunnel that dials `dartvel dev`.
 
-A QR code or a deep link points it at a branch. A designer scans it, sees the
-branch, and nobody rebuilt anything native; the next branch is another scan.
+## Pairing
+
+`dartvel dev` always serves pairing. There is no flag to turn it on. Each run
+makes a fresh key and token, prints a `dartvel-dev://pair` link and the same
+link as a QR code, and keeps serving paired devices even when there is no
+local device to run the app on.
+
+A device pairs by opening the link. On Android and iOS that is a scan: the
+development build registers the `dartvel-dev` scheme. On macOS, Linux and
+Windows the link is passed as a launch argument. The device dials out, and the
+server must sign the device's nonce with the key from the link before anything
+is sent. Pairing runs over TLS, and the tunnel trusts only a certificate whose
+public key is the link's key, so a server holding another key fails the
+handshake before the token is written.
+
+`dartvel dev` then reaches the app's Dart VM service back through the tunnel
+and attaches to it. Pairing hot restarts the device onto the current sources.
+Every save after that hot reloads it, as it would a local `flutter run`.
+
+The tunnel is native on each platform, so a hot restart, which kills every
+Dart isolate, does not cut it:
+
+| Platform | Tunnel | Link arrives by |
+|---|---|---|
+| Android | Java, in the debug source set | scanned QR code, which opens the link as a VIEW intent |
+| iOS | Objective-C on Network.framework, Debug configuration only | scanned QR code or launch argument |
+| macOS | Objective-C on Network.framework, Debug configuration only | launch argument |
+| Linux | C++ on GIO, compiled for Debug builds only | launch argument |
+| Windows | C++ on Winsock and Schannel, added to the Debug configuration only | launch argument |
+
+None of them is compiled into a profile or release build.
+
+The Dev client workflow proves the loop on every push: it builds the example's
+development app, pairs it, checks that an edit made before pairing runs after
+the pairing hot restart, and checks that an edit saved while paired runs by
+hot reload in the same process. It does this on an Android emulator, an iOS
+simulator, a Linux desktop under xvfb, macOS and Windows. Run 35172461709 on
+2026-09-17 passed all five.
 
 ## The dev menu
 
-The shell carries what a build under test needs and a release build must never
-have: reload, the inspectors `dartvel inspect` answers, the capability report
-for the device it is actually running on, a log view, and kiosk staff mode so
-a locked surface can be inspected without unlocking the policy.
+The development build carries what a build under test needs and a release
+build must never have: reload, the inspectors `dartvel inspect` answers (routes,
+models, backend functions and jobs, read from the paired server behind the
+token), the bindings registered on the device it is actually running on, and a
+load log. Kiosk staff mode in the menu is designed and not built.
 
 This is why it is a build profile rather than a runtime flag. A dev menu
 compiled into a release build behind a runtime check is one condition away from
 shipping, and the condition is usually an environment variable somebody set in
-the wrong place. `--profile development` decides what is compiled in; a
-`release` build never contains it.
+the wrong place. The menu lives in `package:dartvel_flutter/dev_client.dart`,
+which nothing reachable from the application barrel imports, so a release
+build cannot compile it in.
+
+## Page bundles
+
+Alongside the attach, `dartvel dev` serves the project's stored Studio page
+documents as a bundle in the OTA page format. A bundle is signed with the run's
+key, and a development build opens it only with the key from its pairing link.
+It refuses an unsigned bundle, a replayed older one, and one from another
+branch. Page documents are data, so this path carries Studio pages. The
+project's compiled Dart reaches the device through the attach.
 
 ## What it cannot do
 
-**A native change still needs a rebuilt shell.** Adding a binding, a plugin, or
-a permission changes what is compiled in, and no bundle can add it afterwards.
-The shell records the binding manifest it was built from, and a bundle that
-needs something absent refuses to load with `DV-DEVCLIENT-002` naming the
-binding — rather than loading and failing at the call site, which is where this
-goes wrong in every system that does not check.
+**A native change still needs a rebuilt development build.** Adding a binding,
+a plugin, or a permission changes what is compiled in, and no reload can add it
+afterwards. The build records the binding manifest it was built from, and a
+bundle that needs something absent refuses to load with `DV-DEVCLIENT-002`
+naming every missing entry. Loading and failing at the call site is how this
+goes wrong in systems that do not check.
 
-That is the same caveat Expo's development builds carry, and stating it plainly
-is the difference between a tool people trust and a tool people work around.
+Expo's development builds carry the same caveat.
+
+Not built yet:
+
+- connecting a development build to a preview environment instead of a
+  `dartvel dev` server;
+- development builds for embedded and television targets;
+- pairing a physical iPhone from the home screen. iOS does not start a debug
+  build without a debugger attached, so on a device the build pairs when
+  launched from Xcode or `flutter run`. CI pairs the simulator by launch
+  argument, because nothing on a runner can answer the "Open in app" prompt a
+  scanned link raises.
 
 ## Distribution
 
-Shells are distributed as internal builds through the tracks App Store
-Publishing already defines — TestFlight, Play internal testing, or a direct
-install on desktop and embedded. They are never published to a public track;
-`dartvel publish` refuses a dev-client artifact rather than relying on nobody
-selecting it.
+Development builds are distributed as internal builds through the tracks App
+Store Publishing already defines: Play internal testing, TestFlight, Firebase
+App Distribution, or a direct install on desktop. `dartvel publish` finds the
+development marker in the compiled snapshot inside the artifact and refuses it
+for Play alpha, beta and production and for the App Store with
+`DV-DEVCLIENT-003`.
 
 ## Diagnostics
 
 | Code | Reason | Level |
 |---|---|---|
-| `DV-DEVCLIENT-001` | dev client could not reach the named dev server or preview | `warning` |
-| `DV-DEVCLIENT-002` | bundle needs a native binding this shell was not built with | `error` |
-| `DV-DEVCLIENT-003` | dev-client artifact submitted to a public track | gate `error` |
+| `DV-DEVCLIENT-001` | the development build could not reach the named dev server, or the server refused its token | `warning` |
+| `DV-DEVCLIENT-002` | a bundle needs a native binding this build was not built with | `error` |
+| `DV-DEVCLIENT-003` | a development build submitted to a public track | gate `error` |
 
 ## Deliberately absent
 
 - **A hosted playground.** A browser-based Dartvel sandbox is a service with
-  running costs and a commercial decision behind it, not a specification item.
-- **Loading unsigned bundles.** The shell verifies signatures exactly as OTA
-  does; a development shell that skips the check is the one people then use to
-  demonstrate the product.
-- **A release-mode dev menu.** Separate artifact, no runtime flag.
+  running costs and a commercial decision behind it, which puts it outside
+  this specification.
+- **Loading unsigned bundles.** The build verifies signatures, and a
+  development build that skipped the check would be the one people then use
+  to demonstrate the product.
+- **A release-mode dev menu.** Separate build profile, no runtime flag.
+- **A store-hosted universal shell like Expo Go.** A development build is your
+  own app.
 
 ---
 
 # CLI
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Dartvel should feel like a single fast toolkit, not a bag of unrelated tools.
 Bun is a useful benchmark here: runtime, package/task runner, shell, test
 runner, and bundler are discoverable through one executable.
 
+The command blocks below list what `dartvel` answers today. Commands that
+another section designs and the CLI does not have yet are gathered at the end
+of this section under Designed commands, so a reader can tell the two apart.
+
 Project
 
 ```bash
-dartvel new
-dartvel init
+dartvel create my_app   # alias: new
+dartvel init            # add Dartvel to an existing Flutter project
 dartvel doctor
-# etc.
+dartvel doctor --target tizen
+dartvel upgrade --plan
+dartvel version
 ```
 
 Development
@@ -9942,38 +10010,68 @@ Build
 dartvel build
 ```
 
-Deploy
+Deploy and release
 
 ```bash
-dartvel deploy
-dartvel deploy lambda
-dartvel deploy edge
-dartvel deploy --plan
-dartvel deploy rollback
-dartvel compatibility-check --against production
+dartvel build web-server                 # one binary: web app, Studio, SQLite beside it
+dartvel deploy --target server --environment production
+dartvel deploy --functions --function-target lambda
+dartvel infra plan production      # also: provision, check
+dartvel compatibility-check --against production --histogram sessions.json
+dartvel updates release --patch-source https://app.example.com
+dartvel updates patch --patch-source https://app.example.com --channel beta
+dartvel updates rollback --patch-source https://app.example.com
+dartvel publish play --dry-run
 dartvel preview create --from-pr 412
 dartvel preview list
 dartvel preview open
-dartvel preview logs --follow
-dartvel preview mail
 dartvel preview destroy
+dartvel preview sweep
 dartvel privacy check
-dartvel privacy export --subject user:1042
+dartvel privacy export --subject user:1042 --out user-1042.zip
 dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
 dartvel privacy retention --plan
-dartvel meters list
-dartvel meters usage --tenant acme --period current
-dartvel meters reconcile --period 2026-08
+```
+
+Cloud options sit on the same commands (`dartvel build <target> --cloud`,
+`dartvel publish <store> --cloud`) with credentials kept by `dartvel key cloud`.
+Dartvel Cloud describes them.
+
+Keys and Studio access
+
+```bash
+dartvel key generate
+dartvel key rotate
+dartvel key status
+dartvel key cloud <name> <file>
+dartvel admin grant <account>
+dartvel admin revoke <account>
+dartvel admin list
+```
+
+Queues, cache, modules and translations
+
+```bash
+dartvel queue work
+dartvel queue failed
+dartvel queue retry <id>
+dartvel queue flush
+dartvel cache clear
+dartvel cache revalidate <tag>
+dartvel cache inspect
+dartvel cache purge
+dartvel modules list
+dartvel modules manifest
+dartvel modules publish
+dartvel modules pin
+dartvel i18n extract
+dartvel i18n check
 ```
 
 Flags
 
 ```bash
 dartvel flags list
-dartvel flags status newCheckout
-dartvel flags set newCheckout --on --environment production
-dartvel flags rollout newCheckout --percentage 25 --by user
-dartvel flags off newCheckout
 dartvel flags prune
 ```
 
@@ -9983,10 +10081,9 @@ Observability
 dartvel logs
 dartvel traces
 dartvel metrics
-dartvel crashes list --release 1.4.0
-dartvel crashes show <group>
-dartvel crashes symbols upload
-dartvel crashes health --release 1.4.0 --by cohort
+dartvel devtools
+dartvel inspect
+dartvel explain
 ```
 
 AI
@@ -10066,6 +10163,9 @@ models or policies without bootstrapping them by hand, and nothing stops two
 of them drifting apart. A command runs inside the application's own runtime,
 so `DV.Database`, policies and jobs are simply available.
 
+`@DVCommand` is designed and not built: no annotation by that name exists, and
+the CLI does not discover application commands yet.
+
 ## Build and Bundle Tooling
 
 Dartvel should own the full build orchestration:
@@ -10079,8 +10179,26 @@ Dartvel should own the full build orchestration:
 - build graph caching
 - affected-file incremental rebuilds
 
-`dartvel build` should include `dartvel routes` automatically. Users should not
-need to remember separate generation commands for normal workflows.
+`dartvel build` and `dartvel dev` run `dartvel routes` first. Users do not
+need to remember a separate generation command for normal workflows.
+
+## Designed commands
+
+Other sections specify these commands. The CLI does not have them yet, and
+running one prints the usual unknown-command error:
+
+| Command | Specified in |
+|---|---|
+| `dartvel deploy --plan`, `dartvel deploy rollback` | Backend Release Management |
+| `dartvel preview logs --follow`, `dartvel preview mail` | Preview Environments |
+| `dartvel flags status\|set\|rollout\|off` | Feature Flags and Staged Rollout |
+| `dartvel crashes list\|show\|symbols upload\|health` | Crash Reporting and Release Health |
+| `dartvel meters list\|usage\|reconcile` | Usage Metering and Quotas |
+| `dartvel ci init` | Backend Release Management |
+| `dartvel build --report`, `dartvel benchmark` | Unified Development, Transparency, and Contracts |
+| `dartvel theme check` | Theme |
+| `dartvel conformance list\|run` | Specification Status |
+| application commands declared with `@DVCommand` | this section |
 
 ---
 

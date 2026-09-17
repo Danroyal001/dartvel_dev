@@ -182,13 +182,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'cloud with your credentials.',
   ),
   (
-    'CLI',
-    'One tool',
-    'Code generation runs inside dartvel dev and dartvel build. The same tool '
-        'creates, diagnoses and inspects projects, with create, doctor, inspect, '
-        'explain and sh.',
-  ),
-  (
     'CSRF Protection',
     'On by default',
     'Every state-changing request is checked for a CSRF token.',
@@ -517,8 +510,17 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Dev Client',
     'dartvel dev',
-    'Present: Android, iOS, macOS and Linux development builds pair over TLS '
-        'and hot reload on every save. Absent: Windows.',
+    'Present: Android, iOS, macOS, Linux and Windows development builds pair '
+        'over TLS and hot reload on every save. Absent: connecting to a preview '
+        'environment, and embedded and TV development builds.',
+  ),
+  (
+    'CLI',
+    'One tool',
+    'Present: create, dev, build, deploy, publish, updates, admin, key and '
+        'more, with generation inside dev and build. Absent: the crashes and '
+        'meters commands, deploy --plan and rollback, and most flags '
+        'subcommands.',
   ),
   (
     'Package Structure',
@@ -644,9 +646,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Thirty-three shipped sections.', level: 1),
+        Heading('Thirty-two shipped sections.', level: 1),
         Bullets(<String>[
-          'Sixty-seven more are partial, and each card says what is missing.',
+          'Sixty-eight more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
