@@ -35,6 +35,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Model changes, presence and offline writes', 'Data'),
   DocsPageInfo(DVRoutes.docsimportexport, 'Import and export',
       'CSV, NDJSON and Excel in and out of a model', 'Data'),
+  DocsPageInfo(DVRoutes.docschangecapture, 'Change capture',
+      'An ordered log of writes, copied to a warehouse', 'Data'),
   DocsPageInfo(DVRoutes.docsdatabase, 'Database',
       'SQLite, Postgres, MySQL and migrations', 'Data'),
   DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
