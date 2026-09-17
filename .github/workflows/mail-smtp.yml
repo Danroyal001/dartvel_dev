@@ -28,8 +28,11 @@ on:
       - '.github/workflows/mail-smtp.yml'
   workflow_dispatch:
 
+# On main each run is the evidence for the commit it ran on, so the group is
+# the commit and a later push does not cancel it. Anywhere else a newer push
+# supersedes the older run.
 concurrency:
-  group: mail-smtp-${{ github.ref }}
+  group: mail-smtp-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:

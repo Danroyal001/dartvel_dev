@@ -24,8 +24,11 @@ on:
 # queue and every one of them finishes against a branch that has already moved
 # on -- which is not a cost problem, it is a feedback one: the answer arrives
 # for a commit nobody is looking at any more.
+# On main each run is the evidence for the commit it ran on, so the group is
+# the commit and a later push does not cancel it. Anywhere else a newer push
+# supersedes the older run.
 concurrency:
-  group: ldap-${{ github.ref }}
+  group: ldap-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
