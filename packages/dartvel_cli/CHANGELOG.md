@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`dartvel test --watch` watches.** It handed `--watch` to `dart test` or
+  `flutter test`, neither of which accepts it, so the command failed at once.
+  It now runs the suite, then reruns a changed test file on its own, or the
+  suite for any other Dart change, until Ctrl+C.
+
 - **`dartvel publish play` and `appstore` have something to upload, locally
   and with `--cloud`.** `dartvel build android --format aab` writes the bundle
   Play takes and `dartvel build ios --format ipa` the IPA App Store Connect
