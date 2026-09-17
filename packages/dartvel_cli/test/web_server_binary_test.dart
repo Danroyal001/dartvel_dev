@@ -338,9 +338,12 @@ Future<List<String>> _notes() async => <String>[
       expect(hidden.status, nowhere.status);
       expect(hidden.type, nowhere.type);
       expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
-      expect(hidden.body, isNot(contains('src="admin.js"')));
+      expect(hidden.body, isNot(contains('<title>Studio')));
       final hiddenGraph = await request(run.port, 'GET', '/__studio/graph.json');
       expect(hiddenGraph.body, isNot(contains('"models"')));
+      final hiddenRecords =
+          await request(run.port, 'GET', '/__studio/api/models/Note/records');
+      expect(hiddenRecords.body, isNot(contains('"records"')));
       // And the dashboard's files are not web files under any path.
       final raw = await request(run.port, 'GET', '/__admin/graph.json');
       expect(raw.body, isNot(contains('"models"')));
@@ -385,11 +388,14 @@ Future<List<String>> _notes() async => <String>[
       expect(signedIn.type, signedInNowhere.type);
       expect(signedIn.body.replaceAll('/__studio/', '/__nowhr/'),
           signedInNowhere.body);
-      expect(signedIn.body, isNot(contains('src="admin.js"')));
+      expect(signedIn.body, isNot(contains('<title>Studio')));
       final signedInGraph = await request(
           run.port, 'GET', '/__studio/graph.json',
           bearer: issued.token);
       expect(signedInGraph.body, isNot(contains('"models"')));
+      final signedInModels = await request(run.port, 'GET', '/__studio/api/models',
+          bearer: issued.token);
+      expect(signedInModels.body, isNot(contains('"models"')));
 
       // Granted, with the command an operator runs against the binary's own
       // database while it is serving.
@@ -414,8 +420,27 @@ Future<List<String>> _notes() async => <String>[
           await request(run.port, 'GET', '/__studio/', bearer: issued.token);
       expect(page.status, 200, reason: '${page.body}\n${run.output}');
       expect(page.type, 'text/html');
-      expect(page.body, contains('src="admin.js"'),
-          reason: 'the dashboard, not the site shell');
+      // Studio itself, compiled into the binary: its own shell, based at
+      // the mount, and the application it boots.
+      expect(page.body, contains('<title>Studio'),
+          reason: 'Studio, not the site shell');
+      expect(page.body, contains('<base href="/__studio/">'));
+      final studio = await request(run.port, 'GET', '/__studio/main.dart.js',
+          bearer: issued.token);
+      expect(studio.status, 200);
+      expect(studio.type, 'text/javascript');
+      expect(studio.body, contains('dv-studio-record-save'));
+      // And the records it shows: the model's table, read through the
+      // admin mount, which a granted session reaches.
+      final models = await request(run.port, 'GET', '/__studio/api/models',
+          bearer: issued.token);
+      expect(models.status, 200, reason: models.body);
+      expect(models.body, contains('"model":"Note"'));
+      final records = await request(
+          run.port, 'GET', '/__studio/api/models/Note/records',
+          bearer: issued.token);
+      expect(records.status, 200, reason: records.body);
+      expect(jsonDecode(records.body), containsPair('records', isA<List<Object?>>()));
       final graph = await request(run.port, 'GET', '/__studio/graph.json',
           bearer: issued.token);
       expect(graph.status, 200);
