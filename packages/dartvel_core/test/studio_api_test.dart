@@ -340,6 +340,136 @@ void main() {
     });
   });
 
+  group('queues', () {
+    setUp(() {
+      const DVTestHarness().fakeQueue();
+      File('${root.path}/graph.json').writeAsStringSync(jsonEncode(
+        <String, Object?>{
+          'jobs': <Object?>[
+            <String, Object?>{'name': 'SendReceipt', 'queue': 'mail'},
+          ],
+        },
+      ));
+    });
+
+    Future<Map<String, Object?>> queue(String name) async {
+      final Response? response = await server.respond(
+        _request('GET', '/__studio/api/queues'),
+      );
+      expect(response?.status, 200);
+      final List<Object?> queues =
+          ((await _json(response!))! as Map<String, Object?>)['queues']!
+              as List<Object?>;
+      return queues
+          .cast<Map<String, Object?>>()
+          .firstWhere((Map<String, Object?> q) => q['name'] == name);
+    }
+
+    test('lists the build\'s queues with what waits and what died', () async {
+      const DVQueues queues = DVQueues();
+      await queues.dispatch<String>('hello', queue: 'mail');
+      await queues.dispatch<int>(7, queue: 'mail', maxAttempts: 1);
+      queues.register<int>((int _) => throw StateError('mail server down'));
+      queues.register<String>((String _) async {});
+      // The String job completes; the int job fails its only attempt.
+      await queues.work(queue: 'mail', maxJobs: 2);
+      await queues.dispatch<String>('later', queue: 'mail');
+
+      final Map<String, Object?> mail = await queue('mail');
+      expect((mail['pending']! as List<Object?>), hasLength(1));
+      final List<Object?> dead = mail['deadLetters']! as List<Object?>;
+      expect(dead, hasLength(1));
+      expect(
+        (dead.single! as Map<String, Object?>)['lastError'],
+        contains('mail server down'),
+      );
+      // default is always there: it is where an unnamed dispatch goes.
+      expect(await queue('default'), isNotNull);
+    });
+
+    test('a dead letter is retried, and another discarded', () async {
+      const DVQueues queues = DVQueues();
+      queues.register<int>((int _) => throw StateError('boom'));
+      await queues.dispatch<int>(1, queue: 'mail', maxAttempts: 1);
+      await queues.dispatch<int>(2, queue: 'mail', maxAttempts: 1);
+      await queues.work(queue: 'mail', maxJobs: 2);
+      final List<DVJobEnvelope<DVJobPayload>> dead =
+          await queues.deadLetters('mail');
+      expect(dead, hasLength(2));
+
+      final Response? retried = await server.respond(
+        _request('POST', '/__studio/api/queues/jobs/${dead[0].id}/retry'),
+      );
+      final Response? discarded = await server.respond(
+        _request('POST', '/__studio/api/queues/jobs/${dead[1].id}/discard'),
+      );
+
+      expect(retried?.status, 200);
+      expect(discarded?.status, 200);
+      expect(await queues.deadLetters('mail'), isEmpty);
+      expect(
+        (await queues.pending('mail')).map((DVJobEnvelope<DVJobPayload> j) => j.id),
+        <String>[dead[0].id],
+      );
+    });
+
+    test('retrying a job that is not dead-lettered is not found', () async {
+      final Response? response = await server.respond(
+        _request('POST', '/__studio/api/queues/jobs/nope/retry'),
+      );
+      expect(response?.status, 404);
+    });
+
+    test('an action without the CSRF header is refused', () async {
+      final Response? response = await server.respond(
+        _request('POST', '/__studio/api/queues/jobs/nope/discard', csrf: false),
+      );
+      expect(response?.status, 403);
+    });
+  });
+
+  group('cache tags', () {
+    setUp(() => const DVCacheTags().clear());
+    tearDown(() => const DVCacheTags().clear());
+
+    test('lists each tag with the keys under it', () async {
+      const DVCacheTags().tag('product:ethiopia', <String>['products']);
+      const DVCacheTags().tag('product:colombia', <String>['products']);
+      const DVCacheTags().tag('menu', <String>['pages']);
+
+      final Response? response = await server.respond(
+        _request('GET', '/__studio/api/cache/tags'),
+      );
+
+      expect(response?.status, 200);
+      final List<Object?> tags =
+          ((await _json(response!))! as Map<String, Object?>)['tags']!
+              as List<Object?>;
+      final Map<String, Object?> products = tags
+          .cast<Map<String, Object?>>()
+          .firstWhere((Map<String, Object?> t) => t['tag'] == 'products');
+      expect(
+        products['keys'],
+        unorderedEquals(<String>['product:ethiopia', 'product:colombia']),
+      );
+    });
+
+    test('revalidating a tag drops its keys and says how many', () async {
+      const DVCacheTags().tag('product:ethiopia', <String>['products']);
+
+      final Response? response = await server.respond(
+        _request('POST', '/__studio/api/cache/tags/products/revalidate'),
+      );
+
+      expect(response?.status, 200);
+      expect(
+        ((await _json(response!))! as Map<String, Object?>)['dropped'],
+        <String>['product:ethiopia'],
+      );
+      expect(const DVCacheTags().tags, isNot(contains('products')));
+    });
+  });
+
   group('grants', () {
     late DVDatabaseAuthProvider accounts;
     late String owner;
