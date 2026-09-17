@@ -1694,7 +1694,7 @@
     {
       "section": "Backend Function Request Lifecycle",
       "stability": "Contract",
-      "status": "Shipped",
+      "status": "Partial",
       "evidence": [
         "packages/dartvel_cli/test/backend_flat_transport_test.dart",
         "packages/dartvel_core/lib/src/http/flat_buffer.dart",
@@ -1702,7 +1702,7 @@
         "packages/dartvel_core/test/flat_transport_test.dart",
         "packages/dartvel_core/test/middleware_test.dart"
       ],
-      "absent": "A backend function whose first parameter is a DVContext is now given one. It was not: DVContext appeared nowhere in the CLI, so the parameter was decoded from the request like any other argument -- the client supplied the context the specification says is injected, and the generated client asked for it. It is injected first and positionally now, excluded from the client signature, and carries a request lifecycle that changes. Absent: completed as a terminal state, for the reason given under Lifecycle Signals."
+      "absent": "A backend function whose first parameter is a DVContext is now given one. It was not: DVContext appeared nowhere in the CLI, so the parameter was decoded from the request like any other argument -- the client supplied the context the specification says is injected, and the generated client asked for it. It is injected first and positionally now, excluded from the client signature, and carries a request lifecycle that changes. Absent: completed as a terminal state, for the reason given under Lifecycle Signals; every stage between received and preparingResponse, which DVRequestLifecycle declares and the generated handler never sets (it reports received, executing, preparingResponse and failed); and the function configuration: @DVBackendFunction takes only policy and mfa, so transaction, authentication, rateLimit, rawPath and rawPathSuffix are not parameters and the generator reads none of them. The auth plugin template in plugin_command.dart writes @DVBackendFunction(rawPath: ...), a parameter that annotation does not declare."
     },
     {
       "section": "Modules",

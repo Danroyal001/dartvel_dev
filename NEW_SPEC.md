@@ -5435,7 +5435,9 @@ CI:
   targets
 - `dartvel test accessibility` runs generated semantics checks
 - `dartvel test release` runs the pre-release gate used before tags/releases
-- `dartvel test --watch` reruns affected tests on file changes
+- `dartvel test --watch` is designed to rerun affected tests on file changes.
+  Today it forwards `--watch` to `flutter test` or `dart test`, and neither
+  accepts it
 - `dartvel test golden --update-goldens` refreshes approved golden snapshots
 - test sharding and per-file isolation are available in CI
 - snapshots and golden tests are first-class
@@ -5914,7 +5916,9 @@ configuration and Play's licence testers — so a purchase flow can be walked
 end to end without a real charge, with the same generated code the release
 build runs.
 
-`dartvel doctor --purchases` lints the policy before a submission does:
+`dartvel doctor --purchases` is designed to lint the policy before a
+submission does. It is not built, and neither are the store sandboxes above.
+It covers
 digital goods routed to a gateway, a missing product identifier, a store
 credential that does not resolve in the environment being built for, and an
 entitlement model carrying an offline strategy. Each is a typed finding with
@@ -7671,8 +7675,9 @@ previous-bundle-rollback rules. Studio v1 exposes inspect-and-edit of node
 properties; a full 3D editor canvas is a later phase and is not promised
 here.
 
-`dartvel inspect scene3d --json` lists scenes, their assets, budgets and
-per-target support through the project graph, like every other inspector.
+`dartvel inspect scene3d --json` is designed to list scenes, their assets,
+budgets and per-target support through the project graph, like every other
+inspector. `dartvel inspect` has no `scene3d` query yet.
 
 ## Testing and performance
 
@@ -7934,6 +7939,10 @@ dartvel build web             # WebXR session support when scene3d and xr are bo
 `dartvel doctor --target android-xr|horizon|visionos` validates SDKs, emulators
 and bindings before a build starts, per the build toolchain rule; `dartvel dev`
 attaches to the Android XR and visionOS simulators.
+
+This is designed. `build` and `doctor --target` accept none of the three XR
+names yet, `dartvel dev` attaches to no XR simulator, and `dartvel build web`
+builds without WebXR session support.
 
 ## Diagnostics
 
@@ -8971,12 +8980,17 @@ assigned per organization by the machinery in Organizations, Membership and
 Invitations.
 
 ```dart
-@DVPolicy(DVPageDocument)
-class PageDocumentPolicy {
-  bool publish(User user, DVPageDocument document) =>
-      user.membership.role.isAtLeast(DVStudioRole.publisher);
-}
+DV.Auth.authorization.register<User, DVPageDocument>(
+  DVContentAction.publish,
+  (User user, DVPageDocument document) =>
+      organizations.hasRole(organizationId, user.id, DVOrgRole.admin),
+);
 ```
+
+The actions are the constants on `DVContentAction`: `edit`, `review`,
+`reviewOwn`, `publish` and `schedule`. The role check comes from
+`DVOrganizations.hasRole`, which fails closed for a closed or unknown
+organization. There is no Studio role type.
 
 A publish attempted without the action is refused with `DV-CONTENT-003`, and
 refused in the backend rather than by hiding the button — a hidden button is
@@ -9636,6 +9650,8 @@ stopped running" three days later.
 
 Backups are scheduled here and their retention is declared here, feeding the
 `dartvel db backup` / `restore` commands Data Compliance and Lifecycle defines.
+Those two commands are designed and do not exist yet, so nothing records a
+verified restore for the check below to read.
 A backup nobody has restored is a hope, so `dartvel infra check` reports the
 age of the last *verified* restore, not the last backup written.
 
@@ -9753,6 +9769,10 @@ dartvel deploy rollback        # to the previous release, by provenance record
 dartvel deploy rollback --to 2026-09-11T14:02Z
 ```
 
+The planner and the rollback decisions behind these are built as library
+code. The commands are designed: `dartvel deploy` has no `--plan` flag and no
+`rollback` subcommand yet.
+
 A release carries the provenance record OTA Updates designs for patches:
 what was built, from which commit, with which generated protocol version,
 which migration plan ran, and who released it.
@@ -9868,6 +9888,9 @@ dartvel preview logs --follow
 dartvel preview destroy
 ```
 
+`create`, `list`, `open`, `destroy` and `sweep` are built. `preview logs` is
+designed and not built.
+
 ## The database is fresh, and that is not a limitation
 
 A preview gets an empty database, migrated by the project's own migration plan
@@ -9915,8 +9938,9 @@ whoever clicks the button, and the first anyone knows is the settlement report.
 Notifications, queues and schedules are the part of a preview that can reach
 the outside world, so they default to the providers that cannot.
 
-- Mail goes to a capture inbox, readable with `dartvel preview mail` and in
-  Studio, and every capture reports `DV-PREVIEW-006`.
+- Mail goes to a capture inbox, and every capture reports `DV-PREVIEW-006`.
+  The inbox is process memory today. Reading it with `dartvel preview mail`
+  or in Studio is designed and not built.
 - Push notifications are a no-op with the same report.
 - Queues are the preview's own; a preview never consumes a production queue.
 - Scheduled jobs do not run unless the preview declares which ones should,
@@ -10461,7 +10485,10 @@ var b = DV.Rust.Int(2);
 var c = a + b;
 ```
 
-Automatically handles FFI on native native platforms and WASM on web
+The design is FFI on native platforms and WebAssembly on the web, handled for
+the developer. What exists today is `DVRust` and `DVRustInt` in
+`dartvel_flutter`, and `DVRustInt` does its arithmetic in Dart. There is no
+Rust behind it yet, and no float, string or struct type.
 
 ---
 
@@ -10917,7 +10944,7 @@ The CLI, Studio, analyzer, and external tools observe the same canonical state.
 
 # Backend Function Request Lifecycle
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Every `@DVBackendFunction` runs through a generated request lifecycle. When the
 first parameter is a `DVContext`, it is injected automatically and is never
@@ -10957,6 +10984,11 @@ Generated stages (each updates `context.lifecycle.request`):
 Most functions never observe the lifecycle manually; it primarily supports
 plugins, observability, security, debugging, Studio, and advanced behavior.
 
+The context injection is built. The stages are only partly reported: the
+generated handler sets `received`, `executing`, `preparingResponse` and
+`failed`. `DVRequestLifecycle` declares the other states, and nothing sets
+them yet.
+
 ## Function configuration
 
 ```dart
@@ -10986,6 +11018,10 @@ Future<Product> _getProduct(String id) async => Product.find(id);
 `rawPath` exposes an exact custom path. `rawPathSuffix` keeps the generated path
 and appends a suffix (`/dartvel/functions/products/getProduct/public`). The two
 are mutually exclusive.
+
+The configuration above is designed. `@DVBackendFunction` takes `policy` and
+`mfa` today. `transaction`, `authentication`, `rateLimit`, `rawPath` and
+`rawPathSuffix` are not parameters yet, and the generator does not read them.
 
 ---
 
@@ -11811,9 +11847,9 @@ dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
 dartvel privacy retention --plan            # what the next sweep would delete
 ```
 
-`--plan` before a sweep is the same discipline `dartvel deploy --plan` and
-`dartvel db migrate --plan` already apply: a deletion nobody previewed is one
-nobody can be talked out of.
+`--plan` before a sweep is the same discipline `dartvel db migrate --plan`
+already applies, and that the designed `dartvel deploy --plan` will: a
+deletion nobody previewed is one nobody can be talked out of.
 
 ## Studio
 
@@ -12104,15 +12140,23 @@ its own HTML while still appearing in the parent route index and sitemap.
 Stability: `Contract` · Status: `Partial`
 
 Beyond mobile, web, and desktop, Dartvel supports dedicated builds for webOS,
-Tizen, Sony's Flutter Embedded Linux ecosystem, and VS Code extensions.
+Tizen, Sony's Flutter Embedded Linux ecosystem, tvOS, Fuchsia, VS Code
+extensions and browser extensions. Which of these has been built and run is
+recorded per target in `docs/build-targets.md`. Fuchsia is blocked today: its
+embedder bundles a Flutter too old for Dartvel and its engine does not build
+at the Flutter version Dartvel ships.
 
 ```bash
 dartvel build webos
-dartvel build tizen
+dartvel build tizen                 # alias: tpk
 dartvel build sony-elinux
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
+dartvel build tvos
+dartvel build fuchsia
 dartvel build vscode
+dartvel build chrome-extension
+dartvel build firefox-extension
 
 # Designed, not built: no command routes these yet. See XR — Spatial
 # Presentation, which carries them as Draft/Designed.
@@ -12127,6 +12171,9 @@ extension generator rather than plain `flutter build`:
 - **webOS** → `flutter-webos` (LG)
 - **Tizen** → `flutter-tizen` (Samsung)
 - **Sony eLinux** → `flutter-elinux` (Sony)
+- **tvOS** → `flutter-tvos` (community; Apple ships no tvOS embedder)
+- **Fuchsia** → the `flutter-embedder` Bazel workspace, with the app staged
+  in as `dartvel_app`
 - **VS Code** → `flutter_vscode` extension generator and webview helper
 - **Android XR** and **Horizon OS** → the Android toolchain with the platform's
   XR manifest and generated JNI bindings over Jetpack XR or the Spatial SDK
@@ -12336,8 +12383,9 @@ The selected application requires Bluetooth, but the sony-elinux device profile
 does not provide a Bluetooth adapter or fallback implementation.
 ```
 
-Validation is also available through
-`dartvel doctor --target webos|tizen|sony-elinux|vscode`.
+Validation is also available through `dartvel doctor --target` with
+`webos`, `tizen`, `sony-elinux`, `tvos`, `fuchsia`, `vscode`,
+`chrome-extension`, `firefox-extension` or a terminal target.
 
 ## Updated build target list
 
@@ -12348,15 +12396,22 @@ dartvel build ios
 # Web
 dartvel build web
 dartvel build web-server
+dartvel build fireos
 # Desktop
 dartvel build windows
 dartvel build linux
 dartvel build macos
+# Terminal (see Terminal Rendering)
+dartvel build linux-cli      # also: windows-cli, macos-cli, fuchsia-cli, and -tui
 # Television, embedded, and extension platforms
 dartvel build webos
 dartvel build tizen
 dartvel build sony-elinux
+dartvel build tvos
+dartvel build fuchsia
 dartvel build vscode
+dartvel build chrome-extension
+dartvel build firefox-extension
 # Complete Sony Embedded Linux system images
 dartvel build sony-elinux-iso
 dartvel build sony-elinux-img
@@ -12468,7 +12523,7 @@ Every capability carries generated support metadata: `Supported`,
 module on a target that cannot satisfy them without a configured fallback.
 
 ```bash
-dartvel doctor --targets android,ios,web,vscode
+dartvel doctor --target android,ios,webos,vscode
 ```
 
 ## Upgrade and compatibility
