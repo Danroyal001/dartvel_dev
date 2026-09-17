@@ -188,7 +188,7 @@ jobs:
           flutter pub get
           dart run dartvel_cli:dartvel build ios --profile development
           test -d build/ios/iphoneos/Runner.app
-          # A debug build's Dart is a JIT kernel, which is what dartvel publish
+          # A debug build's Dart is a JIT kernel, which is what dartvel deploy --store
           # refuses for store tracks.
           find build/ios/iphoneos/Runner.app -name kernel_blob.bin | grep -q .
 
