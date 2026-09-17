@@ -68,7 +68,7 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docsdeploying, 'Servers and deploying',
       'Run the backend, deploy and provision hosts', 'Ship'),
   DocsPageInfo(DVRoutes.docstesting, 'Testing',
-      'DV.Test fakes for mail, HTTP and queues', 'Reference'),
+      'DV.Test fakes, model factories and test modes', 'Reference'),
   DocsPageInfo(DVRoutes.docscli, 'CLI reference',
       'Every dartvel command and flag', 'Reference'),
 ];

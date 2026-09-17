@@ -7,7 +7,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _docsTestingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docstesting,
       lead: <String>[
-        'Test mail, HTTP calls and jobs without a network or a server.',
+        'Test mail, HTTP calls, jobs and models without a network or a server.',
         'Each DV.Test fake returns an object you can assert on.',
       ],
       sections: <DocsSection>[
@@ -48,6 +48,46 @@ Widget _docsTestingPage(BuildContext context) => const DocsArticle(
                   'network.',
               'There is no cache fake. Configure DVMemoryCacheAdapter instead.',
             ]),
+          ],
+        ),
+        DocsSection(
+          id: 'factories',
+          title: 'Make records with generated factories',
+          children: <Widget>[
+            DocsCode('testing-factories'),
+            Bullets(<String>[
+              'Every @DVModel gets a Factory class with create, createMany and '
+                  'admin.',
+              'Ids, emails and slugs carry a sequence, so two records never '
+                  'share one.',
+              'resetSequence starts the count again, so a snapshot comes out '
+                  'the same on every run.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'modes',
+          title: 'Run one kind of test',
+          children: <Widget>[
+            DocsShell(<String>[
+              'dartvel test e2e',
+              'dartvel test golden --update-goldens',
+              'dartvel test --total-shards 4 --shard-index 0',
+            ]),
+            DocsTable(columns: <String>[
+              'Mode',
+              'Looks in',
+            ], rows: <List<String>>[
+              <String>['unit (the default)', 'test'],
+              <String>['e2e', 'test/e2e, then integration_test'],
+              <String>['golden', 'test/golden or test/goldens'],
+              <String>['native', 'test/native, test/ffi or test/jni'],
+              <String>['accessibility', 'test/accessibility or test/a11y'],
+              <String>['release', 'test/release, then the e2e folders, then '
+                  'test'],
+            ]),
+            DocsText('A mode with no tests says so and lists where it looked. '
+                'It never runs the whole suite under that mode\'s name.'),
           ],
         ),
         DocsSection(
