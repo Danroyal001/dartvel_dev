@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel dev` serves Studio.** The development backend mounts Studio at
+  `dartvel.admin.path` (`/__studio`), compiled in the background into
+  `.dart_tool/dartvel_studio` and rebuilt when dependencies change, over the
+  project's generated models and database. dev prints a development grant
+  link once Studio is compiled; only the browser that opens it gets in, and
+  a backend restarted on a change keeps honouring it.
+
 - **`dartvel preview` serves Studio's data, not only its files.** The mount
   is answered by the same `DVAdminServer` the web-server binary mounts, over
   the models the generator described and the project's database
