@@ -212,29 +212,44 @@ Future<void> main(List<String> arguments) async {
   // button. Diagnostics only -- lock task itself is verified below.
   stdout.writeln('== acknowledge the screen pinning sheet');
   try {
-    await _adb(<String>['shell', 'uiautomator', 'dump', '/sdcard/pin.xml']);
-    final ProcessResult dump = await Process.run('adb', <String>[
+    // The sheet is System UI's window, which uiautomator's dump of the
+    // focused application does not include -- the first attempt looked for
+    // its button there and never found it. The window list does name it.
+    final ProcessResult windows = await Process.run('adb', <String>[
       'shell',
-      'cat',
-      '/sdcard/pin.xml',
+      'dumpsys',
+      'window',
+      'windows',
     ]);
-    File('$_diag/android-pin-sheet.xml').writeAsStringSync('${dump.stdout}');
-    final Match? button = RegExp(
-      r'text="Got it"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
-      caseSensitive: false,
-    ).firstMatch('${dump.stdout}');
+    final String listing = '${windows.stdout}';
+    File('$_diag/android-windows.txt').writeAsStringSync(listing);
+    final List<String> pinning = const LineSplitter()
+        .convert(listing)
+        .where(
+          (String l) =>
+              l.contains('Window{') && l.toLowerCase().contains('pinning'),
+        )
+        .toList();
     stdout.writeln(
-      '   sheet in the dump: ${'${dump.stdout}'.contains('pinned')}, '
-      'button found: ${button != null}',
+      '   pinning windows: ${pinning.isEmpty ? 'none' : pinning.join(' | ')}',
     );
-    if (button != null) {
-      final int x = (int.parse(button[1]!) + int.parse(button[3]!)) ~/ 2;
-      final int y = (int.parse(button[2]!) + int.parse(button[4]!)) ~/ 2;
-      await _adb(<String>['shell', 'input', 'tap', '$x', '$y']);
-      await Future<void>.delayed(const Duration(seconds: 2));
+    if (pinning.isNotEmpty) {
+      final ProcessResult size = await Process.run('adb', <String>[
+        'shell',
+        'wm',
+        'size',
+      ]);
+      final Match? wh = RegExp(r'(\d+)x(\d+)').firstMatch('${size.stdout}');
+      if (wh != null) {
+        // Got it: bottom right of the sheet, where every API 34 phone puts it.
+        final int x = (int.parse(wh[1]!) * 0.795).round();
+        final int y = (int.parse(wh[2]!) * 0.961).round();
+        await _adb(<String>['shell', 'input', 'tap', '$x', '$y']);
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
     }
   } on Object catch (error) {
-    stdout.writeln('   could not read the screen: $error');
+    stdout.writeln('   could not read the window list: $error');
   }
 
   await _step('photograph the screen', failures, () async {
