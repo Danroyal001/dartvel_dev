@@ -133,6 +133,9 @@ class DVTenants {
   static String _headerName = 'x-tenant';
   static String _queryParameterName = 'tenant';
   static Set<String> _ignoredHostLabels = const <String>{'www'};
+
+  /// A dotted-quad host.
+  static final RegExp _ipv4 = RegExp(r'^\d{1,3}(\.\d{1,3}){3}$');
   static String? Function(Uri uri, Map<String, String> headers)? _resolver;
 
   /// Host labels that are never a tenant. `www.example.com` is the site, not a
@@ -240,6 +243,11 @@ class DVTenants {
 
     switch (_source) {
       case DVTenantSource.subdomain:
+        // An address is not a name and has no subdomain. `127.0.0.1` has
+        // four labels, and read as one every request to a server by its
+        // address ran on a tenant called "127". IPv6 hosts carry colons, which
+        // no DNS name does.
+        if (uri.host.contains(':') || _ipv4.hasMatch(uri.host)) return null;
         final labels = uri.host.split('.');
         // A tenant subdomain needs a domain under it: `acme.example.com` has
         // one, `example.com` and `localhost` do not.
