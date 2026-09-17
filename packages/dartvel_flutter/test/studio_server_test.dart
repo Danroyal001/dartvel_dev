@@ -33,6 +33,27 @@ class _FakeServer {
         'lastSeen': '2026-09-17T10:05:00.000Z',
       },
     },
+    'grace': <String, Object?>{
+      'key': 'grace',
+      'version': 1,
+      'values': <String, Object?>{
+        'slug': 'grace',
+        'name': 'Grace',
+        'published': false,
+      },
+    },
+  };
+  final Map<String, Object?> order = <String, Object?>{
+    'key': 'o1',
+    'version': 4,
+    'values': <String, Object?>{
+      'id': 'o1',
+      'status': 'placed',
+      'tags': <String>['gift'],
+      'extras': <String, Object?>{'note': 'ring twice'},
+      'userSlug': 'ada',
+      'note': 'leave at the door',
+    },
   };
   final Map<String, Map<String, Object?>> pages =
       <String, Map<String, Object?>>{};
@@ -78,8 +99,42 @@ class _FakeServer {
               },
             ],
           },
+          <String, Object?>{
+            'model': 'Order',
+            'key': 'id',
+            'versioned': true,
+            'fields': <Object?>[
+              <String, Object?>{'name': 'id', 'type': 'String'},
+              <String, Object?>{
+                'name': 'status',
+                'type': 'OrderStatus?',
+                'options': <String>['placed', 'roasting', 'shipped'],
+              },
+              <String, Object?>{'name': 'tags', 'type': 'List<String>'},
+              <String, Object?>{
+                'name': 'extras',
+                'type': 'Map<String, Object?>?',
+              },
+              <String, Object?>{
+                'name': 'userSlug',
+                'type': 'String',
+                'relation': 'User',
+              },
+              <String, Object?>{'name': 'note', 'type': 'String?'},
+            ],
+          },
         ],
       });
+    }
+    if (method == 'GET' && path == 'api/models/Order/records') {
+      return reply(200, <String, Object?>{'records': <Object?>[order]});
+    }
+    if (method == 'PUT' && path == 'api/models/Order/records/o1') {
+      final Map<String, Object?> sentBody = sent! as Map<String, Object?>;
+      order['version'] = (order['version']! as int) + 1;
+      (order['values']! as Map<String, Object?>)
+          .addAll(sentBody['values']! as Map<String, Object?>);
+      return reply(200, order);
     }
     if (method == 'GET' && path == 'api/models/User/records') {
       return reply(200, <String, Object?>{'records': users.values.toList()});
@@ -235,7 +290,8 @@ void main() {
   group('the client', () {
     test('an edit is sent with the version it was read at', () async {
       final DVStudioRecordData ada =
-          (await client.records('User')).single;
+          (await client.records('User'))
+              .firstWhere((DVStudioRecordData r) => r.key == 'ada');
 
       final DVStudioRecordData saved = await client
           .update('User', ada, <String, Object?>{'name': 'Ada Lovelace'});
@@ -251,7 +307,8 @@ void main() {
 
     test('a refusal is thrown with what the server said', () async {
       final DVStudioRecordData ada =
-          (await client.records('User')).single;
+          (await client.records('User'))
+              .firstWhere((DVStudioRecordData r) => r.key == 'ada');
       await client.update('User', ada, <String, Object?>{'name': 'First'});
 
       await expectLater(
@@ -450,6 +507,80 @@ void main() {
       await tester.tap(find.byKey(ValueKey<String>('dv-studio-section-$id')));
       await tester.pumpAndSettle();
     }
+
+    Future<void> openOrder(WidgetTester tester) async {
+      await openSection(tester, 'models');
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-model-Order')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-record-o1')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<Map<String, Object?>> save(WidgetTester tester) async {
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.pumpAndSettle();
+      final _Call put = server.calls.lastWhere((_Call c) => c.method == 'PUT');
+      return ((put.body! as Map)['values']! as Map).cast<String, Object?>();
+    }
+
+    testWidgets('an enum field is chosen from its values',
+        (WidgetTester tester) async {
+      await openOrder(tester);
+
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-field-status')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('shipped').last);
+      await tester.pumpAndSettle();
+
+      expect(await save(tester), <String, Object?>{'status': 'shipped'});
+    });
+
+    testWidgets('a list or map field is edited as JSON, and bad JSON is not '
+        'sent', (WidgetTester tester) async {
+      await openOrder(tester);
+      final Finder tags = find.descendant(
+        of: find.byKey(const ValueKey<String>('dv-studio-field-tags')),
+        matching: find.byType(EditableText),
+      );
+
+      await tester.enterText(tags, '["gift", "express"');
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.pumpAndSettle();
+      expect(server.calls.where((_Call c) => c.method == 'PUT'), isEmpty);
+      expect(find.textContaining('tags is not valid JSON'), findsOneWidget);
+
+      await tester.enterText(tags, '["gift", "express"]');
+      expect(await save(tester), <String, Object?>{
+        'tags': <Object?>['gift', 'express'],
+      });
+    });
+
+    testWidgets('a reference is chosen from the related model\'s records',
+        (WidgetTester tester) async {
+      await openOrder(tester);
+
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-field-userSlug')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('grace').last);
+      await tester.pumpAndSettle();
+
+      expect(await save(tester), <String, Object?>{'userSlug': 'grace'});
+    });
+
+    testWidgets('a nullable field can be emptied', (WidgetTester tester) async {
+      await openOrder(tester);
+
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-field-note-empty')));
+      await tester.pumpAndSettle();
+
+      expect(await save(tester), <String, Object?>{'note': null});
+    });
 
     testWidgets('queues show what waits and what died, and why',
         (WidgetTester tester) async {

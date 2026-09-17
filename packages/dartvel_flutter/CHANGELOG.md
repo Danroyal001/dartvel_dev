@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Studio's record form edits more than text.** An enum is chosen from its
+  values, a reference from the related model's records, a list or map is
+  edited as JSON and not sent while it does not parse, and a nullable field
+  has Empty. A mounted module's models are listed with the module's name.
+
 - **Studio has Queues and Cache sections.** Queues lists every queue the
   build declares with its waiting jobs and dead letters, each with the error
   it died of and Retry and Discard. Cache lists each tag with the keys it
