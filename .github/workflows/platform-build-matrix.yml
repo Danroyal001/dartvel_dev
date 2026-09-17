@@ -40,8 +40,11 @@ on:
 # A push that lands while a matrix is running supersedes it: nine jobs across
 # three operating systems is not worth running twice for a branch that has
 # already moved on.
+# On main each run is the evidence for the commit it ran on, so the group is
+# the commit and a later push does not cancel it. Anywhere else a newer push
+# supersedes the older run.
 concurrency:
-  group: platform-build-matrix-${{ github.ref }}
+  group: platform-build-matrix-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 env:

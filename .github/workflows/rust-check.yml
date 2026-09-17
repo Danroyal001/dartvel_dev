@@ -24,9 +24,12 @@ on:
       - 'packages/dartvel_core/rust/**'
   workflow_dispatch:
 
+# On main each run is the evidence for the commit it ran on, so the group is
+# the commit and a later push does not cancel it. Anywhere else a newer push
+# supersedes the older run.
 concurrency:
   # A push that supersedes an in-flight check makes the older run irrelevant.
-  group: rust-check-${{ github.ref }}
+  group: rust-check-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
