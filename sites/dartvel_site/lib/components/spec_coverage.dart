@@ -70,8 +70,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   // Data
   SpecCoverage('Models', 'Data', DVRoutes.docsmodels, 'Declare a model',
       anchor: 'declare'),
-  SpecCoverage('Forms', 'Data', DVRoutes.docsmodels,
-      'Use the generated form, table and page', anchor: 'widgets'),
+  SpecCoverage('Forms', 'Data', DVRoutes.docsforms,
+      'Generate a form from a model', anchor: 'automatic'),
   SpecCoverage('Generated Model Pages', 'Data', DVRoutes.docsmodels,
       'Serve a public page per record', anchor: 'model-pages'),
   SpecCoverage('Record History and Optimistic Concurrency', 'Data',

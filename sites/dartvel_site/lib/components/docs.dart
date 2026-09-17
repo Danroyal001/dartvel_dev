@@ -27,6 +27,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Signals, derived signals and globals', 'Frontend'),
   DocsPageInfo(DVRoutes.docsmodels, 'Models',
       'One class gives you storage, forms, tables and pages', 'Data'),
+  DocsPageInfo(DVRoutes.docsforms, 'Forms',
+      'A create or edit form for every model', 'Data'),
   DocsPageInfo(DVRoutes.docsdatabase, 'Database',
       'SQLite, Postgres, MySQL and migrations', 'Data'),
   DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
