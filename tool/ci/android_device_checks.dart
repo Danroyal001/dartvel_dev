@@ -213,11 +213,20 @@ Future<void> main(List<String> arguments) async {
   stdout.writeln('== acknowledge the screen pinning sheet');
   try {
     await _adb(<String>['shell', 'uiautomator', 'dump', '/sdcard/pin.xml']);
-    final ProcessResult dump =
-        await Process.run('adb', <String>['shell', 'cat', '/sdcard/pin.xml']);
+    final ProcessResult dump = await Process.run('adb', <String>[
+      'shell',
+      'cat',
+      '/sdcard/pin.xml',
+    ]);
+    File('$_diag/android-pin-sheet.xml').writeAsStringSync('${dump.stdout}');
     final Match? button = RegExp(
       r'text="Got it"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+      caseSensitive: false,
     ).firstMatch('${dump.stdout}');
+    stdout.writeln(
+      '   sheet in the dump: ${'${dump.stdout}'.contains('pinned')}, '
+      'button found: ${button != null}',
+    );
     if (button != null) {
       final int x = (int.parse(button[1]!) + int.parse(button[3]!)) ~/ 2;
       final int y = (int.parse(button[2]!) + int.parse(button[4]!)) ~/ 2;
