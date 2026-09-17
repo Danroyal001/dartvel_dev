@@ -17,6 +17,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'native_client_location.dart';
 import 'transport.dart';
 
 // Event codes, mirroring the DV_HTTP_EVENT_* constants in the Rust module.
@@ -52,20 +53,13 @@ typedef _CancelDart = int Function(int);
 ///
 /// Same layout the server uses, so a build that produces one produces both.
 Future<String> resolveNativeLibraryPath() async {
-  final subdir = Platform.isMacOS
-      ? (Platform.version.contains('arm64') ? 'macos-arm64' : 'macos-x64')
-      : Platform.isLinux
-          ? (Platform.version.contains('aarch64') ? 'linux-arm64' : 'linux-x64')
-          : (Platform.version.contains('ARM64')
-              ? 'windows-arm64'
-              : 'windows-x64');
-  final libName = Platform.isWindows
-      ? 'dartvel_client.dll'
-      : Platform.isMacOS
-          ? 'libdartvel_client.dylib'
-          : 'libdartvel_client.so';
-  final uri = await Isolate.resolvePackageUri(
-      Uri.parse('package:dartvel_core/native/$subdir/$libName'));
+  final location = nativeClientLibraryFor(ffi.Abi.current());
+  if (location == null) {
+    throw StateError(
+        'No dartvel_core native library is built for ${ffi.Abi.current()}.');
+  }
+  final uri = await Isolate.resolvePackageUri(Uri.parse(
+      'package:dartvel_core/native/${location.subdir}/${location.name}'));
   if (uri == null) {
     throw StateError('Could not resolve the dartvel_core native library.');
   }
