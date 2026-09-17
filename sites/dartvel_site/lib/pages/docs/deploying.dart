@@ -100,24 +100,36 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsShell(<String>[
               'dartvel deploy --target web --provider vercel',
-              'dartvel deploy --environment staging',
+              'dartvel deploy --target web --provider firebase-hosting',
+              'dartvel deploy --target server --environment staging',
               'dartvel deploy --functions --function-target cloud-run',
-              'dartvel deploy --store play --dry-run',
+            ]),
+            DocsTable(columns: <String>[
+              '--provider',
+              'Runs',
+            ], rows: <List<String>>[
+              <String>['firebase-hosting', 'firebase deploy, from the firebase CLI'],
+              <String>['vercel', 'vercel --prod'],
+              <String>['netlify', 'netlify deploy --prod --dir=build/web'],
+              <String>['cloudflare', 'wrangler pages publish build/web'],
+              <String>['custom', 'Nothing. It builds, and you ship build/ yourself'],
             ]),
             Bullets(<String>[
+              '--target is web, server or all. server builds web-server first.',
               'It builds first, unless you pass --no-build.',
-              'Secrets required for the environment must resolve before '
-                  'anything ships.',
-              '--functions writes a deployment artifact per backend function, '
-                  'such as a Dockerfile and fly.toml, into build/deploy.',
-              '--store sends an application you built with dartvel build to '
-                  'play, appstore, testflight or firebase-app-distribution, as '
-                  'declared under dartvel.deploy.stores in pubspec.yaml. It does not '
-                  'build, and it takes no --target or --provider.',
+              'Secrets the environment requires must resolve before anything '
+                  'ships.',
+              '--functions writes a deployment artifact per backend function '
+                  'into build/deploy: lambda, cloud-run, container, edge, fly, '
+                  'railway or bare-metal.',
             ]),
+            DocsText('Uploads to Google Play, the App Store, TestFlight and '
+                'Firebase App Distribution use dartvel deploy --store. See App '
+                'stores.'),
             DocsStatus('Deployment', missing: <String>[
-              'dartvel deploy calls each cloud\'s own CLI. It holds no cloud '
+              'dartvel deploy calls each host\'s own CLI. It holds no cloud '
                   'credentials itself.',
+              'There is no plan or rollback step for dartvel deploy yet.',
             ]),
           ],
         ),
