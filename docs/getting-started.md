@@ -11,7 +11,7 @@ what that means before building anything you have to keep.
 ## Prerequisites
 
 - **Flutter 3.44.5 or newer, with Dart ≥ 3.12.** One floor, declared by every
-  Dartvel package. It comes from `dartvel_mix`, Dartvel's fork of `mix`.
+  Dartvel package and by `dartvel_mix`, Dartvel's fork of `mix`.
 
   Parts of Dartvel would resolve on an older Dart — the backend packages only
   need 3.9, which is what `code_assets` requires — but declaring that
@@ -31,7 +31,11 @@ what that means before building anything you have to keep.
 dartvel create --name hello_dartvel
 ```
 
-`init` and `new` are aliases for the same command. Useful flags:
+`new` is an alias. `init` is a different command: it adds Dartvel to an
+existing Flutter project, the dependency and the `dartvel:` key and nothing
+else, and `dartvel init --dry-run` shows what it would change first.
+
+Flags for `create`:
 
 | Flag | Default | Effect |
 |---|---|---|
@@ -60,6 +64,11 @@ lib/
       health.get.dart
       contact.dart
   components/
+  styles/
+  services/
+assets/
+test/
+  widget_test.dart
 ```
 
 Configuration lives in `pubspec.yaml` under `dartvel:`:
@@ -191,35 +200,30 @@ when you want the client refreshed without a build.
 Routing is file-based. Create `lib/pages/about.dart`:
 
 ```dart
-import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
+import '../dartvel_client/dartvel_client.dart';
+
 @DVPage(title: 'About')
+@pragma('vm:entry-point')
 Widget _aboutPage(BuildContext context) => DVBox.list([
-      DVText('About this app'),
+      const DVText('About this app'),
     ]);
 ```
 
 Run `dartvel routes` and `/about` exists.
 
-Three rules that will otherwise cost you an afternoon:
+Two rules that will otherwise cost you an afternoon:
 
 - **The annotated function is private.** `_aboutPage`, not `aboutPage`.
   Dartvel generates the public API from it, and a public annotated input is a
   hard error with a rename message.
-- **It must be expression-bodied** while body lowering is still being built.
-  For a larger page, keep the annotated input as an expression and put the body
-  in a public helper — which is exactly what the generated `index.dart` does:
-
-  ```dart
-  @DVPage(title: 'Dartvel')
-  Widget _indexPage(BuildContext context) => buildIndexPage(context);
-
-  Widget buildIndexPage(BuildContext context) { ... }
-  ```
-
 - **Do not build a `Scaffold`.** `@DVPage` owns the page shell. Put
   `showAppBar`, `title`, `centerTitle` and the rest on the annotation.
+
+The body can be an expression or a block. The generated `index.dart` keeps its
+annotated input to one line and calls a public helper, which is a style choice
+rather than a requirement.
 
 Dynamic segments come from the filename: `lib/pages/users/[id].dart` becomes
 `/users/:id`.
@@ -256,14 +260,19 @@ That gives you `User.Form(...)`, `User.List(...)`, `User.Table(...)` and
 `lib/backend/functions/greet.get.dart`:
 
 ```dart
+import 'package:dartvel_core/dartvel.dart';
+
 @DVBackendFunction()
 Future<String> _getGreeting(String name) async => 'Hello, $name';
 ```
 
-Call it from anywhere — frontend or backend — as `getGreeting(name)`. The
-filename decides the route; the annotation decides the rest.
+Call it from a page as `await getGreeting(name: 'Ada')`. The generated client
+takes every argument by name, whatever order the function declares them in.
+The filename decides the route, `GET /api/greet`; the annotation decides the
+rest, and `@DVBackendFunction(rawPath: '/greet')` serves it at a path of its
+own instead.
 
-Same two rules: private input, expression body.
+The same rule applies: the annotated function is private.
 
 ---
 
@@ -305,22 +314,26 @@ names are not a stable surface.
 Being specific, because a getting-started guide that oversells is worse than
 none:
 
-- **Twelve of sixteen build targets produce a verified artifact. One — `linux`
-  — is verified by actually running.** An inspected artifact proves the build
-  compiles and links, not that the application starts.
-- **webOS and Sony eLinux are blocked.** Both embedders ship a Dart below
-  `mix`'s floor. That is ours to fix by re-pinning the forks, not a vendor
-  limit.
-- **Fuchsia** builds the Flutter bundle and stages the app; its fork needs a
-  build-only entry point.
-- **Block-bodied annotated inputs are not supported yet.** Expression bodies
-  and a public helper, as above.
-- **Terminal rendering** resolves targets, selects backends and negotiates
-  launch, but the `dartvel_cli_flt` embedder is not built, so
-  `dartvel build linux-cli` skips with a message naming what is missing.
-  `dartvel doctor --target linux-cli` reports the same thing. It does not fall
-  back to a desktop build — a `-cli` binary that contained a GUI would be the
-  opposite of what the suffix promises.
+- **Not every build target is proven the same way.** Some are built and
+  inspected, some are run and photographed in CI, and Fuchsia does not build.
+  [build-targets.md](build-targets.md) has the status and evidence per target;
+  an inspected artifact proves the build compiles and links, not that the
+  application starts.
+- **`dartvel build webos` skips.** LG's `flutter-webos` bundles Dart 3.10.9,
+  below the 3.12 floor, so it cannot resolve a Dartvel project. CI assembles a
+  webOS package from stock Flutter and LG's ARM engine instead, and it renders
+  on ARM under emulation and in a Wayland window. It has not been run on a
+  television.
+- **`dartvel build sony-elinux` builds release bundles only**, assembled from
+  the Linux desktop release build and Sony's embedder rather than through
+  `flutter-elinux`, and it skips when those embedder artifacts are not
+  installed. CI runs debug and release bundles on a virtual device.
+- **Fuchsia** is blocked: its embedder's Flutter is older than Dart 3.4 and
+  cannot resolve Dartvel's example.
+- **Terminal rendering** (`dartvel build linux-cli`) runs the example in a
+  pseudo-terminal in CI through the `dartvel_cli_flt` embedder. It does not
+  fall back to a desktop build: a `-cli` binary that contained a GUI would be
+  the opposite of what the suffix promises.
 - **HTTP/3 is implemented and verified against a live server**, alongside
   HTTP/2. Early Hints arrive over HTTP/2 only — no Rust crate surfaces 1xx
   responses over HTTP/3, which is a crate gap rather than a protocol limit.
