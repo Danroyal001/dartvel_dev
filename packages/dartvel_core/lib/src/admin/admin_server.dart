@@ -17,6 +17,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization;
+import '../auth/auth.dart' show DVAccountDirectory;
 import '../auth/session_authentication.dart';
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
@@ -214,8 +215,15 @@ class DVAdminServer {
     Future<bool> Function(Request request)? authenticated,
     List<DVStudioModelSpec> models = const <DVStudioModelSpec>[],
     DVDatabaseAdapter? database,
+    Future<String?> Function(Request request)? caller,
+    DVAccountDirectory? accounts,
   })  : _authenticated = authenticated ?? dvAdminAuthorized,
-        api = DVStudioApi(models: models, database: database);
+        api = DVStudioApi(
+          models: models,
+          database: database,
+          caller: caller,
+          accounts: accounts,
+        );
 
   final DVAdminMount mount;
 

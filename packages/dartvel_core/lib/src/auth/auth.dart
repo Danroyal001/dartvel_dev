@@ -73,6 +73,15 @@ abstract interface class DVAccountDirectory {
   Future<AuthUser?> userById(String id);
 }
 
+/// A provider that can find an account by its address, for the places an
+/// operator names a person the way people are named -- Studio granting
+/// access to `sam@example.com` rather than to `acct_...`.
+abstract interface class DVAccountLookup {
+  /// The account whose address is [email], compared as the provider stores
+  /// addresses, or null when there is none.
+  Future<AuthUser?> userByEmail(String email);
+}
+
 /// A provider that can change an account's address and delete an account,
 /// for the generated account endpoints.
 ///

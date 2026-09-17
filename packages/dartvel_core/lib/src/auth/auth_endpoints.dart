@@ -420,6 +420,12 @@ class DVAuthEndpoints {
   /// Whether a provider is installed in this process.
   static bool get installed => _credentials != null;
 
+  /// The installed provider, when it can describe an account by its id.
+  static DVAccountDirectory? get accountDirectory {
+    final Object? provider = _credentials?.provider;
+    return provider is DVAccountDirectory ? provider : null;
+  }
+
   /// Whether [request] came from a page in a browser.
   static bool isBrowser(Request request) =>
       _browserHeaders.any(request.headers.has);
