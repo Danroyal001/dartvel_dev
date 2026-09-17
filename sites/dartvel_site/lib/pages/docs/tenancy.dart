@@ -49,6 +49,41 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'isolation',
+          title: 'Keep tenants in separate schemas or databases',
+          children: <Widget>[
+            DocsTable(columns: <String>[
+              'isolation',
+              'Keeps tenants apart by',
+            ], rows: <List<String>>[
+              <String>['shared-database', 'A dv_tenant column on every scoped '
+                  'table, the default'],
+              <String>['schema-per-tenant', 'A schema per tenant, chosen when '
+                  'each statement runs'],
+              <String>['database-per-tenant', 'A database per tenant, opened '
+                  'once and kept'],
+            ]),
+            DocsCode('tenancy-databases'),
+            Bullets(<String>[
+              'database-per-tenant without configureTenantDatabases is '
+                  'refused, so no tenant falls back to a shared database.',
+              'A misspelled isolation or source fails the build.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'across',
+          title: 'Query across tenants on purpose',
+          children: <Widget>[
+            DocsText('Under shared-database, raw SQL that names a scoped table '
+                'without dv_tenant is refused. An operator report says so '
+                'out loud:'),
+            DocsCode('tenancy-across'),
+            DocsText('Group the people inside a tenant into an organization '
+                'with roles and invitations. See Organizations.'),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
