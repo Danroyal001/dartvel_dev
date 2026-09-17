@@ -47,7 +47,10 @@ void main() {
     addTearDown(() => parent.deleteSync(recursive: true));
   });
 
-  tearDown(DVSessionAuthentication.uninstall);
+  tearDown(() {
+    DVSessionAuthentication.uninstall();
+    DVAuthAuthorization.reset();
+  });
 
   group('a caller who may see the admin', () {
     test('gets the dashboard at the mount, with and without the slash',
@@ -155,11 +158,54 @@ void main() {
           isNull);
     });
 
-    test('serves a caller signed in with the application\'s own session',
+    test('answers nothing to a signed-in person nobody granted Studio',
         () async {
+      // Signing up is open to anybody the application lets in: every
+      // customer has a live session. A session alone opening the dashboard
+      // hands every customer the application's models, routes and jobs.
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      DVStudioGrants(SqliteDVDatabaseAdapter.memory()).install();
+      final DVIssuedSession customer = await sessions.create('u-customer');
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+
+      expect(
+          await server.respond(_get('/__studio/', headers: <String, String>{
+            'authorization': 'Bearer ${customer.token}',
+          })),
+          isNull);
+      expect(
+          await server.respond(_get('/__studio/graph.json',
+              headers: <String, String>{
+                'authorization': 'Bearer ${customer.token}',
+              })),
+          isNull);
+    });
+
+    test('answers nothing to a signed-in person when no policy is registered',
+        () async {
+      // Nothing installed a grant store and the application registered no
+      // Studio.access policy: nobody, not everybody.
       final DVSessions sessions = DVSessions();
       DVSessionAuthentication.install(sessions: sessions);
       final DVIssuedSession issued = await sessions.create('u-operator');
+      expect(
+          await DVAdminServer(mount: _guarded, root: _root.path)
+              .respond(_get('/__studio/', headers: <String, String>{
+            'authorization': 'Bearer ${issued.token}',
+          })),
+          isNull);
+    });
+
+    test('serves a person granted Studio, and stops when the grant goes',
+        () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      final DVStudioGrants grants =
+          DVStudioGrants(SqliteDVDatabaseAdapter.memory())..install();
+      final DVIssuedSession issued = await sessions.create('u-operator');
+      await grants.grant('u-operator');
       final DVAdminServer server =
           DVAdminServer(mount: _guarded, root: _root.path);
 
@@ -179,13 +225,57 @@ void main() {
           }));
       expect(browser?.status, 200);
 
-      // The control: the same session revoked is nothing again.
+      // The grant is taken away: nothing again, on the same live session.
+      expect(await grants.revoke('u-operator'), isTrue);
+      expect(
+          await server.respond(_get('/__studio/', headers: <String, String>{
+            'authorization': 'Bearer ${issued.token}',
+          })),
+          isNull);
+
+      // Granted again, and the session revoked: nothing either.
+      await grants.grant('u-operator');
       await sessions.revoke(issued.session.id);
       expect(
           await server.respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${issued.token}',
           })),
           isNull);
+    });
+
+    test('a grant on one tenant opens nothing on another', () async {
+      final DVStudioGrants grants =
+          DVStudioGrants(SqliteDVDatabaseAdapter.memory());
+      await grants.grant('u-operator', tenant: 'acme');
+      expect(await grants.isGranted('u-operator', tenant: 'acme'), isTrue);
+      expect(await grants.isGranted('u-operator', tenant: 'globex'), isFalse);
+      expect(await grants.isGranted('u-operator'), isFalse);
+      // Granting twice is one grant.
+      await grants.grant('u-operator', tenant: 'acme');
+      expect((await grants.list()).length, 1);
+    });
+
+    test('the application\'s own Studio.access policy decides instead',
+        () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      DVStudioGrants(SqliteDVDatabaseAdapter.memory()).install();
+      const DVAuthAuthorization().registerAction(
+        dvStudioAccessAction,
+        (Object? caller, Object? _) =>
+            caller is DVSessionPrincipal && caller.userId == 'u-owner',
+      );
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      Future<Response?> as(String user) async {
+        final DVIssuedSession issued = await sessions.create(user);
+        return server.respond(_get('/__studio/', headers: <String, String>{
+          'authorization': 'Bearer ${issued.token}',
+        }));
+      }
+
+      expect((await as('u-owner'))?.status, 200);
+      expect(await as('u-customer'), isNull);
     });
   });
 }

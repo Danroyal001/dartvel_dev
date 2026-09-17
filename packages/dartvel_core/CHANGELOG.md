@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **Studio opens only for a person allowed `Studio.access`.** `DVAdminServer`
+  served the dashboard on a release mount to any live session, and every
+  customer who signs up to an application has one. It now also asks
+  `DV.Auth.authorization` whether that person may `Studio.access`
+  (`dvStudioAccessAction`), which nobody may by default. `DVStudioGrants`
+  keeps the grants in the application's database (`dv_studio_grants`, per
+  user and tenant) and `install()` makes them the answer; an application
+  that already knows its operators registers its own with
+  `registerAction(dvStudioAccessAction, ...)`, which is asked instead.
+  `dvAdminSessionAuthenticated` is now `dvAdminAuthorized`.
+- **`DVAuthAuthorization.registerAction` and `registerDeclaredAction`**
+  register a policy by its `Resource.action` name, for a resource with no
+  Dart type. `DVAuthAuthorization.reset()` forgets every policy, for a test.
+
 - **An IP-address host names no tenant.** `DVTenants.resolve` read the first
   label of every host with three or more dots as a subdomain, so a request to
   `127.0.0.1` ran on a tenant called `127`, one to `10.0.0.5` on `10`, and so
