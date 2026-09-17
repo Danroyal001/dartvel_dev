@@ -48,13 +48,17 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
         const Section(
           children: <Widget>[
             Eyebrow('SUBMIT'),
-            Heading('Build and upload to testers in one step.'),
+            Heading('Build and upload to Google Play or the App Store in one step.'),
             Bullets(<String>[
-              'Firebase App Distribution comes first.',
-              'Google Play and the App Store follow once dartvel build makes app '
-                  'bundles and signed iOS builds.',
+              'Google Play gets an App Bundle, and the App Store a signed IPA.',
+              'Your iOS build is signed on a Mac with the certificate you keep in '
+                  'Cloud.',
             ]),
-            CodeBlock(<String>['dartvel publish firebase --cloud']),
+            CodeBlock(<String>[
+              'dartvel publish play --cloud',
+              'dartvel publish testflight --cloud',
+              'dartvel build ios --format ipa   # the same IPA on your own Mac, for free',
+            ]),
           ],
         ),
         const Section(
@@ -159,7 +163,8 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               ),
               SiteCard(
                 'Store upload from Cloud',
-                'Firebase first, then Google Play and the App Store.',
+                'The App Bundle and the IPA build today. The upload from our '
+                    'machines waits on them.',
                 built: false,
               ),
               SiteCard(
