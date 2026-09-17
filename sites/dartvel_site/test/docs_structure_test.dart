@@ -48,6 +48,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/building': (() => const DocsBuildingPageGeneratedPage(), DocsBuildingPageGeneratedPage.loadLibrary),
   '/docs/web-hosting': (() => const DocsWebHostingPageGeneratedPage(), DocsWebHostingPageGeneratedPage.loadLibrary),
   '/docs/deploying': (() => const DocsDeployingPageGeneratedPage(), DocsDeployingPageGeneratedPage.loadLibrary),
+  '/docs/secrets': (() => const DocsSecretsPageGeneratedPage(), DocsSecretsPageGeneratedPage.loadLibrary),
   '/docs/testing': (() => const DocsTestingPageGeneratedPage(), DocsTestingPageGeneratedPage.loadLibrary),
   '/docs/cli': (() => const DocsCliPageGeneratedPage(), DocsCliPageGeneratedPage.loadLibrary),
 };

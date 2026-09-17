@@ -170,6 +170,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Provision servers with dartvel infra', anchor: 'infra'),
   SpecCoverage('Edge Security', 'Operations', DVRoutes.docsedgesecurity,
       'Sign-in is rate limited by default', anchor: 'sign-in'),
+  SpecCoverage('Secrets and Environments', 'Operations', DVRoutes.docssecrets,
+      'Declare your secrets', anchor: 'declare'),
 
   // Shipping
   SpecCoverage('Deployment', 'Shipping', DVRoutes.docsdeploying,
@@ -240,7 +242,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Alerting, SLOs and Status Pages': 'Operations',
   'Crash Reporting and Release Health': 'Operations',
   'Feature Flags and Staged Rollout': 'Operations',
-  'Secrets and Environments': 'Operations',
   'Backend Release Management': 'Operations',
   'Preview Environments': 'Operations',
   'Product Analytics and Consent': 'Operations',

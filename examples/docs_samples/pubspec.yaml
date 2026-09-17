@@ -153,3 +153,10 @@ dartvel:
       ram: 1GB
       memory: { budget: 128MB, segment: 32MB }
   # docs:end
+
+  # docs:start yaml-secrets
+  secrets:
+    PAYSTACK_SECRET: { required: [production, staging] }
+    DATABASE_URL: { required: [production] }
+    PUBLIC_MAPS_KEY: { scope: client, required: [production] }
+  # docs:end
