@@ -54,6 +54,10 @@ dartvel:
   webPrerender: false
   ota: false
 
+  # A static site with no sign-in: no /login, /sign-up or /account pages.
+  auth:
+    pages: false
+
   transitions:
     default: fade
     durationMs: 200
