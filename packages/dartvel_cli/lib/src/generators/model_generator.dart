@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'package:yaml/yaml.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
@@ -74,6 +75,9 @@ class ModelGenerator {
     final List<String> pageSpecs = <String>[];
     // Where each model's records are, for Studio on the same backend.
     final List<String> studioSpecs = <String>[];
+    // The same specs as data, for a development server that has no
+    // generated code to import: `dartvel preview`.
+    final List<Map<String, Object?>> studioManifest = <Map<String, Object?>>[];
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
     sb.writeln("import 'dart:core';");
@@ -1563,6 +1567,31 @@ class ModelGenerator {
         // module's table is its parent's decision, made at run time, so its
         // spec names the module and resolves the table through the mount the
         // way the model does.
+        if (keyField != null && ownModuleId == null) {
+          studioManifest.add(DVStudioModelSpec(
+            model: className,
+            table: tableName,
+            key: keyField,
+            tenantScoped: tenantScoped,
+            versioned: versioned,
+            softDelete: softDelete,
+            fields: <DVStudioFieldSpec>[
+              for (final Map<String, String> f in fields)
+                DVStudioFieldSpec(
+                  name: f['name']!,
+                  type: f['type']!,
+                  sensitive: sensitiveFieldNames.contains(f['name']),
+                  options: studioEnums[f['type']!.replaceAll('?', '').trim()],
+                  relation: dvStudioRelationOf(
+                    f['name']!,
+                    f['type']!.replaceAll('?', '').trim(),
+                    studioModelNames,
+                    className,
+                  ),
+                ),
+            ],
+          ).toManifest());
+        }
         if (keyField != null) {
           studioSpecs.add(
             '  DVStudioModelSpec(\n'
@@ -2622,6 +2651,12 @@ class ModelGenerator {
       p.join(root, '.dart_tool', 'dartvel_schema.g.json'),
     );
     schemaFile.parent.createSync(recursive: true);
+    File(p.join(root, '.dart_tool', 'dartvel_studio_models.json'))
+        .writeAsStringSync(
+      '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'models': studioManifest,
+      })}\n',
+    );
     schemaFile.writeAsStringSync(
       '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
         'tables': schemaTables,
