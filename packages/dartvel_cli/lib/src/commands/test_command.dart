@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+import 'package:watcher/watcher.dart';
 
 import '../utils/logger.dart';
 
@@ -29,7 +32,9 @@ class TestCommand extends Command<void> {
       ..addFlag(
         'watch',
         defaultsTo: false,
-        help: 'Run tests in watch mode when supported by the selected runner.',
+        help: 'Run the tests, then rerun them whenever a Dart file in the '
+            'project changes: a changed test file reruns that file, any other '
+            'change reruns the suite.',
       )
       ..addFlag(
         'dry-run',
@@ -112,6 +117,10 @@ class TestCommand extends Command<void> {
       stdout.writeln(invocation.printable);
       return;
     }
+    if (argResults?['watch'] == true) {
+      await _watch(root, invocation, plan.path ?? 'test');
+      return;
+    }
     final process = await Process.start(
       invocation.executable,
       invocation.arguments,
@@ -125,6 +134,45 @@ class TestCommand extends Command<void> {
     final code = await process.exitCode;
     if (code != 0) {
       exitCode = code;
+    }
+  }
+
+  /// Neither `flutter test` nor `dart test` has a watch mode, so the rerun
+  /// loop is this command's own rather than a flag handed down.
+  Future<void> _watch(
+    Directory root,
+    DartvelTestInvocation invocation,
+    String suitePath,
+  ) async {
+    final StreamController<String> changes = StreamController<String>();
+    final StreamSubscription<WatchEvent> events = DirectoryWatcher(root.path)
+        .events
+        .listen((WatchEvent event) => changes.add(event.path));
+    final StreamSubscription<ProcessSignal> interrupt =
+        ProcessSignal.sigint.watch().listen((_) => changes.close());
+    Logger.log('Watching for changes. Press Ctrl+C to stop.');
+    try {
+      await DartvelTestWatch(root: root.path, suitePath: suitePath).run(
+        changes.stream,
+        (List<String> targets) async {
+          final DartvelTestInvocation run = invocation.retarget(targets);
+          Logger.log('\$ ${run.printable}');
+          final Process process = await Process.start(
+            run.executable,
+            run.arguments,
+            workingDirectory: root.path,
+            mode: ProcessStartMode.inheritStdio,
+          );
+          final int code = await process.exitCode;
+          exitCode = code;
+          Logger.log(code == 0
+              ? 'Passed. Watching for changes.'
+              : 'Failed (exit $code). Watching for changes.');
+        },
+      );
+    } finally {
+      await events.cancel();
+      await interrupt.cancel();
     }
   }
 
@@ -245,10 +293,25 @@ class DartvelTestInvocation {
   final String executable;
   final List<String> arguments;
 
+  /// The test path the mode resolved to, or null when none was passed.
+  final String? path;
+
   const DartvelTestInvocation({
     required this.executable,
     required this.arguments,
+    this.path,
   });
+
+  /// The same run over [targets] in place of the mode's path.
+  DartvelTestInvocation retarget(List<String> targets) => DartvelTestInvocation(
+        executable: executable,
+        arguments: List<String>.unmodifiable(<String>[
+          'test',
+          ...targets,
+          ...arguments.skip(path == null ? 1 : 2),
+        ]),
+        path: targets.length == 1 ? targets.single : null,
+      );
 
   String get printable => <String>[executable, ...arguments].join(' ');
 
@@ -275,9 +338,8 @@ class DartvelTestInvocation {
     if (path != null) {
       args.add(path);
     }
-    if (watch) {
-      args.add('--watch');
-    }
+    // [watch] is not forwarded: neither runner accepts --watch, and
+    // `dartvel test` reruns through [DartvelTestWatch] instead.
     if (reporter != null && reporter.trim().isNotEmpty) {
       args.addAll(<String>['--reporter', reporter.trim()]);
     }
@@ -305,6 +367,7 @@ class DartvelTestInvocation {
     return DartvelTestInvocation(
       executable: executable,
       arguments: List<String>.unmodifiable(args),
+      path: path,
     );
   }
 
@@ -319,4 +382,84 @@ class DartvelTestInvocation {
   static String? _pathForMode(String mode, Directory root) =>
       DartvelTestPlan.forMode(mode: mode, root: root).path;
 
+}
+
+/// The rerun loop behind `dartvel test --watch`.
+///
+/// Runs the suite once, then collects changed paths until they settle for
+/// [debounce] and runs what they affect. Runs never overlap: a batch that
+/// settles while tests are running waits for them.
+class DartvelTestWatch {
+  DartvelTestWatch({
+    required this.root,
+    required this.suitePath,
+    this.debounce = const Duration(milliseconds: 300),
+  });
+
+  final String root;
+
+  /// What a change to anything but a test file reruns.
+  final String suitePath;
+
+  final Duration debounce;
+
+  static const Set<String> _ignored = <String>{'.dart_tool', 'build', '.git'};
+
+  /// The paths to hand the runner for [changed], or null for nothing to run.
+  ///
+  /// Changed test files that still exist run on their own. Any other Dart
+  /// source may be imported by any test, so it reruns the whole suite.
+  static List<String>? targetsFor(
+    Iterable<String> changed, {
+    required String root,
+    required String suitePath,
+  }) {
+    final Set<String> tests = <String>{};
+    bool suite = false;
+    for (final String path in changed) {
+      final String relative = p.relative(path, from: root);
+      if (!relative.endsWith('.dart')) continue;
+      final List<String> parts = p.split(relative);
+      if (parts.first == '..' || _ignored.contains(parts.first)) continue;
+      if (relative.endsWith('_test.dart')) {
+        if (File(p.join(root, relative)).existsSync()) {
+          tests.add(p.posix.joinAll(parts));
+        }
+      } else {
+        suite = true;
+      }
+    }
+    if (suite) return <String>[suitePath];
+    if (tests.isEmpty) return null;
+    return tests.toList()..sort();
+  }
+
+  /// Runs until [changes] closes, then waits for the last run to finish.
+  Future<void> run(
+    Stream<String> changes,
+    Future<void> Function(List<String> targets) runTests,
+  ) async {
+    Future<void> last = runTests(<String>[suitePath]);
+    final Set<String> pending = <String>{};
+    Timer? timer;
+
+    void flush() {
+      final List<String>? targets =
+          targetsFor(pending, root: root, suitePath: suitePath);
+      pending.clear();
+      if (targets == null) return;
+      last = last.then((_) => runTests(targets));
+    }
+
+    await for (final String path in changes) {
+      pending.add(path);
+      timer?.cancel();
+      timer = Timer(debounce, flush);
+    }
+    if (timer?.isActive ?? false) {
+      timer!.cancel();
+      flush();
+    }
+    await last;
+  }
 }
