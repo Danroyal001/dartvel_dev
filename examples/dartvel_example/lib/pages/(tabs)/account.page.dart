@@ -34,10 +34,10 @@ Widget _accountPage(BuildContext context) => (() {
                 DVText(account.email).modifier(p.muted),
               ], spacing: 2),
             ),
-            OutlinedButton(
-              key: const Key('sign-out'),
+            const OutlinedButton(
+              key: Key('sign-out'),
               onPressed: signOut,
-              child: const Text('Sign out'),
+              child: Text('Sign out'),
             ),
           ], spacing: 14, crossAlign: DVCrossAlign.center)
               .modifier(cardStyle(p, padding: 18))

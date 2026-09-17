@@ -24,6 +24,12 @@ void main() {
     WidgetTester tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    // A phone, so the tabs are along the bottom and the page runs to the
+    // left edge the back swipe starts from.
+    tester.view
+      ..physicalSize = const Size(1179, 2556)
+      ..devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
     try {
       configureDartvelExample();
       final GoRouter router = createDartvelRouter();
