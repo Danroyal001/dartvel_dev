@@ -43,13 +43,13 @@
   It now runs the suite, then reruns a changed test file on its own, or the
   suite for any other Dart change, until Ctrl+C.
 
-- **`dartvel publish play` and `appstore` have something to upload, locally
+- **`dartvel deploy --store play` and `appstore` have something to upload, locally
   and with `--cloud`.** `dartvel build android --format aab` writes the bundle
   Play takes and `dartvel build ios --format ipa` the IPA App Store Connect
   takes. The plan now uploads whichever `.ipa` Flutter wrote, whatever it is
   named, and reads a Play service account key from
-  `DARTVEL_PLAY_SERVICE_ACCOUNT` when that names one. `publish play --cloud`
-  builds an App Bundle, and `publish appstore --cloud` and `testflight --cloud`
+  `DARTVEL_PLAY_SERVICE_ACCOUNT` when that names one. `--store play --cloud`
+  builds an App Bundle, and `--store appstore --cloud` and `testflight --cloud`
   build a signed IPA on a macOS worker; the declaration is checked for the
   worker's operating system before anything is sent.
 
@@ -112,7 +112,8 @@
   an account without one exits 77 with the plans page. The token is
   `--cloud-token` or `DARTVEL_CLOUD_TOKEN`.
 
-- **`dartvel publish firebase --cloud` builds and uploads on Dartvel Cloud.**
+- **`dartvel deploy --store firebase-app-distribution --cloud` builds and
+  uploads on Dartvel Cloud.**
   The declaration is checked locally before anything is sent, and `--dry-run`
   makes the worker print the upload. `play`, `appstore` and `testflight` are
   refused with the reason: Play takes an app bundle and `dartvel build android`
