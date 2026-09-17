@@ -49,6 +49,10 @@ const String dvDevClientPublicTrack = 'DV-DEVCLIENT-003';
 /// The path a dev server serves the current bundle on.
 const String dvDevClientBundlePath = '/_dartvel/dev-client/bundle';
 
+/// The path a dev server answers `dartvel inspect`'s project graph on, for
+/// the dev menu's inspectors.
+const String dvDevClientGraphPath = '/_dartvel/dev-client/graph';
+
 /// The path a development build opens its tunnel on.
 ///
 /// The device dials out to the dev server and the dev server reaches the
@@ -444,6 +448,12 @@ class DVDevClientPairing {
       path: '$base$dvDevClientBundlePath',
       queryParameters: <String, String>{'target': target},
     );
+  }
+
+  /// Where the project graph the dev menu's inspectors show is fetched.
+  Uri graphUri() {
+    final String base = server.path.replaceAll(RegExp(r'/+$'), '');
+    return server.replace(path: '$base$dvDevClientGraphPath');
   }
 
   /// Parses a pairing link, refusing anything it could not trust.
