@@ -21,6 +21,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
 
+import '../graph/project_graph.dart';
 import '../utils/lan_address.dart';
 import 'dev_client_project.dart';
 
@@ -115,6 +116,10 @@ class DVDevClientBundleServer {
       return;
     }
     final HttpResponse response = request.response;
+    if (request.uri.path == dvDevClientGraphPath) {
+      await _graph(request);
+      return;
+    }
     try {
       if (request.uri.path != dvDevClientBundlePath) {
         response.statusCode = HttpStatus.notFound;
@@ -185,6 +190,43 @@ class DVDevClientBundleServer {
     }
   }
 
+  /// The project graph `dartvel inspect --json` answers, built from the
+  /// sources as they are now, for the dev menu's inspectors. Behind the token,
+  /// like everything else here, and only ever over TLS.
+  Future<void> _graph(HttpRequest request) async {
+    final HttpResponse response = request.response;
+    try {
+      if (!_authorized(request)) {
+        response.statusCode = HttpStatus.unauthorized;
+        response.write('Not paired with this dev server.');
+        return;
+      }
+      final Object? name = _pubspecName();
+      final DartvelProjectGraph graph = await DartvelProjectGraph.build(
+        root: _root,
+        pkgName: name is String ? name : '',
+      );
+      response.headers.contentType = ContentType.json;
+      response.headers.set('cache-control', 'no-store');
+      response.write(jsonEncode(graph.toJson()));
+    } on Object catch (error) {
+      response.statusCode = HttpStatus.internalServerError;
+      response.write('The project graph could not be read: $error');
+    } finally {
+      await response.close();
+    }
+  }
+
+  Object? _pubspecName() {
+    final File pubspec = File(p.join(_root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    final Match? name = RegExp(
+      r'^name:\s*([A-Za-z0-9_]+)',
+      multiLine: true,
+    ).firstMatch(pubspec.readAsStringSync());
+    return name?.group(1);
+  }
+
   /// A development build's tunnel connection: `role=control` once per device,
   /// `role=stream` once for each connection made to that device's loopback
   /// port.
@@ -217,7 +259,10 @@ class DVDevClientBundleServer {
       final int? id = int.tryParse(request.uri.queryParameters['id'] ?? '');
       waiting = id == null ? null : _waitingStreams.remove(id);
       if (waiting == null) {
-        await refuse(HttpStatus.notFound, 'No stream was asked for with that id.');
+        await refuse(
+          HttpStatus.notFound,
+          'No stream was asked for with that id.',
+        );
         return;
       }
     } else if (role != 'control') {
@@ -350,9 +395,14 @@ class DVDevClientBundleServer {
   /// attach restarting -- answered by closing it, rather than left on its done
   /// future, where an unhandled one ends `dartvel dev` and every pairing.
   static void _quiet(Socket socket) {
-    unawaited(socket.done.then<void>((_) {}, onError: (Object _) {
-      socket.destroy();
-    }));
+    unawaited(
+      socket.done.then<void>(
+        (_) {},
+        onError: (Object _) {
+          socket.destroy();
+        },
+      ),
+    );
   }
 
   void _pipe(Socket a, Socket b) {

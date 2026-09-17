@@ -106,6 +106,37 @@ class DVDevClient {
 
   int? _lastSequence;
 
+  /// The project graph the paired server answers `dartvel inspect` with,
+  /// for the dev menu's inspectors. Over the same pinned connection, with the
+  /// token. Throws [DVDevClientInspectionException] saying why it could not.
+  Future<DVDevClientInspection> inspect() async {
+    final HttpClient http = dvDevClientHttpClient(pairing);
+    try {
+      final HttpClientRequest request = await http.getUrl(pairing.graphUri());
+      request.headers.set('authorization', 'Bearer ${pairing.token}');
+      final HttpClientResponse response = await request.close().timeout(timeout);
+      final String body = await utf8.decodeStream(response);
+      if (response.statusCode != 200) {
+        throw DVDevClientInspectionException(
+          'the dev server answered HTTP ${response.statusCode}: $body',
+        );
+      }
+      final Object? graph = jsonDecode(body);
+      if (graph is! Map) {
+        throw const DVDevClientInspectionException(
+          'the dev server answered something that is not a project graph',
+        );
+      }
+      return DVDevClientInspection.fromGraph(graph.cast<String, Object?>());
+    } on DVDevClientInspectionException {
+      rethrow;
+    } on Object catch (error) {
+      throw DVDevClientInspectionException('$error');
+    } finally {
+      http.close(force: true);
+    }
+  }
+
   Future<DVDevClientLoad> load() async {
     final DVDevClientLoad result = await _load();
     log.add(<String>[
@@ -254,18 +285,68 @@ class DVDevClient {
   }
 }
 
-/// The dev menu: reload, the capability report for this device, and the log.
+/// What `dartvel inspect` answers about the project the paired server serves:
+/// its routes, models, backend functions and jobs.
+class DVDevClientInspection {
+  const DVDevClientInspection({
+    required this.routes,
+    required this.models,
+    required this.functions,
+    required this.jobs,
+  });
+
+  /// Read from the project graph `dartvel inspect --json` prints.
+  factory DVDevClientInspection.fromGraph(Map<String, Object?> graph) {
+    List<Map<String, Object?>> nodes(String key) => <Map<String, Object?>>[
+          for (final Object? node in graph[key] is List
+              ? graph[key]! as List<Object?>
+              : const <Object?>[])
+            if (node is Map) node.cast<String, Object?>(),
+        ];
+    return DVDevClientInspection(
+      routes: <String>[for (final n in nodes('routes')) '${n['path']}'],
+      models: <String>[for (final n in nodes('models')) '${n['name']}'],
+      functions: <String>[
+        for (final n in nodes('functions')) '${n['method']} ${n['path']}',
+      ],
+      jobs: <String>[
+        for (final n in nodes('jobs'))
+          n['queue'] == null ? '${n['name']}' : '${n['name']} (${n['queue']})',
+      ],
+    );
+  }
+
+  final List<String> routes;
+  final List<String> models;
+  final List<String> functions;
+  final List<String> jobs;
+}
+
+/// Why the inspectors could not read the project.
+class DVDevClientInspectionException implements Exception {
+  const DVDevClientInspectionException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// The dev menu: reload, the inspectors, the capability report for this
+/// device, and the log.
 ///
 /// The capability report reads what is registered on the device now rather
 /// than the manifest the shell was built from: the two can differ, and the
-/// device in somebody's hand is the one being asked about.
-class DVDevMenu extends StatelessWidget {
+/// device in somebody's hand is the one being asked about. The inspectors
+/// read the project as the paired server has it now, through [inspect].
+class DVDevMenu extends StatefulWidget {
   const DVDevMenu({
     super.key,
     required this.shell,
     required this.branch,
     required this.log,
     required this.onReload,
+    this.inspect,
   });
 
   final DVDevClientManifest shell;
@@ -273,8 +354,62 @@ class DVDevMenu extends StatelessWidget {
   final List<String> log;
   final Future<void> Function() onReload;
 
+  /// Reads the paired project's graph; null before pairing.
+  final Future<DVDevClientInspection> Function()? inspect;
+
+  @override
+  State<DVDevMenu> createState() => _DVDevMenuState();
+}
+
+class _DVDevMenuState extends State<DVDevMenu> {
+  Future<DVDevClientInspection>? _inspection;
+
+  @override
+  void initState() {
+    super.initState();
+    _inspection = widget.inspect?.call();
+  }
+
+  List<Widget> _inspectors() {
+    final Future<DVDevClientInspection>? inspection = _inspection;
+    if (inspection == null) return const <Widget>[];
+    return <Widget>[
+      FutureBuilder<DVDevClientInspection>(
+        future: inspection,
+        builder: (BuildContext context, AsyncSnapshot<DVDevClientInspection> snapshot) {
+          if (snapshot.hasError) {
+            return Text('The project could not be inspected: ${snapshot.error}');
+          }
+          final DVDevClientInspection? found = snapshot.data;
+          if (found == null) return const Text('Inspecting the project...');
+          Widget section(String heading, List<String> items, String none) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _Heading(heading),
+                  if (items.isEmpty) Text(none),
+                  for (final String item in items) Text(item),
+                ],
+              );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              section('Routes', found.routes, 'No routes.'),
+              section('Models', found.models, 'No models.'),
+              section('Backend functions', found.functions, 'No backend functions.'),
+              section('Jobs', found.jobs, 'No jobs.'),
+            ],
+          );
+        },
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final DVDevClientManifest shell = widget.shell;
+    final String? branch = widget.branch;
+    final List<String> log = widget.log;
+    final Future<void> Function() onReload = widget.onReload;
     final List<String> registered = DVNativeBridge.registered;
     return Scaffold(
       appBar: AppBar(title: const Text('Dev menu')),
@@ -290,6 +425,7 @@ class DVDevMenu extends StatelessWidget {
               child: const Text('Reload'),
             ),
           ),
+          ..._inspectors(),
           const _Heading('Built with'),
           for (final String binding in shell.normalizedBindings) Text(binding),
           const _Heading('Registered on this device'),
@@ -428,6 +564,7 @@ class _DVDevClientShellState extends State<DVDevClientShell> {
                       branch: client?.pairing.branch,
                       log: client?.log ?? const <String>[],
                       onReload: _reload,
+                      inspect: client?.inspect,
                     ),
                   ),
                 ),

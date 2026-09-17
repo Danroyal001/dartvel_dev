@@ -289,6 +289,39 @@ void main() {
     expect(DVDiagnostics.find(load.code!)?.level, 'warning');
   });
 
+  test('the inspectors read the project graph from the paired server, with '
+      'the token', () async {
+    respond = (HttpRequest request) => request.uri.path ==
+            '/_dartvel/dev-client/graph'
+        ? '{"graphVersion":1,"models":[{"name":"Note"}],'
+            '"routes":[{"path":"/about"}],'
+            '"functions":[{"method":"GET","path":"/api/notes"}],'
+            '"jobs":[{"name":"SendReceipt","queue":"mail"}]}'
+        : 'not the graph';
+    final client = DVDevClient(pairing: pairing, shell: shell);
+
+    final DVDevClientInspection inspection = await client.inspect();
+
+    expect(inspection.routes, <String>['/about']);
+    expect(inspection.models, <String>['Note']);
+    expect(inspection.functions, <String>['GET /api/notes']);
+    expect(inspection.jobs, <String>['SendReceipt (mail)']);
+    expect(seen.single.headers.value('authorization'), 'Bearer ${pairing.token}');
+  });
+
+  test('an inspection the server refuses says so rather than showing nothing',
+      () async {
+    status = 401;
+    respond = (_) => 'unauthorized';
+    final client = DVDevClient(pairing: pairing, shell: shell);
+
+    await expectLater(
+      client.inspect(),
+      throwsA(isA<DVDevClientInspectionException>()
+          .having((e) => e.message, 'message', contains('401'))),
+    );
+  });
+
   test('each load is written to the log the dev menu shows', () async {
     respond = (_) => sealed('Logged');
     final client = DVDevClient(pairing: pairing, shell: shell);
