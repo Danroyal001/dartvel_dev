@@ -74,7 +74,9 @@ void main() {
     // The schema.org type the model declares, so a search engine is told
     // what the page is about rather than only that it is about something.
     expect(pages, contains("schemaType: 'Person'"));
-    expect(pages, isNot(contains("model: 'Note'")), reason: 'a model with no public pages has no page to resolve');
+    // The page specs only: Studio's specs below them name every model.
+    final String pageSpecs = pages.substring(0, pages.indexOf('dartvelStudioModels'));
+    expect(pageSpecs, isNot(contains("model: 'Note'")), reason: 'a model with no public pages has no page to resolve');
   });
 
   test('the backend starts its server with the resolver, over the built site', () async {
