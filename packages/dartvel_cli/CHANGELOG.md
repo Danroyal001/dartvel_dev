@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **The generated backend serves the pages Studio published.**
+  `/_dartvel/pages` is answered ahead of the admin and the application's
+  routes, so the web app can read them.
+
 - **Studio's model specs say what a field can hold.** A field whose type is
   an enum declared among the models carries its values, and a String or int
   field named `<model>Id`, `<model>Slug` or `<model>Key` for a declared model
