@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Studio lists a mounted module's models.** `DVStudioModelSpec` takes
+  `module` and `data` (the module's `DVModuleData`); such a model is
+  addressed as `<module>.<Model>` and read from the table and database its
+  mount gives it.
+
 - **Studio's API shows queues and cache tags.** `GET <mount>/api/queues`
   lists every queue the build's graph names, and `default`, with its pending
   jobs and dead letters (a broker that cannot list says so);

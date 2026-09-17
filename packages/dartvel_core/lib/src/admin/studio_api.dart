@@ -28,6 +28,8 @@ import '../auth/session_authentication.dart';
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
+import '../modules/modules.dart'
+    show DVModuleData, DVModuleDataMode, dvModuleRegistry;
 import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
@@ -65,9 +67,24 @@ class DVStudioModelSpec {
     this.tenantScoped = false,
     this.versioned = true,
     this.softDelete = false,
+    this.module,
+    this.data,
   });
 
+  /// The model's class name.
   final String model;
+
+  /// The mounted module the model belongs to, or null for the application's
+  /// own. Studio names it `<module>.<Model>`, so a module's `Order` and the
+  /// application's are two models rather than one.
+  final String? module;
+
+  /// Where a module's model resolves its table and database, which depends
+  /// on how the module was mounted. Null for the application's own models.
+  final DVModuleData? data;
+
+  /// The name Studio lists and addresses the model by.
+  String get id => module == null ? model : '$module.$model';
 
   /// The plain table name; the tenant's schema is resolved per request.
   final String table;
@@ -80,7 +97,8 @@ class DVStudioModelSpec {
   final bool softDelete;
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'model': model,
+    'model': id,
+    'module': ?module,
     'key': key,
     'fields': <Object?>[
       for (final DVStudioFieldSpec field in fields) field.toJson(),
@@ -255,7 +273,7 @@ class DVStudioApi {
       });
     }
     final DVStudioModelSpec spec = models.firstWhere(
-      (DVStudioModelSpec m) => m.model == path.first,
+      (DVStudioModelSpec m) => m.id == path.first,
       orElse: () => throw _StudioRefusal(
         404,
         'not_found',
@@ -320,7 +338,12 @@ class DVStudioApi {
   );
 
   DVRecordTable _table(DVStudioModelSpec spec) => DVRecordTable(
-    table: dvTenantTable(spec.table),
+    // A module's table is the one its mount gave it: the model's own name
+    // under a shared mount, the module's id before it under a
+    // schema-isolated one.
+    table: spec.data == null
+        ? dvTenantTable(spec.table)
+        : spec.data!.table(spec.table),
     key: spec.key,
     columns: <String>[
       if (spec.tenantScoped) dvTenantColumn,
@@ -341,8 +364,26 @@ class DVStudioApi {
     scope: spec.tenantScoped
         ? DVRecordScope(dvTenantColumn, const DVTenants().currentTenant)
         : null,
-    database: _database,
+    database: _databaseFor(spec),
   );
+
+  /// The application's database, or the module's own for a module mounted
+  /// with one. A remote module has none here: its deployment owns its data.
+  DVDatabaseAdapter _databaseFor(DVStudioModelSpec spec) {
+    final String? module = spec.module;
+    if (spec.data == null || module == null) return _database;
+    final mounted = dvModuleRegistry.maybeGet(module);
+    try {
+      return switch (mounted?.dataMode) {
+        DVModuleDataMode.databaseIsolated ||
+        DVModuleDataMode.remote =>
+          spec.data!.database,
+        _ => _database,
+      };
+    } on StateError catch (error) {
+      throw _StudioRefusal(503, 'module_data', error.message);
+    }
+  }
 
   Map<String, Object?> _recordJson(DVStudioModelSpec spec, DVRecord record) =>
       <String, Object?>{

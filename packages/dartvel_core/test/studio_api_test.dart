@@ -296,6 +296,69 @@ void main() {
     });
   });
 
+  group('a mounted module\'s models', () {
+    const DVStudioModelSpec memo = DVStudioModelSpec(
+      model: 'Memo',
+      table: 'memos',
+      key: 'id',
+      module: 'notes',
+      data: DVModuleData('notes'),
+      fields: <DVStudioFieldSpec>[
+        DVStudioFieldSpec(name: 'id', type: 'String'),
+        DVStudioFieldSpec(name: 'text', type: 'String'),
+      ],
+    );
+
+    setUp(() async {
+      dvModuleRegistry.resetForTesting();
+      dvModuleRegistry.register(
+        id: 'notes',
+        mountPath: '/notes',
+        config: const <String, Object?>{
+          'deployment': 'embedded',
+          'data': 'schema-isolated',
+        },
+      );
+      server = DVAdminServer(
+        mount: _guarded,
+        root: root.path,
+        authenticated: (Request _) async => true,
+        models: <DVStudioModelSpec>[..._models, memo],
+        database: database,
+      );
+      final DVRecordTable memos = DVRecordTable(
+        table: 'notes_memos',
+        key: 'id',
+        columns: const <String>['id', 'text'],
+        database: database,
+      );
+      await memos.ensureSchema();
+      await memos.write(<String, Object?>{'id': 'm1', 'text': 'Buy beans'});
+    });
+    tearDown(dvModuleRegistry.resetForTesting);
+
+    test('are listed under the module, and read from the table it was '
+        'mounted with', () async {
+      final Response? listed = await server.respond(
+        _request('GET', '/__studio/api/models'),
+      );
+      final List<Object?> models =
+          ((await _json(listed!))! as Map<String, Object?>)['models']!
+              as List<Object?>;
+      final Map<String, Object?> notes = models
+          .cast<Map<String, Object?>>()
+          .firstWhere((Map<String, Object?> m) => m['module'] == 'notes');
+      expect(notes['model'], 'notes.Memo');
+
+      final Response? records = await server.respond(
+        _request('GET', '/__studio/api/models/notes.Memo/records'),
+      );
+      final String body = jsonEncode(await _json(records!));
+      expect(records.status, 200, reason: body);
+      expect(body, contains('Buy beans'));
+    });
+  });
+
   group('pages', () {
     test('a document published through Studio is listed and stored', () async {
       final Response? saved = await server.respond(

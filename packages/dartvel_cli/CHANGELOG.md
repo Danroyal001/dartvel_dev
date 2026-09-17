@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **A mounted module's models are in Studio.** A module's generated
+  `dartvelStudioModels` names the module and resolves its table through the
+  mount, and the generated backend hands every embedded or backend-only
+  module's specs to the admin beside the application's own.
+
 - **`dartvel capture pty` runs on macOS and Windows, and can end with Ctrl+C.**
   It called util-linux `script -e -c`, which BSD `script` reads as a file name,
   and Windows has no `script`; there it now opens a ConPTY pseudo console
