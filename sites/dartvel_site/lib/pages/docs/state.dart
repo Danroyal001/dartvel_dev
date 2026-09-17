@@ -92,9 +92,11 @@ Widget _docsStatePage(BuildContext context) => const DocsArticle(
                   'redraw.',
             ]),
             DocsStatus('Lifecycle Signals', missing: <String>[
-              'Several states are never emitted yet, such as the page\'s '
-                  'loading and leaving and the app\'s suspended.',
-              'The request lifecycle never reaches completed.',
+              'DV.lifecycle.build never changes at run time.',
+              'A page moves through created, ready, active, disposing and '
+                  'disposed. Its loading and leaving states are not emitted.',
+              'The app never reports suspended or resuming, and a request '
+                  'never reaches completed.',
             ]),
           ],
         ),

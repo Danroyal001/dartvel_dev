@@ -35,6 +35,21 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'page-body',
+          title: 'Write logic in a page body',
+          children: <Widget>[
+            DocsText('A page function can have a block body, with signals and '
+                'local variables before it returns its widgets.'),
+            DocsCode('pages-block-body'),
+            Bullets(<String>[
+              'The function stays private. Generation writes the public page '
+                  'and its route.',
+              'Helpers declared in the page\'s own file still resolve after '
+                  'generation moves the body.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'params',
           title: 'Read route and query parameters',
           children: <Widget>[
@@ -195,7 +210,11 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           id: 'status',
           title: 'Status',
           children: <Widget>[
-            DocsStatus('Routing'),
+            DocsStatus('Pages'),
+            DocsStatus('Routing', missing: <String>[
+              'Typed DVRoutes targets for routes inside DVGoRoutes.',
+              'A prefix-mounted navigator for apps that do not use go_router.',
+            ]),
           ],
         ),
       ],
