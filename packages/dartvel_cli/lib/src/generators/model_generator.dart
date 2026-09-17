@@ -1542,26 +1542,29 @@ class ModelGenerator {
         // so there is no fixed name to migrate here: the parent's own
         // generation records the module's tables under the names the parent
         // gives them, which is where a migration has to read them from.
+        // The table, the key generated find() uses and the fields, so Studio
+        // on the backend reads and writes the rows this class does. A
+        // module's table is its parent's decision, made at run time, so its
+        // spec names the module and resolves the table through the mount the
+        // way the model does.
+        if (keyField != null) {
+          studioSpecs.add(
+            '  DVStudioModelSpec(\n'
+            "    model: '$className',\n"
+            "    table: '$tableName',\n"
+            "    key: '$keyField',\n"
+            '    fields: <DVStudioFieldSpec>[\n'
+            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}),\n").join()}'
+            '    ],\n'
+            '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
+            '${versioned ? '' : '    versioned: false,\n'}'
+            '${softDelete ? '    softDelete: true,\n' : ''}'
+            '${ownModuleId == null ? '' : "    module: '$ownModuleId',\n    data: _dvModule,\n"}'
+            '  ),',
+          );
+        }
         if (ownModuleId == null) {
           if (tenantScoped) scopedTables.add(tableName);
-          // The table, the key generated find() uses and the fields, so
-          // Studio on the backend reads and writes the rows this class does.
-          // A module's table is its parent's decision, made at run time.
-          if (keyField != null) {
-            studioSpecs.add(
-              '  DVStudioModelSpec(\n'
-              "    model: '$className',\n"
-              "    table: '$tableName',\n"
-              "    key: '$keyField',\n"
-              '    fields: <DVStudioFieldSpec>[\n'
-              '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}),\n").join()}'
-              '    ],\n'
-              '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
-              '${versioned ? '' : '    versioned: false,\n'}'
-              '${softDelete ? '    softDelete: true,\n' : ''}'
-              '  ),',
-            );
-          }
           schemaTables.add(<String, Object?>{
             'table': tableName,
             'model': className,
