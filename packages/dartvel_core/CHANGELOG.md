@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`DVPublishedPages` serves Studio's published pages.** It answers
+  `GET /_dartvel/pages` (`dvPublishedPagesPath`) with every document in
+  `dartvel_pages`, revalidated on each load, and an empty list where nothing
+  was published.
+
 - **Studio edits enums, lists, maps and references.** `DVStudioFieldSpec`
   takes `options` (an enum's values) and `relation` (the model a field holds
   the key of). The API refuses a value outside the options, a list or map of

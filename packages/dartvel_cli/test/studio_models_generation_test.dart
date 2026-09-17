@@ -246,6 +246,10 @@ class _Memo {
         .readAsStringSync();
 
     expect(routes, contains('dartvelStudioModels'));
+    // The pages Studio publishes are served to the web app, ahead of the
+    // application's routes and of the admin.
+    expect(routes, contains('core.DVPublishedPages(database: '));
+    expect(routes, contains('await publishedPages.respond(request) ?? '));
     expect(
       routes,
       contains('core.DVAdminServer(mount: admin, root: adminRoot, '
