@@ -10235,7 +10235,7 @@ Not built yet:
 
 Development builds are distributed as internal builds through the tracks App
 Store Publishing already defines: Play internal testing, TestFlight, Firebase
-App Distribution, or a direct install on desktop. `dartvel publish` finds the
+App Distribution, or a direct install on desktop. `dartvel deploy --store` finds the
 development marker in the compiled snapshot inside the artifact and refuses it
 for Play alpha, beta and production and for the App Store with
 `DV-DEVCLIENT-003`.
@@ -10350,7 +10350,7 @@ dartvel compatibility-check --against production --histogram sessions.json
 dartvel updates release --patch-source https://app.example.com
 dartvel updates patch --patch-source https://app.example.com --channel beta
 dartvel updates rollback --patch-source https://app.example.com
-dartvel publish play --dry-run
+dartvel deploy --store play --dry-run
 dartvel preview create --from-pr 412
 dartvel preview list
 dartvel preview open
@@ -10363,7 +10363,7 @@ dartvel privacy retention --plan
 ```
 
 Cloud options sit on the same commands (`dartvel build <target> --cloud`,
-`dartvel publish <store> --cloud`) with credentials kept by `dartvel key cloud`.
+`dartvel deploy --store <store> --cloud`) with credentials kept by `dartvel key cloud`.
 Dartvel Cloud describes them.
 
 Keys and Studio access
@@ -13065,10 +13065,23 @@ while Flutter remains the rendering engine and Dart remains the only language de
 
 Stability: `Draft` · Status: `Partial`
 
-`dartvel publish <store>` takes a built application to Google Play
+`dartvel deploy --store <store>` takes a built application to Google Play
 (`play`), App Store Connect (`appstore`), TestFlight (`testflight`) or
-Firebase App Distribution (`firebase`), declared under `dartvel.publish` in
-`pubspec.yaml`. The plan is resolved and validated before anything runs,
+Firebase App Distribution (`firebase-app-distribution`), declared under
+`dartvel.publish` in `pubspec.yaml` (App Distribution as `firebase`).
+
+Store submission is an option on `deploy` rather than a verb of its own,
+because shipping an application is the same act as shipping a site or a
+server, and one command is one place to look. It is `--store` and not another
+`--provider` value: a provider hosts a web build or a server after a
+production build and a secrets gate, while a store takes a binary `dartvel
+build` already made and implies its own target. So `--store` refuses
+`--target`, `--provider`, `--functions` and `--function-target`, and
+`--dry-run`, `--artifact`, `--cloud` and `--cloud-token` are refused without
+it. App Distribution is spelled out because Firebase is also a host: the
+provider is `firebase-hosting`, and a bare `firebase` names neither. The older
+`dartvel publish <store>` and `--provider firebase` still work for one release
+and print the new form. The plan is resolved and validated before anything runs,
 because the expensive part is an upload of a binary that took minutes to
 produce. A Play track outside `internal`, `alpha`, `beta` and `production` is
 refused instead of guessed at. Play credentials that were never declared are
@@ -13079,11 +13092,11 @@ refused off macOS at the start, since the upload runs through Xcode's
 
 ```bash
 dartvel build android --format aab
-dartvel publish play --dry-run
-dartvel publish play
+dartvel deploy --store play --dry-run
+dartvel deploy --store play
 
 dartvel build ios --format ipa
-dartvel publish testflight
+dartvel deploy --store testflight
 ```
 
 Each store is driven through its own tool: fastlane `supply` for Play,
@@ -13092,8 +13105,8 @@ App Distribution. Dartvel checks the tool is on PATH and does not install it.
 The upload uploads the App Bundle, IPA or APK and does nothing else. Promoting
 a build, metadata and screenshots are left alone.
 
-`dartvel publish <store> --cloud` builds in release on Dartvel Cloud and
-publishes from the worker, with the credentials kept there by `dartvel key
+`dartvel deploy --store <store> --cloud` builds in release on Dartvel Cloud
+and deploys from the worker, with the credentials kept there by `dartvel key
 cloud`: an App Bundle for Play on a Linux worker, a signed IPA for App Store
 Connect and TestFlight on a macOS worker. The declaration is still checked
 locally first, where a refusal costs nothing. See Dartvel Cloud.
@@ -13156,9 +13169,9 @@ Designed. The track is read from `dartvel.publish.play.track` today, and none
 of these flags exist yet:
 
 ```bash
-dartvel publish play --track beta --rollout 10
-dartvel publish testflight --group "Internal QA"
-dartvel publish appstore --phased
+dartvel deploy --store play --track beta --rollout 10
+dartvel deploy --store testflight --group "Internal QA"
+dartvel deploy --store appstore --phased
 ```
 
 Store metadata is versioned in the repository and localized through
@@ -13194,10 +13207,10 @@ or advertising.
 
 So Dartvel is designed to write both declarations from the application rather
 than asking a developer to describe their own app from memory a year after
-writing it. None of this is built yet, and `publish` has no `--plan` flag:
+writing it. None of this is built yet, and `deploy --store` has no `--plan` flag:
 
 ```bash
-dartvel publish appstore --plan     # designed: shows the declaration it will submit
+dartvel deploy --store appstore --plan   # designed: shows the declaration it will submit
 ```
 
 - Collected data types come from sensitive fields and the models reachable from
@@ -13224,7 +13237,7 @@ moving — and it is the half a store checks.
 
 Designed. Extension marketplaces (VS Code, browser stores) and television
 stores publish through the same command and the same plan-first discipline,
-each driven by its own vendor tool. Today `publish` knows the four stores
+each driven by its own vendor tool. Today `deploy --store` knows the four stores
 above and refuses any other name. What a store cannot do is not simulated: a
 store with no staged rollout refuses `--rollout` rather than uploading and
 ignoring it.
@@ -13266,7 +13279,7 @@ is `dartvel build ios --cloud`, not a new command.
 **Every cloud build is paid.** There is no free Cloud tier. An account with no
 plan is refused with 402 and the plans page, and the CLI exits 77 saying so.
 Everything a developer runs on their own machines stays free and never touches
-Cloud: `dartvel build` for every target, `dartvel publish`, `dartvel build
+Cloud: `dartvel build` for every target, `dartvel deploy`, `dartvel build
 web-server` with its SQLite database beside the binary, and OTA patches served
 from that binary with `dartvel updates release|patch|rollback --patch-source`.
 
@@ -13282,12 +13295,12 @@ cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
 | Build profiles (`eas.json`) | `--profile development\|profile\|release` | The same flag, sent with the build | Built |
 | Build queue and priority | None needed | First in, first out per worker OS. A build whose worker stops renewing its lease is queued again | FIFO and requeue built. Priority by plan designed |
 | Build caching | Your machine's pub, Gradle and CocoaPods caches | Warm caches per worker machine | Designed |
-| EAS Submit, `--auto-submit` | `dartvel publish play\|appstore\|testflight\|firebase`, `--dry-run` | `dartvel publish <store> --cloud`: build and upload in one run, with credentials from Cloud | Built for all four stores. `publish play` uploads the App Bundle from `dartvel build android --format aab`; `publish appstore` and `testflight` upload the IPA from `dartvel build ios --format ipa`, and with `--cloud` a macOS worker signs it with the project's kept certificate and profile. CI builds basic_app's App Bundle and checks it (48.9 MB, BundleConfig.pb, manifest, dex, compiled Dart), `publish play --dry-run` finds it, and an unsigned iOS archive is built and checked. A signed IPA and a real upload to either store have not been run: no Apple identity or store account is used |
+| EAS Submit, `--auto-submit` | `dartvel deploy --store play\|appstore\|testflight\|firebase-app-distribution`, `--dry-run` | `dartvel deploy --store <store> --cloud`: build and upload in one run, with credentials from Cloud | Built for all four stores. `deploy --store play` uploads the App Bundle from `dartvel build android --format aab`; `deploy --store appstore` and `testflight` upload the IPA from `dartvel build ios --format ipa`, and with `--cloud` a macOS worker signs it with the project's kept certificate and profile. CI builds basic_app's App Bundle and checks it (48.9 MB, BundleConfig.pb, manifest, dex, compiled Dart), `deploy --store play --dry-run` finds it, and an unsigned iOS archive is built and checked. A signed IPA and a real upload to either store have not been run: no Apple identity or store account is used |
 | EAS Update: channels, rollouts, rollback | `dartvel updates release\|patch\|rollback --patch-source` into your own web-server binary; `--channel`; staged rollout and rollback in `DV.Updates` | A patch source per project at `/updates/<account>/<project>`. Devices check without a token; publishing takes the account's Cloud token as `DARTVEL_UPDATES_TOKEN` | Service built and tested. Not yet exercised by a device against Cloud |
 | EAS Hosting | `dartvel build web-server` (one binary), `dartvel deploy`, `dartvel infra` | Running that binary on Cloud with a domain | Designed |
 | EAS Workflows | `dartvel task`, `dartvel sh`, `DV.$`, any CI running `dartvel` | Build then publish in one run | Chaining built. Triggers on push and schedules designed |
 | Credentials: keystores, certificates, profiles, push keys | Declared under `dartvel.publish`, held by you | `dartvel key cloud <name> <file>\|-`, sealed per account, project and name, released only to the worker building that project | Android keystore built and written into `android/key.properties` on the worker. A kept iOS certificate and profile go into a keychain made for the build and are removed after it, tested against a stand-in for `security`. Issuing them through the App Store Connect API is built against a fake App Store Connect and not yet called by a build. Push keys designed |
-| Internal distribution | `dartvel publish firebase`, `dartvel publish testflight` | An install page per development or profile build, printed with a QR code | Android built, and in the same CI run the install page served the APK as `application/vnd.android.package-archive`. iOS ad hoc (device registration, signed IPA) designed |
+| Internal distribution | `dartvel deploy --store firebase-app-distribution`, `dartvel deploy --store testflight` | An install page per development or profile build, printed with a QR code | Android built, and in the same CI run the install page served the APK as `application/vnd.android.package-archive`. iOS ad hoc (device registration, signed IPA) designed |
 | EAS Insights, Observe | Crash Reporting and Release Health; `dartvel logs`, `traces`, `metrics` | A dashboard across builds, releases and crashes | Designed |
 | EAS Metadata | Store metadata in the repository, screenshots from goldens (App Store Publishing) | Uploading it after a publish | Designed |
 | Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. iOS simulator builds from Cloud designed |
@@ -13347,7 +13360,7 @@ against them.
   and self-hosting your application are the free path, and they are complete.
 - **A Cloud-hosted universal dev shell like Expo Go.** It is gated by store
   review. A development build is your own app.
-- **New commands.** Cloud is options on `build`, `publish` and `key`.
+- **New commands.** Cloud is options on `build`, `deploy` and `key`.
 
 # Takeaway
 
