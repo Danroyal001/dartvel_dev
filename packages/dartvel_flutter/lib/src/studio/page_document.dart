@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
@@ -1766,7 +1767,59 @@ class DVPageStore {
     return _priming ??= _prime().whenComplete(() => _priming = null);
   }
 
+  /// Where stored documents are read from instead of `DV.Database`, or null.
+  ///
+  /// A web app served by its own server (`DVAuth.servedByOwnServer`) reads
+  /// them from that server when nothing is set here: Studio publishes into
+  /// the server's database, and `DV.Database` in the browser is another one,
+  /// where nothing is ever published. Set for a test, or for an app whose
+  /// pages come from somewhere else.
+  static Future<List<DVPageDocument>> Function()? source;
+
+  static Future<List<DVPageDocument>> Function()? get _source =>
+      source ??
+      (kIsWeb && DVAuth.servedByOwnServer ? dvPublishedPagesFromServer : null);
+
+  /// Reads every document again, and tells each route whose document
+  /// appeared, changed or went.
+  ///
+  /// A page reverted on the server is still in this app's memory until it is
+  /// read again; after this its route serves the compiled page.
+  static Future<void> reload() async {
+    final Map<String, DVPageDocument> before =
+        Map<String, DVPageDocument>.of(_cache);
+    _primed = false;
+    _priming = null;
+    // The database read keeps a document saved while it runs, so the old
+    // ones go first; the server's answer replaces them itself.
+    if (_source == null) _cache.clear();
+    await prime();
+    for (final String route in <String>{...before.keys, ..._cache.keys}) {
+      if (!identical(before[route], _cache[route])) _changes.add(route);
+    }
+  }
+
   static Future<void> _prime() async {
+    final Future<List<DVPageDocument>> Function()? remote = _source;
+    if (remote != null) {
+      // What the server holds is the whole answer: a document missing from
+      // it was reverted, and keeping the one in memory would go on serving
+      // a page nobody publishes any more.
+      try {
+        final List<DVPageDocument> documents = await remote();
+        _cache
+          ..clear()
+          ..addAll(<String, DVPageDocument>{
+            for (final DVPageDocument document in documents)
+              document.route: document,
+          });
+      } catch (_) {
+        // The server did not answer: compiled pages serve, as they would
+        // with nothing published.
+      }
+      _primed = true;
+      return;
+    }
     // Read into a local map first. Clearing the cache up front would discard
     // documents saved while the read was in flight — and lose them entirely
     // if the read then failed.

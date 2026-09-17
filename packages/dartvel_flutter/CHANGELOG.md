@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **A web app served by its own server shows the pages Studio published
+  there.** `DVPageStore` reads its documents from the server's
+  `/_dartvel/pages` when `DVAuth.servedByOwnServer`, rather than from
+  `DV.Database` in the browser where nothing is published, so a published
+  page takes over its route on the next load without a rebuild and a
+  reverted one gives the route back to the compiled page.
+  `DVPageStore.source` sets where documents come from, and
+  `DVPageStore.reload()` reads them again.
+
 - **Studio's record form edits more than text.** An enum is chosen from its
   values, a reference from the related model's records, a list or map is
   edited as JSON and not sent while it does not parse, and a nullable field
