@@ -307,7 +307,8 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'Why not use PocketBase?',
       'PocketBase is also one file with its admin inside, and you extend it '
           'in Go or JavaScript. This binary carries its admin too: turn on '
-          'dartvel.admin.enabled and a signed-in user opens it at /__studio. '
+          'dartvel.admin.enabled, grant yourself access with dartvel admin '
+          'grant, and open it at /__studio. '
           'Your backend stays in Dart beside your Flutter app, with a typed '
           'client generated for it.',
     ),
