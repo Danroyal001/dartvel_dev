@@ -38,8 +38,10 @@ void configureDartvelExample() {
   DV.global<Account>(const Account());
   DV.global<Appearance>(Appearance(DV.Theme.mode));
 
-  unawaited(openShopStore());
-  unawaited(registerDemoAccount(auth));
+  // The shelf first. Registering the demo account hashes its password,
+  // which is seconds of work in a browser, and a first paint waiting behind
+  // it showed the loading tiles instead of the coffees.
+  unawaited(openShopStore().then((_) => registerDemoAccount(auth)));
 }
 
 Widget createDartvelExampleApp() {
