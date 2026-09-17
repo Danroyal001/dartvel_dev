@@ -9644,10 +9644,18 @@ Stability: `Draft` · Status: `Shipped`
 
 ## Monolith
 
-Single native backend binary. Today that binary is linux-x64 only, because
-`dartvel_shelf` ships its native server library prebuilt for that host and the
-binary embeds it. Other hosts are designed. macOS also needs a way to add the
-payload without breaking the executable's signature.
+Single native backend binary, for the operating system and CPU it is built
+on: linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64 and
+windows-arm64, where the file is `build/server.exe`. `dartvel_shelf` ships its
+native server library for each of the six, and the binary carries the one for
+its host. There is no cross-building. The payload goes where each executable
+format leaves room for it: on Linux between the Dart runtime and its snapshot,
+whose trailer the runtime reads from the end of the file; on Windows and macOS,
+where the snapshot is a PE section or a Mach-O segment, after the image. The
+macOS binary keeps the ad-hoc signature `dart compile exe` gave it, which
+`codesign --verify` rejects under strict validation and the kernel runs. It is
+neither Developer ID signed nor notarized, and a copy downloaded through a
+browser is untested.
 
 ```bash
 dartvel build web-server        # writes build/server
