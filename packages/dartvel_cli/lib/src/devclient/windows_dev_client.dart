@@ -309,7 +309,7 @@ bool CertificateHoldsKey(PCCERT_CONTEXT certificate, const std::vector<unsigned 
       memcmp(info.Algorithm.Parameters.pbData, kPrime256v1, sizeof(kPrime256v1)) != 0) {
     return false;
   }
-  if (info.PublicKey.cbUnusedBits != 0 || info.PublicKey.cbData != pin.size()) return false;
+  if (info.PublicKey.cUnusedBits != 0 || info.PublicKey.cbData != pin.size()) return false;
   unsigned char difference = 0;
   for (size_t i = 0; i < pin.size(); i++) difference |= info.PublicKey.pbData[i] ^ pin[i];
   return difference == 0;
