@@ -37,6 +37,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/webhooks': (() => const DocsWebhooksPageGeneratedPage(), DocsWebhooksPageGeneratedPage.loadLibrary),
   '/docs/graphql': (() => const DocsGraphqlPageGeneratedPage(), DocsGraphqlPageGeneratedPage.loadLibrary),
   '/docs/platform-api': (() => const DocsPlatformApiPageGeneratedPage(), DocsPlatformApiPageGeneratedPage.loadLibrary),
+  '/docs/edge-security': (() => const DocsEdgeSecurityPageGeneratedPage(), DocsEdgeSecurityPageGeneratedPage.loadLibrary),
   '/docs/tenancy': (() => const DocsTenancyPageGeneratedPage(), DocsTenancyPageGeneratedPage.loadLibrary),
   '/docs/privacy': (() => const DocsPrivacyPageGeneratedPage(), DocsPrivacyPageGeneratedPage.loadLibrary),
   '/docs/building': (() => const DocsBuildingPageGeneratedPage(), DocsBuildingPageGeneratedPage.loadLibrary),

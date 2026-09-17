@@ -67,6 +67,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'The API your models and functions already have', 'Platform'),
   DocsPageInfo(DVRoutes.docsplatformapi, 'Platform API',
       'API keys, scopes and OAuth clients', 'Platform'),
+  DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
+      'Sign-in limits, WAF rules and query budgets', 'Platform'),
   DocsPageInfo(DVRoutes.docstenancy, 'Multi-tenancy',
       'One deployment, many customers', 'Platform'),
   DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',

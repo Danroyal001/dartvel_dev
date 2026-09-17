@@ -61,6 +61,10 @@ dartvel:
         timeout: 10s
         retries: { attempts: 2, backoff: exponential }
   # docs:end
+      # The breached-password range service the edge-credentials sample asks.
+      pwned:
+        baseUrl: https://api.pwnedpasswords.com
+        timeout: 5s
 
   # docs:start yaml-cors
   server:
