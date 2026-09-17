@@ -157,11 +157,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Deployment',
     'dartvel build web-server',
-    'One file from dartvel build web-server carries your backend '
-        'and web app. It creates its SQLite database on the first run, and '
-        'dartvel deploy --functions writes a Lambda, Cloud Run, container, Fly, '
-        'Railway or bare-metal artifact per function. Absent: pushing it to the '
-        'cloud with your credentials.',
+    'One file from dartvel build web-server runs your backend and web app on '
+        'Linux, macOS or Windows, x64 or arm64. It creates its SQLite database '
+        'on the first run, and dartvel deploy --functions writes an artifact per '
+        'function. Absent: building for another OS, and deploying to a cloud '
+        'with your credentials.',
   ),
   (
     'CSRF Protection',
@@ -503,8 +503,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'One tool',
     'Present: create, dev, build, deploy, updates, admin, key and '
         'more, with generation inside dev and build. Absent: the crashes and '
-        'meters commands, deploy --plan and rollback, and most flags '
-        'subcommands.',
+        'meters commands, deploy --plan and deploy rollback.',
   ),
   (
     'Package Structure',
@@ -521,14 +520,16 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'The Golden Path',
     'create to deploy',
-    'Present: create, dev, generate, db migrate, test, build and deploy. '
-        'Absent: dartvel upgrade.',
+    'Present: create, dev, generate, db migrate, test, build, deploy and '
+        'upgrade --plan. Absent: applying an upgrade, so you make the changes '
+        'the plan lists.',
   ),
   (
     'Adoption',
     'dartvel init',
     'Present: dartvel init adds Dartvel to an existing Flutter project and '
-        'changes nothing else. Absent: adding dartvel_cli as a dev dependency.',
+        'changes nothing else. Absent: Riverpod and stream bridges, and Firebase '
+        'or Supabase auth adapters.',
   ),
   (
     'Lifecycle Signals',
@@ -547,13 +548,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Modules',
     'DV.Modules',
     'Present: a module is a whole Dartvel app mounted under a path. Absent: '
-        'module exports of pages, functions and models.',
+        'an exports block that limits which models a parent may use.',
   ),
   (
     'Module Distribution and Trust',
     'dartvel.module.lock',
-    'Present: signed module packages pinned by digest and key. Absent: a '
-        'revocation feed beyond a local key list.',
+    'Present: signed module packages pinned by digest and key. Absent: '
+        'checking a module\'s network and secret access while it runs.',
   ),
   (
     'Queues, Jobs, and Signals',

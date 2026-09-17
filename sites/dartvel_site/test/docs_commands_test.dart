@@ -140,7 +140,7 @@ void main() {
     final List<String> hits = <String>[
       for (final Literal literal in literals)
         for (final MapEntry<String, String> r in _retired.entries)
-          if (literal.text.contains(r.key))
+          if (RegExp('${RegExp.escape(r.key)}(?![a-z-])').hasMatch(literal.text))
             '${literal.file}:${literal.line} "${r.key}": ${r.value}',
     ];
     expect(hits, isEmpty, reason: hits.join('\n'));
