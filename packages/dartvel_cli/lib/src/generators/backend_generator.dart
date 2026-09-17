@@ -1514,7 +1514,13 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
       sessions: core.DVSessions(store: dartvelDatabase == null ? core.DVMemorySessionStore() : core.DVDatabaseSessionStore(dartvelDatabase)),
       development: Platform.environment['DARTVEL_ENVIRONMENT'] == 'development',
     );
-  }${authenticates ? '''
+  }
+  // Who may open Studio: a person granted Studio.access with `dartvel admin
+  // grant`, read from this process's database, and nobody else unless the
+  // application registered its own Studio.access policy, which is asked
+  // instead. A signed-in customer is not an operator. With no database there
+  // is nowhere a grant could be, so nobody is.
+  if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();${authenticates ? '''
   // dartvel.platformApi: API keys and OAuth tokens authenticate on every
   // route, over the database this process resolves on the first request
   // that presents one -- an application may configure DV.Database after

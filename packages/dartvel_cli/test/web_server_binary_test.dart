@@ -297,8 +297,8 @@ Future<List<String>> _notes() async => <String>[
     }
   }, skip: skip);
 
-  test('the copied binary serves the admin dashboard to a signed-in session '
-      'and to nobody else', () async {
+  test('the copied binary serves the admin dashboard to a person granted '
+      'Studio and to nobody else', () async {
     // Carried, and not among the web files the binary serves to anybody.
     final DVBinaryPayload? payload = DVBinaryPayload.read(binary.path);
     expect(payload?.names, contains('admin'), reason: buildOutput);
@@ -347,6 +347,41 @@ Future<List<String>> _notes() async => <String>[
       final DVIssuedSession issued =
           await DVSessions(store: DVDatabaseSessionStore(database))
               .create('operator', tenant: tenant);
+
+      // Signed in, and granted nothing: every customer of the application is
+      // exactly this, and gets exactly what a path that does not exist gets.
+      final signedIn =
+          await request(run.port, 'GET', '/__studio/', bearer: issued.token);
+      final signedInNowhere =
+          await request(run.port, 'GET', '/__nowhr/', bearer: issued.token);
+      expect(signedIn.status, signedInNowhere.status);
+      expect(signedIn.type, signedInNowhere.type);
+      expect(signedIn.body.replaceAll('/__studio/', '/__nowhr/'),
+          signedInNowhere.body);
+      expect(signedIn.body, isNot(contains('src="admin.js"')));
+      final signedInGraph = await request(
+          run.port, 'GET', '/__studio/graph.json',
+          bearer: issued.token);
+      expect(signedInGraph.body, isNot(contains('"models"')));
+
+      // Granted, with the command an operator runs against the binary's own
+      // database while it is serving.
+      final ProcessResult granted = await Process.run(
+        Platform.resolvedExecutable,
+        <String>[
+          '--packages=${p.join(packages, 'dartvel_cli', '.dart_tool', 'package_config.json')}',
+          p.join(packages, 'dartvel_cli', 'bin', 'dartvel.dart'),
+          'admin',
+          'grant',
+          'operator',
+          '--tenant',
+          tenant,
+          '--database',
+          p.join(binary.parent.path, 'dartvel_data', 'data.db'),
+        ],
+      );
+      expect(granted.exitCode, 0,
+          reason: '${granted.stdout}\n${granted.stderr}');
 
       final page =
           await request(run.port, 'GET', '/__studio/', bearer: issued.token);
