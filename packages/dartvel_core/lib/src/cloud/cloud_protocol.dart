@@ -47,15 +47,33 @@ const String dvCloudTokenVariable = 'DARTVEL_CLOUD_TOKEN';
 enum DVCloudWorkerOs { linux, macos, windows }
 
 /// The worker operating system each target builds on.
+///
+/// Every target here is one `dartvel build` finishes on that worker, with the
+/// toolchains it installs for itself or the worker image provides. A target
+/// whose local build skips is left out rather than queued: webOS's embedder
+/// bundles a Dart below Dartvel's floor, Fuchsia's is older still, and the
+/// terminal embedder builds for Linux alone.
 const Map<String, DVCloudWorkerOs> dvCloudTargets = <String, DVCloudWorkerOs>{
   'android': DVCloudWorkerOs.linux,
+  'fireos': DVCloudWorkerOs.linux,
   'ios': DVCloudWorkerOs.macos,
   'macos': DVCloudWorkerOs.macos,
+  'tvos': DVCloudWorkerOs.macos,
   'windows': DVCloudWorkerOs.windows,
   'linux': DVCloudWorkerOs.linux,
+  'linux-cli': DVCloudWorkerOs.linux,
   'web': DVCloudWorkerOs.linux,
   'web-server': DVCloudWorkerOs.linux,
+  'chrome-extension': DVCloudWorkerOs.linux,
+  'firefox-extension': DVCloudWorkerOs.linux,
+  'vscode': DVCloudWorkerOs.linux,
+  'sony-elinux': DVCloudWorkerOs.linux,
+  'tizen': DVCloudWorkerOs.linux,
 };
+
+/// Targets a cloud build makes for a simulator only. A tvOS device build is
+/// signed with a team the service does not keep, so it is refused up front.
+const Set<String> dvCloudSimulatorOnlyTargets = <String>{'tvos'};
 
 DVCloudWorkerOs? dvCloudWorkerOs(String target) => dvCloudTargets[target];
 
@@ -104,7 +122,12 @@ class DVCloudBuildSpec {
     this.app = '.',
     this.format,
     this.codesign = true,
+    this.simulator = false,
   });
+
+  /// Build for a simulator: `dartvel build --simulator`. Required for the
+  /// targets in [dvCloudSimulatorOnlyTargets] and refused for the rest.
+  final bool simulator;
 
   /// `aab` for Android or `ipa` for iOS: the store package, passed to
   /// `dartvel build --format`. Null builds what the target builds by default.
@@ -139,6 +162,7 @@ class DVCloudBuildSpec {
         if (app != '.') 'app': app,
         if (format != null) 'format': format,
         if (!codesign) 'codesign': false,
+        if (simulator) 'simulator': true,
       };
 
   factory DVCloudBuildSpec.fromJson(Map<String, Object?> json) {
@@ -170,9 +194,17 @@ class DVCloudBuildSpec {
       throw FormatException('"$format" is not a package $target builds as: '
           'aab is for android and ipa for ios.');
     }
+    final bool simulator = json['simulator'] == true;
+    if (simulator != dvCloudSimulatorOnlyTargets.contains(target)) {
+      throw FormatException(simulator
+          ? '$target does not build for a simulator in the cloud.'
+          : '$target builds in the cloud for the simulator only: a device build is '
+              'signed with a team Dartvel Cloud does not keep. Pass --simulator.');
+    }
     return DVCloudBuildSpec(
       format: format as String?,
       codesign: json['codesign'] != false,
+      simulator: simulator,
       app: app,
       project: project,
       target: target,
