@@ -43,8 +43,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A pull request's newer push supersedes its older run. A push to main does
+# not: each run there is the evidence for the commit it ran on, and the first
+# one of these was cancelled half way by an unrelated commit touching the
+# build directory.
 concurrency:
-  group: web-server-hosts-${{ github.ref }}
+  group: web-server-hosts-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 env:
