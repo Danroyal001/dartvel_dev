@@ -1298,7 +1298,7 @@ Stream<Message> _messages() => Message.stream();
 ```
 
 The generated backend answers a streaming function with Server-Sent Events,
-one `data:` event per value, and the generated client reads that response
+one `data:` event per value, each a JSON value, and the generated client reads that response
 back into a `Stream<T>`. Server-Sent Events is the only streaming transport
 built. A WebSocket transport and a polling fallback are designed and not
 generated.
