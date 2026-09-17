@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
+import '../generators/account_generator.dart';
 import '../generators/annotation_args.dart';
 import '../generators/route_utils.dart';
+import 'module_mounts.dart';
 
 /// A versioned description of what an application is made of.
 ///
@@ -60,6 +63,9 @@ class DartvelProjectGraph {
         routes.addAll(_routesIn(source, rel));
       }
     }
+
+    routes.addAll(_accountRoutesIn(root));
+    routes.addAll(_moduleRoutesIn(root));
 
     // Ordered so two builds of one project diff cleanly.
     models.sort((DVGraphModel a, DVGraphModel b) => a.name.compareTo(b.name));
@@ -212,6 +218,77 @@ class DartvelProjectGraph {
     ];
   }
 
+  /// The `dartvel:` section of the project's pubspec.yaml, or null when the
+  /// project has no pubspec to generate from.
+  static Map<Object?, Object?>? _dartvelSection(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    try {
+      final Object? doc = loadYaml(pubspec.readAsStringSync());
+      final Object? section = doc is Map ? doc['dartvel'] : null;
+      return section is Map ? section : const <Object?, Object?>{};
+    } on Object {
+      return null;
+    }
+  }
+
+  /// The prebuilt account pages the generated router serves.
+  ///
+  /// Not files under lib/pages, so a scan of the pages never saw them: the
+  /// routes tab listed an application with no /login while the router
+  /// served one. Read through the generator's own reader, so the graph and
+  /// the router cannot disagree about where a page is or whether it exists.
+  static List<DVGraphRoute> _accountRoutesIn(String root) {
+    final Map<Object?, Object?>? dv = _dartvelSection(root);
+    if (dv == null) return const <DVGraphRoute>[];
+    final List<AccountPageRoute> pages;
+    try {
+      pages = AccountGenerator.readPages(dv);
+    } on StateError {
+      // The generator refuses the same declaration, loudly, on the build.
+      return const <DVGraphRoute>[];
+    }
+    return <DVGraphRoute>[
+      for (final AccountPageRoute page in pages)
+        DVGraphRoute(
+          path: page.path,
+          page: page.widget,
+          source: 'pubspec.yaml: dartvel.auth.pages.${page.key}',
+          kind: 'account page',
+        ),
+    ];
+  }
+
+  /// The routes mounted modules contribute, at the path the parent serves
+  /// them, each with the module file it came from.
+  static List<DVGraphRoute> _moduleRoutesIn(String root) {
+    if (_dartvelSection(root)?['modules'] == null) return const <DVGraphRoute>[];
+    final List<DVGraphRoute> found = <DVGraphRoute>[];
+    for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
+      for (final DVModuleRoute route in mount.routes) {
+        final String rel = p
+            .normalize(p.join(mount.sourcePath, route.file))
+            .replaceAll('\\', '/');
+        final File file = File(p.join(root, rel));
+        int line = 1;
+        if (file.existsSync()) {
+          final String source = file.readAsStringSync();
+          final Match? match =
+              _pagePattern.firstMatch(dvMaskAnnotationArgs(source, 'DVPage'));
+          if (match != null) line = _lineOf(source, match.start);
+        }
+        found.add(DVGraphRoute(
+          path: route.mounted,
+          page: route.widget,
+          source: mount.fromPackage ? '${mount.packageName}: ${route.file}:$line' : '$rel:$line',
+          kind: 'module page',
+          module: mount.id,
+        ));
+      }
+    }
+    return found;
+  }
+
   /// Any annotations may follow `@DVBackendFunction` -- `@DVUseMiddleware`
   /// most often. The pattern used to step over `@pragma` and nothing else, so
   /// a function with middleware under its annotation was read as an
@@ -330,16 +407,28 @@ class DVGraphRoute {
     required this.path,
     required this.page,
     required this.source,
+    this.kind = 'page',
+    this.module,
   });
 
   final String path;
   final String page;
   final String source;
 
+  /// `page` for a file under the pages directory, `account page` for a
+  /// prebuilt account page the router generates, `module page` for a route
+  /// a mounted module contributes.
+  final String kind;
+
+  /// The id of the module a `module page` comes from.
+  final String? module;
+
   Map<String, Object?> toJson() => <String, Object?>{
         'path': path,
         'page': page,
         'source': source,
+        'kind': kind,
+        if (module != null) 'module': module,
       };
 }
 

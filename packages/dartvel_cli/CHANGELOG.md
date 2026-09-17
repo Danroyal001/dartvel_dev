@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **The project graph lists every route the router serves.** The Studio routes
+  tab, `dartvel inspect` and `dartvel mcp` read it, and it listed only files
+  under `lib/pages`: the prebuilt account pages (`/login`, `/sign-up`,
+  `/account/*`) and the routes a mounted module contributes were served and
+  never shown. Each route now carries a `kind` (`page`, `account page`,
+  `module page`) and, for a module page, its `module`.
+
+- **`dartvel.notFoundRedirect` is applied, and the 404 page uses the app
+  theme.** The generated redirect tested `state.error`, which go_router never
+  sets on a top-level redirect.
+
 - **`dartvel build web-server` tells the app its server keeps the accounts.**
   It passes `--dart-define=DARTVEL_SERVER_AUTH=true`, so an application that
   configures the in-memory development auth provider still signs people in
