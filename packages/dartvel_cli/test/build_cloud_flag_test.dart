@@ -78,4 +78,20 @@ void main() {
     await build(_RecordingCloud(77), <String>['android', '--cloud']);
     expect(exitCode, 77);
   });
+
+  test('a terminal target reaches the cloud under its own name, not as the GUI build', () async {
+    // normalizeBuildTarget turns linux-cli into linux plus a format, and the
+    // cloud request carries no format: sent as linux, a worker would build
+    // and return the GUI binary the name promises is not there.
+    final _RecordingCloud cloud = _RecordingCloud();
+    await build(cloud, <String>['linux-tui', '--cloud']);
+    expect(cloud.requests.single.target, 'linux-cli');
+  });
+
+  test('--simulator reaches the cloud build', () async {
+    final _RecordingCloud cloud = _RecordingCloud();
+    await build(cloud, <String>['tvos', '--cloud', '--simulator']);
+    expect(cloud.requests.single.target, 'tvos');
+    expect(cloud.requests.single.simulator, isTrue);
+  });
 }

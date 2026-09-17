@@ -624,7 +624,12 @@ class BuildCommand extends Command<void> {
     }
 
     if (argResults?['cloud'] == true) {
-      final String cloudTarget = normalizeBuildTarget(rawPlatform).platform;
+      final normalizedCloud = normalizeBuildTarget(rawPlatform);
+      // A terminal build keeps its suffix: the request has no format, and
+      // `linux` alone is the GUI build.
+      final String cloudTarget = normalizedCloud.format == 'tui'
+          ? '${normalizedCloud.platform}-cli'
+          : normalizedCloud.platform;
       if (cloudTarget == 'all') {
         Logger.log('❌ Name the target to build in the cloud, for example '
             'dartvel build ios --cloud.');
@@ -638,6 +643,7 @@ class BuildCommand extends Command<void> {
         token: argResults?['cloud-token'] as String?,
         format: packageFormat == 'aab' || packageFormat == 'ipa' ? packageFormat : null,
         codesign: codesignFlag ?? true,
+        simulator: argResults?['simulator'] as bool? ?? false,
       ));
       return;
     }
