@@ -29,6 +29,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'One class gives you storage, forms, tables and pages', 'Data'),
   DocsPageInfo(DVRoutes.docsforms, 'Forms',
       'A create or edit form for every model', 'Data'),
+  DocsPageInfo(DVRoutes.docssearch, 'Search',
+      'Full text, hosted engines and semantic search', 'Data'),
   DocsPageInfo(DVRoutes.docsdatabase, 'Database',
       'SQLite, Postgres, MySQL and migrations', 'Data'),
   DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
