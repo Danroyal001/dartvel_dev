@@ -44,16 +44,6 @@ const Map<String, String> dvDeployStores = <String, String>{
   'firebase-app-distribution': 'firebase',
 };
 
-/// The command-line name of the store declared or sent as [declared]; the
-/// name itself when it is one already, and null when it is neither.
-String? dvDeployStoreName(String declared) {
-  if (dvDeployStores.containsKey(declared)) return declared;
-  for (final MapEntry<String, String> store in dvDeployStores.entries) {
-    if (store.value == declared) return store.key;
-  }
-  return null;
-}
-
 class DVStoreDeploy {
   /// [root] is the project; null reads the working directory when it runs.
   DVStoreDeploy({PublishProcessRun? processRun, this._root, this._cloud})
