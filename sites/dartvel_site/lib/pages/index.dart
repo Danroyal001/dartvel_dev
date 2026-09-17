@@ -320,13 +320,14 @@ Widget _oneFileBackend(BuildContext context) => const Section(
 
 /// Expo Go's job, done by a build of your own app. The output lines are the
 /// dev command's own (dev_command.dart), and the loop is what the Dev client
-/// workflow runs on an Android emulator: pair by the printed link, edit, and
-/// check the edit is on the device with the process unchanged.
+/// workflow runs on an Android emulator, an iOS simulator and a Linux desktop:
+/// pair by the printed link, edit, and check the edit is on the device with
+/// the process unchanged.
 @DVFunctionalWidget()
 Widget _phoneLoop(BuildContext context) => const Section(
   children: <Widget>[
     Eyebrow('HOT RELOAD ON A PHONE'),
-    Heading('Scan a QR code and hot reload on your Android phone.'),
+    Heading('Scan a QR code and hot reload on your phone.'),
     CodeBlock(<String>[
       r'$ dartvel build android --profile development',
       r'$ dartvel dev',
@@ -343,9 +344,10 @@ Widget _phoneLoop(BuildContext context) => const Section(
     ]),
     Objection(
       'Does it work on an iPhone?',
-      'Not yet. Android works today, and CI pairs an emulator, edits a file '
-          'and checks the change runs. iOS builds with --profile development '
-          'and cannot pair yet.',
+      'Yes, with one limit. CI pairs an iOS simulator, an Android emulator '
+          'and a Linux desktop, edits a file and checks the change runs. On a '
+          'physical iPhone a debug build only starts from Xcode or flutter '
+          'run, so launch it from there and it pairs.',
     ),
   ],
 );
@@ -467,12 +469,12 @@ Widget _expoComparison(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
     Eyebrow('COMING FROM EXPO'),
-    Heading('Two of the three Expo services you rely on work on Android today.'),
+    Heading('Two of the three Expo services you rely on work today.'),
     DVBox.wrapLine(<Widget>[
       SiteCard(
         'Development builds',
-        'dartvel build android --profile development, paired with dartvel dev '
-            'by a QR code. iOS cannot pair yet.',
+        'dartvel build <target> --profile development, paired with dartvel '
+            'dev by a QR code. CI pairs Android, the iOS simulator and Linux.',
       ),
       SiteCard(
         'Over-the-air updates',
