@@ -20,7 +20,7 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
             DocsShell(<String>[
               'dartvel build web',
               'dartvel build android',
-              'dartvel build                          # every target this machine can build',
+              'dartvel build    # every target this machine can build',
               'dartvel build linux --profile development',
             ]),
             Bullets(<String>[
