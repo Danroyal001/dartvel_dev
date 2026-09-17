@@ -16,6 +16,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -30,25 +31,29 @@ String dvServerBinaryPath({bool windows = false}) =>
 
 /// The platform directory and file name dartvel_shelf ships its native
 /// library under, for this host.
-({String subdir, String name}) dvHostServerLibrary() {
-  final String version = Platform.version;
-  if (Platform.isMacOS) {
-    return (
-      subdir: version.contains('arm64') ? 'macos-arm64' : 'macos-x64',
-      name: 'libdartvel_shelf.dylib',
-    );
-  }
-  if (Platform.isWindows) {
-    return (
-      subdir: version.contains('ARM64') ? 'windows-arm64' : 'windows-x64',
-      name: 'dartvel_shelf.dll',
-    );
-  }
-  return (
-    subdir: version.contains('aarch64') ? 'linux-arm64' : 'linux-x64',
-    name: 'libdartvel_shelf.so',
-  );
-}
+///
+/// A host the server is not built for gets a directory named after its ABI,
+/// which does not exist, so the lookup reports that host by name instead of
+/// embedding another host's library.
+({String subdir, String name}) dvHostServerLibrary() =>
+    dvServerLibraryFor(Abi.current()) ??
+    (subdir: '${Abi.current()}', name: 'libdartvel_shelf.so');
+
+/// The directory and file name of dartvel_shelf's library for [abi], or null
+/// for an ABI it is not built for.
+///
+/// Read from the ABI and not from Platform.version, which says `linux_arm64`
+/// and `windows_arm64`: checking it for `aarch64` and `ARM64` sent both arm64
+/// hosts to the x64 library.
+({String subdir, String name})? dvServerLibraryFor(Abi abi) => switch (abi) {
+      Abi.linuxX64 => (subdir: 'linux-x64', name: 'libdartvel_shelf.so'),
+      Abi.linuxArm64 => (subdir: 'linux-arm64', name: 'libdartvel_shelf.so'),
+      Abi.macosArm64 => (subdir: 'macos-arm64', name: 'libdartvel_shelf.dylib'),
+      Abi.macosX64 => (subdir: 'macos-x64', name: 'libdartvel_shelf.dylib'),
+      Abi.windowsX64 => (subdir: 'windows-x64', name: 'dartvel_shelf.dll'),
+      Abi.windowsArm64 => (subdir: 'windows-arm64', name: 'dartvel_shelf.dll'),
+      _ => null,
+    };
 
 /// The native library a server build embeds, or why there is none.
 class DVServerLibraryLookup {
