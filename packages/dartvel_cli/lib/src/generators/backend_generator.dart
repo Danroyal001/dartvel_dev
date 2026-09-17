@@ -1576,7 +1576,17 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // application registered its own Studio.access policy, which is asked
   // instead. A signed-in customer is not an operator. With no database there
   // is nowhere a grant could be, so nobody is.
-  if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();${authenticates ? '''
+  if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();
+  // Somebody to grant. Sign-up and sign-in authenticate through the provider
+  // the application installed before this, and a web-server binary runs no
+  // application code before this, so with nothing installed every one of
+  // them answered 503 and no account could ever open Studio. Accounts go in
+  // this process's database, so they outlive a restart and every web process
+  // sees them. An application that installed its own provider keeps it; with
+  // no database there is nowhere to keep an account, and none is installed.
+  if (dartvelDatabase != null && !core.DVAuthEndpoints.installed) {
+    core.DVAuthEndpoints.install(credentials: core.DVCredentialGuard(provider: core.DVDatabaseAuthProvider(dartvelDatabase)));
+  }${authenticates ? '''
   // dartvel.platformApi: API keys and OAuth tokens authenticate on every
   // route, over the database this process resolves on the first request
   // that presents one -- an application may configure DV.Database after
