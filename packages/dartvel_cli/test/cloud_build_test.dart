@@ -154,6 +154,43 @@ void main() {
     expect(File(p.join(dir, 'Runner.app', 'Info.plist')).readAsStringSync(), 'plist');
   });
 
+  test('a program comes back executable and a symbolic link comes back a link', () async {
+    cloud.artifacts = <String, List<int>>{
+      'shop.app/Contents/MacOS/shop': utf8.encode('mach-o'),
+      'shop.app/Contents/Info.plist': utf8.encode('plist'),
+      'shop.app/Contents/Frameworks/App.framework/Versions/A/Resources/Info.plist': utf8.encode('p'),
+      'shop.app/Contents/Frameworks/App.framework/Versions/Current': const <int>[],
+      'shop.app/Contents/Frameworks/App.framework/Resources': const <int>[],
+    };
+    cloud.executables = <String>{'shop.app/Contents/MacOS/shop'};
+    cloud.links = <String, String>{
+      'shop.app/Contents/Frameworks/App.framework/Versions/Current': 'A',
+      'shop.app/Contents/Frameworks/App.framework/Resources': 'Versions/Current/Resources',
+    };
+
+    expect(await builder().run(request(target: 'macos')), 0, reason: logs.join('\n'));
+
+    final String app = p.join(root.path, 'build', 'cloud', 'macos', 'shop.app', 'Contents');
+    final String framework = p.join(app, 'Frameworks', 'App.framework');
+    expect(Link(p.join(framework, 'Resources')).targetSync(), 'Versions/Current/Resources');
+    expect(File(p.join(framework, 'Resources', 'Info.plist')).readAsStringSync(), 'p');
+    expect(File(p.join(app, 'MacOS', 'shop')).statSync().mode & 0x49, 0x49);
+    expect(File(p.join(app, 'Info.plist')).statSync().mode & 0x49, 0);
+    // A link is made, not fetched.
+    expect(cloud.requests.where((String r) => r.endsWith('Resources')), isEmpty);
+  }, testOn: '!windows');
+
+  test('a web-server build asks for the worker OS it names, and no other target may', () async {
+    expect(await builder().run(DVCloudBuildRequest(root: root.path, target: 'web-server', os: 'windows')), 0,
+        reason: logs.join('\n'));
+    expect(cloud.spec!.workerOs, DVCloudWorkerOs.windows);
+
+    cloud.requests.clear();
+    expect(await builder().run(DVCloudBuildRequest(root: root.path, target: 'ios', os: 'linux')), 64);
+    expect(logs.join('\n'), contains('macos'));
+    expect(cloud.requests, isEmpty);
+  });
+
   test('a dropped event stream is resumed where it stopped, without repeating lines', () async {
     cloud.dropStreamAfterFirstEvent = true;
     expect(await builder().run(request()), 0, reason: logs.join('\n'));
@@ -200,6 +237,8 @@ class _FakeCloud {
   bool corruptDownloads = false;
   DVCloudBuildStatus finalStatus = DVCloudBuildStatus.succeeded;
   Map<String, List<int>> artifacts = <String, List<int>>{'app-release.apk': utf8.encode('x')};
+  Set<String> executables = <String>{};
+  Map<String, String> links = <String, String>{};
   String? installUrl;
   String? authorization;
   DVCloudBuildSpec? spec;
@@ -235,7 +274,12 @@ class _FakeCloud {
         artifacts: finalStatus == DVCloudBuildStatus.succeeded
             ? <DVCloudArtifact>[
                 for (final MapEntry<String, List<int>> a in artifacts.entries)
-                  DVCloudArtifact(name: a.key, size: a.value.length, sha256: '${sha256.convert(a.value)}'),
+                  DVCloudArtifact(
+                    name: a.key,
+                    size: a.value.length,
+                    sha256: '${sha256.convert(a.value)}',
+                    executable: executables.contains(a.key),
+                    link: links[a.key]),
               ]
             : const <DVCloudArtifact>[],
       );

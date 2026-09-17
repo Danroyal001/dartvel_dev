@@ -562,6 +562,11 @@ class BuildCommand extends Command<void> {
               'no SDK for the target: iOS and macOS build on a macOS worker. '
               'Prints the build log as it runs and downloads the artifacts '
               'into build/cloud/<target>. Needs a paid Dartvel Cloud plan.')
+      ..addOption('cloud-os',
+          allowed: const <String>['linux', 'macos', 'windows'],
+          help: 'With --cloud and web-server: the operating system of the '
+              'worker, which is the one the server executable runs on. '
+              'Defaults to linux.')
       ..addOption('cloud-token',
           help: 'The Dartvel Cloud token for --cloud. Defaults to '
               'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
@@ -656,6 +661,7 @@ class BuildCommand extends Command<void> {
         format: packageFormat == 'aab' || packageFormat == 'ipa' ? packageFormat : null,
         codesign: codesignFlag ?? true,
         simulator: argResults?['simulator'] as bool? ?? false,
+        os: argResults?['cloud-os'] as String?,
       ));
       return;
     }

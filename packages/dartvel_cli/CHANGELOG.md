@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **A cloud build brings a macOS app home runnable, and web-server builds on
+  the worker OS asked for.** `dartvel build <target> --cloud` wrote every
+  download as a plain file: a macOS app lost its Mach-O's executable bit and
+  the links its frameworks reach `Versions/Current` through, so it did not
+  launch. Programs now come back executable and links come back as links.
+  `--cloud-os linux|macos|windows` builds `web-server` on that worker, since
+  the executable is for the host that compiled it; other targets refuse it.
+
 - **Model pages resolve against the project's database at build time, or
   say plainly why not.** The resolver configured no `DV.Database`, so every
   `generatePublicPages` model logged `Bad state: DV.Database has no configured
