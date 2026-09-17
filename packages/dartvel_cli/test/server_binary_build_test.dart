@@ -32,6 +32,17 @@ Future<int> _freePort() async {
   return port;
 }
 
+/// The parent's search path, and on Windows the SystemRoot a process needs
+/// to load a DLL and open a socket, and the TEMP the binary writes its
+/// server library into.
+Map<String, String> _serverEnvironment() => <String, String>{
+      'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+      if (Platform.isWindows)
+        for (final String name in const <String>['SystemRoot', 'TEMP', 'TMP'])
+          if (Platform.environment[name] != null)
+            name: Platform.environment[name]!,
+    };
+
 void main() {
   final Uri cli = Isolate.resolvePackageUriSync(
     Uri.parse('package:dartvel_cli/src/build/server_binary.dart'),
@@ -40,13 +51,13 @@ void main() {
   final String packages = p.dirname(
     p.dirname(p.dirname(p.dirname(p.dirname(cli.toFilePath())))),
   );
-  final File library = File(p.join(packages, 'dartvel_shelf', 'lib', 'native',
-      'linux-x64', 'libdartvel_shelf.so'));
-  final Object skip = !(Platform.isLinux && Platform.version.contains('x64'))
-      ? 'the library a server build embeds is prebuilt for linux-x64'
-      : !library.existsSync()
-          ? 'no linux-x64 native server library has been built'
-          : false;
+  // The library for the host this runs on; CI runs it on each of them.
+  final host = dvHostServerLibrary();
+  final File library = File(p.join(
+      packages, 'dartvel_shelf', 'lib', 'native', host.subdir, host.name));
+  final Object skip = !library.existsSync()
+      ? 'no ${host.subdir} native server library has been built'
+      : false;
 
   late Directory project;
 
@@ -122,16 +133,21 @@ Future<String> _ping() async => 'pong from one file';
               workingDirectory: workingDirectory),
     );
     expect(built.ok, isTrue, reason: built.lines.join('\n'));
-    final File binary = File(p.join(project.path, 'build', 'server'));
+    final File binary = File(p.join(
+        project.path, dvServerBinaryPath(windows: Platform.isWindows)));
     expect(built.binary?.path, binary.path);
-    expect(built.lines.first, contains('build/server'));
+    expect(built.lines.first,
+        contains(dvServerBinaryPath(windows: Platform.isWindows)));
 
     // Alone: an empty directory, with nothing of the project or the package.
     final Directory elsewhere =
         Directory.systemTemp.createTempSync('dv_server_binary_run_');
     addTearDown(() => elsewhere.deleteSync(recursive: true));
-    final File copy = binary.copySync(p.join(elsewhere.path, 'server'));
-    await Process.run('chmod', <String>['+x', copy.path]);
+    final File copy =
+        binary.copySync(p.join(elsewhere.path, p.basename(binary.path)));
+    if (!Platform.isWindows) {
+      await Process.run('chmod', <String>['+x', copy.path]);
+    }
 
     final int port = await _freePort();
     final Process server = await Process.start(
@@ -140,7 +156,7 @@ Future<String> _ping() async => 'pong from one file';
       workingDirectory: elsewhere.path,
       includeParentEnvironment: false,
       environment: <String, String>{
-        'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+        ..._serverEnvironment(),
         'DARTVEL_PORT': '$port',
       },
     );
@@ -227,8 +243,11 @@ Future<String> _ping() async => 'pong from one file';
           Directory.systemTemp.createTempSync('dv_server_binary_admin_');
       addTearDown(() => elsewhere.deleteSync(recursive: true));
       final File copy =
-          built.binary!.copySync(p.join(elsewhere.path, 'server'));
-      await Process.run('chmod', <String>['+x', copy.path]);
+          built.binary!.copySync(
+              p.join(elsewhere.path, p.basename(built.binary!.path)));
+      if (!Platform.isWindows) {
+        await Process.run('chmod', <String>['+x', copy.path]);
+      }
 
       final int port = await _freePort();
       final Process server = await Process.start(
@@ -237,7 +256,7 @@ Future<String> _ping() async => 'pong from one file';
         workingDirectory: elsewhere.path,
         includeParentEnvironment: false,
         environment: <String, String>{
-          'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+          ..._serverEnvironment(),
           'DARTVEL_PORT': '$port',
         },
       );
