@@ -26,6 +26,14 @@ import 'package:dartvel_core/dartvel.dart'
         dvRoutePreloadsFile,
         dvShellFirstChunks,
         dvWithPreloads;
+import 'package:dartvel_core/dartvel.dart' as core
+    show
+        DVAdminServer,
+        DVPublishedPages,
+        Headers,
+        Request,
+        Response,
+        dvPublishedPagesPath;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_static/shelf_static.dart';
@@ -193,6 +201,13 @@ Handler dvWebServerHandler({
   DVAdminMount? admin,
   String? adminRoot,
   Future<bool> Function(Request request)? adminAuthenticated,
+  // Studio's data as well as its files: the same server the web-server
+  // binary mounts, which decides who reaches the mount itself. Given one,
+  // [admin] is answered through it and [adminAuthenticated] is not asked.
+  core.DVAdminServer? adminServer,
+  // The page documents Studio published, which a web-server build's app
+  // reads from /_dartvel/pages.
+  core.DVPublishedPages? publishedPages,
 }) {
   final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
   final shellFile = File(p.join(webRoot, 'index.html'));
@@ -299,7 +314,23 @@ Handler dvWebServerHandler({
     // to the static handler or the shell would answer a request for the
     // admin with the application's own page, which tells whoever asked that
     // the path means something here.
-    if (admin != null) {
+    if (publishedPages != null && path == core.dvPublishedPagesPath) {
+      final core.Response? pages =
+          await publishedPages.respond(await _coreRequest(request));
+      if (pages != null) return _shelfResponse(pages);
+    }
+
+    if (adminServer != null) {
+      if (adminServer.mount.owns(path)) {
+        final core.Response? answered =
+            await adminServer.respond(await _coreRequest(request));
+        if (answered == null) {
+          return Response(dvAdminHiddenStatus,
+              body: '', headers: dvAdminHiddenHeaders);
+        }
+        return _shelfResponse(answered);
+      }
+    } else if (admin != null) {
       final DVAdminRequest decision = dvAdminFor(
         path,
         admin,
@@ -473,3 +504,27 @@ Handler dvWebServerHandler({
         },
       );
 }
+
+
+/// [request] as the runtime's own request, for a server written against it.
+Future<core.Request> _coreRequest(Request request) async => core.Request(
+      method: request.method,
+      url: request.requestedUri,
+      headers: core.Headers(<String, dynamic>{
+        for (final MapEntry<String, List<String>> header
+            in request.headersAll.entries)
+          header.key: header.value,
+      }),
+      bodyStream: request.read(),
+    );
+
+/// The runtime's [response] as shelf's.
+Response _shelfResponse(core.Response response) => Response(
+      response.status,
+      body: response.body?.bytes().asStream(),
+      headers: <String, Object>{
+        for (final MapEntry<String, List<String>> header
+            in response.headers.multiValueMap.entries)
+          header.key: header.value,
+      },
+    );

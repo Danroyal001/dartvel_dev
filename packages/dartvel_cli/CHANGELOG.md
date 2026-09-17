@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel preview` serves Studio's data, not only its files.** The mount
+  is answered by the same `DVAdminServer` the web-server binary mounts, over
+  the models the generator described and the project's database
+  (`DATABASE_URL`, else the SQLite file `dartvel.database` names), and
+  `/_dartvel/pages` serves the pages Studio published. It is open only to the
+  browser that opens the development grant link preview prints.
+
 - **The generated backend serves the pages Studio published.**
   `/_dartvel/pages` is answered ahead of the admin and the application's
   routes, so the web app can read them.
