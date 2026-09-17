@@ -59,7 +59,9 @@ class DVDatabaseAuthProvider
         adapter,
         'CREATE TABLE IF NOT EXISTS $table ('
         'id VARCHAR(64) PRIMARY KEY, '
-        'email VARCHAR($maximumEmailLength) NOT NULL UNIQUE, '
+        // 254 is [maximumEmailLength], written out so the column's type can be
+        // read from the source like every other framework table's.
+        'email VARCHAR(254) NOT NULL UNIQUE, '
         'name TEXT, password_hash TEXT NOT NULL, created_at BIGINT)',
       );
 
