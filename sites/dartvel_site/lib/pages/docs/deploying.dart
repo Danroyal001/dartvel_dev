@@ -34,7 +34,28 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'Set DATABASE_URL to use PostgreSQL or MySQL. The binary does '
                   'not migrate those on start.',
               'With dartvel.admin.enabled on, the binary serves the admin at '
-                  '/__studio to a signed-in session. dartvel.admin.path moves it.',
+                  '/__studio. dartvel.admin.path moves it.',
+            ]),
+            DocsText('Nobody can open the admin until you grant access. Being '
+                'signed in is not enough, because every customer who signs up '
+                'is signed in. Grant access to your own account, by the user '
+                'id you sign in as, in the database the binary uses:'),
+            DocsShell(<String>[
+              r'$ dartvel admin grant <user-id> --database /srv/shop/dartvel_data/data.db',
+              r'$ dartvel admin list --database /srv/shop/dartvel_data/data.db',
+              r'$ dartvel admin revoke <user-id> --database /srv/shop/dartvel_data/data.db',
+            ]),
+            Bullets(<String>[
+              'With DATABASE_URL set, leave out --database. Add --tenant when '
+                  'the account signs in on a tenant other than default.',
+              'Anyone without a grant gets the same answer as a page that does '
+                  'not exist.',
+              'If your app already knows who its operators are, register your '
+                  'own rule instead: DV.Auth.authorization.registerAction('
+                  '\'Studio.access\', (caller, _) => ...). It replaces the '
+                  'grants.',
+              'A --profile development build serves the admin to anyone who '
+                  'can reach it, for local work. Never deploy one.',
             ]),
             DocsNote('Linux x64 only',
                 'The server binary embeds a native library that ships for '
