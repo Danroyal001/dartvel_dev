@@ -527,17 +527,29 @@ team.
 ## ☁️ Dartvel Cloud
 
 Dartvel Cloud runs builds and store uploads on machines Dartvel operates, so
-an iOS build does not need a Mac on your desk. The CLI side is in this
+a TV, device, browser or editor build does not need that vendor's SDK on your
+desk, and an iOS build does not need a Mac. The CLI side is in this
 repository:
 
 ```bash
 export DARTVEL_CLOUD_TOKEN=...
 dartvel key cloud android-keystore ./upload.jks   # keep a signing credential there
 dartvel key cloud                      # list them by name, never by value
+dartvel build tizen --cloud            # a signed TPK, without Tizen Studio here
+dartvel build sony-elinux --cloud      # an eLinux release bundle
+dartvel build tvos --cloud --simulator # an Apple TV app, on a macOS worker
+dartvel build vscode --cloud           # a VS Code extension and its web build
 dartvel build android --cloud          # streams the log, downloads to build/cloud/android
-dartvel build ios --cloud              # runs on a macOS worker
 dartvel deploy --store play --cloud    # builds an App Bundle in release and uploads it
 ```
+
+Built end to end in CI against the service and a worker: Android, Fire OS,
+iOS, tvOS (simulator), Tizen, Sony eLinux, `linux-cli`, and Chrome, Firefox
+and VS Code extensions. macOS, Windows, Linux, web and web-server are accepted
+and not yet run end to end. webOS and Fuchsia are not on Cloud, because their
+embedders ship a Dart below Dartvel's floor and no local build finishes either.
+[docs/build-targets.md](docs/build-targets.md#dartvel-cloud) has what each
+came back as.
 
 Every cloud build is paid; there is no free tier for builds. Plans open when the
 hosted service launches ([dartvel.dev/cloud](https://dartvel.dev/cloud#plans));
