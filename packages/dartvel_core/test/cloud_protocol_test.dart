@@ -19,6 +19,23 @@ void main() {
       }
     });
 
+    test('a web-server build may name its worker OS, because the executable is for the host that built it', () {
+      Map<String, Object?> json(String target, String os) =>
+          <String, Object?>{'project': 'shop', 'target': target, 'os': os};
+      for (final String os in <String>['linux', 'macos', 'windows']) {
+        final DVCloudBuildSpec spec = DVCloudBuildSpec.fromJson(json('web-server', os));
+        expect(spec.workerOs.name, os);
+        expect(DVCloudBuildSpec.fromJson(spec.toJson()).workerOs.name, os);
+      }
+      expect(const DVCloudBuildSpec(project: 'shop', target: 'web-server').workerOs, DVCloudWorkerOs.linux);
+      expect(const DVCloudBuildSpec(project: 'shop', target: 'ios').toJson().containsKey('os'), isFalse);
+      // An iOS app is not built on Linux however it is asked for.
+      expect(() => DVCloudBuildSpec.fromJson(json('ios', 'linux')), throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json('web', 'windows')), throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json('web-server', 'beos')), throwsFormatException);
+      expect(DVCloudBuildSpec.fromJson(json('ios', 'macos')).workerOs, DVCloudWorkerOs.macos);
+    });
+
     test('a target whose local build cannot finish is not offered in the cloud', () {
       // webOS's embedder bundles Dart 3.10.9 and Fuchsia's is older still, so
       // `dartvel build` skips both; the terminal embedder builds for Linux
@@ -138,6 +155,40 @@ void main() {
       }
       expect(DVCloudArtifact.fromJson(<String, Object?>{'name': 'Runner.app/Info.plist', 'size': 1, 'sha256': 'a'}).name,
           'Runner.app/Info.plist');
+    });
+  });
+
+  group('what a build is made of', () {
+    test('an executable and a symbolic link survive JSON, and a plain file stays plain', () {
+      const DVCloudArtifact binary =
+          DVCloudArtifact(name: 'basic_app.app/Contents/MacOS/basic_app', size: 3, sha256: 'ab', executable: true);
+      const DVCloudArtifact link = DVCloudArtifact(
+          name: 'basic_app.app/Contents/Frameworks/App.framework/Resources',
+          size: 0,
+          sha256: 'e3',
+          link: 'Versions/Current/Resources');
+      expect(DVCloudArtifact.fromJson(binary.toJson()).executable, isTrue);
+      expect(DVCloudArtifact.fromJson(binary.toJson()).link, isNull);
+      expect(DVCloudArtifact.fromJson(link.toJson()).link, 'Versions/Current/Resources');
+      const DVCloudArtifact plain = DVCloudArtifact(name: 'app.apk', size: 1, sha256: 'a');
+      expect(plain.toJson().keys, unorderedEquals(<String>['name', 'size', 'sha256']));
+      expect(DVCloudArtifact.fromJson(plain.toJson()).executable, isFalse);
+    });
+
+    test('a link that leaves the download is refused', () {
+      Map<String, Object?> json(String name, String link) =>
+          <String, Object?>{'name': name, 'size': 0, 'sha256': 'a', 'link': link};
+      for (final (String, String) bad in <(String, String)>[
+        ('a/b', '../../etc'),
+        ('top', '..'),
+        ('a/b', '/etc/passwd'),
+        ('a/b', r'..\x'),
+        ('a/b', ''),
+      ]) {
+        expect(() => DVCloudArtifact.fromJson(json(bad.$1, bad.$2)), throwsFormatException, reason: '${bad.$1} -> ${bad.$2}');
+      }
+      expect(DVCloudArtifact.fromJson(json('F.framework/Versions/Current', 'A')).link, 'A');
+      expect(DVCloudArtifact.fromJson(json('a/b/c', '../d')).link, '../d');
     });
   });
 
