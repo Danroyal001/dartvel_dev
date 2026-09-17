@@ -72,20 +72,33 @@ void main() {
     expect(cloud.requests, isEmpty);
   });
 
-  test('Google Play is refused: dartvel build android writes an APK, and Play takes a bundle', () async {
+  test('Google Play builds an App Bundle in release and uploads it', () async {
     declare('dartvel:\n  publish:\n    play:\n      track: internal\n      credentials: play.json\n');
     await publish(<String>['play', '--cloud']);
-    expect(exitCode, 78);
-    expect(cloud.requests, isEmpty);
+    expect(exitCode, 0);
+    final DVCloudBuildRequest request = cloud.requests.single;
+    expect((request.target, request.format, request.profile, request.publish),
+        ('android', 'aab', 'release', 'play'));
+    expect(request.codesign, isTrue);
   });
 
-  test('App Store Connect is refused: dartvel build ios does not sign', () async {
+  test('App Store Connect and TestFlight build a signed IPA and upload it', () async {
     for (final String store in <String>['appstore', 'testflight']) {
       exitCode = 0;
       declare('dartvel:\n  publish:\n    $store:\n      apiKey: K\n      apiIssuer: I\n');
+      // From Linux: the upload runs on a macOS worker, where Xcode is.
       await publish(<String>[store, '--cloud']);
-      expect(exitCode, 78, reason: store);
+      expect(exitCode, 0, reason: store);
+      final DVCloudBuildRequest request = cloud.requests.last;
+      expect((request.target, request.format, request.publish), ('ios', 'ipa', store));
+      expect(request.codesign, isTrue);
     }
+  });
+
+  test('an App Store declaration with no key is still refused before anything is sent', () async {
+    declare('dartvel:\n  publish:\n    appstore:\n      apiIssuer: I\n');
+    await publish(<String>['appstore', '--cloud']);
+    expect(exitCode, 78);
     expect(cloud.requests, isEmpty);
   });
 }

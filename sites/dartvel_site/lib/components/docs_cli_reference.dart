@@ -706,7 +706,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     options: <String>[
       '    --dry-run        Print the command that would run, and run nothing.',
       '    --artifact       The file to upload, when it is not where the build puts it.',
-      '    --cloud          Build and publish on Dartvel Cloud, with the credentials kept there by dartvel key cloud. With --dry-run the worker prints the upload instead of making it. Firebase only for now: Play needs an app bundle and App Store Connect a signed IPA, and dartvel build makes neither yet. Needs a paid Dartvel Cloud plan.',
+      '    --cloud          Build and publish on Dartvel Cloud, with the credentials kept there by dartvel key cloud. With --dry-run the worker prints the upload instead of making it. Play gets an App Bundle and App Store Connect a signed IPA, both built in release. Needs a paid Dartvel Cloud plan.',
       '    --cloud-token    The Dartvel Cloud token for --cloud. Defaults to DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.',
     ],
   ),

@@ -46,10 +46,10 @@ class DVPublishPlan {
 
   /// A plan that cannot run, and why.
   const DVPublishPlan.refused(this.store, this.problems)
-      : executable = '',
-        arguments = const <String>[],
-        artifact = '',
-        toolchain = '';
+    : executable = '',
+      arguments = const <String>[],
+      artifact = '',
+      toolchain = '';
 
   final String store;
   final String executable;
@@ -77,6 +77,7 @@ DVPublishPlan dvPublishPlan({
   required String store,
   required String root,
   required String host,
+  Map<String, String> environment = const <String, String>{},
 }) {
   if (!dvPublishStores.contains(store)) {
     return DVPublishPlan.refused(store, <String>[
@@ -96,7 +97,7 @@ DVPublishPlan dvPublishPlan({
 
   switch (store) {
     case 'play':
-      return _play(root, declared);
+      return _play(root, declared, environment['DARTVEL_PLAY_SERVICE_ACCOUNT']);
     case 'appstore':
     case 'testflight':
       return _appStore(store, root, declared, host);
@@ -105,28 +106,46 @@ DVPublishPlan dvPublishPlan({
   }
 }
 
-DVPublishPlan _play(String root, Map<Object?, Object?> declared) {
+DVPublishPlan _play(
+  String root,
+  Map<Object?, Object?> declared,
+  String? keyFile,
+) {
   final List<String> problems = <String>[];
   final String track = '${declared['track'] ?? 'internal'}';
   if (!dvPlayTracks.contains(track)) {
     // Not corrected to the nearest: "staging" could mean internal or alpha,
     // and guessing puts a build in front of the wrong people.
-    problems.add('dartvel.publish.play.track is "$track". Google Play '
-        'publishes to ${dvPlayTracks.join(', ')}.');
+    problems.add(
+      'dartvel.publish.play.track is "$track". Google Play '
+      'publishes to ${dvPlayTracks.join(', ')}.',
+    );
   }
-  final Object? credentials = declared['credentials'];
+  final bool fromEnvironment = keyFile != null && keyFile.trim().isNotEmpty;
+  final Object? credentials = fromEnvironment
+      ? keyFile
+      : declared['credentials'];
   if (credentials == null || '$credentials'.trim().isEmpty) {
     // Without it fastlane prompts, and a pipeline with no terminal waits for
     // an answer until the job's cap.
-    problems.add('dartvel.publish.play.credentials names no service account '
-        'key. Add it to pubspec.yaml: without one the upload stops to ask, '
-        'and a pipeline has nobody to answer.');
+    problems.add(
+      'dartvel.publish.play.credentials names no service account '
+      'key. Add it to pubspec.yaml: without one the upload stops to ask, '
+      'and a pipeline has nobody to answer.',
+    );
   }
 
   // The bundle, not the APK. Play has taken app bundles for years and an APK
   // is refused at the end of the upload rather than the start.
-  final String artifact =
-      p.join(root, 'build', 'app', 'outputs', 'bundle', 'release', 'app-release.aab');
+  final String artifact = p.join(
+    root,
+    'build',
+    'app',
+    'outputs',
+    'bundle',
+    'release',
+    'app-release.aab',
+  );
   if (problems.isNotEmpty) return DVPublishPlan.refused('play', problems);
   return DVPublishPlan(
     store: 'play',
@@ -138,7 +157,9 @@ DVPublishPlan _play(String root, Map<Object?, Object?> declared) {
       '--track',
       track,
       '--json_key',
-      p.join(root, '$credentials'),
+      // A Dartvel Cloud worker names the key it was given by path; a project
+      // names its own relative to itself.
+      fromEnvironment ? keyFile : p.join(root, '$credentials'),
       // Uploaded and left alone. A publish that also promoted the build would
       // do two things under one word, and the second is somebody's decision.
       '--skip_upload_metadata',
@@ -161,22 +182,42 @@ DVPublishPlan _appStore(
     // Apple's upload tools are part of Xcode. A plan that pretended otherwise
     // would fail at the end of a long build with "command not found", which
     // reads as a broken installation rather than as the wrong machine.
-    problems.add('Publishing to $store needs Xcode, so it runs on macOS. '
-        'This is $host.');
+    problems.add(
+      'Publishing to $store needs Xcode, so it runs on macOS. '
+      'This is $host.',
+    );
   }
   final Object? key = declared['apiKey'];
   final Object? issuer = declared['apiIssuer'];
   if (key == null || '$key'.trim().isEmpty) {
-    problems.add('dartvel.publish.$store.apiKey names no App Store Connect '
-        'API key.');
+    problems.add(
+      'dartvel.publish.$store.apiKey names no App Store Connect '
+      'API key.',
+    );
   }
   if (issuer == null || '$issuer'.trim().isEmpty) {
-    problems.add('dartvel.publish.$store.apiIssuer names no issuer id. The '
-        'key alone does not say which account it belongs to.');
+    problems.add(
+      'dartvel.publish.$store.apiIssuer names no issuer id. The '
+      'key alone does not say which account it belongs to.',
+    );
   }
   if (problems.isNotEmpty) return DVPublishPlan.refused(store, problems);
 
-  final String artifact = p.join(root, 'build', 'ios', 'ipa', 'app.ipa');
+  // flutter build ipa names the file after the app, so it is found rather
+  // than assumed; app.ipa is what a refusal names when nothing was built.
+  final Directory ipas = Directory(p.join(root, 'build', 'ios', 'ipa'));
+  final List<String> built = ipas.existsSync()
+      ? (ipas
+            .listSync()
+            .whereType<File>()
+            .map((File f) => f.path)
+            .where((String f) => f.endsWith('.ipa'))
+            .toList()
+          ..sort())
+      : const <String>[];
+  final String artifact = built.isNotEmpty
+      ? built.first
+      : p.join(ipas.path, 'app.ipa');
   return DVPublishPlan(
     store: store,
     executable: 'xcrun',
@@ -201,9 +242,11 @@ DVPublishPlan _firebase(String root, Map<Object?, Object?> declared) {
   final List<String> problems = <String>[];
   final Object? app = declared['app'];
   if (app == null || '$app'.trim().isEmpty) {
-    problems.add('dartvel.publish.firebase.app names no application id. '
-        'App Distribution identifies a build by it, and there is no way to '
-        'guess which of an account\'s applications this is.');
+    problems.add(
+      'dartvel.publish.firebase.app names no application id. '
+      'App Distribution identifies a build by it, and there is no way to '
+      'guess which of an account\'s applications this is.',
+    );
   }
   if (problems.isNotEmpty) return DVPublishPlan.refused('firebase', problems);
 
@@ -214,8 +257,14 @@ DVPublishPlan _firebase(String root, Map<Object?, Object?> declared) {
     else if (groups != null)
       '$groups',
   ];
-  final String artifact =
-      p.join(root, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk');
+  final String artifact = p.join(
+    root,
+    'build',
+    'app',
+    'outputs',
+    'flutter-apk',
+    'app-release.apk',
+  );
   return DVPublishPlan(
     store: 'firebase',
     executable: 'firebase',
