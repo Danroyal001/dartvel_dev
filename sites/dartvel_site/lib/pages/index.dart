@@ -19,6 +19,7 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         Proof(),
         BackendProof(),
         OneFileBackend(),
+        StudioProof(),
         PhoneLoop(),
         OtaUpdates(),
         RoutingProof(),
@@ -318,6 +319,31 @@ Widget _oneFileBackend(BuildContext context) => const Section(
   ],
 );
 
+/// Studio, which the one-file backend above already carries at /__studio.
+/// The screenshot is that binary's own Studio, and /studio says what is
+/// free and what is Pro.
+@DVFunctionalWidget()
+Widget _studioProof(BuildContext context) => const Section(
+  children: <Widget>[
+    Eyebrow('STUDIO'),
+    Heading('Edit pages and records from a browser, on the server you '
+        'already run.'),
+    Bullets(<String>[
+      'Studio ships free in every Dartvel app, including the web-server '
+          'binary.',
+      'Build a page visually, and export it as an ordinary @DVPage file.',
+      'Studio Pro adds a workflow builder that turns steps into a '
+          '@DVBackendFunction.',
+    ]),
+    StudioShot(
+      'assets/studio/page-builder.png',
+      'Dartvel Studio page builder with the Layers tree, a selected card '
+          'on the canvas and the inspector',
+    ),
+    DVBox.wrapLine(<Widget>[GhostLink('See Studio and Studio Pro', '/studio')]),
+  ],
+);
+
 /// Expo Go's job, done by a build of your own app. The output lines are the
 /// dev command's own (dev_command.dart), and the loop is what the Dev client
 /// workflow runs on an Android emulator, an iOS simulator and a Linux desktop:
@@ -325,6 +351,7 @@ Widget _oneFileBackend(BuildContext context) => const Section(
 /// the process unchanged.
 @DVFunctionalWidget()
 Widget _phoneLoop(BuildContext context) => const Section(
+  tint: true,
   children: <Widget>[
     Eyebrow('HOT RELOAD ON A PHONE'),
     Heading('Scan a QR code and hot reload on your phone.'),
@@ -359,7 +386,6 @@ Widget _phoneLoop(BuildContext context) => const Section(
 /// spec-status because iOS is not supported, and says so.
 @DVFunctionalWidget()
 Widget _otaUpdates(BuildContext context) => const Section(
-  tint: true,
   children: <Widget>[
     Eyebrow('OVER-THE-AIR UPDATES'),
     Heading('Push a Dart fix to installed apps without waiting for store '
@@ -392,6 +418,7 @@ Widget _otaUpdates(BuildContext context) => const Section(
 /// line is in spec-status's Routing record and the dartvel_example tests.
 @DVFunctionalWidget()
 Widget _routingProof(BuildContext context) => const Section(
+  tint: true,
   children: <Widget>[
     Eyebrow('ROUTING'),
     Heading('Get typed routes, tab stacks and deep links without rewriting '
