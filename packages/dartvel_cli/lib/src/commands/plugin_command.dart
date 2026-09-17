@@ -117,85 +117,70 @@ import 'package:flutter/widgets.dart';
 Widget _loginPage(BuildContext context) => DV.Auth.SignInWithEmailAndPasswordPage();
 ''';
 
+  // The three endpoints are raw HTTP for a client that is not a page -- a
+  // mobile app, a command-line tool, another server -- and every one of them
+  // is the framework's own sign-in underneath: the installed accounts, the
+  // password check with its velocity limits, and DVSessions. A page signs in
+  // at the generated <api>/auth/sign-in, which sets the session cookie behind
+  // a CSRF check.
+  //
+  // A raw path checks no CSRF token and reads no session cookie, so these
+  // speak bearer tokens only. That is also why login refuses a browser: a
+  // cookie set here would be a sign-in no CSRF check stood in front of.
   static const String _authLoginEndpointTemplate =
       '''import 'package:dartvel_core/dartvel.dart';
-import 'dart:convert';
 
-final Map<String, Map<String, Object?>> _usersByEmail = {};
-final Map<String, Map<String, Object?>> _sessionsByToken = {};
-
+/// `POST /auth/login` with `email` and `password`: a session token in the
+/// body, from the framework's own sign-in.
+///
+/// The caller sends `x-dartvel-session-delivery: token`. A page cannot, and
+/// signs in at `<api>/auth/sign-in` instead.
 @DVBackendFunction(rawPath: '/auth/login')
 @pragma('vm:entry-point')
-Future<Map<String, Object?>> _login({
-  required String email,
-  required String password,
-}) async {
-  final normalizedEmail = email.trim().toLowerCase();
-  if (normalizedEmail.isEmpty || password.isEmpty) {
-    throw Exception('Email and password required');
+Future<Response> handler(Request request) async {
+  if (!DVAuthEndpoints.deliversToken(request)) {
+    return Response.json(<String, Object?>{
+      'error': 'token_delivery_required',
+      'message': 'Send x-dartvel-session-delivery: token from a client that '
+          'is not a browser. A page signs in at <api>/auth/sign-in.',
+    }, status: 400);
   }
-  if (password.length < 8) {
-    throw Exception('Password must be at least 8 characters');
-  }
-
-  final user = _usersByEmail.putIfAbsent(normalizedEmail, () => {
-        'id': base64Url.encode(utf8.encode(normalizedEmail)).replaceAll('=', ''),
-        'email': normalizedEmail,
-        'createdAt': DateTime.now().toIso8601String(),
-      });
-  final tokenPayload = jsonEncode({
-    'userId': user['id'],
-    'email': normalizedEmail,
-    'issuedAt': DateTime.now().toIso8601String(),
-  });
-  final token = base64Url.encode(utf8.encode(tokenPayload)).replaceAll('=', '');
-  _sessionsByToken[token] = user;
-
-  return {
-    'success': true,
-    'token': token,
-    'user': user,
-  };
+  return DVAuthEndpoints.signIn(request);
 }
 ''';
 
   static const String _authLogoutEndpointTemplate =
       '''import 'package:dartvel_core/dartvel.dart';
 
-final Set<String> _revokedTokens = {};
-
+/// `POST /auth/logout` with `Authorization: Bearer <token>`: revokes that
+/// session on the server, so the token stops working everywhere.
 @DVBackendFunction(rawPath: '/auth/logout')
 @pragma('vm:entry-point')
-Map<String, Object?> _logout({String? token}) {
-  if (token != null && token.isNotEmpty) {
-    _revokedTokens.add(token);
+Future<Response> handler(Request request) async {
+  // A bearer token was judged before this ran; without one there is no
+  // session this endpoint may end.
+  if (DVSessionPrincipal.current == null) {
+    return Response.json(<String, Object?>{
+      'error': 'unauthenticated',
+      'message': 'Send the session token as Authorization: Bearer <token>.',
+    }, status: 401);
   }
-  return {
-    'success': true,
-    'message': 'Logged out successfully',
-  };
+  return DVAuthEndpoints.signOut(request);
 }
 ''';
 
   static const String _authMeEndpointTemplate =
       '''import 'package:dartvel_core/dartvel.dart';
-import 'dart:convert';
 
+/// `GET /auth/me` with `Authorization: Bearer <token>`: the account the
+/// session belongs to.
+///
+/// The session is the one the server issued and still holds: a token it did
+/// not issue, or one that was revoked, is refused before this runs, and
+/// nothing a caller writes into a token decides who they are.
 @DVBackendFunction(rawPath: '/auth/me')
 @pragma('vm:entry-point')
-Map<String, Object?> _me({required String token}) {
-  if (token.isEmpty) {
-    throw Exception('Authentication token required');
-  }
-  final normalized = base64.normalize(token);
-  final decoded = jsonDecode(utf8.decode(base64Url.decode(normalized)))
-      as Map<String, Object?>;
-  return {
-    'id': decoded['userId'],
-    'email': decoded['email'],
-    'issuedAt': decoded['issuedAt'],
-  };
-}
+Future<Response> handler(Request request) => DVAuthEndpoints.account(request);
 ''';
 
   static const String _analyticsUtilTemplate =
