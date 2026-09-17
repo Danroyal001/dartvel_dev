@@ -360,8 +360,14 @@ class DVPageDocument {
   }
 
   String _modifierSource(DVPageNode node, Map<String, Object?> properties) {
-    var source = 'const DVModifier()';
-    var any = false;
+    // The button's semantics in the same chain as its styles: a second
+    // .modifier() would replace them.
+    final bool button = node.type == 'button';
+    var source = button
+        ? 'const DVModifier().semanticButton().minimumTapTarget()'
+        : 'const DVModifier()';
+    var any = button;
+    properties = dvStudioEffectiveProperties(node, properties);
     final action = node.action;
     if (action != null && action['type'] == 'navigate') {
       source =
@@ -573,14 +579,22 @@ Widget dvStudioStyled(
   Widget built, {
   bool withAction = true,
 }) {
-  var modifier = const DVModifier();
-  var modified = false;
+  // A button is a button whatever it is styled with. Its semantics were a
+  // modifier of the leaf's own, and a modifier replaces the one before it,
+  // so the first colour somebody gave a button made it plain text to a
+  // screen reader.
+  final bool button = node.type == 'button';
+  var modifier = button
+      ? const DVModifier().semanticButton().minimumTapTarget()
+      : const DVModifier();
+  var modified = button;
+  final Map<String, Object?> properties = dvStudioEffectiveProperties(node);
 
   for (final property in dvStudioProperties) {
     final applied = property.apply(
       modifier,
-      node.properties[property.name],
-      node.properties,
+      properties[property.name],
+      properties,
     );
     if (applied != null) {
       modifier = applied;
@@ -700,16 +714,24 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
   // A button is a text node that announces itself as one. The tap itself is
   // the node's action, the same mechanism any node uses, so this adds the
   // semantics and the tap target rather than a second way to handle presses.
+  // Both are added where the styles are ([dvStudioStyled] and the export's
+  // modifier), because a modifier replaces the one before it.
+  //
+  // Dropped from the palette it is drawn as a button, with the look as
+  // ordinary properties the inspector shows and can change.
   DVStudioLeafType(
     type: 'button',
     label: 'Button',
-    create: () => DVPageNode.text('Button').withType('button'),
-    build: (node) => DVText('${node.properties['text'] ?? ''}').modifier(
-      const DVModifier().semanticButton().minimumTapTarget(),
+    create: () => DVPageNode(
+      type: 'button',
+      properties: <String, Object?>{
+        'text': 'Button',
+        ...dvStudioButtonDefaults,
+      },
     ),
+    build: (node) => DVText('${node.properties['text'] ?? ''}'),
     source: (node, escape) =>
-        "DVText('${escape('${node.properties['text'] ?? ''}')}')"
-        '.modifier(const DVModifier().semanticButton().minimumTapTarget())',
+        "DVText('${escape('${node.properties['text'] ?? ''}')}')",
   ),
   DVStudioLeafType(
     type: 'spacer',
@@ -733,6 +755,49 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
         'child: ColoredBox(color: Color(0x33000000)))',
   ),
 ];
+
+/// How a button looks when nothing says otherwise: filled, padded, rounded.
+const Map<String, Object?> dvStudioButtonDefaults = <String, Object?>{
+  'backgroundColor': '#111827',
+  'color': '#FFFFFF',
+  'fontWeight': 'semibold',
+  'align': 'center',
+  'paddingTop': 12,
+  'paddingBottom': 12,
+  'paddingLeft': 20,
+  'paddingRight': 20,
+  'rounded': 8,
+};
+
+/// The properties [node] is drawn and exported with.
+///
+/// A node's own, except for a button that sets no fill, border or padding at
+/// all -- one stored before the palette styled its buttons -- which takes
+/// [dvStudioButtonDefaults] under them rather than rendering as a bare word.
+///
+/// [properties] are the node's at one breakpoint, when not its base ones.
+Map<String, Object?> dvStudioEffectiveProperties(
+  DVPageNode node, [
+  Map<String, Object?>? properties,
+]) {
+  final Map<String, Object?> own = properties ?? node.properties;
+  if (node.type != 'button') return own;
+  const Set<String> look = <String>{
+    'backgroundColor',
+    'gradientFrom',
+    'borderColor',
+    'borderWidth',
+    'padding',
+    'paddingTop',
+    'paddingBottom',
+    'paddingLeft',
+    'paddingRight',
+    'decoration',
+    'card',
+  };
+  if (own.keys.any(look.contains)) return own;
+  return <String, Object?>{...dvStudioButtonDefaults, ...own};
+}
 
 /// The leaf type [node] declares, or null when it is a layout box.
 DVStudioLeafType? dvStudioLeafTypeFor(DVPageNode node) {

@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Studio's button element is a button, and a page card shows the page.**
+  A Button from the palette is filled, padded and rounded through ordinary
+  properties the inspector shows, a stored button with no styling is drawn
+  the same way, and its semantics survive a style (a second modifier used to
+  replace them, on the page and in exported source). The overview's page
+  thumbnails draw the page at a legible scale on a sheet that fills the card.
+
+- **Studio's model tables read properly.** A heading stays on one line and a
+  narrow table scrolls sideways; a `DateTime`, or an `int` named for a moment
+  holding epoch milliseconds, is shown as a date; and the builder's page list
+  includes and selects the page being edited before its first publish.
+
 - **A web-server build signs in through its own server, even over the
   development auth provider.** `DVAuth.servedByOwnServer`, set by
   `DARTVEL_WEB_SERVER`, makes a configured `DVLocalAuthProvider` yield to the
