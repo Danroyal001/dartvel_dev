@@ -43,8 +43,8 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                   'Cloud.',
             ]),
             CodeBlock(<String>[
-              'dartvel publish play --cloud',
-              'dartvel publish testflight --cloud',
+              'dartvel deploy --store play --cloud',
+              'dartvel deploy --store testflight --cloud',
               'dartvel build ios --format ipa   # the same IPA on your own Mac, for free',
             ]),
           ],
@@ -122,7 +122,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               'Runs on every push are planned.',
             ]),
             CodeBlock(<String>[
-              'dartvel publish firebase --cloud --dry-run   # the worker prints the upload',
+              'dartvel deploy --store firebase-app-distribution --cloud --dry-run   # the worker prints the upload',
             ]),
           ],
         ),
@@ -243,7 +243,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             Heading('Build, publish and patch from your own machine for free.'),
             CodeBlock(<String>[
               'dartvel build android --profile release',
-              'dartvel publish firebase',
+              'dartvel deploy --store firebase-app-distribution',
               'dartvel updates patch --patch-source https://your-server.example/updates',
             ]),
             Objection(
