@@ -4045,13 +4045,42 @@ and it stays out.
 
 Stability: `Contract` · Status: `Partial`
 
-Dartvel uses Shorebird for Flutter OTA updates.
+Dartvel patches Flutter code over the air with Shorebird's updater. The
+releases and patches can live in two places. Shorebird's own service is one.
+The other is a patch source the project hosts itself, which needs no Shorebird
+account and costs nothing: the `dartvel build web-server` binary serves it when
+`shorebird.yaml`'s `base_url` names that server.
 
 ```bash
-dartvel updates release
-dartvel updates patch
-dartvel updates rollback
+dartvel updates release --patch-source https://app.example.com
+dartvel updates patch --patch-source https://app.example.com --channel beta
+dartvel updates rollback --patch-source https://app.example.com \
+  --release-version 1.4.0 --patch-number 3
 ```
+
+Without `--patch-source` the three commands run the `shorebird` CLI against
+Shorebird's service, for Android and iOS by default, and `--dry-run` prints
+the `shorebird` command instead. `dartvel updates push` is an alias for
+`patch`. Arguments after `--` go to the build.
+
+With `--patch-source`, `release` and `patch` build with Shorebird's Flutter at
+the project's own Flutter version (installed after a prompt, or unattended in
+CI) and publish into the patch source. The value is either the server's URL,
+with `DARTVEL_UPDATES_TOKEN` set to the token the server was started with, or
+a directory a patch source is served from. The commands refuse before
+publishing anything when:
+
+- the patch has no release made here, or was built by another engine than its
+  release
+- the URL is given without a token
+- `shorebird.yaml` names Shorebird's service
+- the pubspec does not bundle `shorebird.yaml`
+- the release's Android manifest has no `INTERNET` permission
+
+`--patch-source` is Android only today. The server side publishes and rolls
+back only when it was started with `DARTVEL_UPDATES_TOKEN` and the request
+carries it; devices check without one. Dartvel Cloud runs the same patch
+source per project for teams that do not want to host it.
 
 Runtime surface:
 
@@ -4061,21 +4090,47 @@ if (update.available) {
   await DV.Updates.apply();
 }
 
-// also: DV.Updates.lockVersion(), DV.Updates.skipImmediateNextVersion(), DV.Updates.rollback()
+// also: DV.Updates.lockVersion(), DV.Updates.unlockVersion(),
+// DV.Updates.skipImmediateNextVersion(), DV.Updates.rollback()
 ```
 
-Runtime update checks/apply/rollback use generated bindings named
-`updates.check`, `updates.apply`, and `updates.rollback`. Native update
-integration must use Shorebird-compatible generated bindings through
-FFI/ffigen or JNI/jnigen where native glue is needed. Dartvel must not use
-Flutter platform channels for OTA APIs.
+The generated runtime registers `updates.check`, `updates.apply` and
+`updates.rollback` against the Shorebird updater's C API over FFI, looked up in
+the process on Android and iOS. `apply` installs the patch for the next
+launch. On an engine without the updater nothing is registered, and
+`DV.Updates.check()` throws with the reason. Dartvel does not use Flutter
+platform channels for OTA APIs.
 
-Supports:
-- channels
-- staged rollouts
+`check()` makes one decision from every rule that has a say, and names the
+rule that held an update back (`DVUpdateHold`): the channel's offer, this
+device's bucket in a staged rollout (`DVUpdates.identifyDevice`), a pinned
+version, a skipped version, and a kiosk's maintenance window. A required update
+(a minimum supported version) skips the rollout, the window and the skip.
+
+Page documents from Dartvel Studio travel as data in a `DVPageBundle`, applied
+with `applyPages`, and need none of the Shorebird machinery.
+
+## Built and verified
+
+The OTA updates workflow releases and patches the example into its running
+web-server binary, and on an Android emulator the release checks and applies
+through `DV.Updates` and is running the patch after a relaunch.
+
+A patch applied on iOS has not been verified. CI checks that a Shorebird iOS
+device release exports the updater symbols and carries `shorebird.yaml`.
+The only iOS device a runner has is a simulator, and the updater runs only in
+release, which simulators do not build. `--patch-source` for iOS is refused
+because a Shorebird iOS patch has to be linked against the release snapshot
+before it is diffed, and that step is not built.
+
+## Designed
+
+Supports, as the contract:
+- channels (built)
+- staged rollouts (built)
 - forced update prompts
-- minimum supported app versions
-- rollback
+- minimum supported app versions (built as `required`)
+- rollback (built)
 - update health checks
 - release notes
 - environment targeting
@@ -4089,7 +4144,7 @@ Supports:
 Server-side code is versioned separately from client OTA patches. A release/tag
 must still create a matching backup branch.
 
-Release safety:
+Release safety, designed and not built yet:
 - `dartvel updates patch` refuses to run from a dirty worktree unless
   `--allow-dirty` is passed.
 - every OTA patch records the Git commit SHA, Dartvel version, Flutter version,
@@ -9404,12 +9459,13 @@ Stability: `Draft` · Status: `Partial`
 Deployment says where a backend runs. This says how a new one replaces the one
 already running, and how it goes back.
 
-OTA Updates gives clients channels, staged rollout, health gates and rollback
-with a provenance record. The backend serving those clients has none of that,
-and it is the half that cannot be rolled back by asking a device to fetch an
-older bundle. Schema Evolution's expand and contract steps also have to be
-sequenced against a deploy that can move backwards: a contract that runs while
-the previous release is still serving takes the column that release reads.
+OTA Updates gives clients channels, staged rollout and rollback, and designs
+health gates and a provenance record for them. The backend serving those
+clients has none of that, and it is the half that cannot be rolled back by
+asking a device to fetch an older bundle. Schema Evolution's expand and
+contract steps also have to be sequenced against a deploy that can move
+backwards: a contract that runs while the previous release is still serving
+takes the column that release reads.
 
 ## Strategies, and what an adapter can actually do
 
@@ -9475,9 +9531,9 @@ dartvel deploy rollback        # to the previous release, by provenance record
 dartvel deploy rollback --to 2026-09-11T14:02Z
 ```
 
-A release carries the provenance record OTA patches carry: what was built, from
-which commit, with which generated protocol version, which migration plan ran,
-and who released it.
+A release carries the provenance record OTA Updates designs for patches:
+what was built, from which commit, with which generated protocol version,
+which migration plan ran, and who released it.
 
 **The release is the unit of rollback, including in function mode.** Rolling
 back one function and leaving its neighbours is a state nobody described: the
@@ -12514,59 +12570,95 @@ while Flutter remains the rendering engine and Dart remains the only language de
 
 Stability: `Draft` · Status: `Partial`
 
-`dartvel publish <store>` takes a built application to Google Play, App Store
-Connect, TestFlight or Firebase App Distribution, declared under
-`dartvel.publish` in `pubspec.yaml`. The plan is resolved and validated before
-anything runs, because the expensive part is an upload of a binary that took
-minutes to produce: a track nobody publishes to is refused rather than
-corrected to the nearest, credentials that were never declared are refused
-rather than left to a tool that stops to ask, and App Store Connect is refused
-off macOS at the start rather than with "command not found" at the end.
-`--dry-run` prints what would run.
+`dartvel publish <store>` takes a built application to Google Play
+(`play`), App Store Connect (`appstore`), TestFlight (`testflight`) or
+Firebase App Distribution (`firebase`), declared under `dartvel.publish` in
+`pubspec.yaml`. The plan is resolved and validated before anything runs,
+because the expensive part is an upload of a binary that took minutes to
+produce. A Play track outside `internal`, `alpha`, `beta` and `production` is
+refused instead of guessed at. Play credentials that were never declared are
+refused before fastlane can stop to ask. App Store Connect and TestFlight are
+refused off macOS at the start, since the upload runs through Xcode's
+`xcrun altool`. `--dry-run` prints the command that would run, and
+`--artifact` names the file when it is not where the build put it.
 
-What follows is the rest of the story — credentials, tracks, metadata, and the
-two store declarations that are questions about the project rather than about
-the developer.
+```bash
+dartvel build android --format aab
+dartvel publish play --dry-run
+dartvel publish play
 
-## Credentials: declared here, held elsewhere
+dartvel build ios --format ipa
+dartvel publish testflight
+```
 
-**Dartvel holds no signing key and no store credential.** It declares which
-ones a publish needs, resolves them through Secrets and Environments at the
-moment of use, and refuses before the upload when one is missing.
+Each store is driven through its own tool: fastlane `supply` for Play,
+`xcrun altool` for App Store Connect and TestFlight, and the `firebase` CLI for
+App Distribution. Dartvel checks the tool is on PATH and does not install it.
+The upload uploads the App Bundle, IPA or APK and does nothing else. Promoting
+a build, metadata and screenshots are left alone.
+
+`dartvel publish <store> --cloud` builds in release on Dartvel Cloud and
+publishes from the worker, with the credentials kept there by `dartvel key
+cloud`: an App Bundle for Play on a Linux worker, a signed IPA for App Store
+Connect and TestFlight on a macOS worker. The declaration is still checked
+locally first, where a refusal costs nothing. See Dartvel Cloud.
+
+What follows is the rest of the story. Credentials, tracks and metadata come
+first, then the two store declarations that are questions about the project
+rather than about the developer.
+
+## Credentials
+
+There are two places a store credential or signing identity can live, and the
+developer picks one per project.
+
+**On their own machines.** Dartvel keeps nothing. The declaration names what a
+publish needs:
 
 ```yaml
 dartvel:
   publish:
     play:
       track: internal
-      credentials: PLAY_SERVICE_ACCOUNT   # a secret name, not a path
+      credentials: secrets/play-service-account.json   # relative to the project
     appstore:
-      keyId: APPSTORE_KEY_ID
-      issuerId: APPSTORE_ISSUER_ID
-      privateKey: APPSTORE_API_KEY
+      apiKey: ABC123DEFG        # App Store Connect API key id
+      apiIssuer: 69a6de7e-...   # issuer id of the account
+    firebase:
+      app: 1:1234567890:android:abc123
+      groups: [qa]
 ```
 
-The reason is custody, not convenience. An Android app signing key cannot be
-rotated without losing the listing, so a framework that kept one would be
-holding something irreplaceable on behalf of every application built with it —
-a key-custody product wearing a build tool's clothes. Signing identities stay
-where their platforms already keep them: the macOS keychain for certificates
-and provisioning profiles, the CI secret store for service accounts and API
-keys, Google Play App Signing for the upload key's counterpart.
+The Play key file stays out of version control. `altool` finds the `.p8`
+private key for `apiKey` in its usual places, such as
+`~/.appstoreconnect/private_keys`. Keystores, certificates and provisioning
+profiles stay in the macOS keychain and the Android keystore the developer
+already has.
 
-That splits cleanly:
+**In Dartvel Cloud.** `dartvel key cloud <name> <file>|-` keeps a credential
+sealed per account, project and name, released only to the worker building
+that project. The names are fixed: `play-service-account`,
+`firebase-service-account`, `appstore-api-key`, `appstore-api-key-id`,
+`appstore-api-issuer`, `android-keystore` with its password and alias,
+`ios-distribution-certificate` with its password, and
+`ios-provisioning-profile`. `dartvel key cloud` lists the names kept and never
+prints a value, and `--delete` removes one. Cloud never asks for a credential
+as a repository secret, and a cloud build never runs on the developer's CI.
 
-| Dartvel resolves and passes through | The developer or CI holds |
-|---|---|
-| store API keys and service accounts, by secret name | the secret values themselves |
-| which identity a build signs with, by name | keystores, certificates, provisioning profiles |
-| the track, rollout and locale a publish targets | store account access |
+Signing keys are the reason for the split. An Android app signing key cannot
+be rotated without losing the listing, so the developer decides whether to hand
+one to Cloud at all. Google Play App Signing keeps the counterpart of the
+upload key either way.
 
-A publish from a laptop reads the same declaration as a publish from CI; only
-the secret resolver differs, which is the point of naming rather than
-embedding (`DV-STORE-001`).
+Designed and not built: resolving these names through Secrets and Environments
+at the moment of use, so a laptop and a server read one declaration with a
+different resolver, and a declared credential that does not resolve is
+reported as `DV-STORE-001`.
 
 ## Tracks, rollout and metadata
+
+Designed. The track is read from `dartvel.publish.play.track` today, and none
+of these flags exist yet:
 
 ```bash
 dartvel publish play --track beta --rollout 10
@@ -12605,11 +12697,12 @@ are; the native binding manifest knows which platform APIs the build actually
 registers; the configured providers know whether anything leaves for analytics
 or advertising.
 
-So Dartvel writes both declarations from the application rather than asking a
-developer to describe their own app from memory a year after writing it:
+So Dartvel is designed to write both declarations from the application rather
+than asking a developer to describe their own app from memory a year after
+writing it. None of this is built yet, and `publish` has no `--plan` flag:
 
 ```bash
-dartvel publish appstore --plan     # shows the declaration it will submit
+dartvel publish appstore --plan     # designed: shows the declaration it will submit
 ```
 
 - Collected data types come from sensitive fields and the models reachable from
@@ -12625,19 +12718,21 @@ dartvel publish appstore --plan     # shows the declaration it will submit
   from the graph and refuses to guess where the answer is a legal judgement
   rather than a fact about the code.
 
-`dartvel doctor` compares the declaration against the application on every run
-and reports drift in either direction: a field added since the form was
-written, a binding removed that the form still claims, a tracking provider
-configured that the manifest does not mention (`DV-STORE-002`). This is the
+`dartvel doctor` is designed to compare the declaration against the
+application on every run and report drift in either direction: a field
+added since the form was written, a binding removed that the form still
+claims, a tracking provider configured that the manifest does not mention (`DV-STORE-002`). This is the
 half that decays — the declaration is written once and the application keeps
 moving — and it is the half a store checks.
 
 ## Other stores
 
-Extension marketplaces (VS Code, browser stores) and television stores publish
-through the same command and the same plan-first discipline, each driven by its
-own vendor tool. What a store cannot do is not simulated: a store with no
-staged rollout refuses `--rollout` rather than uploading and ignoring it.
+Designed. Extension marketplaces (VS Code, browser stores) and television
+stores publish through the same command and the same plan-first discipline,
+each driven by its own vendor tool. Today `publish` knows the four stores
+above and refuses any other name. What a store cannot do is not simulated: a
+store with no staged rollout refuses `--rollout` rather than uploading and
+ignoring it.
 
 ## Diagnostics
 
@@ -12652,7 +12747,8 @@ staged rollout refuses `--rollout` rather than uploading and ignoring it.
 
 ## Deliberately absent
 
-- **Credential custody.** Declared, resolved, never held. See the table above.
+- **Credential custody without Cloud.** Without `--cloud`, Dartvel keeps no
+  credential. With it, only what `dartvel key cloud` was given.
 - **Answering the store's judgement calls.** Linkage and tracking purposes are
   declared by the developer with a proposed default; a framework that guessed
   would be filing a legal statement on somebody's behalf.
@@ -12664,7 +12760,9 @@ staged rollout refuses `--rollout` rather than uploading and ignoring it.
 Stability: `Draft` · Status: `Partial`
 
 Dartvel Cloud is the hosted service behind the CLI's cloud options. It builds
-on Dartvel-run workers, so a Linux or Windows machine builds iOS and macOS. It
+on workers Dartvel runs, so a Linux or Windows machine builds iOS and macOS.
+A cloud build never runs in the developer's GitHub Actions or other CI, and
+Cloud never asks for a credential as a repository secret. It
 keeps signing and store credentials, publishes to the stores after a build,
 serves OTA patches and gives testers install links. It covers what Expo's EAS
 covers, through the commands a Dartvel developer already uses: a cloud build
@@ -12675,7 +12773,7 @@ plan is refused with 402 and the plans page, and the CLI exits 77 saying so.
 Everything a developer runs on their own machines stays free and never touches
 Cloud: `dartvel build` for every target, `dartvel publish`, `dartvel build
 web-server` with its SQLite database beside the binary, and OTA patches served
-from that binary with `dartvel updates --patch-source`.
+from that binary with `dartvel updates release|patch|rollback --patch-source`.
 
 ## The EAS map
 
@@ -12755,7 +12853,6 @@ against them.
 - **A Cloud-hosted universal dev shell like Expo Go.** It is gated by store
   review. A development build is your own app.
 - **New commands.** Cloud is options on `build`, `publish` and `key`.
-- **Running the Cloud service on your own servers.** Not offered.
 
 # Takeaway
 
