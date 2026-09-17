@@ -584,6 +584,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       ];
       _showingCode = false;
     });
+    // What is stored may have changed since the overview read it: another
+    // person publishing, or this Studio in another tab.
+    unawaited(_loadRoutes());
   }
 
   void _create() {
@@ -785,21 +788,39 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// list the moment it is published, whichever view is open.
   List<Widget> _routeRows({required bool withSubtitles}) {
     final String? open = _controller?.document.route;
+    // The page on the canvas is listed even before its first publish: a list
+    // that leaves out the page being edited reads as if it were somewhere
+    // else, and highlights nothing.
+    final bool openUnsaved =
+        open != null && open.isNotEmpty && !_routes.contains(open);
+    final List<String> routes =
+        openUnsaved ? (<String>[..._routes, open]..sort()) : _routes;
     return <Widget>[
-      for (final String route in _routes)
+      for (final String route in routes)
         DVStudioListRow(
           key: ValueKey<String>('dv-studio-route-$route'),
           title: route,
           subtitle: withSubtitles ? _subtitleFor(route) : null,
           icon: route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
           selected: route == open,
-          trailing: widget.content == null
-              ? DVStudioStyle.dot(DVStudioStyle.success)
-              : _stateMarker(
-                  route,
-                  key: 'dv-studio-route-state-$route',
-                  badge: withSubtitles,
-                ),
+          trailing: openUnsaved && route == open
+              // A ring, not the green dot: nothing is published here yet.
+              ? Container(
+                  key: const ValueKey<String>('dv-studio-route-unsaved'),
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: DVStudioStyle.faint, width: 1.5),
+                  ),
+                )
+              : widget.content == null
+                  ? DVStudioStyle.dot(DVStudioStyle.success)
+                  : _stateMarker(
+                      route,
+                      key: 'dv-studio-route-state-$route',
+                      badge: withSubtitles,
+                    ),
           onTap: () => unawaited(_open(route)),
         ),
     ];
