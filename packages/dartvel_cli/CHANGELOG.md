@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **Model pages resolve against the project's database at build time, or
+  say plainly why not.** The resolver configured no `DV.Database`, so every
+  `generatePublicPages` model logged `Bad state: DV.Database has no configured
+  adapter`, once per build step. It now uses `DATABASE_URL` or the SQLite file
+  `dartvel.database` names; with neither it logs one line naming the models
+  and how to give them a database, and a build resolves the pages once.
+
 - **The project graph lists every route the router serves.** The Studio routes
   tab, `dartvel inspect` and `dartvel mcp` read it, and it listed only files
   under `lib/pages`: the prebuilt account pages (`/login`, `/sign-up`,

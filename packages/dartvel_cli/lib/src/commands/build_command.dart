@@ -2894,7 +2894,15 @@ class BuildCommand extends Command<void> {
   /// directory with a colon in its name that nothing requests -- plus the
   /// concrete paths those templates stand for, which only the application can
   /// enumerate because they come from its database.
-  Future<List<String>> _pagesToGenerate(String root) async {
+  Future<List<String>> _pagesToGenerate(String root) =>
+      _pages.resolve(root);
+
+  /// Asked by the service worker, the route pages and the semantics capture
+  /// alike. Each used to run the application's resolver again -- a flutter
+  /// test compile apiece -- and print every provider error once per step.
+  late final DVStaticPathsCache _pages = DVStaticPathsCache(_resolvePages);
+
+  Future<List<String>> _resolvePages(String root) async {
     final List<String> declared = _generatedRoutes(root);
     final List<String> concrete = dvConcreteRoutes(declared);
     final int templates = declared.length - concrete.length;
