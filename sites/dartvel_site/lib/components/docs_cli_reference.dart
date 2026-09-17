@@ -99,7 +99,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
       '    --profile                    What kind of build to make.',
       '',
-      '          [development]          Flutter debug (JIT). On Android it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
+      '          [development]          Flutter debug (JIT). On Android, iOS, macOS and Linux it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
       '          [profile]              Flutter profile mode.',
       '          [release] (default)    Flutter release mode.',
       '',

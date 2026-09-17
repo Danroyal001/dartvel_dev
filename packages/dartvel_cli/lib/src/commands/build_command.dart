@@ -487,8 +487,8 @@ class BuildCommand extends Command<void> {
           allowed: DVBuildProfile.names,
           defaultsTo: DVBuildProfile.release.name,
           allowedHelp: const <String, String>{
-            'development': 'Flutter debug (JIT). On Android it carries the '
-                'dev-client pairing, so `dartvel dev` can hot '
+            'development': 'Flutter debug (JIT). On Android, iOS, macOS and Linux it '
+                'carries the dev-client pairing, so `dartvel dev` can hot '
                 'reload it over the network.',
             'profile': 'Flutter profile mode.',
             'release': 'Flutter release mode.',
