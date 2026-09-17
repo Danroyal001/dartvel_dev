@@ -1241,6 +1241,20 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '',
     'void connect(MyTransport transport) => DVModelSync.useTransport(transport);',
   ],
+  'tenancy-across': <String>[
+    '// A report over every tenant has to say so.',
+    'final List<Map<String, Object?>> totals = await DV.Database.acrossTenants(',
+    '  () => DV.Database.query(\'select dv_tenant, count(*) as n from invoices group by dv_tenant\'),',
+    ');',
+  ],
+  'tenancy-databases': <String>[
+    '// Under isolation: database-per-tenant, each tenant opens its own database.',
+    'void configureTenantDatabases() {',
+    '  DV.Database.configureTenantDatabases(',
+    '    (String tenant) => SqliteDVDatabaseAdapter.file(\'tenants/\$tenant.db\'),',
+    '  );',
+    '}',
+  ],
   'tenancy-model': <String>[
     '\u0040DVModel(tenantScoped: true)',
     'class _Invoice {',
