@@ -11137,7 +11137,14 @@ are mutually exclusive.
 `@DVBackendFunction` takes `policy`, `mfa`, `rawPath` and `rawPathSuffix`
 today. A raw path is a string literal of plain segments, without path
 parameters, and the generated client calls the function where it is served.
-A POST to a raw path still needs the CSRF token every generated POST needs.
+A raw path is for callers that are not the application's own pages -- a
+payment provider's webhook, a store's server notification -- so it does not
+read the session cookie, and a POST to it needs no CSRF token. CSRF protects
+a credential the browser attaches on its own; a route that never reads that
+credential gives a forged cross-site request no session to act as. A bearer
+credential (an API key, an OAuth token, a `Bearer dvs_` session token) is
+still judged on a raw path, and `policy` and `mfa` still apply to whoever it
+names. A function that is not raw keeps both the cookie and the CSRF check.
 `transaction`, `authentication` and `rateLimit` are designed and are not
 parameters yet.
 

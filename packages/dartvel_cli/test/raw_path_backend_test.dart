@@ -39,6 +39,33 @@ import 'package:dartvel_core/dartvel.dart';
 Future<String> _hello() async => 'hello';
 ''';
 
+const String _notify = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(rawPath: '/payments/notify')
+Future<String> _paymentNotify(DVContext context) async => 'noted';
+''';
+
+const String _catalogHook = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction(rawPathSuffix: '/hook')
+Future<String> _catalogHook() async => 'hooked';
+''';
+
+const String _greet = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVBackendFunction()
+Future<String> _greet() async => 'greeted';
+''';
+
+/// The session cookie a browser attaches to a cross-site POST on its own,
+/// naming a session the server never issued. A route that reads the cookie
+/// refuses it; a route that does not never sees it.
+const String _strayCookie =
+    'dv_session=dvs_forged; __Host-dv_session=dvs_forged';
+
 const String _serve = r'''
 import 'dart:io';
 
@@ -103,13 +130,49 @@ void main() {
     project = await Directory.systemTemp.createTemp('dartvel_raw_path_');
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
     write(
-        p.join(project.path, 'lib', 'backend', 'functions', 'payments',
-            'webhook.get.dart'),
-        _webhook);
-    write(p.join(project.path, 'lib', 'backend', 'functions', 'catalog.get.dart'),
-        _catalog);
-    write(p.join(project.path, 'lib', 'backend', 'functions', 'hello.get.dart'),
-        _hello);
+      p.join(
+        project.path,
+        'lib',
+        'backend',
+        'functions',
+        'payments',
+        'webhook.get.dart',
+      ),
+      _webhook,
+    );
+    write(
+      p.join(project.path, 'lib', 'backend', 'functions', 'catalog.get.dart'),
+      _catalog,
+    );
+    write(
+      p.join(project.path, 'lib', 'backend', 'functions', 'hello.get.dart'),
+      _hello,
+    );
+    write(
+      p.join(
+        project.path,
+        'lib',
+        'backend',
+        'functions',
+        'payments',
+        'notify.post.dart',
+      ),
+      _notify,
+    );
+    write(
+      p.join(
+        project.path,
+        'lib',
+        'backend',
+        'functions',
+        'catalog_hook.post.dart',
+      ),
+      _catalogHook,
+    );
+    write(
+      p.join(project.path, 'lib', 'backend', 'functions', 'greet.post.dart'),
+      _greet,
+    );
     write(p.join(project.path, 'bin', 'serve.dart'), _serve);
     write(p.join(project.path, 'test', 'read_test.dart'), _read);
     write(p.join(project.path, 'pubspec.yaml'), '''
@@ -142,11 +205,10 @@ dependency_overrides:
     path: ${p.join(root, 'packages', 'dartvel_shelf')}
 ''');
     await routes.generate(root_: project.path);
-    final ProcessResult resolved = await Process.run(
-      'flutter',
-      <String>['pub', 'get'],
-      workingDirectory: project.path,
-    );
+    final ProcessResult resolved = await Process.run('flutter', <String>[
+      'pub',
+      'get',
+    ], workingDirectory: project.path);
     if (resolved.exitCode != 0) {
       throw StateError('flutter pub get failed:\n${resolved.stderr}');
     }
@@ -166,32 +228,85 @@ dependency_overrides:
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((String l) {
-        if (l.startsWith('PORT ') && !started.isCompleted) started.complete(l);
-      });
-      unawaited(server.exitCode.then((int code) {
-        if (!started.isCompleted) {
-          started.completeError(
-              StateError('the backend exited ($code):\n$serverOutput'));
-        }
-      }));
-      final String portLine = await started.future
-          .timeout(const Duration(minutes: 5), onTimeout: () {
-        throw StateError('the backend did not start:\n$serverOutput');
-      });
+            if (l.startsWith('PORT ') && !started.isCompleted)
+              started.complete(l);
+          });
+      unawaited(
+        server.exitCode.then((int code) {
+          if (!started.isCompleted) {
+            started.completeError(
+              StateError('the backend exited ($code):\n$serverOutput'),
+            );
+          }
+        }),
+      );
+      final String portLine = await started.future.timeout(
+        const Duration(minutes: 5),
+        onTimeout: () {
+          throw StateError('the backend did not start:\n$serverOutput');
+        },
+      );
       final int port = int.parse(portLine.substring('PORT '.length));
-      for (final String path in <String>[
-        '/payments/webhook',
-        '/api/payments/webhook',
-        '/api/catalog/public?id=7',
-        '/api/catalog?id=7',
-        '/api/hello',
-      ]) {
+      final String csrf = 'a' * 32;
+      const Map<String, String> none = <String, String>{};
+      for (final (
+            String name,
+            String method,
+            String path,
+            Map<String, String> headers,
+          )
+          in <(String, String, String, Map<String, String>)>[
+            ('/payments/webhook', 'GET', '/payments/webhook', none),
+            ('/api/payments/webhook', 'GET', '/api/payments/webhook', none),
+            (
+              '/api/catalog/public?id=7',
+              'GET',
+              '/api/catalog/public?id=7',
+              none,
+            ),
+            ('/api/catalog?id=7', 'GET', '/api/catalog?id=7', none),
+            ('/api/hello', 'GET', '/api/hello', none),
+            // A webhook sender has no CSRF token and no session.
+            ('raw POST', 'POST', '/payments/notify', none),
+            ('suffix POST', 'POST', '/api/catalog_hook/hook', none),
+            (
+              'raw POST with a cookie',
+              'POST',
+              '/payments/notify',
+              <String, String>{'cookie': _strayCookie},
+            ),
+            (
+              'function POST with a cookie',
+              'POST',
+              '/api/greet',
+              <String, String>{
+                'cookie': _strayCookie,
+                'x-dartvel-csrf-token': csrf,
+              },
+            ),
+            (
+              'raw POST with a bearer',
+              'POST',
+              '/payments/notify',
+              <String, String>{'authorization': 'Bearer dvs_forged'},
+            ),
+            ('function POST without a token', 'POST', '/api/greet', none),
+            (
+              'function POST with a token',
+              'POST',
+              '/api/greet',
+              <String, String>{'x-dartvel-csrf-token': csrf},
+            ),
+          ]) {
         final HttpClient http = HttpClient();
         try {
-          final HttpClientResponse response = await (await http
-                  .getUrl(Uri.parse('http://127.0.0.1:$port$path')))
-              .close();
-          answers[path] = (
+          final HttpClientRequest request = await http.openUrl(
+            method,
+            Uri.parse('http://127.0.0.1:$port$path'),
+          );
+          headers.forEach(request.headers.set);
+          final HttpClientResponse response = await request.close();
+          answers[name] = (
             response.statusCode,
             await response.transform(utf8.decoder).join(),
           );
@@ -199,33 +314,33 @@ dependency_overrides:
           http.close(force: true);
         }
       }
-      final ProcessResult result = await Process.run(
-        'flutter',
-        <String>[
-          'test',
-          'test/read_test.dart',
-          '--dart-define=DARTVEL_BACKEND_URL=http://127.0.0.1:$port',
-        ],
-        workingDirectory: project.path,
-      ).timeout(const Duration(minutes: 8));
+      final ProcessResult result = await Process.run('flutter', <String>[
+        'test',
+        'test/read_test.dart',
+        '--dart-define=DARTVEL_BACKEND_URL=http://127.0.0.1:$port',
+      ], workingDirectory: project.path).timeout(const Duration(minutes: 8));
       final String? line = const LineSplitter()
           .convert('${result.stdout}')
           .map((String l) => l.trim())
           .where((String l) => l.startsWith('PROBE '))
           .firstOrNull;
       if (result.exitCode != 0 || line == null) {
-        fail('the client did not call the functions (exit ${result.exitCode}):\n'
-            '${result.stdout}\n${result.stderr}\nserver:\n$serverOutput');
+        fail(
+          'the client did not call the functions (exit ${result.exitCode}):\n'
+          '${result.stdout}\n${result.stderr}\nserver:\n$serverOutput',
+        );
       }
       received =
           jsonDecode(line.substring('PROBE '.length)) as Map<String, Object?>;
     } finally {
       server.kill(ProcessSignal.sigterm);
-      await server.exitCode.timeout(const Duration(seconds: 20),
-          onTimeout: () {
-        server.kill(ProcessSignal.sigkill);
-        return -1;
-      });
+      await server.exitCode.timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {
+          server.kill(ProcessSignal.sigkill);
+          return -1;
+        },
+      );
     }
   });
 
@@ -245,6 +360,28 @@ dependency_overrides:
 
   test('a function with neither keeps its generated path', () {
     expect(answers['/api/hello'], (200, 'hello'));
+  });
+
+  test('a POST to a raw path needs no CSRF token', () {
+    expect(answers['raw POST'], (200, 'noted'));
+    expect(answers['suffix POST'], (200, 'hooked'));
+  });
+
+  test('a raw path does not read the session cookie', () {
+    // So a forged cross-site POST has no session to borrow, which is what
+    // CSRF protection is for.
+    expect(answers['raw POST with a cookie'], (200, 'noted'));
+    // The control: the same cookie is read, and refused, on a function.
+    expect(answers['function POST with a cookie']!.$1, 401);
+  });
+
+  test('a raw path still judges a bearer credential', () {
+    expect(answers['raw POST with a bearer']!.$1, 401);
+  });
+
+  test('a function POST without a CSRF token is still refused', () {
+    expect(answers['function POST without a token']!.$1, 403);
+    expect(answers['function POST with a token'], (200, 'greeted'));
   });
 
   test('the generated client calls each function where it is served', () {

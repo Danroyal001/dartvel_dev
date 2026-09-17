@@ -898,10 +898,16 @@ dv.Response _dvUnauthenticated() => dv.Response(401,
 /// of the credential in it, and is never cached; a session that does not
 /// authenticate is refused on every route, because a revoked session fails its
 /// next request rather than being read as an anonymous one.
+///
+/// A raw path passes [cookies] false: it is called by other servers, and a
+/// cookie is the credential a browser attaches to a cross-site request on its
+/// own. Not reading it is what lets a raw path take a POST without a CSRF
+/// token and still give a forged one no session to act as.
 Future<dv.Response> _dvAuthenticated(
   dv.Request req,
-  Future<dv.Response> Function() run,
-) async {${authenticates ? r'''
+  Future<dv.Response> Function() run, {
+  bool cookies = true,
+}) async {${authenticates ? r'''
   final core.DVApiAuthentication auth =
       await core.DVPlatformApi.authenticateRequest(req.headers.get('authorization'));
   if (auth.refused) {
@@ -918,7 +924,7 @@ Future<dv.Response> _dvAuthenticated(
   final core.DVSessionAuthenticationResult session =
       await core.DVSessionAuthentication.authenticateRequest(
           authorization: req.headers.get('authorization'),
-          cookie: req.headers.get('cookie'));
+          cookie: cookies ? req.headers.get('cookie') : null);
   if (session.refused) {
     return dv.Response(session.status!,
         headers: dv.Headers({
@@ -1003,6 +1009,10 @@ ${backendEntries.map((e) {
       // The address the route is registered at: a rawPath as written, outside
       // the API base path, or the generated path with any suffix.
       final String rawPath = e['rawPath'] ?? '';
+      // Raw HTTP exposure, for callers that are not this application's
+      // pages: no session cookie is read and no CSRF token is asked for.
+      final bool rawExposure =
+          rawPath.isNotEmpty || (e['rawPathSuffix'] ?? '').isNotEmpty;
       final String routeTarget = rawPath.isNotEmpty
           ? "'${esc(rawPath)}'"
           : "cfg.apiBasePath + '$path${esc(e['rawPathSuffix'] ?? '')}'";
@@ -1068,7 +1078,10 @@ ${backendEntries.map((e) {
               '(dv.Request req)'),
         // On every route, with or without dartvel.platformApi: the
         // application's own sessions authenticate here too.
-        ('_dvAuthenticated(req, ', '()'),
+        (rawExposure
+            ? '_dvAuthenticated(req, cookies: false, '
+            : '_dvAuthenticated(req, ',
+            '()'),
         if (chainKeys.isNotEmpty)
           (
             '_dvGuarded(req, const <String>['
@@ -1273,8 +1286,7 @@ $readBody
           }
         }
       }
-    } catch (e) { /* ignore body read errors */ }
-    if (${authenticates ? 'core.DVApiPrincipal.current == null && ' : ''}!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();''';
+    } catch (e) { /* ignore body read errors */ }${rawExposure ? '' : "\n    if (${authenticates ? 'core.DVApiPrincipal.current == null && ' : ''}!_dvValidateCsrf(req, body)) return _dvCsrfForbidden();"}''';
 
       // The policy gate, after the body is read so CSRF still runs first and
       // before the function is called. Emitted per route rather than wrapped
