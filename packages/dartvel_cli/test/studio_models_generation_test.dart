@@ -91,6 +91,89 @@ void main() {
     expect(note, contains('versioned: false'));
   });
 
+  test('a module\'s models are specified under the module, resolving their '
+      'table through its mount', () async {
+    File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: notes
+dartvel:
+  module:
+    id: notes
+''');
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'notes', buildId: 'b');
+    final String pages = File(
+            p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'))
+        .readAsStringSync();
+
+    final String note = spec(pages, 'Note');
+    expect(note, contains("module: 'notes'"));
+    expect(note, contains('data: _dvModule'));
+  });
+
+  test('a mounted module\'s models are given to the admin beside the '
+      'application\'s', () async {
+    File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shop
+dartvel:
+  modules:
+    notes:
+      source: { path: modules/notes }
+      mount: /notes
+      deployment: embedded
+      data: schema-isolated
+''');
+    final Directory module = Directory(p.join(root.path, 'modules', 'notes'))
+      ..createSync(recursive: true);
+    File(p.join(module.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shop_notes
+dartvel:
+  module:
+    id: notes
+''');
+    File(p.join(module.path, 'lib', 'models', 'memo.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+@pragma('vm:entry-point')
+class _Memo {
+  final String id;
+  final String text;
+  const _Memo({required this.id, required this.text});
+}
+''');
+    Directory(p.join(module.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    await ModelGenerator.generate(
+        root: module.path, pkgName: 'shop_notes', buildId: 'b');
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'shop', buildId: 'b');
+    await BackendGenerator.generate(
+      root: root.path,
+      backendDir: 'lib/backend',
+      pkgName: 'shop',
+      buildId: 'b',
+      backendHost: '127.0.0.1',
+      backendPort: 3000,
+      apiBasePath: '/api',
+    );
+    final String routes = File(
+            p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'))
+        .readAsStringSync();
+
+    final RegExpMatch? imported = RegExp(
+      r"import 'package:shop_notes/dartvel_client/model_pages\.g\.dart' "
+      r'as (\w+) show dartvelStudioModels;',
+    ).firstMatch(routes);
+    expect(imported, isNotNull,
+        reason: 'the module\'s model specs are not imported');
+    expect(
+      routes,
+      contains('...dartvelStudioModels, ...${imported!.group(1)}.dartvelStudioModels'),
+    );
+  });
+
   test('the backend mounts the admin with the specs and the database',
       () async {
     await ModelGenerator.generate(
