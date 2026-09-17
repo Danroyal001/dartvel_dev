@@ -1,4 +1,4 @@
-// `dartvel publish` refuses a dev-client shell on anything but an internal
+// `dartvel deploy --store` refuses a dev-client shell on anything but an internal
 // track (DV-DEVCLIENT-003).
 //
 // Decided from the artifact's content, not its name: a renamed file is still
@@ -9,7 +9,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
-import 'package:dartvel_cli/src/commands/publish_command.dart';
+import 'package:dartvel_cli/src/commands/deploy_command.dart';
 import 'package:dartvel_cli/src/devclient/dev_client_artifact.dart';
 import 'package:dartvel_core/dartvel.dart' show dvDevClientShellMarker;
 import 'package:path/path.dart' as p;
@@ -119,13 +119,12 @@ $yaml
   Future<void> publish(List<String> arguments) async {
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
       ..addCommand(
-        PublishCommand(
+        DeployCommand(
           root: root.path,
           processRun:
               (
                 String executable,
                 List<String> args, {
-                String? workingDirectory,
                 bool runInShell = false,
               }) async {
                 ran.add(<String>[executable, ...args]);
@@ -133,7 +132,7 @@ $yaml
               },
         ),
       );
-    await runner.run(<String>['publish', ...arguments]);
+    await runner.run(<String>['deploy', '--store', ...arguments]);
   }
 
   group('recognising a shell', () {

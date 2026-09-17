@@ -1,13 +1,10 @@
-/// `dartvel publish <store>`: the application to a store, or the reason not.
+/// `dartvel publish <store>`: deprecated, and gone in the next release.
 ///
-/// Host support first, then the tooling, then the work -- the build
-/// toolchain rule, and here it matters more than usual: the work is an
-/// upload of a binary that took minutes to produce, and a credential that
-/// was never declared is discovered after all of it.
-///
-/// `--dry-run` prints the command instead of running it, which is how
-/// somebody sees what Dartvel would do to their store account before it does
-/// it.
+/// Store submission is `dartvel deploy --store <store>` now. Deploy already
+/// shipped a site and a server; a second verb for shipping an application
+/// was a second place to look for the same thing. This keeps the old
+/// spelling working for one release and prints the new one every time, so
+/// a script that still says publish is told what to change before it breaks.
 library;
 
 import 'dart:io';
@@ -15,209 +12,95 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../cloud/cloud_build.dart';
-import '../devclient/dev_client_artifact.dart';
-import '../publish/publish_plan.dart';
+import '../publish/store_deploy.dart';
 import '../utils/logger.dart';
 
-typedef PublishProcessRun = Future<ProcessResult> Function(
-  String executable,
-  List<String> arguments, {
-  String? workingDirectory,
-  bool runInShell,
-});
+export '../publish/store_deploy.dart' show PublishProcessRun;
 
 class PublishCommand extends Command<void> {
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
   /// by every suite in the process.
-  PublishCommand({PublishProcessRun? processRun, this._root, this._cloud})
-      : _processRun = processRun ?? _defaultRun {
+  PublishCommand({
+    PublishProcessRun? processRun,
+    String? root,
+    DVCloudBuilder? cloud,
+  }) : _deploy = DVStoreDeploy(
+         processRun: processRun,
+         root: root,
+         cloud: cloud,
+       ) {
     argParser
-      ..addFlag('dry-run',
-          defaultsTo: false,
-          negatable: false,
-          help: 'Print the command that would run, and run nothing.')
-      ..addOption('artifact',
-          help: 'The file to upload, when it is not where the build puts it.')
-      ..addFlag('cloud',
-          defaultsTo: false,
-          negatable: false,
-          help: 'Build and publish on Dartvel Cloud, with the credentials kept '
-              'there by dartvel key cloud. With --dry-run the worker prints the '
-              'upload instead of making it. Play gets an App Bundle and App '
-              'Store Connect a signed IPA, both built in release. Needs a paid '
-              'Dartvel Cloud plan.')
-      ..addOption('cloud-token',
-          help: 'The Dartvel Cloud token for --cloud. Defaults to '
-              'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
+      ..addFlag('dry-run', defaultsTo: false, negatable: false)
+      ..addOption('artifact')
+      ..addFlag('cloud', defaultsTo: false, negatable: false)
+      ..addOption('cloud-token');
   }
 
-  static Future<ProcessResult> _defaultRun(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    bool runInShell = false,
-  }) =>
-      Process.run(executable, arguments,
-          workingDirectory: workingDirectory, runInShell: runInShell);
-
-  final PublishProcessRun _processRun;
-  final String? _root;
-  final DVCloudBuilder? _cloud;
+  final DVStoreDeploy _deploy;
 
   @override
   final String name = 'publish';
 
   @override
-  String get description =>
-      'Publish a built application to a store (${dvPublishStores.join(', ')}).';
+  String get description => 'Deprecated: use dartvel deploy --store <store>.';
 
   @override
   String get invocation => 'dartvel publish <store>';
+
+  /// Hidden, so `dartvel --help` and the reference built from it show one way
+  /// to deploy to a store.
+  @override
+  bool get hidden => true;
 
   @override
   Future<void> run() async {
     final List<String> rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
-      Logger.log('❌ Name a store: ${dvPublishStores.join(', ')}.');
+      Logger.log(
+        '⚠️  dartvel publish is deprecated: use '
+        'dartvel deploy --store <${dvDeployStores.keys.join('|')}>.',
+      );
       exitCode = 64; // EX_USAGE
       return;
     }
 
-    final String store = rest.first;
-    final String root = _root ?? Directory.current.path;
+    final String given = rest.first;
+    // publish's firebase was App Distribution; deploy spells it out.
+    final String store = dvDeployStoreName(given) ?? given;
+    Logger.log(
+      '⚠️  dartvel publish is deprecated and goes in the next '
+      'release. Use: ${_deployForm(store, given)}',
+    );
 
-    if (argResults?['cloud'] == true) {
-      exitCode = await _publishInTheCloud(store, root);
-      return;
-    }
-    final DVPublishPlan plan = dvPublishPlan(
+    exitCode = await _deploy.run(
       store: store,
-      root: root,
-      host: Platform.isMacOS
-          ? 'macos'
-          : Platform.isWindows
-              ? 'windows'
-              : 'linux',
-      environment: Platform.environment,
-    );
-
-    if (!plan.ok) {
-      Logger.log('❌ Cannot publish to $store:');
-      for (final String problem in plan.problems) {
-        Logger.log('   $problem');
-      }
-      exitCode = 78; // EX_CONFIG
-      return;
-    }
-
-    final String artifact = argResults?['artifact'] as String? ?? plan.artifact;
-    // Before the tooling check, because a missing artifact is the project's
-    // own business and says to build first; a missing tool is the machine's.
-    if (!File(artifact).existsSync()) {
-      Logger.log('❌ There is nothing at $artifact to publish.');
-      Logger.log('   Build it first, or pass --artifact.');
-      exitCode = 66; // EX_NOINPUT
-      return;
-    }
-
-    // Before the dry run, which would otherwise print a command that puts a
-    // dev menu in front of the public.
-    if (dvArtifactIsDevClient(artifact)) {
-      final int track = plan.arguments.indexOf('--track');
-      final String? refusal = dvDevClientPublishRefusal(
-        store: store,
-        track: track < 0 ? null : plan.arguments[track + 1],
-      );
-      if (refusal != null) {
-        Logger.log('❌ $refusal');
-        exitCode = 78; // EX_CONFIG
-        return;
-      }
-    }
-
-    final List<String> arguments = <String>[
-      for (final String argument in plan.arguments)
-        if (argument == plan.artifact) artifact else argument,
-    ];
-
-    if (argResults?['dry-run'] == true) {
-      Logger.log('${plan.executable} ${arguments.join(' ')}');
-      return;
-    }
-
-    if (!_isOnPath(plan.toolchain)) {
-      Logger.log('❌ ${plan.toolchain} is not installed, and publishing to '
-          '$store is done with it.');
-      Logger.log('   Install it and run this again; Dartvel will not fetch a '
-          'store toolchain unattended.');
-      exitCode = 69; // EX_UNAVAILABLE
-      return;
-    }
-
-    Logger.log('🚀 Publishing to $store...');
-    final ProcessResult result = await _processRun(
-      plan.executable,
-      arguments,
-      workingDirectory: root,
-      runInShell: true,
-    );
-    if (result.exitCode != 0) {
-      Logger.log('❌ ${plan.executable} exited ${result.exitCode}');
-      final String error = '${result.stderr}'.trim();
-      if (error.isNotEmpty) Logger.log(error);
-      exitCode = result.exitCode;
-      return;
-    }
-    Logger.log('✅ Published to $store.');
-  }
-
-  /// What each store is built from in the cloud: the target, the package
-  /// format, and the operating system the upload runs on.
-  static const Map<String, (String, String?, String)> _cloudBuilds =
-      <String, (String, String?, String)>{
-    'firebase': ('android', null, 'linux'),
-    'play': ('android', 'aab', 'linux'),
-    'appstore': ('ios', 'ipa', 'macos'),
-    'testflight': ('ios', 'ipa', 'macos'),
-  };
-
-  Future<int> _publishInTheCloud(String store, String root) async {
-    final (String, String?, String)? build = _cloudBuilds[store];
-    if (build == null) {
-      Logger.log('❌ "$store" is not a store Dartvel publishes to. The ones it '
-          'knows are ${dvPublishStores.join(', ')}.');
-      return 64; // EX_USAGE
-    }
-    // The declaration is checked here, where a refusal costs nothing, rather
-    // than on a worker after the build.
-    final (String target, String? format, String workerOs) = build;
-    final DVPublishPlan plan =
-        dvPublishPlan(store: store, root: root, host: workerOs);
-    if (!plan.ok) {
-      Logger.log('❌ Cannot publish to $store:');
-      for (final String problem in plan.problems) {
-        Logger.log('   $problem');
-      }
-      return 78; // EX_CONFIG
-    }
-    return (_cloud ?? DVCloudBuilder()).run(DVCloudBuildRequest(
-      root: root,
-      target: target,
-      profile: 'release',
-      format: format,
-      publish: store,
       dryRun: argResults?['dry-run'] == true,
-      token: argResults?['cloud-token'] as String?,
-    ));
+      artifact: argResults?['artifact'] as String?,
+      cloud: argResults?['cloud'] == true,
+      cloudToken: argResults?['cloud-token'] as String?,
+    );
   }
 
-  static bool _isOnPath(String executable) {
-    final ProcessResult result = Process.runSync(
-      Platform.isWindows ? 'where' : 'which',
-      <String>[executable],
-      runInShell: true,
+  /// The deploy command this invocation is, with a token given on the
+  /// command line left out of what is printed into a log.
+  String _deployForm(String store, String given) {
+    final List<String> arguments = List<String>.of(
+      argResults?.arguments ?? const <String>[],
     );
-    return result.exitCode == 0;
+    arguments.remove(given);
+    final List<String> shown = <String>[];
+    for (int i = 0; i < arguments.length; i++) {
+      final String argument = arguments[i];
+      if (argument == '--cloud-token') {
+        shown.add('--cloud-token <token>');
+        i++;
+      } else if (argument.startsWith('--cloud-token=')) {
+        shown.add('--cloud-token <token>');
+      } else {
+        shown.add(argument);
+      }
+    }
+    return <String>['dartvel deploy --store', store, ...shown].join(' ');
   }
 }

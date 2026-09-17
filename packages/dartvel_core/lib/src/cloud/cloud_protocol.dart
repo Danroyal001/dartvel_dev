@@ -1,5 +1,5 @@
 /// The Dartvel Cloud protocol: the requests `dartvel build --cloud`,
-/// `dartvel publish --cloud` and `dartvel key cloud` make, and the answers the
+/// `dartvel deploy --store --cloud` and `dartvel key cloud` make, and the answers the
 /// Cloud service gives.
 ///
 /// Pure Dart with no `dart:io`, so the CLI and the service read one set of
@@ -80,7 +80,10 @@ DVCloudWorkerOs? dvCloudWorkerOs(String target) => dvCloudTargets[target];
 /// The profiles `dartvel build --profile` takes.
 const List<String> dvCloudProfiles = <String>['development', 'profile', 'release'];
 
-/// The stores `dartvel publish` knows.
+/// The stores `dartvel deploy --store` knows, by their protocol name:
+/// `firebase` is Firebase App Distribution, which the command line spells
+/// `firebase-app-distribution`. The names are the wire format, so a worker
+/// already running reads a request from either spelling of the command.
 const List<String> dvCloudStores = <String>['play', 'appstore', 'testflight', 'firebase'];
 
 final RegExp _projectName = RegExp(r'^[a-z_][a-z0-9_]{0,63}$');
@@ -147,7 +150,7 @@ class DVCloudBuildSpec {
   final String target;
   final String profile;
 
-  /// A store `dartvel publish` sends the build to once it is built.
+  /// A store `dartvel deploy --store` sends the build to once it is built.
   final String? publish;
 
   /// Passed to that publish as `--dry-run`.

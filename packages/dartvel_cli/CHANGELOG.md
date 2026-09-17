@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **Store submission is `dartvel deploy --store`.** `dartvel deploy` already
+  shipped a web build and a server, so a second verb for shipping an
+  application was a second place to look. `dartvel publish play` is now
+  `dartvel deploy --store play`, with `--dry-run`, `--artifact`, `--cloud` and
+  `--cloud-token` as before; the stores are `play`, `appstore`, `testflight`
+  and `firebase-app-distribution`. `--store` takes none of `--target`,
+  `--provider`, `--functions` or `--function-target`, and the store options
+  are refused without it rather than ignored.
+- **`dartvel publish` is deprecated** and goes in the next release. It still
+  works, is hidden from `dartvel --help`, and prints the deploy command to
+  use instead, with a command-line token left out of that line.
+- **`--provider firebase` is now `--provider firebase-hosting`.** Firebase
+  named Hosting on `deploy` and App Distribution on `publish`; with both on
+  one command neither spelling can be bare. `--provider firebase` still
+  deploys Hosting for one release and says so. The pubspec declaration stays
+  `dartvel.publish.firebase` and the Dartvel Cloud request still sends
+  `firebase`, so declared projects and running workers are unchanged.
+
 - **A streaming backend function sends JSON events.** The generated server
   wrote each value with `toString()`, so a `Stream<Tick>` went out as
   `Instance of 'Tick'`, which the client dropped without a word, and a string

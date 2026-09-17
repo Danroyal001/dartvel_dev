@@ -1,4 +1,4 @@
-/// `dartvel build <target> --cloud` and `dartvel publish <store> --cloud`: the
+/// `dartvel build <target> --cloud` and `dartvel deploy --store <store> --cloud`: the
 /// project packed and sent to Dartvel Cloud, built on a Dartvel worker, its
 /// log printed as it arrives, and its artifacts brought home into
 /// `build/cloud/<target>`.
@@ -48,7 +48,7 @@ class DVCloudBuildRequest {
   final String target;
   final String profile;
 
-  /// A store `dartvel publish` sends the build to once it is built.
+  /// A store `dartvel deploy --store` sends the build to once it is built.
   final String? publish;
 
   /// Passed to that publish as `--dry-run`.
