@@ -45,7 +45,6 @@ class DeployCommand extends Command<void> {
           // Checked in run() rather than by `allowed`, so a bare firebase is
           // answered with the two things it could mean instead of the
           // parser's "not an allowed value".
-          valueHelp: _providers.join('|'),
           help: 'Where the web build or the server is hosted: '
               'firebase-hosting (Firebase Hosting, with the firebase CLI), '
               'vercel, netlify, cloudflare (Cloudflare Pages, with wrangler), '
