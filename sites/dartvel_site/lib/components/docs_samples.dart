@@ -179,6 +179,18 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'Future<Map<String, Object?>> _hello(String name) async =>',
     '    <String, Object?>{\'greeting\': \'Hello, \$name\'};',
   ],
+  'backend-lifecycle': <String>[
+    '\u0040DVBackendFunction()',
+    'Future<Map<String, Object?>> _getExport(DVContext context, String id) async {',
+    '  final DVLifecycleSignal<DVRequestLifecycle> request = context.lifecycle.request;',
+    '  request.listen((DVRequestLifecycle state) {',
+    '    if (state == DVRequestLifecycle.failed) {',
+    '      DVObservability.log(\'export \$id failed\', level: DVLogLevel.warn);',
+    '    }',
+    '  });',
+    '  return <String, Object?>{\'id\': id, \'stage\': request.value.name};',
+    '}',
+  ],
   'backend-middleware': <String>[
     '\u0040DVUseMiddleware(<DVMiddlewareKey>[',
     '  DVMiddlewares.auth,',
@@ -186,6 +198,14 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '])',
     '\u0040DVBackendFunction()',
     'Future<List<String>> _listReports() async => <String>[\'2026-08\', \'2026-09\'];',
+  ],
+  'backend-raw-path': <String>[
+    '// Served at POST /payments/webhook, outside /api.',
+    '\u0040DVBackendFunction(rawPath: \'/payments/webhook\')',
+    'Future<Map<String, Object?>> _paymentWebhook(String event, String reference) async {',
+    '  await recordPayment(event, reference);',
+    '  return <String, Object?>{\'received\': true};',
+    '}',
   ],
   'backend-stream': <String>[
     '// lib/backend/functions/stream/ticks.get.dart',

@@ -75,6 +75,46 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'raw-paths',
+          title: 'Serve a webhook at a fixed path',
+          children: <Widget>[
+            DocsCode('backend-raw-path'),
+            Bullets(<String>[
+              'rawPath serves the function at exactly that path, outside '
+                  'apiBasePath. rawPathSuffix adds to the generated path '
+                  'instead, and you can use only one of the two.',
+              'A raw path reads no session cookie and asks for no CSRF token, '
+                  'so a payment provider can POST to it. An API key or OAuth '
+                  'token sent to it is still checked.',
+              'Both take plain segments. A path parameter in one stops the '
+                  'build, and so do two functions on the same address.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'lifecycle',
+          title: 'Watch a request move through its stages',
+          children: <Widget>[
+            DocsCode('backend-lifecycle'),
+            Bullets(<String>[
+              'context.lifecycle.request is read-only. You observe it, and the '
+                  'framework moves it.',
+              'Before your code runs, the body is read and the MFA and policy '
+                  'checks pass, with the CSRF check first on a generated path.',
+              'An error thrown by the function answers 500, runs its '
+                  'compensations and is recorded as a server crash.',
+            ]),
+            DocsStatus('Backend Function Request Lifecycle', missing: <String>[
+              'Four stages are set today: received, executing, '
+                  'preparingResponse and failed.',
+              'transaction, authentication and rateLimit are not parameters of '
+                  '@DVBackendFunction yet.',
+              'The generated client does not send the binary flat-buffer '
+                  'format, though the server decodes it.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'streams',
           title: 'Stream results with server-sent events',
           children: <Widget>[
@@ -109,6 +149,10 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
             DocsCode('backend-background'),
             DocsText('See Queues and jobs for declaring the job and running '
                 'workers.'),
+            DocsStatus('Background and Durable Work', missing: <String>[
+              'background: and durable: are not parameters of '
+                  '@DVBackendFunction yet. Dispatch a job as shown here.',
+            ]),
           ],
         ),
         DocsSection(
@@ -131,12 +175,26 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('backend-middleware'),
             Bullets(<String>[
-              'Middleware runs in the order you list it.',
-              'CSRF checks run on every POST, PUT, PATCH and DELETE, and the '
-                  'generated client sends the token.',
-              'CORS and compression are set in pubspec.yaml under '
-                  'dartvel.server.',
+              'Middleware runs in the order you list it. The keys that run are '
+                  'auth, tenant, rateLimit, requestLogging, securityHeaders, '
+                  'locale, idempotency, featureFlags, maintenance and csp.',
+              'bodyLimit and uploadLimit cap the request body at 1 MiB and 16 '
+                  'MiB, and answer 413 past it. tracing starts a trace for the '
+                  'request.',
+              'A key that does nothing yet, such as cors or cacheTags, stops the '
+                  'build and says why.',
             ]),
+            DocsSubheading('Set limits for the whole server'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  server:',
+              '    maxBodyBytes: 2097152',
+              '    compression: true',
+              '    trustedProxies: [10.0.0.0/8]',
+            ]),
+            DocsText('CORS sits in the same server block. Every key there is '
+                'checked when dartvel routes runs.'),
             DocsStatus('Middleware', missing: <String>[
               'Page middleware cannot preload data or set SEO context.',
               'No layout, model or storage scopes, and no global middleware '
@@ -145,11 +203,36 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'csrf',
+          title: 'CSRF protection is on for every function',
+          children: <Widget>[
+            Bullets(<String>[
+              'A POST, PUT, PATCH or DELETE to a generated function needs the '
+                  'x-dartvel-csrf-token header, or it gets 403.',
+              'The generated client sends the token for you, so there is '
+                  'nothing to add to your app.',
+              'Writing your own client? DV.CSRF.token() makes a token and '
+                  'DVCSRF.headerName names the header.',
+            ]),
+            DocsStatus('CSRF Protection'),
+          ],
+        ),
+        DocsSection(
           id: 'openapi',
           title: 'Get an OpenAPI document for free',
           children: <Widget>[
             DocsText('The backend serves an OpenAPI 3.1 description of your '
                 'functions at /api/openapi.json.'),
+          ],
+        ),
+        DocsSection(
+          id: 'status',
+          title: 'Status',
+          children: <Widget>[
+            DocsStatus('Backend', missing: <String>[
+              'Functions are served over HTTP. WebSocket and polling '
+                  'transports are not generated.',
+            ]),
           ],
         ),
       ],
