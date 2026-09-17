@@ -5803,19 +5803,19 @@ class DVAuth {
   /// Whether this build is served by its own generated server, which signs
   /// accounts up and in at `/auth/sign-in`.
   ///
-  /// `dartvel build web-server` states it through `DARTVEL_SERVER_AUTH`: the
+  /// `dartvel build web-server` states it through `DARTVEL_WEB_SERVER`: the
   /// page cannot tell at run time what binary served it. When it is true the
   /// in-memory [DVLocalAuthProvider] -- a development adapter -- yields to the
   /// installed default provider, so the prebuilt account pages and every
   /// `DV.Auth` call reach the accounts the server keeps rather than a map in
   /// the browser tab. A provider the application wrote is never overridden.
-  static bool servedWithServerAuth =
-      const bool.fromEnvironment('DARTVEL_SERVER_AUTH');
+  static bool servedByOwnServer =
+      const bool.fromEnvironment('DARTVEL_WEB_SERVER');
 
   static DVAuthProvider? get _activeProvider {
     final DVAuthProvider? configured = _provider;
     final DVAuthProvider? fallback = _defaultProvider;
-    if (servedWithServerAuth &&
+    if (servedByOwnServer &&
         fallback != null &&
         configured.runtimeType == DVLocalAuthProvider) {
       return fallback;
@@ -6411,8 +6411,8 @@ extension DVFlutterTestHarness on DVTestHarness {
     DVAuth._currentUser = null;
     DVAuth._provider = null;
     DVAuth._defaultProvider = null;
-    DVAuth.servedWithServerAuth =
-        const bool.fromEnvironment('DARTVEL_SERVER_AUTH');
+    DVAuth.servedByOwnServer =
+        const bool.fromEnvironment('DARTVEL_WEB_SERVER');
   }
 
   void resetBillingProvider() {

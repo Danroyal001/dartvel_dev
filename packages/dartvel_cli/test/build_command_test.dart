@@ -56,10 +56,10 @@ void main() {
         platform: 'web-server',
         buildMode: '--release',
       );
-      expect(server, contains('--dart-define=DARTVEL_SERVER_AUTH=true'));
+      expect(server, contains('--dart-define=DARTVEL_WEB_SERVER=true'));
 
       final web = resolveFlutterBuildArguments(platform: 'web', buildMode: '--release');
-      expect(web.where((String a) => a.contains('DARTVEL_SERVER_AUTH')), isEmpty);
+      expect(web.where((String a) => a.contains('DARTVEL_WEB_SERVER')), isEmpty);
     });
 
     test('--device-profile reaches the app as DARTVEL_DEVICE_PROFILE', () {
