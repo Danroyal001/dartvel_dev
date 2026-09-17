@@ -77,8 +77,10 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Record History and Optimistic Concurrency', 'Data',
       DVRoutes.docsmodels, 'Keep and revert record history',
       anchor: 'history'),
-  SpecCoverage('Search', 'Data', DVRoutes.docsmodels, 'Search records',
-      anchor: 'search'),
+  SpecCoverage('Search', 'Data', DVRoutes.docssearch,
+      'Choose a search provider', anchor: 'providers'),
+  SpecCoverage('Semantic Search and Embeddings', 'Data', DVRoutes.docssearch,
+      'Search by meaning with embeddings', anchor: 'semantic'),
   SpecCoverage('Sensitive Model Fields', 'Data', DVRoutes.docsmodels,
       'Protect sensitive fields', anchor: 'sensitive'),
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
@@ -192,7 +194,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
   // Data
-  'Semantic Search and Embeddings': 'Data',
   'Data Import, Export, and Reporting': 'Data',
   'Change Data Capture and Warehouse Sync': 'Data',
   'Offline-First Models': 'Data',

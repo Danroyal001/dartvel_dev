@@ -19,6 +19,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/models': (() => const DocsModelsPageGeneratedPage(), DocsModelsPageGeneratedPage.loadLibrary),
   '/docs/database': (() => const DocsDatabasePageGeneratedPage(), DocsDatabasePageGeneratedPage.loadLibrary),
   '/docs/forms': (() => const DocsFormsPageGeneratedPage(), DocsFormsPageGeneratedPage.loadLibrary),
+  '/docs/search': (() => const DocsSearchPageGeneratedPage(), DocsSearchPageGeneratedPage.loadLibrary),
   '/docs/backend-functions': (() => const DocsBackendFunctionsPageGeneratedPage(), DocsBackendFunctionsPageGeneratedPage.loadLibrary),
   '/docs/auth': (() => const DocsAuthPageGeneratedPage(), DocsAuthPageGeneratedPage.loadLibrary),
   '/docs/authorization': (() => const DocsAuthorizationPageGeneratedPage(), DocsAuthorizationPageGeneratedPage.loadLibrary),
