@@ -221,4 +221,43 @@ void main() {
     });
   });
 
+  testWidgets('publishing goes to the store the screen was given, not the '
+      'default one', (WidgetTester tester) async {
+    // Studio served by a web-server binary keeps its pages on the server.
+    // The editor's Publish wrote to DV.Database whatever store the screen
+    // held, so the page went nowhere the server could see.
+    final _RecordingStore store = _RecordingStore();
+    await tester.pumpWidget(
+        MaterialApp(home: Material(child: DVStudioScreen(store: store))));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, '/remote');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-create')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-publish')));
+    await tester.pumpAndSettle();
+
+    expect(store.saved.map((DVPageDocument d) => d.route), <String>['/remote']);
+    expect(await const DVPageStore().routes(), isEmpty);
+  });
+}
+
+class _RecordingStore extends DVPageStore {
+  final List<DVPageDocument> saved = <DVPageDocument>[];
+
+  @override
+  Future<void> save(DVPageDocument document) async => saved.add(document);
+
+  @override
+  Future<List<String>> routes() async => <String>[
+        for (final DVPageDocument document in saved) document.route,
+      ];
+
+  @override
+  Future<DVPageDocument?> load(String route) async =>
+      saved.where((DVPageDocument d) => d.route == route).lastOrNull;
+
+  @override
+  Future<void> delete(String route) async =>
+      saved.removeWhere((DVPageDocument d) => d.route == route);
 }

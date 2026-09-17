@@ -556,6 +556,10 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       final DVStudioEditorController controller =
           DVStudioEditorController(document);
       _controller = controller;
+      // Publish goes to the store this screen was given. Left to the
+      // controller's default it went to DV.Database, so Studio served by a
+      // web-server binary published nowhere the server could read.
+      controller.publisher = widget.store.save;
       final DVStudioContent? content = widget.content;
       if (content != null) {
         // Before the hooks, so a hook can still take the publisher over.
