@@ -50,17 +50,19 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'A worker needs DATABASE_URL and at least one handler, or it '
                   'refuses to start.',
-              'A failed job retries after its backoff, then moves to dead '
-                  'letters.',
+              'A failed job goes back on its queue until maxAttempts, then to '
+                  'dead letters. Only the SQS and Pub/Sub adapters wait out the '
+                  'backoff first.',
               'DARTVEL_HEALTH_PORT serves /healthz for a worker.',
             ]),
             DocsSubheading('Work a queue by hand'),
             DocsShell(<String>[
               'dartvel queue work --queue mail --max-jobs 10',
-              'dartvel queue failed --queue mail',
-              'dartvel queue retry <job-id>',
-              'dartvel queue flush --queue mail',
             ]),
+            DocsText('This runs your project\'s worker, so DATABASE_URL must be '
+                'set in your shell. The failed, retry and flush subcommands '
+                'still read the CLI\'s own empty queue, so use the calls below '
+                'for those.'),
             DocsCode('jobs-work'),
           ],
         ),
@@ -83,7 +85,8 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
               <String>['DVKafkaQueueAdapter', 'Kafka'],
             ]),
             DocsText('Only the database adapter is picked from DATABASE_URL. '
-                'Set any other with DV.Jobs.useAdapter.'),
+                'Set any other with DV.Jobs.useAdapter. The SQS and Pub/Sub '
+                'adapters take a transport you write, and refuse job priorities.'),
           ],
         ),
         DocsSection(
@@ -103,8 +106,10 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'catchUp: true runs a missed occurrence after a restart.',
               'Schedules tick in a process with no role or DARTVEL_ROLE=cron.',
-              'Each occurrence is claimed through the database, so two cron '
-                  'processes do not both run it.',
+              'With DATABASE_URL set, each occurrence is claimed in the '
+                  'database, so two cron processes do not both run it. Without '
+                  'one, a cron process refuses to start unless '
+                  'DARTVEL_SCHEDULE_LEASE=none says it is the only one.',
             ]),
             DocsStatus('Scheduling', missing: <String>[
               'No per-target capability report or doctor check for schedules.',
@@ -116,6 +121,8 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Queues, Jobs, and Signals', missing: <String>[
+              'Delayed jobs, exponential backoff, unique jobs and pausing a '
+                  'queue are not built.',
               'The queue failed, retry and flush commands act on the CLI\'s own '
                   'process queue.',
             ]),

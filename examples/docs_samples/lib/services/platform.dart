@@ -86,7 +86,12 @@ void queues() {
 Future<void> work() async {
   // docs:start jobs-work
   await DV.Jobs.work(queue: 'mail', maxJobs: 10);
-  final dead = await DV.Jobs.deadLetters('mail');
+
+  final List<DVJobEnvelope<DVJobPayload>> dead = await DV.Jobs.deadLetters('mail');
+  for (final DVJobEnvelope<DVJobPayload> job in dead) {
+    DV.log('${job.id} failed ${job.attempts} times: ${job.lastError}');
+    await DV.Jobs.retry(job.id); // or DV.Jobs.discard(job.id)
+  }
   // docs:end
   DV.log('$dead');
 }
