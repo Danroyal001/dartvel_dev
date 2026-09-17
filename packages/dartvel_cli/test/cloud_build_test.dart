@@ -52,7 +52,7 @@ void main() {
       DVCloudBuildRequest(root: root.path, target: target, token: token);
 
   test('refuses a target no worker builds, before sending anything', () async {
-    expect(await builder().run(request(target: 'tizen')), 64);
+    expect(await builder().run(request(target: 'webos')), 64);
     expect(logs.join('\n'), contains('android'));
     expect(cloud.requests, isEmpty);
   });

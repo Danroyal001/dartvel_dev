@@ -6,14 +6,26 @@ import 'package:test/test.dart';
 
 void main() {
   group('targets', () {
-    test('iOS and macOS build on a macOS worker, Windows on Windows, the rest on Linux', () {
-      expect(dvCloudWorkerOs('ios'), DVCloudWorkerOs.macos);
-      expect(dvCloudWorkerOs('macos'), DVCloudWorkerOs.macos);
+    test('Apple targets build on a macOS worker, Windows on Windows, the rest on Linux', () {
+      for (final String t in <String>['ios', 'macos', 'tvos']) {
+        expect(dvCloudWorkerOs(t), DVCloudWorkerOs.macos, reason: t);
+      }
       expect(dvCloudWorkerOs('windows'), DVCloudWorkerOs.windows);
-      for (final String t in <String>['android', 'web', 'web-server', 'linux']) {
+      for (final String t in <String>[
+        'android', 'fireos', 'web', 'web-server', 'linux', 'linux-cli',
+        'chrome-extension', 'firefox-extension', 'vscode', 'sony-elinux', 'tizen',
+      ]) {
         expect(dvCloudWorkerOs(t), DVCloudWorkerOs.linux, reason: t);
       }
-      expect(dvCloudWorkerOs('tizen'), isNull);
+    });
+
+    test('a target whose local build cannot finish is not offered in the cloud', () {
+      // webOS's embedder bundles Dart 3.10.9 and Fuchsia's is older still, so
+      // `dartvel build` skips both; the terminal embedder builds for Linux
+      // only. A worker would take the money and upload nothing.
+      for (final String t in <String>['webos', 'fuchsia', 'windows-cli', 'macos-cli', 'tpk', 'linux-tui']) {
+        expect(dvCloudWorkerOs(t), isNull, reason: t);
+      }
     });
   });
 
@@ -62,7 +74,7 @@ void main() {
             'profile': 'release',
             ...change,
           };
-      expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'target': 'tizen'})),
+      expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'target': 'webos'})),
           throwsFormatException);
       expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{'profile': 'debug'})),
           throwsFormatException);
@@ -76,6 +88,22 @@ void main() {
           throwsFormatException);
       expect(DVCloudBuildSpec.fromJson(json(<String, Object?>{})).publish, isNull);
       expect(DVCloudBuildSpec.fromJson(json(<String, Object?>{})).app, '.');
+    });
+
+    test('tvOS builds for the simulator, which is the only tvOS build with nothing to sign', () {
+      Map<String, Object?> json(Map<String, Object?> change) =>
+          <String, Object?>{'project': 'shop', 'target': 'tvos', ...change};
+      final DVCloudBuildSpec spec = DVCloudBuildSpec.fromJson(json(<String, Object?>{'simulator': true}));
+      expect(spec.simulator, isTrue);
+      expect(DVCloudBuildSpec.fromJson(spec.toJson()).simulator, isTrue);
+      expect(const DVCloudBuildSpec(project: 'shop', target: 'android').toJson().containsKey('simulator'), isFalse);
+      // A device build needs a signing team the service does not hold for
+      // tvOS, so it is refused when asked for rather than failing on the worker.
+      expect(() => DVCloudBuildSpec.fromJson(json(<String, Object?>{})), throwsFormatException);
+      expect(
+          () => DVCloudBuildSpec.fromJson(
+              <String, Object?>{'project': 'shop', 'target': 'android', 'simulator': true}),
+          throwsFormatException);
     });
   });
 
