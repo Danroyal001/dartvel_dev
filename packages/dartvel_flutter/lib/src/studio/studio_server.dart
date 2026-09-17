@@ -14,6 +14,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -70,29 +71,53 @@ class DVStudioField {
     required this.name,
     required this.type,
     this.sensitive = false,
+    this.options,
+    this.relation,
   });
 
   factory DVStudioField.fromJson(Map<String, Object?> json) => DVStudioField(
         name: '${json['name']}',
         type: '${json['type']}',
         sensitive: json['sensitive'] == true,
+        options: json['options'] is List
+            ? <String>[
+                for (final Object? option in json['options']! as List)
+                  '$option',
+              ]
+            : null,
+        relation: json['relation'] is String ? json['relation']! as String : null,
       );
 
   final String name;
   final String type;
   final bool sensitive;
 
+  /// An enum's values, when the field is one.
+  final List<String>? options;
+
+  /// The model whose key this field holds, when it holds one.
+  final String? relation;
+
   bool get nullable => type.endsWith('?');
 
   /// The type with no `?`.
   String get baseType => type.replaceAll('?', '').trim();
 
+  /// Whether the value is a list, set or map, edited as JSON.
+  bool get isCollection =>
+      baseType.startsWith('List') ||
+      baseType.startsWith('Set') ||
+      baseType.startsWith('Map');
+
   /// Whether Studio has a control for this type. Anything else is shown and
   /// left as it is.
   bool get editable =>
       !sensitive &&
-      const <String>{'String', 'int', 'double', 'num', 'bool', 'DateTime'}
-          .contains(baseType);
+      (options != null ||
+          relation != null ||
+          isCollection ||
+          const <String>{'String', 'int', 'double', 'num', 'bool', 'DateTime'}
+              .contains(baseType));
 }
 
 /// A model, as the backend describes it.
@@ -102,10 +127,12 @@ class DVStudioModel {
     required this.key,
     required this.fields,
     this.versioned = true,
+    this.module,
   });
 
   factory DVStudioModel.fromJson(Map<String, Object?> json) => DVStudioModel(
         model: '${json['model']}',
+        module: json['module'] is String ? json['module']! as String : null,
         key: '${json['key']}',
         versioned: json['versioned'] != false,
         fields: <DVStudioField>[
@@ -114,7 +141,12 @@ class DVStudioModel {
         ],
       );
 
+  /// The name the backend addresses the model by: `notes.Memo` for a
+  /// mounted module's.
   final String model;
+
+  /// The mounted module the model belongs to, or null.
+  final String? module;
   final String key;
   final List<DVStudioField> fields;
   final bool versioned;
@@ -442,6 +474,7 @@ String _cell(Object? value) => value == null ? '—' : '$value';
 /// model keeps it as a `DateTime` or, as most do, as epoch milliseconds in an
 /// `int` named for a moment.
 String _cellText(DVStudioField field, Object? value) {
+  if (value is List || value is Map) return jsonEncode(value);
   final DateTime? moment = _moment(field, value);
   return moment == null ? _cell(value) : _formatMoment(moment);
 }
@@ -682,7 +715,10 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
             DVStudioListRow(
               key: ValueKey<String>('dv-studio-model-${model.model}'),
               title: model.model,
-              subtitle: '${model.visibleFields.length} fields',
+              subtitle: model.module == null
+                  ? '${model.visibleFields.length} fields'
+                  : '${model.module} module · '
+                      '${model.visibleFields.length} fields',
               icon: Icons.table_rows_outlined,
               selected: model == _model,
               onTap: () => unawaited(_open(model)),
@@ -838,20 +874,37 @@ class _DVStudioRecordForm extends StatefulWidget {
 
 class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   /// What the form holds, as typed: text for a text control, a bool for a
-  /// switch.
+  /// switch, JSON text for a list or map, a value for a choice.
   late final Map<String, Object?> _draft = <String, Object?>{
     for (final DVStudioField field in widget.model.visibleFields)
-      field.name: field.baseType == 'bool'
-          ? widget.record.values[field.name] == true
-          : widget.record.values[field.name] == null
-              ? ''
-              : '${widget.record.values[field.name]}',
+      field.name: _initial(field, widget.record.values[field.name]),
   };
+
+  /// The nullable fields set to empty, whatever their control holds.
+  late final Set<String> _empty = <String>{
+    if (!_isNew)
+      for (final DVStudioField field in widget.model.visibleFields)
+        if (field.nullable &&
+            field.baseType != 'bool' &&
+            widget.record.values.containsKey(field.name) &&
+            widget.record.values[field.name] == null)
+          field.name,
+  };
+
   bool _saving = false;
   String? _error;
   bool _conflict = false;
 
   bool get _isNew => widget.record.key.isEmpty;
+
+  static Object? _initial(DVStudioField field, Object? value) {
+    if (field.baseType == 'bool') return value == true;
+    if (value == null) return field.isCollection ? '' : null;
+    if (field.isCollection) {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    }
+    return '$value';
+  }
 
   /// The draft as values the backend stores, only for fields that changed
   /// -- or every filled field, for a new record.
@@ -864,7 +917,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
       final Object? before = widget.record.values[field.name];
       if (_isNew) {
         if (typed != null) changes[field.name] = typed;
-      } else if ('$typed' != '$before') {
+      } else if (jsonEncode(typed) != jsonEncode(before) &&
+          '$typed' != '$before') {
         changes[field.name] = typed;
       }
     }
@@ -872,8 +926,17 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   }
 
   Object? _typed(DVStudioField field, Object? draft) {
+    if (_empty.contains(field.name)) return null;
     if (field.baseType == 'bool') return draft == true;
     final String text = '${draft ?? ''}'.trim();
+    if (field.isCollection) {
+      if (text.isEmpty) return field.nullable ? null : (field.baseType.startsWith('Map') ? <String, Object?>{} : <Object?>[]);
+      try {
+        return jsonDecode(text);
+      } on FormatException {
+        throw _DVStudioFormProblem('${field.name} is not valid JSON.');
+      }
+    }
     if (text.isEmpty) return field.baseType == 'String' && !field.nullable ? '' : null;
     switch (field.baseType) {
       case 'int':
@@ -897,6 +960,10 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           : await widget.client
               .update(widget.model.model, widget.record, _changes());
       widget.onSaved(saved);
+    } on _DVStudioFormProblem catch (problem) {
+      // Caught before anything is sent: a value the form cannot read is not
+      // the server's to refuse.
+      if (mounted) setState(() => _error = problem.message);
     } on DVStudioRemoteError catch (error) {
       if (mounted) {
         setState(() {
@@ -953,8 +1020,48 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                     children: <Widget>[
                       Row(children: <Widget>[
                         Expanded(child: DVStudioStyle.overline(field.name)),
-                        DVStudioStyle.caption(field.type,
-                            color: DVStudioStyle.faint),
+                        if (field.nullable &&
+                            field.editable &&
+                            field.baseType != 'bool' &&
+                            !(!_isNew && field.name == widget.model.key)) ...<Widget>[
+                          GestureDetector(
+                            key: ValueKey<String>(
+                                'dv-studio-field-${field.name}-empty'),
+                            onTap: () => setState(() {
+                              if (!_empty.remove(field.name)) {
+                                _empty.add(field.name);
+                              }
+                            }),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Row(children: <Widget>[
+                                Icon(
+                                  _empty.contains(field.name)
+                                      ? Icons.check_box
+                                      : Icons.check_box_outline_blank,
+                                  size: 14,
+                                  color: _empty.contains(field.name)
+                                      ? DVStudioStyle.accent
+                                      : DVStudioStyle.faint,
+                                ),
+                                const SizedBox(width: 3),
+                                DVStudioStyle.caption('Empty',
+                                    color: DVStudioStyle.muted),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(width: DVStudioStyle.space2),
+                        ],
+                        Flexible(
+                          child: Text(
+                            field.type,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: DVStudioStyle.faint),
+                          ),
+                        ),
                       ]),
                       const SizedBox(height: DVStudioStyle.space1),
                       _control(field),
@@ -1017,6 +1124,9 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
     final Key key = ValueKey<String>('dv-studio-field-${field.name}');
     final bool locked =
         !field.editable || (!_isNew && field.name == widget.model.key);
+    if (!locked && _empty.contains(field.name)) {
+      return _readOnly(key, 'empty');
+    }
     if (field.baseType == 'bool' && !locked) {
       return Align(
         alignment: Alignment.centerLeft,
@@ -1030,18 +1140,53 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
       );
     }
     if (locked) {
-      return Container(
+      return _readOnly(
+          key, _cellText(field, widget.record.values[field.name]));
+    }
+    final List<String>? options = field.options;
+    if (options != null) {
+      return _DVStudioSelect(
         key: key,
-        height: 32,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: DVStudioStyle.canvas,
-          border: Border.all(color: DVStudioStyle.line),
-          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        value: _draft[field.name] as String?,
+        options: options,
+        onChanged: (String value) =>
+            setState(() => _draft[field.name] = value),
+      );
+    }
+    final String? relation = field.relation;
+    if (relation != null) {
+      return _DVStudioRelationSelect(
+        key: key,
+        client: widget.client,
+        model: widget.model.module == null
+            ? relation
+            : '${widget.model.module}.$relation',
+        fallbackModel: relation,
+        value: _draft[field.name] as String?,
+        onChanged: (String value) =>
+            setState(() => _draft[field.name] = value),
+      );
+    }
+    if (field.isCollection) {
+      return KeyedSubtree(
+        key: key,
+        child: TextFormField(
+          initialValue: '${_draft[field.name] ?? ''}',
+          minLines: 3,
+          maxLines: 10,
+          style: const TextStyle(
+              fontSize: 12, fontFamily: 'monospace', color: DVStudioStyle.ink),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: field.baseType.startsWith('Map') ? '{ }' : '[ ]',
+            contentPadding: const EdgeInsets.all(10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+              borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
+            ),
+          ),
+          onChanged: (String value) => _draft[field.name] = value,
         ),
-        child: DVStudioStyle.body(_cell(widget.record.values[field.name]),
-            color: DVStudioStyle.muted),
       );
     }
     return KeyedSubtree(
@@ -1055,6 +1200,160 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                 : null,
         onChanged: (String value) => _draft[field.name] = value,
       ),
+    );
+  }
+
+  Widget _readOnly(Key key, String text) => Container(
+        key: key,
+        height: 32,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: DVStudioStyle.canvas,
+          border: Border.all(color: DVStudioStyle.line),
+          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        ),
+        child: DVStudioStyle.body(text, color: DVStudioStyle.muted),
+      );
+}
+
+/// A value the form could not turn into what the field holds.
+class _DVStudioFormProblem implements Exception {
+  const _DVStudioFormProblem(this.message);
+
+  final String message;
+}
+
+/// A value chosen from a list, in a menu.
+class _DVStudioSelect extends StatelessWidget {
+  const _DVStudioSelect({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.placeholder = 'Choose…',
+  });
+
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+  final String placeholder;
+
+  Future<void> _open(BuildContext context) async {
+    final RenderObject? box = context.findRenderObject();
+    final OverlayState? overlay = Overlay.maybeOf(context);
+    final RenderObject? overlayBox = overlay?.context.findRenderObject();
+    if (box is! RenderBox || overlayBox is! RenderBox) return;
+    final Offset origin = box.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final String? picked = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        origin & box.size,
+        Offset.zero & overlayBox.size,
+      ),
+      items: <PopupMenuItem<String>>[
+        for (final String option in options)
+          PopupMenuItem<String>(value: option, child: Text(option)),
+      ],
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => unawaited(_open(context)),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: DVStudioStyle.surface,
+            border: Border.all(color: DVStudioStyle.lineStrong),
+            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: DVStudioStyle.body(
+                  value ?? placeholder,
+                  color: value == null ? DVStudioStyle.faint : DVStudioStyle.ink,
+                ),
+              ),
+              const Icon(Icons.expand_more,
+                  size: 16, color: DVStudioStyle.muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A reference, chosen from the keys of the related model's records.
+class _DVStudioRelationSelect extends StatefulWidget {
+  const _DVStudioRelationSelect({
+    super.key,
+    required this.client,
+    required this.model,
+    required this.fallbackModel,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final DVStudioClient client;
+
+  /// The related model as a module's model names it, then as the
+  /// application's.
+  final String model;
+  final String fallbackModel;
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_DVStudioRelationSelect> createState() =>
+      _DVStudioRelationSelectState();
+}
+
+class _DVStudioRelationSelectState extends State<_DVStudioRelationSelect> {
+  List<String>? _keys;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    List<DVStudioRecordData> records;
+    try {
+      records = await widget.client.records(widget.model);
+    } on DVStudioRemoteError {
+      try {
+        records = await widget.client.records(widget.fallbackModel);
+      } on DVStudioRemoteError {
+        records = const <DVStudioRecordData>[];
+      }
+    }
+    if (mounted) {
+      setState(() => _keys = <String>[
+            for (final DVStudioRecordData record in records) record.key,
+          ]..sort());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> keys = _keys ?? const <String>[];
+    return _DVStudioSelect(
+      value: widget.value,
+      options: <String>[
+        if (widget.value != null && !keys.contains(widget.value)) widget.value!,
+        ...keys,
+      ],
+      placeholder: _keys == null ? 'Loading…' : 'Choose a ${widget.fallbackModel}',
+      onChanged: widget.onChanged,
     );
   }
 }
