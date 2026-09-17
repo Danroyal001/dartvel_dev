@@ -163,8 +163,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       DVRoutes.docsmodels, 'Add an admin screen', anchor: 'admin'),
 
   // Reference
-  SpecCoverage('CLI', 'Reference', DVRoutes.docs, 'Install the CLI',
-      anchor: 'install'),
+  SpecCoverage('CLI', 'Reference', DVRoutes.docscli, 'Status',
+      anchor: 'status'),
   SpecCoverage('Testing', 'Reference', DVRoutes.docstesting,
       'A test with fakes', anchor: 'example'),
 ];
