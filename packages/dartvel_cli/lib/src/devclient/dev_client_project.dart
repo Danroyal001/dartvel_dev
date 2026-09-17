@@ -21,6 +21,7 @@ const List<String> dvDevClientTargets = <String>[
   'ios',
   'macos',
   'linux',
+  'windows',
 ];
 
 /// Where `dartvel dev` reads the page documents it serves.
