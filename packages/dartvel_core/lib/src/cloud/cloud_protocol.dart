@@ -102,7 +102,17 @@ class DVCloudBuildSpec {
     this.publish,
     this.dryRun = false,
     this.app = '.',
+    this.format,
+    this.codesign = true,
   });
+
+  /// `aab` for Android or `ipa` for iOS: the store package, passed to
+  /// `dartvel build --format`. Null builds what the target builds by default.
+  final String? format;
+
+  /// With `ipa`: sign it with the project's credentials. False builds the
+  /// unsigned archive.
+  final bool codesign;
 
   final String project;
 
@@ -127,6 +137,8 @@ class DVCloudBuildSpec {
         if (publish != null) 'publish': publish,
         if (dryRun) 'dryRun': true,
         if (app != '.') 'app': app,
+        if (format != null) 'format': format,
+        if (!codesign) 'codesign': false,
       };
 
   factory DVCloudBuildSpec.fromJson(Map<String, Object?> json) {
@@ -151,7 +163,16 @@ class DVCloudBuildSpec {
     if (app != '.' && !DVCloudArtifact.isSafeName(app)) {
       throw FormatException('"$app" is not a directory inside the source.');
     }
+    final Object? format = json['format'];
+    if (format != null &&
+        !(format == 'aab' && target == 'android') &&
+        !(format == 'ipa' && target == 'ios')) {
+      throw FormatException('"$format" is not a package $target builds as: '
+          'aab is for android and ipa for ios.');
+    }
     return DVCloudBuildSpec(
+      format: format as String?,
+      codesign: json['codesign'] != false,
       app: app,
       project: project,
       target: target,
