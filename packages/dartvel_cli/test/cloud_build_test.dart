@@ -118,6 +118,13 @@ void main() {
     expect(sent.where((String k) => k.contains('/build/')), isEmpty);
   });
 
+  test('a store package and the signing choice are sent with the spec', () async {
+    await builder().run(DVCloudBuildRequest(
+        root: root.path, target: 'ios', format: 'ipa', codesign: false));
+    expect(cloud.spec!.format, 'ipa');
+    expect(cloud.spec!.codesign, isFalse);
+  });
+
   test('prints the build log as it arrives and downloads every artifact', () async {
     cloud.artifacts = <String, List<int>>{
       'app-release.apk': utf8.encode('an apk'),

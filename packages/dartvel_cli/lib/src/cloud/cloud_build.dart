@@ -28,7 +28,16 @@ class DVCloudBuildRequest {
     this.publish,
     this.dryRun = false,
     this.token,
+    this.format,
+    this.codesign = true,
   });
+
+  /// `aab` or `ipa`: the store package to build instead of an APK or an
+  /// unsigned app.
+  final String? format;
+
+  /// With `ipa`: whether the worker signs it.
+  final bool codesign;
 
   /// The application directory.
   final String root;
@@ -152,6 +161,8 @@ class DVCloudBuilder {
           publish: request.publish,
           dryRun: request.dryRun,
           app: app,
+          format: request.format,
+          codesign: request.codesign,
         ),
         archive.file,
       );

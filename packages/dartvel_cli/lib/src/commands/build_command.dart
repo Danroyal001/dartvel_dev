@@ -496,8 +496,23 @@ class BuildCommand extends Command<void> {
           help: 'What kind of build to make.')
       ..addOption('target', abbr: 't', help: 'Target entry point')
       ..addOption('format',
-          allowed: ['bundle', 'iso', 'img'],
-          help: 'Sony eLinux output format (bundle | iso | img)')
+          allowed: ['bundle', 'iso', 'img', 'aab', 'ipa'],
+          allowedHelp: const <String, String>{
+            'bundle': 'Sony eLinux: a bundle directory.',
+            'iso': 'Sony eLinux: a bootable ISO image.',
+            'img': 'Sony eLinux: a disk image.',
+            'aab': 'Android: an App Bundle, which Google Play takes.',
+            'ipa': 'iOS: an IPA, which App Store Connect takes. Signed with the '
+                'signing Xcode is configured with, or --export-options-plist.',
+          },
+          help: 'The package a target is built as.')
+      ..addFlag('codesign',
+          defaultsTo: null,
+          help: 'With --format ipa: sign the IPA. --no-codesign builds the '
+              'unsigned archive (build/ios/archive) instead.')
+      ..addOption('export-options-plist',
+          help: 'With --format ipa: the ExportOptions.plist naming the export '
+              'method, team and provisioning profile to sign with.')
       ..addOption('device-profile',
           help: 'Named embedded device profile from pubspec.yaml')
       ..addFlag('simulator',
@@ -590,6 +605,22 @@ class BuildCommand extends Command<void> {
       exit(64); // EX_USAGE
     }
 
+    final String? packageFormat = argResults?['format'] as String?;
+    final bool? codesignFlag = argResults?['codesign'] as bool?;
+    final String? exportOptionsPlist = argResults?['export-options-plist'] as String?;
+    final String? packageProblem = dvPackageFormatProblem(
+      platform: normalizeBuildTarget(rawPlatform).platform,
+      format: packageFormat,
+      simulator: argResults?['simulator'] as bool? ?? false,
+      codesign: codesignFlag,
+      exportOptionsPlist: exportOptionsPlist,
+    );
+    if (packageProblem != null) {
+      Logger.log('❌ $packageProblem');
+      exitCode = 64; // EX_USAGE
+      return;
+    }
+
     if (argResults?['cloud'] == true) {
       final String cloudTarget = normalizeBuildTarget(rawPlatform).platform;
       if (cloudTarget == 'all') {
@@ -603,6 +634,8 @@ class BuildCommand extends Command<void> {
         target: cloudTarget,
         profile: argResults?['profile'] as String,
         token: argResults?['cloud-token'] as String?,
+        format: packageFormat == 'aab' || packageFormat == 'ipa' ? packageFormat : null,
+        codesign: codesignFlag ?? true,
       ));
       return;
     }
@@ -862,6 +895,9 @@ class BuildCommand extends Command<void> {
                       treeShakeIcons: treeShakeIcons,
                       deviceProfile: deviceProfile,
                       simulator: simulator,
+                      format: format,
+                      codesign: codesignFlag ?? true,
+                      exportOptionsPlist: exportOptionsPlist,
                     );
       switch (result) {
         case _PlatformBuildResult.succeeded:
@@ -905,6 +941,9 @@ class BuildCommand extends Command<void> {
     bool simulator = false,
     Duration? timeout,
     String? deviceProfile,
+    String? format,
+    bool codesign = true,
+    String? exportOptionsPlist,
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
@@ -993,6 +1032,9 @@ class BuildCommand extends Command<void> {
       treeShakeIcons: treeShakeIcons,
       deviceProfile: deviceProfile,
       simulator: simulator,
+      format: format,
+      codesign: codesign,
+      exportOptionsPlist: exportOptionsPlist,
       // Before the build, because the app is handed the list as a
       // compile-time value: which images have variants, and how wide each is.
       imageVariants: _imageVariants(_projectRoot, platform),
@@ -4028,8 +4070,15 @@ List<String> resolveFlutterBuildArguments({
   String? deviceProfile,
   DVImageVariants? imageVariants,
   bool simulator = false,
+  String? format,
+  bool codesign = true,
+  String? exportOptionsPlist,
 }) {
+  final bool bundle = platform == 'android' && format == 'aab';
+  final bool ipa = platform == 'ios' && format == 'ipa';
   final command = switch (platform) {
+    'android' when bundle => 'appbundle',
+    'ios' when ipa => 'ipa',
     'android' || 'fireos' => 'apk',
     // The same Flutter web build. What differs is what Dartvel writes beside
     // it afterwards: a manifest rather than a file per route.
@@ -4074,14 +4123,65 @@ List<String> resolveFlutterBuildArguments({
     args.add('--dart-define=DARTVEL_IMAGES=${imageVariants.toDartDefine()}');
   }
 
-  if (platform == 'android' && splitPerAbi) {
+  if (platform == 'android' && splitPerAbi && !bundle) {
     args.add('--split-per-abi');
   }
-  if (platform == 'ios') {
+  if (ipa) {
+    // Signed the way the project's Xcode signing is configured, or as the
+    // export options say. Unsigned, Flutter stops at the archive.
+    if (!codesign) args.add('--no-codesign');
+    if (exportOptionsPlist != null) {
+      args.addAll(<String>['--export-options-plist', exportOptionsPlist]);
+    }
+  } else if (platform == 'ios') {
     // A simulator app is never signed; a device build is built unsigned and
     // signed where it is distributed.
     args.add(simulator ? '--simulator' : '--no-codesign');
   }
 
   return List<String>.unmodifiable(args);
+}
+
+/// Why [format] and the signing options cannot build [platform], or null.
+///
+/// `aab` and `ipa` are packages for a store, so each belongs to one target;
+/// an IPA for a simulator is refused because no store takes one; and signing
+/// options with nothing to sign would be accepted and ignored.
+String? dvPackageFormatProblem({
+  required String platform,
+  String? format,
+  bool simulator = false,
+  bool? codesign,
+  String? exportOptionsPlist,
+}) {
+  if (format == 'aab' && platform != 'android') {
+    return '--format aab is an Android App Bundle; build it with dartvel build android --format aab.';
+  }
+  if (format == 'ipa' && platform != 'ios') {
+    return '--format ipa is an iOS package; build it with dartvel build ios --format ipa.';
+  }
+  if (format == 'ipa' && simulator) {
+    return 'An IPA is for a device and a store, and --simulator builds for neither. Leave one out.';
+  }
+  if (format != 'ipa' && (codesign != null || exportOptionsPlist != null)) {
+    return '--codesign and --export-options-plist sign an IPA, and only dartvel build ios --format ipa makes one.';
+  }
+  return null;
+}
+
+/// Where Flutter writes a store package, relative to the project, or null
+/// for a build that is not one.
+String? dvPackageOutput({
+  required String platform,
+  required String? format,
+  required String buildMode,
+  bool codesign = true,
+}) {
+  if (platform == 'android' && format == 'aab') {
+    return 'build/app/outputs/bundle/${buildMode.replaceFirst('--', '')}';
+  }
+  if (platform == 'ios' && format == 'ipa') {
+    return codesign ? 'build/ios/ipa' : 'build/ios/archive';
+  }
+  return null;
 }
