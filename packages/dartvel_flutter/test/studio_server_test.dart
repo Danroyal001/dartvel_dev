@@ -36,6 +36,15 @@ class _FakeServer {
   };
   final Map<String, Map<String, Object?>> pages =
       <String, Map<String, Object?>>{};
+  final List<Map<String, Object?>> grants = <Map<String, Object?>>[
+    <String, Object?>{
+      'userId': 'owner-1',
+      'email': 'owner@example.com',
+      'tenant': 'default',
+      'grantedAt': '2026-09-17T10:00:00.000Z',
+      'you': true,
+    },
+  ];
 
   Future<DVStudioReply> call(String method, String path,
       {Object? body}) async {
@@ -98,15 +107,35 @@ class _FakeServer {
       return reply(200, <String, Object?>{'route': document['route']});
     }
     if (method == 'GET' && path == 'api/grants') {
-      return reply(200, <String, Object?>{
-        'grants': <Object?>[
-          <String, Object?>{
-            'userId': 'owner-1',
-            'tenant': 'default',
-            'grantedAt': '2026-09-17T10:00:00.000Z',
-          },
-        ],
+      return reply(200, <String, Object?>{'grants': grants});
+    }
+    if (method == 'POST' && path == 'api/grants') {
+      final String account = '${(sent! as Map)['account']}';
+      if (account != 'sam@example.com') {
+        return reply(404, <String, Object?>{
+          'error': 'no_account',
+          'message': 'Nobody has signed up with $account.',
+        });
+      }
+      grants.add(<String, Object?>{
+        'userId': 'acct_sam',
+        'email': 'sam@example.com',
+        'tenant': 'default',
+        'grantedAt': '2026-09-17T11:00:00.000Z',
       });
+      return reply(201, <String, Object?>{'userId': 'acct_sam'});
+    }
+    if (method == 'DELETE' && path.startsWith('api/grants?')) {
+      final Map<String, String> query = Uri.parse(path).queryParameters;
+      if (query['confirm'] != 'true' && query['userId'] == 'owner-1') {
+        return reply(409, <String, Object?>{
+          'error': 'confirm_self',
+          'message': 'This is your own grant.',
+        });
+      }
+      grants.removeWhere(
+          (Map<String, Object?> g) => g['userId'] == query['userId']);
+      return reply(200, <String, Object?>{'revoked': query['userId']});
     }
     if (method == 'GET' && path == 'graph.json') {
       return reply(200, <String, Object?>{
@@ -351,6 +380,80 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('owner-1'), findsOneWidget);
+      expect(find.text('owner@example.com'), findsOneWidget);
+    });
+
+    Future<void> openAccess(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-section-access')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('an account is granted from Studio by its address',
+        (WidgetTester tester) async {
+      await openAccess(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('dv-studio-grant-account')),
+          matching: find.byType(EditableText),
+        ),
+        'sam@example.com',
+      );
+      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-grant')));
+      await tester.pumpAndSettle();
+
+      final _Call post =
+          server.calls.lastWhere((_Call c) => c.method == 'POST');
+      expect(post.path, 'api/grants');
+      expect(post.body, <String, Object?>{'account': 'sam@example.com'});
+      // The list is read again, so the new grant is on it.
+      expect(find.text('sam@example.com'), findsOneWidget);
+    });
+
+    testWidgets('a refused grant says why', (WidgetTester tester) async {
+      await openAccess(tester);
+
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('dv-studio-grant-account')),
+          matching: find.byType(EditableText),
+        ),
+        'nobody@example.com',
+      );
+      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-grant')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Nobody has signed up'), findsOneWidget);
+    });
+
+    testWidgets('revoking your own grant asks first, and revokes on yes',
+        (WidgetTester tester) async {
+      await openAccess(tester);
+
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-revoke-owner-1')));
+      await tester.pumpAndSettle();
+
+      expect(server.grants, hasLength(1), reason: 'revoked without asking');
+      expect(find.text('This is your own grant.'), findsOneWidget);
+      await tester.tap(
+          find.byKey(const ValueKey<String>('dv-studio-revoke-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(server.calls.last.path, isNot(contains('confirm=true')),
+          reason: 'the list is read again after revoking');
+      expect(
+        server.calls.map((_Call c) => c.path),
+        contains('api/grants?userId=owner-1&tenant=default&confirm=true'),
+      );
+      expect(server.grants, isEmpty);
+      expect(find.text('owner-1'), findsNothing);
     });
   });
 }
