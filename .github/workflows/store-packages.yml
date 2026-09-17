@@ -4,7 +4,7 @@ name: Store packages
 # the packages Google Play and App Store Connect take, built from basic_app and
 # checked for what they are: an App Bundle with BundleConfig.pb, a manifest,
 # dex and compiled Dart; an Xcode archive whose app is a Mach-O. Then
-# `dartvel publish play --dry-run` is run against the bundle, which checks the
+# `dartvel deploy --store play --dry-run` is run against the bundle, which checks the
 # plan finds it and prints the upload.
 #
 # The iOS build is unsigned (--no-codesign), and that is all this proves: this
@@ -79,12 +79,12 @@ jobs:
           ls -laR "examples/basic_app/$OUT" | head -40
           dart tool/ci/cloud_artifact_check.dart "$CHECK" "examples/basic_app/$OUT"
 
-      - name: dartvel publish play --dry-run finds the bundle
+      - name: dartvel deploy --store play --dry-run finds the bundle
         if: matrix.target == 'android'
         working-directory: examples/basic_app
         run: |
           set -euo pipefail
           # Declared here and not committed: the example publishes nowhere.
           printf '\n  publish:\n    play:\n      track: internal\n      credentials: ci-play-key.json\n' >> pubspec.yaml
-          dart run dartvel_cli:dartvel publish play --dry-run | tee "$RUNNER_TEMP/publish.log"
+          dart run dartvel_cli:dartvel deploy --store play --dry-run | tee "$RUNNER_TEMP/publish.log"
           grep -q 'fastlane supply --aab .*app-release.aab --track internal' "$RUNNER_TEMP/publish.log"
