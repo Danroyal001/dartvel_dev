@@ -207,7 +207,7 @@ class DVCloudBuildSpec {
     }
     final Object? publish = json['publish'];
     if (publish != null && !dvCloudStores.contains(publish)) {
-      throw FormatException('"$publish" is not a store Dartvel publishes to.');
+      throw FormatException('"$publish" is not a store Dartvel deploys to.');
     }
     final String app = json['app'] == null ? '.' : _string(json, 'app');
     if (app != '.' && !DVCloudArtifact.isSafeName(app)) {
