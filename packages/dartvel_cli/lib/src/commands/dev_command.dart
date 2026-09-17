@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:dartvel_core/dartvel.dart' show DVAdminMount, DVStudioDevGrant;
 import 'package:watcher/watcher.dart';
+import 'package:yaml/yaml.dart';
 
 import '../config/dartvel_config.dart';
 import '../devclient/android_dev_client.dart';
@@ -14,6 +16,9 @@ import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
+import '../build/dev_studio.dart';
+import '../build/server_binary.dart' show DVServerBinaryRun;
+import '../build/studio_build.dart';
 import '../build/seo_head.dart';
 import '../utils/logger.dart';
 
@@ -64,28 +69,17 @@ class DevCommand extends Command<void> {
       ..createSync(recursive: true);
     final devServer = File(p.join(toolDir.path, 'dartvel_dev_server.dart'));
     // Always rewrite to ensure latest runtime (switch from shelf to dartvel_shelf)
-    devServer.writeAsStringSync('''
-import 'dart:async';
-import 'dart:io';
-import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
-import 'dartvel_backend.g.dart' as cfg;
-import 'dartvel_backend_routes.g.dart' as gen;
-
-Future<void> main() async {
-  stdout.writeln('dartvel backend build: ' + (cfg.dvGenBuildId));
-  final handle = await gen.startBackend(
-    host: '0.0.0.0', 
-    port: cfg.backendPort,
-    cors: const dv.CorsOptions(
-      allowAnyOrigin: true,
-      allowAnyMethod: true,
-      allowAnyHeader: true,
-    ),
-  );
-  stdout.writeln('dartvel backend listening on http://' + handle.host + ':' + handle.port.toString() + cfg.apiBasePath);
-  await Completer<void>().future;
-}
-''');
+    //
+    // Studio at the admin mount, compiled into .dart_tool beside this entry
+    // and served by this backend to the browser that opens the development
+    // grant's link: dev has the project's data and nobody to grant.
+    final Object? dartvelSection = _dartvelSection(root);
+    final DVAdminMount studioMount = dvDevStudioMount(dartvelSection);
+    final String studioRoot =
+        p.join(toolDir.path, 'dartvel_studio', 'admin');
+    final DVStudioDevGrant studioGrant = DVStudioDevGrant.generate();
+    devServer.writeAsStringSync(
+        dvDevServerSource(admin: studioMount, adminRoot: studioRoot));
 
     // Start processes: build_runner + backend + flutter
     Process? buildRunnerP;
@@ -272,7 +266,8 @@ Future<void> main() async {
         ...?extraEnv,
         'RUST_BACKTRACE': '1',
         'MALLOC_CHECK_': '3',
-        ...dvDevBackendEnvironment(Platform.environment),
+        ...dvDevBackendEnvironment(Platform.environment,
+            studioDevGrant: studioMount.enabled ? studioGrant : null),
       };
       backendEnv = extraEnv;
       backP = await _spawn(
@@ -280,6 +275,17 @@ Future<void> main() async {
           extraEnv: extraEnv);
     } catch (_) {
       Logger.log('WARN: failed to start backend');
+    }
+    if (studioMount.enabled) {
+      unawaited(dvCompileDevStudio(
+        root: root,
+        mount: studioMount,
+        adminRoot: studioRoot,
+        onReady: () => Logger.log(
+          '[dev] Studio: ${studioGrant.link('http://localhost:${config.backendPort}', studioMount)} '
+          '(only the browser that opens this link gets in).',
+        ),
+      ));
     }
     try {
       Map<String, String> flutterEnv = const {};
@@ -825,10 +831,113 @@ bool dartvelChangeIsMeaningful({
 /// DARTVEL_DIAGNOSTICS=0 has a reason -- a port that is not as private as it
 /// looks, most likely -- and a convenience default that overrode it would be
 /// a security bug wearing a helpful face.
-Map<String, String> dvDevBackendEnvironment(Map<String, String> parent) =>
+Map<String, String> dvDevBackendEnvironment(
+  Map<String, String> parent, {
+  DVStudioDevGrant? studioDevGrant,
+}) =>
     <String, String>{
+      // The grant the printed Studio link carries, so a backend restarted on
+      // a change goes on honouring the link printed once.
+      if (studioDevGrant != null)
+        DVStudioDevGrant.environmentVariable: studioDevGrant.token,
       'DARTVEL_DIAGNOSTICS': parent['DARTVEL_DIAGNOSTICS'] ?? '1',
       // Louder than a deployment. Development is where the detail is worth
       // the noise.
       'DARTVEL_LOG_LEVEL': parent['DARTVEL_LOG_LEVEL'] ?? 'debug',
     };
+
+
+/// The development backend's entry point: the generated backend on the
+/// configured port, with Studio at [admin] from [adminRoot] when the project
+/// has not turned the admin off.
+String dvDevServerSource({
+  required DVAdminMount admin,
+  required String adminRoot,
+}) {
+  String quoted(String value) =>
+      "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$')}'";
+  final String studio = admin.enabled
+      ? '''
+    admin: const core.DVAdminMount(path: ${quoted(admin.path)}, enabled: true, requiresAuth: true),
+    adminRoot: ${quoted(adminRoot)},
+    studioDevGrant: core.DVStudioDevGrant.fromEnvironment(Platform.environment),
+'''
+      : '';
+  return '''
+import 'dart:async';
+import 'dart:io';
+import 'package:dartvel_core/dartvel.dart' as core;
+import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
+import 'dartvel_backend.g.dart' as cfg;
+import 'dartvel_backend_routes.g.dart' as gen;
+
+Future<void> main() async {
+  stdout.writeln('dartvel backend build: ' + (cfg.dvGenBuildId));
+  final handle = await gen.startBackend(
+    host: '0.0.0.0',
+    port: cfg.backendPort,
+    cors: const dv.CorsOptions(
+      allowAnyOrigin: true,
+      allowAnyMethod: true,
+      allowAnyHeader: true,
+    ),
+$studio  );
+  stdout.writeln('dartvel backend listening on http://' + handle.host + ':' + handle.port.toString() + cfg.apiBasePath);
+  await Completer<void>().future;
+}
+''';
+}
+
+/// The `dartvel:` section of the project's pubspec, or null.
+Object? _dartvelSection(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  try {
+    final Object? document = loadYaml(pubspec.readAsStringSync());
+    return document is Map ? document['dartvel'] : null;
+  } on Object {
+    return null;
+  }
+}
+
+
+/// Compiles Studio for [mount] into [adminRoot] when what is there is missing
+/// or older than the project's resolved dependencies, then calls [onReady].
+///
+/// In the background: a Studio compile is a `flutter build web`, and the
+/// application should not wait for its admin.
+Future<void> dvCompileDevStudio({
+  required String root,
+  required DVAdminMount mount,
+  required String adminRoot,
+  required void Function() onReady,
+  DVServerBinaryRun? run,
+}) async {
+  final File compiled = File(p.join(adminRoot, 'main.dart.js'));
+  final File lock = File(p.join(root, 'pubspec.lock'));
+  final bool fresh = compiled.existsSync() &&
+      (!lock.existsSync() ||
+          !compiled.lastModifiedSync().isBefore(lock.lastModifiedSync()));
+  if (!fresh) {
+    Logger.log('[dev] Compiling Studio for ${mount.path} (flutter build web)...');
+    final DVStudioBuildResult result = await dvBuildStudio(
+      root: root,
+      mount: mount.path,
+      adminRoot: adminRoot,
+      appName: p.basename(root),
+      run: run ??
+          (String executable, List<String> arguments,
+                  {String? workingDirectory}) =>
+              Process.run(executable, arguments,
+                  workingDirectory: workingDirectory, runInShell: true),
+    );
+    if (!result.ok) {
+      for (final String line in result.lines.take(20)) {
+        Logger.log('[dev] $line');
+      }
+      Logger.log('[dev] Studio did not compile, so ${mount.path} is not served.');
+      return;
+    }
+  }
+  onReady();
+}
