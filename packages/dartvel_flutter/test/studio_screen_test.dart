@@ -221,6 +221,47 @@ void main() {
     });
   });
 
+  testWidgets('the editor lists the page being edited, selected, before it is '
+      'published', (WidgetTester tester) async {
+    // Editing a new /menu showed a page list of /about alone: the page on the
+    // canvas was nowhere in it until the first publish.
+    await const DVPageStore().save(documentFor('/about', 'About us'));
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(EditableText).first, '/menu');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-create')));
+    await tester.pumpAndSettle();
+
+    DVStudioListRow row(String route) => tester.widget<DVStudioListRow>(
+        find.byKey(ValueKey<String>('dv-studio-route-$route')));
+    expect(row('/menu').selected, isTrue);
+    expect(row('/about').selected, isFalse);
+    // Not published, and not marked as if it were.
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey<String>('dv-studio-route-/menu')),
+            matching:
+                find.byKey(const ValueKey<String>('dv-studio-route-unsaved'))),
+        findsOneWidget);
+    expect(await const DVPageStore().routes(), <String>['/about']);
+  });
+
+  testWidgets('opening the editor lists pages stored since the overview loaded',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+    // Somebody else publishes while this Studio is open.
+    await const DVPageStore().save(documentFor('/about', 'About us'));
+
+    await tester.enterText(find.byType(EditableText).first, '/menu');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-create')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey<String>('dv-studio-route-/about')),
+        findsOneWidget);
+  });
+
   testWidgets('publishing goes to the store the screen was given, not the '
       'default one', (WidgetTester tester) async {
     // Studio served by a web-server binary keeps its pages on the server.
