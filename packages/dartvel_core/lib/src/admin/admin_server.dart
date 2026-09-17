@@ -16,9 +16,11 @@ library;
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/session_authentication.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import 'studio_access.dart';
 
 /// Everything below the mount belongs to the admin.
 class DVAdminMount {
@@ -169,20 +171,37 @@ String dvAdminContentType(String relative) {
   return 'application/octet-stream';
 }
 
-/// Whether [request] carries a live session of the application's own.
+/// Whether [request] comes from somebody allowed to open Studio.
 ///
-/// The same stage the generated backend authenticates every route with, on
-/// the tenant the request names. A refused session -- revoked, expired,
-/// forged -- is not signed in, and neither is an API key: the dashboard is
-/// opened by a person in a browser.
-Future<bool> dvAdminSessionAuthenticated(Request request) =>
+/// Two questions, and a session answers only the first. The request has to
+/// carry a live session of the application's own -- the same stage the
+/// generated backend authenticates every route with, on the tenant the
+/// request names; a revoked, expired or forged one is nobody, and so is an
+/// API key, because the dashboard is opened by a person. Then
+/// `DV.Auth.authorization` has to allow that person [dvStudioAccessAction],
+/// which it does for nobody unless a grant or the application's own policy
+/// says so. Signing up to the application is not signing up to its admin.
+Future<bool> dvAdminAuthorized(Request request) =>
     dvWithRequestTenant(request, () async {
       final DVSessionAuthenticationResult result =
           await DVSessionAuthentication.authenticateRequest(
         authorization: request.headers.get('authorization'),
         cookie: request.headers.get('cookie'),
       );
-      return !result.refused && result.principal != null;
+      final DVSessionPrincipal? principal = result.principal;
+      if (result.refused || principal == null) return false;
+      const DVAuthAuthorization authorization = DVAuthAuthorization();
+      // The application's user where its policy is written against that
+      // type, the principal otherwise: the choice every route makes.
+      final Object? user = principal.user;
+      final Object caller =
+          user != null && authorization.acceptsCaller(dvStudioAccessAction, user)
+              ? user
+              : principal;
+      return DVSessionPrincipal.actingAs(
+        principal,
+        () => authorization.canAction(caller, dvStudioAccessAction),
+      );
     });
 
 /// The dashboard in [root], served at [mount] by the generated backend.
@@ -191,7 +210,7 @@ class DVAdminServer {
     required this.mount,
     required this.root,
     Future<bool> Function(Request request)? authenticated,
-  }) : _authenticated = authenticated ?? dvAdminSessionAuthenticated;
+  }) : _authenticated = authenticated ?? dvAdminAuthorized;
 
   final DVAdminMount mount;
 
