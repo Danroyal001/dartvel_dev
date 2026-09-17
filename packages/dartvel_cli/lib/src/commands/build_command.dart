@@ -55,6 +55,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
+import '../build/studio_build.dart';
 import '../build/web_server.dart';
 import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
@@ -1131,7 +1132,13 @@ class BuildCommand extends Command<void> {
         _writeRendererHints(root);
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
-          final DVAdminMount? admin = await _writeAdminDashboard(root);
+          final ({bool ok, DVAdminMount? admin}) dashboard =
+              await _writeAdminDashboard(root);
+          if (!dashboard.ok) {
+            Logger.log('❌ $platform build failed');
+            return _PlatformBuildResult.failed;
+          }
+          final DVAdminMount? admin = dashboard.admin;
           // The backend that serves all of it, as one executable file.
           if (await _buildServerBinary(root, admin: admin) ==
               _PlatformBuildResult.failed) {
@@ -3254,9 +3261,10 @@ class BuildCommand extends Command<void> {
   /// Returns the mount it wrote the dashboard for, or null when this build
   /// has none -- which is what the binary carries, so a dashboard left in
   /// build/web by an earlier build is never mistaken for this one's.
-  Future<DVAdminMount?> _writeAdminDashboard(String root) async {
+  Future<({bool ok, DVAdminMount? admin})> _writeAdminDashboard(
+      String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
-    if (!web.existsSync()) return null;
+    if (!web.existsSync()) return (ok: true, admin: null);
 
     // A release or profile build has to ask for the admin; a debug one gets
     // it by default, which is what makes a new project's dashboard work with
@@ -3271,13 +3279,13 @@ class BuildCommand extends Command<void> {
       Logger.log('   No admin dashboard in this build. A release build '
           'serves one only when dartvel.admin.enabled says so; '
           '--profile development gets it with no configuration.');
-      return null;
+      return (ok: true, admin: null);
     }
 
     final String problem = dvAdminMountProblem(admin.path) ?? '';
     if (problem.isNotEmpty) {
       Logger.log('❌ $problem');
-      return null;
+      return (ok: true, admin: null);
     }
 
     final Object? declaredName = readPubspecYaml(root)?['name'];
@@ -3302,9 +3310,27 @@ class BuildCommand extends Command<void> {
       File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
     }
 
-    Logger.log('   Admin dashboard at ${admin.path} '
-        '(${files.length} files, served by the backend).');
-    return admin;
+    // Studio itself, over the manifest: DVStudioApp compiled for the mount,
+    // reading records, pages and grants from the backend that serves it.
+    Logger.log('   Compiling Studio for ${admin.path} (flutter build web)...');
+    final DVStudioBuildResult studio = await dvBuildStudio(
+      root: root,
+      mount: admin.path,
+      adminRoot: adminRoot.path,
+      appName: appName,
+      run: (String executable, List<String> arguments,
+              {String? workingDirectory}) =>
+          _processRun(executable, arguments,
+              workingDirectory: workingDirectory, runInShell: true),
+    );
+    for (final String line in studio.lines) {
+      Logger.log('   $line');
+    }
+    if (!studio.ok) return (ok: false, admin: null);
+
+    Logger.log('   Studio at ${admin.path}, served by the backend to the '
+        'people granted Studio.access.');
+    return (ok: true, admin: admin);
   }
 
   /// Whether this build is a release or profile one.

@@ -1533,6 +1533,10 @@ jobs:
           # enabling it produced a 404 from a mount that was correct.
           test -f build/web/__admin/index.html
           test -f build/web/__admin/graph.json
+          # Studio itself, compiled for the mount, not the read-only
+          # manifest page that used to stand in for it.
+          test -f build/web/__admin/main.dart.js
+          test ! -f build/web/__admin/admin.js
 
           dart run dartvel_cli:dartvel preview --port 8098 &
           SERVER=$!
@@ -1542,7 +1546,9 @@ jobs:
           done
 
           curl -sf http://127.0.0.1:8098/__studio > /tmp/diag/studio.html
-          grep -q 'admin.js' /tmp/diag/studio.html
+          grep -q '<title>Studio' /tmp/diag/studio.html
+          grep -q '<base href="/__studio/">' /tmp/diag/studio.html
+          curl -sf -o /dev/null http://127.0.0.1:8098/__studio/main.dart.js
 
           curl -sf http://127.0.0.1:8098/__studio/graph.json \
             > /tmp/diag/studio-graph.json
@@ -1565,7 +1571,7 @@ jobs:
             /tmp/diag/studio-graph.json models routes functions jobs
 
           for page in studio-climb studio-encoded; do
-            if grep -q 'admin.js' "/tmp/diag/$page.html"; then
+            if grep -q '<title>Studio' "/tmp/diag/$page.html"; then
               echo "::error::$page was answered with the studio"
               exit 1
             fi
