@@ -1,0 +1,201 @@
+name: web-server on every host
+
+# `dartvel build web-server` makes one executable for the operating system and
+# CPU it runs on, with dartvel_shelf's native server library carried inside
+# it. That library is committed under packages/dartvel_shelf/lib/native/, one
+# directory per host, and for a long time only linux-x64 had one -- so the
+# build worked on one host and said "no native server library" on every other.
+#
+# Two jobs per host:
+#
+#  * native compiles the library on that host and uploads it. It is how the
+#    committed copies are made: download the artifact and commit it over
+#    lib/native/<host>/. A Rust change that reaches the FFI surface needs all
+#    six refreshed, and native_symbols_test in the job below says which
+#    committed library fell behind the bindings.
+#
+#  * verify uses the committed library -- the one a user gets -- and runs the
+#    whole path on that host: `dartvel create`, `dartvel build web-server`, the
+#    executable copied alone into an empty directory and started with nothing
+#    configured, then asked for a page, for main.dart.js, and for a write
+#    through a backend function into the SQLite file it creates, which has to
+#    survive a restart. That is web_server_binary_test.dart. A host with no
+#    committed library fails here rather than skipping, because a skipped test
+#    is how "runs on linux-x64 only" went unnoticed.
+#
+# The repository is public, so every runner here, macOS, Windows and arm64
+# included, is free. The timeouts bound wall-clock, not cost.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dartvel_shelf/**'
+      - 'packages/dartvel_core/lib/src/process/binary_payload.dart'
+      - 'packages/dartvel_core/lib/binary_payload.dart'
+      - 'packages/dartvel_cli/lib/src/build/**'
+      - 'packages/dartvel_cli/lib/src/commands/build_command.dart'
+      - 'packages/dartvel_cli/test/web_server_binary_test.dart'
+      - 'packages/dartvel_cli/test/server_binary_build_test.dart'
+      - 'packages/dartvel_core/test/binary_payload_test.dart'
+      - '.github/workflows/web-server-hosts.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: web-server-hosts-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.5
+
+jobs:
+  native:
+    name: ${{ matrix.host }} — build the server library
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: linux-x64, runner: ubuntu-latest, triple: x86_64-unknown-linux-gnu, lib: libdartvel_shelf.so }
+          - { host: linux-arm64, runner: ubuntu-24.04-arm, triple: aarch64-unknown-linux-gnu, lib: libdartvel_shelf.so }
+          - { host: macos-arm64, runner: macos-latest, triple: aarch64-apple-darwin, lib: libdartvel_shelf.dylib }
+          - { host: macos-x64, runner: macos-15-intel, triple: x86_64-apple-darwin, lib: libdartvel_shelf.dylib }
+          - { host: windows-x64, runner: windows-latest, triple: x86_64-pc-windows-msvc, lib: dartvel_shelf.dll }
+          - { host: windows-arm64, runner: windows-11-arm, triple: aarch64-pc-windows-msvc, lib: dartvel_shelf.dll }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Not every image has rustup: the Windows arm64 one did not, the day
+      # this was written.
+      - name: Rust for this host
+        run: |
+          set -euo pipefail
+          if ! command -v rustup >/dev/null 2>&1; then
+            case "${{ runner.os }}" in
+              Windows)
+                curl -fsSL -o rustup-init.exe "https://static.rust-lang.org/rustup/dist/${{ matrix.triple }}/rustup-init.exe"
+                ./rustup-init.exe -y --profile minimal --default-host ${{ matrix.triple }}
+                echo "$USERPROFILE/.cargo/bin" >> "$GITHUB_PATH"
+                export PATH="$USERPROFILE/.cargo/bin:$PATH" ;;
+              *)
+                curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
+                echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+                export PATH="$HOME/.cargo/bin:$PATH" ;;
+            esac
+          fi
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.triple }}
+          rustc --version --verbose
+
+      - name: Cache cargo and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/dartvel_shelf/rust/target
+          key: >-
+            shelf-native-${{ matrix.host }}-${{
+            hashFiles('packages/dartvel_shelf/rust/Cargo.toml',
+                      'packages/dartvel_shelf/rust/Cargo.lock') }}
+          restore-keys: shelf-native-${{ matrix.host }}-
+
+      - name: cargo build
+        working-directory: packages/dartvel_shelf/rust
+        run: cargo build --release --locked --target ${{ matrix.triple }}
+
+      - name: Stage the library as it is committed
+        run: |
+          set -euo pipefail
+          mkdir -p "out/${{ matrix.host }}"
+          cp "packages/dartvel_shelf/rust/target/${{ matrix.triple }}/release/${{ matrix.lib }}" \
+            "out/${{ matrix.host }}/${{ matrix.lib }}"
+          ls -l "out/${{ matrix.host }}"
+          file "out/${{ matrix.host }}/${{ matrix.lib }}" || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dartvel_shelf-${{ matrix.host }}
+          path: out/
+          if-no-files-found: error
+
+  verify:
+    name: ${{ matrix.host }} — build web-server, run it alone
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { host: linux-x64, runner: ubuntu-latest, lib: libdartvel_shelf.so, flutter: action }
+          - { host: linux-arm64, runner: ubuntu-24.04-arm, lib: libdartvel_shelf.so, flutter: git }
+          - { host: macos-arm64, runner: macos-latest, lib: libdartvel_shelf.dylib, flutter: action }
+          - { host: macos-x64, runner: macos-15-intel, lib: libdartvel_shelf.dylib, flutter: action }
+          - { host: windows-x64, runner: windows-latest, lib: dartvel_shelf.dll, flutter: action }
+          - { host: windows-arm64, runner: windows-11-arm, lib: dartvel_shelf.dll, flutter: git }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # Before anything slow: the library a user of this host gets.
+      - name: The committed library for this host
+        run: |
+          set -euo pipefail
+          lib="packages/dartvel_shelf/lib/native/${{ matrix.host }}/${{ matrix.lib }}"
+          if [ ! -f "$lib" ]; then
+            echo "::error::$lib is not committed; a web-server build on ${{ matrix.host }} cannot write build/server"
+            exit 1
+          fi
+          ls -l "$lib"
+
+      - uses: subosito/flutter-action@v2
+        if: matrix.flutter == 'action'
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      # Flutter publishes no SDK archive for Linux or Windows on arm64, so
+      # flutter-action cannot install one. A checkout of the release tag
+      # fetches the arm64 Dart SDK for the host on first run.
+      - name: Flutter from its release tag
+        if: matrix.flutter == 'git'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+
+      - name: Resolve the packages
+        run: |
+          set -euo pipefail
+          dart --version
+          (cd packages/dartvel_core && dart pub get)
+          (cd packages/dartvel_shelf && dart pub get)
+          (cd packages/dartvel_cli && dart pub get)
+
+      - name: The library matches the bindings, and loads on this host
+        working-directory: packages/dartvel_shelf
+        run: dart test test/native_symbols_test.dart test/native_library_location_test.dart
+
+      - name: A compiled program carries its payload and runs
+        working-directory: packages/dartvel_core
+        run: dart test test/binary_payload_test.dart
+
+      - name: A compiled program serves with the library handed to it
+        working-directory: packages/dartvel_shelf
+        run: dart test test/compiled_executable_test.dart
+
+      - name: The compiled backend and its Studio, served alone
+        working-directory: packages/dartvel_cli
+        run: dart test test/server_binary_build_test.dart --run-skipped
+
+      - name: dartvel build web-server, and the binary alone
+        working-directory: packages/dartvel_cli
+        run: dart test test/web_server_binary_test.dart --reporter expanded --run-skipped
