@@ -294,16 +294,33 @@ List<ToolRequirement> toolRequirementsFor(String platform, {String home = ''}) {
           executable: '$root/dartvel_cli_flt/bin/dartvel-cli-flt',
           name: 'Dartvel terminal embedder (dartvel_cli_flt)',
           installHint:
-              'cargo install --git https://github.com/Danroyal001/dartvel_cli_flt '
-              '--root $root/dartvel_cli_flt — needs a Rust toolchain.',
+              'git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git '
+              '$root/dartvel_cli_flt/src, then cargo install --path '
+              '$root/dartvel_cli_flt/src/flt-cli --bin dartvel-cli-flt --root '
+              '$root/dartvel_cli_flt — needs a Rust toolchain.',
+          // A clone and a build rather than `cargo install --git`: the binary
+          // belongs to the flt-cli package, and at run time it builds the
+          // embedder from the checkout it was installed from, so the checkout
+          // has to be one that stays. Without the Flutter submodule the fork
+          // links the engine of the flutter on PATH, the one that builds the
+          // bundle.
           installCommand: <String>[
+            'git',
+            'clone',
+            '--depth',
+            '1',
+            'https://github.com/Danroyal001/dartvel_cli_flt.git',
+            '$root/dartvel_cli_flt/src',
+          ],
+          postInstall: <String>[
             'cargo',
             'install',
-            '--git',
-            'https://github.com/Danroyal001/dartvel_cli_flt.git',
+            '--path',
+            '$root/dartvel_cli_flt/src/flt-cli',
+            '--bin',
+            'dartvel-cli-flt',
             '--root',
             '$root/dartvel_cli_flt',
-            'dartvel-cli-flt',
           ],
         ),
       ];
