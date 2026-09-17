@@ -83,6 +83,10 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Choose a search provider', anchor: 'providers'),
   SpecCoverage('Semantic Search and Embeddings', 'Data', DVRoutes.docssearch,
       'Search by meaning with embeddings', anchor: 'semantic'),
+  SpecCoverage('Model Sync and Presence', 'Data', DVRoutes.docssync,
+      'Watch model changes', anchor: 'changes'),
+  SpecCoverage('Offline-First Models', 'Data', DVRoutes.docssync,
+      'Keep writing while offline', anchor: 'offline'),
   SpecCoverage('Sensitive Model Fields', 'Data', DVRoutes.docsmodels,
       'Protect sensitive fields', anchor: 'sensitive'),
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
@@ -197,8 +201,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   // Data
   'Data Import, Export, and Reporting': 'Data',
   'Change Data Capture and Warehouse Sync': 'Data',
-  'Offline-First Models': 'Data',
-  'Model Sync and Presence': 'Data',
   'Content Workflow': 'Data',
   'Media Pipeline': 'Data',
 
