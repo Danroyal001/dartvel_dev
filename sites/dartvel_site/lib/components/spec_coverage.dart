@@ -44,6 +44,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   // Getting started
   SpecCoverage('Project Structure', 'Getting started', DVRoutes.docs,
       'Project structure', anchor: 'structure'),
+  SpecCoverage('Package Structure', 'Getting started', DVRoutes.docs,
+      'One package with every import'),
   SpecCoverage('Dev Client', 'Getting started', DVRoutes.index,
       'Scan a QR code and hot reload on your phone.'),
 
@@ -174,7 +176,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   // Getting started
   'The Golden Path': 'Getting started',
   'Adoption': 'Getting started',
-  'Package Structure': 'Getting started',
   'Unified Development, Transparency, and Contracts': 'Getting started',
   'Generated Code Determinism': 'Getting started',
 
