@@ -18,9 +18,11 @@ import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/session_authentication.dart';
+import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
 import 'studio_access.dart';
+import 'studio_api.dart';
 
 /// Everything below the mount belongs to the admin.
 class DVAdminMount {
@@ -210,7 +212,10 @@ class DVAdminServer {
     required this.mount,
     required this.root,
     Future<bool> Function(Request request)? authenticated,
-  }) : _authenticated = authenticated ?? dvAdminAuthorized;
+    List<DVStudioModelSpec> models = const <DVStudioModelSpec>[],
+    DVDatabaseAdapter? database,
+  })  : _authenticated = authenticated ?? dvAdminAuthorized,
+        api = DVStudioApi(models: models, database: database);
 
   final DVAdminMount mount;
 
@@ -219,6 +224,11 @@ class DVAdminServer {
   final String root;
 
   final Future<bool> Function(Request request) _authenticated;
+
+  /// Studio's data, under `<mount>/api/`: a model's records, the page
+  /// builder's documents and the grants, for exactly the callers the
+  /// dashboard's files are served to.
+  final DVStudioApi api;
 
   /// The dashboard's answer to [request], or null for the application to
   /// answer.
@@ -239,6 +249,13 @@ class DVAdminServer {
       authenticated: mount.requiresAuth && await _authenticated(request),
     );
     if (decision != DVAdminRequest.serve) return null;
+    final String apiPrefix = '${mount.path}/api/';
+    if (path.startsWith(apiPrefix)) {
+      // On the request's tenant, as every route of the application is, so a
+      // tenant-scoped model shows this tenant's records and nobody else's.
+      return dvWithRequestTenant(
+          request, () => api.respond(request, path.substring(apiPrefix.length)));
+    }
     if (request.method != 'GET' && request.method != 'HEAD') return null;
     final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
     if (asset == null) return null;
