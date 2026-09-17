@@ -274,11 +274,15 @@ class _Memo {
     // The pages Studio publishes are served to the web app, ahead of the
     // application's routes and of the admin.
     expect(routes, contains('core.DVPublishedPages(database: '));
+    // dartvel dev hands its backend a development grant, and the admin
+    // serves the browser holding it.
+    expect(routes, contains('core.DVStudioDevGrant? studioDevGrant'));
+    expect(routes, contains('devGrant: studioDevGrant'));
     expect(routes, contains('await publishedPages.respond(request) ?? '));
     expect(
       routes,
       contains('core.DVAdminServer(mount: admin, root: adminRoot, '
-          'models: dartvelStudioModels, database: dartvelDatabase)'),
+          'models: dartvelStudioModels, database: dartvelDatabase'),
     );
   });
 }

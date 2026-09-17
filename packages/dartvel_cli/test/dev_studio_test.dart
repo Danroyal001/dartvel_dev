@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/dev_studio.dart';
+import 'package:dartvel_cli/src/commands/dev_command.dart'
+    show dvCompileDevStudio, dvDevBackendEnvironment, dvDevServerSource;
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -74,5 +76,99 @@ dartvel:
       }).enabled,
       isFalse,
     );
+  });
+
+  test('the dev backend serves Studio at the mount, from where dev compiles '
+      'it, behind the grant dev hands it', () {
+    final String source = dvDevServerSource(
+      admin: const DVAdminMount(
+          path: '/__studio', enabled: true, requiresAuth: true),
+      adminRoot: '/project/.dart_tool/dartvel_studio/admin',
+    );
+
+    expect(
+      source,
+      contains("admin: const core.DVAdminMount(path: '/__studio', "
+          'enabled: true, requiresAuth: true)'),
+    );
+    expect(source,
+        contains("adminRoot: '/project/.dart_tool/dartvel_studio/admin'"));
+    expect(
+      source,
+      contains('studioDevGrant: core.DVStudioDevGrant.fromEnvironment('
+          'Platform.environment)'),
+    );
+  });
+
+  test('a project that turned the admin off starts a backend without one', () {
+    final String source = dvDevServerSource(
+      admin: const DVAdminMount(
+          path: '/__studio', enabled: false, requiresAuth: true),
+      adminRoot: '/x',
+    );
+
+    expect(source, isNot(contains('admin:')));
+  });
+
+  test('dev hands the backend the grant it prints', () {
+    const DVStudioDevGrant grant =
+        DVStudioDevGrant('0123456789abcdef0123456789abcdef');
+
+    expect(
+      dvDevBackendEnvironment(const <String, String>{}, studioDevGrant: grant)[
+          DVStudioDevGrant.environmentVariable],
+      grant.token,
+    );
+  });
+
+  group('compiling Studio for dev', () {
+    const DVAdminMount mount =
+        DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true);
+
+    test('a Studio compiled since dependencies last resolved is not rebuilt',
+        () async {
+      File(p.join(root.path, 'pubspec.lock')).writeAsStringSync('');
+      final String admin = p.join(root.path, 'studio');
+      File(p.join(admin, 'main.dart.js'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('//');
+      final List<String> ran = <String>[];
+      bool ready = false;
+
+      await dvCompileDevStudio(
+        root: root.path,
+        mount: mount,
+        adminRoot: admin,
+        onReady: () => ready = true,
+        run: (String exe, List<String> args, {String? workingDirectory}) async {
+          ran.add(exe);
+          return ProcessResult(0, 0, '', '');
+        },
+      );
+
+      expect(ran, isEmpty);
+      expect(ready, isTrue);
+    });
+
+    test('a missing Studio is compiled with flutter build web, and a failed '
+        'compile is not reported ready', () async {
+      final List<List<String>> ran = <List<String>>[];
+      bool ready = false;
+
+      await dvCompileDevStudio(
+        root: root.path,
+        mount: mount,
+        adminRoot: p.join(root.path, 'studio'),
+        onReady: () => ready = true,
+        run: (String exe, List<String> args, {String? workingDirectory}) async {
+          ran.add(<String>[exe, ...args]);
+          return ProcessResult(0, 1, '', 'compile error');
+        },
+      );
+
+      expect(ran.single.take(3), <String>['flutter', 'build', 'web']);
+      expect(ran.single, containsAllInOrder(<String>['--base-href', '/__studio/']));
+      expect(ready, isFalse);
+    });
   });
 }
