@@ -790,7 +790,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     options: <String>[
       '    --[no-]flutter           Force flutter test instead of dart test.',
       '    --[no-]dart              Force dart test instead of flutter test.',
-      '    --[no-]watch             Run tests in watch mode when supported by the selected runner.',
+      '    --[no-]watch             Run the tests, then rerun them whenever a Dart file in the project changes: a changed test file reruns that file, any other change reruns the suite.',
       '    --[no-]dry-run           Print the resolved test command without executing it.',
       '    --total-shards           Total number of CI shards running this test suite.',
       '    --shard-index            Zero-based index of this CI shard.',
