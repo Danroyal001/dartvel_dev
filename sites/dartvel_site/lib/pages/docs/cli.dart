@@ -19,5 +19,17 @@ Widget _docsCliPage(BuildContext context) => DocsArticle(
             title: 'dartvel ${command.name}',
             children: <Widget>[DocsCliEntry(command: command)],
           ),
+        const DocsSection(
+          id: 'status',
+          title: 'Status',
+          children: <Widget>[
+            DocsStatus('CLI', missing: <String>[
+              'No crashes or meters commands, and no deploy --plan or deploy '
+                  'rollback.',
+              'No preview logs or preview mail.',
+              'No application commands declared with an annotation.',
+            ]),
+          ],
+        ),
       ],
     );
