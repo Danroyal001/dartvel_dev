@@ -43,6 +43,24 @@ void main() {
       expect(p.basename(dvWindowsDevTunnelPath), 'dartvel_dev_client.cpp');
     });
 
+    test('a checkout with Windows line endings gets the tunnel too, and loses '
+        'it byte for byte', () {
+      // git on a Windows runner checks the runner out with CRLF, and a search
+      // for "\n)\n" found no add_executable there: the build refused on the
+      // only platform it is for (Dev client run 35169461443).
+      final String crlf = runner
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\n', '\r\n');
+      final String added = dvWindowsRunnerCmakeWithDevClient(
+        crlf,
+        enabled: true,
+      );
+      expect(added, contains('dartvel_dev_client.cpp'));
+      expect(added.replaceAll('\r\n', ''), isNot(contains('\n')));
+      expect(dvWindowsRunnerCmakeWithDevClient(added, enabled: true), added);
+      expect(dvWindowsRunnerCmakeWithDevClient(added, enabled: false), crlf);
+    });
+
     test('building twice writes it once, and a release build takes it out', () {
       final String once = dvWindowsRunnerCmakeWithDevClient(
         runner,
