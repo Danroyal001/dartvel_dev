@@ -1038,10 +1038,14 @@ anybody is there to ask. Online, the writer is present, so the default refuses
 and lets them decide. Offline, nobody is present at the moment of the merge, so
 a strategy has to decide in advance — which is why `DVConflict.ask` is not a
 legal offline strategy and is refused at build time (`DV-HISTORY-002`).
+The build-time check is not written yet. `DVOfflineStore` refuses
+`DVConflict.ask` when it runs.
 
 Generated forms know the outcome: a refused save reloads the record, shows what
 changed underneath, and offers the merge rather than throwing the person's
-typing away.
+typing away. That form behaviour is designed and not built. A generated form
+saves at the version it read, and a save over a row that moved is refused
+with `DVConflictError`.
 
 ## History
 
@@ -1110,6 +1114,9 @@ Studio's undo over page documents and this are the same mechanism seen twice:
 a versioned record with entries that can be reverted in a reversible
 transaction. Studio reads `history()` for any model with it enabled, so an
 administrator can see who changed a price and put it back without SQL.
+
+Studio has no history view yet. `model.history()` and `model.revert(to:)` are
+generated and can be called from application code.
 
 ## Diagnostics
 
@@ -1361,7 +1368,9 @@ easy to write as the happy one. An integration test that can only produce a
 200 has tested the half that was never going to be the problem.
 
 Fixtures can be recorded from a real call and replayed, so a stub stays honest
-about the shape the service actually returns. A test that reaches the network
+about the shape the service actually returns. Today fixtures are kept in
+memory only: there is no file format for them and no command that captures
+one. A test that reaches the network
 without a fake fails rather than passing slowly: a suite whose result depends
 on somebody else's uptime is not a suite.
 
@@ -1370,11 +1379,19 @@ on somebody else's uptime is not a suite.
 Backend by default. A client may call a third party directly — a mobile app
 talking to a maps service — and the same API works there, with one rule
 enforced at build time: a declared host whose `auth:` names a backend-scoped
-secret cannot be used from client code. That is the existing `DV-SECRETS-001`
-violation, raised where it is introduced rather than discovered in a bundle.
+secret cannot be used from client code. `dartvel routes` raises it as
+`DV-HTTP-005` where it is introduced, before it can reach a bundle. The build
+tells client code from backend code by directory (everything under `lib/`
+outside the backend directory), and it reads only literal host names and URLs;
+a URL assembled at runtime is caught by the runtime refusal instead.
 
-Every provider adapter in this specification — mail, search, billing, storage,
-AI, semantic search, webhooks, tax — is built on this client. That is the
+Every provider adapter in this specification (mail, search, billing, storage,
+AI, semantic search, webhooks, tax) is meant to be built on this client. So far
+two things send through it: webhook deliveries, as undeclared destinations
+pinned to the address their own check approved, and the breached-password
+range check. The mail, search, billing, storage, AI and tax adapters still use
+their own transports. Backend code writes `const DVHttp()`, because there is
+no backend `DV` facade yet. That is the
 reason it is worth being a section rather than a utility: it is what makes
 their behaviour under failure uniform, observable, and testable in one place
 instead of eight.
@@ -1981,7 +1998,7 @@ A `DVSession` is a record of a device, not a cookie with a friendly name:
 session.id;
 session.createdAt; session.lastSeenAt;
 session.device;        // model and OS, from the platform, never fingerprinted
-session.location;      // coarse, from the request, and only if configured
+session.location;      // coarse, from the request, and only if configured (not populated yet)
 session.isCurrent;
 session.mfaSatisfiedAt; // null until a second factor was presented
 ```
@@ -1989,11 +2006,14 @@ session.mfaSatisfiedAt; // null until a second factor was presented
 Drivers follow the pattern the rest of the platform uses — SQLite by default so
 a new project needs no infrastructure, Redis or a database table when there is
 more than one backend process, and the driver is configuration rather than
-code. Server-rendered targets get a cookie whose attributes are not left to
+code. The memory and database drivers are built; the Redis driver is not.
+Server-rendered targets get a cookie whose attributes are not left to
 the application: `HttpOnly`, `SameSite=Lax`, `Secure` outside development, and
 a host-prefixed name. These are not defaults to be overridden; a project that
 wants `SameSite=None` is asking for a cross-site session, and that is a
 deploy-time error naming the setting rather than a silently weaker cookie.
+Today `DVSessionCookie` refuses it when the cookie is built; the deploy-time
+gate is not written.
 
 **Rotation is not optional.** The session identifier is reissued on sign-in, on
 privilege change, and on second-factor completion. Fixation is the attack that
@@ -2003,7 +2023,9 @@ prevented here rather than documented as a risk.
 Revocation is immediate rather than eventual. A revoked session fails its next
 request, and on a device holding an offline-first cache it also clears the
 models that session's policies gated — a signed-out device that still renders
-the last screen is a data leak with a plausible explanation.
+the last screen is a data leak with a plausible explanation. The server half is
+built. Nothing yet clears a device's `DVOfflineStore` when its session is
+revoked.
 
 ## Multi-factor as a policy
 
@@ -2026,7 +2048,8 @@ Future<void> _transferFunds(String to, int cents) async => Ledger.transfer(to, c
   middleware redirect already has, so application code does not handle it.
 
 Enrollment is generated: TOTP with a QR code, passkeys through the method
-Authentication already has, and recovery codes. **Recovery codes are stored
+Authentication already has, and recovery codes. TOTP and recovery codes are
+built. Passkeys as a second factor are not. **Recovery codes are stored
 only as salted hashes** — shown exactly once, used once, and excluded from
 logs, traces, AI context and export by construction. They live in a store the
 framework owns rather than on an application model, so they carry the
@@ -2035,7 +2058,8 @@ recovery code in a support ticket is how accounts get taken over.
 
 MFA policy is per-tenant configurable where Organizations exist: an
 organization may require a second factor of its members, which is the form the
-requirement actually takes in a business.
+requirement actually takes in a business. Per-tenant policy is not built; it
+waits on Organizations.
 
 ## Account management
 
@@ -2718,6 +2742,8 @@ that already exists. What this section adds is the partitioning:
 An endpoint that keeps failing is disabled rather than retried forever: after
 the configured run of consecutive failures it is marked disabled, the owner is
 notified through `DV.Notifications`, and its queue stops (`DV-WEBHOOK-003`).
+Disabling is built. The notification is not: `DVWebhooks.onDisabled` is called,
+and nothing connects it to `DV.Notifications` yet.
 A dead endpoint that is retried indefinitely is a slow, permanent tax on the
 queue and on the receiving host.
 
@@ -2738,11 +2764,18 @@ dartvel:
     disableAfter: 20
 ```
 
+This block is not read from `pubspec.yaml` yet. The same three settings are
+constructor arguments on `DVWebhooks`, with the defaults shown.
+
 ## Retention and replay
 
 Every delivery is recorded — the event, the endpoint, the attempt count, the
 response status and the timing — and Studio's inspector shows them with the
-payload, which is what turns "we never got it" into an answer.
+payload, which is what turns "we never got it" into an answer. The records are
+kept in `dv_webhook_deliveries` and the payloads in `dv_webhook_payloads`.
+Studio has no delivery inspector yet. `purgeExpiredPayloads()` drops expired
+payloads when it is called, and no scheduled job calls it; a replay past the
+window is refused either way.
 
 The **payload** is kept for `retention` and the **record** is kept
 indefinitely. Replay works while the payload is there, and a replay requested
@@ -2835,6 +2868,12 @@ class _Order(
 Application code does not branch on connectivity. `Order.find`, `order.save`
 and `Order.watch` read and write the same way in a tunnel as on Wi-Fi; what
 changes is where the answer comes from and when the write reaches the server.
+
+The declaration is not generated yet: `offline:` is not a parameter of
+`@DVModel`. The runtime underneath it is built as `DVOfflineStore`, with a
+local record table, an ordered mutation log that replays once per reconnect,
+and the conflict and clock handling below, and an application wires it by
+hand.
 
 ## The local store
 
@@ -2964,6 +3003,9 @@ is a signal like any other:
 DV.Platform.network.status   // online | offline | metered
 DV.Platform.network.since    // when it last changed
 ```
+
+`DV.Platform.network` does not exist yet. The clock correction does, as
+`DVOfflineClock`.
 
 A signal rather than a callback or a plugin, so a banner is a widget that
 rebuilds and not a listener an application has to remember to dispose. Metered
@@ -3954,6 +3996,10 @@ visible in the log rather than in a post-mortem.
 In tests, `DVFlags.withOverrides({...}, () async { ... })` scopes overrides to
 the callback, and a test's flags never leak into the next one.
 
+The scoped override and `DVFlags.setDebugOverride`, a process override in a
+debug build, are built. `dartvel flags override` and overrides stored on disk
+are not.
+
 ## CLI
 
 ```bash
@@ -3964,6 +4010,10 @@ dartvel flags rollout newCheckout --percentage 25 --by user
 dartvel flags off newCheckout            # the kill switch, one word
 dartvel flags prune                      # flags past their expiry
 ```
+
+`list` and `prune` are built. `status`, `set`, `rollout` and `off` do not exist
+yet. They need a published rule set per environment to change, and nothing
+publishes `DVFlagRules` yet.
 
 Flags are debt with an owner and a date on them. `expires:` is required, the
 build warns past it with `DV-FLAGS-004`, and `dartvel flags prune` lists what
@@ -3976,6 +4026,12 @@ Studio shows each flag, who owns it, the rule in force per environment, the
 rollout and its bucket count, and exposures over time. A rule changed in
 Studio is a model write like any other, so Record History answers who turned
 what off at 02:00 without a second audit trail.
+
+What is built is a flags view for the running app (`DVStudioScreen(flags:)`).
+It lists declared flags with type, owner, expiry, default and rule count,
+explains who gets what and which rule decided, and applies a confirmed rule
+change to that app only. It cannot publish to an environment and shows no
+exposures over time.
 
 ## Diagnostics
 
@@ -4909,6 +4965,10 @@ part of the build rather than as a step somebody remembers, and `dartvel
 crashes symbols upload` puts it in the symbol store keyed by release and
 build id.
 
+None of the symbol handling in this part is built. `dartvel build` writes no
+debug information, `DV-CRASH-002` is never raised, nothing uploads symbols or
+archives source maps, and reports are not symbolicated.
+
 A build that obfuscates and keeps no symbols is refused (`DV-CRASH-002`).
 Shipping one produces crash reports that can never be read, and the failure
 arrives weeks later when somebody needs them.
@@ -4935,6 +4995,10 @@ An application can override the fingerprint where the default is wrong — one
 crash site reached from twenty callers, or twenty sites that are really one
 bug behind a shared helper.
 
+The fingerprint and its override are built, and a crash gets the same
+fingerprint on the VM and on the web. Grouping stored reports is not: the
+backend writes them to `dv_crash_reports` and nothing reads them back yet.
+
 ## Rate limits
 
 A device in a crash loop restarts and crashes again, forever. Reports are
@@ -4958,6 +5022,11 @@ Health is computed per cohort, not just per release, because a crash that
 takes only the ten percent in a rollout disappears into a whole-release
 average.
 
+`DVReleaseHealth` and `DVReleaseHealthGate` compute this per release, patch
+and cohort. The installed reporter is not given a `DVReleaseHealth` yet, so a
+running application computes no health, and the gate returns a decision
+without stopping a rollout or turning a flag off.
+
 ## Where reports go
 
 ```dart
@@ -4971,7 +5040,11 @@ DVCrashReporting(
 
 `DVCrashSink` has adapters — the Dartvel backend, Sentry, Crashlytics, or an
 application's own — and the capture path above is the same whichever is
-configured. A deployment with no sink configured still captures and still
+configured. Two are built. `DVCrashSink.dartvel()` posts to the generated
+backend's `POST <apiBasePath>/_dartvel/crashes`, and
+`DVCrashSink.repository(...)` hands reports to a store the application
+supplies. Sentry and Crashlytics adapters are not built. A deployment with no
+sink configured still captures and still
 computes release health locally; it simply has nowhere to send the detail.
 
 Disabling crash reporting for a build is a declaration, not an accident, and
@@ -4986,11 +5059,14 @@ dartvel crashes symbols upload
 dartvel crashes health --release 1.4.0 --by cohort
 ```
 
+There is no `dartvel crashes` command yet.
+
 ## Studio
 
 Studio shows groups ordered by the number of people affected rather than by
 event count, each group's first and last sighting, the releases it appears in,
 and release health per cohort next to the rollout that produced the cohort.
+Studio has no crash view yet.
 
 ## Diagnostics
 
@@ -5458,6 +5534,11 @@ final page = await Ticket.Search.query(
 );
 ```
 
+The generated half of this is not built. `@DVModel.searchableField()` takes
+no `semantic:` argument and there is no generated `Model.Search.query(mode:)`.
+The runtime is built as `DVSemanticIndex`, which an application wires to a
+model by hand, and its query takes the same three modes.
+
 `mode` is `keyword`, `semantic` or `hybrid`, and `keyword` stays the default:
 it is what the existing generated index does, it costs nothing per query, and
 a section that silently changed the meaning of every existing call would be a
@@ -5487,6 +5568,10 @@ dartvel:
       vectorAdapter: DVPgVectorAdapter
 ```
 
+This block is not read yet. The embedder and the vector adapter are passed to
+`DVSemanticIndex` in code, and `DVInMemoryVectorAdapter` is the only adapter
+built.
+
 There is **no default embedder**, and `semantic: true` without one is a build
 error (`DV-SEMANTIC-001`). Vectors from two different models are not
 comparable — not worse, *meaningless*: the nearest neighbours of a query
@@ -5512,7 +5597,8 @@ silently mixes them.
 
 Backfill is a resumable, rate-limited durable job with progress in Studio,
 because re-embedding a corpus is measured in hours and costs money per
-thousand records.
+thousand records. Today backfill is a resumable call that keeps a checkpoint.
+It is not a durable job, it is not rate limited, and Studio shows no progress.
 
 ## Authorization is in the query, not after it
 
@@ -6003,7 +6089,9 @@ and the timestamps that produced them.
 
 They can disagree — a report that failed and retried, a provider that rounds,
 a plan changed mid-period. `dartvel meters reconcile` produces the difference
-per tenant per meter and does not resolve it automatically. Usage that could
+per tenant per meter and does not resolve it automatically. The comparison is
+built as `DVMeterReporter.reconcile`, which returns the differences and changes
+nothing. The command is not. Usage that could
 not be reported is queued and retried, never dropped (`DV-METER-006`), because
 a dropped report is revenue that silently did not exist.
 
@@ -6017,7 +6105,8 @@ if nothing reports it.
 Meters aggregate in the application's own database, which keeps local
 development zero-config. High-volume deployments point the same generated
 queries at ClickHouse, exactly as Product Analytics does, because the shape of
-the data is the same: append-heavy, read as aggregates.
+the data is the same: append-heavy, read as aggregates. The in-memory and
+`DV.Database` stores are built. The ClickHouse path is not.
 
 ## CLI
 
@@ -6027,11 +6116,13 @@ dartvel meters usage --tenant acme --period current
 dartvel meters reconcile --period 2026-08
 ```
 
+There is no `dartvel meters` command yet.
+
 ## Studio
 
 Studio shows usage per tenant against each tenant's own limits, the tenants
 approaching one, and the reconciliation difference beside the invoice it
-belongs to.
+belongs to. Studio has no usage view yet.
 
 ## Diagnostics
 
