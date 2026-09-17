@@ -91,7 +91,7 @@ void main() {
   late List<List<String>> ran;
 
   setUp(() {
-    root = Directory.systemTemp.createTempSync('dartvel_publish_devclient_');
+    root = Directory.systemTemp.createTempSync('dartvel_store_devclient_');
     ran = <List<String>>[];
     exitCode = 0;
   });
@@ -112,8 +112,9 @@ void main() {
       File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
 name: shopfront
 dartvel:
-  publish:
-$yaml
+  deploy:
+    stores:
+${yaml.replaceAll(RegExp('^(?=.)', multiLine: true), '  ')}
 ''');
 
   Future<void> publish(List<String> arguments) async {
@@ -261,31 +262,25 @@ $yaml
         expect(exitCode, 78);
         expect(ran, isEmpty);
         expect(
-          dvDevClientPublishRefusal(store: 'play', track: 'production'),
+          dvDevClientStoreRefusal(store: 'play', track: 'production'),
           contains('DV-DEVCLIENT-003'),
         );
       },
     );
 
     test('a shell to the App Store is refused', () async {
-      expect(dvDevClientPublishRefusal(store: 'appstore'), isNotNull);
-      expect(
-        dvDevClientPublishRefusal(store: 'play', track: 'beta'),
-        isNotNull,
-      );
-      expect(
-        dvDevClientPublishRefusal(store: 'play', track: 'alpha'),
-        isNotNull,
-      );
+      expect(dvDevClientStoreRefusal(store: 'appstore'), isNotNull);
+      expect(dvDevClientStoreRefusal(store: 'play', track: 'beta'), isNotNull);
+      expect(dvDevClientStoreRefusal(store: 'play', track: 'alpha'), isNotNull);
     });
 
     test('the internal tracks the section names are allowed', () {
+      expect(dvDevClientStoreRefusal(store: 'play', track: 'internal'), isNull);
+      expect(dvDevClientStoreRefusal(store: 'testflight'), isNull);
       expect(
-        dvDevClientPublishRefusal(store: 'play', track: 'internal'),
+        dvDevClientStoreRefusal(store: 'firebase-app-distribution'),
         isNull,
       );
-      expect(dvDevClientPublishRefusal(store: 'testflight'), isNull);
-      expect(dvDevClientPublishRefusal(store: 'firebase'), isNull);
     });
 
     test('a shell to Play internal testing goes ahead', () async {

@@ -18,14 +18,16 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// The stores a project declares under `dartvel.publish`, by the name it
-/// declares them with. `dartvel deploy --store` spells `firebase` out; see
-/// dvDeployStores.
-const List<String> dvPublishStores = <String>[
+/// The stores `dartvel deploy --store` takes, each declared under
+/// `dartvel.deploy.stores.<store>` in pubspec.yaml.
+///
+/// Firebase is spelled out because it is also a host, reached through
+/// `--provider firebase-hosting`; a bare `firebase` names neither.
+const List<String> dvStores = <String>[
   'play',
   'appstore',
   'testflight',
-  'firebase',
+  'firebase-app-distribution',
 ];
 
 /// The tracks Google Play publishes to.
@@ -36,8 +38,8 @@ const List<String> dvPlayTracks = <String>[
   'production',
 ];
 
-class DVPublishPlan {
-  const DVPublishPlan({
+class DVStorePlan {
+  const DVStorePlan({
     required this.store,
     required this.executable,
     required this.arguments,
@@ -47,7 +49,7 @@ class DVPublishPlan {
   });
 
   /// A plan that cannot run, and why.
-  const DVPublishPlan.refused(this.store, this.problems)
+  const DVStorePlan.refused(this.store, this.problems)
     : executable = '',
       arguments = const <String>[],
       artifact = '',
@@ -75,25 +77,28 @@ class DVPublishPlan {
 /// [host] is `linux`, `macos` or `windows`; passed rather than read so the
 /// decision can be tested from any machine, which is the whole difficulty
 /// with anything Apple.
-DVPublishPlan dvPublishPlan({
+DVStorePlan dvStorePlan({
   required String store,
   required String root,
   required String host,
   Map<String, String> environment = const <String, String>{},
 }) {
-  if (!dvPublishStores.contains(store)) {
-    return DVPublishPlan.refused(store, <String>[
-      '"$store" is not a store Dartvel publishes to. The ones it knows are '
-          '${dvPublishStores.join(', ')}.',
+  if (!dvStores.contains(store)) {
+    return DVStorePlan.refused(store, <String>[
+      '"$store" is not a store Dartvel deploys to. The ones it knows are '
+          '${dvStores.join(', ')}.',
     ]);
   }
 
+  final String? moved = _oldDeclaration(root, store);
+  if (moved != null) return DVStorePlan.refused(store, <String>[moved]);
+
   final Map<Object?, Object?> declared = _declaration(root, store);
   if (declared.isEmpty) {
-    return DVPublishPlan.refused(store, <String>[
-      'This project declares nothing under dartvel.publish.$store in '
-          'pubspec.yaml, so there is nowhere to publish to and nothing to '
-          'publish with.',
+    return DVStorePlan.refused(store, <String>[
+      'This project declares nothing under dartvel.deploy.stores.$store in '
+          'pubspec.yaml, so there is nowhere to deploy to and nothing to '
+          'deploy with.',
     ]);
   }
 
@@ -108,7 +113,7 @@ DVPublishPlan dvPublishPlan({
   }
 }
 
-DVPublishPlan _play(
+DVStorePlan _play(
   String root,
   Map<Object?, Object?> declared,
   String? keyFile,
@@ -119,7 +124,7 @@ DVPublishPlan _play(
     // Not corrected to the nearest: "staging" could mean internal or alpha,
     // and guessing puts a build in front of the wrong people.
     problems.add(
-      'dartvel.publish.play.track is "$track". Google Play '
+      'dartvel.deploy.stores.play.track is "$track". Google Play '
       'publishes to ${dvPlayTracks.join(', ')}.',
     );
   }
@@ -131,7 +136,7 @@ DVPublishPlan _play(
     // Without it fastlane prompts, and a pipeline with no terminal waits for
     // an answer until the job's cap.
     problems.add(
-      'dartvel.publish.play.credentials names no service account '
+      'dartvel.deploy.stores.play.credentials names no service account '
       'key. Add it to pubspec.yaml: without one the upload stops to ask, '
       'and a pipeline has nobody to answer.',
     );
@@ -148,8 +153,8 @@ DVPublishPlan _play(
     'release',
     'app-release.aab',
   );
-  if (problems.isNotEmpty) return DVPublishPlan.refused('play', problems);
-  return DVPublishPlan(
+  if (problems.isNotEmpty) return DVStorePlan.refused('play', problems);
+  return DVStorePlan(
     store: 'play',
     executable: 'fastlane',
     arguments: <String>[
@@ -173,7 +178,7 @@ DVPublishPlan _play(
   );
 }
 
-DVPublishPlan _appStore(
+DVStorePlan _appStore(
   String store,
   String root,
   Map<Object?, Object?> declared,
@@ -193,17 +198,17 @@ DVPublishPlan _appStore(
   final Object? issuer = declared['apiIssuer'];
   if (key == null || '$key'.trim().isEmpty) {
     problems.add(
-      'dartvel.publish.$store.apiKey names no App Store Connect '
+      'dartvel.deploy.stores.$store.apiKey names no App Store Connect '
       'API key.',
     );
   }
   if (issuer == null || '$issuer'.trim().isEmpty) {
     problems.add(
-      'dartvel.publish.$store.apiIssuer names no issuer id. The '
+      'dartvel.deploy.stores.$store.apiIssuer names no issuer id. The '
       'key alone does not say which account it belongs to.',
     );
   }
-  if (problems.isNotEmpty) return DVPublishPlan.refused(store, problems);
+  if (problems.isNotEmpty) return DVStorePlan.refused(store, problems);
 
   // flutter build ipa names the file after the app, so it is found rather
   // than assumed; app.ipa is what a refusal names when nothing was built.
@@ -220,7 +225,7 @@ DVPublishPlan _appStore(
   final String artifact = built.isNotEmpty
       ? built.first
       : p.join(ipas.path, 'app.ipa');
-  return DVPublishPlan(
+  return DVStorePlan(
     store: store,
     executable: 'xcrun',
     arguments: <String>[
@@ -240,17 +245,20 @@ DVPublishPlan _appStore(
   );
 }
 
-DVPublishPlan _firebase(String root, Map<Object?, Object?> declared) {
+DVStorePlan _firebase(String root, Map<Object?, Object?> declared) {
   final List<String> problems = <String>[];
   final Object? app = declared['app'];
   if (app == null || '$app'.trim().isEmpty) {
     problems.add(
-      'dartvel.publish.firebase.app names no application id. '
+      'dartvel.deploy.stores.firebase-app-distribution.app names no '
+      'application id. '
       'App Distribution identifies a build by it, and there is no way to '
       'guess which of an account\'s applications this is.',
     );
   }
-  if (problems.isNotEmpty) return DVPublishPlan.refused('firebase', problems);
+  if (problems.isNotEmpty) {
+    return DVStorePlan.refused('firebase-app-distribution', problems);
+  }
 
   final Object? groups = declared['groups'];
   final List<String> testers = <String>[
@@ -267,8 +275,8 @@ DVPublishPlan _firebase(String root, Map<Object?, Object?> declared) {
     'flutter-apk',
     'app-release.apk',
   );
-  return DVPublishPlan(
-    store: 'firebase',
+  return DVStorePlan(
+    store: 'firebase-app-distribution',
     executable: 'firebase',
     arguments: <String>[
       'appdistribution:distribute',
@@ -288,11 +296,41 @@ Map<Object?, Object?> _declaration(String root, String store) {
   try {
     final Object? document = loadYaml(pubspec.readAsStringSync());
     final Object? dartvel = document is Map ? document['dartvel'] : null;
-    final Object? publish = dartvel is Map ? dartvel['publish'] : null;
-    final Object? declared = publish is Map ? publish[store] : null;
+    final Object? deploy = dartvel is Map ? dartvel['deploy'] : null;
+    final Object? stores = deploy is Map ? deploy['stores'] : null;
+    final Object? declared = stores is Map ? stores[store] : null;
     return declared is Map ? declared : const <Object?, Object?>{};
   } catch (_) {
     // A pubspec that will not parse is the build's own message to give.
     return const <Object?, Object?>{};
+  }
+}
+
+/// Why the project's pubspec.yaml still has a `dartvel.publish` block, or
+/// null when it has none.
+///
+/// Refused rather than read: store declarations are deploy configuration,
+/// and a key that is quietly honoured is one the documentation stops naming
+/// while projects go on depending on it. Refused rather than ignored: a
+/// store declared the old way would otherwise read as not declared at all.
+String? _oldDeclaration(String root, String store) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  try {
+    final Object? document = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = document is Map ? document['dartvel'] : null;
+    if (dartvel is! Map || !dartvel.containsKey('publish')) return null;
+    final Object? old = dartvel['publish'];
+    final List<String> moves = <String>[
+      if (old is Map)
+        for (final Object? key in old.keys)
+          'dartvel.publish.$key is now dartvel.deploy.stores.'
+              '${key == 'firebase' ? 'firebase-app-distribution' : key}',
+    ];
+    return 'pubspec.yaml declares dartvel.publish, which Dartvel no longer '
+        'reads: store declarations are under dartvel.deploy.stores. '
+        '${moves.isEmpty ? 'Declare this store as dartvel.deploy.stores.$store.' : '${moves.join('; ')}.'}';
+  } catch (_) {
+    return null;
   }
 }

@@ -12,10 +12,11 @@ import 'package:test/test.dart';
 
 const String _play = '''
 dartvel:
-  publish:
-    play:
-      track: internal
-      credentials: secrets/play.json
+  deploy:
+    stores:
+      play:
+        track: internal
+        credentials: secrets/play.json
 ''';
 
 void main() {
@@ -23,7 +24,7 @@ void main() {
   late List<List<String>> ran;
 
   setUp(() {
-    root = Directory.systemTemp.createTempSync('dartvel_publish_cmd_');
+    root = Directory.systemTemp.createTempSync('dartvel_store_cmd_');
     ran = <List<String>>[];
     exitCode = 0;
   });

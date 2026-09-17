@@ -16,9 +16,9 @@ import 'dart:io';
 import '../cloud/cloud_build.dart';
 import '../devclient/dev_client_artifact.dart';
 import '../utils/logger.dart';
-import 'publish_plan.dart';
+import 'store_plan.dart';
 
-typedef PublishProcessRun =
+typedef StoreProcessRun =
     Future<ProcessResult> Function(
       String executable,
       List<String> arguments, {
@@ -26,27 +26,17 @@ typedef PublishProcessRun =
       bool runInShell,
     });
 
-/// The stores `dartvel deploy --store` takes, by the name the command line
-/// uses, to the name the project declares them under in
-/// `dartvel.publish.<name>` and the Dartvel Cloud protocol sends.
+/// The name the Dartvel Cloud protocol gives [store], a store in [dvStores].
 ///
-/// Firebase is spelled out on the command line because `dartvel deploy`
-/// already reaches Firebase Hosting through `--provider`; `firebase` alone
-/// named Hosting on one command and App Distribution on the other. The
-/// declaration and the wire keep `firebase`: under `dartvel.publish`, and in
-/// a request's `publish` field, there is no Hosting for it to be confused
-/// with, and renaming either would break every declared project and every
-/// running worker for a spelling.
-const Map<String, String> dvDeployStores = <String, String>{
-  'play': 'play',
-  'appstore': 'appstore',
-  'testflight': 'testflight',
-  'firebase-app-distribution': 'firebase',
-};
+/// The protocol predates the command line's spelling and still says
+/// `firebase` for App Distribution. It is kept so a worker already running
+/// reads the request; nothing a person types or declares uses it.
+String dvCloudStoreName(String store) =>
+    store == 'firebase-app-distribution' ? 'firebase' : store;
 
 class DVStoreDeploy {
   /// [root] is the project; null reads the working directory when it runs.
-  DVStoreDeploy({PublishProcessRun? processRun, this._root, this._cloud})
+  DVStoreDeploy({StoreProcessRun? processRun, this._root, this._cloud})
     : _processRun = processRun ?? _defaultRun;
 
   static Future<ProcessResult> _defaultRun(
@@ -61,12 +51,11 @@ class DVStoreDeploy {
     runInShell: runInShell,
   );
 
-  final PublishProcessRun _processRun;
+  final StoreProcessRun _processRun;
   final String? _root;
   final DVCloudBuilder? _cloud;
 
-  /// Publishes to [store], a key of [dvDeployStores], and answers the exit
-  /// code.
+  /// Deploys to [store], one of [dvStores], and answers the exit code.
   Future<int> run({
     required String store,
     bool dryRun = false,
@@ -74,21 +63,20 @@ class DVStoreDeploy {
     bool cloud = false,
     String? cloudToken,
   }) async {
-    final String? declared = dvDeployStores[store];
-    if (declared == null) {
+    if (!dvStores.contains(store)) {
       Logger.log(
         '❌ "$store" is not a store Dartvel deploys to. The ones it '
-        'knows are ${dvDeployStores.keys.join(', ')}.',
+        'knows are ${dvStores.join(', ')}.',
       );
       return 64; // EX_USAGE
     }
     final String root = _root ?? Directory.current.path;
 
     if (cloud) {
-      return _inTheCloud(store, declared, root, dryRun, cloudToken);
+      return _inTheCloud(store, root, dryRun, cloudToken);
     }
-    final DVPublishPlan plan = dvPublishPlan(
-      store: declared,
+    final DVStorePlan plan = dvStorePlan(
+      store: store,
       root: root,
       host: Platform.isMacOS
           ? 'macos'
@@ -119,8 +107,8 @@ class DVStoreDeploy {
     // dev menu in front of the public.
     if (dvArtifactIsDevClient(upload)) {
       final int track = plan.arguments.indexOf('--track');
-      final String? refusal = dvDevClientPublishRefusal(
-        store: declared,
+      final String? refusal = dvDevClientStoreRefusal(
+        store: store,
         track: track < 0 ? null : plan.arguments[track + 1],
       );
       if (refusal != null) {
@@ -172,7 +160,7 @@ class DVStoreDeploy {
   /// format, and the operating system the upload runs on.
   static const Map<String, (String, String?, String)> _cloudBuilds =
       <String, (String, String?, String)>{
-        'firebase': ('android', null, 'linux'),
+        'firebase-app-distribution': ('android', null, 'linux'),
         'play': ('android', 'aab', 'linux'),
         'appstore': ('ios', 'ipa', 'macos'),
         'testflight': ('ios', 'ipa', 'macos'),
@@ -180,7 +168,6 @@ class DVStoreDeploy {
 
   Future<int> _inTheCloud(
     String store,
-    String declared,
     String root,
     bool dryRun,
     String? token,
@@ -188,9 +175,9 @@ class DVStoreDeploy {
     // The declaration is checked here, where a refusal costs nothing, rather
     // than on a worker after the build.
     final (String target, String? format, String workerOs) =
-        _cloudBuilds[declared]!;
-    final DVPublishPlan plan = dvPublishPlan(
-      store: declared,
+        _cloudBuilds[store]!;
+    final DVStorePlan plan = dvStorePlan(
+      store: store,
       root: root,
       host: workerOs,
     );
@@ -207,8 +194,7 @@ class DVStoreDeploy {
         target: target,
         profile: 'release',
         format: format,
-        // The protocol's name, which a worker already running understands.
-        publish: declared,
+        store: dvCloudStoreName(store),
         dryRun: dryRun,
         token: token,
       ),

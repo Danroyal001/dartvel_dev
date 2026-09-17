@@ -41,10 +41,11 @@ class _Capture implements Stdout {
 
 const String _play = '''
 dartvel:
-  publish:
-    play:
-      track: internal
-      credentials: secrets/play.json
+  deploy:
+    stores:
+      play:
+        track: internal
+        credentials: secrets/play.json
 ''';
 
 void main() {
@@ -145,7 +146,7 @@ void main() {
 
     test('Firebase App Distribution is named in full', () async {
       declare(
-        'dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n',
+        'dartvel:\n  deploy:\n    stores:\n      firebase-app-distribution:\n        app: "1:1:android:ab"\n',
       );
       File(
           p.join(
@@ -172,6 +173,38 @@ void main() {
     });
 
     test(
+      'an old dartvel.publish block stops the deploy, naming the new key',
+      () async {
+        declare(
+          'dartvel:\n  publish:\n    play:\n      track: internal\n'
+          '      credentials: secrets/play.json\n',
+        );
+        buildBundle();
+
+        await run(<String>['deploy', '--store', 'play', '--dry-run']);
+
+        expect(exitCode, 78);
+        expect(ran, isEmpty);
+        expect(
+          output.out.toString(),
+          contains('dartvel.publish.play is now dartvel.deploy.stores.play'),
+        );
+      },
+    );
+
+    test('and stops a cloud deploy before anything is sent', () async {
+      declare(
+        'dartvel:\n  publish:\n    play:\n      track: internal\n'
+        '      credentials: secrets/play.json\n',
+      );
+
+      await run(<String>['deploy', '--store', 'play', '--cloud']);
+
+      expect(exitCode, 78);
+      expect(cloud.requests, isEmpty);
+    });
+
+    test(
       'a bare "firebase" is not a store: it would read as Hosting',
       () async {
         await expectLater(
@@ -183,7 +216,7 @@ void main() {
 
     test('--cloud sends the store the worker already knows', () async {
       declare(
-        'dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n',
+        'dartvel:\n  deploy:\n    stores:\n      firebase-app-distribution:\n        app: "1:1:android:ab"\n',
       );
 
       await run(<String>[
@@ -202,7 +235,7 @@ void main() {
       // The wire name is unchanged, so a worker on the current protocol
       // takes the request as it took `publish firebase --cloud`.
       expect(
-        (request.target, request.profile, request.publish, request.dryRun),
+        (request.target, request.profile, request.store, request.dryRun),
         ('android', 'release', 'firebase', true),
       );
       expect(request.token, 'tok');
@@ -216,7 +249,7 @@ void main() {
       expect(exitCode, 0);
       final DVCloudBuildRequest request = cloud.requests.single;
       expect(
-        (request.target, request.format, request.publish),
+        (request.target, request.format, request.store),
         ('android', 'aab', 'play'),
       );
     });

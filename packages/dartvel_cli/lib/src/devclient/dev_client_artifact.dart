@@ -22,17 +22,17 @@ import 'package:dartvel_core/dartvel.dart'
 
 /// Why [store] and [track] will not take a dev-client shell, or null when
 /// they are one of the internal tracks the section names.
-String? dvDevClientPublishRefusal({required String store, String? track}) {
+String? dvDevClientStoreRefusal({required String store, String? track}) {
   final bool internal = switch (store) {
     'play' => track == 'internal',
-    'testflight' || 'firebase' => true,
+    'testflight' || 'firebase-app-distribution' => true,
     _ => false,
   };
   if (internal) return null;
   return '$dvDevClientPublicTrack: this artifact is a dev-client shell, and '
       '${track == null ? store : '$store $track'} is not an internal track. '
       'Shells go to Play internal testing, TestFlight or Firebase App '
-      'Distribution; publish the application build instead.';
+      'Distribution; deploy the application build instead.';
 }
 
 final RegExp _kernel = RegExp(
