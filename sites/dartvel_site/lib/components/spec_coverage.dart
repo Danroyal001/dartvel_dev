@@ -70,6 +70,11 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Observe the app lifecycle', anchor: 'lifecycle'),
   SpecCoverage('Platform Memory', 'App', DVRoutes.docsworkers,
       'Reserve memory up front', anchor: 'arena'),
+  SpecCoverage('Accessibility', 'App', DVRoutes.docsaccessibility,
+      'Fail the build on an accessibility regression', anchor: 'audit'),
+  SpecCoverage('Internationalization and Localization', 'App',
+      DVRoutes.docslocalization, 'Declare keys and load catalogues',
+      anchor: 'keys'),
 
   // Data
   SpecCoverage('Models', 'Data', DVRoutes.docsmodels, 'Declare a model',
@@ -202,8 +207,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Generated Code Determinism': 'Getting started',
 
   // App
-  'Accessibility': 'App',
-  'Internationalization and Localization': 'App',
   'PWA': 'App',
   'Platform': 'App',
   'Multi-Window': 'App',
