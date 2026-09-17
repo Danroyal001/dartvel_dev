@@ -87,6 +87,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Watch model changes', anchor: 'changes'),
   SpecCoverage('Offline-First Models', 'Data', DVRoutes.docssync,
       'Keep writing while offline', anchor: 'offline'),
+  SpecCoverage('Data Import, Export, and Reporting', 'Data',
+      DVRoutes.docsimportexport, 'Import a CSV file', anchor: 'import'),
   SpecCoverage('Sensitive Model Fields', 'Data', DVRoutes.docsmodels,
       'Protect sensitive fields', anchor: 'sensitive'),
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
@@ -204,7 +206,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
   // Data
-  'Data Import, Export, and Reporting': 'Data',
   'Change Data Capture and Warehouse Sync': 'Data',
   'Content Workflow': 'Data',
   'Media Pipeline': 'Data',
