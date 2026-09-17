@@ -29,6 +29,8 @@ class _FakeServer {
         'name': 'Ada',
         'age': 36,
         'published': true,
+        'joinedAt': 1789650000000,
+        'lastSeen': '2026-09-17T10:05:00.000Z',
       },
     },
   };
@@ -54,6 +56,8 @@ class _FakeServer {
               <String, Object?>{'name': 'name', 'type': 'String'},
               <String, Object?>{'name': 'age', 'type': 'int?'},
               <String, Object?>{'name': 'published', 'type': 'bool'},
+              <String, Object?>{'name': 'joinedAt', 'type': 'int'},
+              <String, Object?>{'name': 'lastSeen', 'type': 'DateTime?'},
               <String, Object?>{
                 'name': 'password',
                 'type': 'String',
@@ -260,6 +264,27 @@ void main() {
         'values': <String, Object?>{'name': 'Ada Lovelace'},
       });
       expect(find.text('Ada Lovelace'), findsWidgets);
+    });
+
+    testWidgets('a date is shown as a date, not as epoch milliseconds',
+        (WidgetTester tester) async {
+      // Order.placedAt came out as 1789650000000: an int holding a moment is
+      // the usual way a model stores one, and nobody reads that number.
+      tester.view.physicalSize = const Size(1600, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1789650000000'), findsNothing);
+      expect(find.text('2026-09-17 13:00 UTC'), findsOneWidget);
+      expect(find.text('2026-09-17T10:05:00.000Z'), findsNothing);
+      expect(find.text('2026-09-17 10:05 UTC'), findsOneWidget);
+      // A number that is not a moment is left alone.
+      expect(find.text('36'), findsOneWidget);
     });
 
     testWidgets(

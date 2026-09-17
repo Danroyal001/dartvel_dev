@@ -385,6 +385,44 @@ Widget _loading<T>(
 /// A cell's text: a value as the table shows it.
 String _cell(Object? value) => value == null ? '—' : '$value';
 
+/// A field's value as the table shows it: a moment as a date, whether the
+/// model keeps it as a `DateTime` or, as most do, as epoch milliseconds in an
+/// `int` named for a moment.
+String _cellText(DVStudioField field, Object? value) {
+  final DateTime? moment = _moment(field, value);
+  return moment == null ? _cell(value) : _formatMoment(moment);
+}
+
+/// The moment [value] holds, or null when [field] is not one.
+DateTime? _moment(DVStudioField field, Object? value) {
+  if (value == null) return null;
+  if (field.baseType == 'DateTime') {
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true);
+    }
+    return DateTime.tryParse('$value')?.toUtc();
+  }
+  if (field.baseType != 'int' && field.baseType != 'num') return null;
+  // By name as well as size: a price in cents is never 13 digits, but a
+  // counter could be, and one named for a moment is the model saying so.
+  if (!_momentName.hasMatch(field.name)) return null;
+  final num? number = value is num ? value : num.tryParse('$value');
+  // Milliseconds between 1973 and 5138.
+  if (number == null || number < 1e11 || number > 1e14) return null;
+  return DateTime.fromMillisecondsSinceEpoch(number.toInt(), isUtc: true);
+}
+
+final RegExp _momentName =
+    RegExp(r'(At|On|Date|Time|Timestamp)$|^(date|time|timestamp)$');
+
+/// `2026-09-17 13:00 UTC`.
+String _formatMoment(DateTime moment) {
+  final DateTime utc = moment.toUtc();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${utc.year.toString().padLeft(4, '0')}-${two(utc.month)}-'
+      '${two(utc.day)} ${two(utc.hour)}:${two(utc.minute)} UTC';
+}
+
 /// A plain table in Studio's style.
 class _DVStudioTable extends StatelessWidget {
   const _DVStudioTable({
@@ -634,7 +672,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                                 for (final DVStudioRecordData record in records)
                                   <String>[
                                     for (final DVStudioField f in fields)
-                                      _cell(record.values[f.name]),
+                                      _cellText(
+                                          f, record.values[f.name]),
                                   ],
                               ],
                               rowKeys: <Key>[
