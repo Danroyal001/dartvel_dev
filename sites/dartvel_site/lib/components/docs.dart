@@ -112,7 +112,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'AI': 'Shipped',
   'Alerting, SLOs and Status Pages': 'Partial',
   'APIs': 'Shipped',
-  'App Store Publishing and Privacy Manifests': 'Partial',
+  'App Store Deployment and Privacy Manifests': 'Partial',
   'Authentication': 'Shipped',
   'Authorization': 'Shipped',
   'Backend Function Request Lifecycle': 'Partial',

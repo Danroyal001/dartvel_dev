@@ -142,7 +142,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       anchor: 'embedded'),
   SpecCoverage('Terminal Rendering', 'Shipping', DVRoutes.docsbuilding,
       'Build for the terminal', anchor: 'terminal'),
-  SpecCoverage('App Store Publishing and Privacy Manifests', 'Shipping',
+  SpecCoverage('App Store Deployment and Privacy Manifests', 'Shipping',
       DVRoutes.cloud,
       'Build and upload to Google Play or the App Store in one step.'),
   SpecCoverage('OTA Updates', 'Shipping', DVRoutes.cloud,
