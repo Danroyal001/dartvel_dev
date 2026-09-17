@@ -77,6 +77,20 @@ const Set<String> dvCloudSimulatorOnlyTargets = <String>{'tvos'};
 
 DVCloudWorkerOs? dvCloudWorkerOs(String target) => dvCloudTargets[target];
 
+/// Targets whose output is for the operating system of the worker that built
+/// it, so a request may name that system. A web-server build is one executable
+/// for the host it was compiled on: a Linux worker cannot make the macOS or
+/// Windows server. Every other target has the one worker OS
+/// [dvCloudTargets] names.
+const Set<String> dvCloudHostTargets = <String>{'web-server'};
+
+/// Sent with an artifact a worker uploads: the file is executable.
+const String dvCloudArtifactExecutableHeader = 'X-Dartvel-Artifact-Executable';
+
+/// Sent with an artifact a worker uploads, with an empty body: the artifact is
+/// a symbolic link to this target.
+const String dvCloudArtifactLinkHeader = 'X-Dartvel-Artifact-Link';
+
 /// The profiles `dartvel build --profile` takes.
 const List<String> dvCloudProfiles = <String>['development', 'profile', 'release'];
 
@@ -126,7 +140,15 @@ class DVCloudBuildSpec {
     this.format,
     this.codesign = true,
     this.simulator = false,
+    this.os,
   });
+
+  /// The worker OS asked for, for a target in [dvCloudHostTargets]. Null
+  /// builds on the OS [dvCloudTargets] names.
+  final DVCloudWorkerOs? os;
+
+  /// The operating system of the worker that builds this.
+  DVCloudWorkerOs get workerOs => os ?? dvCloudWorkerOs(target)!;
 
   /// Build for a simulator: `dartvel build --simulator`. Required for the
   /// targets in [dvCloudSimulatorOnlyTargets] and refused for the rest.
@@ -166,6 +188,7 @@ class DVCloudBuildSpec {
         if (format != null) 'format': format,
         if (!codesign) 'codesign': false,
         if (simulator) 'simulator': true,
+        if (os != null) 'os': os!.name,
       };
 
   factory DVCloudBuildSpec.fromJson(Map<String, Object?> json) {
@@ -204,8 +227,20 @@ class DVCloudBuildSpec {
           : '$target builds in the cloud for the simulator only: a device build is '
               'signed with a team Dartvel Cloud does not keep. Pass --simulator.');
     }
+    final Object? os = json['os'];
+    DVCloudWorkerOs? workerOs;
+    if (os != null) {
+      workerOs = DVCloudWorkerOs.values.where((DVCloudWorkerOs o) => o.name == os).firstOrNull;
+      if (workerOs == null) {
+        throw FormatException('"$os" is not a worker OS: linux, macos or windows.');
+      }
+      if (workerOs != dvCloudTargets[target] && !dvCloudHostTargets.contains(target)) {
+        throw FormatException('$target builds on a ${dvCloudTargets[target]!.name} worker, not $os.');
+      }
+    }
     return DVCloudBuildSpec(
       format: format as String?,
+      os: workerOs,
       codesign: json['codesign'] != false,
       simulator: simulator,
       app: app,
@@ -220,14 +255,35 @@ class DVCloudBuildSpec {
 
 /// A file a build produced, named relative to the target's output directory.
 class DVCloudArtifact {
-  const DVCloudArtifact({required this.name, required this.size, required this.sha256});
+  const DVCloudArtifact({
+    required this.name,
+    required this.size,
+    required this.sha256,
+    this.executable = false,
+    this.link,
+  });
 
   final String name;
   final int size;
   final String sha256;
 
-  Map<String, Object?> toJson() =>
-      <String, Object?>{'name': name, 'size': size, 'sha256': sha256};
+  /// The file is a program: a macOS app's Mach-O, a Linux bundle's runner, a
+  /// web-server binary. Written without its executable bit, none of them run.
+  final bool executable;
+
+  /// The target of a symbolic link, relative to the link's own directory,
+  /// when the artifact is one. A macOS framework reaches its binary and its
+  /// resources through links into Versions/Current, and an app whose links
+  /// were dropped does not launch.
+  final String? link;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'name': name,
+        'size': size,
+        'sha256': sha256,
+        if (executable) 'executable': true,
+        if (link != null) 'link': link,
+      };
 
   /// A name is written under the client's own directory, so one that climbs
   /// out of it, or is absolute, is refused before anything is written.
@@ -237,12 +293,40 @@ class DVCloudArtifact {
       !name.contains(r'\') &&
       !name.split('/').any((String s) => s.isEmpty || s == '.' || s == '..');
 
+  /// Whether the link [name] pointing at [target] stays inside the download:
+  /// relative, and never climbing above the directory the artifacts go in.
+  static bool isSafeLink(String name, String target) {
+    if (target.isEmpty || target.startsWith('/') || target.contains(r'\')) return false;
+    final List<String> at = name.split('/')..removeLast();
+    for (final String segment in target.split('/')) {
+      if (segment.isEmpty) return false;
+      if (segment == '.') continue;
+      if (segment == '..') {
+        if (at.isEmpty) return false;
+        at.removeLast();
+      } else {
+        at.add(segment);
+      }
+    }
+    return true;
+  }
+
   factory DVCloudArtifact.fromJson(Map<String, Object?> json) {
     final String name = _string(json, 'name');
     if (!isSafeName(name)) throw FormatException('"$name" is not an artifact name.');
     final Object? size = json['size'];
     if (size is! num) throw const FormatException('"size" must be a number.');
-    return DVCloudArtifact(name: name, size: size.toInt(), sha256: _string(json, 'sha256'));
+    final Object? link = json['link'];
+    if (link != null && (link is! String || !isSafeLink(name, link))) {
+      throw FormatException('"$name" links to "$link", outside the build.');
+    }
+    return DVCloudArtifact(
+      name: name,
+      size: size.toInt(),
+      sha256: _string(json, 'sha256'),
+      executable: json['executable'] == true,
+      link: link as String?,
+    );
   }
 }
 
