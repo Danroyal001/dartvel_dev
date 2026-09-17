@@ -758,7 +758,7 @@ import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
-import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages;
+import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
@@ -1655,7 +1655,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // as it answers any route it does not serve.
   final core.DVAdminServer? adminServer = admin == null || adminRoot == null
       ? null
-      : core.DVAdminServer(mount: admin, root: adminRoot);
+      : core.DVAdminServer(mount: admin, root: adminRoot, models: dartvelStudioModels, database: dartvelDatabase);
   final Future<dv.Response> Function(dv.Request) handler = adminServer == null
       ? application
       : (dv.Request request) async => await adminServer.respond(request) ?? await application(request);
