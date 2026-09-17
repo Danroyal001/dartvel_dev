@@ -1175,6 +1175,60 @@ hours. Bound jobs with `timeout-minutes`, not by leaving things out.
 
 ---
 
+## Dartvel Cloud
+
+`dartvel build <target> --cloud` sends the project to a worker running the
+target's operating system, and the worker runs the same `dartvel build
+<target>` with `--auto-install`. Every target below was built end to end in
+the private `dartvel_enterprise` repository's `cloud-e2e.yml`, all in run
+35232282996 on 2026-09-17: the service and a worker started on the runner,
+the public CLI ran `dartvel build <target> --cloud` from `examples/basic_app`,
+the download was kept only after each file's size and SHA-256 matched, and
+`tool/ci/cloud_artifact_check.dart` checked it was that target's build.
+
+| Target | Worker | What came back | What the worker image provides |
+|---|---|---|---|
+| `android` | Linux | `app-debug.apk`, 157 MB, manifest, dex and compiled Dart | Java 17, the runner's Android SDK |
+| `fireos` | Linux | `app-debug.apk`, 157 MB, the same checks | The same |
+| `ios` | macOS | `Runner.app` with a Mach-O `Runner` | Xcode |
+| `tvos` | macOS | Simulator `Runner.app` whose plist names `appletv`, Mach-O `Runner` | Xcode. The `flutter-tvos` embedder is installed by the build |
+| `chrome-extension` | Linux | 39 files: MV3 manifest with a service worker, `index.html`, `main.dart.js` | Nothing extra |
+| `firefox-extension` | Linux | 39 files: manifest with `background.scripts` | Nothing extra |
+| `vscode` | Linux | 46 files: `package.json`, `out/src/extension.js` (the file `main` names), `build/web` | Node. Not `node_modules`, which stays on the worker |
+| `linux-cli` | Linux | `build/terminal`: the `flt` binary, `libflutter_engine.so`, assets, `run.sh`, no GTK runner | Linux desktop build packages and Rust. The `dartvel_cli_flt` embedder is cloned and built by the build |
+| `sony-elinux` | Linux | Release bundle: `flutter-client`, engine, AOT `libapp.so`, no GTK runner | Sony's `flutter-client` built against the official engine, and the from-source release engine, under `~/.dartvel/toolchains/dartvel_elinux/artifacts` |
+| `tizen` | Linux | Signed TPK, 9.5 MB, with `author-signature.xml`, `libflutter_engine.so` and `libapp.so` | Tizen Studio 10.0 CLI installed with `--accept-license`, `NativeToolchain-Gcc-9.2`, `IOT-Headed-6.0-NativeAppDevelopment-CLI`, an author certificate and an unlocked keyring, as flutter-tizen's own CI installs them |
+
+A tvOS cloud build must be asked for with `--simulator`: a device build is
+signed with a team Cloud does not keep, so it is refused before the source is
+sent.
+
+Four fixes came out of running these rather than reading them, and each was a
+bug in the local build too:
+
+- `dartvel build linux-cli` had never built through the command. Preflight
+  checked plain `linux`, so the embedder was never installed; the install was
+  `cargo install` of a package name that does not exist; and the build passed
+  `--debug` to `dartvel-cli-flt`, which accepts only `--release`.
+- `dartvel build sony-elinux` defaulted to arm64 and then refused to assemble
+  arm64 on an x64 host. It now defaults to the host.
+- The VS Code generator wrote `"main": "./out/extension.js"` while tsc emitted
+  `out/src/extension.js`, so the extension could not activate. Fixed in the
+  `dartvel_vscode` fork.
+- `--cloud linux-cli` was sent as `linux`, which a worker would have built as
+  the GUI app.
+
+**Not on Cloud:**
+
+| Target | Why |
+|---|---|
+| `webos` | `dartvel build webos` skips on every host: LG's `flutter-webos` bundles Dart 3.10.9, below Dartvel's 3.12.0 floor |
+| `fuchsia` | Skips the same way; the embedder resolves Dart 2.19 |
+| `windows-cli`, `macos-cli` | The terminal embedder builds for Linux only: its build script fetches the Linux engine on any host but macOS, and its bundle step passes `--target-platform linux-x64` on every host |
+| `macos`, `windows`, `linux`, `web`, `web-server` | Accepted by Cloud and not yet built end to end by `cloud-e2e.yml` |
+
+---
+
 ## Distribution images
 
 `sony-elinux-iso` and `sony-elinux-img` build the bundle and then report that
