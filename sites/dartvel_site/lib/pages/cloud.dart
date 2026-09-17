@@ -204,54 +204,13 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           tint: true,
           children: <Widget>[
             Eyebrow('STUDIO PRO'),
-            Heading('Import a Figma file as pages you can edit and export.'),
+            Heading('Studio Pro adds a visual workflow builder to Studio.'),
             Bullets(<String>[
-              'Every top-level frame becomes a page in the builder.',
-              'Export each page as an ordinary @DVPage file in your repository.',
-              'Pro lives in the private dartvel_enterprise repository.',
+              'Build a backend function from steps and export it as an ordinary '
+                  '@DVBackendFunction. Figma import, revision history and team '
+                  'approval come with it.',
             ]),
-            DVBox.wrapLine(<Widget>[
-              SiteCard(
-                'Figma import',
-                'Auto-layout, type, shadows, gradients and icons come through. '
-                    'Images are downloaded, so they survive Figma\'s expiring URLs.',
-                built: true,
-              ),
-              SiteCard(
-                'Reusable components',
-                'Save a node as a component and push a change to every instance '
-                    'on every page.',
-                built: true,
-              ),
-              SiteCard(
-                'Revision history',
-                'Every save is numbered and attributed. Restore any of them in one '
-                    'tap.',
-                built: true,
-              ),
-              SiteCard(
-                'Multi-user editing and approval',
-                'See each other\'s edits live. An approver signs off before a page '
-                    'goes live.',
-                built: true,
-              ),
-              SiteCard(
-                'Workflow builder',
-                'Compose a backend function visually and export it as a plain '
-                    '@DVBackendFunction.',
-                built: true,
-              ),
-              SiteCard(
-                'Enterprise SSO',
-                'SAML, SCIM provisioning and directory sync for your team.',
-                built: false,
-              ),
-            ], spacing: 16),
-            Objection(
-              'Do I need Pro to build pages visually?',
-              'No. The builder with drag and drop, undo and code export is free.',
-            ),
-            GhostLink('See what the free Studio does', '/features'),
+            GhostLink('See Studio and Studio Pro', '/studio'),
           ],
         ),
         KeyedSubtree(

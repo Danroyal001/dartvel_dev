@@ -159,6 +159,14 @@ void main() {
     }
   });
 
+  test('the cloud page points at /studio for Studio Pro', () {
+    final String cloud = code('lib/pages/cloud.dart');
+    final String pro = sectionFrom(cloud, "Eyebrow('STUDIO PRO'");
+    expect(pro, contains("'/studio'"));
+    // One place lists what Pro ships, so the two pages cannot disagree.
+    expect(cardFlags(pro).keys.where(kProCards.containsKey), isEmpty);
+  });
+
   test('the home page has a Studio section that links to /studio', () {
     final String home = code('lib/pages/index.dart');
     final String studio = sectionFrom(home, "Eyebrow('STUDIO'");
