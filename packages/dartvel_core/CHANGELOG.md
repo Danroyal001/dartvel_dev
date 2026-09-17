@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Studio edits enums, lists, maps and references.** `DVStudioFieldSpec`
+  takes `options` (an enum's values) and `relation` (the model a field holds
+  the key of). The API refuses a value outside the options, a list or map of
+  the wrong shape, and a key no record of the related model has; a list, set
+  or map is kept as JSON and read back as one.
+
 - **Studio lists a mounted module's models.** `DVStudioModelSpec` takes
   `module` and `data` (the module's `DVModuleData`); such a model is
   addressed as `<module>.<Model>` and read from the table and database its

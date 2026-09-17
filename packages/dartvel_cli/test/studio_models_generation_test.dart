@@ -91,6 +91,60 @@ void main() {
     expect(note, contains('versioned: false'));
   });
 
+  test('an enum field carries its values, and a field naming another model '
+      'carries the relation', () async {
+    File(p.join(root.path, 'lib', 'models', 'order.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+enum OrderStatus { placed, roasting, shipped }
+
+enum Size {
+  small('S'),
+  large('L');
+
+  const Size(this.label);
+  final String label;
+}
+
+@DVModel()
+@pragma('vm:entry-point')
+class _Order {
+  final String id;
+  final OrderStatus? status;
+  final Size? size;
+  final String accountId;
+  final List<String> tags;
+  final Map<String, Object?>? extras;
+  const _Order({required this.id, this.status, this.size, required this.accountId, required this.tags, this.extras});
+}
+''');
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'shop', buildId: 'b');
+    final String order = spec(
+      File(p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'))
+          .readAsStringSync(),
+      'Order',
+    );
+
+    expect(
+      order,
+      contains("DVStudioFieldSpec(name: 'status', type: 'OrderStatus?', "
+          "options: <String>['placed', 'roasting', 'shipped'])"),
+    );
+    expect(
+      order,
+      contains("DVStudioFieldSpec(name: 'size', type: 'Size?', "
+          "options: <String>['small', 'large'])"),
+    );
+    expect(
+      order,
+      contains("DVStudioFieldSpec(name: 'accountId', type: 'String', "
+          "relation: 'Account')"),
+    );
+    expect(order,
+        contains("DVStudioFieldSpec(name: 'tags', type: 'List<String>')"));
+  });
+
   test('a module\'s models are specified under the module, resolving their '
       'table through its mount', () async {
     File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
