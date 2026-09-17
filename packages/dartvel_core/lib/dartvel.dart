@@ -62,6 +62,7 @@ export 'src/admin/admin_server.dart';
 export 'src/admin/published_pages.dart';
 export 'src/admin/studio_access.dart';
 export 'src/admin/studio_api.dart';
+export 'src/admin/studio_dev_grant.dart';
 export 'src/auth/session_authentication.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
