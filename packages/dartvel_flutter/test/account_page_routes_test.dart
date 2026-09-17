@@ -274,6 +274,24 @@ void main() {
       });
     }
 
+    testWidgets('signing in on the page opened directly goes home',
+        (WidgetTester tester) async {
+      // With no from the page stayed on its form after a sign-in the server
+      // accepted, so it looked as if nothing had happened.
+      await tester.runAsync(() => install(signIn: false));
+      final GoRouter router = await app(tester, const Size(800, 600));
+      router.go('/login');
+      await settle(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-email')), 'ada@example.com');
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-password')), 'correct horse');
+      await tester.tap(find.byKey(const ValueKey<String>('dv-auth-submit')));
+      await settle(tester);
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/');
+      expect(find.text('Home'), findsOneWidget);
+    });
+
     testWidgets('a from that leaves the application goes home instead',
         (WidgetTester tester) async {
       await tester.runAsync(() => install(signIn: false));
