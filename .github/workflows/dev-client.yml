@@ -105,9 +105,10 @@ jobs:
         if: always()
         with: { name: dev-client-android, path: /tmp/diag/, if-no-files-found: warn }
 
-  # iOS: the same loop on a simulator. The link is opened with `simctl
-  # openurl`, which is the URL scheme the development Info.plist declares, and
-  # the Objective-C tunnel pairs over TLS pinned to the key in the link. See
+  # iOS: the same loop on a simulator. The built app must declare the
+  # dartvel-dev scheme; the link is then given at launch, because `simctl
+  # openurl` raises a confirmation nothing on a runner can answer. The
+  # Objective-C tunnel pairs over TLS pinned to the key in the link. See
   # tool/ci/ios_dev_client_check.dart. A physical iPhone does not start a
   # debug build from the home screen without a debugger attached; the
   # simulator has no such limit.

@@ -4,9 +4,12 @@
 ///
 /// The iOS half of android_dev_client_check.dart, run by the "Dev client"
 /// workflow on a macOS runner. What is asserted, and how:
-/// - the link reaches the app through the URL scheme the development
-///   Info.plist declares (`xcrun simctl openurl`), and the native tunnel
-///   pairs over TLS pinned to the key in the link;
+/// - the built app declares the dartvel-dev URL scheme, and the link, given
+///   to the app at launch, pairs its native tunnel over TLS pinned to the key
+///   in the link. Not `simctl openurl`: opening a custom scheme raises iOS's
+///   "Open in ...?" confirmation, which nothing on a runner can answer, so
+///   the URL never reaches the app (Dev client run 35161988283 logged the
+///   app deactivated for a systemModalAlert and no launch URL written);
 /// - the page runs an edit made after the app was built -- in the app's log
 ///   -- once the device pairs, which only a hot restart onto the current
 ///   sources can do;
@@ -215,8 +218,16 @@ Future<void> main() async {
       failures.add('the pairing link does not name an https server');
     }
 
-    stdout.writeln('== opening $link');
-    await _simctl(<String>['openurl', udid, link!]);
+    // Relaunched with the link as its argument, which the tunnel reads the
+    // same way a desktop build takes its launch flag.
+    stdout.writeln('== relaunching with $link');
+    await _simctl(<String>[
+      'launch',
+      '--terminate-running-process',
+      udid,
+      bundle,
+      link!,
+    ]);
 
     final bool paired = await _waitFor(
       'the tunnel paired',
