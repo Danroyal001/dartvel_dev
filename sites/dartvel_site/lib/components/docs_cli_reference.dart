@@ -7,13 +7,38 @@ import 'docs_cli_command.dart';
 const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   DocsCliCommand(
     name: 'admin',
-    description: 'Generate Dartvel admin surfaces.',
+    description: 'Generate Dartvel admin surfaces, and say who may open Studio.',
     subcommands: <DocsCliCommand>[
       DocsCliCommand(
         name: 'generate',
         description: 'Generate Dartvel admin and devtools pages.',
         options: <String>[
           '-f, --[no-]force    Overwrite generated admin files.',
+        ],
+      ),
+      DocsCliCommand(
+        name: 'grant',
+        description: 'Let an account open Studio (Studio.access) on a deployed application.',
+        options: <String>[
+          '    --database    The SQLite file the application uses, such as dartvel_data/data.db beside a web-server binary. Defaults to DATABASE_URL, then dartvel.database.',
+          '    --tenant      The tenant the account signs in on.',
+          '                  (defaults to "default")',
+        ],
+      ),
+      DocsCliCommand(
+        name: 'list',
+        description: 'List the accounts that may open Studio.',
+        options: <String>[
+          '    --database    The SQLite file the application uses, such as dartvel_data/data.db beside a web-server binary. Defaults to DATABASE_URL, then dartvel.database.',
+        ],
+      ),
+      DocsCliCommand(
+        name: 'revoke',
+        description: 'Take an account\'s Studio access away.',
+        options: <String>[
+          '    --database    The SQLite file the application uses, such as dartvel_data/data.db beside a web-server binary. Defaults to DATABASE_URL, then dartvel.database.',
+          '    --tenant      The tenant the account signs in on.',
+          '                  (defaults to "default")',
         ],
       ),
     ],
