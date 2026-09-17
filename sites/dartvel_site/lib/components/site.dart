@@ -81,19 +81,25 @@ Widget _siteHeader(BuildContext context) {
               Wordmark(),
               NavLink('Docs', '/docs'),
               NavLink('Features', '/features'),
+              NavLink('Studio', '/studio'),
               NavLink('Cloud', '/cloud'),
             ], spacing: 18)
-          : const DVBox.row(<Widget>[
-              DVBox.row(<Widget>[
+          : DVBox.row(<Widget>[
+              const DVBox.row(<Widget>[
                 Wordmark(),
                 NavLink('Docs', '/docs'),
                 NavLink('Features', '/features'),
+                NavLink('Studio', '/studio'),
                 NavLink('Cloud', '/cloud'),
               ], spacing: 18),
-              DVBox.row(<Widget>[
-                ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
-                ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
-              ], spacing: 18),
+              // Four site links and two outbound ones do not fit a tablet or a
+              // phone on its side, and the site links are the ones a visitor
+              // came for. GitHub and pub.dev are in the footer too.
+              if (!screen.isTablet)
+                const DVBox.row(<Widget>[
+                  ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
+                  ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
+                ], spacing: 18),
             ], align: DVAlign.spaceBetween),
       const DVModifier().maxWidth(kColumn).centered(),
     ),

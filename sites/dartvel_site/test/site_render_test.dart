@@ -39,6 +39,7 @@ void main() {
     await FeaturesPageGeneratedPage.loadLibrary();
     await DocsPageGeneratedPage.loadLibrary();
     await CloudPageGeneratedPage.loadLibrary();
+    await StudioPageGeneratedPage.loadLibrary();
   });
 
   setUp(dvResetDeferredPages);
@@ -64,6 +65,7 @@ void main() {
     'features': const FeaturesPageGeneratedPage(),
     'docs': const DocsPageGeneratedPage(),
     'cloud': const CloudPageGeneratedPage(),
+    'studio': const StudioPageGeneratedPage(),
   };
 
   for (final MapEntry<String, Widget> page in pages.entries) {
