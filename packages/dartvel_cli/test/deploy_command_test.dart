@@ -61,11 +61,11 @@ void main() {
       expect(exitCode, 17);
     });
 
-    test('firebase verifies cli before deploying', () async {
+    test('firebase-hosting verifies cli before deploying', () async {
       final calls = <String>[];
 
       await _runDeploy(
-        <String>['deploy', '--no-build', '--provider', 'firebase'],
+        <String>['deploy', '--no-build', '--provider', 'firebase-hosting'],
         processRun: (executable, arguments, {runInShell = false}) async {
           calls.add('$executable ${arguments.join(' ')}');
           return ProcessResult(3, 127, '', 'missing');

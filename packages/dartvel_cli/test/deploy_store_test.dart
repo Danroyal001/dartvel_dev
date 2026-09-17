@@ -277,25 +277,40 @@ void main() {
     });
 
     test(
-      'a bare firebase still deploys Hosting and names the new spelling',
+      'a bare firebase is refused, naming Hosting and App Distribution',
       () async {
-        await run(<String>[
-          'deploy',
-          '--no-build',
-          '--target',
-          'web',
-          '--provider',
-          'firebase',
-        ]);
-
-        expect(ran.last, <String>['firebase', 'deploy', '--only', 'hosting']);
-        expect(output.out.toString(), contains('--provider firebase-hosting'));
+        // Firebase is a host and a tester-distribution store; the bare word
+        // is neither, so it is not guessed at.
+        await expectLater(
+          run(<String>[
+            'deploy',
+            '--no-build',
+            '--target',
+            'web',
+            '--provider',
+            'firebase',
+          ]),
+          throwsA(
+            isA<UsageException>().having(
+              (UsageException e) => e.message,
+              'message',
+              allOf(
+                contains('--provider firebase-hosting'),
+                contains('--store firebase-app-distribution'),
+              ),
+            ),
+          ),
+        );
+        expect(ran, isEmpty);
       },
     );
+
+    test('the help does not offer the bare firebase', () {
+      expect(DeployCommand().argParser.usage, isNot(contains('[firebase]')));
+    });
   });
 
-  test('the help names every provider, not only the deprecated one', () {
-    // Describing one allowed value hides the list of the others.
+  test('the help names every provider', () {
     final String usage = DeployCommand().argParser.usage;
     for (final String provider in <String>[
       'firebase-hosting',
@@ -304,7 +319,7 @@ void main() {
       'cloudflare',
       'custom',
     ]) {
-      expect(usage, contains('[$provider]'), reason: provider);
+      expect(usage, contains(provider), reason: provider);
     }
   });
 
