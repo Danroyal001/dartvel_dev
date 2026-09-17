@@ -600,8 +600,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Embedded, Television, and Extension Build Targets',
     'Tizen, webOS, eLinux',
-    'Present: Tizen and VS Code builds. Absent: webOS, Sony eLinux and Fuchsia, '
-        'whose embedders ship a Dart below 3.12.',
+    'Present: Tizen, VS Code and Sony eLinux release builds. Absent: dartvel '
+        'build webos, whose embedder ships Dart 3.10.9, and Fuchsia.',
   ),
   (
     'Unified Development, Transparency, and Contracts',
