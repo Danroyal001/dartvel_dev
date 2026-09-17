@@ -48,6 +48,20 @@ void main() {
       expect(args, isNot(contains('--web-renderer')));
     });
 
+    test('a web-server build tells the app its own server signs accounts in', () {
+      // The page cannot tell what served it. Without this the development
+      // auth provider an app configures checked passwords in the browser tab
+      // and a real account on the binary could not sign in through /login.
+      final server = resolveFlutterBuildArguments(
+        platform: 'web-server',
+        buildMode: '--release',
+      );
+      expect(server, contains('--dart-define=DARTVEL_SERVER_AUTH=true'));
+
+      final web = resolveFlutterBuildArguments(platform: 'web', buildMode: '--release');
+      expect(web.where((String a) => a.contains('DARTVEL_SERVER_AUTH')), isEmpty);
+    });
+
     test('--device-profile reaches the app as DARTVEL_DEVICE_PROFILE', () {
       // Nothing at run time can tell which machine a desktop build is on;
       // the build states it, and DVDeviceProfiles.selected reads it.

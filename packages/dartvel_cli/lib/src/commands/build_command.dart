@@ -4228,6 +4228,14 @@ List<String> resolveFlutterBuildArguments({
     args.add('--dart-define=DARTVEL_IMAGES=${imageVariants.toDartDefine()}');
   }
 
+  // A web-server build ships inside the binary whose generated server keeps
+  // the accounts. The page cannot tell what served it, so the build says so,
+  // and DV.Auth signs in there rather than through a development provider
+  // that checks passwords in the browser tab.
+  if (platform == 'web-server') {
+    args.add('--dart-define=DARTVEL_SERVER_AUTH=true');
+  }
+
   if (platform == 'android' && splitPerAbi && !bundle) {
     args.add('--split-per-abi');
   }
