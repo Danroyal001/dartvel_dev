@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **A Dartvel Cloud build spec carries `format` and `codesign`.** `aab` is
+  accepted for android and `ipa` for ios, and anything else is refused when the
+  spec is read.
+
 - **Studio opens only for a person allowed `Studio.access`.** `DVAdminServer`
   served the dashboard on a release mount to any live session, and every
   customer who signs up to an application has one. It now also asks

@@ -34,6 +34,25 @@ void main() {
       expect(back.profile, 'development');
       expect(back.publish, 'testflight');
       expect(back.dryRun, isTrue);
+      expect(back.format, isNull);
+      expect(back.codesign, isTrue);
+    });
+
+    test('a store package and its signing choice survive JSON', () {
+      const DVCloudBuildSpec spec = DVCloudBuildSpec(
+          project: 'shop', target: 'ios', format: 'ipa', codesign: false);
+      final DVCloudBuildSpec back = DVCloudBuildSpec.fromJson(spec.toJson());
+      expect(back.format, 'ipa');
+      expect(back.codesign, isFalse);
+    });
+
+    test('a store package on the wrong target is refused', () {
+      Map<String, Object?> json(String target, String format) =>
+          <String, Object?>{'project': 'shop', 'target': target, 'format': format};
+      expect(() => DVCloudBuildSpec.fromJson(json('ios', 'aab')), throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json('android', 'ipa')), throwsFormatException);
+      expect(() => DVCloudBuildSpec.fromJson(json('android', 'zip')), throwsFormatException);
+      expect(DVCloudBuildSpec.fromJson(json('android', 'aab')).format, 'aab');
     });
 
     test('refuses what a worker could not build, instead of queueing it', () {

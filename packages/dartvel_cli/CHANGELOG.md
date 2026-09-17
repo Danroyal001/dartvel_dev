@@ -14,6 +14,16 @@
   account signs in on. A database file that does not exist is refused, not
   created.
 
+- **`dartvel build android --format aab` and `dartvel build ios --format ipa`
+  build the packages the stores take.** An App Bundle is `flutter build
+  appbundle`, written to `build/app/outputs/bundle/<mode>`. An IPA is `flutter
+  build ipa`, signed with the project's Xcode signing or with
+  `--export-options-plist`, and written to `build/ios/ipa`; `--no-codesign`
+  builds the unsigned archive in `build/ios/archive`. A format on the wrong
+  target, an IPA with `--simulator`, and the signing options without
+  `--format ipa` are refused before the build starts. `--cloud` sends the
+  format and the signing choice with the build.
+
 - **`dartvel updates release`, `patch` and `rollback` take `--patch-source`.**
   With a URL or a directory they work against a patch source the project
   hosts instead of Shorebird's service: release builds with Shorebird's
