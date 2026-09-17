@@ -129,6 +129,29 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
                   'in a release build.',
               'Backend functions are served under apiBasePath.',
             ]),
+            DocsText('Each directory has a key of its own: pagesDir, modelsDir, '
+                'backendDir, componentsDir, stylesDir and servicesDir. Leave one '
+                'out and it keeps the path shown above.'),
+            DocsSubheading('Keep the configuration in Dart'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel: config/dartvel.dart',
+            ]),
+            DocsText('Point dartvel: at a Dart file instead of a map. The file '
+                'must declare a public class that extends DartvelConfig.'),
+            DocsSubheading('One package with every import'),
+            DocsText('dartvel_dev re-exports the Dartvel packages as barrels: '
+                'dartvel_ui.dart, dartvel_backend.dart, dartvel_auth.dart, '
+                'dartvel_database.dart, dartvel_storage.dart, dartvel_ai.dart and '
+                'more. A generated app imports its own dartvel_client.dart '
+                'barrel.'),
+            DocsStatus('Project Structure', missing: <String>[
+              'Directory keys take one path each. Glob patterns are not read, '
+                  'so pages cannot live in two directories.',
+            ]),
+            DocsStatus('Package Structure', missing: <String>[
+              'DV.Rust has one integer type and nothing more.',
+            ]),
           ],
         ),
         DocsSection(
