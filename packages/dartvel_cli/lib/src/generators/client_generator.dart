@@ -956,7 +956,14 @@ class DartvelRuntime {
 
   static String get baseUrl {
     if (_override.isNotEmpty) return _override;
-${_moduleBackendSource(dv)}    final url = kReleaseMode ? cfg.dvProdBackendHost : cfg.dvDevBackendHost;
+${_moduleBackendSource(dv)}    // A web-server build is served by the binary that answers its API, on
+    // the same origin. dartvel.prodBackendHost names another deployment's
+    // backend, and posting there from the binary's own pages reached a host
+    // that may not exist.
+    if (kIsWeb && kReleaseMode && const bool.fromEnvironment('DARTVEL_WEB_SERVER')) {
+      return Uri.base.origin;
+    }
+    final url = kReleaseMode ? cfg.dvProdBackendHost : cfg.dvDevBackendHost;
     return _adjustDevHost(url);
   }
 
