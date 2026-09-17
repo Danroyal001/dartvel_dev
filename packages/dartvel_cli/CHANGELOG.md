@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **A backend function can return a type of the application's own.** The
+  generated client copied the function's return and parameter types into its
+  signatures and imported none of them, so `Future<Tick>` or `Stream<Tick>`,
+  with `Tick` in a file of the application's, gave a client that did not
+  compile. `functions.g.dart` now imports each application file the function
+  imports that declares one of those types.
+
 - **`dartvel build web` removes the pages of routes that are gone.**
   `build/web` is not emptied between builds, so a route removed from the
   application kept its `index.html` there and was uploaded with everything
