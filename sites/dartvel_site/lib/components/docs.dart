@@ -75,6 +75,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Sign-in limits, WAF rules and query budgets', 'Platform'),
   DocsPageInfo(DVRoutes.docstenancy, 'Multi-tenancy',
       'One deployment, many customers', 'Platform'),
+  DocsPageInfo(DVRoutes.docsorganizations, 'Organizations',
+      'Members, roles, invitations and seats', 'Platform'),
   DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',
       'Export and erase a person\'s data', 'Platform'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
