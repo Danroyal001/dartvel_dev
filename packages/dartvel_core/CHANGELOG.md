@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **Studio grants and revokes access itself.** `POST <mount>/api/grants`
+  grants an account named by address (through the new `DVAccountLookup`,
+  which `DVDatabaseAuthProvider` implements) or by id, and refuses an address
+  nobody signed up with. `DELETE <mount>/api/grants?userId=` revokes, and
+  answers 409 (`confirm_self`, `confirm_last`) for the caller's own grant or
+  the last one on a tenant until `confirm=true`. Both sit behind the Studio
+  grant check and need the CSRF header. The list names each account's
+  address and marks the caller.
+
 - **`DVDatabaseAuthProvider` keeps accounts in the application's database.**
   `LocalAuthProvider` holds them in memory, so a server using it forgot every
   account on restart. The new provider keeps an id, the address, a name and a

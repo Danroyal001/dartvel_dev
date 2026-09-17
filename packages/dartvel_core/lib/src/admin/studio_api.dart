@@ -19,6 +19,10 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import '../auth/auth.dart'
+    show AuthUser, DVAccountDirectory, DVAccountLookup;
+import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
+import '../auth/session_authentication.dart';
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
@@ -94,15 +98,39 @@ class _StudioRefusal implements Exception {
 
 }
 
+/// The account id of the live session [request] carries, or null.
+Future<String?> dvStudioSessionUserId(Request request) async {
+  final DVSessionAuthenticationResult result =
+      await DVSessionAuthentication.authenticateRequest(
+    authorization: request.headers.get('authorization'),
+    cookie: request.headers.get('cookie'),
+  );
+  return result.refused ? null : result.principal?.userId;
+}
+
 /// The table page documents are kept in: the one `DVPageStore` writes.
 const String dvStudioPagesTable = 'dartvel_pages';
 
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
-  DVStudioApi({this.models = const <DVStudioModelSpec>[], this.database});
+  DVStudioApi({
+    this.models = const <DVStudioModelSpec>[],
+    this.database,
+    Future<String?> Function(Request request)? caller,
+    DVAccountDirectory? accounts,
+  })  : _caller = caller ?? dvStudioSessionUserId,
+        _accounts = accounts;
 
   final List<DVStudioModelSpec> models;
+
+  /// The signed-in account making [Request], for the grants a caller may
+  /// not revoke from under themselves without saying so.
+  final Future<String?> Function(Request request) _caller;
+
+  /// Where an account's address is found, so a grant can be made by address
+  /// and listed by one. Null asks the auth endpoints' installed provider.
+  final DVAccountDirectory? _accounts;
 
   /// The application's database. Null answers every data endpoint 503: a
   /// process with no database has no records, pages or grants to show.
@@ -135,7 +163,7 @@ class DVStudioApi {
         case 'pages':
           return await _pages(request, method);
         case 'grants':
-          if (segments.length == 1 && method == 'GET') return await _grants();
+          if (segments.length == 1) return await _grantsAt(request, method);
       }
       throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
     } on _StudioRefusal catch (refusal) {
@@ -533,17 +561,152 @@ class DVStudioApi {
 
   // ---- grants ------------------------------------------------------------
 
-  Future<Response> _grants() async {
+  DVAccountDirectory? get _directory =>
+      _accounts ?? DVAuthEndpoints.accountDirectory;
+
+  Future<Response> _grantsAt(Request request, String method) async {
+    switch (method) {
+      case 'GET':
+        return _grants(request);
+      case 'POST':
+        return _grant(request);
+      case 'DELETE':
+        return _revoke(request);
+    }
+    _notAllowed();
+  }
+
+  Future<Response> _grants(Request request) async {
     final List<DVStudioGrant> grants = await DVStudioGrants(_database).list();
+    final String? you = await _caller(request);
+    final DVAccountDirectory? directory = _directory;
     return _reply(<String, Object?>{
       'grants': <Object?>[
         for (final DVStudioGrant grant in grants)
           <String, Object?>{
             'userId': grant.userId,
+            if (await _emailOf(directory, grant.userId) case final String email)
+              'email': email,
             'tenant': grant.tenant,
             'grantedAt': grant.grantedAt.toIso8601String(),
+            if (grant.userId == you) 'you': true,
           },
       ],
     });
+  }
+
+  static Future<String?> _emailOf(
+      DVAccountDirectory? directory, String userId) async {
+    if (directory == null) return null;
+    try {
+      return (await directory.userById(userId))?.email;
+    } on Object {
+      // Listed by id when the provider cannot say.
+      return null;
+    }
+  }
+
+  /// Grants the account the body names, by address or by id.
+  Future<Response> _grant(Request request) async {
+    final Map<String, Object?> body = await _body(request);
+    final String account = '${body['account'] ?? ''}'.trim();
+    if (account.isEmpty) {
+      throw _StudioRefusal(
+          400, 'bad_account', 'Name the account by its address or its id.');
+    }
+    final String tenant = _tenantOf(body['tenant']);
+    final DVAccountDirectory? directory = _directory;
+    final String userId;
+    String? email;
+    if (account.contains('@')) {
+      // By address only where somebody can say whose address it is: a grant
+      // to a string that is no account's id opens Studio to nobody, and
+      // looks as if it had worked.
+      if (directory is! DVAccountLookup) {
+        throw _StudioRefusal(
+          400,
+          'no_lookup',
+          'This application\'s accounts cannot be found by address. Grant '
+              'the account id instead.',
+        );
+      }
+      final AuthUser? user =
+          await (directory as DVAccountLookup).userByEmail(account);
+      if (user == null) {
+        throw _StudioRefusal(
+          404,
+          'no_account',
+          'Nobody has signed up with $account. They sign up to the '
+              'application first, then are granted.',
+        );
+      }
+      userId = user.id;
+      email = user.email;
+    } else {
+      if (directory != null) {
+        final AuthUser? user = await directory.userById(account);
+        if (user == null) {
+          throw _StudioRefusal(
+              404, 'no_account', 'No account has the id $account.');
+        }
+        email = user.email;
+      }
+      userId = account;
+    }
+    final DVStudioGrants grants = DVStudioGrants(_database);
+    await grants.grant(userId, tenant: tenant);
+    return _reply(<String, Object?>{
+      'userId': userId,
+      'email': ?email,
+      'tenant': tenant,
+    }, status: 201);
+  }
+
+  /// Takes a grant away. Revoking your own, or the last one on a tenant, is
+  /// refused until the request confirms it: either can leave the person
+  /// doing it, or everybody, unable to open Studio again except from the
+  /// command line.
+  Future<Response> _revoke(Request request) async {
+    final Map<String, String> query = request.url.queryParameters;
+    final String userId = (query['userId'] ?? '').trim();
+    if (userId.isEmpty) {
+      throw _StudioRefusal(400, 'bad_account', 'Name the userId to revoke.');
+    }
+    final String tenant = _tenantOf(query['tenant']);
+    final bool confirmed = query['confirm'] == 'true';
+    final DVStudioGrants grants = DVStudioGrants(_database);
+    if (!await grants.isGranted(userId, tenant: tenant)) {
+      throw _StudioRefusal(
+          404, 'not_found', '$userId holds no grant on tenant $tenant.');
+    }
+    if (!confirmed) {
+      final int onTenant = (await grants.list())
+          .where((DVStudioGrant g) => g.tenant == tenant)
+          .length;
+      if (onTenant <= 1) {
+        throw _StudioRefusal(
+          409,
+          'confirm_last',
+          'This is the last grant on tenant $tenant. Once it is revoked '
+              'nobody can open Studio there until somebody runs dartvel '
+              'admin grant.',
+        );
+      }
+      if (userId == await _caller(request)) {
+        throw _StudioRefusal(
+          409,
+          'confirm_self',
+          'This is your own grant. Once it is revoked you cannot open '
+              'Studio again unless somebody grants you.',
+        );
+      }
+    }
+    await grants.revoke(userId, tenant: tenant);
+    return _reply(<String, Object?>{'revoked': userId, 'tenant': tenant});
+  }
+
+  static String _tenantOf(Object? value) {
+    final String named = '${value ?? ''}'.trim();
+    return named.isEmpty ? const DVTenants().currentTenant : named;
   }
 }

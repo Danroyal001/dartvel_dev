@@ -25,7 +25,11 @@ import 'password.dart';
 /// address at once, so two web processes over one database cannot both create
 /// it.
 class DVDatabaseAuthProvider
-    implements AuthProvider, DVAccountProvider, DVPasswordProvider {
+    implements
+        AuthProvider,
+        DVAccountProvider,
+        DVAccountLookup,
+        DVPasswordProvider {
   DVDatabaseAuthProvider(
     this.adapter, {
     this.table = 'dv_accounts',
@@ -118,6 +122,13 @@ class DVDatabaseAuthProvider
       <Object?>[id],
     );
     return rows.isEmpty ? null : _user(rows.first);
+  }
+
+  @override
+  Future<AuthUser?> userByEmail(String email) async {
+    await _ensure();
+    final Map<String, Object?>? row = await _byEmail(_normalize(email));
+    return row == null ? null : _user(row);
   }
 
   @override
