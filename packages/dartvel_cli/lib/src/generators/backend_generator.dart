@@ -3494,7 +3494,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final relativePath =
           p.relative(entity.path, from: root).replaceAll('\\', '/');
       final annotations = RegExp(
-        r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
+        r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
         dotAll: true,
       ).allMatches(source);
       // A layout is a `_layout.dart` by convention, and layout-scoped

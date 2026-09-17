@@ -341,7 +341,7 @@ bool dvMiddlewareDeclaresPage(String source, int start, int end) {
 
 List<String> dvMiddlewareKeysFromSource(String source) {
   final RegExpMatch? annotation = RegExp(
-    r'@DVUseMiddleware\s*\(\s*\[(.*?)\]\s*\)',
+    r'@DVUseMiddleware\s*\(\s*(?:const\s+)?(?:<\s*DVMiddlewareKey\s*>\s*)?\[(.*?)\]\s*\)',
     dotAll: true,
   ).firstMatch(source);
   if (annotation == null) return const <String>[];
