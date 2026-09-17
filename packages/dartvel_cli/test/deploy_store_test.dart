@@ -11,7 +11,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/cloud/cloud_build.dart';
 import 'package:dartvel_cli/src/commands/deploy_command.dart';
-import 'package:dartvel_cli/src/commands/publish_command.dart';
+import 'package:dartvel_cli/dartvel_impl.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -97,27 +97,18 @@ void main() {
 
   Future<void> run(List<String> args) => IOOverrides.runZoned(
     () =>
-        (CommandRunner<void>('dartvel', 'test')
-              ..addCommand(
-                DeployCommand(
-                  processRun:
-                      (
-                        String executable,
-                        List<String> arguments, {
-                        bool runInShell = false,
-                      }) =>
-                          record(executable, arguments, runInShell: runInShell),
-                  root: root.path,
-                  cloud: cloud,
-                ),
-              )
-              ..addCommand(
-                PublishCommand(
-                  processRun: record,
-                  root: root.path,
-                  cloud: cloud,
-                ),
-              ))
+        (CommandRunner<void>('dartvel', 'test')..addCommand(
+              DeployCommand(
+                processRun:
+                    (
+                      String executable,
+                      List<String> arguments, {
+                      bool runInShell = false,
+                    }) => record(executable, arguments, runInShell: runInShell),
+                root: root.path,
+                cloud: cloud,
+              ),
+            ))
             .run(args),
     stdout: () => output,
   );
@@ -317,74 +308,32 @@ void main() {
     }
   });
 
-  group('publish, the deprecated alias', () {
-    test(
-      'still publishes, and prints the deploy form to use instead',
-      () async {
-        declare(_play);
-        buildBundle();
+  group('there is no publish command', () {
+    // Store submission is deploy --store. A second verb for it, even a
+    // hidden one that forwards, is a second place to look for one thing.
+    test('dartvel publish is not a registered command', () {
+      expect(dartvelCommandRunner().commands.keys, isNot(contains('publish')));
+    });
 
-        await run(<String>['publish', 'play', '--dry-run']);
+    test('dartvel publish is the unknown-command error', () async {
+      await expectLater(
+        dartvelCommandRunner().run(<String>['publish', 'play']),
+        throwsA(
+          isA<UsageException>().having(
+            (UsageException e) => e.message,
+            'message',
+            contains('Could not find a command named "publish"'),
+          ),
+        ),
+      );
+    });
 
-        expect(exitCode, 0);
-        expect(output.out.toString(), contains('fastlane supply --aab'));
-        expect(
-          output.out.toString(),
-          contains('dartvel deploy --store play --dry-run'),
-        );
-      },
-    );
-
-    test(
-      'its firebase is App Distribution, and the new form says so',
-      () async {
-        declare(
-          'dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n',
-        );
-
-        await run(<String>['publish', 'firebase', '--cloud']);
-
-        expect(cloud.requests.single.publish, 'firebase');
-        expect(
-          output.out.toString(),
-          contains('dartvel deploy --store firebase-app-distribution --cloud'),
-        );
-      },
-    );
-
-    test(
-      'naming no store is a usage error that names the deploy form',
-      () async {
-        await run(<String>['publish']);
-
-        expect(exitCode, 64);
-        expect(ran, isEmpty);
-        expect(output.out.toString(), contains('dartvel deploy --store'));
-      },
-    );
-
-    test(
-      'a token given on the command line is not echoed into the log',
-      () async {
-        declare(
-          'dartvel:\n  publish:\n    firebase:\n      app: "1:1:android:ab"\n',
-        );
-
-        await run(<String>[
-          'publish',
-          'firebase',
-          '--cloud',
-          '--cloud-token',
-          's3cret',
-        ]);
-
-        expect(cloud.requests.single.token, 's3cret');
-        expect(output.out.toString(), isNot(contains('s3cret')));
-      },
-    );
-
-    test('is hidden, so the reference documents one way to do it', () {
-      expect(PublishCommand().hidden, isTrue);
+    test('modules publish, which signs a module, is a different command '
+        'and stays', () {
+      expect(
+        dartvelCommandRunner().commands['modules']!.subcommands.keys,
+        contains('publish'),
+      );
     });
   });
 }
