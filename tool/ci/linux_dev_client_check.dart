@@ -24,7 +24,7 @@ const String _example = 'examples/dartvel_example';
 const String _binary = '$_example/build/linux/x64/debug/bundle/dartvel_example';
 const String _diag = '/tmp/diag';
 const String _page = '$_example/lib/pages/(tabs)/index.page.dart';
-const String _anchor = 'return DVBox.list([';
+const String _anchor = 'return ShopScroll(\n    children: <Widget>[';
 
 String _marker(String n) => 'DEVCLIENT-EDIT-$n';
 
