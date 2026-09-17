@@ -125,6 +125,15 @@ void main() {
     expect(cloud.spec!.codesign, isFalse);
   });
 
+  test('a tvOS cloud build is for the simulator, and one for a device is refused before sending', () async {
+    expect(await builder().run(DVCloudBuildRequest(root: root.path, target: 'tvos')), 64);
+    expect(logs.join('\n'), contains('--simulator'));
+    expect(cloud.requests, isEmpty);
+
+    await builder().run(DVCloudBuildRequest(root: root.path, target: 'tvos', simulator: true));
+    expect(cloud.spec!.simulator, isTrue);
+  });
+
   test('prints the build log as it arrives and downloads every artifact', () async {
     cloud.artifacts = <String, List<int>>{
       'app-release.apk': utf8.encode('an apk'),
