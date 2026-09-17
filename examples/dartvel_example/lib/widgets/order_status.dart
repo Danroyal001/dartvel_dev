@@ -22,6 +22,6 @@ import 'package:flutter/widgets.dart';
 // right that it is unreferenced and wrong that it is unused.
 @pragma('vm:entry-point')
 Widget _orderStatusWidget(BuildContext context) => const DVBox.list(<Widget>[
-      DVText('Order OAK-4182'),
-      DVText('Roasting today'),
-    ]);
+  DVText('Order OAK-4182'),
+  DVText('Roasting today'),
+]);

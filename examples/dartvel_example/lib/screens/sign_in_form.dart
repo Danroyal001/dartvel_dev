@@ -18,8 +18,9 @@ class SignInForm extends StatefulWidget {
 
 class _SignInFormState extends State<SignInForm> {
   final TextEditingController _email = TextEditingController(text: demoEmail);
-  final TextEditingController _password =
-      TextEditingController(text: demoPassword);
+  final TextEditingController _password = TextEditingController(
+    text: demoPassword,
+  );
   bool _busy = false;
   String? _error;
 
@@ -36,8 +37,10 @@ class _SignInFormState extends State<SignInForm> {
       _error = null;
     });
     try {
-      final Account account =
-          await signIn(email: _email.text, password: _password.text);
+      final Account account = await signIn(
+        email: _email.text,
+        password: _password.text,
+      );
       await seedOrderHistory(account.email);
       final String from = widget.from;
       final bool local = from.startsWith('/') && !from.startsWith('//');
@@ -74,14 +77,17 @@ class _SignInFormState extends State<SignInForm> {
           onSubmitted: (_) => _submit(),
         ),
         if (_error != null)
-          DVText(_error!).modifier(p.muted.color(Theme.of(context).colorScheme.error)),
+          DVText(
+            _error!,
+          ).modifier(p.muted.color(Theme.of(context).colorScheme.error)),
         FilledButton(
           key: const Key('sign-in-submit'),
           onPressed: _busy ? null : _submit,
           child: Text(_busy ? 'Signing in…' : 'Sign in'),
         ),
-        const DVText('This is a demo account. Everything you do stays on this device.')
-            .modifier(p.muted.fontSize(13)),
+        const DVText(
+          'This is a demo account. Everything you do stays on this device.',
+        ).modifier(p.muted.fontSize(13)),
       ], spacing: 14),
     );
   }

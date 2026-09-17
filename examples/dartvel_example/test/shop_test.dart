@@ -69,8 +69,10 @@ void main() {
       resetShopStore();
       await openShopStore();
       final List<Product> all = await Product.all();
-      expect(all.map((Product p) => p.slug),
-          unorderedEquals(seedCatalog.map((Product p) => p.slug)));
+      expect(
+        all.map((Product p) => p.slug),
+        unorderedEquals(seedCatalog.map((Product p) => p.slug)),
+      );
       expect(all.firstWhere((Product p) => p.slug == 'nyeri').priceCents, 2100);
     });
 
@@ -95,7 +97,10 @@ void main() {
       expect(stored, isNotNull);
       expect(stored!.status, 'placed');
       expect(stored.summary, '1 × Huila, 1 × Nyeri');
-      expect(stored.totalCents, coffee('huila').priceCents + coffee('nyeri').priceCents);
+      expect(
+        stored.totalCents,
+        coffee('huila').priceCents + coffee('nyeri').priceCents,
+      );
       expect(DV.global<Cart>().isEmpty, isTrue);
 
       expect(mail.sent, hasLength(1));
@@ -114,8 +119,9 @@ void main() {
         email: demoEmail,
       );
       final DVModelWatch watch = await Order.watch((List<Order> orders) {
-        final String status =
-            orders.firstWhere((Order o) => o.id == order.id).status;
+        final String status = orders
+            .firstWhere((Order o) => o.id == order.id)
+            .status;
         if (heard.isEmpty || heard.last != status) heard.add(status);
         if (status == 'delivered' && !delivered.isCompleted) {
           delivered.complete();
@@ -151,8 +157,10 @@ void main() {
     });
 
     test('the right one publishes the account', () async {
-      final Account account =
-          await signIn(email: demoEmail, password: demoPassword);
+      final Account account = await signIn(
+        email: demoEmail,
+        password: demoPassword,
+      );
       expect(account.name, demoName);
       expect(currentAccount.email, demoEmail);
 

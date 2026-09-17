@@ -16,14 +16,19 @@ import '../components/shop_ui.dart';
 import '../theme/palette.dart';
 import '../widgets/next_shift.dart';
 
-@DVPage(title: 'Next shift', showAppBar: true)
+@DVPage(title: 'Next shift')
 @pragma('vm:entry-point')
-Widget _nextShiftPage(BuildContext context) => ShopScroll(children: <Widget>[
-      const PageHeading(
-        'Home screen widget',
-        subtitle: 'The roasters see their next shift on their home screen. '
-            'The same widget, drawn in the app:',
-      ),
-      const DVBox(NextShiftWidget())
-          .modifier(cardStyle(Palette.of(context), padding: 20).maxWidth(320)),
-    ]);
+Widget _nextShiftPage(BuildContext context) => ShopScroll(
+  children: <Widget>[
+    const BackToShop(),
+    const PageHeading(
+      'Home screen widget',
+      subtitle:
+          'The roasters see their next shift on their home screen. '
+          'The same widget, drawn in the app:',
+    ),
+    const DVBox(
+      NextShiftWidget(),
+    ).modifier(cardStyle(Palette.of(context), padding: 20).maxWidth(320)),
+  ],
+);

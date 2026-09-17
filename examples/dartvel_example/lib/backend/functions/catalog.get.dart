@@ -16,8 +16,9 @@ Future<List<Map<String, Object?>>> catalog() async {
     'priceCents INTEGER NOT NULL, weightGrams INTEGER NOT NULL, '
     'published INTEGER NOT NULL)',
   );
-  final List<Map<String, Object?>> count =
-      await db.query('SELECT COUNT(*) AS n FROM shop_catalog');
+  final List<Map<String, Object?>> count = await db.query(
+    'SELECT COUNT(*) AS n FROM shop_catalog',
+  );
   if (((count.first['n'] as num?) ?? 0) == 0) {
     for (final Map<String, Object?> row in catalogRows) {
       await db.execute(

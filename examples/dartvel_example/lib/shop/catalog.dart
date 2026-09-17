@@ -6,7 +6,8 @@ import '../dartvel_client/dartvel_client.dart';
 /// database with. Written once into the store the first time the app opens;
 /// after that the store is the truth, and the Manage screen edits it.
 final List<Product> seedCatalog = <Product>[
-  for (final Map<String, Object?> row in catalogRows) ProductParser.fromJson(row),
+  for (final Map<String, Object?> row in catalogRows)
+    ProductParser.fromJson(row),
 ];
 
 /// Opens the store the shop reads: the tables its models need, and the
