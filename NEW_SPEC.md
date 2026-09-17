@@ -1248,7 +1248,7 @@ Backend code is ordinary Dart.
 Future<User> _getUser(String id) async => User.find(id);
 ```
 
-Parameters are automatically validated by type, with automatic valudation messages generated. The messages can be customized if needed. Automatic request and response conversion.
+Parameters are automatically validated by type, with automatic validation messages generated. The messages can be customized if needed. Automatic request and response conversion.
 
 Call it like
 
@@ -1270,7 +1270,12 @@ No manual openapi configs, they get auto-generated
 
 Just typed functions.
 
-Under the hood, Dartvel compiles backend functions into a high-performance Rust runtime built on Axum and Tokio, exposing them through zero-boilerplate, strongly typed, zero-copy, FFI APIs. Developers continue writing only Dart. 
+Under the hood, `dartvel_shelf` runs the HTTP server in Rust, on Axum, Hyper
+and Tokio, as a native library the Dart process loads. The Rust side owns the
+connections, TLS, HTTP/2, body limits and timeouts, and hands each request to
+the generated Dart router through an FFI callback. The generated backend then
+parses the request, runs the middleware chain and calls the function.
+Developers continue writing only Dart.
 
 ---
 
@@ -1292,11 +1297,22 @@ Example
 Stream<Message> _messages() => Message.stream();
 ```
 
-Automatically translated to efficient streaming endpoints (such as Server-Sent Events or websockets with automatic fallback to polling, can be configured) while preserving Dart's native `Stream<T>` API.
+The generated backend answers a streaming function with Server-Sent Events,
+one `data:` event per value, and the generated client reads that response
+back into a `Stream<T>`. Server-Sent Events is the only streaming transport
+built. A WebSocket transport and a polling fallback are designed and not
+generated.
 
 ---
 
-All backend data is transmitted as form-data to allow large request sizes if necessary and to be compatible with web. Fields in the form-data are packed as binary flat-buffers. An efficient lightweight boundary is used for the form-data and documented in the request headers. This applies to backend functions and model events.
+The wire format was designed as form-data for every call, with each field
+packed as a binary flat buffer, so large bodies stream, the web can send them
+and a typed value survives the trip. Part of that is built. The flat buffer
+codec exists (`dvFlatEncode`, `dvFlatDecode`), and the generated backend
+decodes a multipart field whose content type is the flat buffer type. The
+generated client does not send one yet. It sends JSON for an ordinary call,
+multipart form fields for a generated form, and urlencoded fields when the
+caller asks for them, and the backend parses all three.
 
 ---
 
@@ -1464,7 +1480,7 @@ billing period that closes on the server's date closes on the wrong day for
 half the world.
 
 ```dart
-@DVCron('0 0 * * *', timezone: DVCronTimezone.tenant)
+@DVBackendCron('0 0 * * *', timezone: DVCronTimezone.tenant)
 ```
 
 `tenant` expands one schedule into one run per distinct tenant timezone, each
@@ -1472,6 +1488,11 @@ with its tenant already resolved, so the job body does not query for who it is
 running for. `utc` is the default and stays the right answer for anything
 whose meaning is not local — retention sweeps, index rebuilds, anything
 comparing against a stored timestamp.
+
+The timezone handling in this part, daylight saving included, is designed and
+not built. `@DVBackendCron` and `@DVClientCron` take the cron
+expression and `catchUp`, and no `timezone` argument or `DVCronTimezone`
+exists yet. A backend occurrence is claimed by its instant in UTC.
 
 Daylight saving is the part that has to be decided rather than left to a
 library: a run at a local time that does not exist on the spring-forward date
@@ -1485,7 +1506,7 @@ a dashboard whose weekly totals never agree with anyone's.
 
 ## A client schedule is a request, not a guarantee
 
-`@DVClientCron(every: 5.minutes)` reads like a promise, and on a phone it is
+`@DVClientCron('*/5 * * * *')` reads like a promise, and on a phone it is
 not one. iOS decides when a background refresh task runs and may decide never;
 Android's WorkManager will not schedule periodic work more often than every
 fifteen minutes and Doze defers it to a maintenance window; a browser throttles
@@ -1587,6 +1608,17 @@ Queues support:
 - provider adapters for in-memory, database, Redis/Valkey, SQS, Pub/Sub,
   RabbitMQ, Kafka, and platform-native task schedulers where available
 
+Built today: named queues with generated `DVJobQueues` constants, priorities,
+max attempts with a backoff value stored on the job, dead letters that the CLI
+lists, retries and flushes (and the adapter can discard), a worker loop that
+stops cleanly, and the seven adapters above other than platform-native
+schedulers. Designed and not built: delayed execution, retry-until
+timestamps, an exponential backoff schedule, replay, concurrency limits and
+pause/resume, uniqueness and idempotency keys, typed progress events and
+cancellation tokens, and the platform-native schedulers. Cron schedules are
+Scheduling's `@DVBackendCron` and `@DVClientCron`, which call functions
+rather than dispatch jobs.
+
 CLI:
 
 ```bash
@@ -1655,7 +1687,7 @@ payloads or model sync events:
 ```dart
 await DV.Jobs.dispatch(
   UserCreated(user.id),
-  queue: DVQueues.signals,
+  queue: 'signals',
 );
 ```
 
@@ -1665,8 +1697,9 @@ Signal guarantees:
 - Model state uses generated reactive model signals.
 - Background signal delivery uses `DV.Jobs`.
 - Cross-client delivery uses generated model sync.
-- Model lifecycle signals are generated for create, update, delete, restore,
-  attach, detach, and sync events.
+- Model lifecycle signals are generated for create, update, delete, restore
+  and sync events (`DVModelChangeKind`). Attach and detach events are
+  designed and not generated.
 - Model sync applies auth, tenant filters, and policy checks before
   delivery.
 - Signals can bridge to native platform events through generated FFI/ffigen or
@@ -1769,7 +1802,8 @@ Page middleware:
 - must not force eager imports of deferred `DVPage`s
 
 Backend middleware:
-- runs in the Rust runtime around generated Dart function calls
+- runs in the generated Dart backend, around the function call, after the Rust
+  server has handed the request over
 - receives typed request metadata and typed function metadata
 - can short-circuit with typed responses
 - must propagate trace IDs, tenant IDs, auth IDs, and idempotency IDs
@@ -1940,29 +1974,36 @@ Stability: `Contract` · Status: `Shipped`
 Like Firebase, WorkOS and Clerk.
 
 ```dart
-DV.Auth.currentUser // Nullable, of type DVUser?
+DV.Auth.currentUser // Nullable, of type DVAuthUser?
 ```
 
 ```dart
 DV.Auth.signInWithEmailAndPassword()
 
-DV.Auth.signInWithProvider() // Google, Facebook, Apple, etc.
+DV.Auth.signInWithProvider() // an OAuth 2 provider such as Google or GitHub
 
 DV.Auth.signInWithRawOAuth()
 
-DV.Auth.signInWithPasskey() // Triggers the passkey flow for the OS or browser, with safe fallback
+DV.Auth.signInWithPasskey() // the passkey flow for the OS or browser
 
-DV.Auth.signInWithBiometrics() // Triggers the default biometric flow for the platform, safe fallbac or failure, can be configured. has specific alternatives like DV.Auth.signInWithFingerprint() or DV.Auth.signInWithFaceRecognition()
+DV.Auth.signInWithBiometrics() // also signInWithFingerprint() and signInWithFaceRecognition()
 
 DV.Auth.signInWithWeb3()
 
 DV.Auth.signOut()
 
 DV.Auth.signUp()
-
-// etc.
-// We'll also have prebuilt pages for each one. Just Make the first letter uppercase for the class name, and add `Page`, e.g `DV.Auth.SignInWithEmailAndPasswordPage(). Has inbuilt navigation slugs e.g `.navigateToPage(.signInWithEmailAndPasswordPage)` with the Page suffix too, can be overridden.
 ```
+
+Every sign-in method except biometrics has a prebuilt page named after it,
+with the first letter uppercase and `Page` added, such as `DV.Auth.SignInWithEmailAndPasswordPage()`
+and `DV.Auth.SignInWithPasskeyPage()`. The account pages are generated as
+routes: `/login`, `/sign-up`, and `/account/profile`, `/account/security`,
+`/account/sessions` and `/account/delete`. `signInWithFingerprint()` and
+`signInWithFaceRecognition()` call the same biometric flow as
+`signInWithBiometrics()`, which the local provider answers through
+`DV.Platform.biometrics`. That binding is not available on Android yet
+(Platform).
 
 Authentication is provider-backed. Applications configure a typed
 `DVAuthProvider` implementation for their identity service; calling an auth
@@ -1974,7 +2015,7 @@ Providers
 
 * Email
 * Google
-* Apple
+* Apple (designed: `DVOAuth2Config` has no Apple preset yet)
 * GitHub
 * Gitlab
 * Bitbucket
@@ -2262,8 +2303,8 @@ Provides:
 - Breakpoints (DV.Platform.screen.breakPoints)
 - Orientation (DV.Platform.deviceOrientation)
 - Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
-- Device type (DV.Platform.type (enum, e.g mobile, desktop, laptop, desktopOrLaptop, tablet, embeddedDisplay, watch, circularWatch, squareWatch, embeddedWithoutDisplay))
-- Screen shape (DV.Platform.screen.shape (enum e.g square, rectangle, verticalRectangle, horizontalRectangle, custom))
+- Device type (DV.Platform.type, a string: `phone`, `tablet`, `foldable`, `desktop`, `tv`, `watch` or `web`. Laptop, embedded display and watch-shape kinds are designed)
+- Screen shape (DV.Platform.screen.shape, `DVScreenShape`: square, verticalRectangle, horizontalRectangle, round, custom)
 - Full-screen and kiosk display control:
   - `DV.Platform.display.enterFullscreen()` // Where the platform supports it.
   - `DV.Platform.display.exitFullscreen()`
@@ -2830,7 +2871,7 @@ arrives empty cannot be distinguished from a real event.
 
 # Model Sync and Presence
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Dartvel does not expose a separate `DV.Realtime` namespace. Do not add one.
 Model sync and presence are generated capabilities built from models, signals,
@@ -2862,6 +2903,19 @@ await User.watch((users) {
   context.signal(users);
 });
 ```
+
+What is built is the generated half inside one process. Every generated model
+publishes created, updated, deleted, restored and synced changes to
+`DVModelSync`, and `Model.changes`, `Model.watch` and `user.sync()` read and
+write that hub. `DVPresence` keeps channel membership by identity, scoped by
+tenant and expiring when heartbeats stop. The generated backend also serves
+GraphQL subscriptions over Server-Sent Events. Both hubs take a transport
+(`DVModelSyncTransport`, `DVPresenceTransport`) that carries changes between
+processes and clients, and no transport is shipped. So a change made on one
+server instance, or on one device, reaches another only through a transport
+the application writes. A WebSocket transport, a reconnect policy,
+backpressure, collaborative editing and fanout through Redis, NATS or Kafka
+are designed and not built.
 
 ---
 
@@ -3171,6 +3225,9 @@ webhook, whose signature is verified before the message is trusted. Attachments
 go through File Storage's validation rather than being taken on trust, because
 an inbound mailbox is an upload endpoint that anyone on the internet can reach.
 
+Inbound mail is designed and not built. There is no `@DVInboundMail`
+annotation or `DVInboundMessage` type yet.
+
 ---
 
 # File Storage
@@ -3179,12 +3236,17 @@ Stability: `Contract` · Status: `Shipped`
 
 Unified API, supports:
 
-- S3 (And s3 compatible, e.g MiniIO)
-- Cloudflare R2
-- Azure Blob
-- Google Cloud Storage
-- Local
-- In-memory blobs (zram if supported, or raw blobs)
+- S3 and S3-compatible stores such as MinIO (`S3FileStorageAdapter`)
+- Cloudflare R2, through the S3 adapter
+- Azure Blob (`AzureBlobFileStorageAdapter`)
+- Google Cloud Storage (`GcsFileStorageAdapter`)
+- Local disk
+- In-memory blobs (`DVMemoryFileStorageAdapter`, the default)
+
+Each adapter puts, gets, deletes, checks and lists objects. In CI the Azure
+adapter runs against Azurite and the GCS adapter against fake-gcs-server. A
+local disk adapter is designed and not built, and the in-memory one keeps
+plain byte lists.
 
 `DV.FileStorage.*`
 
@@ -3194,7 +3256,7 @@ final bytes = await DV.FileStorage.get("avatar.png");
 await DV.FileStorage.delete("avatar.png");
 ```
 
-Streams:
+Streams, designed and not built:
 ```dart
 await DV.FileStorage.putStream("avatar.png", bytesStream);
 final bytesStream = await DV.FileStorage.getStream("avatar.png");
@@ -3600,7 +3662,8 @@ dartvel cache inspect users:list
 
 Stability: `Contract` · Status: `Partial`
 
-- Enabled by default
+- Opt-in per model with `@DVModel(tenantScoped: true)`, which adds the tenant
+  column and filters every read
 - Shared database or Schema per tenant or Database per tenant
 - Automatic tenant resolution
 - Automatic filtering

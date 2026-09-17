@@ -100,12 +100,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'functions.',
   ),
   (
-    'Model Sync and Presence',
-    'Built on models and signals',
-    'Generated sync, subscriptions and presence for your models. A '
-        'soft-deleted record that comes back sends a restored event.',
-  ),
-  (
     'File Storage',
     'S3, Azure Blob, GCS',
     'One storage API over three object stores. Azure and GCS run against '
@@ -282,6 +276,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'DVWebhooks',
     'Present: signed deliveries that survive a restart and refuse private '
         'addresses. Absent: generated subscriptions and model events.',
+  ),
+  (
+    'Model Sync and Presence',
+    'Built on models and signals',
+    'Present: generated change streams, watch and presence inside one '
+        'process. Absent: a transport that carries changes between servers '
+        'and devices.',
   ),
   (
     'Offline-First Models',
@@ -647,9 +648,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Thirty-one shipped sections.', level: 1),
+        Heading('Thirty shipped sections.', level: 1),
         Bullets(<String>[
-          'Sixty-nine more are partial, and each card says what is missing.',
+          'Seventy more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
