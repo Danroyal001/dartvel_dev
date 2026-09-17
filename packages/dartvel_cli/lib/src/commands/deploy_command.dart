@@ -6,7 +6,8 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import '../cloud/cloud_build.dart';
-import '../publish/store_deploy.dart';
+import '../deploy/store_deploy.dart';
+import '../deploy/store_plan.dart';
 import '../utils/logger.dart';
 
 typedef DeployProcessRun = Future<ProcessResult> Function(
@@ -65,9 +66,9 @@ class DeployCommand extends Command<void> {
       ..addFlag('build', defaultsTo: true, help: 'Build before deploying')
       ..addFlag('verify', defaultsTo: true, help: 'Verify deployment')
       ..addOption('store',
-          allowed: dvDeployStores.keys,
+          allowed: dvStores,
           allowedHelp: {
-            'play': 'Google Play, to the track dartvel.publish.play names.',
+            'play': 'Google Play, to the track dartvel.deploy.stores.play names.',
             'appstore': 'App Store Connect.',
             'testflight': 'TestFlight.',
             'firebase-app-distribution':
@@ -75,7 +76,7 @@ class DeployCommand extends Command<void> {
           },
           help: 'Deploy a built application to a store or a tester group '
               'instead of a web build or a server. Declared under '
-              'dartvel.publish in pubspec.yaml; build it first with '
+              'dartvel.deploy.stores in pubspec.yaml; build it first with '
               'dartvel build. Takes none of --target, --provider, --functions '
               'or --function-target.')
       ..addFlag('dry-run',
