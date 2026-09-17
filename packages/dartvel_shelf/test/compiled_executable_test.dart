@@ -19,6 +19,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:dartvel_shelf/src/native_library.dart'
+    show nativeServerLibraryLocation;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -50,26 +52,28 @@ Future<void> main(List<String> arguments) async {
 ''';
 
 void main() {
+  // The library for whichever host this runs on: CI runs it on each one the
+  // package ships a library for.
+  final location = nativeServerLibraryLocation();
   final Uri? packaged = Isolate.resolvePackageUriSync(Uri.parse(
-    'package:dartvel_shelf/native/linux-x64/libdartvel_shelf.so',
+    'package:dartvel_shelf/native/${location.subdir}/${location.name}',
   ));
   final File? library = packaged == null ? null : File.fromUri(packaged);
-  final Object skip = !Platform.isLinux
-      ? 'the packaged library this embeds is linux-x64'
-      : library == null || !library.existsSync()
-          ? 'no linux-x64 native server library has been built'
-          : false;
+  final Object skip = library == null || !library.existsSync()
+      ? 'no ${location.subdir} native server library has been built'
+      : false;
   late Directory work;
   late String executable;
 
   setUpAll(() async {
     if (skip != false) return;
-    // lib/native/linux-x64/<library> -> the package root.
+    // lib/native/<host>/<library> -> the package root.
     final String package = p.dirname(p.dirname(p.dirname(p.dirname(library!.path))));
     work = Directory.systemTemp.createTempSync('dv_shelf_exe_');
     final File source = File(p.join(work.path, 'server.dart'))
       ..writeAsStringSync(_program);
-    executable = p.join(work.path, 'bin', 'server');
+    executable = p.join(
+        work.path, 'bin', Platform.isWindows ? 'server.exe' : 'server');
     Directory(p.dirname(executable)).createSync();
     final ProcessResult compiled = await Process.run(
       Platform.resolvedExecutable,

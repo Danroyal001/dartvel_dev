@@ -23,6 +23,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:dartvel_cli/src/build/server_binary.dart'
+    show dvHostServerLibrary, dvServerBinaryPath;
 import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
@@ -44,6 +46,21 @@ Future<int> _freePort() async {
   return port;
 }
 
+/// The least a process can be started with on this host: a search path, and
+/// on Windows the variables the system itself needs to load a DLL, open a
+/// socket and find a temporary directory. Nothing of this test's own.
+Map<String, String> _bareEnvironment() {
+  if (!Platform.isWindows) return const <String, String>{'PATH': '/usr/bin:/bin'};
+  final Map<String, String> parent = Platform.environment;
+  final String root = parent['SystemRoot'] ?? parent['SYSTEMROOT'] ?? r'C:\Windows';
+  return <String, String>{
+    'SystemRoot': root,
+    'PATH': '$root\\System32;$root',
+    for (final String name in const <String>['TEMP', 'TMP', 'USERPROFILE'])
+      if (parent[name] != null) name: parent[name]!,
+  };
+}
+
 bool _onPath(String executable) {
   final ProcessResult which = Process.runSync(
       Platform.isWindows ? 'where' : 'which', <String>[executable]);
@@ -57,16 +74,17 @@ void main() {
   final String packages = p.dirname(
     p.dirname(p.dirname(p.dirname(p.dirname(cli.toFilePath())))),
   );
-  final Object skip = !(Platform.isLinux && Platform.version.contains('x64'))
-      ? 'the native server library a web-server binary embeds is prebuilt '
-          'for linux-x64'
-      : !File(p.join(packages, 'dartvel_shelf', 'lib', 'native', 'linux-x64',
-                  'libdartvel_shelf.so'))
-              .existsSync()
-          ? 'no linux-x64 native server library has been built'
+  // Every host dartvel_shelf ships a library for, not only linux-x64: the
+  // build embeds the library for the host it runs on, and this runs on each
+  // of them in CI.
+  final host = dvHostServerLibrary();
+  final Object skip = !File(p.join(packages, 'dartvel_shelf', 'lib', 'native',
+              host.subdir, host.name))
+          .existsSync()
+      ? 'dartvel_shelf has no native server library for ${host.subdir}'
           : !_onPath('flutter')
-              ? 'a web-server build runs flutter build web'
-              : false;
+          ? 'a web-server build runs flutter build web'
+          : false;
 
   late Directory work;
   late File binary;
@@ -171,14 +189,17 @@ Future<List<String>> _notes() async => <String>[
     );
     buildOutput = '${built.stdout}\n${built.stderr}';
     expect(built.exitCode, 0, reason: buildOutput);
-    final File output = File(p.join(project.path, 'build', 'server'));
+    final File output = File(p.join(project.path,
+        dvServerBinaryPath(windows: Platform.isWindows)));
     expect(output.existsSync(), isTrue, reason: buildOutput);
 
     // Alone. Nothing of the project, the build directory or this checkout.
     final Directory deploy = Directory(p.join(work.path, 'deploy'))
       ..createSync();
-    binary = output.copySync(p.join(deploy.path, 'server'));
-    await Process.run('chmod', <String>['755', binary.path]);
+    binary = output.copySync(p.join(deploy.path, p.basename(output.path)));
+    if (!Platform.isWindows) {
+      await Process.run('chmod', <String>['755', binary.path]);
+    }
   });
 
   tearDownAll(() {
@@ -194,7 +215,7 @@ Future<List<String>> _notes() async => <String>[
       workingDirectory: binary.parent.path,
       includeParentEnvironment: false,
       environment: <String, String>{
-        'PATH': '/usr/bin:/bin',
+        ..._bareEnvironment(),
         'DARTVEL_PORT': '$port',
       },
     );
