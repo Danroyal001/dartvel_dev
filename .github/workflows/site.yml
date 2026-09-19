@@ -1,0 +1,139 @@
+# dartvel.dev, built, checked and packaged on a runner.
+#
+# The site zip used to be built, staged and photographed on the development
+# machine, which is a 32 GB disk that fills. Everything heavy happens here
+# instead, and what comes back is the finished zip and small contact sheets:
+#
+#   dartvel-site        the zip to upload, and its SHA-256
+#   dartvel-site-shots  every sitemap page at 1440x900 and 390x844, and one
+#                       contact sheet per few pages for a person to look at
+#
+# The staged tree gets 755 directories and 644 files before it is zipped:
+# a tree zipped from /tmp carried 756 and a shared host refused to serve it.
+# A page that paints nothing -- one flat colour -- fails the run, because a
+# blank canvas and a missing route both look like a screenshot.
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/dartvel_site/**'
+      - 'packages/**'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: build, photograph every page, package
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install capture dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick zip
+
+      - name: Build the site
+        working-directory: sites/dartvel_site
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart run dartvel_cli:dartvel build web
+
+      - name: Stage with the modes a shared host serves
+        run: |
+          set -euo pipefail
+          SHORT=$(git rev-parse --short=8 HEAD)
+          echo "SHORT=$SHORT" >> "$GITHUB_ENV"
+          mkdir -p /tmp/out
+          cp -r sites/dartvel_site/build/web /tmp/stage
+          rm -f /tmp/stage/.last_build_id
+          find /tmp/stage -type d -exec chmod 755 {} +
+          find /tmp/stage -type f -exec chmod 644 {} +
+          bad=$(find /tmp/stage \( -type d ! -perm 755 \) -o \( -type f ! -perm 644 \) | head -5)
+          if [ -n "$bad" ]; then echo "::error::wrong modes: $bad"; exit 1; fi
+          (cd /tmp/stage && zip -qrX "/tmp/out/dartvel_site-web-$SHORT.zip" .)
+          (cd /tmp/out && sha256sum "dartvel_site-web-$SHORT.zip" > "dartvel_site-web-$SHORT.zip.sha256")
+          cat /tmp/out/*.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dartvel-site
+          path: /tmp/out/
+          retention-days: 30
+
+      - name: Photograph every page in the sitemap
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/shots
+          (cd /tmp/stage && dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8090 --spa > /tmp/serve.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:8090/ && break; sleep 1; done
+          grep -o '<loc>[^<]*</loc>' /tmp/stage/sitemap.xml \
+            | sed -E 's#</?loc>##g; s#^https?://[^/]+##; s#^$#/#' > /tmp/shots/routes.txt
+          echo "$(wc -l < /tmp/shots/routes.txt) routes"
+          BROWSER=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          shoot() {
+            route="$1"; tag="$2"; size="$3"
+            name=$(echo "$route" | sed 's#^/##; s#/#_#g'); name=${name:-home}
+            "$BROWSER" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+              --virtual-time-budget=15000 --window-size="$size" \
+              --screenshot="/tmp/shots/$name-$tag.png" "http://127.0.0.1:8090$route" \
+              > /dev/null 2>&1
+          }
+          export -f shoot; export BROWSER
+          # Four browsers at a time: each page is a fresh Chrome that waits
+          # out its own virtual time, so the run is wall-clock bound.
+          { while read -r r; do echo "$r d 1440,900"; echo "$r m 390,844"; done < /tmp/shots/routes.txt; } \
+            | xargs -P 4 -L 1 bash -c 'shoot "$0" "$1" "$2"'
+          ls /tmp/shots/*.png | wc -l
+
+      - name: Every page painted something
+        run: |
+          set -uo pipefail
+          expected=$(( $(wc -l < /tmp/shots/routes.txt) * 2 ))
+          got=$(ls /tmp/shots/*.png | wc -l)
+          failed=0
+          if [ "$got" -ne "$expected" ]; then
+            echo "::error::$got screenshots for $expected page views"; failed=1
+          fi
+          for shot in /tmp/shots/*.png; do
+            # One flat colour is a page that never drew.
+            spread=$(convert "$shot" -colorspace Gray -format '%[fx:standard_deviation]' info:)
+            if awk "BEGIN { exit !($spread < 0.01) }"; then
+              echo "::error::$(basename "$shot") is blank ($spread)"; failed=1
+            fi
+          done
+          exit $failed
+
+      - name: Contact sheets for a person to look at
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/shots/sheets
+          cd /tmp/shots
+          ls *-d.png 2>/dev/null | split -l 4 -d -a 2 - sheets/d_
+          ls *-m.png 2>/dev/null | split -l 8 -d -a 2 - sheets/m_
+          for list in sheets/d_??; do
+            montage -label '%t' $(cat "$list") -tile 2x2 -geometry 720x450+4+4 -pointsize 14 "$list.png"
+          done
+          for list in sheets/m_??; do
+            montage -label '%t' $(cat "$list") -tile 8x1 -geometry 195x422+3+3 -pointsize 11 "$list.png"
+          done
+          rm -f sheets/d_?? sheets/m_??
+          ls sheets | wc -l
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dartvel-site-shots
+          path: /tmp/shots/
+          retention-days: 14
