@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import '../build/capture_verification.dart';
 import '../utils/logger.dart';
 import 'firefox_capture_command.dart';
+import 'page_shots_capture_command.dart';
 import 'pty_capture_command.dart';
 import 'pwa_sync_capture_command.dart';
 
@@ -27,6 +28,7 @@ class CaptureCommand extends Command<void> {
     addSubcommand(PtyCaptureCommand());
     addSubcommand(FirefoxCaptureCommand());
     addSubcommand(PwaSyncCaptureCommand());
+    addSubcommand(PageShotsCaptureCommand());
   }
 }
 
