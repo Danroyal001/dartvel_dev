@@ -737,6 +737,8 @@ Widget _docsFrame(
     return DVBox.row(<Widget>[
       DVBox(
         SingleChildScrollView(
+          // The sidebar, not the page: the page's controller is the article's.
+          primary: false,
           padding: const EdgeInsets.fromLTRB(32, 32, 20, 48),
           child: DocsNav(current: current),
         ),
@@ -776,6 +778,7 @@ Widget _docsFrame(
       child: open.value
           ? DVBox(
               SingleChildScrollView(
+                primary: false,
                 padding: const EdgeInsets.fromLTRB(22, 20, 22, 40),
                 child: DocsNav(current: current, folding: true),
               ),
