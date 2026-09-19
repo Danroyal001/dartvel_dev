@@ -255,7 +255,17 @@ abstract final class DVStudioStyle {
           Expanded(
             child: Row(
               children: <Widget>[
-                heading(title),
+                // One line and flexible: a title wider than a narrow pane is
+                // cut short, and the count beside it stays whole.
+                Flexible(
+                  child: DVText(title).modifier(
+                    const DVModifier()
+                        .fontSize(14)
+                        .color(ink)
+                        .fontWeight(FontWeight.w600)
+                        .maxLines(1),
+                  ),
+                ),
                 if (subtitle != null) ...<Widget>[
                   const SizedBox(width: space2),
                   caption(subtitle, color: faint),
