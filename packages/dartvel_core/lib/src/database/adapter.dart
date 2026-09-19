@@ -5,6 +5,7 @@ import 'dart:async';
 
 import '../preview/preview_database_guard.dart';
 import '../tenancy/tenants.dart';
+import 'records.dart';
 
 abstract class DVDatabaseAdapter {
   Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]);
@@ -611,6 +612,16 @@ class DVDatabase {
     _adapter = null;
     _openForTenant = null;
     _perTenant.clear();
+  }
+
+  /// The record operations for the configured database: the adapter itself
+  /// when it is a record engine, as a document database is, and otherwise
+  /// the operations compiled to SQL through this facade, tenant checks and
+  /// all. Framework code persists through this rather than [query].
+  DVRecordAdapter get records {
+    final DVDatabaseAdapter? configured = _adapter;
+    if (configured is DVRecordAdapter) return configured as DVRecordAdapter;
+    return DVSqlRecordAdapter();
   }
 
   Future<List<Map<String, Object?>>> query(

@@ -107,6 +107,7 @@ export 'src/database/adapters.dart';
 export 'src/database/connection.dart';
 export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
+export 'src/database/records.dart';
 export 'src/diagnostics/startup_profile.dart';
 export 'src/edge/bot_protection.dart';
 export 'src/edge/credentials.dart';
