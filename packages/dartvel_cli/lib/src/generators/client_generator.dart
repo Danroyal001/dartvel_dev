@@ -355,21 +355,36 @@ class ClientGenerator {
       String? errorAlias;
       // Function pages as well as class pages: `dartvel create` writes both
       // companions beside a function page, and they were never imported.
+      //
+      // A companion written as `@DVFunctionalWidget` declares no class: its
+      // widget is generated into widgets.g.dart, which the router imports
+      // already. Importing the companion file under a prefix and calling the
+      // class through it named something that file does not declare, and the
+      // generated client is excluded from analysis, so the build broke
+      // rather than the check.
       if (File(p.join(root, loadingRel)).existsSync()) {
-        final importPathL = loadingRel.replaceFirst(
-          RegExp(r'^lib/'),
-          'package:$pkgName/',
-        );
-        loadingAlias = 'pl$i';
-        pageImports.add("import '$importPathL' as $loadingAlias;");
+        if (_declaresCompanionClass(File(p.join(root, loadingRel)))) {
+          final importPathL = loadingRel.replaceFirst(
+            RegExp(r'^lib/'),
+            'package:$pkgName/',
+          );
+          loadingAlias = 'pl$i';
+          pageImports.add("import '$importPathL' as $loadingAlias;");
+        } else {
+          loadingAlias = '';
+        }
       }
       if (File(p.join(root, errorRel)).existsSync()) {
-        final importPathE = errorRel.replaceFirst(
-          RegExp(r'^lib/'),
-          'package:$pkgName/',
-        );
-        errorAlias = 'pe$i';
-        pageImports.add("import '$importPathE' as $errorAlias;");
+        if (_declaresCompanionClass(File(p.join(root, errorRel)))) {
+          final importPathE = errorRel.replaceFirst(
+            RegExp(r'^lib/'),
+            'package:$pkgName/',
+          );
+          errorAlias = 'pe$i';
+          pageImports.add("import '$importPathE' as $errorAlias;");
+        } else {
+          errorAlias = '';
+        }
       }
 
       pageEntries.add(
@@ -1259,11 +1274,16 @@ ${(() {
             final b = StringBuffer();
             if (la != null && la.isNotEmpty) {
               b.writeln("          loading: $la.$lc(),");
+            } else if (la != null) {
+              // A functional companion: the class is the client's own.
+              b.writeln("          loading: $lc(),");
             } else {
               b.writeln("          loading: const DvDefaultLoading(),");
             }
             if (ea != null && ea.isNotEmpty) {
               b.writeln("          error: $ea.$ec(),");
+            } else if (ea != null) {
+              b.writeln("          error: $ec(),");
             } else {
               b.writeln("          error: const DvDefaultError(),");
             }
@@ -4323,4 +4343,13 @@ _TabsShell _tabsShell(
   return _TabsShell(layout, <_TabsBranch>[
     for (int i = 0; i < roots.length; i++) _TabsBranch(roots[i], branches[i]),
   ]);
+}
+
+/// Whether a page's loading or error companion declares its own class.
+///
+/// A companion written as `@DVFunctionalWidget` does not: its widget class is
+/// generated into `widgets.g.dart` instead, and the router names it there.
+bool _declaresCompanionClass(File file) {
+  final String source = file.readAsStringSync();
+  return RegExp(r'^\s*class\s+[A-Za-z_]', multiLine: true).hasMatch(source);
 }

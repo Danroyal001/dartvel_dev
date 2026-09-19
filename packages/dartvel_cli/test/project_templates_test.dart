@@ -87,6 +87,35 @@ void main() {
       expect(pubspec, isNot(contains('3.4.0')));
     });
   });
+
+  // Dartvel's first-party widget is `@DVFunctionalWidget` on a private
+  // function; a class is for the rare widget a function cannot express. A new
+  // project's own loading and error pages were classes, which is what every
+  // reader copied.
+  group('what a new project is shown', () {
+    test('the loading and error pages are functional widgets', () {
+      final String loading = ProjectTemplates.loadingTemplate('IndexPageLoading');
+      final String error = ProjectTemplates.errorTemplate('IndexPageError');
+
+      for (final String source in <String>[loading, error]) {
+        expect(source, contains('@DVFunctionalWidget()'));
+        expect(source, isNot(contains('StatelessWidget')));
+        expect(source, isNot(contains('StatefulWidget')));
+      }
+      // Named so the generated widget is the one the router renders:
+      // _indexPageLoading generates IndexPageLoading.
+      expect(loading, contains('Widget _indexPageLoading(BuildContext'));
+      expect(error, contains('Widget _indexPageError(BuildContext'));
+    });
+
+    // Every Dartvel generation input is a private declaration whose body is
+    // copied into generated code, so the analyzer calls each one unused. A
+    // scaffolded project said so about its own example page.
+    test('the analyzer is told that generation inputs are not unused', () {
+      expect(ProjectTemplates.analysisOptionsTemplate,
+          contains('unused_element: ignore'));
+    });
+  });
 }
 
 /// The repository root, found from the test's own location rather than the
