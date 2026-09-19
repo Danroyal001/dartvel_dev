@@ -165,6 +165,18 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Compute: Workers and Native Offload', 'Backend',
       DVRoutes.docsworkers, 'Run a task on a worker', anchor: 'run'),
 
+  SpecCoverage('Billing', 'Backend', DVRoutes.docsbilling,
+      'Sell a plan through Stripe or Paddle', anchor: 'subscriptions'),
+
+  SpecCoverage('Purchases and Entitlements', 'Backend', DVRoutes.docsbilling,
+      'Check app store purchases on your server', anchor: 'purchases'),
+
+  SpecCoverage('Commerce: Tax, Promotions, Disputes and Payouts', 'Backend', DVRoutes.docsbilling,
+      'Charge with tax and promotions, and refund cleanly', anchor: 'commerce'),
+
+  SpecCoverage('Usage Metering and Quotas', 'Backend', DVRoutes.docsbilling,
+      'Meter usage and cap it per tenant', anchor: 'usage'),
+
   // Operations
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
       'Provision servers with dartvel infra', anchor: 'infra'),
@@ -257,10 +269,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
 
   // Backend
   'Web Server Rendering': 'Backend',
-  'Billing': 'Backend',
-  'Purchases and Entitlements': 'Backend',
-  'Commerce: Tax, Promotions, Disputes and Payouts': 'Backend',
-  'Usage Metering and Quotas': 'Backend',
   'Modules': 'Backend',
   'Module Distribution and Trust': 'Backend',
 
