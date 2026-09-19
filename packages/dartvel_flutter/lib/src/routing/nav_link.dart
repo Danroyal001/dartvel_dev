@@ -478,6 +478,14 @@ class _DVNavLinkState extends State<DVNavLink> {
       _openBeside(fromPointer: true);
       return;
     }
+    // A right-click: the page's menu opens over it, and asks what it was on.
+    if (event.buttons == kSecondaryMouseButton) {
+      DVPressedLinkTarget.press(
+        widget.externalUrl ?? DVNavigation.locationOf(widget.to),
+        event.position,
+      );
+      return;
+    }
     // A mouse's primary button follows the link on the press. A click is two
     // events a hundred-odd milliseconds apart, and a link that waits for the
     // second spends that time doing nothing; NextFaster navigates on
@@ -679,6 +687,44 @@ class _DVLinkPreviewCard extends StatelessWidget {
 /// On the web this is a new tab. Elsewhere there is nothing to open beside, so
 /// the default does nothing rather than pretending — an app supplies its own
 /// behaviour through [DVNavLink.openInNewTab] where it has one.
+/// The link a right-click landed on, for the menu that opens over it.
+///
+/// A page's selection menu answered every right-click, so a link's own
+/// actions were nowhere: the browser's menu has them and is off, so that
+/// Flutter's can show at all. The menu asks here what was under the pointer.
+abstract final class DVPressedLinkTarget {
+  static String? _destination;
+  static Offset? _where;
+
+  /// How far the menu's corner may sit from the press and still be the menu
+  /// that press opened.
+  static const double _slack = 4;
+
+  /// Records that [destination] was right-clicked at [where].
+  static void press(String destination, Offset where) {
+    _destination = destination;
+    _where = where;
+  }
+
+  /// Where the link goes that a menu opening at [anchor] was clicked on, or
+  /// null when that click was not on a link.
+  ///
+  /// Matched by position rather than by time: a menu belongs to one click,
+  /// and a link pressed a moment ago must not put its address in the menu
+  /// that a later click somewhere else opened.
+  static String? at(Offset anchor) {
+    final Offset? where = _where;
+    if (where == null) return null;
+    return (where - anchor).distance <= _slack ? _destination : null;
+  }
+
+  /// Forgets it: the menu closed, or the click was somewhere else.
+  static void clear() {
+    _destination = null;
+    _where = null;
+  }
+}
+
 class DVLinkOpener {
   const DVLinkOpener._();
 
