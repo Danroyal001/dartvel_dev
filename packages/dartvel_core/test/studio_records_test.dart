@@ -49,6 +49,50 @@ void main() {
     expect(await grants.isGranted('ada'), isFalse);
   });
 
+  // A function built in Studio is the server's, as a page is: the builder
+  // runs in a browser, which has no database of its own.
+  test('Studio stores, lists and removes functions', () async {
+    final Directory root =
+        Directory.systemTemp.createTempSync('dartvel_studio_functions_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    File('${root.path}/index.html').writeAsStringSync('<title>Studio</title>');
+    final DVAdminServer server = DVAdminServer(
+      mount: const DVAdminMount(
+          path: '/__studio', enabled: true, requiresAuth: true),
+      root: root.path,
+      authenticated: (Request _) async => true,
+      models: const <DVStudioModelSpec>[],
+      database: engine,
+    );
+    Future<Response> call(String method, String path, {Object? json}) async =>
+        (await server.respond(_request(method, path, json: json)))!;
+
+    final Response put =
+        await call('PUT', '/__studio/api/functions', json: <String, Object?>{
+      'document': <String, Object?>{
+        'name': 'joinOakline',
+        'side': 'frontend',
+        'parameters': <Object?>[],
+        'steps': <Object?>[],
+      },
+    });
+    expect(put.status, 200, reason: '${await _json(put)}');
+
+    final Map<String, Object?> listed =
+        (await _json(await call('GET', '/__studio/api/functions')))!
+            as Map<String, Object?>;
+    final Map<String, Object?> one =
+        (listed['functions']! as List<Object?>).single! as Map<String, Object?>;
+    expect(one['name'], 'joinOakline');
+    expect((one['document']! as Map<String, Object?>)['side'], 'frontend');
+
+    await call('DELETE', '/__studio/api/functions?name=joinOakline');
+    final Map<String, Object?> after =
+        (await _json(await call('GET', '/__studio/api/functions')))!
+            as Map<String, Object?>;
+    expect(after['functions'], isEmpty);
+  });
+
   test('Studio edits pages, and an installed app fetches them', () async {
     final Directory root =
         Directory.systemTemp.createTempSync('dartvel_studio_records_');
