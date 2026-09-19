@@ -85,6 +85,7 @@ export 'src/auth/ldap_unsupported.dart'
     if (dart.library.io) 'src/auth/ldap.dart';
 export 'src/auth/oauth2.dart';
 export 'src/auth/oauth_provider.dart';
+export 'src/auth/one_time_code.dart';
 export 'src/auth/organizations.dart';
 export 'src/auth/password.dart';
 export 'src/auth/saml.dart';
