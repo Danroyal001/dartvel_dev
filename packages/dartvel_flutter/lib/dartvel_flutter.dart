@@ -726,6 +726,10 @@ export 'src/routing/url_strategy.dart';
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
+export 'src/studio/functions/function_editor.dart';
+export 'src/studio/functions/function_section.dart'
+    show dvFunctionStudioSections, dvWorkflowStudioSection;
+export 'src/studio/functions/functions.dart';
 export 'src/studio/page_document.dart';
 export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
