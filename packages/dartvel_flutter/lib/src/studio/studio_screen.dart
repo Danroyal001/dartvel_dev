@@ -940,7 +940,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           icon: DVStudioIcons.publish,
           tone: DVStudioStyle.success,
           detail: _lastPublished == null
-              ? 'Nothing published this session'
+              ? 'Nothing deployed this session'
               : 'This session',
         )
       else
@@ -1018,7 +1018,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       icon: DVStudioIcons.publish,
       tone: DVStudioStyle.success,
       detail: latest == null
-          ? 'Nothing published yet'
+          ? 'Nothing deployed yet'
           : '${latest.documentId}${latest.publishedBy == null ? '' : ' by ${latest.publishedBy}'}',
     );
   }
@@ -1053,7 +1053,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                 icon: DVStudioIcons.pages,
                 title: 'Build your first page',
                 message: 'Name a route in the panel on the left and press '
-                    'Create page. It goes live the moment you publish.',
+                    'Create page. It goes live the moment you deploy.',
               ),
             )
           else
