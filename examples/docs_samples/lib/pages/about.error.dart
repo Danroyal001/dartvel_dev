@@ -4,11 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 
-class AboutPageError extends StatelessWidget {
-  const AboutPageError({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const DVText('This page could not load. Try again.');
-}
+@DVFunctionalWidget()
+Widget _aboutPageError(BuildContext context) =>
+    const DVText('That did not load');
 // docs:end

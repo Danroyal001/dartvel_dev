@@ -22,6 +22,7 @@ import 'dart:isolate';
 
 import 'package:dartvel_cli/src/commands/admin_command.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
+import 'package:dartvel_cli/src/templates/project_templates.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -113,6 +114,24 @@ class _Product {
 
   const _Product({required this.id, required this.name, this.asset});
 }
+''';
+
+const String _indexLoading = '''
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVFunctionalWidget()
+Widget _indexPageLoading(BuildContext context) => const DVText('Loading');
+''';
+
+const String _indexError = '''
+import 'package:flutter/widgets.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVFunctionalWidget()
+Widget _indexPageError(BuildContext context) => const DVText('Sorry');
 ''';
 
 const String _indexPage = '''
@@ -297,9 +316,17 @@ void main() {
     final root = await repoRoot();
     project = await Directory.systemTemp.createTemp('dartvel_analyze_');
 
+    // The analyzer settings a real project gets, so the fixture is judged
+    // the way `dartvel create` judges what it wrote.
+    write(p.join(project.path, 'analysis_options.yaml'),
+        ProjectTemplates.analysisOptionsTemplate);
     write(p.join(project.path, 'lib', 'models', 'account.dart'), _model);
     write(p.join(project.path, 'lib', 'models', 'product.dart'), _product3d);
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
+    write(p.join(project.path, 'lib', 'pages', 'index.loading.dart'),
+        _indexLoading);
+    write(p.join(project.path, 'lib', 'pages', 'index.error.dart'),
+        _indexError);
     write(p.join(project.path, 'lib', 'pages', 'posts', '[slug].page.dart'),
         _postPage);
     write(p.join(project.path, 'lib', 'pages', 'account.page.dart'),
@@ -454,6 +481,18 @@ dependency_overrides:
     ]));
     expect(analysis.exitCode, anyOf(0, 1),
         reason: 'flutter analyze did not run: ${analysis.stderr}');
+  });
+
+  test('a functional loading and error companion are the ones rendered', () {
+    final String router = File(
+      p.join(project.path, 'lib', 'dartvel_client', 'router.g.dart'),
+    ).readAsStringSync();
+
+    expect(router, contains('IndexPageLoading()'));
+    expect(router, contains('IndexPageError()'));
+    // Named through the client, where a functional widget's class is
+    // generated, rather than through the page file, which has no class.
+    expect(router, isNot(matches(RegExp(r'p[le]\\d+\\.IndexPage(Loading|Error)'))));
   });
 
   test('the middleware fixture is actually in the analyzed router', () {

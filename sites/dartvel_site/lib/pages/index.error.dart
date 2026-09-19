@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
+
 import '../dartvel_client/dartvel_client.dart';
 
-class IndexPageError extends StatelessWidget {
-  const IndexPageError({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return DVBox.list([
-      const DVText('ERROR').modifier(
-        const DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(Colors.red),
+/// What the home page shows when its data does not load.
+@DVFunctionalWidget()
+Widget _indexPageError(BuildContext context) => DVBox.list(<Widget>[
+      const DVText('Something went wrong').modifier(
+        const DVModifier().fontSize(24).fontWeight(FontWeight.w800),
       ),
-      const DVText('Something went wrong'),
-      const DVText('Go Back').modifier(
+      const DVText('The page could not load its data.'),
+      const DVText('Go back').modifier(
         const DVModifier()
             .padding(12)
             .rounded(8)
@@ -22,5 +20,3 @@ class IndexPageError extends StatelessWidget {
     ]).modifier(
       const DVModifier().align(Alignment.center),
     );
-  }
-}

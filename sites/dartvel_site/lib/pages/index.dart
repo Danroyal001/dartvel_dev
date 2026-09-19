@@ -104,118 +104,114 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
 /// Every line after the commands is a line the CLI prints: the dev loop's
 /// start, the generated backend announcing its port, and the loop reacting
 /// to an edit. There is no timing on it, because nothing measured one.
-class HeroTerminal extends StatelessWidget {
-  const HeroTerminal();
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = Palette.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1020),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.rule),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: palette.dark ? 0.5 : 0.14),
-            blurRadius: 32,
-            offset: const Offset(0, 14),
+@DVFunctionalWidget()
+Widget _heroTerminal(BuildContext context) {
+  final palette = Palette.of(context);
+  return Container(
+    decoration: BoxDecoration(
+      color: const Color(0xFF0B1020),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: palette.rule),
+      boxShadow: <BoxShadow>[
+        BoxShadow(
+          color: Colors.black.withValues(alpha: palette.dark ? 0.5 : 0.14),
+          blurRadius: 32,
+          offset: const Offset(0, 14),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0xFF1B2338))),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFF1B2338))),
-            ),
-            child: Row(
-              children: <Widget>[
-                for (final Color light in <Color>[
-                  const Color(0xFFFF5F57),
-                  const Color(0xFFFEBC2E),
-                  const Color(0xFF28C840),
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 7),
-                    child: Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: light,
-                        shape: BoxShape.circle,
-                      ),
+          child: Row(
+            children: <Widget>[
+              for (final Color light in <Color>[
+                const Color(0xFFFF5F57),
+                const Color(0xFFFEBC2E),
+                const Color(0xFF28C840),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 7),
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: light,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                const SizedBox(width: 8),
-                const Text(
-                  'dartvel dev',
-                  style: TextStyle(
-                    color: Color(0xFF8A95AD),
-                    fontFamily: 'RobotoMono',
-                    fontSize: 12,
-                  ),
                 ),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 18),
-            // Coloured the way the terminal actually is: the prompt, what you
-            // type and what it answers are three different things.
-            child: Typewriter(
-              style: TextStyle(
-                fontFamily: 'RobotoMono',
-                fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
-                fontSize: 12.5,
-                height: 1.75,
-                color: Color(0xFFD7E1F5),
+              const SizedBox(width: 8),
+              const Text(
+                'dartvel dev',
+                style: TextStyle(
+                  color: Color(0xFF8A95AD),
+                  fontFamily: 'RobotoMono',
+                  fontSize: 12,
+                ),
               ),
-              <TextSpan>[
-                TextSpan(
-                  text: '\$ ',
-                  style: TextStyle(color: Color(0xFF9ECE6A)),
-                ),
-                TextSpan(text: 'dartvel create shop\n'),
-                TextSpan(
-                  text: '\$ ',
-                  style: TextStyle(color: Color(0xFF9ECE6A)),
-                ),
-                TextSpan(text: 'cd shop && dartvel dev\n\n'),
-                TextSpan(
-                  text: 'dartvel dev: starting backend and Flutter app...\n',
-                  style: TextStyle(color: Color(0xFF7080A8)),
-                ),
-                TextSpan(
-                  text: '[backend] ',
-                  style: TextStyle(color: Color(0xFF7080A8)),
-                ),
-                TextSpan(text: 'dartvel backend listening on '),
-                TextSpan(
-                  text: 'http://0.0.0.0:3000/api\n\n',
-                  style: TextStyle(color: Color(0xFF7DCFFF)),
-                ),
-                TextSpan(
-                  text: '# you save lib/backend/functions/get_post.dart\n',
-                  style: TextStyle(color: Color(0xFF7080A8)),
-                ),
-                TextSpan(text: '[dev] regenerating...\n'),
-                TextSpan(
-                  text: '[dev] restarting backend...',
-                  style: TextStyle(
-                    color: Color(0xFF9ECE6A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 14, 16, 18),
+          // Coloured the way the terminal actually is: the prompt, what you
+          // type and what it answers are three different things.
+          child: Typewriter(
+            style: TextStyle(
+              fontFamily: 'RobotoMono',
+              fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
+              fontSize: 12.5,
+              height: 1.75,
+              color: Color(0xFFD7E1F5),
+            ),
+            <TextSpan>[
+              TextSpan(
+                text: '\$ ',
+                style: TextStyle(color: Color(0xFF9ECE6A)),
+              ),
+              TextSpan(text: 'dartvel create shop\n'),
+              TextSpan(
+                text: '\$ ',
+                style: TextStyle(color: Color(0xFF9ECE6A)),
+              ),
+              TextSpan(text: 'cd shop && dartvel dev\n\n'),
+              TextSpan(
+                text: 'dartvel dev: starting backend and Flutter app...\n',
+                style: TextStyle(color: Color(0xFF7080A8)),
+              ),
+              TextSpan(
+                text: '[backend] ',
+                style: TextStyle(color: Color(0xFF7080A8)),
+              ),
+              TextSpan(text: 'dartvel backend listening on '),
+              TextSpan(
+                text: 'http://0.0.0.0:3000/api\n\n',
+                style: TextStyle(color: Color(0xFF7DCFFF)),
+              ),
+              TextSpan(
+                text: '# you save lib/backend/functions/get_post.dart\n',
+                style: TextStyle(color: Color(0xFF7080A8)),
+              ),
+              TextSpan(text: '[dev] regenerating...\n'),
+              TextSpan(
+                text: '[dev] restarting backend...',
+                style: TextStyle(
+                  color: Color(0xFF9ECE6A),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 @DVFunctionalWidget()
