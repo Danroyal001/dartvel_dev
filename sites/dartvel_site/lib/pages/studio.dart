@@ -67,8 +67,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'gets the same answer as a page that does not exist.',
           'Edit model records in a form. An edit made against a row that '
               'changed after you opened it is refused.',
-          'While you work, dartvel dev serves Studio too, and prints the '
-              'private link that opens it.',
+          'Studio fits a phone: sections move to a bar along the bottom, and '
+              'the editor shows Elements, Page or Style one at a time.',
         ]),
         StudioShot(
           'assets/studio/model-records.png',
@@ -89,8 +89,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Select a node on the canvas or in Layers, style it in the '
               'inspector, preview phone, tablet and desktop widths, and undo '
               'any step.',
-          'Code shows the page as an @DVPage file you can keep in your '
-              'repository.',
+          'Deploy sends the page to your website, phone and tablet apps, '
+              'desktop apps, TVs, browser extensions and devices, or only the '
+              'ones you tick.',
         ]),
         StudioShot(
           'assets/studio/deploy-menu.png',
@@ -101,9 +102,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ),
         Objection(
           'Does deploying a page need a rebuild?',
-          'No. On your web-server, a deployed page takes over its route '
-              'without a rebuild. Restore original page brings the compiled one '
-              'back. '
+          'No. The website shows a deployed page at once, and apps get it '
+              'from your server the next time they open. Restore original page '
+              'brings the compiled one back. '
               'Studio stays on your server. Apps never carry it.',
         ),
       ],
