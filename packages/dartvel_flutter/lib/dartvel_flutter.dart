@@ -49,7 +49,7 @@ import 'src/platform/terminal_size_web.dart'
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
 import 'src/routing/mount.dart' show dvMountedLocation;
-import 'src/routing/nav_link.dart' show DVLinkOpener;
+import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
@@ -9156,10 +9156,31 @@ class _DVPageShellState extends State<DVPageShell> {
     // and forgets it, and a second read falls back to the selection edge.
     final TextSelectionToolbarAnchors anchors = selection.contextMenuAnchors;
     final Offset anchor = anchors.primaryAnchor;
+    // A right-click on a link is about the link: where it goes, and opening
+    // it beside this page. The page's own items stay under them.
+    final String? link = DVPressedLinkTarget.at(anchor);
     return ExcludeFocus(
       child: AdaptiveTextSelectionToolbar.buttonItems(
         anchors: anchors,
         buttonItems: <ContextMenuButtonItem>[
+          if (link != null) ...<ContextMenuButtonItem>[
+            ContextMenuButtonItem(
+              label: 'Open in a new tab',
+              onPressed: () {
+                selection.hideToolbar();
+                DVPressedLinkTarget.clear();
+                DVLinkOpener.open(link, newTab: true);
+              },
+            ),
+            ContextMenuButtonItem(
+              label: 'Copy link address',
+              onPressed: () {
+                selection.hideToolbar();
+                DVPressedLinkTarget.clear();
+                unawaited(Clipboard.setData(ClipboardData(text: link)));
+              },
+            ),
+          ],
           for (final ContextMenuButtonItem item
               in selection.contextMenuButtonItems)
             if (item.type == ContextMenuButtonType.copy && selected.isNotEmpty)
