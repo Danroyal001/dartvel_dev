@@ -8,6 +8,12 @@
 #   dartvel-site-shots  every sitemap page at 1440x900 and 390x844, and one
 #                       contact sheet per few pages for a person to look at
 #
+# A build from main whose every page painted is also published to GitHub
+# Pages, at https://danroyal001.github.io/dartvel_dev/, so the current site
+# can be opened from a link rather than unzipped. Pages serves it under
+# /dartvel_dev/, so that copy's base href and root-relative links are
+# rewritten to that prefix; the zip keeps "/" for dartvel.dev.
+#
 # The staged tree gets 755 directories and 644 files before it is zipped:
 # a tree zipped from /tmp carried 756 and a shared host refused to serve it.
 # A page that paints nothing -- one flat colour -- fails the run, because a
@@ -71,6 +77,21 @@ jobs:
           path: /tmp/out/
           retention-days: 30
 
+      # <base href="/"> and href="/docs" both point at the domain's root,
+      # which on Pages is someone else's. One pattern covers both, so the base
+      # tag is not rewritten twice.
+      - name: Stage the Pages copy under /dartvel_dev/
+        run: |
+          set -euo pipefail
+          cp -r /tmp/stage /tmp/pages
+          find /tmp/pages -name '*.html' -exec \
+            sed -i -E 's#(href|src)="/([^/"]|")#\1="/dartvel_dev/\2#g' {} +
+          grep -q '<base href="/dartvel_dev/">' /tmp/pages/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/pages
+
       # dartvel capture pages waits for each page to show text before it
       # photographs it. Chrome's own --screenshot fires when its virtual time
       # runs out, and caught the home, features and studio pages with their
@@ -126,3 +147,19 @@ jobs:
           name: dartvel-site-shots
           path: /tmp/shots/
           retention-days: 14
+
+  pages:
+    name: publish to GitHub Pages
+    needs: site
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
