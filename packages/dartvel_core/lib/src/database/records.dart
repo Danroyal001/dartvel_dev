@@ -10,6 +10,7 @@
 library dartvel_core.database.records;
 
 import 'adapter.dart';
+import 'framework_tables.dart' show dvEnsureFrameworkTable;
 
 /// How a field is stored, for engines that declare types.
 enum DVFieldType {
@@ -68,8 +69,11 @@ sealed class DVFilter {
   const DVFilter();
 
   /// [field] compared with [value] by [compare].
-  const factory DVFilter.compare(String field, DVCompare compare, Object? value) =
-      DVFieldFilter;
+  const factory DVFilter.compare(
+    String field,
+    DVCompare compare,
+    Object? value,
+  ) = DVFieldFilter;
 
   /// [field] equal to [value].
   factory DVFilter.equals(String field, Object? value) =>
@@ -174,6 +178,13 @@ class DVSort {
 /// stores as one on PostgreSQL. `DV.Database.records` is the one for the
 /// configured database.
 abstract interface class DVRecordAdapter {
+  /// The record operations for [database]: itself when it is a record
+  /// engine, as a document database is, and otherwise compiled to SQL for it.
+  static DVRecordAdapter over(DVDatabaseAdapter database) =>
+      database is DVRecordAdapter
+      ? database as DVRecordAdapter
+      : DVSqlRecordAdapter(database);
+
   /// The collection exists with [shape]'s fields.
   Future<void> ensure(DVRecordShape shape);
 
@@ -222,8 +233,8 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
 
   Future<List<Map<String, Object?>>> _query(String sql, List<Object?> params) =>
       _database == null
-          ? const DVDatabase().query(sql, params)
-          : _database.query(sql, params);
+      ? const DVDatabase().query(sql, params)
+      : _database.query(sql, params);
 
   Future<int> _execute(String sql, List<Object?> params) => _database == null
       ? const DVDatabase().execute(sql, params)
@@ -235,18 +246,25 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
 
   @override
   Future<void> ensure(DVRecordShape shape) async {
-    final DVDatabaseAdapter database =
-        _database ?? const DVDatabase().adapter;
+    final DVDatabaseAdapter database = _database ?? const DVDatabase().adapter;
     final Set<String> done = _ensured[database] ??= <String>{};
     if (done.contains(shape.collection)) return;
-    final String table = _name(shape.collection);
+    final String table = _collection(shape.collection);
     final String columns = <String>[
       for (final MapEntry<String, DVFieldType> field in shape.fields.entries)
-        '${_name(field.key)} ${field.value.sql}'
-            '${field.key == shape.key ? ' PRIMARY KEY' : ''}',
+        field.key == shape.key
+            // MySQL cannot index TEXT without a prefix length, so a text key
+            // is VARCHAR(255), as the framework's other keyed tables are.
+            ? '${_name(field.key)} ${field.value == DVFieldType.text ? 'VARCHAR(255)' : field.value.sql} PRIMARY KEY'
+            : '${_name(field.key)} ${field.value.sql}',
     ].join(', ');
-    await _execute(
-        'CREATE TABLE IF NOT EXISTS $table ($columns)', const <Object?>[]);
+    // Through the framework-table check: every column typed, and on
+    // PostgreSQL and MySQL an integer column an earlier release made 32 bits
+    // wide is widened, or refused with its plan when it has rows.
+    await dvEnsureFrameworkTable(
+      database,
+      'CREATE TABLE IF NOT EXISTS $table ($columns)',
+    );
     // A table from an earlier release keeps the columns it was made with.
     // Selecting a column the table lacks fails on SQLite, PostgreSQL and
     // MySQL alike, and ADD COLUMN is the one ALTER all three share -- the
@@ -277,13 +295,17 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
     final List<Object?> params = <Object?>[];
     final StringBuffer sql = StringBuffer('SELECT ')
       ..write(fields == null ? '*' : fields.map(_name).join(', '))
-      ..write(' FROM ${_name(collection)}')
+      ..write(' FROM ${_collection(collection)}')
       ..write(_where(where, params));
     if (orderBy.isNotEmpty) {
       sql.write(' ORDER BY ');
-      sql.write(orderBy
-          .map((DVSort s) => '${_name(s.field)}${s.descending ? ' DESC' : ''}')
-          .join(', '));
+      sql.write(
+        orderBy
+            .map(
+              (DVSort s) => '${_name(s.field)}${s.descending ? ' DESC' : ''}',
+            )
+            .join(', '),
+      );
     }
     if (limit != null) sql.write(' LIMIT ${_count(limit)}');
     if (offset != null) sql.write(' OFFSET ${_count(offset)}');
@@ -294,7 +316,7 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   Future<int> count(String collection, {DVFilter? where}) async {
     final List<Object?> params = <Object?>[];
     final List<Map<String, Object?>> rows = await _query(
-      'SELECT COUNT(*) AS n FROM ${_name(collection)}${_where(where, params)}',
+      'SELECT COUNT(*) AS n FROM ${_collection(collection)}${_where(where, params)}',
       params,
     );
     final Object? n = rows.isEmpty ? 0 : rows.first['n'];
@@ -305,7 +327,7 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   Future<void> insert(String collection, Map<String, Object?> record) async {
     final List<String> names = record.keys.map(_name).toList();
     await _execute(
-      'INSERT INTO ${_name(collection)} (${names.join(', ')}) '
+      'INSERT INTO ${_collection(collection)} (${names.join(', ')}) '
       'VALUES (${List<String>.filled(names.length, '?').join(', ')})',
       record.values.map(_value).toList(),
     );
@@ -319,10 +341,11 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   }) {
     _refuseEverything(where, 'update');
     final List<Object?> params = changes.values.map(_value).toList();
-    final String assignments =
-        changes.keys.map((String k) => '${_name(k)} = ?').join(', ');
+    final String assignments = changes.keys
+        .map((String k) => '${_name(k)} = ?')
+        .join(', ');
     return _execute(
-      'UPDATE ${_name(collection)} SET $assignments${_where(where, params)}',
+      'UPDATE ${_collection(collection)} SET $assignments${_where(where, params)}',
       params,
     );
   }
@@ -332,7 +355,7 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
     _refuseEverything(where, 'delete');
     final List<Object?> params = <Object?>[];
     return _execute(
-      'DELETE FROM ${_name(collection)}${_where(where, params)}',
+      'DELETE FROM ${_collection(collection)}${_where(where, params)}',
       params,
     );
   }
@@ -341,8 +364,11 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   /// always a filter built from an empty list by mistake.
   static void _refuseEverything(DVFilter where, String operation) {
     if (where.isEmpty) {
-      throw ArgumentError.value(where, 'where',
-          'An empty filter would $operation every record');
+      throw ArgumentError.value(
+        where,
+        'where',
+        'An empty filter would $operation every record',
+      );
     }
   }
 
@@ -351,17 +377,19 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
     // A top-level AND needs no parentheses, and the in-memory development
     // database reads a WHERE as conditions joined by AND.
     if (where is DVAllFilter) {
-      return ' WHERE ${<String>[
-        for (final DVFilter f in where.filters)
-          if (!f.isEmpty) _compile(f, params),
-      ].join(' AND ')}';
+      return ' WHERE ${<String>[for (final DVFilter f in where.filters)
+        if (!f.isEmpty) _compile(f, params)].join(' AND ')}';
     }
     return ' WHERE ${_compile(where, params)}';
   }
 
   static String _compile(DVFilter filter, List<Object?> params) {
     switch (filter) {
-      case DVFieldFilter(:final String field, :final DVCompare compare, :final Object? value):
+      case DVFieldFilter(
+        :final String field,
+        :final DVCompare compare,
+        :final Object? value,
+      ):
         params.add(_value(value));
         return '${_name(field)} ${compare.sql} ?';
       case DVNullFilter(:final String field, :final bool negate):
@@ -376,7 +404,10 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   }
 
   static String _join(
-      List<DVFilter> filters, String word, List<Object?> params) {
+    List<DVFilter> filters,
+    String word,
+    List<Object?> params,
+  ) {
     final List<String> parts = <String>[
       for (final DVFilter f in filters)
         if (!f.isEmpty) _compile(f, params),
@@ -388,9 +419,19 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
 
   static String _name(String name) {
     if (!_identifier.hasMatch(name)) {
-      throw ArgumentError.value(
-          name, 'name', 'Not a collection or field name');
+      throw ArgumentError.value(name, 'name', 'Not a collection or field name');
     }
+    return name;
+  }
+
+  /// A collection's name, which may be qualified by a schema: a tenant's
+  /// tables sit in its own under schema-per-tenant.
+  static String _collection(String name) {
+    final List<String> parts = name.split('.');
+    if (parts.length > 2) {
+      throw ArgumentError.value(name, 'name', 'Not a collection name');
+    }
+    parts.forEach(_name);
     return name;
   }
 
@@ -427,17 +468,19 @@ class DVMemoryRecordEngine implements DVDatabaseAdapter, DVRecordAdapter {
       _collections.putIfAbsent(collection, () => <Map<String, Object?>>[]);
 
   @override
-  Future<List<Map<String, Object?>>> query(String sql,
-          [List<Object?>? params]) =>
-      Future<List<Map<String, Object?>>>.error(_noSql(sql));
+  Future<List<Map<String, Object?>>> query(
+    String sql, [
+    List<Object?>? params,
+  ]) => Future<List<Map<String, Object?>>>.error(_noSql(sql));
 
   @override
   Future<int> execute(String sql, [List<Object?>? params]) =>
       Future<int>.error(_noSql(sql));
 
   static UnsupportedError _noSql(String sql) => UnsupportedError(
-      'This database runs records, not SQL, as a document database does. '
-      'Persist through DV.Database.records. Refused: $sql');
+    'This database runs records, not SQL, as a document database does. '
+    'Persist through DV.Database.records. Refused: $sql',
+  );
 
   @override
   Future<void> ensure(DVRecordShape shape) async => _in(shape.collection);
@@ -464,15 +507,16 @@ class DVMemoryRecordEngine implements DVDatabaseAdapter, DVRecordAdapter {
           final int order = x == null
               ? (y == null ? 0 : -1)
               : y == null
-                  ? 1
-                  : _compareValues(x, y);
+              ? 1
+              : _compareValues(x, y);
           if (order != 0) return sort.descending ? -order : order;
         }
         return 0;
       });
     }
-    final Iterable<Map<String, Object?>> paged =
-        matches.skip(offset ?? 0).take(limit ?? matches.length);
+    final Iterable<Map<String, Object?>> paged = matches
+        .skip(offset ?? 0)
+        .take(limit ?? matches.length);
     return <Map<String, Object?>>[
       for (final Map<String, Object?> record in paged)
         fields == null
