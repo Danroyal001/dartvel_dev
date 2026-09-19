@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/switch_control.dart';
+import 'src/auth/ask_for_code.dart';
 import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
 // conditional SEO implementation
@@ -351,6 +352,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVModelSyncTransport,
         DVModelWatch,
         DVAssetKind,
+        DVOneTimeCode,
         DVAssetRef,
         DVAssetImage,
         DVAssetMedia,
@@ -682,6 +684,7 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
+export 'src/auth/ask_for_code.dart';
 export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
 export 'src/auth/session_token_file_io.dart'
@@ -6133,6 +6136,43 @@ class DVAuth {
     }
     return configured ?? fallback;
   }
+
+  /// A one-time code to send somebody: six digits unless [length] says
+  /// otherwise, from a secure random, with its leading zeros kept.
+  ///
+  /// For the codes an application asks people to type back -- a sign-in
+  /// link's short form, confirming an address, approving a payout. A code
+  /// built from Random() rather than Random.secure() is one an attacker can
+  /// predict from a couple of samples, which is the mistake this exists to
+  /// stop every project making on its own.
+  String code({int length = 6}) => DVOneTimeCode.create(length: length);
+
+  /// Asks for the code that was sent, as a modal over the page.
+  ///
+  /// Answers with what was typed, or null when it was dismissed. Pass
+  /// [verify] to check it without closing: answer with what to tell the
+  /// person, and they can try again. For a flow with a page of its own,
+  /// [AskForCodePage] asks the same thing without a dialog.
+  Future<String?> askForCode(
+    BuildContext context, {
+    int length = 6,
+    String title = 'Enter your code',
+    String? message,
+    DVCodeCheck? verify,
+  }) =>
+      dvAskForCode(context,
+          length: length, title: title, message: message, verify: verify);
+
+  /// The same question as a whole page.
+  // ignore: non_constant_identifier_names -- a prebuilt page, as the others.
+  Widget AskForCodePage({
+    int length = 6,
+    String title = 'Enter your code',
+    String? message,
+    required Future<String?> Function(String code) onCode,
+  }) =>
+      DVAskForCodePage(
+          length: length, title: title, message: message, onCode: onCode);
 
   DVAuthUser? get currentUser => _currentUser;
   DVAuthAuthorization get authorization => const DVAuthAuthorization();
