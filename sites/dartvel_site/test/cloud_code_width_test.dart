@@ -6,7 +6,6 @@
 // uses, at the width the block is laid out at.
 import 'dart:io';
 
-import 'package:dartvel_site/components/highlight.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
 import 'package:flutter/material.dart';
