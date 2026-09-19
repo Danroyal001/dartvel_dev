@@ -184,21 +184,55 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     // A Material, not a coloured box: sections are free to use material
     // widgets, and a ColoredBox between a ListTile and its nearest Material
     // hides the tile's background and ink, which Flutter asserts on.
+    // Keyed per section so switching away disposes the controller rather
+    // than leaving an edit of one kind live under the other.
+    final Widget body = Expanded(
+      child: KeyedSubtree(
+        key: ValueKey<String>('dv-studio-body-${current.id}'),
+        child: Builder(builder: current.build),
+      ),
+    );
+    // On a phone the rail's 76 points are a fifth of the screen, so the
+    // sections move to a bar along the bottom, where a thumb reaches them.
+    final bool phone =
+        (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < dvStudioPhoneWidth;
     return Material(
       color: DVStudioStyle.canvas,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          _rail(sections),
-          Expanded(
-            // Keyed per section so switching away disposes the controller
-            // rather than leaving an edit of one kind live under the other.
-            child: KeyedSubtree(
-              key: ValueKey<String>('dv-studio-body-${current.id}'),
-              child: Builder(builder: current.build),
+      child: phone
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[body, _bottomBar(sections)],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[_rail(sections), body],
             ),
-          ),
-        ],
+    );
+  }
+
+  /// The sections along the bottom of a phone, scrolling sideways when there
+  /// are more than fit.
+  Widget _bottomBar(List<DVStudioSection> sections) {
+    final double inset = MediaQuery.maybePaddingOf(context)?.bottom ?? 0;
+    return Container(
+      key: const ValueKey<String>('dv-studio-bottom-bar'),
+      color: DVStudioStyle.rail,
+      padding: EdgeInsets.only(bottom: inset),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            for (final DVStudioSection section in sections)
+              SizedBox(
+                width: 72,
+                child: _DVStudioRailItem(
+                  section: section,
+                  selected: section.id == _selected,
+                  onTap: () => setState(() => _selected = section.id),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -208,6 +242,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
   /// way every tool this has to stand beside does it.
   Widget _rail(List<DVStudioSection> sections) {
     return Container(
+      key: const ValueKey<String>('dv-studio-rail'),
       width: 76,
       color: DVStudioStyle.rail,
       child: Column(
@@ -412,6 +447,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   bool get _narrow =>
       (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < 1100;
 
+  /// Below this the editor shows one pane at a time.
+  bool get _phone =>
+      (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < dvStudioPhoneWidth;
+
+  /// Which pane a phone shows.
+  _DVStudioPane _pane = _DVStudioPane.page;
+
   @override
   void initState() {
     super.initState();
@@ -570,6 +612,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       _detach = <VoidCallback>[
         for (final DVStudioEditorHook hook in widget.editorHooks)
           hook(controller),
+        // On a phone the palette covers the page; an element dropped from
+        // it goes back to the page, where it can be seen.
+        controller.edits.listen((DVStudioEdit edit) {
+          if (edit.kind == 'insert' && _pane == _DVStudioPane.elements && mounted) {
+            setState(() => _pane = _DVStudioPane.page);
+          }
+        }).cancel,
       ];
       _showingCode = false;
     });
@@ -685,6 +734,24 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   // --- overview -------------------------------------------------------------
 
   Widget _overview() {
+    if (_phone) {
+      // The page list on top, where a new page is started, and the overview
+      // under it: side by side they left the overview 34 points.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Container(
+            height: 240,
+            decoration: const BoxDecoration(
+              color: DVStudioStyle.surface,
+              border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
+            ),
+            child: _pageList(),
+          ),
+          Expanded(child: _dashboard()),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -864,7 +931,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _dashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(DVStudioStyle.space8),
+      padding: EdgeInsets.all(_phone ? DVStudioStyle.space4 : DVStudioStyle.space8),
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1047,13 +1114,15 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           ),
           const SizedBox(height: DVStudioStyle.space4),
           if (_routes.isEmpty)
-            SizedBox(
-              height: 220,
+            // At least 220, not exactly: on a narrow phone the message wraps
+            // to more lines than a fixed box holds.
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 220),
               child: DVStudioStyle.emptyState(
                 icon: DVStudioIcons.pages,
                 title: 'Build your first page',
-                message: 'Name a route in the panel on the left and press '
-                    'Create page. It goes live the moment you deploy.',
+                message: 'Name a route under Pages and press Create page. '
+                    'It goes live the moment you deploy.',
               ),
             )
           else
@@ -1169,55 +1238,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                       onRestore: (DVContentVersion<DVPageDocument> version) =>
                           unawaited(_restoreVersion(review, version)),
                     )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Container(
-                      width: narrow ? 220 : 264,
-                      decoration: const BoxDecoration(
-                        color: DVStudioStyle.surface,
-                        border: Border(
-                            right: BorderSide(color: DVStudioStyle.line)),
-                      ),
-                      child: _leftColumn(controller),
-                    ),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (BuildContext context, BoxConstraints box) {
-                          final double fit =
-                              ((box.maxWidth - 96) / _device.width)
-                                  .clamp(0.25, 1.0);
-                          return DVStudioCanvas(
-                            controller: controller,
-                            viewportWidth: _device.width,
-                            zoom: _zoom ?? fit,
-                          );
-                        },
-                      ),
-                    ),
-                    Container(
-                      width: review != null && _reviewOpen
-                          ? (narrow ? 264 : 320)
-                          : (narrow ? 248 : 300),
-                      decoration: const BoxDecoration(
-                        color: DVStudioStyle.surface,
-                        border:
-                            Border(left: BorderSide(color: DVStudioStyle.line)),
-                      ),
-                      child: review != null && _reviewOpen
-                          ? StudioReviewPanel(
-                              session: review,
-                              controller: controller,
-                              reviewers: widget.reviewers,
-                              onClose: _toggleReview,
-                              onSchedule: () =>
-                                  setState(() => _scheduling = true),
-                              onHistory: _toggleHistory,
-                            )
-                          : DVStudioInspector(controller: controller),
-                    ),
-                  ],
-                ),
+              : _workspace(controller, review, narrow),
         ),
       ],
     );
@@ -1234,6 +1255,126 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           ),
         ),
       ],
+    );
+  }
+
+  /// The editor's panes: Elements (insert and layers), the page, and Style
+  /// (the inspector, or the review panel when that is open).
+  ///
+  /// Side by side where there is room. On a phone the three would need 564
+  /// points before the page got any, so one shows at a time, chosen from a
+  /// bar along the bottom, the page first.
+  Widget _workspace(DVStudioEditorController controller,
+      StudioReviewSession? review, bool narrow) {
+    final Widget elements = _leftColumn(controller);
+    final Widget page = LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        final double fit =
+            ((box.maxWidth - (_phone ? 24 : 96)) / _device.width)
+                .clamp(0.25, 1.0);
+        return DVStudioCanvas(
+          controller: controller,
+          viewportWidth: _device.width,
+          zoom: _zoom ?? fit,
+        );
+      },
+    );
+    final Widget style = review != null && _reviewOpen
+        ? StudioReviewPanel(
+            session: review,
+            controller: controller,
+            reviewers: widget.reviewers,
+            onClose: _toggleReview,
+            onSchedule: () => setState(() => _scheduling = true),
+            onHistory: _toggleHistory,
+          )
+        : DVStudioInspector(controller: controller);
+    if (_phone) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(
+            child: ColoredBox(
+              color: _pane == _DVStudioPane.page
+                  ? DVStudioStyle.canvas
+                  : DVStudioStyle.surface,
+              child: switch (_pane) {
+                _DVStudioPane.elements => elements,
+                _DVStudioPane.page => page,
+                _DVStudioPane.style => style,
+              },
+            ),
+          ),
+          _paneBar(),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Container(
+          width: narrow ? 220 : 264,
+          decoration: const BoxDecoration(
+            color: DVStudioStyle.surface,
+            border: Border(right: BorderSide(color: DVStudioStyle.line)),
+          ),
+          child: elements,
+        ),
+        Expanded(child: page),
+        Container(
+          width: review != null && _reviewOpen
+              ? (narrow ? 264 : 320)
+              : (narrow ? 248 : 300),
+          decoration: const BoxDecoration(
+            color: DVStudioStyle.surface,
+            border: Border(left: BorderSide(color: DVStudioStyle.line)),
+          ),
+          child: style,
+        ),
+      ],
+    );
+  }
+
+  /// The phone editor's pane switcher.
+  Widget _paneBar() {
+    Widget item(_DVStudioPane pane, IconData icon, String label) {
+      final bool on = _pane == pane;
+      return Expanded(
+        child: GestureDetector(
+          key: ValueKey<String>('dv-studio-pane-${pane.name}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _pane = pane),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon,
+                    size: 20,
+                    color: on ? DVStudioStyle.accent : DVStudioStyle.muted),
+                const SizedBox(height: 2),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+                        color: on ? DVStudioStyle.accent : DVStudioStyle.muted)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: DVStudioStyle.surface,
+        border: Border(top: BorderSide(color: DVStudioStyle.line)),
+      ),
+      child: Row(children: <Widget>[
+        item(_DVStudioPane.elements, DVStudioIcons.insert, 'Elements'),
+        item(_DVStudioPane.page, DVStudioIcons.page, 'Page'),
+        item(_DVStudioPane.style, DVStudioIcons.design, 'Style'),
+      ]),
     );
   }
 
@@ -1998,3 +2139,10 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
     );
   }
 }
+
+/// Below this width Studio is laid out for a phone: sections along the
+/// bottom, and the editor one pane at a time.
+const double dvStudioPhoneWidth = 600;
+
+/// The phone editor's panes.
+enum _DVStudioPane { elements, page, style }
