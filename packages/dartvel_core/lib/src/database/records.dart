@@ -387,3 +387,107 @@ int _compareValues(Object a, Object b) {
   if (a is num && b is bool) return a.compareTo(b ? 1 : 0);
   return a.toString().compareTo(b.toString());
 }
+
+/// An in-memory database that runs the record operations and no SQL.
+///
+/// It stands in for a document engine. Configured as `DV.Database`, a
+/// surface that still writes a SQL string fails naming the statement, and one
+/// written against `DV.Database.records` works -- which is what a project on
+/// MongoDB will see. For tests; the development database that runs the
+/// framework's SQL is [MemoryDVDatabaseAdapter].
+class DVMemoryRecordEngine implements DVDatabaseAdapter, DVRecordAdapter {
+  final Map<String, List<Map<String, Object?>>> _collections =
+      <String, List<Map<String, Object?>>>{};
+
+  List<Map<String, Object?>> _in(String collection) =>
+      _collections.putIfAbsent(collection, () => <Map<String, Object?>>[]);
+
+  @override
+  Future<List<Map<String, Object?>>> query(String sql,
+          [List<Object?>? params]) =>
+      Future<List<Map<String, Object?>>>.error(_noSql(sql));
+
+  @override
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      Future<int>.error(_noSql(sql));
+
+  static UnsupportedError _noSql(String sql) => UnsupportedError(
+      'This database runs records, not SQL, as a document database does. '
+      'Persist through DV.Database.records. Refused: $sql');
+
+  @override
+  Future<void> ensure(DVRecordShape shape) async => _in(shape.collection);
+
+  @override
+  Future<List<Map<String, Object?>>> find(
+    String collection, {
+    DVFilter? where,
+    List<DVSort> orderBy = const <DVSort>[],
+    int? limit,
+    int? offset,
+    List<String>? fields,
+  }) async {
+    final List<Map<String, Object?>> matches = <Map<String, Object?>>[
+      for (final Map<String, Object?> record in _in(collection))
+        if (where == null || where.isEmpty || where.matches(record)) record,
+    ];
+    if (orderBy.isNotEmpty) {
+      matches.sort((Map<String, Object?> a, Map<String, Object?> b) {
+        for (final DVSort sort in orderBy) {
+          final Object? x = a[sort.field];
+          final Object? y = b[sort.field];
+          // Nulls first ascending, as SQLite and PostgreSQL's NULLS FIRST.
+          final int order = x == null
+              ? (y == null ? 0 : -1)
+              : y == null
+                  ? 1
+                  : _compareValues(x, y);
+          if (order != 0) return sort.descending ? -order : order;
+        }
+        return 0;
+      });
+    }
+    final Iterable<Map<String, Object?>> paged =
+        matches.skip(offset ?? 0).take(limit ?? matches.length);
+    return <Map<String, Object?>>[
+      for (final Map<String, Object?> record in paged)
+        fields == null
+            ? Map<String, Object?>.of(record)
+            : <String, Object?>{for (final String f in fields) f: record[f]},
+    ];
+  }
+
+  @override
+  Future<int> count(String collection, {DVFilter? where}) async =>
+      (await find(collection, where: where)).length;
+
+  @override
+  Future<void> insert(String collection, Map<String, Object?> record) async =>
+      _in(collection).add(Map<String, Object?>.of(record));
+
+  @override
+  Future<int> update(
+    String collection,
+    Map<String, Object?> changes, {
+    required DVFilter where,
+  }) async {
+    DVSqlRecordAdapter._refuseEverything(where, 'update');
+    int changed = 0;
+    for (final Map<String, Object?> record in _in(collection)) {
+      if (where.matches(record)) {
+        record.addAll(changes);
+        changed++;
+      }
+    }
+    return changed;
+  }
+
+  @override
+  Future<int> delete(String collection, {required DVFilter where}) async {
+    DVSqlRecordAdapter._refuseEverything(where, 'delete');
+    final List<Map<String, Object?>> records = _in(collection);
+    final int before = records.length;
+    records.removeWhere(where.matches);
+    return before - records.length;
+  }
+}
