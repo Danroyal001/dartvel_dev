@@ -71,30 +71,17 @@ jobs:
           path: /tmp/out/
           retention-days: 30
 
+      # dartvel capture pages waits for each page to show text before it
+      # photographs it. Chrome's own --screenshot fires when its virtual time
+      # runs out, and caught the home, features and studio pages with their
+      # backgrounds drawn and their text not yet painted.
       - name: Photograph every page in the sitemap
+        working-directory: sites/dartvel_site
         run: |
-          set -uo pipefail
-          mkdir -p /tmp/shots
-          (cd /tmp/stage && dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8090 --spa > /tmp/serve.log 2>&1 &)
-          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:8090/ && break; sleep 1; done
-          grep -o '<loc>[^<]*</loc>' /tmp/stage/sitemap.xml \
-            | sed -E 's#</?loc>##g; s#^https?://[^/]+##; s#^$#/#' > /tmp/shots/routes.txt
-          echo "$(wc -l < /tmp/shots/routes.txt) routes"
-          BROWSER=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
-          shoot() {
-            route="$1"; tag="$2"; size="$3"
-            name=$(echo "$route" | sed 's#^/##; s#/#_#g'); name=${name:-home}
-            "$BROWSER" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
-              --virtual-time-budget=15000 --window-size="$size" \
-              --screenshot="/tmp/shots/$name-$tag.png" "http://127.0.0.1:8090$route" \
-              > /dev/null 2>&1
-          }
-          export -f shoot; export BROWSER
-          # Four browsers at a time: each page is a fresh Chrome that waits
-          # out its own virtual time, so the run is wall-clock bound.
-          { while read -r r; do echo "$r d 1440,900"; echo "$r m 390,844"; done < /tmp/shots/routes.txt; } \
-            | xargs -P 4 -L 1 bash -c 'shoot "$0" "$1" "$2"'
-          ls /tmp/shots/*.png | wc -l
+          set -euo pipefail
+          dart run dartvel_cli:dartvel capture pages --web /tmp/stage --out /tmp/shots \
+            --sizes 1440x900,390x844 --chrome "$(command -v google-chrome)"
+          grep -o '<loc>[^<]*</loc>' /tmp/stage/sitemap.xml > /tmp/shots/routes.txt
 
       - name: Every page painted something
         run: |
@@ -120,12 +107,14 @@ jobs:
           set -uo pipefail
           mkdir -p /tmp/shots/sheets
           cd /tmp/shots
-          ls *-d.png 2>/dev/null | split -l 4 -d -a 2 - sheets/d_
-          ls *-m.png 2>/dev/null | split -l 8 -d -a 2 - sheets/m_
+          ls *-1440x900.png 2>/dev/null | split -l 4 -d -a 2 - sheets/d_ || true
+          ls *-390x844.png 2>/dev/null | split -l 8 -d -a 2 - sheets/m_ || true
           for list in sheets/d_??; do
+            [ -e "$list" ] || continue
             montage -label '%t' $(cat "$list") -tile 2x2 -geometry 720x450+4+4 -pointsize 14 "$list.png"
           done
           for list in sheets/m_??; do
+            [ -e "$list" ] || continue
             montage -label '%t' $(cat "$list") -tile 8x1 -geometry 195x422+3+3 -pointsize 11 "$list.png"
           done
           rm -f sheets/d_?? sheets/m_??
