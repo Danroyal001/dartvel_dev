@@ -337,7 +337,7 @@ Widget _studioProof(BuildContext context) => const Section(
     ]),
     StudioShot(
       'assets/studio/page-builder.png',
-      'Dartvel Studio page builder with the Layers tree, a selected card '
+      'Dartvel Studio page builder with the Layers tree, a selected heading '
           'on the canvas and the inspector',
     ),
     DVBox.wrapLine(<Widget>[GhostLink('See Studio and Studio Pro', '/studio')]),
