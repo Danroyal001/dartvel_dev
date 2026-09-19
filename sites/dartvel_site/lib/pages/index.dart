@@ -332,8 +332,8 @@ Widget _studioProof(BuildContext context) => const Section(
       'Studio is free and runs inside your web-server binary. Apps never '
           'carry it.',
       'Build a page visually, and export it as an ordinary @DVPage file.',
-      'Studio Pro comes with Dartvel Cloud, and builds frontend and backend '
-          'functions from steps.',
+      'Frontend and backend functions are built from steps, free. Studio Pro, '
+          'with Dartvel Cloud, adds Figma import and team review.',
     ]),
     StudioShot(
       'assets/studio/page-builder.png',

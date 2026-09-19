@@ -8884,15 +8884,23 @@ Studio provides:
   page-based editor (WordPress/FlutterFlow) — Framer's middle ground.
 - **Model management.** Generated model CRUD, driven by the same metadata the
   admin already uses.
-- **Backend function and workflow building.** Drag-and-drop composition of
-  backend behaviour, Webflow/FlutterFlow-style. A `DVWorkflowDocument` is a
-  serializable step tree — `call`, `set`, `condition`, `return` — that
-  `DVWorkflows.run` executes directly, so saving publishes, and
-  `toDartSource()` exports as an ordinary `@DVBackendFunction`, so the builder
-  can be dropped. Steps call actions registered with
+- **Frontend and backend function building, free.** Drag-and-drop composition
+  of behaviour, Webflow/FlutterFlow-style, in two sections: Frontend for what
+  runs in the app — what a button does — and Backend for what runs on the
+  server. A page builder without them would be a page builder whose buttons
+  do nothing, which is why they are not Pro.
+  A `DVWorkflowDocument` is a serializable step tree — `call`, `set`,
+  `condition`, `return` — with a side and typed inputs, that `DVWorkflows.run`
+  executes directly, so saving publishes. `toDartSource()` exports a backend
+  one as an ordinary `@DVBackendFunction` and a frontend one as a plain
+  function in the app whose calls go through the generated client, so the
+  builder can be dropped. Steps call actions registered with
   `DVWorkflows.registerAction`, which is the same code an application calls.
-  A workflow fails loudly: an unknown action or variable stops the run and
-  names the step, rather than yielding null and reporting success.
+  A run fails loudly: an unknown action or variable, or an input of the wrong
+  type, stops it and names the step, rather than yielding null and reporting
+  success.
+  The Backend section also lists the backend functions the project wrote in
+  code, which are edited in their files rather than here.
 
 ## Where Studio lives today
 
@@ -8914,11 +8922,14 @@ Flutter widget with a dark navigation rail of sections:
 
 An application adds its own sections with `DVStudioSection` and hooks into the
 editor with `DVStudioEditorHook`. Approval, multi-user editing, saved revision
-history, reusable components, Figma import and the workflow builder above are
-Studio Pro. Pro lives in `dartvel_studio_pro` in the private enterprise
+history, reusable components and Figma import are Studio Pro, which comes with
+Dartvel Cloud. Pro lives in `dartvel_studio_pro` in the private enterprise
 repository and attaches through those same seams, so an open-source build
-shows no tab that opens onto nothing. No `DVWorkflowDocument` exists in this
-repository.
+shows no tab that opens onto nothing, and Pro is not in the default
+web-server binary. The function builders are free and ship in
+`dartvel_flutter`; in the Studio a web-server binary serves they keep their
+functions through the Studio API, since a browser has no database of its
+own.
 
 `dartvel admin generate` writes `lib/pages/_dartvel_admin/studio.page.dart`,
 which opens `DVStudioScreen` behind the `viewAdmin` policy. When the backend

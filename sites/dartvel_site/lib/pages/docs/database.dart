@@ -102,6 +102,29 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'records',
+          title: 'Store records without writing SQL',
+          children: <Widget>[
+            DocsText('A page, a saved report, an audit entry: data that is '
+                'not a model still has to be stored. Records are how the '
+                'framework stores its own, and they name no SQL, so the same '
+                'code runs on SQLite, PostgreSQL, MySQL and, when it lands, '
+                'MongoDB.'),
+            DocsCode('records-shape'),
+            DocsText('Write through DV.Database.records. An update carries '
+                'the version it read in its filter. A lost update comes back '
+                'as a count of nought, and nothing is overwritten:'),
+            DocsCode('records-write'),
+            DocsText('Reads take the same filters, with order, paging and a '
+                'count:'),
+            DocsCode('records-read'),
+            DocsStatus('Storage-Neutral Records', missing: <String>[
+              'Models still go through DVRecordTable, which writes SQL.',
+              'There is no MongoDB engine yet.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'tenants',
           title: 'Add a tenant column to existing rows',
           children: <Widget>[

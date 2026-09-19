@@ -250,6 +250,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'Android. Absent: most bindings on iOS, which has 7.',
   ),
   (
+    'Storage-Neutral Records',
+    'One data layer, any engine',
+    'Present: records, filters and versioned writes that compile to SQL, with '
+        'Studio and its stores already on them. Absent: models and the other '
+        'framework stores, and the MongoDB engine itself.',
+  ),
+  (
     'Schema Evolution',
     'Online migrations',
     'Present: a planner that classifies blocking changes per database version '
