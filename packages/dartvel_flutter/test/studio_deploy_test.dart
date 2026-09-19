@@ -50,4 +50,14 @@ void main() {
 
     expect(await const DVPageStore().routes(), <String>['/menu']);
   });
+
+  // The button says Deploy, so the overview that explains it must not send
+  // the owner looking for a Publish button that is not there.
+  testWidgets('the overview speaks of deploying', (WidgetTester tester) async {
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining(RegExp('publish', caseSensitive: false)),
+        findsNothing);
+  });
 }
