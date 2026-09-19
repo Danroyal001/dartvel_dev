@@ -2251,6 +2251,10 @@ class DVBox<T> extends StatelessWidget {
         );
         break;
       case _DVBoxLayout.row:
+        if (_stacksWhenNarrow(children)) {
+          result = _adaptiveRow(children);
+          break;
+        }
         result = Row(
           mainAxisSize: _mainAxisSize,
           mainAxisAlignment: _mainAxisAlignment,
@@ -2299,6 +2303,33 @@ class DVBox<T> extends StatelessWidget {
         break;
     }
     return _maybeScrollable(result);
+  }
+
+  /// True when a row should stack its children rather than overflow.
+  ///
+  /// A row wider than its screen was clipped in release, its last child out
+  /// of reach, and a watch or a phone met that on the first page anybody
+  /// wrote. A row with an Expanded or Flexible child already shares the
+  /// width it has, so it stays a Row; so does one aligned to its top or
+  /// bottom edge, which a stacked layout could not honour.
+  bool _stacksWhenNarrow(List<Widget> children) =>
+      _responsive &&
+      (_crossAlign == DVCrossAlign.stretch ||
+          _crossAlign == DVCrossAlign.center) &&
+      !children.any((Widget child) => child is Flexible);
+
+  /// A row where the children fit, and a column, in order, where they do not.
+  Widget _adaptiveRow(List<Widget> children) {
+    final Widget bar = OverflowBar(
+      spacing: _spacing,
+      overflowSpacing: _spacing,
+      alignment: _mainAxisAlignment,
+      overflowAlignment: OverflowBarAlignment.start,
+      children: children,
+    );
+    // A packed row stays as wide as its children, as a Row with
+    // MainAxisSize.min is: OverflowBar on its own takes the whole width.
+    return _mainAxisSize == MainAxisSize.min ? IntrinsicWidth(child: bar) : bar;
   }
 
   Widget _buildTwoPane(BuildContext context, List<Widget> children) {
@@ -2398,10 +2429,14 @@ class DVBox<T> extends StatelessWidget {
           children: [for (final item in items) builder(context, item)],
         );
       case _DVBoxLayout.row:
+        final List<Widget> built = <Widget>[
+          for (final item in items) builder(context, item),
+        ];
+        if (_stacksWhenNarrow(built)) return _adaptiveRow(built);
         return Row(
           mainAxisSize: _mainAxisSize,
           mainAxisAlignment: _mainAxisAlignment,
-          children: _spaced([for (final item in items) builder(context, item)]),
+          children: _spaced(built),
         );
       case _DVBoxLayout.masonry:
         return _buildMasonry(
