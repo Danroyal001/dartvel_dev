@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
+import 'deployed_pages_stub.dart'
+    if (dart.library.io) 'deployed_pages_io.dart' as deployed;
 
 /// One widget in a page document.
 ///
@@ -1875,9 +1877,21 @@ class DVPageStore {
   /// pages come from somewhere else.
   static Future<List<DVPageDocument>> Function()? source;
 
-  static Future<List<DVPageDocument>> Function()? get _source =>
-      source ??
-      (kIsWeb && DVAuth.servedByOwnServer ? dvPublishedPagesFromServer : null);
+  /// True when this app reads deployed pages from its backend.
+  ///
+  /// The generated client sets it for a project whose pubspec turns Studio
+  /// on (`dartvel.admin.enabled: true`): an app installed on a device then
+  /// asks its backend at launch, and serves a page deployed to its target.
+  /// A project without Studio never makes the request.
+  static bool fromBackend = false;
+
+  static Future<List<DVPageDocument>> Function()? get _source {
+    if (source != null) return source;
+    if (kIsWeb) {
+      return DVAuth.servedByOwnServer ? dvPublishedPagesFromServer : null;
+    }
+    return fromBackend ? deployed.dvDeployedPagesFromBackend : null;
+  }
 
   /// Reads every document again, and tells each route whose document
   /// appeared, changed or went.
