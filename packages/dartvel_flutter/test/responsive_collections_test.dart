@@ -117,6 +117,53 @@ void main() {
     });
   });
 
+  group('a row', () {
+    const Key a = ValueKey<String>('a');
+    const Key b = ValueKey<String>('b');
+    Widget pair() => const DVBox.row(<Widget>[
+          SizedBox(key: a, width: 200, height: 40),
+          SizedBox(key: b, width: 200, height: 40),
+        ], spacing: 12);
+
+    testWidgets('stays a row where it fits', (WidgetTester tester) async {
+      await render(tester, const Size(1440, 900), pair());
+
+      expect(tester.getTopLeft(find.byKey(b)).dy,
+          tester.getTopLeft(find.byKey(a)).dy);
+      expect(tester.getTopLeft(find.byKey(b)).dx,
+          tester.getTopRight(find.byKey(a)).dx + 12);
+    });
+
+    // A row wider than the screen overflowed: clipped in release, with the
+    // last child unreachable and nothing to say so. It stacks instead.
+    for (final Size size in const <Size>[Size(320, 640), Size(192, 192)]) {
+      testWidgets('stacks on a ${size.width.toInt()}-point screen instead of '
+          'overflowing', (WidgetTester tester) async {
+        await render(tester, size, pair());
+
+        expect(tester.takeException(), isNull);
+        expect(tester.getTopLeft(find.byKey(b)).dy,
+            greaterThanOrEqualTo(tester.getBottomLeft(find.byKey(a)).dy));
+      });
+    }
+
+    testWidgets('with an Expanded child still shares the width',
+        (WidgetTester tester) async {
+      await render(
+        tester,
+        const Size(320, 640),
+        const DVBox.row(<Widget>[
+          SizedBox(key: a, width: 100, height: 40),
+          Expanded(child: SizedBox(key: b, height: 40)),
+        ]),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(tester.getTopLeft(find.byKey(b)).dy,
+          tester.getTopLeft(find.byKey(a)).dy);
+    });
+  });
+
   testWidgets('a grid with fewer children than columns does not pad out',
       (WidgetTester tester) async {
     // Two cards in a three-column grid should not leave a third of the row

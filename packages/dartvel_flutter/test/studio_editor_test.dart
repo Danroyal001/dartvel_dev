@@ -375,11 +375,13 @@ void main() {
 
       await tester.pumpWidget(host(DVStudioEditorController(document)));
 
-      // Twenty-four points between two texts, wherever the gap is drawn.
-      final Iterable<SizedBox> gaps = tester
-          .widgetList<SizedBox>(find.byType(SizedBox))
-          .where((SizedBox box) => box.width == 24);
-      expect(gaps, isNotEmpty,
+      // Twenty-four points between two texts, measured where they are drawn
+      // rather than looked for as a SizedBox: a row may lay its gap out
+      // without one.
+      expect(
+          tester.getTopLeft(find.text('two')).dx -
+              tester.getTopRight(find.text('one')).dx,
+          moreOrLessEquals(24),
           reason: 'the declared spacing never reached the canvas');
     });
 
