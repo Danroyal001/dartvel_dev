@@ -39,10 +39,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         StudioShot(
           'assets/studio/page-builder.png',
-          'Dartvel Studio page builder with the Layers tree, a selected card '
-              'on the canvas and the inspector',
+          'Dartvel Studio page builder with the Layers tree, a selected '
+              'heading on the canvas and the inspector',
           caption: 'The page builder served by a web-server binary: Layers on '
-              'the left, the selected card on the canvas, its styles on the '
+              'the left, the selected heading on the canvas, its styles on the '
               'right.',
         ),
       ],
@@ -92,6 +92,13 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Code shows the page as an @DVPage file you can keep in your '
               'repository.',
         ]),
+        StudioShot(
+          'assets/studio/deploy-menu.png',
+          'The Deploy button open on its menu: Deploy now, and Restore '
+              'original page',
+          caption: 'Deploy puts the page live. Its menu also restores the page '
+              'from your last build.',
+        ),
         Objection(
           'Does deploying a page need a rebuild?',
           'No. On your web-server, a deployed page takes over its route '
