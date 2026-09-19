@@ -369,7 +369,8 @@ Widget _docsArticle(
   return DocsAnchors(
     ids: <String>[for (final DocsSection s in parts) s.id],
     builder: (BuildContext inner, Map<String, GlobalKey> keys) =>
-        SingleChildScrollView(
+        ScrollToFragment(
+      child: SingleChildScrollView(
       child: DVBox.list(<Widget>[
         DVBox(
           DVBox.list(<Widget>[
@@ -394,6 +395,7 @@ Widget _docsArticle(
         ),
         const SiteFooter(),
       ], spacing: 0),
+    ),
     ),
   );
 }
