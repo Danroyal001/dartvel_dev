@@ -280,6 +280,19 @@ class DVStudioClient {
   Future<void> deletePage(String route) =>
       _send('DELETE', 'api/pages?route=${Uri.encodeQueryComponent(route)}');
 
+  /// Every function built in Studio, as `{name, document}`.
+  Future<List<Map<String, Object?>>> functions() async =>
+      _list(await _send('GET', 'api/functions'), 'functions');
+
+  Future<void> saveFunction(Map<String, Object?> document) => _send(
+        'PUT',
+        'api/functions',
+        body: <String, Object?>{'document': document},
+      );
+
+  Future<void> deleteFunction(String name) => _send(
+      'DELETE', 'api/functions?name=${Uri.encodeQueryComponent(name)}');
+
   Future<List<Map<String, Object?>>> grants() async =>
       _list(await _send('GET', 'api/grants'), 'grants');
 
@@ -408,6 +421,44 @@ class DVStudioApp extends StatelessWidget {
   }
 }
 
+/// The functions built in Studio, kept on the server that served it.
+///
+/// The builder runs in a browser, which has no database of its own, and a
+/// function belongs to the project rather than to the browser that built it.
+class DVStudioRemoteFunctionStore implements DVFunctionStore {
+  const DVStudioRemoteFunctionStore(this.client);
+
+  final DVStudioClient client;
+
+  Future<List<DVWorkflowDocument>> _all() async => <DVWorkflowDocument>[
+        for (final Map<String, Object?> row in await client.functions())
+          if (row['document'] is Map)
+            DVWorkflowDocument.fromJson(
+                (row['document']! as Map).cast<String, Object?>()),
+      ];
+
+  @override
+  Future<List<String>> names({DVWorkflowSide? side}) async => <String>[
+        for (final DVWorkflowDocument document in await _all())
+          if (side == null || document.side == side) document.name,
+      ]..sort();
+
+  @override
+  Future<DVWorkflowDocument?> load(String name) async {
+    for (final DVWorkflowDocument document in await _all()) {
+      if (document.name == name) return document;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> save(DVWorkflowDocument document) =>
+      client.saveFunction(document.toJson());
+
+  @override
+  Future<void> delete(String name) => client.deleteFunction(name);
+}
+
 /// The sections Studio has on a server, named for someone who has never
 /// written code: the app's data, its site map, its backend logic, background
 /// tasks and their queue, the cache, and the team who may open Studio.
@@ -434,21 +485,19 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
           ],
         ),
       ),
-      DVStudioSection(
-        id: 'functions',
-        label: 'Backend',
-        icon: Icons.functions,
-        build: (BuildContext context) => _DVStudioManifestSection(
-          client: client,
-          kind: 'functions',
-          title: 'Backend logic',
-          columns: const <List<String>>[
-            <String>['name', 'Name'],
-            <String>['method', 'Method'],
-            <String>['path', 'Address'],
-            <String>['source', 'File'],
-          ],
-        ),
+      // The builders, not a list: a page is of little use if a button
+      // cannot be made to do anything. A backend function written in code
+      // is in the site map's own listing.
+      ...dvFunctionStudioSections(
+        store: DVStudioRemoteFunctionStore(client),
+        written: () async {
+          final Map<String, Object?> graph = await client.manifest();
+          return <Map<String, Object?>>[
+            for (final Object? entry
+                in (graph['functions'] as List?) ?? const <Object?>[])
+              if (entry is Map) entry.cast<String, Object?>(),
+          ];
+        },
       ),
       DVStudioSection(
         id: 'jobs',
