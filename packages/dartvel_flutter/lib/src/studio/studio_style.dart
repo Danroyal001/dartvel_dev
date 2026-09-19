@@ -140,6 +140,34 @@ abstract final class DVStudioStyle {
       DVText(text).modifier(const DVModifier().fontSize(12).color(color));
 
   // --- stateless pieces -----------------------------------------------------
+  /// A strip that says why something did not happen, in [tone].
+  static Widget banner({
+    required Widget child,
+    required Color tone,
+    IconData icon = Icons.info_outline,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(space3),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        border: Border.all(color: tone.withValues(alpha: 0.28)),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 16, color: tone),
+          const SizedBox(width: space2),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  /// The text inside a [banner].
+  static TextStyle bannerText(Color tone) =>
+      TextStyle(fontSize: 13, color: tone, height: 1.35);
+
 
   /// A control that reads as one: padded, bordered, and dimmed when it does
   /// nothing.
