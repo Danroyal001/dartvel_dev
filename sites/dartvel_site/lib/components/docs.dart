@@ -87,6 +87,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Keys that stay on the server, checked at build and deploy', 'Operations'),
   DocsPageInfo(DVRoutes.docsmonitoring, 'Monitoring',
       'Metrics, traces, crash reports, alerts and analytics', 'Operations'),
+  DocsPageInfo(DVRoutes.docsreleases, 'Releases',
+      'Flags, branch previews, rollouts and old clients', 'Operations'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
       'dartvel build for every platform, with its status', 'Shipping'),
   DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',

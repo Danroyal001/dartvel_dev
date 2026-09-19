@@ -188,6 +188,18 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Product Analytics and Consent', 'Operations', DVRoutes.docsmonitoring,
       'Product analytics that respect consent', anchor: 'analytics'),
 
+  SpecCoverage('Feature Flags and Staged Rollout', 'Operations', DVRoutes.docsreleases,
+      'Roll a feature out with typed flags', anchor: 'flags'),
+
+  SpecCoverage('Preview Environments', 'Operations', DVRoutes.docsreleases,
+      'Give every branch its own preview', anchor: 'previews'),
+
+  SpecCoverage('Backend Release Management', 'Operations', DVRoutes.docsreleases,
+      'Release a backend behind health gates', anchor: 'backend-releases'),
+
+  SpecCoverage('Protocol Versioning and Client Compatibility', 'Operations', DVRoutes.docsreleases,
+      'Keep old app versions working', anchor: 'old-clients'),
+
   // Shipping
   SpecCoverage('Deployment', 'Shipping', DVRoutes.docsdeploying,
       'Deploy with dartvel deploy', anchor: 'deploy'),
@@ -245,7 +257,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
 
   // Backend
   'Web Server Rendering': 'Backend',
-  'Protocol Versioning and Client Compatibility': 'Backend',
   'Billing': 'Backend',
   'Purchases and Entitlements': 'Backend',
   'Commerce: Tax, Promotions, Disputes and Payouts': 'Backend',
@@ -254,7 +265,4 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Module Distribution and Trust': 'Backend',
 
   // Operations
-  'Feature Flags and Staged Rollout': 'Operations',
-  'Backend Release Management': 'Operations',
-  'Preview Environments': 'Operations',
 };
