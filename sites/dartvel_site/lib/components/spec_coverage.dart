@@ -51,6 +51,15 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Dev Client', 'Getting started', DVRoutes.docsdevclient,
       'Pair it with dartvel dev', anchor: 'pair'),
 
+  SpecCoverage('The Golden Path', 'Getting started', DVRoutes.docs,
+      'Go from idea to production with one CLI', anchor: 'golden-path'),
+
+  SpecCoverage('Unified Development, Transparency, and Contracts', 'Getting started', DVRoutes.docs,
+      'Ask the CLI what your project contains', anchor: 'inspect'),
+
+  SpecCoverage('Generated Code Determinism', 'Getting started', DVRoutes.docs,
+      'Generated code is the same on every machine', anchor: 'determinism'),
+
   // App
   SpecCoverage('UI', 'App', DVRoutes.docsui, 'Wrap one child with DVBox',
       anchor: 'box'),
@@ -136,6 +145,15 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
 
   SpecCoverage('PWA', 'App', DVRoutes.docswebhosting,
       'Install it as an app, and use it offline', anchor: 'pwa'),
+
+  SpecCoverage('Media Playback and Capture', 'App', DVRoutes.docsmedia3d,
+      'Play audio and video, and record', anchor: 'media'),
+
+  SpecCoverage('3D Scenes', 'App', DVRoutes.docsmedia3d,
+      'Describe a 3D scene', anchor: 'scenes'),
+
+  SpecCoverage('XR: Spatial Presentation', 'App', DVRoutes.docsmedia3d,
+      'Open a window in space', anchor: 'xr'),
 
   // Backend
   SpecCoverage('Backend', 'Backend', DVRoutes.docsbackendfunctions,
@@ -281,14 +299,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
 /// kSpecCoverage.
 const Map<String, String> kSpecKnownGaps = <String, String>{
   // Getting started
-  'The Golden Path': 'Getting started',
-  'Unified Development, Transparency, and Contracts': 'Getting started',
-  'Generated Code Determinism': 'Getting started',
 
   // App
-  'Media Playback and Capture': 'App',
-  '3D Scenes': 'App',
-  'XR: Spatial Presentation': 'App',
 
   // Backend
 
