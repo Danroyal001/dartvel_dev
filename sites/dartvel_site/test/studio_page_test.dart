@@ -99,8 +99,30 @@ void main() {
     }
     expect(section, contains('@DVBackendFunction()'));
     expect(section.toLowerCase(), contains('saving'));
-    expect(section, contains('publish'));
+    expect(section.toLowerCase(), contains('deploy'));
     expect(section.toLowerCase(), contains('drop the builder'));
+  });
+
+  test("the free Studio cards use the names on Studio's own rail", () {
+    // A reader who opens Studio after reading this page should find each
+    // section under the name the page gave it.
+    final String rail = File(
+      '../../packages/dartvel_flutter/lib/src/studio/studio_server.dart',
+    ).readAsStringSync();
+    final List<String> labels = <String>[
+      for (final Match m in RegExp(r"label: '([^']+)'").allMatches(rail)) m[1]!,
+    ];
+    expect(labels, isNotEmpty);
+    final String free = sectionFrom(code(page), "Eyebrow('IN THE FREE STUDIO'");
+    final String titles = cardFlags(free).keys.join(' | ');
+    for (final String label in labels) {
+      expect(titles, contains(label), reason: 'no card names ');
+    }
+  });
+
+  test('Studio deploys; the page never says publish', () {
+    // The button in Studio reads Deploy, as dartvel deploy does.
+    expect(code(page), isNot(matches(RegExp('publish', caseSensitive: false))));
   });
 
   test('the Pro cards are badged as dartvel_studio_pro ships them', () {

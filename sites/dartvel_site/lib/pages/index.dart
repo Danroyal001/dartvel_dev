@@ -329,8 +329,8 @@ Widget _studioProof(BuildContext context) => const Section(
     Heading('Edit pages and records from a browser, on the server you '
         'already run.'),
     Bullets(<String>[
-      'Studio ships free in every Dartvel app, including the web-server '
-          'binary.',
+      'Studio is free and runs inside your web-server binary. Apps never '
+          'carry it.',
       'Build a page visually, and export it as an ordinary @DVPage file.',
       'Studio Pro adds a workflow builder that turns steps into a '
           '@DVBackendFunction.',
