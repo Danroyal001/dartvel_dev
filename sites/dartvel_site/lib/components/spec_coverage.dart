@@ -116,6 +116,27 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Data Compliance and Lifecycle', 'Data', DVRoutes.docsprivacy,
       'Export and erase a person\'s data', anchor: 'erase'),
 
+  SpecCoverage('Platform', 'App', DVRoutes.docsdevices,
+      'Call native features through DV.Platform', anchor: 'platform'),
+
+  SpecCoverage('Home Widgets', 'App', DVRoutes.docsdevices,
+      'Put a widget on the home screen', anchor: 'home-widgets'),
+
+  SpecCoverage('Kiosk Mode', 'App', DVRoutes.docsdevices,
+      'Lock a screen to your app', anchor: 'kiosk'),
+
+  SpecCoverage('Multi-Window', 'App', DVRoutes.docsdevices,
+      'Open more windows and tabs', anchor: 'windows'),
+
+  SpecCoverage('Tab Workspaces', 'App', DVRoutes.docsdevices,
+      'Open more windows and tabs', anchor: 'windows'),
+
+  SpecCoverage('Desktop, Embedded, and Qt-Critical Capabilities', 'App', DVRoutes.docsdevices,
+      'Trays, menus, shortcuts and drag and drop', anchor: 'desktop'),
+
+  SpecCoverage('PWA', 'App', DVRoutes.docswebhosting,
+      'Install it as an app, and use it offline', anchor: 'pwa'),
+
   // Backend
   SpecCoverage('Backend', 'Backend', DVRoutes.docsbackendfunctions,
       'Write a backend function', anchor: 'write'),
@@ -265,16 +286,9 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Generated Code Determinism': 'Getting started',
 
   // App
-  'PWA': 'App',
-  'Platform': 'App',
-  'Multi-Window': 'App',
-  'Tab Workspaces': 'App',
-  'Home Widgets': 'App',
-  'Kiosk Mode': 'App',
   'Media Playback and Capture': 'App',
   '3D Scenes': 'App',
   'XR: Spatial Presentation': 'App',
-  'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
   // Backend
 
