@@ -130,9 +130,15 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
-            'Site map, Backend and Tasks',
-            'Your pages, backend functions and background tasks, read from '
-                'your build, each with the file it was declared in.',
+            'Frontend and Backend',
+            'Build a function from steps on either side, and see the backend '
+                'functions your code already declares.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
+            'Site map and Tasks',
+            'Your pages and background tasks, read from your build, each with '
+                'the file it was declared in.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
@@ -186,32 +192,19 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       ],
     ),
     Section(
-      dark: true,
-      children: <Widget>[
-        Eyebrow('STUDIO PRO', onDark: true),
-        Heading('Studio Pro adds frontend and backend functions, Figma import '
-            'and team review.', onDark: true),
-        Bullets(onDark: true, <String>[
-          'Studio Pro comes with Dartvel Cloud. There is nothing separate to '
-              'buy.',
-          'Each Pro feature adds a section to Studio, so the free Studio '
-              'never shows a tab it cannot open.',
-        ]),
-      ],
-    ),
-    Section(
       children: <Widget>[
         Eyebrow('FRONTEND AND BACKEND FUNCTIONS'),
         Heading('Build what a button does and what the server does, from the '
-            'same steps.'),
+            'same steps. Free.'),
         Bullets(<String>[
           'Frontend functions run in the app and backend functions on your '
               'server, each in its own Studio section. A frontend function '
               'calls a backend one by name.',
           'Inputs and results have types, Text, Whole number, Number or Yes '
               'or no, and a run refuses the wrong type before any step runs.',
-          'Deploy saves the function. Export writes ordinary Dart, so you can '
-              'drop the builder whenever you like.',
+          'Both builders are free: a page builder whose buttons can do '
+              'nothing is not a page builder. Deploy saves the function, and '
+              'Export writes ordinary Dart, so you can drop the builder.',
         ]),
         StudioShot(
           'assets/studio/workflow-builder.png',
@@ -261,17 +254,25 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       ],
     ),
     Section(
+      dark: true,
+      children: <Widget>[
+        Eyebrow('STUDIO PRO', onDark: true),
+        Heading('Studio Pro adds Figma import, components and team review.',
+            onDark: true),
+        Bullets(onDark: true, <String>[
+          'Studio Pro comes with Dartvel Cloud. There is nothing separate to '
+              'buy, and it is not in your web-server binary.',
+          'Each Pro feature adds a section to Studio, so the free Studio '
+              'never shows a tab it cannot open.',
+        ]),
+      ],
+    ),
+    Section(
       tint: true,
       children: <Widget>[
         Eyebrow('ALSO IN STUDIO PRO'),
         Heading('Bring in a design, reuse it and review it as a team.'),
         DVBox.wrapLine(<Widget>[
-          SiteCard(
-            'Frontend and backend functions',
-            'Call, Set, Condition and Return steps with typed inputs, exported '
-                'as a function in the app or a @DVBackendFunction.',
-            built: true,
-          ),
           SiteCard(
             'Figma import',
             'Every top-level frame becomes a page. Auto-layout, type, '
