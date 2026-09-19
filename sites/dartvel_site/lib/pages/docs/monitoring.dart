@@ -90,12 +90,12 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
               'DVAlerting fires a rule after it has held for a set time and '
                   'delivers through DV.Notifications or PagerDuty, once per '
                   'episode.',
-              'An alert opens an incident with a timeline. Studio\'s '
-                  'Operations section shows service levels, alerts, incidents '
-                  'and a status page preview.',
+              'An alert opens an incident with a timeline, and a status '
+                  'snapshot shows each component\'s health without internal '
+                  'detail.',
             ]),
             DocsStatus('Alerting, SLOs and Status Pages', missing: <String>[
-              'No hosted status page yet, only the preview in Studio.',
+              'No hosted status page yet, and no incidents view in Studio.',
               'Rule state and incident history live in memory and are lost on '
                   'restart.',
               'PagerDuty is the only pager, and there is no latency objective.',

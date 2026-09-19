@@ -34,8 +34,8 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
                   'reading them.',
             ]),
             DocsStatus('Feature Flags and Staged Rollout', missing: <String>[
-              'Rules are not published per environment yet. Studio\'s Flags '
-                  'view edits rules for the running app only.',
+              'Rules are not published per environment yet, and Studio has no '
+                  'Flags section.',
               'On the backend, a flag is not yet evaluated with the '
                   'request\'s user and client version.',
             ]),
