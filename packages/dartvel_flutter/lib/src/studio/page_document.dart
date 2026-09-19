@@ -2026,7 +2026,8 @@ class DVPageStore {
     try {
       const store = DVPageStore();
       await store._initialize();
-      final rows = await DV.Database.query('SELECT route, document FROM $table');
+      final rows = await DV.Database.records
+          .find(table, fields: const <String>['route', 'document']);
       for (final row in rows) {
         loaded[row['route']! as String] = DVPageDocument.fromJson(
           (jsonDecode(row['document']! as String) as Map)
@@ -2054,33 +2055,41 @@ class DVPageStore {
     _priming = null;
   }
 
-  Future<void> _initialize() async {
-    await DV.Database.execute(
-      'CREATE TABLE IF NOT EXISTS $table (route TEXT, title TEXT, '
-      'document TEXT)',
-    );
-  }
+  /// A page is a record keyed by its route. Through DV.Database.records
+  /// rather than SQL, so Studio opens on a document database as it does on
+  /// PostgreSQL; the published-pages reader in core reads the same fields.
+  static const DVRecordShape _shape = DVRecordShape(
+    collection: table,
+    key: 'route',
+    fields: <String, DVFieldType>{
+      'route': DVFieldType.text,
+      'title': DVFieldType.text,
+      'document': DVFieldType.text,
+    },
+  );
+
+  Future<void> _initialize() => DV.Database.records.ensure(_shape);
 
   /// Upserts by route and publishes the change to watchers.
   Future<void> save(DVPageDocument document) async {
     await _initialize();
-    await DV.Database.execute(
-      'DELETE FROM $table WHERE route = ?',
-      <Object?>[document.route],
-    );
-    await DV.Database.execute(
-      'INSERT INTO $table (route, title, document) VALUES (?, ?, ?)',
-      <Object?>[document.route, document.title, jsonEncode(document.toJson())],
-    );
+    final DVRecordAdapter records = DV.Database.records;
+    await records.delete(table, where: DVFilter.equals('route', document.route));
+    await records.insert(table, <String, Object?>{
+      'route': document.route,
+      'title': document.title,
+      'document': jsonEncode(document.toJson()),
+    });
     _cache[document.route] = document;
     _changes.add(document.route);
   }
 
   Future<DVPageDocument?> load(String route) async {
     await _initialize();
-    final rows = await DV.Database.query(
-      'SELECT document FROM $table WHERE route = ?',
-      <Object?>[route],
+    final rows = await DV.Database.records.find(
+      table,
+      where: DVFilter.equals('route', route),
+      fields: const <String>['document'],
     );
     if (rows.isEmpty) return null;
     return DVPageDocument.fromJson(
@@ -2091,7 +2100,8 @@ class DVPageStore {
 
   Future<List<String>> routes() async {
     await _initialize();
-    final rows = await DV.Database.query('SELECT route FROM $table');
+    final rows = await DV.Database.records
+        .find(table, fields: const <String>['route']);
     return rows
         .map((Map<String, Object?> row) => row['route']! as String)
         .toList(growable: false)
@@ -2100,10 +2110,8 @@ class DVPageStore {
 
   Future<void> delete(String route) async {
     await _initialize();
-    await DV.Database.execute(
-      'DELETE FROM $table WHERE route = ?',
-      <Object?>[route],
-    );
+    await DV.Database.records
+        .delete(table, where: DVFilter.equals('route', route));
     _cache.remove(route);
     _changes.add(route);
   }
@@ -2309,17 +2317,24 @@ class DVPageBundleInstaller {
 
   static const String table = 'dartvel_page_bundles';
 
-  Future<void> _initialize() async {
-    await DV.Database.execute(
-      'CREATE TABLE IF NOT EXISTS $table (version TEXT, applied_at TEXT)',
-    );
-  }
+  static const DVRecordShape _shape = DVRecordShape(
+    collection: table,
+    key: 'version',
+    fields: <String, DVFieldType>{
+      'version': DVFieldType.text,
+      'applied_at': DVFieldType.text,
+    },
+  );
+
+  Future<void> _initialize() => DV.Database.records.ensure(_shape);
 
   /// Versions already applied, newest last.
   Future<List<String>> appliedVersions() async {
     await _initialize();
-    final rows = await DV.Database.query(
-      'SELECT version FROM $table ORDER BY applied_at',
+    final rows = await DV.Database.records.find(
+      table,
+      orderBy: const <DVSort>[DVSort('applied_at')],
+      fields: const <String>['version'],
     );
     return <String>[
       for (final row in rows) row['version']! as String,
@@ -2346,10 +2361,10 @@ class DVPageBundleInstaller {
     for (final route in bundle.removedRoutes) {
       await store.delete(route);
     }
-    await DV.Database.execute(
-      'INSERT INTO $table (version, applied_at) VALUES (?, ?)',
-      <Object?>[bundle.version, DateTime.now().toIso8601String()],
-    );
+    await DV.Database.records.insert(table, <String, Object?>{
+      'version': bundle.version,
+      'applied_at': DateTime.now().toIso8601String(),
+    });
     return true;
   }
 
@@ -2360,9 +2375,7 @@ class DVPageBundleInstaller {
   /// only way to be sure what an app ends up with.
   Future<void> forget(String version) async {
     await _initialize();
-    await DV.Database.execute(
-      'DELETE FROM $table WHERE version = ?',
-      <Object?>[version],
-    );
+    await DV.Database.records
+        .delete(table, where: DVFilter.equals('version', version));
   }
 }
