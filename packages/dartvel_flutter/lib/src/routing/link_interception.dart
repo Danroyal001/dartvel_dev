@@ -210,3 +210,22 @@ class DVPressedLink {
     _at = null;
   }
 }
+
+/// Whether a click on an anchor in the semantics tree is Flutter's to handle.
+///
+/// The anchors a link renders on the web are placed by semantics updates, not
+/// by the compositor, and inside a scrolled view they can be left where they
+/// were drawn before the scroll. The element under the mouse is then a
+/// different link from the one on screen, and following its `href` opens the
+/// wrong page. So a pointer click belongs to the link Flutter's own hit test
+/// found, which has already acted on the press, as url_launcher's Link does.
+///
+/// A click with a [detail] of 0 was not made by a pointer: it is a screen
+/// reader or a keyboard activating the anchor itself, and that anchor is the
+/// right one.
+bool dvPointerOwnsClick({
+  required bool pointer,
+  required int detail,
+  required bool inSemanticsTree,
+}) =>
+    pointer && detail > 0 && inSemanticsTree;
