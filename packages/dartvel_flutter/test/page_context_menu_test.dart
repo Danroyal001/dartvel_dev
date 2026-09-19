@@ -97,8 +97,7 @@ void main() {
   /// node, and the engine sends that node a focus action.
   Future<void> webFocus(WidgetTester tester, String label) async {
     final SemanticsNode node = tester.getSemantics(find.text(label));
-    tester.binding.pipelineOwner.semanticsOwner!
-        .performAction(node.id, SemanticsAction.focus);
+    node.owner!.performAction(node.id, SemanticsAction.focus);
     await tester.pump();
   }
 
