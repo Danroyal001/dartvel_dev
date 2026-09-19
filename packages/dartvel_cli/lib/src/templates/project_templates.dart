@@ -136,37 +136,38 @@ Widget buildIndexPage(BuildContext context) {
 }
 ''';
 
+  /// The page shown while a page's data loads.
+  ///
+  /// A functional widget, like everything else a Dartvel project writes: the
+  /// private function's name decides the generated class, so
+  /// `_indexPageLoading` generates `IndexPageLoading`, which the router
+  /// renders. A class is for the rare widget a function cannot express.
   static String loadingTemplate(String className) =>
       '''import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-class $className extends StatelessWidget {
-  const $className({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const DVBox(
+@DVFunctionalWidget()
+Widget ${_inputName(className)}(BuildContext context) => const DVBox(
       DVText('Loading...'),
     );
-  }
-}
 ''';
 
+  /// `IndexPageLoading` is generated from `_indexPageLoading`.
+  static String _inputName(String className) =>
+      '_${className[0].toLowerCase()}${className.substring(1)}';
+
+  /// The page shown when a page's data fails to load.
   static String errorTemplate(String className) =>
       '''import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-class $className extends StatelessWidget {
-  const $className({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return DVBox.list([
-      const DVText('ERROR').modifier(
-        DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(Colors.red),
+@DVFunctionalWidget()
+Widget ${_inputName(className)}(BuildContext context) => DVBox.list(<Widget>[
+      const DVText('Something went wrong').modifier(
+        const DVModifier().fontSize(24).fontWeight(FontWeight.w800),
       ),
-      const DVText('Something went wrong'),
-      DVText('Go Back').modifier(
+      const DVText('The page could not load its data.'),
+      const DVText('Go back').modifier(
         const DVModifier()
             .padding(12)
             .rounded(8)
@@ -177,8 +178,6 @@ class $className extends StatelessWidget {
     ]).modifier(
       const DVModifier().align(Alignment.center),
     );
-  }
-}
 ''';
 
   // Backend functions in the form the generator compiles: a private
@@ -306,6 +305,10 @@ Thumbs.db
       '''include: package:lints/recommended.yaml
 
 analyzer:
+  errors:
+    # A Dartvel generation input is a private declaration whose body is
+    # copied into generated code, so nothing in your own files calls it.
+    unused_element: ignore
   exclude:
     - "lib/dartvel_client/**"
     - ".dart_tool/**"
