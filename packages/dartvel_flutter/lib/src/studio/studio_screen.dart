@@ -1866,7 +1866,15 @@ class _DVStudioDeployMenu extends StatelessWidget {
                   color: DVStudioStyle.surface,
                   elevation: 8,
                   borderRadius: BorderRadius.circular(DVStudioStyle.radius),
-                  child: Padding(
+                  clipBehavior: Clip.antiAlias,
+                  // Every platform is listed, which is taller than a laptop
+                  // screen below the toolbar; the menu scrolls instead.
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: math.max(160,
+                          overlay.size.height - origin.dy - box.size.height - 16),
+                    ),
+                    child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1876,6 +1884,12 @@ class _DVStudioDeployMenu extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                           child: DVStudioStyle.overline('Deploy to'),
                         ),
+                        // Only the targets scroll: Deploy now stays in reach.
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
                         for (final DVDeployTarget target
                             in DVDeployTarget.values)
                           InkWell(
@@ -1886,6 +1900,7 @@ class _DVStudioDeployMenu extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Icon(
                                     ticked.contains(target)
@@ -1910,6 +1925,10 @@ class _DVStudioDeployMenu extends StatelessWidget {
                                             style: const TextStyle(
                                                 fontSize: 12,
                                                 color: DVStudioStyle.muted)),
+                                        for (final DVDeployPlatform platform
+                                            in DVDeployPlatform.of(target))
+                                          _DVStudioDeployPlatformLine(
+                                              platform: platform),
                                       ],
                                     ),
                                   ),
@@ -1917,6 +1936,10 @@ class _DVStudioDeployMenu extends StatelessWidget {
                               ),
                             ),
                           ),
+                              ],
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1968,6 +1991,7 @@ class _DVStudioDeployMenu extends StatelessWidget {
                       ],
                     ),
                   ),
+                  ),
                 );
               },
             ),
@@ -1990,6 +2014,57 @@ class _DVStudioDeployMenu extends StatelessWidget {
         'More ways to deploy',
         () => unawaited(_open(context)),
       );
+}
+
+/// One platform under a Deploy group: its name, where it stands, and why
+/// when it is not ready.
+class _DVStudioDeployPlatformLine extends StatelessWidget {
+  const _DVStudioDeployPlatformLine({required this.platform});
+
+  final DVDeployPlatform platform;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color tone = switch (platform.status) {
+      DVDeployStatus.ready => DVStudioStyle.success,
+      DVDeployStatus.limited => DVStudioStyle.warning,
+      DVDeployStatus.notYet => DVStudioStyle.faint,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Flexible(
+                child: Text(platform.label,
+                    style:
+                        const TextStyle(fontSize: 12, color: DVStudioStyle.ink)),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  border: Border.all(color: tone),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(platform.status.label,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: tone)),
+              ),
+            ],
+          ),
+          if (platform.reason.isNotEmpty)
+            Text(platform.reason,
+                style:
+                    const TextStyle(fontSize: 11, color: DVStudioStyle.muted)),
+        ],
+      ),
+    );
+  }
 }
 
 Widget _keyedControl(String key, String label, VoidCallback? onTap,
