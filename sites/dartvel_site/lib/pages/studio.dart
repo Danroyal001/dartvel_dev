@@ -64,7 +64,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         Bullets(<String>[
           'Only people you grant can open it. A visitor who is not signed in '
-              'gets the same 404 as a page that does not exist.',
+              'gets the same answer as a page that does not exist.',
           'Edit model records in a form. An edit made against a row that '
               'changed after you opened it is refused.',
           'While you work, dartvel dev serves Studio too, and prints the '
