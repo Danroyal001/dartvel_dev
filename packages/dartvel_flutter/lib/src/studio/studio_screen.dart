@@ -132,8 +132,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             actor: widget.actor,
             reviewers: widget.reviewers,
             attached: <String>[
-              for (final DVStudioSection section in widget.sections)
-                section.label,
+              for (final DVStudioSection section in _attached) section.label,
             ],
           ),
         ),
@@ -161,8 +160,19 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               health: widget.statusHealth,
             ),
           ),
-        ...widget.sections,
+        ..._attached,
       ];
+
+  /// The attached sections, a later one with an id already used taking the
+  /// earlier one's place: Studio Pro's Backend, with the builder, stands
+  /// where free Studio's list of backend functions stood.
+  List<DVStudioSection> get _attached {
+    final Map<String, DVStudioSection> byId = <String, DVStudioSection>{};
+    for (final DVStudioSection section in widget.sections) {
+      byId[section.id] = section;
+    }
+    return byId.values.toList();
+  }
 
   /// The name incident entries are written under: the actor itself when it
   /// is a string, or the id the content workflow records for it. Anything
