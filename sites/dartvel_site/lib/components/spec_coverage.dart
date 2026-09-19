@@ -173,6 +173,21 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Secrets and Environments', 'Operations', DVRoutes.docssecrets,
       'Declare your secrets', anchor: 'declare'),
 
+  SpecCoverage('Monitoring and Observability', 'Operations', DVRoutes.docsmonitoring,
+      'Read metrics and health from any backend', anchor: 'metrics'),
+
+  SpecCoverage('Distributed Tracing', 'Operations', DVRoutes.docsmonitoring,
+      'Follow one request across services', anchor: 'tracing'),
+
+  SpecCoverage('Crash Reporting and Release Health', 'Operations', DVRoutes.docsmonitoring,
+      'Crash reports are on from the first build', anchor: 'crashes'),
+
+  SpecCoverage('Alerting, SLOs and Status Pages', 'Operations', DVRoutes.docsmonitoring,
+      'Alert on error budgets and open incidents', anchor: 'alerts'),
+
+  SpecCoverage('Product Analytics and Consent', 'Operations', DVRoutes.docsmonitoring,
+      'Product analytics that respect consent', anchor: 'analytics'),
+
   // Shipping
   SpecCoverage('Deployment', 'Shipping', DVRoutes.docsdeploying,
       'Deploy with dartvel deploy', anchor: 'deploy'),
@@ -239,12 +254,7 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Module Distribution and Trust': 'Backend',
 
   // Operations
-  'Monitoring and Observability': 'Operations',
-  'Distributed Tracing': 'Operations',
-  'Alerting, SLOs and Status Pages': 'Operations',
-  'Crash Reporting and Release Health': 'Operations',
   'Feature Flags and Staged Rollout': 'Operations',
   'Backend Release Management': 'Operations',
   'Preview Environments': 'Operations',
-  'Product Analytics and Consent': 'Operations',
 };
