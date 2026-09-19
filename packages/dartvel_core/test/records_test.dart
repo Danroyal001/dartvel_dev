@@ -80,9 +80,31 @@ void main() {
       await records.ensure(pages);
 
       expect(
-          database.sql.single,
+          database.sql.first,
           'CREATE TABLE IF NOT EXISTS studio_pages (route TEXT PRIMARY KEY, '
           'title TEXT, version BIGINT, score DOUBLE PRECISION)');
+    });
+
+    test('ensures a collection once per database, not on every call',
+        () async {
+      await records.ensure(pages);
+      final int after = database.sql.length;
+      await records.ensure(pages);
+
+      expect(database.sql.length, after);
+    });
+
+    test('a collection with no key field declares no primary key', () async {
+      await records.ensure(const DVRecordShape(
+        collection: 'audit',
+        fields: <String, DVFieldType>{
+          'route': DVFieldType.text,
+          'at': DVFieldType.text,
+        },
+      ));
+
+      expect(database.sql.first,
+          'CREATE TABLE IF NOT EXISTS audit (route TEXT, at TEXT)');
     });
 
     test('compiles a find to parameterised SQL', () async {
@@ -202,6 +224,28 @@ void main() {
       expect(found.single['title'], 'Our menu');
       expect(await records.count('studio_pages'), 1);
     });
+  });
+
+  // A table from an earlier release lacks a field its shape has since
+  // gained, and CREATE TABLE IF NOT EXISTS leaves it as it was: the first
+  // write naming the new field would fail. ensure() adds it, as dartvel db
+  // migrate does for a model.
+  test('ensure adds a field an existing table lacks', () async {
+    final SqliteDVDatabaseAdapter sqlite = SqliteDVDatabaseAdapter.memory();
+    addTearDown(sqlite.close);
+    await sqlite.execute('CREATE TABLE audit (route TEXT)');
+    final DVSqlRecordAdapter records = DVSqlRecordAdapter(sqlite);
+
+    await records.ensure(const DVRecordShape(
+      collection: 'audit',
+      fields: <String, DVFieldType>{
+        'route': DVFieldType.text,
+        'seq': DVFieldType.integer,
+      },
+    ));
+    await records.insert('audit', <String, Object?>{'route': '/a', 'seq': 7});
+
+    expect((await records.find('audit')).single['seq'], 7);
   });
 
   test('an adapter that is itself a record engine is used as one', () {

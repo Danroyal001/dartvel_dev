@@ -31,14 +31,15 @@ enum DVFieldType {
 class DVRecordShape {
   const DVRecordShape({
     required this.collection,
-    required this.key,
+    this.key,
     required this.fields,
   });
 
   final String collection;
 
-  /// The field no two records share.
-  final String key;
+  /// The field no two records share, or null for a collection such as a log
+  /// where no one field identifies a record.
+  final String? key;
 
   /// Every field, the key included, with how it is stored.
   final Map<String, DVFieldType> fields;
@@ -228,17 +229,40 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
       ? const DVDatabase().execute(sql, params)
       : _database.execute(sql, params);
 
+  /// The collections ensured on each database, so a store that ensures its
+  /// collection before every operation pays for it once per process.
+  static final Expando<Set<String>> _ensured = Expando<Set<String>>();
+
   @override
   Future<void> ensure(DVRecordShape shape) async {
+    final DVDatabaseAdapter database =
+        _database ?? const DVDatabase().adapter;
+    final Set<String> done = _ensured[database] ??= <String>{};
+    if (done.contains(shape.collection)) return;
+    final String table = _name(shape.collection);
     final String columns = <String>[
       for (final MapEntry<String, DVFieldType> field in shape.fields.entries)
         '${_name(field.key)} ${field.value.sql}'
             '${field.key == shape.key ? ' PRIMARY KEY' : ''}',
     ].join(', ');
     await _execute(
-      'CREATE TABLE IF NOT EXISTS ${_name(shape.collection)} ($columns)',
-      const <Object?>[],
-    );
+        'CREATE TABLE IF NOT EXISTS $table ($columns)', const <Object?>[]);
+    // A table from an earlier release keeps the columns it was made with.
+    // Selecting a column the table lacks fails on SQLite, PostgreSQL and
+    // MySQL alike, and ADD COLUMN is the one ALTER all three share -- the
+    // same repair dartvel db migrate makes for a model.
+    for (final MapEntry<String, DVFieldType> field in shape.fields.entries) {
+      final String column = _name(field.key);
+      try {
+        await _query('SELECT $column FROM $table LIMIT 0', const <Object?>[]);
+      } on Object {
+        await _execute(
+          'ALTER TABLE $table ADD COLUMN $column ${field.value.sql}',
+          const <Object?>[],
+        );
+      }
+    }
+    done.add(shape.collection);
   }
 
   @override
