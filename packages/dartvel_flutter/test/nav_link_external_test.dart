@@ -137,16 +137,17 @@ void main() {
     expect(find.byType(Card), findsNothing);
   });
 
-  // Where the browser follows anchors itself, the widget must not open the
-  // link as well.
+  // Where the browser follows anchors, it may follow only the ones a keyboard
+  // or a screen reader activates. A pointer is Flutter's to read.
   //
   // Every DVNavLink renders a real anchor in the semantics tree, and on the
-  // web the browser activates that anchor on the same click the widget sees.
-  // While both went to the same address in the same tab that was invisible --
-  // two navigations to one place look like one. It stops being invisible the
-  // moment either of them opens a tab: a middle click opened two, and an
-  // external link marked to open beside would open one tab and send the page
-  // the reader was on to the same address.
+  // web that anchor is positioned by the semantics update rather than by the
+  // compositor. Inside a scrolled sidebar it stayed where it had been drawn
+  // before the scroll, so the element under the mouse was a different link
+  // from the one on screen, and the browser followed that one: a click on
+  // "Models" opened "Localization". The interceptor now cancels every pointer
+  // click on a semantics anchor, as url_launcher's Link does, and the link
+  // Flutter's own hit test found opens its destination itself.
   group('the browser follows the anchor', () {
     setUp(() {
       DVLinkOpener.install(
@@ -157,7 +158,7 @@ void main() {
       );
     });
 
-    testWidgets('an external link is left to it', (tester) async {
+    testWidgets('a tapped external link opens itself', (tester) async {
       await pump(
         tester,
         const DVNavLink.external(
@@ -169,11 +170,11 @@ void main() {
       await tester.tap(find.text('pub.dev'));
       await tester.pump();
 
-      expect(opened, isEmpty);
+      expect(opened, <String>['https://pub.dev/packages/dartvel_dev']);
       expect(inNewTab, isEmpty);
     });
 
-    testWidgets('a middle click is left to it', (tester) async {
+    testWidgets('a middle click opens it beside, once', (tester) async {
       await pump(
         tester,
         const DVNavLink.external(
@@ -182,13 +183,34 @@ void main() {
         ),
       );
 
-      final TestGesture gesture =
-          await tester.createGesture(buttons: kMiddleMouseButton);
+      final TestGesture gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse, buttons: kMiddleMouseButton);
       await gesture.down(tester.getCenter(find.text('pub.dev')));
       await gesture.up();
       await tester.pump();
 
+      expect(inNewTab, <String>['https://pub.dev/packages/dartvel_dev']);
+      expect(opened, isEmpty);
+    });
+
+    testWidgets('a screen reader activation is left to the anchor',
+        (tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await pump(
+        tester,
+        const DVNavLink.external(
+          'https://pub.dev/packages/dartvel_dev',
+          semanticLabel: 'Dartvel on pub.dev',
+          child: DVText('pub.dev'),
+        ),
+      );
+
+      tester.semantics.tap(find.semantics.byLabel('Dartvel on pub.dev'));
+      await tester.pump();
+
+      expect(opened, isEmpty);
       expect(inNewTab, isEmpty);
+      semantics.dispose();
     });
   });
 

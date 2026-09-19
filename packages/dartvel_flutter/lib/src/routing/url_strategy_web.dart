@@ -99,6 +99,25 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
         (target as web_dom.Element).closest('a[href]');
     if (anchor == null) return;
 
+    // A pointer click belongs to the link Flutter hit-tested, which has
+    // already acted on the press. The anchor under the mouse is placed by
+    // semantics updates and can be another link's after a scroll, so the
+    // browser must not follow it. Screen readers and Enter still do.
+    if (dvPointerOwnsClick(
+      pointer: mouse != null,
+      detail: mouse?.detail ?? 0,
+      inSemanticsTree: anchor.closest('flt-semantics-host') != null,
+    )) {
+      event.preventDefault();
+      // And stopped before the engine sees it. The engine turns a click on a
+      // tappable semantics node into that node's tap and drops the pointer
+      // events it was holding, which would activate the misplaced link.
+      // Without the click, the engine hands the held pointer events to the
+      // framework, whose hit test finds the link that is on screen.
+      event.stopImmediatePropagation();
+      return;
+    }
+
     final DVLinkActivation activation = DVLinkActivation(
       href: anchor.getAttribute('href') ?? '',
       currentUrl: web_dom.window.location.href,
@@ -147,6 +166,8 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
   // Capture phase, so this runs before the anchor's own default action is
   // committed and before anything inside the semantics tree stops the event.
   web_dom.document.addEventListener('click', handle.toJS, true.toJS);
+  // A middle click sends auxclick, not click, and opens the anchor in a tab.
+  web_dom.document.addEventListener('auxclick', handle.toJS, true.toJS);
   web_dom.document.addEventListener('keydown', handle.toJS, true.toJS);
 }
 
