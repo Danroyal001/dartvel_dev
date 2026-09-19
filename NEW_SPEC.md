@@ -155,6 +155,7 @@ Everything else is built from them, with a `DVModifier` (Styling):
 - Columns and lists: `DVBox.list(children)`
 - Grids: `DVBox.grid(children)`
 - Masonry: `DVBox.masonry(children)`
+- Two panes, one each side of a foldable's fold: `DVBox.twoPane([first, second])`
 - Forms: `DVForm<T>` (Forms)
 - Navigation: `DV.Navigation` and `DVNavLink` (Routing)
 
@@ -2337,6 +2338,8 @@ Native APIs, including:
 - TVs (DV.Platform.isTV, DV.Platform.isAndroidTV, DV.Platform.isAppleTV)
 - Watches (DV.Platform.isWatch)
 - Foldables (DV.Platform.isFoldable, DV.Platform.isDualFold, DV.Platform.isTriFold)
+  - `context.screen.folds` lists each fold or hinge as a `DVFold` (bounds in window coordinates, `isVertical`, `occludes`, `state`), read from the display features Flutter reports, and rebuilds the widget when the device folds. `context.screen.isSpanned` and `context.screen.posture` (`flat`, `book`, `tabletop`) are read from the first fold. `DVBox.twoPane` lays one pane each side of it and never in a hinge that covers pixels.
+  - Android foldables report their folds through Flutter today. Apple's iPhone Duo (iOS 27.1) exposes its fold as `UIView.reservedRegions(kind: .division)` and its hinge through `onHingeChange`; Dartvel binds those through FFI, never a platform channel, into the same display features, so an app written against `context.screen.folds` needs no change for it.
 - Native APIs, Expo-style. (DV.Platform.*)
 - Camera (DV.Platform.Camera)
 - Media and Files (DV.Platform.FileStorage, proxy to DV.FileStorage)

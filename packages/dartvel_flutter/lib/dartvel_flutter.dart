@@ -1527,6 +1527,7 @@ enum _DVBoxLayout {
   stack,
   horizontalScrollable,
   masonry,
+  twoPane,
 }
 
 /// How a row or list distributes its children along its own axis.
@@ -1763,6 +1764,35 @@ class DVBox<T> extends StatelessWidget {
         _align = DVAlign.start,
         _crossAlign = DVCrossAlign.stretch,
         _columns = 1,
+        _responsive = true,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null;
+
+  /// Two panes, one each side of the fold on a foldable.
+  ///
+  /// Across a book-style hinge the first pane takes the left side and the
+  /// second the right; across a fold the phone lies open on a table, the
+  /// first pane is on top. Nothing is laid out in a hinge that covers
+  /// pixels. With no fold the panes sit side by side from a tablet up, and
+  /// stack on a phone so neither is lost. Each pane sees a screen with no
+  /// fold in it, so a two-pane box inside a pane does not split again.
+  ///
+  /// The fold is where MediaQuery reports it, which is window space: put the
+  /// box at the top of a page, as Flutter's own DisplayFeatureSubScreen
+  /// expects too.
+  const DVBox.twoPane(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 16,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.twoPane,
+        _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
+        _columns = 2,
         _responsive = true,
         _spacing = spacing,
         _scrollable = false,
@@ -2264,8 +2294,64 @@ class DVBox<T> extends StatelessWidget {
       case _DVBoxLayout.masonry:
         result = _buildMasonry(context, children);
         break;
+      case _DVBoxLayout.twoPane:
+        result = _buildTwoPane(context, children);
+        break;
     }
     return _maybeScrollable(result);
+  }
+
+  Widget _buildTwoPane(BuildContext context, List<Widget> children) {
+    if (children.length != 2) {
+      throw ArgumentError.value(children.length, 'children',
+          'DVBox.twoPane takes exactly two panes');
+    }
+    final MediaQueryData media = MediaQuery.of(context);
+    // Each pane is a screen of its own: no fold runs through it.
+    Widget pane(Widget child) => MediaQuery(
+          data: media.copyWith(displayFeatures: const <ui.DisplayFeature>[]),
+          child: child,
+        );
+    final Widget first = pane(children[0]);
+    final Widget second = pane(children[1]);
+    final List<DVFold> folds = context.screen.folds;
+    if (folds.isNotEmpty) {
+      final DVFold fold = folds.first;
+      final Rect crease = fold.bounds;
+      if (fold.isVertical) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            SizedBox(width: crease.left, child: first),
+            SizedBox(width: crease.width),
+            Expanded(child: second),
+          ],
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SizedBox(height: crease.top, child: first),
+          SizedBox(height: crease.height),
+          Expanded(child: second),
+        ],
+      );
+    }
+    if (context.screen.isAtLeastTablet) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: first),
+          SizedBox(width: _spacing),
+          Expanded(child: second),
+        ],
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[first, SizedBox(height: _spacing), second],
+    );
   }
 
   Widget _buildDynamicCollection(
@@ -2274,6 +2360,9 @@ class DVBox<T> extends StatelessWidget {
     Widget Function(BuildContext, T) builder,
   ) {
     switch (_layout) {
+      case _DVBoxLayout.twoPane:
+        return _buildTwoPane(
+            context, [for (final item in items) builder(context, item)]);
       case _DVBoxLayout.grid:
         return GridView.builder(
           itemCount: items.length,
@@ -4523,6 +4612,71 @@ enum DVScreenShape {
 /// the screen changes. `DV.Platform.screen` answers the same questions without
 /// a context, but it reads the raw window and cannot rebuild anything, so it is
 /// for code that has no context to offer -- not for build methods.
+/// Whether a fold lies flat or is bent.
+enum DVFoldState { flat, halfOpened, unknown }
+
+/// How a foldable is being held, from its first fold.
+///
+/// [book] is a fold down the middle, half open like a book; [tabletop] a fold
+/// across it, the phone standing half open on a table. Everything else, a
+/// fully open foldable and every phone without a fold, is [flat].
+enum DVPosture { flat, book, tabletop }
+
+/// A fold or hinge through the screen, as the platform reports it.
+///
+/// Android foldables report theirs through Flutter's display features. The
+/// iPhone Duo's reserved regions and hinge arrive through the same list once
+/// the iOS side supplies them.
+@immutable
+class DVFold {
+  const DVFold({
+    required this.bounds,
+    required this.state,
+    required this.occludes,
+  });
+
+  /// Where the fold is, in the window's logical coordinates. A fold has no
+  /// width; a hinge that covers pixels does.
+  final Rect bounds;
+
+  final DVFoldState state;
+
+  /// True when the fold hides pixels, so nothing should be laid out in it.
+  final bool occludes;
+
+  /// A vertical fold splits the screen into left and right.
+  bool get isVertical => bounds.height >= bounds.width;
+
+  static DVFold? fromDisplayFeature(ui.DisplayFeature feature) {
+    if (feature.type != ui.DisplayFeatureType.fold &&
+        feature.type != ui.DisplayFeatureType.hinge) {
+      return null;
+    }
+    return DVFold(
+      bounds: feature.bounds,
+      state: switch (feature.state) {
+        ui.DisplayFeatureState.postureFlat => DVFoldState.flat,
+        ui.DisplayFeatureState.postureHalfOpened => DVFoldState.halfOpened,
+        ui.DisplayFeatureState.unknown => DVFoldState.unknown,
+      },
+      occludes: feature.bounds.width > 0 && feature.bounds.height > 0,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is DVFold &&
+      other.bounds == bounds &&
+      other.state == state &&
+      other.occludes == occludes;
+
+  @override
+  int get hashCode => Object.hash(bounds, state, occludes);
+
+  @override
+  String toString() => 'DVFold($bounds, $state)';
+}
+
 class DVScreenInfo {
   const DVScreenInfo({
     required this.size,
@@ -4530,6 +4684,7 @@ class DVScreenInfo {
     required this.orientation,
     required this.reducedMotion,
     required this.textScale,
+    this.folds = const <DVFold>[],
   });
 
   /// Logical size of the surface, honouring any MediaQuery an ancestor
@@ -4546,6 +4701,21 @@ class DVScreenInfo {
   final bool reducedMotion;
 
   final double textScale;
+
+  /// Folds and hinges through the screen, first to last. Empty on every
+  /// screen that does not fold.
+  final List<DVFold> folds;
+
+  /// True when the app spans a fold.
+  bool get isSpanned => folds.isNotEmpty;
+
+  /// How the device is held, read from its first fold.
+  DVPosture get posture {
+    if (folds.isEmpty) return DVPosture.flat;
+    final DVFold fold = folds.first;
+    if (fold.state != DVFoldState.halfOpened) return DVPosture.flat;
+    return fold.isVertical ? DVPosture.book : DVPosture.tabletop;
+  }
 
   double get width => size.width;
   double get height => size.height;
@@ -4623,6 +4793,11 @@ extension DVScreenContextX on BuildContext {
         reducedMotion: MediaQuery.disableAnimationsOf(this) ||
             const DVAccessibility().reducedMotion,
         textScale: MediaQuery.textScalerOf(this).scale(1),
+        folds: <DVFold>[
+          for (final ui.DisplayFeature feature
+              in MediaQuery.displayFeaturesOf(this))
+            ?DVFold.fromDisplayFeature(feature),
+        ],
       );
 }
 
