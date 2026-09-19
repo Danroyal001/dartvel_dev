@@ -204,14 +204,87 @@ class DVPageNode {
       };
 }
 
+/// A place Studio deploys a page to, named as a site owner would name it.
+///
+/// A page deployed with no targets reaches every one. Each app works out which
+/// target it is from the platform it runs on, and serves a stored page only
+/// when the page was deployed there; otherwise its compiled page stays.
+enum DVDeployTarget {
+  web('Website'),
+  phones('Phones and tablets'),
+  desktop('Desktop apps'),
+  tvs('TVs'),
+  extensions('Browser extensions'),
+  devices('Devices');
+
+  const DVDeployTarget(this.label);
+
+  final String label;
+
+  /// Which target an app on [platform] is.
+  static DVDeployTarget of({
+    required String platform,
+    bool isTV = false,
+    bool isExtension = false,
+  }) {
+    if (isTV) return DVDeployTarget.tvs;
+    switch (platform) {
+      case 'web':
+        return isExtension ? DVDeployTarget.extensions : DVDeployTarget.web;
+      case 'android':
+      case 'fireos':
+      case 'ios':
+        return DVDeployTarget.phones;
+      case 'macos':
+      case 'windows':
+      case 'linux':
+        return DVDeployTarget.desktop;
+      case 'tizen':
+      case 'tizenos':
+      case 'webos':
+      case 'tvos':
+      case 'appletv':
+      case 'androidtv':
+      case 'amazon':
+        return DVDeployTarget.tvs;
+      default:
+        // sony-elinux, fuchsia and every embedded board to come.
+        return DVDeployTarget.devices;
+    }
+  }
+
+  /// Set by a test to stand in for the platform it runs on.
+  @visibleForTesting
+  static DVDeployTarget? debugCurrent;
+
+  /// The target this app is.
+  static DVDeployTarget get current {
+    final DVDeployTarget? pinned = debugCurrent;
+    if (pinned != null) return pinned;
+    final DVPlatform platform = DV.Platform;
+    return of(
+      platform: platform.currentPlatform,
+      isTV: platform.isTV,
+      isExtension: platform.isChromiumExtension || platform.isFirefoxExtension,
+    );
+  }
+}
+
 /// A builder-editable page: a route, a title, and a widget tree.
 class DVPageDocument {
   final String route;
   String title;
   DVPageNode root;
 
-  DVPageDocument({required this.route, this.title = '', DVPageNode? root})
-      : root = root ?? DVPageNode.box();
+  /// Where the page was deployed, or null for everywhere.
+  Set<DVDeployTarget>? targets;
+
+  DVPageDocument({
+    required this.route,
+    this.title = '',
+    DVPageNode? root,
+    this.targets,
+  }) : root = root ?? DVPageNode.box();
 
   factory DVPageDocument.fromJson(Map<String, Object?> json) => DVPageDocument(
         route: json['route']! as String,
@@ -219,12 +292,30 @@ class DVPageDocument {
         root: DVPageNode.fromJson(
           (json['root']! as Map).cast<String, Object?>(),
         ),
+        targets: switch (json['targets']) {
+          final List<Object?> names => <DVDeployTarget>{
+              // A target a newer Studio knows and this app does not is
+              // skipped: the page still reaches the ones it names.
+              for (final DVDeployTarget target in DVDeployTarget.values)
+                if (names.contains(target.name)) target,
+            },
+          _ => null,
+        },
       );
+
+  /// True when an app of [target] serves this page.
+  bool reaches(DVDeployTarget target) =>
+      targets == null || targets!.contains(target);
 
   Map<String, Object?> toJson() => <String, Object?>{
         'route': route,
         'title': title,
         'root': root.toJson(),
+        if (targets != null)
+          'targets': <String>[
+            for (final DVDeployTarget target in DVDeployTarget.values)
+              if (targets!.contains(target)) target.name,
+          ],
       };
 
   /// Full code export: the page as the same private expression-bodied
@@ -1756,7 +1847,15 @@ class DVPageStore {
   ///
   /// Synchronous by design: navigation cannot await a query without either
   /// stalling the transition or flashing the wrong page.
-  static DVPageDocument? cached(String route) => _cache[route];
+  /// The stored page for [route], when it was deployed to this app's
+  /// target. A page deployed elsewhere leaves the compiled one serving.
+  static DVPageDocument? cached(String route) {
+    final DVPageDocument? document = _cache[route];
+    if (document == null || !document.reaches(DVDeployTarget.current)) {
+      return null;
+    }
+    return document;
+  }
 
   /// Reads every stored document into memory.
   ///
