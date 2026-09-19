@@ -74,16 +74,20 @@ Widget _siteHeader(BuildContext context) {
   return DVBox(
     DVBox(
       // A row when there is room for one, so the site links sit left and the
-      // outbound ones sit right. On a phone that row does not fit, and a
-      // wrapped line of links reads better than a row scrolled off the edge.
+      // outbound ones sit right. On a phone that row does not fit: the
+      // wordmark takes a line and the four site links share the next, which
+      // they fit on down to 320 points. Wrapping them all together left
+      // Cloud alone on a second line.
       screen.isMobile
-          ? const DVBox.wrapLine(<Widget>[
+          ? const DVBox.list(<Widget>[
               Wordmark(),
-              NavLink('Docs', '/docs'),
-              NavLink('Features', '/features'),
-              NavLink('Studio', '/studio'),
-              NavLink('Cloud', '/cloud'),
-            ], spacing: 18)
+              DVBox.wrapLine(<Widget>[
+                NavLink('Docs', '/docs'),
+                NavLink('Features', '/features'),
+                NavLink('Studio', '/studio'),
+                NavLink('Cloud', '/cloud'),
+              ], spacing: 12),
+            ], spacing: 6)
           : DVBox.row(<Widget>[
               const DVBox.row(<Widget>[
                 Wordmark(),
