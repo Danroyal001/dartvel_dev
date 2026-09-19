@@ -52,7 +52,6 @@ Directory? enterpriseStudioPro() {
 
 /// What Studio Pro ships, as the page must badge it.
 const Map<String, bool> kProCards = <String, bool>{
-  'Frontend and backend functions': true,
   'Figma import': true,
   'Reusable components': true,
   'Revision history': true,
@@ -86,13 +85,20 @@ void main() {
     }
   });
 
-  test('frontend and backend functions have their own section under Pro', () {
+  test('frontend and backend functions are free, above Studio Pro', () {
     final String source = code(page);
     final int pro = source.indexOf("Eyebrow('STUDIO PRO'");
     final int functions =
         source.indexOf("Eyebrow('FRONTEND AND BACKEND FUNCTIONS'");
-    expect(functions, greaterThan(pro),
-        reason: 'the function builders must come under Studio Pro');
+    // Free: a page builder whose buttons can do nothing is not a page
+    // builder, so the section sits with the free Studio, before Pro.
+    expect(functions, greaterThan(0), reason: 'no functions section');
+    expect(functions, lessThan(pro),
+        reason: 'the function builders are free, so they come before Pro');
+    expect(File('../../packages/dartvel_flutter/lib/src/studio/functions/'
+            'function_section.dart').existsSync(),
+        isTrue,
+        reason: 'the builder ships in the open-source framework');
     final String section =
         sectionFrom(source, "Eyebrow('FRONTEND AND BACKEND FUNCTIONS'");
     // What Export writes, as toDartSource() writes it: a typed backend
@@ -168,12 +174,6 @@ void main() {
         if (e is File && e.path.endsWith('.dart')) e.readAsStringSync(),
     ].join('\n');
     final Map<String, List<String>> evidence = <String, List<String>>{
-      'Frontend and backend functions': <String>[
-        'dvFunctionStudioSections',
-        'DVWorkflowSide',
-        'toDartSource',
-        'class DVWorkflows',
-      ],
       'Figma import': <String>['dvFigmaImportStudioSection'],
       'Reusable components': <String>['dvComponentsStudioSection'],
       'Revision history': <String>['dvHistoryStudioSection'],

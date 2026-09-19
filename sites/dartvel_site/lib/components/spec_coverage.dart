@@ -116,6 +116,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Protect sensitive fields', anchor: 'sensitive'),
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
       anchor: 'sqlite'),
+  SpecCoverage('Storage-Neutral Records', 'Data', DVRoutes.docsdatabase,
+      'Store records without writing SQL', anchor: 'records'),
   SpecCoverage('Schema Evolution', 'Data', DVRoutes.docsdatabase,
       'Migrate production safely', anchor: 'production'),
   SpecCoverage('Cache', 'Data', DVRoutes.docscache,

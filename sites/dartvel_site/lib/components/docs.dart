@@ -231,6 +231,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Sessions and Account Management': 'Partial',
   'State': 'Shipped',
   'Static Web Generation': 'Shipped',
+  'Storage-Neutral Records': 'Partial',
   'Streaming Functions': 'Shipped',
   'Styling': 'Shipped',
   'Tab Workspaces': 'Partial',
