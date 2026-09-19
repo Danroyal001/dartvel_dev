@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
@@ -71,9 +72,11 @@ typedef DVLinkPreviewCallback = void Function(String? path);
 
 /// How long a pointer rests before the preview appears.
 ///
-/// Long enough that crossing a link on the way somewhere else does not flash
-/// a card; short enough to feel like an answer rather than a wait.
-const Duration dvLinkPreviewDelay = Duration(milliseconds: 550);
+/// Resting on a link is a deliberate act: it says "show me this without
+/// taking me there". Half a second was about the time a reader takes to
+/// click, so the preview -- a whole page built in one frame -- was landing
+/// in the frame the click needed, and the click felt slow.
+const Duration dvLinkPreviewDelay = Duration(milliseconds: 900);
 
 /// A navigable link to a route.
 class DVNavLink extends StatefulWidget {
@@ -179,6 +182,9 @@ class _DVNavLinkState extends State<DVNavLink> {
   bool _preloaded = false;
   Timer? _previewTimer;
 
+  /// Whether a preview is waiting for an idle moment to be built.
+  bool _previewPending = false;
+
   // For DVLinkPreload.visible: the scrollable the link sits in, and the timer
   // that runs while it is on screen.
   ScrollableState? _scrollable;
@@ -210,6 +216,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   void dispose() {
     _stopWatching();
     _previewTimer?.cancel();
+    _previewPending = false;
     _removePreview();
     _ownedFocusNode?.dispose();
     super.dispose();
@@ -338,13 +345,28 @@ class _DVNavLinkState extends State<DVNavLink> {
   void _exit(PointerExitEvent _) {
     widget.onPreview?.call(null);
     _previewTimer?.cancel();
+    _previewPending = false;
     _removePreview();
   }
 
   void _schedulePreview() {
     if (widget.preview == DVLinkPreview.none || !widget.enabled) return;
     _previewTimer?.cancel();
-    _previewTimer = Timer(dvLinkPreviewDelay, _showPreview);
+    _previewPending = false;
+    _previewTimer = Timer(dvLinkPreviewDelay, _previewWhenIdle);
+  }
+
+  /// Builds the preview when there is nothing else to do.
+  ///
+  /// Never in a frame the reader is waiting on: a press between the timer and
+  /// the idle moment cancels it, and a navigation gets the frame to itself.
+  void _previewWhenIdle() {
+    _previewPending = true;
+    unawaited(SchedulerBinding.instance.scheduleTask<void>(() {
+      if (!_previewPending) return;
+      _previewPending = false;
+      _showPreview();
+    }, Priority.idle));
   }
 
   void _showPreview() {
@@ -404,6 +426,7 @@ class _DVNavLinkState extends State<DVNavLink> {
 
   void _openBeside({bool fromPointer = false}) {
     _previewTimer?.cancel();
+    _previewPending = false;
     _removePreview();
     // The browser opens a tab on a middle or modified click by itself, and
     // opening a second one is not a second intention.
@@ -424,6 +447,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   void _activate({bool fromPointer = false}) {
     if (!widget.enabled) return;
     _previewTimer?.cancel();
+    _previewPending = false;
     _removePreview();
     final String? external = widget.externalUrl;
     if (external != null) {

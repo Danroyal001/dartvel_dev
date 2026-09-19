@@ -368,7 +368,10 @@ void main() {
       addTearDown(gesture.removePointer);
 
       await gesture.moveTo(tester.getCenter(find.text('Docs')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
 
       expect(find.text('the docs page'), findsOneWidget);
     });
@@ -382,7 +385,10 @@ void main() {
       addTearDown(gesture.removePointer);
 
       await gesture.moveTo(tester.getCenter(find.text('Docs')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
       expect(find.text('the docs page'), findsOneWidget);
 
       await gesture.moveTo(const Offset(2000, 2000));
@@ -412,7 +418,10 @@ void main() {
       addTearDown(gesture.removePointer);
 
       await gesture.moveTo(tester.getCenter(find.text('Home')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
 
       expect(find.text('this page again'), findsNothing);
     });
@@ -438,7 +447,10 @@ void main() {
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
       await gesture.moveTo(tester.getCenter(find.text('Docs')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
 
       expect(tester.takeException(), isNull);
       expect(find.text('the docs page'), findsNothing);
@@ -464,7 +476,10 @@ void main() {
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
       await gesture.moveTo(tester.getCenter(find.text('Docs')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
 
       await tester.tap(find.text('the docs page'), warnIfMissed: false);
       await tester.pump();
@@ -484,7 +499,10 @@ void main() {
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
       await gesture.moveTo(tester.getCenter(find.text('Docs')));
-      await tester.pump(const Duration(milliseconds: 700));
+      // The pointer rests, and the preview is built when the app is idle.
+      await tester.pump(dvLinkPreviewDelay + const Duration(milliseconds: 50));
+      await tester.idle();
+      await tester.pump();
 
       expect(find.text('the docs page'), findsNothing);
     });
