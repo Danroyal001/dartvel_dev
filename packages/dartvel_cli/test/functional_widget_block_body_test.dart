@@ -150,4 +150,30 @@ void main() {
     expect(widgets, contains('w0.suffix'));
     expect(widgets, isNot(contains("'w0.suffix'")));
   });
+
+  test('a nullable parameter is bound to a local, so a null check promotes',
+      () async {
+    final String widgets = await generateWidgetsFor('$_imports'
+        '@DVFunctionalWidget()\n'
+        'Widget _link(String label, {String? href}) {\n'
+        '  return href == null ? DVText(label) : DVText(href.toUpperCase());\n'
+        '}\n');
+
+    expect(widgets, contains('final String? href = this.href;'));
+    // A parameter the body never reads is not copied, which would be an
+    // unused local the analyzer reports.
+    expect(widgets, isNot(contains('final String label = this.label;')));
+  });
+
+  test('a nullable parameter the body assigns stays assignable', () async {
+    final String widgets = await generateWidgetsFor('$_imports'
+        '@DVFunctionalWidget()\n'
+        'Widget _named({String? name}) {\n'
+        '  name ??= \'anonymous\';\n'
+        '  return DVText(name);\n'
+        '}\n');
+
+    expect(widgets, contains('String? name = this.name;'));
+    expect(widgets, isNot(contains('final String? name = this.name;')));
+  });
 }
