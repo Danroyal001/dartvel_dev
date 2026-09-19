@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../components/scroll_jump.dart';
 import '../components/site.dart';
 import '../dartvel_client/dartvel_client.dart';
 
@@ -24,7 +25,8 @@ class Layout extends DartvelLayout {
       child: Column(
         children: <Widget>[
           const SiteHeader(),
-          Expanded(child: child),
+          // One scroll controller per page, and the button that uses it.
+          Expanded(child: PageScroll(child: child)),
         ],
       ),
     );
