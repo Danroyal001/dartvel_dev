@@ -211,6 +211,19 @@ const DVRecordShape dvStudioPagesShape = DVRecordShape(
   },
 );
 
+/// The collection Studio's frontend and backend functions are kept in.
+const String dvStudioFunctionsTable = 'dartvel_functions';
+
+/// A stored function: its name, and the document the builder saved.
+const DVRecordShape dvStudioFunctionsShape = DVRecordShape(
+  collection: dvStudioFunctionsTable,
+  key: 'name',
+  fields: <String, DVFieldType>{
+    'name': DVFieldType.text,
+    'document': DVFieldType.text,
+  },
+);
+
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
 class DVStudioApi {
@@ -268,6 +281,8 @@ class DVStudioApi {
           return await _models(request, method, segments.sublist(1));
         case 'pages':
           return await _pages(request, method);
+        case 'functions':
+          return await _functions(request, method);
         case 'grants':
           if (segments.length == 1) return await _grantsAt(request, method);
         case 'queues':
@@ -745,6 +760,60 @@ class DVStudioApi {
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
         return _reply(<String, Object?>{'deleted': route});
+    }
+    _notAllowed();
+  }
+
+  // ---- functions ---------------------------------------------------------
+
+  /// The frontend and backend functions built in Studio.
+  ///
+  /// Kept beside the pages rather than in the browser: the builder runs in a
+  /// browser, which has no database, and a function is the project's, not
+  /// that browser's.
+  Future<Response> _functions(Request request, String method) async {
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioFunctionsShape);
+    switch (method) {
+      case 'GET':
+        final List<Map<String, Object?>> rows =
+            await records.find(dvStudioFunctionsTable);
+        final List<Map<String, Object?>> functions = <Map<String, Object?>>[
+          for (final Map<String, Object?> row in rows)
+            <String, Object?>{
+              'name': '${row['name']}',
+              'document': jsonDecode('${row['document']}'),
+            },
+        ]..sort((Map<String, Object?> a, Map<String, Object?> b) =>
+            '${a['name']}'.compareTo('${b['name']}'));
+        return _reply(<String, Object?>{'functions': functions});
+      case 'PUT':
+        final Object? document = (await _body(request))['document'];
+        if (document is! Map || document['name'] is! String) {
+          throw _StudioRefusal(
+              400, 'bad_function', 'A function has to have a name.');
+        }
+        final String name = document['name']! as String;
+        if (name.isEmpty) {
+          throw _StudioRefusal(
+              400, 'bad_function', 'A function has to have a name.');
+        }
+        await records.delete(dvStudioFunctionsTable,
+            where: DVFilter.equals('name', name));
+        await records.insert(dvStudioFunctionsTable, <String, Object?>{
+          'name': name,
+          'document': jsonEncode(document),
+        });
+        return _reply(<String, Object?>{'name': name});
+      case 'DELETE':
+        final String? name = request.url.queryParameters['name'];
+        if (name == null || name.isEmpty) {
+          throw _StudioRefusal(
+              400, 'bad_function', 'Name the function to remove.');
+        }
+        await records.delete(dvStudioFunctionsTable,
+            where: DVFilter.equals('name', name));
+        return _reply(<String, Object?>{'deleted': name});
     }
     _notAllowed();
   }
