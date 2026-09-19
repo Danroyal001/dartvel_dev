@@ -52,7 +52,7 @@ Directory? enterpriseStudioPro() {
 
 /// What Studio Pro ships, as the page must badge it.
 const Map<String, bool> kProCards = <String, bool>{
-  'Workflow builder': true,
+  'Frontend and backend functions': true,
   'Figma import': true,
   'Reusable components': true,
   'Revision history': true,
@@ -86,21 +86,46 @@ void main() {
     }
   });
 
-  test('the workflow builder has its own section under Studio Pro', () {
+  test('frontend and backend functions have their own section under Pro', () {
     final String source = code(page);
     final int pro = source.indexOf("Eyebrow('STUDIO PRO'");
-    final int workflows = source.indexOf("Eyebrow('WORKFLOW BUILDER'");
-    expect(workflows, greaterThan(pro),
-        reason: 'the workflow builder section must come under Studio Pro');
-    final String section = sectionFrom(source, "Eyebrow('WORKFLOW BUILDER'");
-    // A workflow, its steps, and what Export writes.
-    for (final String step in <String>['CALL', 'SET', 'CONDITION', 'RETURN']) {
-      expect(section, contains(step), reason: 'the example has no $step step');
-    }
+    final int functions =
+        source.indexOf("Eyebrow('FRONTEND AND BACKEND FUNCTIONS'");
+    expect(functions, greaterThan(pro),
+        reason: 'the function builders must come under Studio Pro');
+    final String section =
+        sectionFrom(source, "Eyebrow('FRONTEND AND BACKEND FUNCTIONS'");
+    // What Export writes, as toDartSource() writes it: a typed backend
+    // function, and a frontend function calling it through the client.
     expect(section, contains('@DVBackendFunction()'));
-    expect(section.toLowerCase(), contains('saving'));
+    expect(section,
+        contains('Future<String> _welcomeCustomer(String email, bool wantsNews)'));
+    expect(section, contains("import '../dartvel_client/dartvel_client.dart';"));
+    expect(section,
+        contains('await welcomeCustomer(email: email, wantsNews: wantsNews);'));
+    // Inputs are typed: an Object? parameter is validated by nothing.
+    expect(section, isNot(contains('Object?')));
+    // Nothing parses a SET/CALL/CONDITION listing; the page showed one as if
+    // it were a language.
+    expect(section, isNot(contains('CONDITION ')));
     expect(section.toLowerCase(), contains('deploy'));
     expect(section.toLowerCase(), contains('drop the builder'));
+  });
+
+  test('Studio Pro comes with Dartvel Cloud, on every page that sells it', () {
+    for (final String path in <String>[
+      page,
+      'lib/pages/cloud.dart',
+      'lib/pages/index.dart',
+    ]) {
+      final String source = code(path);
+      final String pro = sectionFrom(
+          source,
+          path == 'lib/pages/index.dart'
+              ? "Eyebrow('STUDIO'"
+              : "Eyebrow('STUDIO PRO'");
+      expect(pro, contains('Dartvel Cloud'), reason: path);
+    }
   });
 
   test("the free Studio cards use the names on Studio's own rail", () {
@@ -143,7 +168,12 @@ void main() {
         if (e is File && e.path.endsWith('.dart')) e.readAsStringSync(),
     ].join('\n');
     final Map<String, List<String>> evidence = <String, List<String>>{
-      'Workflow builder': <String>['dvWorkflowStudioSection', 'toDartSource', 'class DVWorkflows'],
+      'Frontend and backend functions': <String>[
+        'dvFunctionStudioSections',
+        'DVWorkflowSide',
+        'toDartSource',
+        'class DVWorkflows',
+      ],
       'Figma import': <String>['dvFigmaImportStudioSection'],
       'Reusable components': <String>['dvComponentsStudioSection'],
       'Revision history': <String>['dvHistoryStudioSection'],
