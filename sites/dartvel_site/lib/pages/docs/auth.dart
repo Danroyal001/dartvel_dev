@@ -80,6 +80,27 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'codes',
+          title: 'Send a code and ask for it back',
+          children: <Widget>[
+            DocsText('DV.Auth.code() mints the digits to send: six by '
+                'default, from a secure random, with leading zeros kept.'),
+            DocsCode('auth-code'),
+            DocsText('DV.Auth.askForCode asks for them back, over whatever '
+                'is on screen. It answers with what was typed, or null when '
+                'it was dismissed; verify checks the code without closing, '
+                'so a wrong one can be typed again.'),
+            DocsCode('auth-ask-for-code'),
+            DocsText('For a flow with a page of its own:'),
+            DocsCode('auth-ask-for-code-page'),
+            Bullets(<String>[
+              'The field takes digits only, as many as the code has.',
+              'It offers the code a phone shows above the keyboard, through '
+                  'the one-time-code autofill hint.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'sessions',
           title: 'List and revoke sessions',
           children: <Widget>[
