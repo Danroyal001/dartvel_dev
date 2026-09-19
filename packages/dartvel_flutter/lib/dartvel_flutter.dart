@@ -52,6 +52,7 @@ import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
+import 'src/widgets/browser_menu.dart';
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -720,6 +721,7 @@ export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
 export 'src/updates/shorebird_updates.dart'
     show DVShorebirdNative, DVShorebirdUpdates;
+export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/home_widgets.dart';
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';
@@ -9036,6 +9038,33 @@ class _DVPageShellState extends State<DVPageShell> {
   Widget get child => widget.child;
 
   @override
+  void initState() {
+    super.initState();
+    // Flutter's menu on the web, where the browser's had nothing to offer.
+    DVBrowserMenu.install();
+  }
+
+  /// The selection menu: the platform's own items, and on the web one
+  /// more that hands the next right-click to the browser.
+  Widget _selectionMenu(
+      BuildContext context, SelectableRegionState selection) {
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: selection.contextMenuAnchors,
+      buttonItems: <ContextMenuButtonItem>[
+        ...selection.contextMenuButtonItems,
+        if (DVBrowserMenu.isWeb)
+          ContextMenuButtonItem(
+            label: 'Browser menu',
+            onPressed: () {
+              selection.hideToolbar();
+              DVBrowserMenu.openNextNative();
+            },
+          ),
+      ],
+    );
+  }
+
+  @override
   void dispose() {
     _selectionFocusNode.dispose();
     super.dispose();
@@ -9153,6 +9182,7 @@ class _DVPageShellState extends State<DVPageShell> {
             // subsequent one was off by one. It still takes focus when a
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
+            contextMenuBuilder: _selectionMenu,
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
