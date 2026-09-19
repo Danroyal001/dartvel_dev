@@ -16,6 +16,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVPublicEnvLibrary,
         dvGeneratePublicEnvLibrary;
 
+import 'assets_generator.dart';
 import 'account_generator.dart';
 import 'config_routes.dart';
 import 'annotation_args.dart';
@@ -585,6 +586,7 @@ library dartvel_client;
 export 'package:dartvel_core/dartvel.dart';
 export 'package:dartvel_flutter/dartvel_flutter.dart';
 export 'account.g.dart';
+export 'assets.g.dart';
 export 'config.g.dart';
 export 'dartvel_config.g.dart';
 export 'dartvel_runtime.dart';
@@ -2045,6 +2047,10 @@ ${(() {
     File(
       p.join(libClientDir.path, 'router.g.dart'),
     ).writeAsStringSync(router);
+
+    // Every bundled file, as DVAsset: a page names one rather than typing a
+    // path, so a renamed file is a compile error.
+    dvGenerateAssets(root: root);
 
     // The mounted modules, in two files for one reason: the registration
     // has to be loadable by the backend, which is a pure Dart server with

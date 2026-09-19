@@ -164,6 +164,7 @@ export 'src/kiosk/runtime.dart';
 export 'src/kiosk/updates.dart';
 export 'src/lifecycle/lifecycle.dart';
 export 'src/mail/smtp.dart';
+export 'src/media/asset.dart';
 export 'src/media/audio_focus.dart';
 export 'src/media/capture.dart';
 export 'src/media/capture_backend.dart';

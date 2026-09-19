@@ -42,6 +42,8 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/hero.png
 
 dartvel:
   backendHost: 0.0.0.0
