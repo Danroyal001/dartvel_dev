@@ -9073,10 +9073,13 @@ class _DVPageShellState extends State<DVPageShell> {
   Widget _selectionMenu(
       BuildContext context, SelectableRegionState selection) {
     final String selected = _selected?.plainText ?? '';
-    final Offset anchor = selection.contextMenuAnchors.primaryAnchor;
+    // Read once: Flutter hands the right-click position to the first reader
+    // and forgets it, and a second read falls back to the selection edge.
+    final TextSelectionToolbarAnchors anchors = selection.contextMenuAnchors;
+    final Offset anchor = anchors.primaryAnchor;
     return ExcludeFocus(
       child: AdaptiveTextSelectionToolbar.buttonItems(
-        anchors: selection.contextMenuAnchors,
+        anchors: anchors,
         buttonItems: <ContextMenuButtonItem>[
           for (final ContextMenuButtonItem item
               in selection.contextMenuButtonItems)
