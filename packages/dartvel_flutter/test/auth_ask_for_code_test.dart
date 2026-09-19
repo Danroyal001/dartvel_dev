@@ -6,7 +6,6 @@
 // whole page for a flow that has one.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> typeCode(WidgetTester tester, String code) async {
