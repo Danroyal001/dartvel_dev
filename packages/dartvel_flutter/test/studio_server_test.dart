@@ -20,29 +20,30 @@ typedef _Call = ({String method, String path, Object? body});
 /// A backend, in memory, answering the way the admin mount's API does.
 class _FakeServer {
   final List<_Call> calls = <_Call>[];
-  final Map<String, Map<String, Object?>> users = <String, Map<String, Object?>>{
-    'ada': <String, Object?>{
-      'key': 'ada',
-      'version': 1,
-      'values': <String, Object?>{
-        'slug': 'ada',
-        'name': 'Ada',
-        'age': 36,
-        'published': true,
-        'joinedAt': 1789650000000,
-        'lastSeen': '2026-09-17T10:05:00.000Z',
-      },
-    },
-    'grace': <String, Object?>{
-      'key': 'grace',
-      'version': 1,
-      'values': <String, Object?>{
-        'slug': 'grace',
-        'name': 'Grace',
-        'published': false,
-      },
-    },
-  };
+  final Map<String, Map<String, Object?>> users =
+      <String, Map<String, Object?>>{
+        'ada': <String, Object?>{
+          'key': 'ada',
+          'version': 1,
+          'values': <String, Object?>{
+            'slug': 'ada',
+            'name': 'Ada',
+            'age': 36,
+            'published': true,
+            'joinedAt': 1789650000000,
+            'lastSeen': '2026-09-17T10:05:00.000Z',
+          },
+        },
+        'grace': <String, Object?>{
+          'key': 'grace',
+          'version': 1,
+          'values': <String, Object?>{
+            'slug': 'grace',
+            'name': 'Grace',
+            'published': false,
+          },
+        },
+      };
   final Map<String, Object?> order = <String, Object?>{
     'key': 'o1',
     'version': 4,
@@ -71,8 +72,7 @@ class _FakeServer {
     },
   ];
 
-  Future<DVStudioReply> call(String method, String path,
-      {Object? body}) async {
+  Future<DVStudioReply> call(String method, String path, {Object? body}) async {
     // Through JSON both ways, as the network would.
     final Object? sent = body == null ? null : jsonDecode(jsonEncode(body));
     calls.add((method: method, path: path, body: sent));
@@ -127,13 +127,16 @@ class _FakeServer {
       });
     }
     if (method == 'GET' && path == 'api/models/Order/records') {
-      return reply(200, <String, Object?>{'records': <Object?>[order]});
+      return reply(200, <String, Object?>{
+        'records': <Object?>[order],
+      });
     }
     if (method == 'PUT' && path == 'api/models/Order/records/o1') {
       final Map<String, Object?> sentBody = sent! as Map<String, Object?>;
       order['version'] = (order['version']! as int) + 1;
-      (order['values']! as Map<String, Object?>)
-          .addAll(sentBody['values']! as Map<String, Object?>);
+      (order['values']! as Map<String, Object?>).addAll(
+        sentBody['values']! as Map<String, Object?>,
+      );
       return reply(200, order);
     }
     if (method == 'GET' && path == 'api/models/User/records') {
@@ -149,15 +152,17 @@ class _FakeServer {
       }
       final Map<String, Object?> stored = users['ada']!;
       stored['version'] = (stored['version']! as int) + 1;
-      (stored['values']! as Map<String, Object?>)
-          .addAll(sentBody['values']! as Map<String, Object?>);
+      (stored['values']! as Map<String, Object?>).addAll(
+        sentBody['values']! as Map<String, Object?>,
+      );
       return reply(200, stored);
     }
     if (method == 'GET' && path == 'api/pages') {
       return reply(200, <String, Object?>{'pages': pages.values.toList()});
     }
     if (method == 'PUT' && path == 'api/pages') {
-      final Map<String, Object?> document = (sent! as Map)['document'] as Map<String, Object?>;
+      final Map<String, Object?> document =
+          (sent! as Map)['document'] as Map<String, Object?>;
       pages['${document['route']}'] = <String, Object?>{
         'route': document['route'],
         'title': document['title'],
@@ -193,7 +198,8 @@ class _FakeServer {
         });
       }
       grants.removeWhere(
-          (Map<String, Object?> g) => g['userId'] == query['userId']);
+        (Map<String, Object?> g) => g['userId'] == query['userId'],
+      );
       return reply(200, <String, Object?>{'revoked': query['userId']});
     }
     if (method == 'GET' && path == 'api/queues') {
@@ -289,12 +295,15 @@ void main() {
 
   group('the client', () {
     test('an edit is sent with the version it was read at', () async {
-      final DVStudioRecordData ada =
-          (await client.records('User'))
-              .firstWhere((DVStudioRecordData r) => r.key == 'ada');
+      final DVStudioRecordData ada = (await client.records(
+        'User',
+      )).firstWhere((DVStudioRecordData r) => r.key == 'ada');
 
-      final DVStudioRecordData saved = await client
-          .update('User', ada, <String, Object?>{'name': 'Ada Lovelace'});
+      final DVStudioRecordData saved = await client.update(
+        'User',
+        ada,
+        <String, Object?>{'name': 'Ada Lovelace'},
+      );
 
       expect(server.calls.last.method, 'PUT');
       expect(server.calls.last.body, <String, Object?>{
@@ -306,24 +315,31 @@ void main() {
     });
 
     test('a refusal is thrown with what the server said', () async {
-      final DVStudioRecordData ada =
-          (await client.records('User'))
-              .firstWhere((DVStudioRecordData r) => r.key == 'ada');
+      final DVStudioRecordData ada = (await client.records(
+        'User',
+      )).firstWhere((DVStudioRecordData r) => r.key == 'ada');
       await client.update('User', ada, <String, Object?>{'name': 'First'});
 
       await expectLater(
         client.update('User', ada, <String, Object?>{'name': 'Stale'}),
-        throwsA(isA<DVStudioRemoteError>()
-            .having((DVStudioRemoteError e) => e.status, 'status', 409)
-            .having((DVStudioRemoteError e) => e.message, 'message',
-                contains('changed'))),
+        throwsA(
+          isA<DVStudioRemoteError>()
+              .having((DVStudioRemoteError e) => e.status, 'status', 409)
+              .having(
+                (DVStudioRemoteError e) => e.message,
+                'message',
+                contains('changed'),
+              ),
+        ),
       );
     });
 
     test('the page store publishes to the server, not DV.Database', () async {
       final DVStudioRemotePageStore store = DVStudioRemotePageStore(client);
-      final DVPageDocument document =
-          DVPageDocument(route: '/about', title: 'About');
+      final DVPageDocument document = DVPageDocument(
+        route: '/about',
+        title: 'About',
+      );
 
       await store.save(document);
 
@@ -334,44 +350,47 @@ void main() {
   });
 
   group('the app', () {
-    testWidgets('opens on the page builder, with the server sections beside it',
-        (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1440, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
+    testWidgets(
+      'opens on the page builder, with the server sections beside it',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(_host(client));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(_host(client));
+        await tester.pumpAndSettle();
 
-      // Named for someone who has never written a line of code, the way
-      // Bubble, Webflow and WordPress name theirs.
-      for (final String section in <String>[
-        'Pages',
-        'Data',
-        'Site map',
-        'Backend',
-        'Tasks',
-        'Queue',
-        'Cache',
-        'Team',
-      ]) {
-        expect(find.text(section), findsWidgets, reason: section);
-      }
-      for (final String jargon in <String>[
-        'Models',
-        'Routes',
-        'Functions',
-        'Jobs',
-        'Access',
-        'Windows',
-      ]) {
-        expect(find.text(jargon), findsNothing, reason: jargon);
-      }
-      expect(server.calls.map((_Call c) => c.path), contains('api/pages'));
-    });
+        // Named for someone who has never written a line of code, the way
+        // Bubble, Webflow and WordPress name theirs.
+        for (final String section in <String>[
+          'Pages',
+          'Data',
+          'Site map',
+          'Backend',
+          'Tasks',
+          'Queue',
+          'Cache',
+          'Team',
+        ]) {
+          expect(find.text(section), findsWidgets, reason: section);
+        }
+        for (final String jargon in <String>[
+          'Models',
+          'Routes',
+          'Functions',
+          'Jobs',
+          'Access',
+          'Windows',
+        ]) {
+          expect(find.text(jargon), findsNothing, reason: jargon);
+        }
+        expect(server.calls.map((_Call c) => c.path), contains('api/pages'));
+      },
+    );
 
-    testWidgets('Studio follows the system\'s dark mode, and back',
-        (WidgetTester tester) async {
+    testWidgets('Studio follows the system\'s dark mode, and back', (
+      WidgetTester tester,
+    ) async {
       // Light and dark screenshots of Studio were byte-identical: the palette
       // was fixed, whatever the browser asked for.
       tester.view.physicalSize = const Size(1440, 900);
@@ -385,12 +404,15 @@ void main() {
 
       // The nearest filled box behind a piece of text: what the text sits on.
       Color behind(String text) {
-        for (final Element element in find
-            .ancestor(
-                of: find.text(text).last,
-                matching: find.byWidgetPredicate(
-                    (Widget w) => w is DecoratedBox || w is ColoredBox))
-            .evaluate()) {
+        for (final Element element
+            in find
+                .ancestor(
+                  of: find.text(text).last,
+                  matching: find.byWidgetPredicate(
+                    (Widget w) => w is DecoratedBox || w is ColoredBox,
+                  ),
+                )
+                .evaluate()) {
           final Widget widget = element.widget;
           final Color? color = widget is ColoredBox
               ? widget.color
@@ -403,8 +425,11 @@ void main() {
         throw StateError('nothing is painted behind $text');
       }
 
-      expect(behind('How Studio works').computeLuminance(), lessThan(0.1),
-          reason: 'a dark system got a light Studio');
+      expect(
+        behind('How Studio works').computeLuminance(),
+        lessThan(0.1),
+        reason: 'a dark system got a light Studio',
+      );
       expect(DVStudioStyle.ink.computeLuminance(), greaterThan(0.6));
 
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
@@ -414,38 +439,71 @@ void main() {
       expect(DVStudioStyle.ink.computeLuminance(), lessThan(0.1));
     });
 
-    testWidgets('a model shows its records, with no sensitive column',
-        (WidgetTester tester) async {
+    testWidgets('a model shows its records, with no sensitive column', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-models')),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey<String>('dv-studio-model-User')),
-          findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('dv-studio-model-User')),
+        findsOneWidget,
+      );
       expect(find.text('Ada'), findsOneWidget);
       expect(find.text('36'), findsOneWidget);
       expect(find.text('password'), findsNothing);
     });
 
-    testWidgets('a record opens in a form, and saving sends what changed',
-        (WidgetTester tester) async {
+    testWidgets('column and field names read as words', (
+      WidgetTester tester,
+    ) async {
+      // joinedAt is the code's name. Someone editing a record reads
+      // "Joined at", in the table and in the form.
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-models')),
+      );
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-record-ada')));
+      expect(find.text('JOINED AT'), findsOneWidget);
+      expect(find.text('LAST SEEN'), findsOneWidget);
+      expect(find.text('JOINEDAT'), findsNothing);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-ada')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('JOINED AT'), findsNWidgets(2));
+    });
+
+    testWidgets('a record opens in a form, and saving sends what changed', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-models')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-ada')),
+      );
       await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
@@ -454,12 +512,12 @@ void main() {
         ),
         'Ada Lovelace',
       );
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-save')),
+      );
       await tester.pumpAndSettle();
 
-      final _Call put =
-          server.calls.lastWhere((_Call c) => c.method == 'PUT');
+      final _Call put = server.calls.lastWhere((_Call c) => c.method == 'PUT');
       expect(put.path, 'api/models/User/records/ada');
       expect(put.body, <String, Object?>{
         'version': 1,
@@ -468,8 +526,9 @@ void main() {
       expect(find.text('Ada Lovelace'), findsWidgets);
     });
 
-    testWidgets('a date is shown as a date, not as epoch milliseconds',
-        (WidgetTester tester) async {
+    testWidgets('a date is shown as a date, not as epoch milliseconds', (
+      WidgetTester tester,
+    ) async {
       // Order.placedAt came out as 1789650000000: an int holding a moment is
       // the usual way a model stores one, and nobody reads that number.
       tester.view.physicalSize = const Size(1600, 900);
@@ -477,8 +536,9 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-models')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('1789650000000'), findsNothing);
@@ -490,66 +550,79 @@ void main() {
     });
 
     testWidgets(
-        'a column heading stays on one line when the form narrows the table',
-        (WidgetTester tester) async {
-      // A heading broken mid-word ("DESCRIPTI / ON") is unreadable, and a
-      // table squeezed by the edit form did exactly that.
-      tester.view.physicalSize = const Size(1000, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(_host(client));
-      await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
-      await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-record-ada')));
-      await tester.pumpAndSettle();
+      'a column heading stays on one line when the form narrows the table',
+      (WidgetTester tester) async {
+        // A heading broken mid-word ("DESCRIPTI / ON") is unreadable, and a
+        // table squeezed by the edit form did exactly that.
+        tester.view.physicalSize = const Size(1000, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(_host(client));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey<String>('dv-studio-section-models')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey<String>('dv-studio-record-ada')),
+        );
+        await tester.pumpAndSettle();
 
-      for (final String heading in <String>['PUBLISHED', 'SLUG', 'NAME']) {
-        final Finder text = find.text(heading);
-        expect(text, findsWidgets, reason: heading);
-        for (final Element at in text.evaluate()) {
-          final RenderParagraph paragraph = at.renderObject! as RenderParagraph;
-          final double oneLine = paragraph
-              .getFullHeightForCaret(const TextPosition(offset: 0));
-          expect(paragraph.size.height, lessThanOrEqualTo(oneLine + 0.5),
-              reason: '$heading wrapped onto a second line');
+        for (final String heading in <String>['PUBLISHED', 'SLUG', 'NAME']) {
+          final Finder text = find.text(heading);
+          expect(text, findsWidgets, reason: heading);
+          for (final Element at in text.evaluate()) {
+            final RenderParagraph paragraph =
+                at.renderObject! as RenderParagraph;
+            final double oneLine = paragraph.getFullHeightForCaret(
+              const TextPosition(offset: 0),
+            );
+            expect(
+              paragraph.size.height,
+              lessThanOrEqualTo(oneLine + 0.5),
+              reason: '$heading wrapped onto a second line',
+            );
+          }
         }
-      }
-      expect(tester.takeException(), isNull);
-    });
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('routes and functions come from the build\'s manifest',
-        (WidgetTester tester) async {
+    testWidgets('routes and functions come from the build\'s manifest', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-routes')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-routes')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('/menu'), findsOneWidget);
       expect(find.text('lib/pages/menu.page.dart'), findsOneWidget);
 
       await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-section-functions')));
+        find.byKey(const ValueKey<String>('dv-studio-section-functions')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('placeOrder'), findsOneWidget);
     });
 
-    testWidgets('access lists who may open Studio',
-        (WidgetTester tester) async {
+    testWidgets('access lists who may open Studio', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-access')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-access')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('owner-1'), findsOneWidget);
@@ -568,27 +641,33 @@ void main() {
 
     Future<void> openOrder(WidgetTester tester) async {
       await openSection(tester, 'models');
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-model-Order')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-model-Order')),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-record-o1')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-o1')),
+      );
       await tester.pumpAndSettle();
     }
 
     Future<Map<String, Object?>> save(WidgetTester tester) async {
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-save')),
+      );
       await tester.pumpAndSettle();
       final _Call put = server.calls.lastWhere((_Call c) => c.method == 'PUT');
       return ((put.body! as Map)['values']! as Map).cast<String, Object?>();
     }
 
-    testWidgets('an enum field is chosen from its values',
-        (WidgetTester tester) async {
+    testWidgets('an enum field is chosen from its values', (
+      WidgetTester tester,
+    ) async {
       await openOrder(tester);
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-field-status')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-field-status')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('shipped').last);
       await tester.pumpAndSettle();
@@ -605,8 +684,9 @@ void main() {
       );
 
       await tester.enterText(tags, '["gift", "express"');
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-record-save')),
+      );
       await tester.pumpAndSettle();
       expect(server.calls.where((_Call c) => c.method == 'PUT'), isEmpty);
       expect(find.textContaining('tags is not valid JSON'), findsOneWidget);
@@ -617,12 +697,14 @@ void main() {
       });
     });
 
-    testWidgets('a reference is chosen from the related model\'s records',
-        (WidgetTester tester) async {
+    testWidgets('a reference is chosen from the related model\'s records', (
+      WidgetTester tester,
+    ) async {
       await openOrder(tester);
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-field-userSlug')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-field-userSlug')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('grace').last);
       await tester.pumpAndSettle();
@@ -633,17 +715,21 @@ void main() {
     testWidgets('a nullable field can be emptied', (WidgetTester tester) async {
       await openOrder(tester);
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-field-note-empty')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-field-note-empty')),
+      );
       await tester.pumpAndSettle();
 
       expect(await save(tester), <String, Object?>{'note': null});
     });
 
-    testWidgets('queues show what waits and what died, and why',
-        (WidgetTester tester) async {
+    testWidgets('queues show what waits and what died, and why', (
+      WidgetTester tester,
+    ) async {
       await openSection(tester, 'queues');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-queue-mail')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-queue-mail')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('job-2'), findsOneWidget);
@@ -651,35 +737,50 @@ void main() {
       expect(find.textContaining('SMTP 550'), findsOneWidget);
     });
 
-    testWidgets('a dead letter is retried from Studio',
-        (WidgetTester tester) async {
+    testWidgets('a dead letter is retried from Studio', (
+      WidgetTester tester,
+    ) async {
       await openSection(tester, 'queues');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-studio-queue-mail')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-queue-mail')),
+      );
       await tester.pumpAndSettle();
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-job-retry-job-1')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-job-retry-job-1')),
+      );
       await tester.pumpAndSettle();
 
-      expect(server.calls.map((_Call c) => '${c.method} ${c.path}'),
-          contains('POST api/queues/jobs/job-1/retry'));
-      expect(find.text('job-1'), findsNothing,
-          reason: 'the queue is read again after the retry');
+      expect(
+        server.calls.map((_Call c) => '${c.method} ${c.path}'),
+        contains('POST api/queues/jobs/job-1/retry'),
+      );
+      expect(
+        find.text('job-1'),
+        findsNothing,
+        reason: 'the queue is read again after the retry',
+      );
     });
 
-    testWidgets('cache tags list their keys and revalidate',
-        (WidgetTester tester) async {
+    testWidgets('cache tags list their keys and revalidate', (
+      WidgetTester tester,
+    ) async {
       await openSection(tester, 'cache');
 
       expect(find.text('products'), findsOneWidget);
       expect(find.textContaining('product:ethiopia'), findsOneWidget);
 
       await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-cache-revalidate-products')));
+        find.byKey(
+          const ValueKey<String>('dv-studio-cache-revalidate-products'),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(server.calls.map((_Call c) => '${c.method} ${c.path}'),
-          contains('POST api/cache/tags/products/revalidate'));
+      expect(
+        server.calls.map((_Call c) => '${c.method} ${c.path}'),
+        contains('POST api/cache/tags/products/revalidate'),
+      );
       expect(find.textContaining('2 keys dropped'), findsOneWidget);
       expect(find.text('products'), findsNothing);
     });
@@ -690,13 +791,15 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-section-access')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-section-access')),
+      );
       await tester.pumpAndSettle();
     }
 
-    testWidgets('an account is granted from Studio by its address',
-        (WidgetTester tester) async {
+    testWidgets('an account is granted from Studio by its address', (
+      WidgetTester tester,
+    ) async {
       await openAccess(tester);
 
       await tester.enterText(
@@ -709,8 +812,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey<String>('dv-studio-grant')));
       await tester.pumpAndSettle();
 
-      final _Call post =
-          server.calls.lastWhere((_Call c) => c.method == 'POST');
+      final _Call post = server.calls.lastWhere(
+        (_Call c) => c.method == 'POST',
+      );
       expect(post.path, 'api/grants');
       expect(post.body, <String, Object?>{'account': 'sam@example.com'});
       // The list is read again, so the new grant is on it.
@@ -733,22 +837,28 @@ void main() {
       expect(find.textContaining('Nobody has signed up'), findsOneWidget);
     });
 
-    testWidgets('revoking your own grant asks first, and revokes on yes',
-        (WidgetTester tester) async {
+    testWidgets('revoking your own grant asks first, and revokes on yes', (
+      WidgetTester tester,
+    ) async {
       await openAccess(tester);
 
-      await tester
-          .tap(find.byKey(const ValueKey<String>('dv-studio-revoke-owner-1')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('dv-studio-revoke-owner-1')),
+      );
       await tester.pumpAndSettle();
 
       expect(server.grants, hasLength(1), reason: 'revoked without asking');
       expect(find.text('This is your own grant.'), findsOneWidget);
       await tester.tap(
-          find.byKey(const ValueKey<String>('dv-studio-revoke-confirm')));
+        find.byKey(const ValueKey<String>('dv-studio-revoke-confirm')),
+      );
       await tester.pumpAndSettle();
 
-      expect(server.calls.last.path, isNot(contains('confirm=true')),
-          reason: 'the list is read again after revoking');
+      expect(
+        server.calls.last.path,
+        isNot(contains('confirm=true')),
+        reason: 'the list is read again after revoking',
+      );
       expect(
         server.calls.map((_Call c) => c.path),
         contains('api/grants?userId=owner-1&tenant=default&confirm=true'),
