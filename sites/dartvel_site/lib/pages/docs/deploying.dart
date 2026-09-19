@@ -70,6 +70,27 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'rendering',
+          title: 'Serve each page with its data and head tags',
+          children: <Widget>[
+            Bullets(<String>[
+              'The server resolves the route, loads the page\'s data and writes '
+                  'the title, description, image, canonical link and JSON-LD '
+                  'before the app starts, so crawlers and link previews see '
+                  'the real page.',
+              'A hidden or unpublished record answers 404, and one the visitor '
+                  'may not see answers 401, without its data.',
+              'Page data can be awaited, cached for a while, served stale and '
+                  'refreshed, or left to the app. With a shared cache such as '
+                  'Redis, every instance serves what one of them resolved.',
+            ]),
+            DocsStatus('Web Server Rendering', missing: <String>[
+              'Widgets are not rendered to HTML. Crawlers get the head tags '
+                  'and text written from the page\'s data.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'roles',
           title: 'Run as web, worker or cron',
           children: <Widget>[
