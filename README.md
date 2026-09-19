@@ -689,8 +689,10 @@ outright. `sslMode` takes libpq's names, so a connection string copied from a
 provider's console pastes in unchanged.
 
 The supported engines are SQLite, PostgreSQL and MySQL, each with their
-wire-compatible variants. MongoDB, ClickHouse and BigQuery are **out of scope
-by decision**, not waiting in a backlog.
+wire-compatible variants. **MongoDB is planned as the first document
+database**; the framework is moving its own storage off SQL strings so that it
+can be (see Storage-Neutral Records in NEW_SPEC.md). ClickHouse and BigQuery
+are sync destinations, not operational databases.
 
 ---
 

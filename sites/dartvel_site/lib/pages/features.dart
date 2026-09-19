@@ -253,7 +253,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Schema Evolution',
     'Online migrations',
     'Present: a planner that classifies blocking changes per database version '
-        'and runs resumable backfills. Absent: MongoDB, ClickHouse and BigQuery.',
+        'and runs resumable backfills. Absent: MongoDB, which is planned as the '
+        'first document database.',
   ),
   (
     'Platform API: Keys, Scopes and OAuth Provider',

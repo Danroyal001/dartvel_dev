@@ -2382,12 +2382,12 @@ Operational database adapters:
 * MySQL, and its wire-compatible variants
 * SQLite, including Turso and other libSQL builds
 
-MongoDB, ClickHouse and BigQuery are **out of scope as operational databases**,
-by decision rather than backlog: no model is stored in them, no query is served
-from them, and no migration runs against them. ClickHouse and BigQuery are
-supported as sync destinations in Change Data Capture and Warehouse Sync, which
-is a different job — a place writes are copied to, not a place the application
-reads from.
+Document databases are coming, **MongoDB first**, which reverses an earlier
+decision that ruled them out. What that asks of the framework is set out in
+Storage-Neutral Records: nothing Dartvel persists may depend on SQL being the
+language its database speaks. ClickHouse and BigQuery stay sync destinations in
+Change Data Capture and Warehouse Sync -- a place writes are copied to, not a
+place the application reads from.
 
 Automatic migrations.
 Automatic CRUD.
@@ -2430,6 +2430,54 @@ proves nothing.
 Automatic migrations stay automatic as a table grows, which is where the cost
 of a change stops being obvious: see Schema Evolution for how each change is
 classified and how a blocking one is choreographed rather than simply run.
+
+---
+
+# Storage-Neutral Records
+
+Stability: `Draft` · Status: `Designed`
+
+A model, a Studio page and a queued job are records: a key, some fields and a
+version. Only the adapter underneath should know whether they sit in a SQL
+table or a MongoDB collection. Today the framework writes SQL strings through
+`DVDatabaseAdapter.query(sql)` in about forty places -- Studio's page and
+workflow stores, `DVRecordTable` under every generated model, the cache and
+queue adapters, auth, analytics -- and a document database can run none of
+them.
+
+## One set of operations, compiled per engine
+
+`DVRecordAdapter` is the contract every engine implements:
+
+| Operation | Meaning |
+|---|---|
+| `ensure(shape)` | the collection exists, with the fields and indexes named |
+| `find(collection, where:, orderBy:, limit:, offset:, fields:)` | matching records |
+| `count(collection, where:)` | how many match |
+| `insert(collection, record)` | one new record |
+| `update(collection, changes, where:)` | changes the matches; answers how many |
+| `delete(collection, where:)` | removes the matches; answers how many |
+
+`where` is a `DVFilter` tree, not a string: equality, the other comparisons,
+null checks, `and` and `or`. A SQL engine compiles it to a parameterised
+`WHERE`; a MongoDB engine to a filter document. An optimistic write is an
+`update` whose filter names the version it read, and a count of nought is the
+conflict, which both engines can answer.
+
+## What stays SQL
+
+`DV.Database.query(sql)` and `execute(sql)` remain for application code that
+chooses SQL, and are documented as SQL-only. Framework code does not use them:
+a surface that persists through a SQL string is a surface MongoDB cannot back.
+
+## Order of work
+
+1. `DVFilter`, `DVRecordAdapter`, and its SQL and in-memory engines.
+2. Studio's page and workflow stores move onto it, since Studio is what a
+   project on MongoDB opens first.
+3. `DVRecordTable`, so generated models follow.
+4. The remaining framework stores, area by area.
+5. A MongoDB engine, run against a real MongoDB in CI.
 
 ---
 
@@ -10909,9 +10957,10 @@ over-redact or, worse, under-redact silently.
 and Supabase Auth let an application keep its identity provider while adopting
 everything else. The database side is narrower than it looks: Supabase is
 PostgreSQL and reaches the existing adapter. Firestore does not — it is a
-document store, and Database records MongoDB, ClickHouse and BigQuery as out of
-scope by decision rather than backlog, so a Firestore adapter would be a
-reversal of that decision and is not assumed here.
+document store. Storage-Neutral Records is what makes one possible: MongoDB is
+the first document engine planned, and a Firestore adapter would be a second
+implementation of the same operations, not assumed until MongoDB has proven
+them.
 
 **Platform channels.** Allowed, like any Flutter feature. The
 no-platform-channels rule binds Dartvel's own APIs; it has never bound the host
