@@ -3,14 +3,15 @@ import '../dartvel_client/dartvel_client.dart';
 
 // What Studio is, split the way it ships: the free Studio in every app and in
 // the web-server binary, then Studio Pro from the private dartvel_enterprise
-// repository, with the workflow builder given its own section because it is
-// the part of Pro a buyer is paying for.
+// repository, which comes with Dartvel Cloud, with the frontend and backend
+// function builders given their own section because they are the part of Pro
+// a buyer is paying for.
 //
 // Every claim is checked against the code. The free cards take their badges
 // from the spec index through SiteCard(section:), and the Pro cards are held
-// to dartvel_studio_pro by test/studio_page_test.dart. The workflow and the
-// Dart it exports are what DVWorkflowDocument.toDartSource() printed for that
-// workflow, and the screenshots are of the real Studio.
+// to dartvel_studio_pro by test/studio_page_test.dart. The Dart the functions
+// export is what DVWorkflowDocument.toDartSource() printed for them, and the
+// screenshots are of the real Studio.
 @DVPage(
   title: 'Dartvel Studio and Studio Pro',
   showAppBar: false,
@@ -35,7 +36,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'and never inside an app.',
           'Build pages visually and edit model records without writing an '
               'admin panel.',
-          'Studio Pro adds a visual workflow builder that exports plain Dart.',
+          'Studio Pro comes with Dartvel Cloud, and adds frontend and '
+              'backend functions built from steps and exported as plain Dart.',
         ]),
         StudioShot(
           'assets/studio/page-builder.png',
@@ -187,11 +189,11 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       dark: true,
       children: <Widget>[
         Eyebrow('STUDIO PRO', onDark: true),
-        Heading('Studio Pro adds a workflow builder, Figma import and team '
-            'review.', onDark: true),
+        Heading('Studio Pro adds frontend and backend functions, Figma import '
+            'and team review.', onDark: true),
         Bullets(onDark: true, <String>[
-          'Pro is paid, and lives in the private dartvel_enterprise '
-              'repository.',
+          'Studio Pro comes with Dartvel Cloud. There is nothing separate to '
+              'buy.',
           'Each Pro feature adds a section to Studio, so the free Studio '
               'never shows a tab it cannot open.',
         ]),
@@ -199,32 +201,26 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     ),
     Section(
       children: <Widget>[
-        Eyebrow('WORKFLOW BUILDER'),
-        Heading('Build a backend function from steps, then export it as Dart.'),
+        Eyebrow('FRONTEND AND BACKEND FUNCTIONS'),
+        Heading('Build what a button does and what the server does, from the '
+            'same steps.'),
         Bullets(<String>[
-          'Drag Call, Set, Condition and Return steps onto the canvas. A Call '
-              'runs an action you registered with DVWorkflows.registerAction.',
-          'Deploy saves the workflow. From saving on, DVWorkflows.run '
-              'executes it.',
-          'Export writes an ordinary @DVBackendFunction, so you can '
+          'Frontend functions run in the app and backend functions on your '
+              'server, each in its own Studio section. A frontend function '
+              'calls a backend one by name.',
+          'Inputs and results have types, Text, Whole number, Number or Yes '
+              'or no, and a run refuses the wrong type before any step runs.',
+          'Deploy saves the function. Export writes ordinary Dart, so you can '
               'drop the builder whenever you like.',
         ]),
         StudioShot(
           'assets/studio/workflow-builder.png',
-          'Studio Pro workflow builder showing the welcomeCustomer workflow '
+          'Studio Pro builder showing the welcomeCustomer backend function '
               'as Set, Call, Condition and Return steps',
-          caption: 'The welcomeCustomer workflow in Studio Pro. Its steps:',
+          caption: 'The welcomeCustomer backend function in Studio Pro.',
         ),
-        CodeBlock(<String>[
-          '# welcomeCustomer(email, wantsNews)',
-          "SET        subject = 'Thanks for joining Oakline Coffee'",
-          'CALL       sendWelcome(to: email, subject: subject) -> receipt',
-          'CONDITION  wantsNews',
-          '  then     CALL addToNewsletter(email: email)',
-          'RETURN     receipt',
-        ]),
-        Body('Export writes this file, and nothing in it refers to the '
-            'builder:'),
+        Body('Export writes this backend function, and nothing in it refers '
+            'to the builder:'),
         CodeBlock(<String>[
           "import 'package:dartvel_core/dartvel.dart';",
           '',
@@ -232,14 +228,28 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           '// edit freely, the builder is no longer involved.',
           '@DVBackendFunction()',
           "@pragma('vm:entry-point')",
-          'Future<Object?> _welcomeCustomer(Object? email, Object? wantsNews) => welcomeCustomerBody(email, wantsNews);',
+          'Future<String> _welcomeCustomer(String email, bool wantsNews) => welcomeCustomerBody(email, wantsNews);',
           '',
-          'Future<Object?> welcomeCustomerBody(Object? email, Object? wantsNews) async {',
+          'Future<String> welcomeCustomerBody(String email, bool wantsNews) async {',
           "  final subject = 'Thanks for joining Oakline Coffee';",
           '  final receipt = await sendWelcome(to: email, subject: subject);',
           '  if (wantsNews == true) {',
           '    await addToNewsletter(email: email);',
           '  }',
+          '  return receipt;',
+          '}',
+        ]),
+        Body('A frontend function built in the Frontend section calls it '
+            'through the generated client:'),
+        CodeBlock(<String>[
+          "import '../dartvel_client/dartvel_client.dart';",
+          '',
+          '// Exported from Dartvel Studio. Ordinary frontend function:',
+          '// it runs in the app, and calls backend functions through',
+          '// the generated client. Edit freely, the builder is no',
+          '// longer involved.',
+          'Future<String> joinOakline(String email, bool wantsNews) async {',
+          '  final receipt = await welcomeCustomer(email: email, wantsNews: wantsNews);',
           '  return receipt;',
           '}',
         ]),
@@ -257,9 +267,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Heading('Bring in a design, reuse it and review it as a team.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
-            'Workflow builder',
-            'Call, Set, Condition and Return steps, run as saved and exported '
-                'as a @DVBackendFunction.',
+            'Frontend and backend functions',
+            'Call, Set, Condition and Return steps with typed inputs, exported '
+                'as a function in the app or a @DVBackendFunction.',
             built: true,
           ),
           SiteCard(
