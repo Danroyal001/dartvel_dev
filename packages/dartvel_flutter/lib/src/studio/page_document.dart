@@ -2194,6 +2194,11 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
 
 /// The page a route with nothing to serve renders.
 ///
+/// Every project gets this without configuring anything:
+/// `dartvel.notFoundRedirect` is an override for a project that would rather
+/// send the visitor somewhere, and a project that sets nothing still gets a
+/// page in its own theme with a way back, instead of a dead end.
+///
 /// A router's error page has no Scaffold above it, so bare text there took
 /// Flutter's fallback style: red, with yellow double underlines. A Material
 /// supplies the app theme's text style and canvas colour, light or dark.
@@ -2215,6 +2220,13 @@ class _DVNotFoundPage extends StatelessWidget {
               Text('404', style: text.displaySmall),
               const SizedBox(height: 8),
               Text("No page at '$route'", style: text.bodyLarge),
+              const SizedBox(height: 20),
+              // A link, so it is an anchor a crawler follows and a screen
+              // reader announces, and so a remote or a switch reaches it.
+              const DVNavLink(
+                to: DVRouteTarget('/'),
+                child: Text('Go to the home page'),
+              ),
             ],
           ),
         ),

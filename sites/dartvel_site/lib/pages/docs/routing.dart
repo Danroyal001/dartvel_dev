@@ -149,14 +149,17 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           id: 'not-found',
           title: 'Handle unknown URLs',
           children: <Widget>[
-            DocsText('Send every unknown path to a page of your choice with '
-                'notFoundRedirect.'),
+            DocsText('A path no route serves renders a 404 page in your '
+                'app\'s theme, with a link to the home page. You write '
+                'nothing for that.'),
+            DocsText('To send unknown paths somewhere instead, name where:'),
             DocsShell(<String>[
               '# pubspec.yaml',
               'dartvel:',
               '  notFoundRedirect: /',
             ]),
             Bullets(<String>[
+              'For a page of your own, put one at the route you redirect to.',
               'On a static host, dartvel build web also writes 404/index.html '
                   'for paths the app never loads.',
               'See Static web hosting for the Apache rules.',
