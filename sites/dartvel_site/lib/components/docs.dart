@@ -83,6 +83,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Members, roles, invitations and seats', 'Backend'),
   DocsPageInfo(DVRoutes.docsbilling, 'Billing and commerce',
       'Subscriptions, store purchases, tax and usage limits', 'Backend'),
+  DocsPageInfo(DVRoutes.docsmodules, 'Modules',
+      'Mount one app inside another, signed and pinned', 'Backend'),
   DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
       'Sign-in limits, WAF rules and query budgets', 'Operations'),
   DocsPageInfo(DVRoutes.docssecrets, 'Secrets and environments',

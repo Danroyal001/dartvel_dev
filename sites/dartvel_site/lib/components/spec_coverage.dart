@@ -177,6 +177,15 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Usage Metering and Quotas', 'Backend', DVRoutes.docsbilling,
       'Meter usage and cap it per tenant', anchor: 'usage'),
 
+  SpecCoverage('Modules', 'Backend', DVRoutes.docsmodules,
+      'Mount a module at a path', anchor: 'mount'),
+
+  SpecCoverage('Module Distribution and Trust', 'Backend', DVRoutes.docsmodules,
+      'Publish a signed module, and pin what you mount', anchor: 'trust'),
+
+  SpecCoverage('Web Server Rendering', 'Backend', DVRoutes.docsdeploying,
+      'Serve each page with its data and head tags', anchor: 'rendering'),
+
   // Operations
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
       'Provision servers with dartvel infra', anchor: 'infra'),
@@ -268,9 +277,6 @@ const Map<String, String> kSpecKnownGaps = <String, String>{
   'Desktop, Embedded, and Qt-Critical Capabilities': 'App',
 
   // Backend
-  'Web Server Rendering': 'Backend',
-  'Modules': 'Backend',
-  'Module Distribution and Trust': 'Backend',
 
   // Operations
 };
