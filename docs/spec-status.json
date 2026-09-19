@@ -1317,6 +1317,9 @@
       "status": "Shipped",
       "evidence": [
         "packages/dartvel_flutter/test/studio_editor_test.dart",
+        "packages/dartvel_flutter/test/deploy_targets_test.dart",
+        "packages/dartvel_flutter/test/deployed_pages_from_backend_test.dart",
+        "packages/dartvel_cli/test/deployed_pages_runtime_test.dart",
         "packages/dartvel_flutter/test/page_document_test.dart",
         "packages/dartvel_flutter/test/studio_styling_test.dart",
         "packages/dartvel_flutter/test/page_update_delivery_test.dart",

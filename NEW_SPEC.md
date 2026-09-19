@@ -8882,9 +8882,16 @@ page builder deploying to the server's `dartvel_pages`, and sections named for
 someone who has never written code: Data (each model's records with an edit
 form), Site map, Backend and Tasks (from the build's project graph), Queue,
 Cache, and Team (who holds a Studio grant). The editor's primary action reads
-Deploy, the word `dartvel deploy` uses, and its menu offers Deploy now and
-Restore original page. Studio has no Windows section: it runs on the server,
-and the windows of whichever app hosts it are nobody's business there.
+Deploy, the word `dartvel deploy` uses, and its menu lists where the page
+goes -- Website, Phones and tablets, Desktop apps, TVs, Browser extensions and
+Devices (`DVDeployTarget`) -- each with when a visitor sees it, then Deploy now
+and Restore original page. The ticked targets are stored on the document; one
+with none reaches every app. The website reads deployed pages from the server
+that serves it, and an installed app from its backend at launch
+(`DVPageStore.fromBackend`, set by the generated runtime when
+`dartvel.admin.enabled` is true), and each serves only the pages deployed to its
+target. Studio has no Windows section: it runs on the server, and the windows
+of whichever app hosts it are nobody's business there.
 
 ## The page builder
 
