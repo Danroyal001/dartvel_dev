@@ -81,7 +81,8 @@ void main() {
 
       expect(
           database.sql.first,
-          'CREATE TABLE IF NOT EXISTS studio_pages (route TEXT PRIMARY KEY, '
+          'CREATE TABLE IF NOT EXISTS studio_pages (route VARCHAR(255) '
+          'PRIMARY KEY, '
           'title TEXT, version BIGINT, score DOUBLE PRECISION)');
     });
 
@@ -168,6 +169,15 @@ void main() {
       expect(n, 2);
     });
 
+    // A tenant's tables live in its own schema under schema-per-tenant.
+    test('a collection may be qualified by its schema', () async {
+      await records.find('tenant_a.dv_studio_grants');
+
+      expect(database.sql.single, 'SELECT * FROM tenant_a.dv_studio_grants');
+      expect(() => records.find('a..b'), throwsA(isA<ArgumentError>()));
+      expect(() => records.find('a.b.c'), throwsA(isA<ArgumentError>()));
+    });
+
     test('refuses a name that is not an identifier', () async {
       expect(() => records.find('pages; DROP TABLE users'),
           throwsA(isA<ArgumentError>()));
@@ -246,6 +256,13 @@ void main() {
     await records.insert('audit', <String, Object?>{'route': '/a', 'seq': 7});
 
     expect((await records.find('audit')).single['seq'], 7);
+  });
+
+  test('over() answers an engine as itself and SQL through the SQL engine',
+      () {
+    final _Engine engine = _Engine();
+    expect(DVRecordAdapter.over(engine), same(engine));
+    expect(DVRecordAdapter.over(_Recording()), isA<DVSqlRecordAdapter>());
   });
 
   test('an adapter that is itself a record engine is used as one', () {
