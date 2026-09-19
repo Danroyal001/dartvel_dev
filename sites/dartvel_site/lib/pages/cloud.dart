@@ -204,11 +204,11 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           tint: true,
           children: <Widget>[
             Eyebrow('STUDIO PRO'),
-            Heading('Studio Pro adds a visual workflow builder to Studio.'),
+            Heading('Studio Pro comes with Dartvel Cloud.'),
             Bullets(<String>[
-              'Build a backend function from steps and export it as an ordinary '
-                  '@DVBackendFunction. Figma import, revision history and team '
-                  'approval come with it.',
+              'Build frontend and backend functions from steps in Studio, and '
+                  'export them as ordinary Dart. Figma import, revision '
+                  'history and team approval come with it.',
             ]),
             GhostLink('See Studio and Studio Pro', '/studio'),
           ],
