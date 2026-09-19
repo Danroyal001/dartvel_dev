@@ -402,12 +402,15 @@ class _DVNavLinkState extends State<DVNavLink> {
         keys.contains(LogicalKeyboardKey.metaRight);
   }
 
-  void _openBeside() {
+  void _openBeside({bool fromPointer = false}) {
     _previewTimer?.cancel();
     _removePreview();
     // The browser opens a tab on a middle or modified click by itself, and
     // opening a second one is not a second intention.
-    if (DVLinkOpener.browserFollowsAnchors) return;
+    // A pointer click on the anchor is cancelled by the interceptor, because
+    // the anchor under the mouse may be another link's, so a pointer opens
+    // it here.
+    if (DVLinkOpener.browserFollowsAnchors && !fromPointer) return;
     final String destination =
         widget.externalUrl ?? DVNavigation.locationOf(widget.to);
     final void Function(String)? override = widget.openInNewTab;
@@ -418,7 +421,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
   }
 
-  void _activate() {
+  void _activate({bool fromPointer = false}) {
     if (!widget.enabled) return;
     _previewTimer?.cancel();
     _removePreview();
@@ -429,12 +432,14 @@ class _DVNavLinkState extends State<DVNavLink> {
       // Where the browser follows anchors it has already opened this one, and
       // the interceptor marked it to open beside rather than instead of the
       // page. Opening it here too would send the reader's own tab after it.
-      if (DVLinkOpener.browserFollowsAnchors) return;
+      // A pointer's click on the anchor is cancelled, so a pointer opens it
+      // here.
+      if (DVLinkOpener.browserFollowsAnchors && !fromPointer) return;
       DVLinkOpener.open(external);
       return;
     }
     if (_wantsNewTab) {
-      _openBeside();
+      _openBeside(fromPointer: fromPointer);
       return;
     }
     DV.Navigation.navigate(widget.to);
@@ -446,7 +451,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     // nothing on a Flutter one. It is handled on the down event because a
     // middle button never produces a tap.
     if (event.buttons == kMiddleMouseButton) {
-      _openBeside();
+      _openBeside(fromPointer: true);
       return;
     }
     // A mouse's primary button follows the link on the press. A click is two
@@ -460,7 +465,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     if (event.kind == PointerDeviceKind.mouse &&
         event.buttons == kPrimaryMouseButton) {
       if (_wantsNewTab) {
-        _openBeside();
+        _openBeside(fromPointer: true);
         return;
       }
       // On the web this link is also an anchor, and the browser will send a
@@ -469,7 +474,7 @@ class _DVNavLinkState extends State<DVNavLink> {
       if (widget.externalUrl == null) {
         DVPressedLink.record(DVNavigation.locationOf(widget.to));
       }
-      _activate();
+      _activate(fromPointer: true);
     }
   }
 
@@ -545,7 +550,7 @@ class _DVNavLinkState extends State<DVNavLink> {
                 PointerDeviceKind.trackpad,
                 PointerDeviceKind.unknown,
               },
-              onTap: widget.enabled ? _activate : null,
+              onTap: widget.enabled ? () => _activate(fromPointer: true) : null,
               onLongPress: widget.enabled ? _showPreview : null,
               child: DecoratedBox(
                 // Focus nobody can see is focus nobody can follow. Drawn here

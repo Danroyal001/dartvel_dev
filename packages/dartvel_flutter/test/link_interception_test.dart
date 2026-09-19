@@ -171,4 +171,36 @@ void main() {
       }
     });
   });
+
+  // A pointer click on a semantics anchor is Flutter's, whatever its href
+  // says. The anchors are moved by semantics updates, not the compositor, so
+  // in a scrolled sidebar the one under the mouse was a different link from
+  // the one drawn there, and following its href opened the wrong page.
+  group('a pointer click on a semantics anchor', () {
+    test('a mouse click belongs to Flutter', () {
+      expect(
+          dvPointerOwnsClick(pointer: true, detail: 1, inSemanticsTree: true),
+          isTrue);
+    });
+    test('a double click too', () {
+      expect(
+          dvPointerOwnsClick(pointer: true, detail: 2, inSemanticsTree: true),
+          isTrue);
+    });
+    test('a click a screen reader or Enter sends is the anchor''s', () {
+      expect(
+          dvPointerOwnsClick(pointer: true, detail: 0, inSemanticsTree: true),
+          isFalse);
+    });
+    test('an anchor outside the semantics tree is the browser''s', () {
+      expect(
+          dvPointerOwnsClick(pointer: true, detail: 1, inSemanticsTree: false),
+          isFalse);
+    });
+    test('a key is never a pointer', () {
+      expect(
+          dvPointerOwnsClick(pointer: false, detail: 0, inSemanticsTree: true),
+          isFalse);
+    });
+  });
 }
