@@ -156,6 +156,33 @@ void main() {
     expect(tester.getSize(find.text(label)).width, lessThanOrEqualTo(90));
   });
 
+  testWidgets('a panel header narrower than its title cuts the title short', (
+    WidgetTester tester,
+  ) async {
+    // The list pane is 280 wide less its padding, and "Frontend functions 3"
+    // is wider than that at 14px semibold: the header threw an overflow.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 140,
+            child: DVStudioStyle.panelHeader(
+              title: 'Frontend functions',
+              subtitle: '12',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull,
+        reason: 'a narrow header overflowed rather than cutting its title');
+    expect(find.text('Frontend functions'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget,
+        reason: 'the count stays whole; the title gives way');
+  });
+
   testWidgets('with room, a control is as wide as its label needs', (
     WidgetTester tester,
   ) async {
