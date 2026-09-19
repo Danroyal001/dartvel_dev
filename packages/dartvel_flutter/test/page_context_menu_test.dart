@@ -7,6 +7,7 @@
 // Flutter's -- Copy, Select all -- and More, which hands the next
 // right-click to the browser, which is also what Shift+right-click does.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -76,6 +77,42 @@ void main() {
     expect(find.text('Select all'), findsOneWidget);
     expect(find.text('More'), findsOneWidget);
     expect(find.text('Browser menu'), findsNothing);
+  });
+
+  // Flutter hands the right-click's position to the first reader of
+  // contextMenuAnchors and forgets it; the menu read it twice, once for More's
+  // hint, and the second read fell back to the selection's edge.
+  testWidgets('the menu opens where the right-click was',
+      (WidgetTester tester) async {
+    // A desktop browser: its menu opens with its corner at the pointer, where
+    // Android's is a bar centred over it.
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await tester.pumpWidget(const MaterialApp(
+      home: DVPageShell(
+        spec: DVPageScaffoldSpec(),
+        child: Center(
+          child: SizedBox(
+            width: 600,
+            child: Text('Seasonal menu at Oakline Coffee, open every day'),
+          ),
+        ),
+      ),
+    ));
+    final Finder text =
+        find.text('Seasonal menu at Oakline Coffee, open every day');
+    await dragAcross(tester, text);
+    // Well to the right of where the selection starts, and with room for
+    // the menu before the window edge, which it moves in from.
+    final Offset click = tester.getCenter(text) + const Offset(60, 0);
+    final TestGesture mouse = await tester.startGesture(click,
+        kind: PointerDeviceKind.mouse, buttons: kSecondaryMouseButton);
+    await mouse.up();
+    await tester.pumpAndSettle();
+
+    final Rect item = tester.getRect(find.text('Select all'));
+    expect((item.left - click.dx).abs(), lessThan(48),
+        reason: 'menu item at ${item.topLeft}, right-click at $click');
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('with nothing selected there is still Select all and More',
