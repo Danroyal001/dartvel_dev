@@ -82,6 +82,22 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'foldables',
+          title: 'Lay out around the fold on a foldable',
+          children: <Widget>[
+            Bullets(<String>[
+              'On a foldable the first pane sits on one side of the fold and '
+                  'the second on the other, with nothing in the hinge. With no '
+                  'fold they sit side by side on a tablet and stack on a phone.',
+              'context.screen.folds lists each fold with where it is and '
+                  'whether it hides pixels. posture is book, tabletop or flat.',
+              'Android foldables report their folds today. The iPhone Duo is '
+                  'next: its fold comes from iOS 27.1, which needs a binding '
+                  'built against that SDK.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'desktop',
           title: 'Trays, menus, shortcuts and drag and drop',
           children: <Widget>[
