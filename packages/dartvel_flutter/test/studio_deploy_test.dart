@@ -69,11 +69,23 @@ void main() {
     for (final DVDeployTarget target in DVDeployTarget.values) {
       expect(find.text(target.label), findsOneWidget);
     }
+    // Every platform under its group, and one that does not build today
+    // with where it stands rather than left out.
+    for (final DVDeployPlatform platform in DVDeployPlatform.values) {
+      expect(find.text(platform.label), findsOneWidget, reason: platform.name);
+    }
+    expect(find.text(DVDeployPlatform.lgTvs.reason), findsOneWidget);
+    expect(find.text('Not yet'), findsWidgets);
     // Untick everything but the phones; the menu stays open while ticking.
     for (final DVDeployTarget target in DVDeployTarget.values) {
       if (target == DVDeployTarget.phones) continue;
-      await tester.tap(find.byKey(
-          ValueKey<String>('dv-studio-deploy-target-${target.name}')));
+      // The targets scroll under a pinned Deploy now; a tap off the menu's
+      // edge would land on the barrier and close it.
+      final Finder row = find.byKey(
+          ValueKey<String>('dv-studio-deploy-target-${target.name}'));
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(row);
       await tester.pumpAndSettle();
     }
     expect(find.textContaining('1 target'), findsOneWidget);

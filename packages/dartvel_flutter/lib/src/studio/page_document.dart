@@ -272,6 +272,92 @@ enum DVDeployTarget {
   }
 }
 
+/// Where a platform stands today, in `docs/build-targets.md`'s terms.
+enum DVDeployStatus {
+  /// Built and inspected, and for most, run.
+  ready('Ready'),
+
+  /// Builds, with something left unproven or a tool the build needs.
+  limited('Limited'),
+
+  /// Does not build today.
+  notYet('Not yet');
+
+  const DVDeployStatus(this.label);
+
+  final String label;
+}
+
+/// Every platform `dartvel build` makes, under the [DVDeployTarget] its apps
+/// serve Studio's pages as.
+///
+/// The ones that do not build today are listed too, with the reason: a
+/// platform left out of the Deploy menu reads as never supported, and the
+/// truth is that it is waiting on a vendor's tools. Keep [status] and
+/// [reason] in step with `docs/build-targets.md`.
+enum DVDeployPlatform {
+  web(DVDeployTarget.web, 'Any web host', <String>['web'], DVDeployStatus.ready),
+  webServer(DVDeployTarget.web, 'Your Dartvel server', <String>['web-server'],
+      DVDeployStatus.ready),
+  android(DVDeployTarget.phones, 'Android', <String>['android'],
+      DVDeployStatus.ready),
+  iphone(DVDeployTarget.phones, 'iPhone and iPad', <String>['ios'],
+      DVDeployStatus.ready),
+  fire(DVDeployTarget.phones, 'Amazon Fire tablets', <String>['fireos'],
+      DVDeployStatus.ready),
+  windows(DVDeployTarget.desktop, 'Windows', <String>['windows'],
+      DVDeployStatus.ready),
+  mac(DVDeployTarget.desktop, 'Mac', <String>['macos'], DVDeployStatus.ready),
+  linux(DVDeployTarget.desktop, 'Linux', <String>['linux'],
+      DVDeployStatus.ready),
+  terminal(
+      DVDeployTarget.desktop,
+      'Terminal apps',
+      <String>['linux-cli', 'macos-cli', 'windows-cli', 'fuchsia-cli'],
+      DVDeployStatus.limited,
+      'Run on Linux; not yet run on Mac or Windows.'),
+  appleTv(DVDeployTarget.tvs, 'Apple TV', <String>['tvos'],
+      DVDeployStatus.limited, 'Runs on the simulator; signed builds not yet tried.'),
+  samsungTvs(DVDeployTarget.tvs, 'Samsung TVs', <String>['tizen'],
+      DVDeployStatus.limited, 'Builds where Samsung\'s Tizen Studio is installed.'),
+  lgTvs(DVDeployTarget.tvs, 'LG TVs', <String>['webos'], DVDeployStatus.notYet,
+      'LG\'s tools ship a Dart too old for Dartvel.'),
+  chrome(DVDeployTarget.extensions, 'Chrome, Edge and Brave',
+      <String>['chrome-extension'], DVDeployStatus.ready),
+  firefox(DVDeployTarget.extensions, 'Firefox', <String>['firefox-extension'],
+      DVDeployStatus.ready),
+  vscode(DVDeployTarget.extensions, 'VS Code', <String>['vscode'],
+      DVDeployStatus.ready),
+  sonyBoards(DVDeployTarget.devices, 'Embedded Linux boards',
+      <String>['sony-elinux'], DVDeployStatus.limited,
+      'Runs on a virtual board; needs Sony\'s engine installed.'),
+  fuchsia(DVDeployTarget.devices, 'Fuchsia', <String>['fuchsia'],
+      DVDeployStatus.notYet, 'Fuchsia\'s embedder ships a Flutter too old for Dartvel.');
+
+  const DVDeployPlatform(this.target, this.label, this.commands, this.status,
+      [this.reason = '']);
+
+  /// The group the Deploy menu ticks, which is what an app on it serves.
+  final DVDeployTarget target;
+
+  /// The name a site owner knows it by.
+  final String label;
+
+  /// The `dartvel build` platforms that make it.
+  final List<String> commands;
+
+  final DVDeployStatus status;
+
+  /// Why it is not [DVDeployStatus.ready]; empty when it is.
+  final String reason;
+
+  /// The platforms under [target], in menu order.
+  static List<DVDeployPlatform> of(DVDeployTarget target) => <DVDeployPlatform>[
+        for (final DVDeployPlatform platform in values)
+          if (platform.target == target) platform,
+      ];
+}
+
 /// A builder-editable page: a route, a title, and a widget tree.
 class DVPageDocument {
   final String route;
