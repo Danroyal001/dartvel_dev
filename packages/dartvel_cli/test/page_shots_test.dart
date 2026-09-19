@@ -29,6 +29,29 @@ void main() {
     });
   });
 
+  group('a page is photographed once its text stops changing', () {
+    // The docs shell draws its sidebar before the article, which loads
+    // separately: waiting for any text at all photographed /docs/workers
+    // with a sidebar and an empty page.
+    test('not while it is still growing', () {
+      final DVTextSettle settle = DVTextSettle();
+      expect(<bool>[for (final int n in <int>[0, 120, 120, 2400]) settle.add(n)],
+          <bool>[false, false, false, false]);
+    });
+
+    test('once it has held for three looks', () {
+      final DVTextSettle settle = DVTextSettle();
+      expect(<bool>[for (final int n in <int>[120, 2400, 2400, 2400]) settle.add(n)],
+          <bool>[false, false, false, true]);
+    });
+
+    test('never while there is none', () {
+      final DVTextSettle settle = DVTextSettle();
+      expect(<bool>[for (final int n in <int>[0, 0, 0, 0]) settle.add(n)],
+          everyElement(isFalse));
+    });
+  });
+
   test('each shot is named for its route and size', () {
     expect(dvShotName('/', const DVShotSize(1440, 900)), 'home-1440x900.png');
     expect(dvShotName('/docs/ai', const DVShotSize(390, 844)),
