@@ -47,13 +47,14 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'Lays out',
             ], rows: <List<String>>[
               <String>['DVBox.list', 'A vertical column'],
-              <String>['DVBox.row', 'A horizontal row'],
+              <String>['DVBox.row', 'A row that stacks when it does not fit'],
               <String>['DVBox.wrapLine', 'A row that wraps onto new lines'],
               <String>['DVBox.grid', 'Columns that step down on narrow screens'],
               <String>['DVBox.masonry', 'A grid of uneven heights'],
               <String>['DVBox.stack', 'Children on top of each other'],
               <String>['DVBox.scrollableList', 'A column that scrolls'],
               <String>['DVBox.horizontalScrollable', 'A row that scrolls'],
+              <String>['DVBox.twoPane', 'Two panes, one each side of a fold'],
             ]),
             Bullets(<String>[
               'list, row and wrapLine take spacing (8 by default), align and '
@@ -117,6 +118,12 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'The breakpoints are 840, 1200 and 1600 logical pixels.',
               'isMobile, isTablet, isDesktop, width, height and reducedMotion '
                   'are there too.',
+              'Layouts adapt before you add a breakpoint. A row that is too '
+                  'wide for a watch or a phone stacks its children, and a grid '
+                  'drops columns.',
+              'On a foldable, context.screen.folds says where the fold is and '
+                  'posture says book or tabletop. DVBox.twoPane puts one pane '
+                  'each side of it.',
             ]),
           ],
         ),
