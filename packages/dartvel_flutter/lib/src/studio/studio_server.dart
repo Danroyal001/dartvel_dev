@@ -21,8 +21,7 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
 import 'studio_server_transport_stub.dart'
-    if (dart.library.js_interop) 'studio_server_transport_web.dart'
-    as transport;
+    if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
 
 /// What the backend answered: a status and the decoded JSON body.
 class DVStudioReply {
@@ -34,8 +33,11 @@ class DVStudioReply {
 
 /// Sends one request to the backend Studio is served by. [path] is relative
 /// to the mount, with no leading slash.
-typedef DVStudioTransport =
-    Future<DVStudioReply> Function(String method, String path, {Object? body});
+typedef DVStudioTransport = Future<DVStudioReply> Function(
+  String method,
+  String path, {
+  Object? body,
+});
 
 /// The browser's transport: same-origin, with the session cookie, and the
 /// CSRF header every write needs.
@@ -54,11 +56,8 @@ DVStudioTransport dvStudioBrowserTransport() {
 /// The page documents published on the server that served this page, from
 /// its `/_dartvel/pages`. Empty when it answers anything else.
 Future<List<DVPageDocument>> dvPublishedPagesFromServer() async {
-  final DVStudioReply reply = await transport.dvStudioSend(
-    'GET',
-    '/_dartvel/pages',
-    csrf: '',
-  );
+  final DVStudioReply reply =
+      await transport.dvStudioSend('GET', '/_dartvel/pages', csrf: '');
   final Object? body = reply.body;
   if (reply.status != 200 || body is! Map || body['pages'] is! List) {
     return const <DVPageDocument>[];
@@ -67,8 +66,7 @@ Future<List<DVPageDocument>> dvPublishedPagesFromServer() async {
     for (final Object? page in body['pages']! as List)
       if (page is Map && page['document'] is Map)
         DVPageDocument.fromJson(
-          (page['document']! as Map).cast<String, Object?>(),
-        ),
+            (page['document']! as Map).cast<String, Object?>()),
   ];
 }
 
@@ -95,16 +93,17 @@ class DVStudioField {
   });
 
   factory DVStudioField.fromJson(Map<String, Object?> json) => DVStudioField(
-    name: '${json['name']}',
-    type: '${json['type']}',
-    sensitive: json['sensitive'] == true,
-    options: json['options'] is List
-        ? <String>[
-            for (final Object? option in json['options']! as List) '$option',
-          ]
-        : null,
-    relation: json['relation'] is String ? json['relation']! as String : null,
-  );
+        name: '${json['name']}',
+        type: '${json['type']}',
+        sensitive: json['sensitive'] == true,
+        options: json['options'] is List
+            ? <String>[
+                for (final Object? option in json['options']! as List)
+                  '$option',
+              ]
+            : null,
+        relation: json['relation'] is String ? json['relation']! as String : null,
+      );
 
   final String name;
   final String type;
@@ -134,14 +133,8 @@ class DVStudioField {
       (options != null ||
           relation != null ||
           isCollection ||
-          const <String>{
-            'String',
-            'int',
-            'double',
-            'num',
-            'bool',
-            'DateTime',
-          }.contains(baseType));
+          const <String>{'String', 'int', 'double', 'num', 'bool', 'DateTime'}
+              .contains(baseType));
 }
 
 /// A model, as the backend describes it.
@@ -155,16 +148,15 @@ class DVStudioModel {
   });
 
   factory DVStudioModel.fromJson(Map<String, Object?> json) => DVStudioModel(
-    model: '${json['model']}',
-    module: json['module'] is String ? json['module']! as String : null,
-    key: '${json['key']}',
-    versioned: json['versioned'] != false,
-    fields: <DVStudioField>[
-      for (final Object? field
-          in (json['fields'] as List?) ?? const <Object?>[])
-        DVStudioField.fromJson((field! as Map).cast<String, Object?>()),
-    ],
-  );
+        model: '${json['model']}',
+        module: json['module'] is String ? json['module']! as String : null,
+        key: '${json['key']}',
+        versioned: json['versioned'] != false,
+        fields: <DVStudioField>[
+          for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
+            DVStudioField.fromJson((field! as Map).cast<String, Object?>()),
+        ],
+      );
 
   /// The name the backend addresses the model by: `notes.Memo` for a
   /// mounted module's.
@@ -178,9 +170,9 @@ class DVStudioModel {
 
   /// The fields Studio shows: every one that is not sensitive.
   List<DVStudioField> get visibleFields => <DVStudioField>[
-    for (final DVStudioField field in fields)
-      if (!field.sensitive) field,
-  ];
+        for (final DVStudioField field in fields)
+          if (!field.sensitive) field,
+      ];
 }
 
 /// One stored record, at the version it was read.
@@ -214,9 +206,8 @@ class DVStudioClient {
     final DVStudioReply reply = await transport(method, path, body: body);
     if (reply.status >= 200 && reply.status < 300) return reply.body;
     final Object? json = reply.body;
-    final Map<Object?, Object?> error = json is Map
-        ? json
-        : const <Object?, Object?>{};
+    final Map<Object?, Object?> error =
+        json is Map ? json : const <Object?, Object?>{};
     throw DVStudioRemoteError(
       reply.status,
       '${error['error'] ?? 'http_${reply.status}'}',
@@ -227,83 +218,64 @@ class DVStudioClient {
   Map<String, Object?> _map(Object? json) =>
       json is Map ? json.cast<String, Object?>() : const <String, Object?>{};
 
-  List<Map<String, Object?>> _list(
-    Object? json,
-    String key,
-  ) => <Map<String, Object?>>[
-    for (final Object? item in (_map(json)[key] as List?) ?? const <Object?>[])
-      if (item is Map) item.cast<String, Object?>(),
-  ];
+  List<Map<String, Object?>> _list(Object? json, String key) =>
+      <Map<String, Object?>>[
+        for (final Object? item in (_map(json)[key] as List?) ?? const <Object?>[])
+          if (item is Map) item.cast<String, Object?>(),
+      ];
 
   static String _segment(String value) => Uri.encodeComponent(value);
 
   Future<List<DVStudioModel>> models() async => <DVStudioModel>[
-    for (final Map<String, Object?> model in _list(
-      await _send('GET', 'api/models'),
-      'models',
-    ))
-      DVStudioModel.fromJson(model),
-  ];
+        for (final Map<String, Object?> model
+            in _list(await _send('GET', 'api/models'), 'models'))
+          DVStudioModel.fromJson(model),
+      ];
 
   Future<List<DVStudioRecordData>> records(String model) async =>
       <DVStudioRecordData>[
         for (final Map<String, Object?> record in _list(
-          await _send('GET', 'api/models/${_segment(model)}/records'),
-          'records',
-        ))
+            await _send('GET', 'api/models/${_segment(model)}/records'),
+            'records'))
           DVStudioRecordData.fromJson(record),
       ];
 
   Future<DVStudioRecordData> create(
-    String model,
-    Map<String, Object?> values,
-  ) async => DVStudioRecordData.fromJson(
-    _map(
-      await _send(
+          String model, Map<String, Object?> values) async =>
+      DVStudioRecordData.fromJson(_map(await _send(
         'POST',
         'api/models/${_segment(model)}/records',
         body: <String, Object?>{'values': values},
-      ),
-    ),
-  );
+      )));
 
   /// Stores [values] over [read], refused when the record has moved since.
-  Future<DVStudioRecordData> update(
-    String model,
-    DVStudioRecordData read,
-    Map<String, Object?> values,
-  ) async => DVStudioRecordData.fromJson(
-    _map(
-      await _send(
+  Future<DVStudioRecordData> update(String model, DVStudioRecordData read,
+          Map<String, Object?> values) async =>
+      DVStudioRecordData.fromJson(_map(await _send(
         'PUT',
         'api/models/${_segment(model)}/records/${_segment(read.key)}',
         body: <String, Object?>{'version': read.version, 'values': values},
-      ),
-    ),
-  );
+      )));
 
   Future<void> delete(String model, DVStudioRecordData read) => _send(
-    'DELETE',
-    'api/models/${_segment(model)}/records/${_segment(read.key)}'
-        '?version=${read.version}',
-  );
+        'DELETE',
+        'api/models/${_segment(model)}/records/${_segment(read.key)}'
+            '?version=${read.version}',
+      );
 
   Future<List<DVPageDocument>> pages() async => <DVPageDocument>[
-    for (final Map<String, Object?> page in _list(
-      await _send('GET', 'api/pages'),
-      'pages',
-    ))
-      if (page['document'] is Map)
-        DVPageDocument.fromJson(
-          (page['document']! as Map).cast<String, Object?>(),
-        ),
-  ];
+        for (final Map<String, Object?> page
+            in _list(await _send('GET', 'api/pages'), 'pages'))
+          if (page['document'] is Map)
+            DVPageDocument.fromJson(
+                (page['document']! as Map).cast<String, Object?>()),
+      ];
 
   Future<void> savePage(DVPageDocument document) => _send(
-    'PUT',
-    'api/pages',
-    body: <String, Object?>{'document': document.toJson()},
-  );
+        'PUT',
+        'api/pages',
+        body: <String, Object?>{'document': document.toJson()},
+      );
 
   Future<void> deletePage(String route) =>
       _send('DELETE', 'api/pages?route=${Uri.encodeQueryComponent(route)}');
@@ -318,16 +290,14 @@ class DVStudioClient {
   /// Takes [userId]'s grant on [tenant] away. The server refuses the
   /// caller's own grant and the last one on a tenant with a 409 unless
   /// [confirm] says the person meant it.
-  Future<void> revoke(
-    String userId, {
-    required String tenant,
-    bool confirm = false,
-  }) => _send(
-    'DELETE',
-    'api/grants?userId=${Uri.encodeQueryComponent(userId)}'
-        '&tenant=${Uri.encodeQueryComponent(tenant)}'
-        '${confirm ? '&confirm=true' : ''}',
-  );
+  Future<void> revoke(String userId,
+          {required String tenant, bool confirm = false}) =>
+      _send(
+        'DELETE',
+        'api/grants?userId=${Uri.encodeQueryComponent(userId)}'
+            '&tenant=${Uri.encodeQueryComponent(tenant)}'
+            '${confirm ? '&confirm=true' : ''}',
+      );
 
   /// Every queue the build declares, with its pending jobs and dead letters.
   Future<List<Map<String, Object?>>> queues() async =>
@@ -347,17 +317,12 @@ class DVStudioClient {
 
   /// Drops every key under [tag], and returns the keys dropped.
   Future<List<String>> revalidateTag(String tag) async => <String>[
-    for (final Object? key
-        in (_map(
-                  await _send(
-                    'POST',
-                    'api/cache/tags/${_segment(tag)}/revalidate',
-                  ),
-                )['dropped']
-                as List?) ??
+        for (final Object? key in (_map(await _send(
+                    'POST', 'api/cache/tags/${_segment(tag)}/revalidate'))[
+                'dropped'] as List?) ??
             const <Object?>[])
-      '$key',
-  ];
+          '$key',
+      ];
 
   /// The project graph the build wrote beside Studio: models, routes,
   /// functions and jobs, with the file each is declared in.
@@ -387,8 +352,9 @@ class DVStudioRemotePageStore extends DVPageStore {
 
   @override
   Future<List<String>> routes() async => <String>[
-    for (final DVPageDocument document in await client.pages()) document.route,
-  ]..sort();
+        for (final DVPageDocument document in await client.pages())
+          document.route,
+      ]..sort();
 
   @override
   Future<void> delete(String route) => client.deletePage(route);
@@ -582,9 +548,8 @@ DateTime? _moment(DVStudioField field, Object? value) {
   return DateTime.fromMillisecondsSinceEpoch(number.toInt(), isUtc: true);
 }
 
-final RegExp _momentName = RegExp(
-  r'(At|On|Date|Time|Timestamp)$|^(date|time|timestamp)$',
-);
+final RegExp _momentName =
+    RegExp(r'(At|On|Date|Time|Timestamp)$|^(date|time|timestamp)$');
 
 /// `2026-09-17 13:00 UTC`.
 String _formatMoment(DateTime moment) {
@@ -640,25 +605,23 @@ class _DVStudioTable extends StatelessWidget {
 
   Widget _table() {
     Widget cell(String text, {bool header = false}) => Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: DVStudioStyle.space3,
-        vertical: 9,
-      ),
-      // One line, both kinds: a heading that wraps breaks a word in two.
-      child: Text(
-        header ? text.toUpperCase() : text,
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        style: header
-            ? const TextStyle(
-                fontSize: 11,
-                color: DVStudioStyle.muted,
-                fontWeight: FontWeight.w600,
-              )
-            : const TextStyle(fontSize: 13, color: DVStudioStyle.ink),
-      ),
-    );
+          padding: const EdgeInsets.symmetric(
+              horizontal: DVStudioStyle.space3, vertical: 9),
+          // One line, both kinds: a heading that wraps breaks a word in two.
+          child: Text(
+            header ? text.toUpperCase() : text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: header
+                ? const TextStyle(
+                    fontSize: 11,
+                    color: DVStudioStyle.muted,
+                    fontWeight: FontWeight.w600,
+                  )
+                : const TextStyle(fontSize: 13, color: DVStudioStyle.ink),
+          ),
+        );
     return DVStudioStyle.card(
       padding: EdgeInsets.zero,
       child: Column(
@@ -669,16 +632,14 @@ class _DVStudioTable extends StatelessWidget {
               color: DVStudioStyle.canvas,
               border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
             ),
-            child: Row(
-              children: <Widget>[
-                for (final String header in headers)
-                  Expanded(child: cell(header, header: true)),
-                // The trailing column is a fixed width in the header and the
-                // rows alike, so the headings sit over their cells.
-                if (trailing != null)
-                  const SizedBox(width: trailingWidth + DVStudioStyle.space2),
-              ],
-            ),
+            child: Row(children: <Widget>[
+              for (final String header in headers)
+                Expanded(child: cell(header, header: true)),
+              // The trailing column is a fixed width in the header and the
+              // rows alike, so the headings sit over their cells.
+              if (trailing != null)
+                const SizedBox(width: trailingWidth + DVStudioStyle.space2),
+            ]),
           ),
           for (int i = 0; i < rows.length; i++)
             MouseRegion(
@@ -695,25 +656,21 @@ class _DVStudioTable extends StatelessWidget {
                     border: i == rows.length - 1
                         ? null
                         : const Border(
-                            bottom: BorderSide(color: DVStudioStyle.line),
-                          ),
+                            bottom: BorderSide(color: DVStudioStyle.line)),
                   ),
-                  child: Row(
-                    children: <Widget>[
-                      for (final String value in rows[i])
-                        Expanded(child: cell(value)),
-                      if (trailing != null)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            right: DVStudioStyle.space2,
-                          ),
-                          child: SizedBox(
-                            width: trailingWidth,
-                            child: Center(child: trailing![i]),
-                          ),
+                  child: Row(children: <Widget>[
+                    for (final String value in rows[i])
+                      Expanded(child: cell(value)),
+                    if (trailing != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            right: DVStudioStyle.space2),
+                        child: SizedBox(
+                          width: trailingWidth,
+                          child: Center(child: trailing![i]),
                         ),
-                    ],
-                  ),
+                      ),
+                  ]),
                 ),
               ),
             ),
@@ -768,9 +725,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       _error = null;
     });
     try {
-      final List<DVStudioRecordData> records = await widget.client.records(
-        model.model,
-      );
+      final List<DVStudioRecordData> records =
+          await widget.client.records(model.model);
       if (mounted && _model == model) setState(() => _records = records);
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -793,8 +749,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       return DVStudioStyle.emptyState(
         icon: Icons.table_chart_outlined,
         title: 'No models',
-        message:
-            'Declare a @DVModel in lib/models and rebuild, and its '
+        message: 'Declare a @DVModel in lib/models and rebuild, and its '
             'records are listed here.',
       );
     }
@@ -804,9 +759,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
-            title: 'Data',
-            subtitle: '${models.length}',
-          ),
+              title: 'Data', subtitle: '${models.length}'),
           const SizedBox(height: DVStudioStyle.space2),
           for (final DVStudioModel model in models)
             DVStudioListRow(
@@ -815,7 +768,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
               subtitle: model.module == null
                   ? '${model.visibleFields.length} fields'
                   : '${model.module} module · '
-                        '${model.visibleFields.length} fields',
+                      '${model.visibleFields.length} fields',
               icon: Icons.table_rows_outlined,
               selected: model == _model,
               onTap: () => unawaited(_open(model)),
@@ -841,19 +794,10 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
           actions: <Widget>[
             GestureDetector(
               key: const ValueKey<String>('dv-studio-record-new'),
-              onTap: () => setState(
-                () => _editing = const DVStudioRecordData(
-                  key: '',
-                  version: 0,
-                  values: <String, Object?>{},
-                ),
-              ),
-              child: DVStudioStyle.control(
-                'New record',
-                enabled: true,
-                primary: true,
-                icon: Icons.add,
-              ),
+              onTap: () => setState(() => _editing = const DVStudioRecordData(
+                  key: '', version: 0, values: <String, Object?>{})),
+              child: DVStudioStyle.control('New record',
+                  enabled: true, primary: true, icon: Icons.add),
             ),
           ],
         ),
@@ -864,60 +808,58 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
               Expanded(
                 child: records == null
                     ? (_error == null
-                          ? DVStudioStyle.placeholder('Loading records…')
-                          : DVStudioStyle.emptyState(
-                              icon: Icons.error_outline,
-                              title: 'Records could not be read',
-                              message: '$_error',
-                            ))
+                        ? DVStudioStyle.placeholder('Loading records…')
+                        : DVStudioStyle.emptyState(
+                            icon: Icons.error_outline,
+                            title: 'Records could not be read',
+                            message: '$_error',
+                          ))
                     : records.isEmpty
-                    ? DVStudioStyle.emptyState(
-                        icon: Icons.inbox_outlined,
-                        title: 'No ${model.model} records yet',
-                        message: 'New record adds the first one.',
-                      )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(DVStudioStyle.space5),
-                        child: _DVStudioTable(
-                          headers: <String>[
-                            for (final DVStudioField f in fields)
-                              _fieldLabel(f.name),
-                          ],
-                          rows: <List<String>>[
-                            for (final DVStudioRecordData record in records)
-                              <String>[
-                                for (final DVStudioField f in fields)
-                                  _cellText(f, record.values[f.name]),
+                        ? DVStudioStyle.emptyState(
+                            icon: Icons.inbox_outlined,
+                            title: 'No ${model.model} records yet',
+                            message: 'New record adds the first one.',
+                          )
+                        : SingleChildScrollView(
+                            padding: const EdgeInsets.all(DVStudioStyle.space5),
+                            child: _DVStudioTable(
+                              headers: <String>[
+                                for (final DVStudioField f in fields) _fieldLabel(f.name),
                               ],
-                          ],
-                          rowKeys: <Key>[
-                            for (final DVStudioRecordData record in records)
-                              ValueKey<String>(
-                                'dv-studio-record-${record.key}',
-                              ),
-                          ],
-                          selected: editing == null
-                              ? null
-                              : records.indexWhere(
-                                  (DVStudioRecordData r) =>
-                                      r.key == editing.key,
-                                ),
-                          onTap: (int index) =>
-                              setState(() => _editing = records[index]),
-                        ),
-                      ),
+                              rows: <List<String>>[
+                                for (final DVStudioRecordData record in records)
+                                  <String>[
+                                    for (final DVStudioField f in fields)
+                                      _cellText(
+                                          f, record.values[f.name]),
+                                  ],
+                              ],
+                              rowKeys: <Key>[
+                                for (final DVStudioRecordData record in records)
+                                  ValueKey<String>(
+                                      'dv-studio-record-${record.key}'),
+                              ],
+                              selected: editing == null
+                                  ? null
+                                  : records.indexWhere(
+                                      (DVStudioRecordData r) =>
+                                          r.key == editing.key),
+                              onTap: (int index) =>
+                                  setState(() => _editing = records[index]),
+                            ),
+                          ),
               ),
               if (editing != null)
                 Container(
                   width: 360,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
-                    border: Border(left: BorderSide(color: DVStudioStyle.line)),
+                    border:
+                        Border(left: BorderSide(color: DVStudioStyle.line)),
                   ),
                   child: _DVStudioRecordForm(
                     key: ValueKey<String>(
-                      'dv-studio-form-${model.model}-${editing.key}-${editing.version}',
-                    ),
+                        'dv-studio-form-${model.model}-${editing.key}-${editing.version}'),
                     client: widget.client,
                     model: model,
                     record: editing,
@@ -927,8 +869,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                         final List<DVStudioRecordData> next =
                             <DVStudioRecordData>[...?_records];
                         final int at = next.indexWhere(
-                          (DVStudioRecordData r) => r.key == saved.key,
-                        );
+                            (DVStudioRecordData r) => r.key == saved.key);
                         if (at == -1) {
                           next.add(saved);
                         } else {
@@ -940,8 +881,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                     },
                     onDeleted: (String key) => setState(() {
                       _records = <DVStudioRecordData>[
-                        for (final DVStudioRecordData r
-                            in _records ?? const <DVStudioRecordData>[])
+                        for (final DVStudioRecordData r in _records ?? const <DVStudioRecordData>[])
                           if (r.key != key) r,
                       ];
                       _editing = null;
@@ -1040,20 +980,14 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
     if (field.baseType == 'bool') return draft == true;
     final String text = '${draft ?? ''}'.trim();
     if (field.isCollection) {
-      if (text.isEmpty)
-        return field.nullable
-            ? null
-            : (field.baseType.startsWith('Map')
-                  ? <String, Object?>{}
-                  : <Object?>[]);
+      if (text.isEmpty) return field.nullable ? null : (field.baseType.startsWith('Map') ? <String, Object?>{} : <Object?>[]);
       try {
         return jsonDecode(text);
       } on FormatException {
         throw _DVStudioFormProblem('${field.name} is not valid JSON.');
       }
     }
-    if (text.isEmpty)
-      return field.baseType == 'String' && !field.nullable ? '' : null;
+    if (text.isEmpty) return field.baseType == 'String' && !field.nullable ? '' : null;
     switch (field.baseType) {
       case 'int':
         return int.tryParse(text) ?? text;
@@ -1073,11 +1007,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
     try {
       final DVStudioRecordData saved = _isNew
           ? await widget.client.create(widget.model.model, _changes())
-          : await widget.client.update(
-              widget.model.model,
-              widget.record,
-              _changes(),
-            );
+          : await widget.client
+              .update(widget.model.model, widget.record, _changes());
       widget.onSaved(saved);
     } on _DVStudioFormProblem catch (problem) {
       // Caught before anything is sent: a value the form cannot read is not
@@ -1137,65 +1068,51 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: DVStudioStyle.overline(
-                              _fieldLabel(field.name),
-                            ),
-                          ),
-                          if (field.nullable &&
-                              field.editable &&
-                              field.baseType != 'bool' &&
-                              !(!_isNew &&
-                                  field.name == widget.model.key)) ...<Widget>[
-                            GestureDetector(
-                              key: ValueKey<String>(
-                                'dv-studio-field-${field.name}-empty',
-                              ),
-                              onTap: () => setState(() {
-                                if (!_empty.remove(field.name)) {
-                                  _empty.add(field.name);
-                                }
-                              }),
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Row(
-                                  children: <Widget>[
-                                    Icon(
-                                      _empty.contains(field.name)
-                                          ? Icons.check_box
-                                          : Icons.check_box_outline_blank,
-                                      size: 14,
-                                      color: _empty.contains(field.name)
-                                          ? DVStudioStyle.accent
-                                          : DVStudioStyle.faint,
-                                    ),
-                                    const SizedBox(width: 3),
-                                    DVStudioStyle.caption(
-                                      'Empty',
-                                      color: DVStudioStyle.muted,
-                                    ),
-                                  ],
+                      Row(children: <Widget>[
+                        Expanded(child: DVStudioStyle.overline(_fieldLabel(field.name))),
+                        if (field.nullable &&
+                            field.editable &&
+                            field.baseType != 'bool' &&
+                            !(!_isNew && field.name == widget.model.key)) ...<Widget>[
+                          GestureDetector(
+                            key: ValueKey<String>(
+                                'dv-studio-field-${field.name}-empty'),
+                            onTap: () => setState(() {
+                              if (!_empty.remove(field.name)) {
+                                _empty.add(field.name);
+                              }
+                            }),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Row(children: <Widget>[
+                                Icon(
+                                  _empty.contains(field.name)
+                                      ? Icons.check_box
+                                      : Icons.check_box_outline_blank,
+                                  size: 14,
+                                  color: _empty.contains(field.name)
+                                      ? DVStudioStyle.accent
+                                      : DVStudioStyle.faint,
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: DVStudioStyle.space2),
-                          ],
-                          Flexible(
-                            child: Text(
-                              field.type,
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: DVStudioStyle.faint,
-                              ),
+                                const SizedBox(width: 3),
+                                DVStudioStyle.caption('Empty',
+                                    color: DVStudioStyle.muted),
+                              ]),
                             ),
                           ),
+                          const SizedBox(width: DVStudioStyle.space2),
                         ],
-                      ),
+                        Flexible(
+                          child: Text(
+                            field.type,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: DVStudioStyle.faint),
+                          ),
+                        ),
+                      ]),
                       const SizedBox(height: DVStudioStyle.space1),
                       _control(field),
                     ],
@@ -1214,11 +1131,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                     padding: const EdgeInsets.only(top: DVStudioStyle.space2),
                     child: GestureDetector(
                       onTap: widget.onReload,
-                      child: DVStudioStyle.control(
-                        'Reload records',
-                        enabled: true,
-                        icon: Icons.refresh,
-                      ),
+                      child: DVStudioStyle.control('Reload records',
+                          enabled: true, icon: Icons.refresh),
                     ),
                   ),
               ],
@@ -1236,11 +1150,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                 GestureDetector(
                   key: const ValueKey<String>('dv-studio-record-delete'),
                   onTap: () => unawaited(_delete()),
-                  child: DVStudioStyle.control(
-                    'Delete',
-                    enabled: true,
-                    icon: Icons.delete_outline,
-                  ),
+                  child: DVStudioStyle.control('Delete',
+                      enabled: true, icon: Icons.delete_outline),
                 ),
               const Spacer(),
               GestureDetector(
@@ -1273,12 +1184,14 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           key: key,
           value: _draft[field.name] == true,
           activeThumbColor: DVStudioStyle.accent,
-          onChanged: (bool value) => setState(() => _draft[field.name] = value),
+          onChanged: (bool value) =>
+              setState(() => _draft[field.name] = value),
         ),
       );
     }
     if (locked) {
-      return _readOnly(key, _cellText(field, widget.record.values[field.name]));
+      return _readOnly(
+          key, _cellText(field, widget.record.values[field.name]));
     }
     final List<String>? options = field.options;
     if (options != null) {
@@ -1286,7 +1199,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
         key: key,
         value: _draft[field.name] as String?,
         options: options,
-        onChanged: (String value) => setState(() => _draft[field.name] = value),
+        onChanged: (String value) =>
+            setState(() => _draft[field.name] = value),
       );
     }
     final String? relation = field.relation;
@@ -1299,7 +1213,8 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
             : '${widget.model.module}.$relation',
         fallbackModel: relation,
         value: _draft[field.name] as String?,
-        onChanged: (String value) => setState(() => _draft[field.name] = value),
+        onChanged: (String value) =>
+            setState(() => _draft[field.name] = value),
       );
     }
     if (field.isCollection) {
@@ -1310,10 +1225,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           minLines: 3,
           maxLines: 10,
           style: const TextStyle(
-            fontSize: 12,
-            fontFamily: 'monospace',
-            color: DVStudioStyle.ink,
-          ),
+              fontSize: 12, fontFamily: 'monospace', color: DVStudioStyle.ink),
           decoration: InputDecoration(
             isDense: true,
             hintText: field.baseType.startsWith('Map') ? '{ }' : '[ ]',
@@ -1334,25 +1246,25 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
         placeholder: field.baseType == 'DateTime'
             ? '2026-09-17T10:00:00Z'
             : field.nullable
-            ? 'empty'
-            : null,
+                ? 'empty'
+                : null,
         onChanged: (String value) => _draft[field.name] = value,
       ),
     );
   }
 
   Widget _readOnly(Key key, String text) => Container(
-    key: key,
-    height: 32,
-    alignment: Alignment.centerLeft,
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    decoration: BoxDecoration(
-      color: DVStudioStyle.canvas,
-      border: Border.all(color: DVStudioStyle.line),
-      borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
-    ),
-    child: DVStudioStyle.body(text, color: DVStudioStyle.muted),
-  );
+        key: key,
+        height: 32,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: DVStudioStyle.canvas,
+          border: Border.all(color: DVStudioStyle.line),
+          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        ),
+        child: DVStudioStyle.body(text, color: DVStudioStyle.muted),
+      );
 }
 
 /// A value the form could not turn into what the field holds.
@@ -1416,16 +1328,11 @@ class _DVStudioSelect extends StatelessWidget {
               Expanded(
                 child: DVStudioStyle.body(
                   value ?? placeholder,
-                  color: value == null
-                      ? DVStudioStyle.faint
-                      : DVStudioStyle.ink,
+                  color: value == null ? DVStudioStyle.faint : DVStudioStyle.ink,
                 ),
               ),
-              const Icon(
-                Icons.expand_more,
-                size: 16,
-                color: DVStudioStyle.muted,
-              ),
+              const Icon(Icons.expand_more,
+                  size: 16, color: DVStudioStyle.muted),
             ],
           ),
         ),
@@ -1480,11 +1387,9 @@ class _DVStudioRelationSelectState extends State<_DVStudioRelationSelect> {
       }
     }
     if (mounted) {
-      setState(
-        () => _keys = <String>[
-          for (final DVStudioRecordData record in records) record.key,
-        ]..sort(),
-      );
+      setState(() => _keys = <String>[
+            for (final DVStudioRecordData record in records) record.key,
+          ]..sort());
     }
   }
 
@@ -1497,9 +1402,7 @@ class _DVStudioRelationSelectState extends State<_DVStudioRelationSelect> {
         if (widget.value != null && !keys.contains(widget.value)) widget.value!,
         ...keys,
       ],
-      placeholder: _keys == null
-          ? 'Loading…'
-          : 'Choose a ${widget.fallbackModel}',
+      placeholder: _keys == null ? 'Loading…' : 'Choose a ${widget.fallbackModel}',
       onChanged: widget.onChanged,
     );
   }
@@ -1531,9 +1434,8 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
 
   @override
   Widget build(BuildContext context) {
-    return _loading<Map<String, Object?>>(_manifest, (
-      Map<String, Object?> graph,
-    ) {
+    return _loading<Map<String, Object?>>(_manifest,
+        (Map<String, Object?> graph) {
       final List<Map<String, Object?>> rows = <Map<String, Object?>>[
         for (final Object? row
             in (graph[widget.kind] as List?) ?? const <Object?>[])
@@ -1607,27 +1509,23 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         _error = null;
         // The first queue with something dead in it is what somebody opening
         // this is most likely here for.
-        _open ??=
-            (queues.firstWhere(
-                  (Map<String, Object?> q) =>
-                      _jobs(q, 'deadLetters').isNotEmpty,
-                  orElse: () =>
-                      queues.isEmpty ? const <String, Object?>{} : queues.first,
-                )['name']
-                as String?);
+        _open ??= (queues.firstWhere(
+                  (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
+                  orElse: () => queues.isEmpty
+                      ? const <String, Object?>{}
+                      : queues.first,
+                )['name'] as String?);
       });
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     }
   }
 
-  static List<Map<String, Object?>> _jobs(
-    Map<String, Object?> queue,
-    String kind,
-  ) => <Map<String, Object?>>[
-    for (final Object? job in (queue[kind] as List?) ?? const <Object?>[])
-      if (job is Map) job.cast<String, Object?>(),
-  ];
+  static List<Map<String, Object?>> _jobs(Map<String, Object?> queue, String kind) =>
+      <Map<String, Object?>>[
+        for (final Object? job in (queue[kind] as List?) ?? const <Object?>[])
+          if (job is Map) job.cast<String, Object?>(),
+      ];
 
   Future<void> _act(String id, {required bool retry}) async {
     setState(() {
@@ -1641,11 +1539,9 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         await widget.client.discardJob(id);
       }
       if (mounted) {
-        setState(
-          () => _notice = retry
-              ? 'Job $id is back on its queue.'
-              : 'Job $id was discarded.',
-        );
+        setState(() => _notice = retry
+            ? 'Job $id is back on its queue.'
+            : 'Job $id was discarded.');
       }
       await _load();
     } on DVStudioRemoteError catch (error) {
@@ -1676,16 +1572,13 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
-            title: 'Queue',
-            subtitle: '${queues.length}',
-          ),
+              title: 'Queue', subtitle: '${queues.length}'),
           const SizedBox(height: DVStudioStyle.space2),
           for (final Map<String, Object?> queue in queues)
             DVStudioListRow(
               key: ValueKey<String>('dv-studio-queue-${queue['name']}'),
               title: '${queue['name']}',
-              subtitle:
-                  '${_jobs(queue, 'pending').length} waiting · '
+              subtitle: '${_jobs(queue, 'pending').length} waiting · '
                   '${_jobs(queue, 'deadLetters').length} failed',
               icon: Icons.inbox_outlined,
               selected: queue['name'] == _open,
@@ -1728,10 +1621,9 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
               children: <Widget>[
                 if (queue['unreadable'] != null) ...<Widget>[
                   DVStudioStyle.body(
-                    'This queue\'s broker cannot list its jobs: '
-                    '${queue['unreadable']}',
-                    color: DVStudioStyle.warning,
-                  ),
+                      'This queue\'s broker cannot list its jobs: '
+                      '${queue['unreadable']}',
+                      color: DVStudioStyle.warning),
                   const SizedBox(height: DVStudioStyle.space4),
                 ],
                 if (_notice != null) ...<Widget>[
@@ -1745,9 +1637,8 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
                 else
                   for (final Map<String, Object?> job in dead)
                     Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: DVStudioStyle.space3,
-                      ),
+                      padding:
+                          const EdgeInsets.only(bottom: DVStudioStyle.space3),
                       child: _deadLetter(job),
                     ),
                 const SizedBox(height: DVStudioStyle.space5),
@@ -1789,11 +1680,8 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(
-                Icons.error_outline,
-                size: 16,
-                color: DVStudioStyle.danger,
-              ),
+              const Icon(Icons.error_outline,
+                  size: 16, color: DVStudioStyle.danger),
               const SizedBox(width: DVStudioStyle.space2),
               Expanded(
                 child: Column(
@@ -1811,22 +1699,15 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
               GestureDetector(
                 key: ValueKey<String>('dv-studio-job-discard-$id'),
                 onTap: _busy ? null : () => unawaited(_act(id, retry: false)),
-                child: DVStudioStyle.control(
-                  'Discard',
-                  enabled: !_busy,
-                  icon: Icons.delete_outline,
-                ),
+                child: DVStudioStyle.control('Discard',
+                    enabled: !_busy, icon: Icons.delete_outline),
               ),
               const SizedBox(width: DVStudioStyle.space2),
               GestureDetector(
                 key: ValueKey<String>('dv-studio-job-retry-$id'),
                 onTap: _busy ? null : () => unawaited(_act(id, retry: true)),
-                child: DVStudioStyle.control(
-                  'Retry',
-                  enabled: !_busy,
-                  primary: true,
-                  icon: Icons.replay,
-                ),
+                child: DVStudioStyle.control('Retry',
+                    enabled: !_busy, primary: true, icon: Icons.replay),
               ),
             ],
           ),
@@ -1889,11 +1770,8 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
       if (!mounted) return;
       // The count is the point: revalidating a tag that covered nothing looks
       // the same as one that cleared a hundred entries.
-      setState(
-        () => _notice =
-            'Revalidated $tag: ${dropped.length} '
-            '${dropped.length == 1 ? 'key' : 'keys'} dropped.',
-      );
+      setState(() => _notice = 'Revalidated $tag: ${dropped.length} '
+          '${dropped.length == 1 ? 'key' : 'keys'} dropped.');
       await _load();
     } on DVStudioRemoteError catch (error) {
       if (mounted) setState(() => _notice = error.message);
@@ -1921,30 +1799,26 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
         Expanded(
           child: tags == null
               ? (_error == null
-                    ? DVStudioStyle.placeholder('Loading cache tags…')
-                    : DVStudioStyle.emptyState(
-                        icon: Icons.cloud_off_outlined,
-                        title: 'The server did not answer',
-                        message: '$_error',
-                      ))
+                  ? DVStudioStyle.placeholder('Loading cache tags…')
+                  : DVStudioStyle.emptyState(
+                      icon: Icons.cloud_off_outlined,
+                      title: 'The server did not answer',
+                      message: '$_error',
+                    ))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(DVStudioStyle.space5),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       if (_notice != null) ...<Widget>[
-                        DVStudioStyle.body(
-                          _notice!,
-                          color: DVStudioStyle.success,
-                        ),
+                        DVStudioStyle.body(_notice!,
+                            color: DVStudioStyle.success),
                         const SizedBox(height: DVStudioStyle.space4),
                       ],
                       if (tags.isEmpty)
-                        DVStudioStyle.body(
-                          'Nothing on this server is cached '
-                          'under a tag right now. DV.Cache.tag puts a key '
-                          'under one; revalidating the tag drops them all.',
-                        )
+                        DVStudioStyle.body('Nothing on this server is cached '
+                            'under a tag right now. DV.Cache.tag puts a key '
+                            'under one; revalidating the tag drops them all.')
                       else
                         _DVStudioTable(
                           headers: const <String>['Tag', 'Keys', 'Covers'],
@@ -1961,8 +1835,7 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
                             for (final Map<String, Object?> tag in tags)
                               DVStudioIconButton(
                                 key: ValueKey<String>(
-                                  'dv-studio-cache-revalidate-${tag['tag']}',
-                                ),
+                                    'dv-studio-cache-revalidate-${tag['tag']}'),
                                 icon: Icons.refresh,
                                 tooltip: 'Revalidate',
                                 onTap: () =>
@@ -2028,11 +1901,8 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
     }
   }
 
-  Future<void> _revoke(
-    String userId,
-    String tenant, {
-    bool confirm = false,
-  }) async {
+  Future<void> _revoke(String userId, String tenant,
+      {bool confirm = false}) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -2046,11 +1916,8 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
       if (!mounted) return;
       setState(() {
         if (error.status == 409 && !confirm) {
-          _confirming = (
-            userId: userId,
-            tenant: tenant,
-            message: error.message,
-          );
+          _confirming =
+              (userId: userId, tenant: tenant, message: error.message);
         } else {
           _error = error.message;
         }
@@ -2072,9 +1939,8 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
           subtitle: 'Who may open Studio',
         ),
         Expanded(
-          child: _loading<List<Map<String, Object?>>>(_grants, (
-            List<Map<String, Object?>> grants,
-          ) {
+          child: _loading<List<Map<String, Object?>>>(_grants,
+              (List<Map<String, Object?>> grants) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(DVStudioStyle.space5),
               child: Column(
@@ -2087,8 +1953,7 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                       Expanded(
                         child: KeyedSubtree(
                           key: const ValueKey<String>(
-                            'dv-studio-grant-account',
-                          ),
+                              'dv-studio-grant-account'),
                           child: DVStudioTextInput(
                             key: ValueKey<int>(_field),
                             placeholder: 'Their sign-in address, or account id',
@@ -2102,12 +1967,8 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                       GestureDetector(
                         key: const ValueKey<String>('dv-studio-grant'),
                         onTap: _busy ? null : () => unawaited(_grant()),
-                        child: DVStudioStyle.control(
-                          'Grant',
-                          enabled: !_busy,
-                          primary: true,
-                          icon: Icons.add,
-                        ),
+                        child: DVStudioStyle.control('Grant',
+                            enabled: !_busy, primary: true, icon: Icons.add),
                       ),
                     ],
                   ),
@@ -2130,54 +1991,39 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                           DVStudioStyle.surface,
                         ),
                         border: Border.all(
-                          color: DVStudioStyle.warning.withValues(alpha: 0.4),
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          DVStudioStyle.radiusSmall,
-                        ),
+                            color:
+                                DVStudioStyle.warning.withValues(alpha: 0.4)),
+                        borderRadius:
+                            BorderRadius.circular(DVStudioStyle.radiusSmall),
                       ),
                       child: Row(
                         children: <Widget>[
-                          const Icon(
-                            Icons.warning_amber_rounded,
-                            size: 18,
-                            color: DVStudioStyle.warning,
-                          ),
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 18, color: DVStudioStyle.warning),
                           const SizedBox(width: DVStudioStyle.space2),
                           Expanded(
-                            child: DVStudioStyle.body(confirming.message),
-                          ),
+                              child: DVStudioStyle.body(confirming.message)),
                           const SizedBox(width: DVStudioStyle.space2),
                           GestureDetector(
                             key: const ValueKey<String>(
-                              'dv-studio-revoke-cancel',
-                            ),
+                                'dv-studio-revoke-cancel'),
                             onTap: () => setState(() => _confirming = null),
-                            child: DVStudioStyle.control(
-                              'Keep it',
-                              enabled: true,
-                            ),
+                            child: DVStudioStyle.control('Keep it',
+                                enabled: true),
                           ),
                           const SizedBox(width: DVStudioStyle.space2),
                           GestureDetector(
                             key: const ValueKey<String>(
-                              'dv-studio-revoke-confirm',
-                            ),
+                                'dv-studio-revoke-confirm'),
                             onTap: _busy
                                 ? null
-                                : () => unawaited(
-                                    _revoke(
-                                      confirming.userId,
-                                      confirming.tenant,
-                                      confirm: true,
-                                    ),
-                                  ),
-                            child: DVStudioStyle.control(
-                              'Revoke anyway',
-                              enabled: !_busy,
-                              primary: true,
-                              icon: Icons.remove_circle_outline,
-                            ),
+                                : () => unawaited(_revoke(
+                                    confirming.userId, confirming.tenant,
+                                    confirm: true)),
+                            child: DVStudioStyle.control('Revoke anyway',
+                                enabled: !_busy,
+                                primary: true,
+                                icon: Icons.remove_circle_outline),
                           ),
                         ],
                       ),
@@ -2185,11 +2031,9 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                   ],
                   const SizedBox(height: DVStudioStyle.space5),
                   if (grants.isEmpty)
-                    DVStudioStyle.body(
-                      'Nobody holds a grant. This Studio is '
-                      'open because the application answers Studio.access '
-                      'itself, or because this is a development build.',
-                    )
+                    DVStudioStyle.body('Nobody holds a grant. This Studio is '
+                        'open because the application answers Studio.access '
+                        'itself, or because this is a development build.')
                   else
                     _DVStudioTable(
                       headers: const <String>[
@@ -2210,24 +2054,19 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                       // The caller's own grant, highlighted: the one to
                       // think twice about.
                       selected: grants.indexWhere(
-                        (Map<String, Object?> g) => g['you'] == true,
-                      ),
+                          (Map<String, Object?> g) => g['you'] == true),
                       trailing: <Widget>[
                         for (final Map<String, Object?> grant in grants)
                           DVStudioIconButton(
                             key: ValueKey<String>(
-                              'dv-studio-revoke-${grant['userId']}',
-                            ),
+                                'dv-studio-revoke-${grant['userId']}'),
                             icon: Icons.person_remove_outlined,
                             tooltip: 'Revoke',
                             onTap: _busy
                                 ? null
-                                : () => unawaited(
-                                    _revoke(
-                                      '${grant['userId']}',
-                                      '${grant['tenant'] ?? 'default'}',
-                                    ),
-                                  ),
+                                : () => unawaited(_revoke(
+                                    '${grant['userId']}',
+                                    '${grant['tenant'] ?? 'default'}')),
                           ),
                       ],
                     ),
