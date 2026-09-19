@@ -16,6 +16,7 @@ library;
 import 'dart:convert';
 
 import '../database/adapter.dart';
+import '../database/records.dart';
 import '../http/wintercg.dart';
 import 'studio_api.dart' show dvStudioPagesTable;
 
@@ -38,8 +39,10 @@ class DVPublishedPages {
     final DVDatabaseAdapter? database = _database();
     if (database != null) {
       try {
-        final List<Map<String, Object?>> rows = await database.query(
-          'SELECT route, title, document FROM $dvStudioPagesTable',
+        final List<Map<String, Object?>> rows =
+            await DVRecordAdapter.over(database).find(
+          dvStudioPagesTable,
+          fields: const <String>['route', 'title', 'document'],
         );
         for (final Map<String, Object?> row in rows) {
           final Object? document = jsonDecode('${row['document']}');

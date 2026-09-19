@@ -27,6 +27,7 @@ import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
 import '../data/record_history.dart';
 import '../database/adapter.dart';
+import '../database/records.dart';
 import '../http/wintercg.dart';
 import '../modules/modules.dart'
     show DVModuleData, DVModuleDataMode, dvModuleRegistry;
@@ -196,6 +197,19 @@ Future<String?> dvStudioSessionUserId(Request request) async {
 
 /// The table page documents are kept in: the one `DVPageStore` writes.
 const String dvStudioPagesTable = 'dartvel_pages';
+
+/// A page as a record, keyed by its route: one shape for `DVPageStore`, the
+/// Studio API and the published-pages reader, so the three cannot disagree
+/// about the fields.
+const DVRecordShape dvStudioPagesShape = DVRecordShape(
+  collection: dvStudioPagesTable,
+  key: 'route',
+  fields: <String, DVFieldType>{
+    'route': DVFieldType.text,
+    'title': DVFieldType.text,
+    'document': DVFieldType.text,
+  },
+);
 
 /// The Studio API, for requests already decided to be the admin's and
 /// allowed.
@@ -675,15 +689,15 @@ class DVStudioApi {
   // ---- pages -------------------------------------------------------------
 
   Future<Response> _pages(Request request, String method) async {
-    final DVDatabaseAdapter database = _database;
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $dvStudioPagesTable (route TEXT, '
-      'title TEXT, document TEXT)',
-    );
+    // Records, not SQL: the same collection DVPageStore writes, on whatever
+    // engine the server was given.
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioPagesShape);
     switch (method) {
       case 'GET':
-        final List<Map<String, Object?>> rows = await database.query(
-          'SELECT route, title, document FROM $dvStudioPagesTable',
+        final List<Map<String, Object?>> rows = await records.find(
+          dvStudioPagesTable,
+          fields: const <String>['route', 'title', 'document'],
         );
         final List<Map<String, Object?>> pages =
             <Map<String, Object?>>[
@@ -715,25 +729,21 @@ class DVStudioApi {
             'A page route begins with "/".',
           );
         }
-        await database.execute(
-          'DELETE FROM $dvStudioPagesTable WHERE route = ?',
-          <Object?>[route],
-        );
-        await database.execute(
-          'INSERT INTO $dvStudioPagesTable (route, title, document) '
-          'VALUES (?, ?, ?)',
-          <Object?>[route, document['title'], jsonEncode(document)],
-        );
+        await records.delete(dvStudioPagesTable,
+            where: DVFilter.equals('route', route));
+        await records.insert(dvStudioPagesTable, <String, Object?>{
+          'route': route,
+          'title': document['title'],
+          'document': jsonEncode(document),
+        });
         return _reply(<String, Object?>{'route': route});
       case 'DELETE':
         final String? route = request.url.queryParameters['route'];
         if (route == null || route.isEmpty) {
           throw _StudioRefusal(400, 'bad_route', 'Name the route to remove.');
         }
-        await database.execute(
-          'DELETE FROM $dvStudioPagesTable WHERE route = ?',
-          <Object?>[route],
-        );
+        await records.delete(dvStudioPagesTable,
+            where: DVFilter.equals('route', route));
         return _reply(<String, Object?>{'deleted': route});
     }
     _notAllowed();

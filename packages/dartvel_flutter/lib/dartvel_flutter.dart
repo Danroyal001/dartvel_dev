@@ -235,6 +235,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVRecordShape,
         DVSort,
         DVSqlRecordAdapter,
+        dvStudioPagesShape,
         DVFileStorageAdapter,
         DVFileStorageException,
         DVFormControls,

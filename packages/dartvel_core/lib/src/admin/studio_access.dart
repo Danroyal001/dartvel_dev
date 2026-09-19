@@ -17,7 +17,7 @@ library;
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/session_authentication.dart';
 import '../database/adapter.dart';
-import '../database/framework_tables.dart';
+import '../database/records.dart';
 import '../tenancy/tenants.dart';
 
 /// The action a signed-in caller needs to open Studio.
@@ -40,11 +40,22 @@ class DVStudioGrants {
 
   Future<void>? _ready;
 
-  Future<void> _ensure() => _ready ??= dvEnsureFrameworkTable(
-        adapter,
-        'CREATE TABLE IF NOT EXISTS $table ('
-        'user_id TEXT, tenant TEXT, granted_at BIGINT)',
-      );
+  /// Records, not SQL, so Studio can be granted on a document database.
+  DVRecordAdapter get _records => DVRecordAdapter.over(adapter);
+
+  Future<void> _ensure() => _ready ??= _records.ensure(DVRecordShape(
+        collection: table,
+        fields: const <String, DVFieldType>{
+          'user_id': DVFieldType.text,
+          'tenant': DVFieldType.text,
+          'granted_at': DVFieldType.integer,
+        },
+      ));
+
+  DVFilter _grantOf(String user, String tenant) => DVFilter.all(<DVFilter>[
+        DVFilter.equals('user_id', user),
+        DVFilter.equals('tenant', tenant),
+      ]);
 
   /// Lets [userId] open Studio on [tenant]. Granting twice is one grant.
   Future<void> grant(
@@ -53,10 +64,11 @@ class DVStudioGrants {
   }) async {
     final String user = _required(userId, 'userId');
     if (await isGranted(user, tenant: tenant)) return;
-    await adapter.execute(
-      'INSERT INTO $table (user_id, tenant, granted_at) VALUES (?, ?, ?)',
-      <Object?>[user, tenant, _clock().toUtc().millisecondsSinceEpoch],
-    );
+    await _records.insert(table, <String, Object?>{
+      'user_id': user,
+      'tenant': tenant,
+      'granted_at': _clock().toUtc().millisecondsSinceEpoch,
+    });
   }
 
   /// Takes the grant away. False when there was none.
@@ -66,10 +78,7 @@ class DVStudioGrants {
   }) async {
     final String user = _required(userId, 'userId');
     if (!await isGranted(user, tenant: tenant)) return false;
-    await adapter.execute(
-      'DELETE FROM $table WHERE user_id = ? AND tenant = ?',
-      <Object?>[user, tenant],
-    );
+    await _records.delete(table, where: _grantOf(user, tenant));
     return true;
   }
 
@@ -80,18 +89,15 @@ class DVStudioGrants {
   }) async {
     if (userId.isEmpty) return false;
     await _ensure();
-    final List<Map<String, Object?>> rows = await adapter.query(
-      'SELECT user_id FROM $table WHERE user_id = ? AND tenant = ?',
-      <Object?>[userId, tenant],
-    );
-    return rows.isNotEmpty;
+    return await _records.count(table, where: _grantOf(userId, tenant)) > 0;
   }
 
   /// Every grant, oldest first.
   Future<List<DVStudioGrant>> list() async {
     await _ensure();
-    final List<Map<String, Object?>> rows = await adapter.query(
-      'SELECT user_id, tenant, granted_at FROM $table ORDER BY granted_at',
+    final List<Map<String, Object?>> rows = await _records.find(
+      table,
+      orderBy: const <DVSort>[DVSort('granted_at')],
     );
     return <DVStudioGrant>[
       for (final Map<String, Object?> row in rows)
