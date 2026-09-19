@@ -4654,11 +4654,14 @@ class DVFold {
     }
     return DVFold(
       bounds: feature.bounds,
-      state: switch (feature.state) {
-        ui.DisplayFeatureState.postureFlat => DVFoldState.flat,
-        ui.DisplayFeatureState.postureHalfOpened => DVFoldState.halfOpened,
-        ui.DisplayFeatureState.unknown => DVFoldState.unknown,
-      },
+      // Compared, not switched on: the web engine's DisplayFeatureState has
+      // values the VM's does not (postureFlipped), and an exhaustive switch
+      // that compiles for one fails dart2js for the other.
+      state: feature.state == ui.DisplayFeatureState.postureFlat
+          ? DVFoldState.flat
+          : feature.state == ui.DisplayFeatureState.postureHalfOpened
+              ? DVFoldState.halfOpened
+              : DVFoldState.unknown,
       occludes: feature.bounds.width > 0 && feature.bounds.height > 0,
     );
   }
