@@ -31,8 +31,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           level: 1,
         ),
         Bullets(<String>[
-          'Studio ships free in every Dartvel app, and inside the web-server '
-              'binary at /__studio.',
+          'Studio is free. It runs inside your web-server binary at /__studio, '
+              'and never inside an app.',
           'Build pages visually and edit model records without writing an '
               'admin panel.',
           'Studio Pro adds a visual workflow builder that exports plain Dart.',
@@ -72,9 +72,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         StudioShot(
           'assets/studio/model-records.png',
-          'Dartvel Studio Models section listing Product records with one '
+          'Dartvel Studio Data section listing Product records with one '
               'open in an edit form',
-          caption: 'Models: each record of a model, and a form typed from its '
+          caption: 'Data: each record of a model, and a form typed from its '
               'fields.',
         ),
       ],
@@ -93,9 +93,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'repository.',
         ]),
         Objection(
-          'Does publishing need a rebuild?',
-          'No. On your web-server, a published page takes over its route '
-              'without a rebuild, and Revert brings the compiled page back. '
+          'Does deploying a page need a rebuild?',
+          'No. On your web-server, a deployed page takes over its route '
+              'without a rebuild. Restore original page brings the compiled one '
+              'back. '
               'Studio stays on your server. Apps never carry it.',
         ),
       ],
@@ -107,37 +108,38 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Heading('Records, routes and review in the same place as your pages.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
-            'Page builder',
-            'Insert, Layers, the inspector, undo and redo, publish, revert and '
+            'Pages',
+            'Insert, Layers, the inspector, undo and redo, deploy, restore and '
                 'code export.',
             section: 'Dartvel Studio',
           ),
           SiteCard(
-            'Models',
+            'Data',
             'Browse and edit each model\'s records. Sensitive fields never '
                 'leave the server.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
-            'Routes, functions and jobs',
-            'Read from your build, each with the file it was declared in.',
+            'Site map, Backend and Tasks',
+            'Your pages, backend functions and background tasks, read from '
+                'your build, each with the file it was declared in.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
-            'Access',
+            'Team',
             'Lists who may open Studio. Grant and revoke run on the server '
                 'with dartvel admin.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
             'Content review',
-            'Draft, review, schedule and publish a page, with who approved '
-                'which version and signed preview links. The editor is built '
+            'Draft, review and schedule a page, with who approved which '
+                'version and signed preview links. The editor is built '
                 'and is not in the server Studio yet.',
             section: 'Content Workflow',
           ),
           SiteCard(
-            'Queues and cache',
+            'Queue and Cache',
             'See waiting and failed jobs per queue, and the cache tags your '
                 'app has set.',
             section: 'Queues, Jobs, and Signals',
@@ -194,8 +196,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Bullets(<String>[
           'Drag Call, Set, Condition and Return steps onto the canvas. A Call '
               'runs an action you registered with DVWorkflows.registerAction.',
-          'Saving a workflow publishes it, and DVWorkflows.run executes it '
-              'straight away.',
+          'Deploy saves the workflow. From saving on, DVWorkflows.run '
+              'executes it.',
           'Export writes an ordinary @DVBackendFunction, so you can '
               'drop the builder whenever you like.',
         ]),
@@ -274,7 +276,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           SiteCard(
             'Multi-user editing and approval',
             'Editors see each other\'s changes over a transport you connect. '
-                'An editor\'s Publish waits for an approver, and both are in '
+                'An editor\'s Deploy waits for an approver, and both are in '
                 'the audit trail.',
             built: true,
           ),
@@ -296,8 +298,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         Objection(
           'Do I need Pro to build pages visually?',
-          'No. The page builder, model records and code export are free in '
-              'every Dartvel app.',
+          'No. The page builder, model records and code export are free with '
+              'every Dartvel project.',
         ),
         DVBox.wrapLine(<Widget>[
           PrimaryLink('Create your first app', '/docs'),
