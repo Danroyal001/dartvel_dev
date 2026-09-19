@@ -692,7 +692,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
     apiBasePath: () => DartvelRuntime.apiBasePath,
     api: DartvelRuntime.api,
   );
-  // A dispatched job is useless without its codec and handler, so they are
+${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app reads the pages\n  // it deployed from the backend at launch, and serves the ones meant for it.\n  DVPageStore.fromBackend = true;\n' : ''}  // A dispatched job is useless without its codec and handler, so they are
   // registered as part of configuring the runtime rather than left to the
   // application to remember.
   // Startup, phase by phase: what a device fleet is asked to answer for.
@@ -2551,6 +2551,12 @@ void startDartvelKiosk() {
 
   /// Whether the project declares anything DV.Memory reads: a `memory`
   /// section, or a device profile with its own `memory` override.
+  /// True when the pubspec turns Studio on: `dartvel.admin.enabled: true`.
+  static bool _studioOn(YamlMap dv) {
+    final Object? admin = dv['admin'];
+    return admin is Map && admin['enabled'] == true;
+  }
+
   static bool _hasMemoryConfig(YamlMap dv) {
     if (dv['memory'] != null) return true;
     final Object? profiles = dv['deviceProfiles'];
