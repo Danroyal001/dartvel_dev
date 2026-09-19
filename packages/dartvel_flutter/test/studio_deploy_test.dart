@@ -51,6 +51,22 @@ void main() {
     expect(await const DVPageStore().routes(), <String>['/menu']);
   });
 
+  // Studio is Dartvel's, and wears its mark: the D with the dart as its
+  // counter, not a stock icon.
+  testWidgets('the rail shows the Dartvel mark', (WidgetTester tester) async {
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.diamond_outlined), findsNothing);
+    final Finder mark = find.byKey(const ValueKey<String>('dv-studio-mark'));
+    expect(mark, findsOneWidget);
+    expect(
+      tester.widget<CustomPaint>(
+          find.descendant(of: mark, matching: find.byType(CustomPaint)).first).painter,
+      isA<DVStudioMarkPainter>(),
+    );
+  });
+
   // The button says Deploy, so the overview that explains it must not send
   // the owner looking for a Publish button that is not there.
   testWidgets('the overview speaks of deploying', (WidgetTester tester) async {

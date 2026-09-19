@@ -714,6 +714,7 @@ export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_screen.dart';
+export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_server.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
