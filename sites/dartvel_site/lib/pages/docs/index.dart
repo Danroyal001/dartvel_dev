@@ -166,6 +166,69 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'golden-path',
+          title: 'Go from idea to production with one CLI',
+          children: <Widget>[
+            DocsShell(<String>[
+              'dartvel create shop',
+              'dartvel dev',
+              'dartvel db migrate',
+              'dartvel test',
+              'dartvel build web-server',
+              'dartvel deploy',
+              'dartvel upgrade --plan',
+            ]),
+            Bullets(<String>[
+              'Every step is one command, from a new project to a deployed '
+                  'server.',
+              'upgrade --plan lists what a new Dartvel release would change in '
+                  'your project, and dartvel migrate-code --apply rewrites the '
+                  'source for you.',
+            ]),
+            DocsStatus('The Golden Path', missing: <String>[
+              'dartvel upgrade does not apply an upgrade yet. It plans one, and '
+                  'you make the changes it lists.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'inspect',
+          title: 'Ask the CLI what your project contains',
+          children: <Widget>[
+            DocsShell(<String>[
+              'dartvel inspect routes',
+              'dartvel inspect models',
+              'dartvel explain DV-GEN-001',
+            ]),
+            Bullets(<String>[
+              'inspect prints the routes, models, functions and jobs the build '
+                  'found, from the same project graph Studio reads.',
+              'explain tells you what a DV- error code means and how to fix it.',
+            ]),
+            DocsStatus('Unified Development, Transparency, and Contracts',
+                missing: <String>[
+              'There is no inspector yet for modules, transactions, the schema '
+                  'or generated files.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'determinism',
+          title: 'Generated code is the same on every machine',
+          children: <Widget>[
+            DocsShell(<String>['dartvel generate --check']),
+            Bullets(<String>[
+              'The same project generates byte-identical files on any machine '
+                  'and in any folder, with no timestamps or absolute paths.',
+              'generate --check fails your CI when the committed files are '
+                  'stale, without touching the project.',
+            ]),
+            DocsStatus('Generated Code Determinism', missing: <String>[
+              'Generated files are not run through dart format.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Check what is built before you depend on it',
           children: <Widget>[
