@@ -8852,8 +8852,6 @@ Flutter widget with a dark navigation rail of sections:
   field, counts of stored pages, open windows, installed sections and the last
   publish, and a thumbnail card per stored page drawn by the application's own
   renderer. Opening a page brings up the editor described below.
-- **Windows** lists every window the application has open, with a way to close
-  one.
 - **Flags** appears when `DVStudioScreen(flags:)` is given, and is described in
   Feature Flags and Staged Rollout.
 - **Operations** appears when `alerting:` or `incidents:` is given, and shows
@@ -8877,9 +8875,13 @@ serves the admin mount (see Admin, Devtools, and Scaffolding), the client
 stops compiling those generated pages and compiles Studio on its own
 instead: `dartvel build web-server` builds `DVStudioApp` into the admin root,
 and the backend serves it at `/__studio`. That is `DVStudioScreen` with the
-page builder publishing to the server's `dartvel_pages`, a Models section
-listing each model's records with an edit form, Routes, Functions and Jobs
-from the build's project graph, and Access listing the Studio grants.
+page builder deploying to the server's `dartvel_pages`, and sections named for
+someone who has never written code: Data (each model's records with an edit
+form), Site map, Backend and Tasks (from the build's project graph), Queue,
+Cache, and Team (who holds a Studio grant). The editor's primary action reads
+Deploy, the word `dartvel deploy` uses, and its menu offers Deploy now and
+Restore original page. Studio has no Windows section: it runs on the server,
+and the windows of whichever app hosts it are nobody's business there.
 
 ## The page builder
 
@@ -9225,7 +9227,7 @@ nothing of the application. It reads through the mount:
 - `<mount>/api/pages`: the page builder's documents, in `dartvel_pages`.
 - `<mount>/api/grants`: who holds a Studio grant.
 - `<mount>/graph.json`: the project graph captured at build time, for the
-  Routes, Functions and Jobs sections.
+  Site map, Backend and Tasks sections.
 
 The API sits behind the same decision as the files, so a caller who may not
 open Studio gets the missing-route answer there too. Writes must carry the
