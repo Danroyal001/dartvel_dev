@@ -408,65 +408,66 @@ class DVStudioApp extends StatelessWidget {
   }
 }
 
-/// The sections Studio has on a server: every model's records, the build's
-/// routes, functions and jobs, and who may open Studio.
+/// The sections Studio has on a server, named for someone who has never
+/// written code: the app's data, its site map, its backend logic, background
+/// tasks and their queue, the cache, and the team who may open Studio.
 List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
     <DVStudioSection>[
       DVStudioSection(
         id: 'models',
-        label: 'Models',
+        label: 'Data',
         icon: Icons.table_chart_outlined,
         build: (BuildContext context) => DVStudioModelsSection(client: client),
       ),
       DVStudioSection(
         id: 'routes',
-        label: 'Routes',
+        label: 'Site map',
         icon: Icons.alt_route,
         build: (BuildContext context) => _DVStudioManifestSection(
           client: client,
           kind: 'routes',
-          title: 'Routes',
+          title: 'Site map',
           columns: const <List<String>>[
-            <String>['path', 'Path'],
+            <String>['path', 'Address'],
             <String>['page', 'Page'],
-            <String>['source', 'Declared in'],
+            <String>['source', 'File'],
           ],
         ),
       ),
       DVStudioSection(
         id: 'functions',
-        label: 'Functions',
+        label: 'Backend',
         icon: Icons.functions,
         build: (BuildContext context) => _DVStudioManifestSection(
           client: client,
           kind: 'functions',
-          title: 'Backend functions',
+          title: 'Backend logic',
           columns: const <List<String>>[
-            <String>['name', 'Function'],
+            <String>['name', 'Name'],
             <String>['method', 'Method'],
-            <String>['path', 'Path'],
-            <String>['source', 'Declared in'],
+            <String>['path', 'Address'],
+            <String>['source', 'File'],
           ],
         ),
       ),
       DVStudioSection(
         id: 'jobs',
-        label: 'Jobs',
+        label: 'Tasks',
         icon: Icons.work_history_outlined,
         build: (BuildContext context) => _DVStudioManifestSection(
           client: client,
           kind: 'jobs',
-          title: 'Jobs',
+          title: 'Background tasks',
           columns: const <List<String>>[
-            <String>['name', 'Job'],
+            <String>['name', 'Task'],
             <String>['queue', 'Queue'],
-            <String>['source', 'Declared in'],
+            <String>['source', 'File'],
           ],
         ),
       ),
       DVStudioSection(
         id: 'queues',
-        label: 'Queues',
+        label: 'Queue',
         icon: Icons.inbox_outlined,
         build: (BuildContext context) => _DVStudioQueuesSection(client: client),
       ),
@@ -478,7 +479,7 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
       ),
       DVStudioSection(
         id: 'access',
-        label: 'Access',
+        label: 'Team',
         icon: Icons.admin_panel_settings_outlined,
         build: (BuildContext context) => _DVStudioAccessSection(client: client),
       ),
@@ -748,7 +749,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
-              title: 'Models', subtitle: '${models.length}'),
+              title: 'Data', subtitle: '${models.length}'),
           const SizedBox(height: DVStudioStyle.space2),
           for (final DVStudioModel model in models)
             DVStudioListRow(
@@ -1561,7 +1562,7 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
-              title: 'Queues', subtitle: '${queues.length}'),
+              title: 'Queue', subtitle: '${queues.length}'),
           const SizedBox(height: DVStudioStyle.space2),
           for (final Map<String, Object?> queue in queues)
             DVStudioListRow(
@@ -1924,8 +1925,8 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
-          title: 'Access',
-          subtitle: 'Who may open Studio (Studio.access)',
+          title: 'Team',
+          subtitle: 'Who may open Studio',
         ),
         Expanded(
           child: _loading<List<Map<String, Object?>>>(_grants,

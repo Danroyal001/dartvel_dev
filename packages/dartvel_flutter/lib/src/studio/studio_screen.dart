@@ -4,7 +4,8 @@ import 'dart:async';
 // `show` list.
 import 'package:dartvel_core/dartvel.dart'
     show DVAlerting, DVFlags, DVHealthReport, DVIncidents;
-import 'package:flutter/material.dart' show Icon, IconData, Icons, Material;
+import 'package:flutter/material.dart'
+    show Icon, IconData, Icons, Material, PopupMenuItem, showMenu;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -17,8 +18,7 @@ import 'studio_review.dart';
 /// Pages is the builder: a site overview with a thumbnail of every stored
 /// page, and — once a page is open — the editor, with the site's pages and an
 /// insert panel or layer tree on the left, the page on an artboard in the
-/// middle, and its properties on the right. Windows lists what the
-/// application has open. Any other section is whatever the application
+/// middle, and its properties on the right. Any other section is whatever the application
 /// attaches; the Pro workflow builder is one.
 class DVStudioScreen extends StatefulWidget {
   /// The store page documents are read from and published to.
@@ -86,7 +86,7 @@ class DVStudioScreen extends StatefulWidget {
 
 /// A section in Studio's switcher.
 ///
-/// Studio ships Pages and Windows and takes the rest. That is not generality
+/// Studio ships Pages and takes the rest. That is not generality
 /// for its own sake: the workflow builder is a Pro feature and lives in
 /// dartvel_enterprise, while Studio itself is free and has to be complete
 /// without it. A switcher that named its sections could not have one of them
@@ -134,16 +134,6 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               for (final DVStudioSection section in widget.sections)
                 section.label,
             ],
-          ),
-        ),
-        // Every window the application has open, with a way to close one.
-        // Free: what is open is not a Pro secret.
-        DVStudioSection(
-          id: 'windows',
-          label: 'Windows',
-          icon: DVStudioIcons.windows,
-          build: (BuildContext context) => const _DVStudioWindowsSection(
-            key: ValueKey<String>('dv-studio-windows'),
           ),
         ),
         if (widget.flags case final DVFlags flags)
@@ -364,8 +354,7 @@ class _DVStudioPagesSection extends StatefulWidget {
   final List<DVStudioPaletteItem> palette;
   final List<DVStudioEditorHook> editorHooks;
 
-  /// The labels of the sections attached beyond Pages and Windows, for the
-  /// overview.
+  /// The labels of the sections attached beyond Pages, for the overview.
   final List<String> attached;
 
   final DVStudioContent? content;
@@ -922,9 +911,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     );
   }
 
-  /// Four numbers, every one of them true: what the store holds, what the
-  /// application has open, what is installed, and when this session last
-  /// published. No invented traffic figures on a builder's front page.
+  /// Three numbers, every one of them true: what the store holds, what is
+  /// installed, and when this session last deployed. No invented traffic figures on a builder's front page.
   Widget _stats() {
     final List<Widget> cards = <Widget>[
       DVStudioStyle.statCard(
@@ -933,32 +921,21 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         icon: DVStudioIcons.pages,
         detail: 'Stored in Studio',
       ),
-      ValueListenableBuilder<List<DVWindow>>(
-        valueListenable: DV.Platform.Window.all,
-        builder: (BuildContext context, List<DVWindow> windows, Widget? _) =>
-            DVStudioStyle.statCard(
-          label: 'Open windows',
-          value: '${windows.length}',
-          icon: DVStudioIcons.windows,
-          tone: const Color(0xFF0E8FC7),
-          detail: windows.isEmpty ? 'None right now' : 'Live from the app',
-        ),
-      ),
       if (widget.content == null)
         DVStudioStyle.statCard(
           label: 'Sections',
-          value: '${2 + widget.attached.length}',
+          value: '${1 + widget.attached.length}',
           icon: DVStudioIcons.components,
           tone: const Color(0xFFB2479B),
           detail: widget.attached.isEmpty
-              ? 'Pages and Windows'
+              ? 'Pages'
               : 'Including ${widget.attached.join(', ')}',
         )
       else
         _needsReview(),
       if (widget.content == null)
         DVStudioStyle.statCard(
-          label: 'Last publish',
+          label: 'Last deploy',
           value: _lastPublished == null ? '—' : _ago(_lastPublished!),
           icon: DVStudioIcons.publish,
           tone: DVStudioStyle.success,
@@ -1036,7 +1013,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       }
     }
     return DVStudioStyle.statCard(
-      label: 'Last publish',
+      label: 'Last deploy',
       value: latest == null ? '—' : _ago(latest.publishedAt!),
       icon: DVStudioIcons.publish,
       tone: DVStudioStyle.success,
@@ -1162,7 +1139,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               'Text, images, buttons and layouts, from the Insert panel.'),
           step(DVStudioIcons.design, 'Style what you select',
               'Every property the renderer honours is in the inspector.'),
-          step(DVStudioIcons.publish, 'Publish to go live',
+          step(DVStudioIcons.publish, 'Deploy to go live',
               'Stored pages take over their routes without a rebuild.'),
           step(DVStudioIcons.revert, 'Revert any time',
               'Deleting a stored page brings the compiled one back.'),
@@ -1503,18 +1480,21 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             icon: _showingCode ? DVStudioIcons.design : DVStudioIcons.code,
           ),
         const SizedBox(width: DVStudioStyle.space2),
-        if (compact)
-          _keyedIcon('dv-studio-revert', DVStudioIcons.revert, 'Revert', _revert)
-        else
-          _keyedControl('dv-studio-revert', 'Revert', _revert,
-              icon: DVStudioIcons.revert),
-        const SizedBox(width: DVStudioStyle.space2),
+        // Deploy, the word dartvel deploy uses, so the person who never opens
+        // a terminal and the one who does say the same thing. Its menu holds
+        // the other ways out, worded for someone who does not know what a
+        // compiled page is.
         _keyedControl(
           'dv-studio-publish',
-          _saving ? 'Publishing…' : 'Publish',
+          _saving ? 'Deploying…' : 'Deploy',
           _saving ? null : _publish,
           icon: DVStudioIcons.publish,
           primary: true,
+        ),
+        const SizedBox(width: 4),
+        _DVStudioDeployMenu(
+          onDeploy: _saving ? null : () => unawaited(_publish()),
+          onRestore: () => unawaited(_revert()),
         ),
       ],
     );
@@ -1679,6 +1659,72 @@ Widget _keyedIcon(
   );
 }
 
+/// The menu beside Deploy: deploy now, or put the page from the last build
+/// back. Each option says what a visitor will see, not what the store does.
+class _DVStudioDeployMenu extends StatelessWidget {
+  const _DVStudioDeployMenu({required this.onDeploy, required this.onRestore});
+
+  final VoidCallback? onDeploy;
+  final VoidCallback onRestore;
+
+  Future<void> _open(BuildContext context) async {
+    final RenderObject? box = context.findRenderObject();
+    final RenderObject? overlay =
+        Overlay.maybeOf(context)?.context.findRenderObject();
+    if (box is! RenderBox || overlay is! RenderBox) return;
+    final Offset origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    Widget option(String title, String detail) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: DVStudioStyle.ink)),
+            Text(detail,
+                style: const TextStyle(
+                    fontSize: 12, color: DVStudioStyle.muted)),
+          ],
+        );
+    final String? picked = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        origin.translate(0, box.size.height + 4) & box.size,
+        Offset.zero & overlay.size,
+      ),
+      items: <PopupMenuItem<String>>[
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('dv-studio-deploy-now'),
+          value: 'deploy',
+          enabled: onDeploy != null,
+          child: option('Deploy now', 'Visitors see this page right away.'),
+        ),
+        PopupMenuItem<String>(
+          key: const ValueKey<String>('dv-studio-revert'),
+          value: 'restore',
+          child: option('Restore original page',
+              'Brings back the page from your last build.'),
+        ),
+      ],
+    );
+    switch (picked) {
+      case 'deploy':
+        onDeploy?.call();
+      case 'restore':
+        onRestore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _keyedIcon(
+        'dv-studio-deploy-menu',
+        Icons.expand_more,
+        'More ways to deploy',
+        () => unawaited(_open(context)),
+      );
+}
+
 Widget _keyedControl(String key, String label, VoidCallback? onTap,
     {IconData? icon, bool primary = false}) {
   return GestureDetector(
@@ -1822,115 +1868,6 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-/// The window inspector: the window manager's list, live, each with a close.
-class _DVStudioWindowsSection extends StatelessWidget {
-  const _DVStudioWindowsSection({super.key});
-
-  static String _idOf(DVWindow w) => w.nativeId ?? w.route.path;
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder<List<DVWindow>>(
-        valueListenable: DV.Platform.Window.all,
-        builder: (BuildContext context, List<DVWindow> windows, Widget? _) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              DVStudioStyle.panelHeader(
-                title: 'Windows',
-                subtitle: '${windows.length} open',
-              ),
-              Expanded(
-                child: windows.isEmpty
-                    ? DVStudioStyle.emptyState(
-                        icon: DVStudioIcons.windows,
-                        title: 'No windows open.',
-                        message: 'Windows, tabs and panels the application '
-                            'opens appear here while they are open.',
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.all(DVStudioStyle.space6),
-                        children: <Widget>[
-                          for (final DVWindow w in windows)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                  bottom: DVStudioStyle.space3),
-                              child: KeyedSubtree(
-                                key: ValueKey<String>(
-                                    'dv-studio-window-${_idOf(w)}'),
-                                child: _windowCard(w),
-                              ),
-                            ),
-                        ],
-                      ),
-              ),
-            ],
-          );
-        },
-      );
-
-  Widget _windowCard(DVWindow w) {
-    return DVStudioStyle.card(
-      padding: const EdgeInsets.all(DVStudioStyle.space4),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: DVStudioStyle.accentSoft,
-              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
-            ),
-            child: const Icon(DVStudioIcons.windows,
-                size: 18, color: DVStudioStyle.accent),
-          ),
-          const SizedBox(width: DVStudioStyle.space3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                DVStudioStyle.heading(w.route.path),
-                if (w.nativeId != null)
-                  DVStudioStyle.caption('Native id ${w.nativeId}',
-                      color: DVStudioStyle.faint),
-              ],
-            ),
-          ),
-          // Scaled rather than overflowing when the window list is narrow:
-          // the close button has to stay on screen.
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  DVStudioStyle.badge(w.kind.name),
-                  const SizedBox(width: DVStudioStyle.space2),
-                  DVStudioStyle.badge(w.presentation.name,
-                      tone: DVStudioStyle.muted),
-                  const SizedBox(width: DVStudioStyle.space4),
-                  GestureDetector(
-                    key: ValueKey<String>('dv-studio-window-close-${_idOf(w)}'),
-                    onTap: () => unawaited(w.close()),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: DVStudioStyle.control(
-                        'Close',
-                        enabled: true,
-                        icon: DVStudioIcons.close,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

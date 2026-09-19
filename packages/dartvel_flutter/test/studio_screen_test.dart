@@ -132,6 +132,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('dv-studio-create')));
     await tester.pumpAndSettle();
 
+    // The button says what dartvel deploy says, so a person who never opens
+    // a terminal and one who does use the same word.
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey<String>('dv-studio-publish')),
+            matching: find.text('Deploy')),
+        findsOneWidget);
+    expect(find.text('Publish'), findsNothing);
+
     await tester.tap(find.byKey(const ValueKey<String>('dv-studio-publish')));
     await tester.pumpAndSettle();
 
@@ -150,6 +159,12 @@ void main() {
     await tester
         .tap(find.byKey(const ValueKey<String>('dv-studio-route-/pricing')));
     await tester.pumpAndSettle();
+    // Restoring is one of the deploy options, beside the button it undoes.
+    await tester
+        .tap(find.byKey(const ValueKey<String>('dv-studio-deploy-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Deploy now'), findsOneWidget);
+    expect(find.text('Restore original page'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey<String>('dv-studio-revert')));
     await tester.pumpAndSettle();
 
