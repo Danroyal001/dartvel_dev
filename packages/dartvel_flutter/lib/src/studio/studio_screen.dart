@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
 import 'package:dartvel_core/dartvel.dart'
     show DVAlerting, DVFlags, DVHealthReport, DVIncidents;
 import 'package:flutter/material.dart'
-    show Icon, IconData, Icons, Material, PopupMenuItem, showMenu;
+    show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -1492,6 +1493,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         const SizedBox(width: 4),
         _DVStudioDeployMenu(
+          document: _controller?.document,
           onDeploy: _saving ? null : () => unawaited(_publish()),
           onRestore: () => unawaited(_revert()),
         ),
@@ -1658,13 +1660,28 @@ Widget _keyedIcon(
   );
 }
 
-/// The menu beside Deploy: deploy now, or put the page from the last build
-/// back. Each option says what a visitor will see, not what the store does.
+/// The menu beside Deploy: where the page goes, deploy now, or put the page
+/// from the last build back. Each option says what a visitor will see, not
+/// what the store does.
+///
+/// The targets are ticked on the page itself, so the next Deploy, from the
+/// menu or the button beside it, goes to the same places.
 class _DVStudioDeployMenu extends StatelessWidget {
-  const _DVStudioDeployMenu({required this.onDeploy, required this.onRestore});
+  const _DVStudioDeployMenu({
+    required this.document,
+    required this.onDeploy,
+    required this.onRestore,
+  });
 
+  final DVPageDocument? document;
   final VoidCallback? onDeploy;
   final VoidCallback onRestore;
+
+  static String _detail(DVDeployTarget target) => switch (target) {
+        DVDeployTarget.web => 'Live the moment you deploy.',
+        DVDeployTarget.extensions => 'Next time the extension opens.',
+        _ => 'Apps get it the next time they open.',
+      };
 
   Future<void> _open(BuildContext context) async {
     final RenderObject? box = context.findRenderObject();
@@ -1672,40 +1689,150 @@ class _DVStudioDeployMenu extends StatelessWidget {
         Overlay.maybeOf(context)?.context.findRenderObject();
     if (box is! RenderBox || overlay is! RenderBox) return;
     final Offset origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    Widget option(String title, String detail) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: DVStudioStyle.ink)),
-            Text(detail,
-                style: const TextStyle(
-                    fontSize: 12, color: DVStudioStyle.muted)),
-          ],
-        );
-    final String? picked = await showMenu<String>(
+    const double width = 320;
+    final double left = (origin.dx + box.size.width - width)
+        .clamp(8, math.max(8, overlay.size.width - width - 8))
+        .toDouble();
+    final String? picked = await showGeneralDialog<String>(
       context: context,
-      position: RelativeRect.fromRect(
-        origin.translate(0, box.size.height + 4) & box.size,
-        Offset.zero & overlay.size,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      barrierColor: const Color(0x00000000),
+      transitionDuration: Duration.zero,
+      pageBuilder: (BuildContext dialog, _, __) => Stack(
+        children: <Widget>[
+          Positioned(
+            left: left,
+            top: origin.dy + box.size.height + 4,
+            width: width,
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setMenu) {
+                final DVPageDocument? page = document;
+                final Set<DVDeployTarget> ticked =
+                    page?.targets ?? DVDeployTarget.values.toSet();
+                void toggle(DVDeployTarget target) {
+                  if (page == null) return;
+                  final Set<DVDeployTarget> next = <DVDeployTarget>{...ticked};
+                  if (!next.remove(target)) next.add(target);
+                  // Everything ticked is stored as everywhere, so a target
+                  // added later reaches a page deployed to all of them.
+                  setMenu(() => page.targets =
+                      next.length == DVDeployTarget.values.length ? null : next);
+                }
+
+                final int count = ticked.length;
+                return Material(
+                  color: DVStudioStyle.surface,
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                          child: DVStudioStyle.overline('Deploy to'),
+                        ),
+                        for (final DVDeployTarget target
+                            in DVDeployTarget.values)
+                          InkWell(
+                            key: ValueKey<String>(
+                                'dv-studio-deploy-target-${target.name}'),
+                            onTap: () => toggle(target),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              child: Row(
+                                children: <Widget>[
+                                  Icon(
+                                    ticked.contains(target)
+                                        ? Icons.check_box
+                                        : Icons.check_box_outline_blank,
+                                    size: 20,
+                                    color: ticked.contains(target)
+                                        ? DVStudioStyle.accent
+                                        : DVStudioStyle.muted,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(target.label,
+                                            style: const TextStyle(
+                                                fontSize: 14,
+                                                color: DVStudioStyle.ink)),
+                                        Text(_detail(target),
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color: DVStudioStyle.muted)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: _keyedControl(
+                            'dv-studio-deploy-now',
+                            'Deploy now',
+                            onDeploy == null || count == 0
+                                ? null
+                                : () => Navigator.of(dialog).pop('deploy'),
+                            icon: DVStudioIcons.publish,
+                            primary: true,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                          child: Text(
+                            count == DVDeployTarget.values.length
+                                ? 'To every target'
+                                : count == 0
+                                    ? 'Tick at least one target'
+                                    : 'To $count target${count == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                                fontSize: 12, color: DVStudioStyle.muted),
+                          ),
+                        ),
+                        Container(height: 1, color: DVStudioStyle.line),
+                        InkWell(
+                          key: const ValueKey<String>('dv-studio-revert'),
+                          onTap: () => Navigator.of(dialog).pop('restore'),
+                          child: const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 10, 16, 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text('Restore original page',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: DVStudioStyle.ink)),
+                                Text(
+                                    'Brings back the page from your last build.',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: DVStudioStyle.muted)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      items: <PopupMenuItem<String>>[
-        PopupMenuItem<String>(
-          key: const ValueKey<String>('dv-studio-deploy-now'),
-          value: 'deploy',
-          enabled: onDeploy != null,
-          child: option('Deploy now', 'Visitors see this page right away.'),
-        ),
-        PopupMenuItem<String>(
-          key: const ValueKey<String>('dv-studio-revert'),
-          value: 'restore',
-          child: option('Restore original page',
-              'Brings back the page from your last build.'),
-        ),
-      ],
     );
     switch (picked) {
       case 'deploy':

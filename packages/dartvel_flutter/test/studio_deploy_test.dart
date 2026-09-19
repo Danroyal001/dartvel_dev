@@ -51,6 +51,39 @@ void main() {
     expect(await const DVPageStore().routes(), <String>['/menu']);
   });
 
+  testWidgets('the Deploy menu lists the targets, and deploys to the ones ticked',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, '/menu');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-create')));
+    await tester.pumpAndSettle();
+
+    await tester
+        .tap(find.byKey(const ValueKey<String>('dv-studio-deploy-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('DEPLOY TO'), findsOneWidget);
+    for (final DVDeployTarget target in DVDeployTarget.values) {
+      expect(find.text(target.label), findsOneWidget);
+    }
+    // Untick everything but the phones; the menu stays open while ticking.
+    for (final DVDeployTarget target in DVDeployTarget.values) {
+      if (target == DVDeployTarget.phones) continue;
+      await tester.tap(find.byKey(
+          ValueKey<String>('dv-studio-deploy-target-${target.name}')));
+      await tester.pumpAndSettle();
+    }
+    expect(find.textContaining('1 target'), findsOneWidget);
+    await tester.tap(find.text('Deploy now'));
+    await tester.pumpAndSettle();
+
+    final DVPageDocument? stored = await const DVPageStore().load('/menu');
+    expect(stored!.targets, <DVDeployTarget>{DVDeployTarget.phones});
+  });
+
   // Studio is Dartvel's, and wears its mark: the D with the dart as its
   // counter, not a stock icon.
   testWidgets('the rail shows the Dartvel mark', (WidgetTester tester) async {
