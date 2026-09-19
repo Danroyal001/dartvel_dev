@@ -2435,7 +2435,7 @@ classified and how a blocking one is choreographed rather than simply run.
 
 # Storage-Neutral Records
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 A model, a Studio page and a queued job are records: a key, some fields and a
 version. Only the adapter underneath should know whether they sit in a SQL
