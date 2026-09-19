@@ -1534,8 +1534,6 @@ class DVStudioInspector extends StatelessWidget {
 
   Widget _header(DVPageNode node) {
     final bool isRoot = node.id == controller.document.root.id;
-    final String shortId =
-        node.id.length > 6 ? node.id.substring(0, 6) : node.id;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
       decoration: const BoxDecoration(
@@ -1567,21 +1565,9 @@ class DVStudioInspector extends StatelessWidget {
                 DVStudioStyle.heading(
                     _dvStudioNodeLabel(node, controller.document)),
                 const SizedBox(height: 3),
-                // Flexible, so a narrow inspector wraps the id under the badge
-                // rather than pushing it past the edge.
-                Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: DVStudioStyle.badge(node.type,
-                          tone: DVStudioStyle.muted),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: DVStudioStyle.caption('#$shortId',
-                          color: DVStudioStyle.faint),
-                    ),
-                  ],
-                ),
+                // No id: ids begin with a timestamp, so any short form of one
+                // reads the same for every element added in the same minute.
+                DVStudioStyle.badge(node.type, tone: DVStudioStyle.muted),
               ],
             ),
           ),

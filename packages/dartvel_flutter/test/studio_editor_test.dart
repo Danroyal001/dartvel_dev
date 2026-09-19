@@ -293,6 +293,29 @@ void main() {
         'Label',
       );
     });
+
+    testWidgets('never labels two elements with the same id',
+        (WidgetTester tester) async {
+      // Node ids start with a timestamp, so their first characters are the
+      // same for everything added in the same minute. A header that showed
+      // those told the user two different elements were one.
+      final controller = controllerWith(<String>['First', 'Second']);
+      await tester.pumpWidget(
+        MaterialApp(home: DVStudioInspector(controller: controller)),
+      );
+      Set<String> idsShown() => <String>{
+            for (final Text text in tester.widgetList<Text>(find.byType(Text)))
+              if ((text.data ?? '').startsWith('#n')) text.data!,
+          };
+
+      controller.select(controller.document.root.children.first.id);
+      await tester.pump();
+      final Set<String> first = idsShown();
+      controller.select(controller.document.root.children.last.id);
+      await tester.pump();
+
+      expect(first.intersection(idsShown()), isEmpty);
+    });
   });
 
   group('the canvas shows the design', () {
