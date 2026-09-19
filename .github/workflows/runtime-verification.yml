@@ -1077,6 +1077,20 @@ jobs:
           sudo apt-get install -y -qq imagemagick xvfb
           cargo install cbindgen --locked || true
 
+      # Chrome for Testing, not the runner's Google Chrome. Branded Chrome
+      # stopped honouring --load-extension, so the job had been falling back
+      # to serving the bundle over HTTP: a picture of the app, not of the
+      # installed extension. Chrome for Testing still loads an unpacked one.
+      - name: Install Chrome for Testing
+        run: |
+          set -euo pipefail
+          URL=$(curl -sf https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json \
+            | jq -r '.channels.Stable.downloads.chrome[] | select(.platform == "linux64") | .url')
+          curl -sfL "$URL" -o /tmp/cft.zip
+          unzip -q /tmp/cft.zip -d /tmp/cft
+          echo "CHROME=/tmp/cft/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          /tmp/cft/chrome-linux64/chrome --version
+
       - name: Build the extension
         run: |
           set -uo pipefail
@@ -1130,7 +1144,7 @@ jobs:
             --disable-extensions-except=$EXT \
             --load-extension=$EXT --user-data-dir=/tmp/chrome-render"
 
-          google-chrome $CHROME_ARGS about:blank > /tmp/diag/chrome-install.log 2>&1 &
+          "$CHROME" $CHROME_ARGS about:blank > /tmp/diag/chrome-install.log 2>&1 &
           sleep 15
           pkill -f "user-data-dir=/tmp/chrome-profile" || true
           sleep 3
@@ -1165,7 +1179,7 @@ jobs:
             PAGE="http://localhost:8181/index.html"
           fi
 
-          google-chrome $RENDER_ARGS "$PAGE" > /tmp/diag/chrome.log 2>&1 &
+          "$CHROME" $RENDER_ARGS "$PAGE" > /tmp/diag/chrome.log 2>&1 &
 
           # Waited for rather than slept at: a fixed sleep is either slower
           # than the page or shorter than it, and the second is a failure
@@ -1207,7 +1221,7 @@ jobs:
           #
           # innerText reaches the labels because Dartvel enables semantics by
           # default, so the CanvasKit-rendered UI still has a DOM to read.
-          TEXT=$(timeout 120 google-chrome --headless=new --no-sandbox \
+          TEXT=$(timeout 120 "$CHROME" --headless=new --no-sandbox \
             --disable-gpu --disable-dev-shm-usage \
             --user-data-dir=/tmp/chrome-text --load-extension=$EXT \
             --virtual-time-budget=20000 --dump-dom "$PAGE" 2>/dev/null \
