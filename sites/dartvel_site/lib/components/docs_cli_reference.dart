@@ -182,6 +182,21 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
         ],
       ),
       DocsCliCommand(
+        name: 'pages',
+        description: 'Photograph every page in a web build\'s sitemap at each size, in a real browser, and fail on a page that shows no text.',
+        options: <String>[
+          '    --web                The built web output, with its sitemap.xml.',
+          '                         (defaults to "build/web")',
+          '    --out                Where the screenshots are written.',
+          '                         (defaults to "build/shots")',
+          '    --sizes              Viewports as WIDTHxHEIGHT, comma separated.',
+          '                         (defaults to "1440x900,390x844")',
+          '    --routes             Paths to photograph, comma separated. Defaults to every page in sitemap.xml.',
+          '    --chrome             The browser to run. Defaults to DARTVEL_CHROME or a system Chrome.',
+          '    --[no-]allow-skip    Exit 0 when no browser can be launched, instead of failing.',
+        ],
+      ),
+      DocsCliCommand(
         name: 'pty',
         description: 'Run a command under a pseudo-terminal and save its raw output.',
         options: <String>[
