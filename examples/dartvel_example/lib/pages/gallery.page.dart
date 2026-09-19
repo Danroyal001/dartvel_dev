@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../components/shop_ui.dart';
 
-/// One large declared image, drawn through DVImageView.
+/// One large bundled image, named through the generated DVAsset.
 ///
 /// Here so a web build of this example exercises the whole image pipeline
 /// rather than each piece of it alone: the build writes the image at every
@@ -13,22 +13,18 @@ import '../components/shop_ui.dart';
 /// file, which is the point of the slot being narrower than the image.
 @DVPage(title: 'Gallery')
 @pragma('vm:entry-point')
-Widget _galleryPage(BuildContext context) => const ShopScroll(
+Widget _galleryPage(BuildContext context) => ShopScroll(
   children: <Widget>[
-    BackToShop(),
-    PageHeading(
+    const BackToShop(),
+    const PageHeading(
       'Responsive images',
       subtitle:
           'The build writes this image at every configured width, and '
           'the page asks for the one its slot needs on this screen.',
     ),
-    DVImageView(
-      DVImage.asset(
-        'assets/social-card.png',
-        alt: 'The Dartvel social card',
-        width: 1200,
-        height: 630,
-      ),
+    DVBox.image(
+      DVAsset.socialCard,
+      alt: 'The Dartvel social card',
       width: 400,
       height: 210,
     ),

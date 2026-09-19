@@ -23,7 +23,7 @@ DVImageVariants _builtVariants() =>
 /// configured widths -- the way NextFaster's `srcset` does, so a phone
 /// downloads the 640 and not the 3840. Everywhere else, and for a file or a
 /// stored image, it fetches the image as it is.
-class DVImageView extends StatelessWidget {
+class DVImageRender extends StatelessWidget {
   final DVImage? image;
 
   /// Shown while a network image loads, when one is not available, and when
@@ -34,7 +34,7 @@ class DVImageView extends StatelessWidget {
   final double? height;
   final BoxFit fit;
 
-  const DVImageView(
+  const DVImageRender(
     this.image, {
     super.key,
     this.placeholder,
@@ -102,6 +102,10 @@ class DVImageView extends StatelessWidget {
   }
 
   Widget get _placeholder => placeholder ?? SizedBox(width: width, height: height);
+
+  /// The provider that reads [image], whatever it names.
+  static ImageProvider<Object>? providerFor(DVImage image) =>
+      _providerFor(image);
 
   static ImageProvider<Object>? _providerFor(DVImage image) {
     switch (image.source) {

@@ -45,7 +45,7 @@ class DVRoutePrefetch {
   static ImageProvider providerFor(String url) {
     final String path = url.startsWith('/') ? url.substring(1) : url;
     // A variant the build wrote is a file the site serves, not an asset in
-    // the bundle: DVImageView fetches it by address, so that is its key.
+    // the bundle: DVImageRender fetches it by address, so that is its key.
     if (path.startsWith('$dvStaticImageVariantDir/')) return NetworkImage(url);
     if (path.startsWith('assets/')) {
       return AssetImage(path

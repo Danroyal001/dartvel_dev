@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import '../media/image_view.dart';
 
 /// A renderer that draws onto a Flutter canvas: the shape a Flutter GPU
 /// adapter takes, rendering to a texture and drawing it here.
@@ -304,7 +305,7 @@ class _DVSceneViewportState extends State<DVSceneViewport> {
             // Never a hole: with no poster, a neutral surface of the right
             // size, which the label above still describes.
             ? const ColoredBox(color: Color(0xFFE6E6EA))
-            : DVImageView(poster, fit: BoxFit.cover),
+            : DVImageRender(poster, fit: BoxFit.cover),
       ),
     );
   }

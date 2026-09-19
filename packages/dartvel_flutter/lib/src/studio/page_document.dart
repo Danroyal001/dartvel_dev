@@ -6,13 +6,14 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
+import '../media/image_view.dart';
 import 'deployed_pages_stub.dart'
     if (dart.library.io) 'deployed_pages_io.dart' as deployed;
 
 /// One widget in a page document.
 ///
 /// The builder edits these; the renderer instantiates them as the real
-/// `DVBox`/`DVText`/`DVImageView` widgets — the document is a serialization of
+/// `DVBox`/`DVText`/`DVImageRender` widgets — the document is a serialization of
 /// the actual widget tree, not a canvas facsimile of it.
 class DVPageNode {
   final String id;
@@ -872,7 +873,7 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
     // page -- and an imported design permanently dependent on somebody
     // else's address staying up. Read through DVImage's own reader, so a
     // page and a model field cannot disagree about what a source name means.
-    build: (node) => DVImageView(
+    build: (node) => DVImageRender(
       dvStudioImageOf(node.properties),
       fit: dvStudioImageFitOf(node.properties['fit']),
     ),
@@ -886,7 +887,7 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
       final BoxFit fit = dvStudioImageFitOf(node.properties['fit']);
       final String fitArgument =
           fit == BoxFit.cover ? '' : ', fit: BoxFit.${fit.name}';
-      return '${fitArgument.isEmpty ? 'const ' : ''}DVImageView(DVImage.${image.source.name}'
+      return 'DVBox.image(DVImage.${image.source.name}'
           "('${escape(image.reference)}'$alt)$fitArgument)";
     },
   ),
