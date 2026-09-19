@@ -2057,16 +2057,9 @@ class DVPageStore {
 
   /// A page is a record keyed by its route. Through DV.Database.records
   /// rather than SQL, so Studio opens on a document database as it does on
-  /// PostgreSQL; the published-pages reader in core reads the same fields.
-  static const DVRecordShape _shape = DVRecordShape(
-    collection: table,
-    key: 'route',
-    fields: <String, DVFieldType>{
-      'route': DVFieldType.text,
-      'title': DVFieldType.text,
-      'document': DVFieldType.text,
-    },
-  );
+  /// PostgreSQL; the shape is core's, which the Studio API and the
+  /// published-pages reader use too.
+  static const DVRecordShape _shape = dvStudioPagesShape;
 
   Future<void> _initialize() => DV.Database.records.ensure(_shape);
 
