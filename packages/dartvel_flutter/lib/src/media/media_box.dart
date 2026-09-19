@@ -481,7 +481,7 @@ class _DVMediaViewState extends State<DVMediaView> {
         Positioned.fill(
             child: (backend as DVVideoSurface).buildSurface(context)),
       if (widget.poster != null && (failed || !started || !video))
-        Positioned.fill(child: DVImageView(widget.poster)),
+        Positioned.fill(child: DVImageRender(widget.poster)),
       if (widget.controls == DVMediaControls.standard && _playable(state))
         Positioned(
           left: 0,
@@ -500,7 +500,7 @@ class _DVMediaViewState extends State<DVMediaView> {
             ? Stack(children: layers)
             : Stack(children: <Widget>[
                 if (widget.poster != null)
-                  Positioned.fill(child: DVImageView(widget.poster)),
+                  Positioned.fill(child: DVImageRender(widget.poster)),
                 if (widget.controls == DVMediaControls.standard &&
                     _playable(state))
                   _DVStandardControls(controller: _current, state: state)
@@ -566,4 +566,56 @@ class _DVStandardControls extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The video behind a box: `DVBox(...).modifier(DVModifier().backgroundVideo(
+/// DVAsset.marketingVideo))`.
+///
+/// Muted and without controls, because a background is not something anybody
+/// scrubs; a video somebody watches is `DVBox.video`. It plays only where a
+/// player binding is registered and shows nothing where none is, which is
+/// what a background should do on a target that cannot decode it.
+class DVBackgroundVideo extends StatefulWidget {
+  const DVBackgroundVideo({super.key, required this.source});
+
+  /// What plays. A bundled file resolves through `DVAsset`.
+  final DVMediaSource source;
+
+  @override
+  State<DVBackgroundVideo> createState() => _DVBackgroundVideoState();
+}
+
+class _DVBackgroundVideoState extends State<DVBackgroundVideo> {
+  late final DVMediaController _controller = DVMediaController(
+    widget.source,
+    background: DVBackgroundPlayback.none,
+    environment: DVMediaBackends.environment(),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // After the box is mounted: a controller has no backend until the view
+    // that owns it attaches one, and a background that made a sound for one
+    // frame would be worse than one that never played.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _controller.setVolume(0);
+      } on Object {
+        // No player on this target. Nothing plays, and nothing is heard.
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: DVMediaView(
+          source: widget.source,
+          kind: DVMediaKind.video,
+          controls: DVMediaControls.none,
+          background: DVBackgroundPlayback.none,
+          autoplay: true,
+          controller: _controller,
+        ),
+      );
 }

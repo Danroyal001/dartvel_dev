@@ -14,7 +14,7 @@ import 'dart:js_interop';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:web/web.dart' as web;
 
-import '../media/image_view.dart' show DVImageView;
+import '../media/image_view.dart' show DVImageRender;
 import 'route_prefetch_paths.dart';
 
 /// How long an image prefetch may take before it is left to the page.
@@ -46,7 +46,7 @@ Future<List<String>> dvPrefetchDocument(String path) async {
     // This screen's, not the build's: the variant a denser screen draws is a
     // different file, and prefetching the build's would be a download the
     // page then does not use.
-    variants: DVImageView.variants,
+    variants: DVImageRender.variants,
     devicePixelRatio: web.window.devicePixelRatio,
   );
   final List<bool> fetched = await Future.wait(<Future<bool>>[

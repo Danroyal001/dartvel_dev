@@ -31,6 +31,7 @@ import 'src/kiosk/device_kiosk.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/kiosk/session_clear.dart';
+import 'src/media/image_view.dart';
 import 'src/media/media_box.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
@@ -349,6 +350,12 @@ export 'package:dartvel_core/dartvel.dart'
         DVModelChangeKind,
         DVModelSyncTransport,
         DVModelWatch,
+        DVAssetKind,
+        DVAssetRef,
+        DVAssetImage,
+        DVAssetMedia,
+        dvImageOf,
+        dvMediaOf,
         DVImage,
         DVImageSource,
         DVImageVariants,
@@ -687,7 +694,10 @@ export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
-export 'src/media/image_view.dart';
+// The renderer behind DVBox.image is not a second image widget, so it is
+// not exported; what the site build needs from it is.
+export 'src/media/image_view.dart'
+    show dvImageServedPath, dvImageVariantProvider;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/modules/module_shell.dart';
@@ -885,6 +895,9 @@ class DVModifier {
   final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
   final DecorationImage? bgImage;
+
+  /// A video behind the box's content, muted and looping.
+  final DVMediaSource? bgVideo;
   final String? semanticLabelValue;
   final String? semanticHintValue;
   final bool? semanticButtonValue;
@@ -937,6 +950,7 @@ class DVModifier {
     this.shadows,
     this.onTapCallback,
     this.bgImage,
+    this.bgVideo,
     this.semanticLabelValue,
     this.semanticHintValue,
     this.semanticButtonValue,
@@ -985,6 +999,7 @@ class DVModifier {
         shadows = null,
         onTapCallback = null,
         bgImage = null,
+        bgVideo = null,
         semanticLabelValue = null,
         semanticHintValue = null,
         semanticButtonValue = null,
@@ -1033,6 +1048,7 @@ class DVModifier {
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
     DecorationImage? bgImage,
+    DVMediaSource? bgVideo,
     String? semanticLabelValue,
     String? semanticHintValue,
     bool? semanticButtonValue,
@@ -1097,6 +1113,7 @@ class DVModifier {
       onTapCallback:
           clearInteraction ? null : (onTapCallback ?? this.onTapCallback),
       bgImage: bgImage ?? this.bgImage,
+      bgVideo: bgVideo ?? this.bgVideo,
       semanticLabelValue: clearInteraction
           ? null
           : (semanticLabelValue ?? this.semanticLabelValue),
@@ -1303,6 +1320,7 @@ class DVModifier {
       borderValue != null ||
       shadows != null ||
       bgImage != null ||
+      bgVideo != null ||
       widthValue != null ||
       heightValue != null ||
       alignmentValue != null ||
@@ -1482,8 +1500,26 @@ class DVModifier {
         inputChanged: onChanged,
       );
 
-  DVModifier backgroundImage(DecorationImage image) =>
-      _copyWith(bgImage: image);
+  /// The image behind a box: a bundled one, or one a model holds.
+  DVModifier backgroundImage(
+    Object source, {
+    BoxFit fit = BoxFit.cover,
+    double opacity = 1,
+  }) {
+    final ImageProvider<Object>? provider =
+        DVImageRender.providerFor(dvImageOf(source));
+    if (provider == null) return this;
+    return _copyWith(
+      bgImage: DecorationImage(image: provider, fit: fit, opacity: opacity),
+    );
+  }
+
+  /// The video behind a box: a bundled file, or media a model holds.
+  ///
+  /// It plays without controls and without sound, which is what a background
+  /// is; a video somebody watches is `DVBox.video`.
+  DVModifier backgroundVideo(Object source) =>
+      _copyWith(bgVideo: dvMediaOf(source));
 
   DVModifier semanticLabel(String value) =>
       _copyWith(semanticLabelValue: value);
@@ -1841,6 +1877,31 @@ class DVBox<T> extends StatelessWidget {
         _items = null,
         _itemBuilder = null;
 
+  /// An image, as a box.
+  ///
+  /// [source] is a bundled file -- `DVBox.image(DVAsset.logoSmall)` -- or a
+  /// [DVImage] a model holds. There is no second image widget and no string
+  /// path: a path in a string is checked by nothing, and a renamed file
+  /// shows a blank box on a device rather than failing the build.
+  DVBox.image(
+    Object source, {
+    String? alt,
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.cover,
+    Widget? placeholder,
+    DVModifier? modifier,
+  }) : this._(
+          child: DVImageRender(
+            dvImageOf(source, alt: alt),
+            width: width,
+            height: height,
+            fit: fit,
+            placeholder: placeholder,
+          ),
+          modifier: modifier,
+        );
+
   /// A video player, as a box.
   ///
   /// Playback is a box mode rather than a third primitive: the box owns size,
@@ -2076,6 +2137,19 @@ class DVBox<T> extends StatelessWidget {
       dvWrapCrossAlignmentOf(_crossAlign);
 
   Widget _decorate(BuildContext context, DVModifier? m, Widget? content) {
+    // A background video sits behind the content and takes the box's shape,
+    // so padding, corners and the decoration above it still belong to the
+    // box rather than to the player.
+    final DVMediaSource? video = m?.bgVideo;
+    if (video != null) {
+      content = Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          Positioned.fill(child: DVBackgroundVideo(source: video)),
+          if (content != null) content,
+        ],
+      );
+    }
     final decoration = BoxDecoration(
       // Null when a gradient is set: Flutter asserts if a BoxDecoration
       // carries both, and the gradient is the more specific instruction.

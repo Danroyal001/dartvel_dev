@@ -9,7 +9,8 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
       lead: <String>[
         'A phone downloads the 640-pixel image and a large screen gets the '
             '1920, from one asset you declared.',
-        'The build writes the sizes. DVImageView picks the one its slot needs.',
+        'The build writes the sizes, and DVBox.image asks for the one its '
+            'slot needs.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -17,12 +18,18 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
           title: 'Serve each image at the width it needs',
           children: <Widget>[
             DocsYaml('yaml-images'),
+            DocsText('Name the file through DVAsset, which dartvel routes '
+                'generates from what your pubspec bundles. A renamed file '
+                'then stops the build. With a path in a string it shows an '
+                'empty box on somebody\'s phone.'),
             DocsCode('media-image-view'),
+            DocsText('The same asset behind a box, as a background:'),
+            DocsCode('media-background'),
             Bullets(<String>[
               'dartvel build web writes each declared raster asset at every '
                   'configured width narrower than the image.',
-              'DVImageView asks for its laid-out width times the device pixel '
-                  'ratio, rounded up to a configured width.',
+              'DVBox.image asks for its laid-out width times the device '
+                  'pixel ratio, rounded up to a configured width.',
               'Leave out widths and you get the Next.js set, from 16 to 3840.',
             ]),
           ],
