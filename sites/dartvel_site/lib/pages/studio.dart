@@ -94,9 +94,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ]),
         Objection(
           'Does publishing need a rebuild?',
-          'No. A published page takes over its route without a rebuild, on a '
-              'web-server binary as well as in an app that embeds Studio. '
-              'Revert brings the compiled page back.',
+          'No. On your web-server, a published page takes over its route '
+              'without a rebuild, and Revert brings the compiled page back. '
+              'Studio stays on your server. Apps never carry it.',
         ),
       ],
     ),
@@ -105,11 +105,6 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('IN THE FREE STUDIO'),
         Heading('Records, routes and review in the same place as your pages.'),
-        Bullets(<String>[
-          'Content, Flags and Operations show up when your app passes them to '
-              'DVStudioScreen. The web-server Studio has Pages, Models, Routes, '
-              'Functions, Jobs and Access.',
-        ]),
         DVBox.wrapLine(<Widget>[
           SiteCard(
             'Page builder',
@@ -137,27 +132,15 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           SiteCard(
             'Content review',
             'Draft, review, schedule and publish a page, with who approved '
-                'which version and signed preview links. Themes and '
-                'translations are not wired in yet.',
+                'which version and signed preview links. The editor is built '
+                'and is not in the server Studio yet.',
             section: 'Content Workflow',
           ),
           SiteCard(
-            'Feature flags',
-            'Each flag\'s owner, expiry and rules in words, and who gets '
-                'what. Rule changes apply to the running app only, because '
-                'publishing rules per environment is not built.',
-            section: 'Feature Flags and Staged Rollout',
-          ),
-          SiteCard(
-            'Operations',
-            'Service levels, alert delivery, incident timelines and a status '
-                'page preview. There is no hosted status page yet.',
-            section: 'Alerting, SLOs and Status Pages',
-          ),
-          SiteCard(
-            'Windows',
-            'The windows your app has open, with a way to close one.',
-            section: 'Multi-Window',
+            'Queues and cache',
+            'See waiting and failed jobs per queue, and the cache tags your '
+                'app has set.',
+            section: 'Queues, Jobs, and Signals',
           ),
         ], spacing: 16),
       ],
@@ -199,15 +182,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Bullets(onDark: true, <String>[
           'Pro is paid, and lives in the private dartvel_enterprise '
               'repository.',
-          'Each Pro feature is a section you add to Studio, so a free build '
+          'Each Pro feature adds a section to Studio, so the free Studio '
               'never shows a tab it cannot open.',
-        ]),
-        CodeBlock(<String>[
-          'DVStudioScreen(sections: <DVStudioSection>[',
-          '  dvWorkflowStudioSection(),',
-          '  dvFigmaImportStudioSection(),',
-          '  dvHistoryStudioSection(),',
-          '])',
         ]),
       ],
     ),
