@@ -33,6 +33,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Build-time audit, switch control and remote keys', 'App'),
   DocsPageInfo(DVRoutes.docslocalization, 'Localization',
       'Typed translation keys, plurals and ARB files', 'App'),
+  DocsPageInfo(DVRoutes.docsdevices, 'Devices and desktop',
+      'Native features, home widgets, kiosks, windows and trays', 'App'),
   DocsPageInfo(DVRoutes.docsmodels, 'Models',
       'One class gives you storage, forms, tables and pages', 'Data'),
   DocsPageInfo(DVRoutes.docsforms, 'Forms',

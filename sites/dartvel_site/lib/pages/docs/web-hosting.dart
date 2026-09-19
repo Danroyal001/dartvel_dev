@@ -74,6 +74,22 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'pwa',
+          title: 'Install it as an app, and use it offline',
+          children: <Widget>[
+            Bullets(<String>[
+              'dartvel build web writes the manifest, icons from web/icon.png, '
+                  'a service worker and an offline page.',
+              'A change sent while offline is queued in the browser and sent in '
+                  'order when the network is back. CI checks this in Chrome on '
+                  'every push.',
+              'The install prompt reports what the visitor chose, and can be '
+                  'offered again after a No.',
+            ]),
+            DocsStatus('PWA'),
+          ],
+        ),
+        DocsSection(
           id: 'other-hosts',
           title: 'Other static hosts',
           children: <Widget>[
