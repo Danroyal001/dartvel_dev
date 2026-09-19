@@ -241,6 +241,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
                   'missing.',
               'The full record is spec-status.json in the Dartvel repository.',
             ]),
+            DocsPlatformIndex(),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('See what works today', '/features'),
               ExternalLink('Read spec-status.json', kSpecStatusUrl),
