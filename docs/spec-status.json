@@ -1279,7 +1279,6 @@
         "packages/dartvel_flutter/test/launch_test.dart",
         "packages/dartvel_flutter/test/live_windows_test.dart",
         "packages/dartvel_flutter/test/owned_windows_test.dart",
-        "packages/dartvel_flutter/test/studio_windows_test.dart",
         "packages/dartvel_flutter/test/tab_switcher_test.dart",
         "packages/dartvel_flutter/test/window_binding_refused_test.dart",
         "packages/dartvel_flutter/test/window_exit_policy_test.dart",

@@ -343,15 +343,29 @@ void main() {
       await tester.pumpWidget(_host(client));
       await tester.pumpAndSettle();
 
+      // Named for someone who has never written a line of code, the way
+      // Bubble, Webflow and WordPress name theirs.
       for (final String section in <String>[
         'Pages',
+        'Data',
+        'Site map',
+        'Backend',
+        'Tasks',
+        'Queue',
+        'Cache',
+        'Team',
+      ]) {
+        expect(find.text(section), findsWidgets, reason: section);
+      }
+      for (final String jargon in <String>[
         'Models',
         'Routes',
         'Functions',
         'Jobs',
         'Access',
+        'Windows',
       ]) {
-        expect(find.text(section), findsWidgets, reason: section);
+        expect(find.text(jargon), findsNothing, reason: jargon);
       }
       expect(server.calls.map((_Call c) => c.path), contains('api/pages'));
     });
