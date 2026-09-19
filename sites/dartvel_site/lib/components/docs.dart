@@ -85,6 +85,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Sign-in limits, WAF rules and query budgets', 'Operations'),
   DocsPageInfo(DVRoutes.docssecrets, 'Secrets and environments',
       'Keys that stay on the server, checked at build and deploy', 'Operations'),
+  DocsPageInfo(DVRoutes.docsmonitoring, 'Monitoring',
+      'Metrics, traces, crash reports, alerts and analytics', 'Operations'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
       'dartvel build for every platform, with its status', 'Shipping'),
   DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',
