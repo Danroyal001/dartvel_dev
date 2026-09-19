@@ -3449,9 +3449,32 @@ void startDartvelKiosk() {
       ..writeln()
       ..writeln('  @override')
       ..writeln('  Widget build(BuildContext context) {')
+      ..write(_promotableLocals(fields, body == null ? null : rendered))
       ..writeln(rendered)
       ..writeln('  }')
       ..writeln('}');
+    return out.toString();
+  }
+
+  /// Locals for the nullable parameters [body] reads, so a null check on one
+  /// promotes as it did in the source function.
+  ///
+  /// The generated class holds each parameter as a field, and Dart does not
+  /// promote a field after a null check: `href == null ? a : f(href)` compiled
+  /// in the function and failed in the widget. A parameter the body never
+  /// mentions gets no local, which would be an unused variable, and one the
+  /// body assigns is left assignable, as a parameter is.
+  static String _promotableLocals(List<_WidgetParameter> fields, String? body) {
+    if (body == null) return '';
+    final StringBuffer out = StringBuffer();
+    for (final _WidgetParameter p in fields) {
+      if (!p.type.endsWith('?')) continue;
+      final String name = RegExp.escape(p.name);
+      if (!RegExp('(?<![\\w\$.])$name(?![\\w\$])').hasMatch(body)) continue;
+      final bool assigned =
+          RegExp('(?<![\\w\$.])$name\\s*(\\?\\?=|=(?!=))').hasMatch(body);
+      out.writeln('    ${assigned ? '' : 'final '}${p.type} ${p.name} = this.${p.name};');
+    }
     return out.toString();
   }
 
