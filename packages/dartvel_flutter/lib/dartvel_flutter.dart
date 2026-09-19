@@ -9,7 +9,9 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show Selectable, SelectionRegistrar;
+import 'package:flutter/rendering.dart'
+    show Selectable, SelectedContent, SelectionRegistrar;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
@@ -9058,23 +9060,47 @@ class _DVPageShellState extends State<DVPageShell> {
     DVBrowserMenu.install();
   }
 
-  /// The selection menu: the platform's own items, and on the web one
-  /// more that hands the next right-click to the browser.
+  /// What is selected, kept as it changes so the menu can copy it.
+  SelectedContent? _selected;
+
+  /// The selection menu: the platform's own items, and on the web More,
+  /// which hands the next right-click to the browser.
+  ///
+  /// On the web a click on an item focused that button's semantics node, the
+  /// selection area lost focus, and losing focus cleared the selection
+  /// before the tap arrived: Copy copied nothing. The menu now takes no
+  /// focus, and Copy copies what was selected when the menu opened.
   Widget _selectionMenu(
       BuildContext context, SelectableRegionState selection) {
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: selection.contextMenuAnchors,
-      buttonItems: <ContextMenuButtonItem>[
-        ...selection.contextMenuButtonItems,
-        if (DVBrowserMenu.isWeb)
-          ContextMenuButtonItem(
-            label: 'Browser menu',
-            onPressed: () {
-              selection.hideToolbar();
-              DVBrowserMenu.openNextNative();
-            },
-          ),
-      ],
+    final String selected = _selected?.plainText ?? '';
+    final Offset anchor = selection.contextMenuAnchors.primaryAnchor;
+    return ExcludeFocus(
+      child: AdaptiveTextSelectionToolbar.buttonItems(
+        anchors: selection.contextMenuAnchors,
+        buttonItems: <ContextMenuButtonItem>[
+          for (final ContextMenuButtonItem item
+              in selection.contextMenuButtonItems)
+            if (item.type == ContextMenuButtonType.copy && selected.isNotEmpty)
+              ContextMenuButtonItem(
+                type: ContextMenuButtonType.copy,
+                onPressed: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: selected)));
+                  selection.hideToolbar();
+                },
+              )
+            else
+              item,
+          if (DVBrowserMenu.isWeb)
+            ContextMenuButtonItem(
+              label: 'More',
+              onPressed: () {
+                selection.hideToolbar();
+                DVBrowserMenu.openNextNative();
+                DVBrowserMenu.showHint(this.context, anchor);
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -9197,6 +9223,8 @@ class _DVPageShellState extends State<DVPageShell> {
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
             contextMenuBuilder: _selectionMenu,
+            onSelectionChanged: (SelectedContent? content) =>
+                _selected = content,
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
