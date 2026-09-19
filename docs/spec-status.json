@@ -390,7 +390,12 @@
     {
       "section": "Storage-Neutral Records",
       "stability": "Draft",
-      "status": "Designed"
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_core/lib/src/database/records.dart",
+        "packages/dartvel_core/test/records_test.dart"
+      ],
+      "absent": "Step 1 of five is built: DVFilter, DVRecordAdapter, the SQL engine and DV.Database.records, tested against a recording adapter for the SQL each operation compiles to and end to end on the in-memory development database. Nothing persists through it yet: Studio's page and workflow stores, DVRecordTable under every generated model, and the other framework stores still write SQL strings. There is no MongoDB engine. The in-memory development database runs the records through its SQL subset, which has no OR, so a DVFilter.any reaches it and is refused naming the statement; a native in-memory engine would not need SQL at all. Tenant isolation is checked by DV.Database reading each SQL statement, which a document engine will need expressed on the filter instead."
     },
     {
       "section": "Schema Evolution",
