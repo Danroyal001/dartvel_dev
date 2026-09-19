@@ -72,6 +72,25 @@ String dvShotName(String route, DVShotSize size) {
   return '$name-$size.png';
 }
 
+/// Whether a page's text has stopped changing: the same non-zero length
+/// three looks running. A shell that draws its navigation before the page
+/// it loads has text long before it has its content.
+class DVTextSettle {
+  int _last = -1;
+  int _same = 0;
+
+  /// Records one look at the page's text length; true once it has settled.
+  bool add(int length) {
+    if (length > 0 && length == _last) {
+      _same++;
+    } else {
+      _same = 1;
+    }
+    _last = length;
+    return length > 0 && _same >= 3;
+  }
+}
+
 /// One photographed page.
 class DVPageShot {
   const DVPageShot({
@@ -154,11 +173,12 @@ Future<DVPageShotsResult> dvCapturePages({
           // one that never shows text is reported rather than photographed
           // blank and passed.
           int text = 0;
+          final DVTextSettle settled = DVTextSettle();
           final DateTime deadline = DateTime.now().add(settle);
           while (DateTime.now().isBefore(deadline)) {
             text = await page.evaluate<int>(_pageText);
-            if (text > 0) break;
-            await Future<void>.delayed(const Duration(milliseconds: 400));
+            if (settled.add(text)) break;
+            await Future<void>.delayed(const Duration(milliseconds: 500));
           }
           // Fonts and images arrive after the first frame with text in it.
           await page.evaluate<Object?>(
