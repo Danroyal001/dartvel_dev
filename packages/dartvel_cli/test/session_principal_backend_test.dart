@@ -124,20 +124,15 @@ Future<void> main() async {
   // reads the account again on every request.
   DVSessionAuthentication.install(resolveUser: accountFor);
 
-  final DVOrganizations orgs = DVOrganizations(database: db);
-  await orgs.ensureSchema();
-  final DVOrganization acme =
-      await orgs.create(name: 'Acme', tenant: 'acme', ownerId: admin.id);
   final DVApiKeys keys = DVApiKeys(
     database: db,
     scopes: api.dartvelPlatformApi!.scopes,
-    organizations: orgs,
   );
   await keys.ensureSchema();
   final DVIssuedApiKey read =
-      await keys.issue(organization: acme, scopes: <String>['orders:read']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:read']);
   final DVIssuedApiKey write =
-      await keys.issue(organization: acme, scopes: <String>['orders:write']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:write']);
 
   final dynamic handle = await gen.startBackend(host: '127.0.0.1', port: 0);
   final int port = handle.port as int;

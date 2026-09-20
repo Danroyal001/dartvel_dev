@@ -289,45 +289,6 @@ void main() {
       expect(resolved, <String>['u-admin', 'u-admin']);
     });
 
-    test('carries the membership of the organization on the request\'s tenant',
-        () async {
-      final MemoryDVDatabaseAdapter db = MemoryDVDatabaseAdapter();
-      final DVOrganizations organizations = DVOrganizations(database: db);
-      await organizations.ensureSchema();
-      await organizations.create(name: 'Acme', tenant: 'acme', ownerId: 'u-admin');
-      final DVSessionAuthentication withOrganizations = DVSessionAuthentication(
-        sessions: sessions,
-        organizations: () => organizations,
-      );
-      final DVIssuedSession owner =
-          await onTenant('acme', () => sessions.create('u-admin'));
-      final DVIssuedSession outsider =
-          await onTenant('acme', () => sessions.create('u-viewer'));
-
-      final DVSessionPrincipal ownerCaller = (await onTenant('acme',
-              () => withOrganizations.authenticate(
-                  authorization: 'Bearer ${owner.token}')))
-          .principal!;
-      expect(ownerCaller.membership?.role.name, 'owner');
-
-      Future<DVSessionPrincipal> outsiderCaller() async => (await onTenant(
-              'acme',
-              () => withOrganizations.authenticate(
-                  authorization: 'Bearer ${outsider.token}')))
-          .principal!;
-      expect((await outsiderCaller()).membership, isNull);
-
-      // Joined and then promoted while the session is live: each request
-      // reads the membership as it is now.
-      final DVOrganization acme = (await organizations.forTenant('acme'))!;
-      await organizations.addMember(acme.id, 'u-viewer',
-          role: organizations.roles['member'], actor: 'u-admin');
-      expect((await outsiderCaller()).membership?.role.name, 'member');
-      await organizations.changeRole(
-          acme.id, 'u-viewer', organizations.roles['admin'],
-          actor: 'u-admin');
-      expect((await outsiderCaller()).membership?.role.name, 'admin');
-    });
   });
 
   group('installed', () {

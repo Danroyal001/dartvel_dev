@@ -76,20 +76,15 @@ Future<void> main() async {
     exit(0);
   }
 
-  final DVOrganizations orgs = DVOrganizations(database: db);
-  await orgs.ensureSchema();
-  final DVOrganization acme =
-      await orgs.create(name: 'Acme', tenant: 'acme', ownerId: 'u1');
   final DVApiKeys keys = DVApiKeys(
     database: db,
     scopes: api.dartvelPlatformApi!.scopes,
-    organizations: orgs,
   );
   await keys.ensureSchema();
   final DVIssuedApiKey read =
-      await keys.issue(organization: acme, scopes: <String>['orders:read']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:read']);
   final DVIssuedApiKey write =
-      await keys.issue(organization: acme, scopes: <String>['orders:write']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:write']);
 
   // The application's own answers, made before the server starts: one for an
   // action a policy class also answers, and one for a framework resource no

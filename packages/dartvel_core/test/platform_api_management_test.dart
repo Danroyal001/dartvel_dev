@@ -31,8 +31,9 @@ class User {
 
 void main() {
   late MemoryDVDatabaseAdapter db;
-  late DVOrganization acme;
-  late DVOrganization globex;
+  // Two tenants: a key's only boundary.
+  const String acme = 'acme';
+  const String globex = 'globex';
   final List<List<String>> askedScopes = <List<String>>[];
 
   const User admin = User('ada', admin: true);
@@ -74,9 +75,6 @@ void main() {
       }),
       database: () => db,
     );
-    final DVOrganizations orgs = await DVPlatformApi.installed!.organizations();
-    acme = await orgs.create(name: 'Acme', tenant: 'acme', ownerId: 'ada');
-    globex = await orgs.create(name: 'Globex', tenant: 'globex', ownerId: 'gil');
     registerPolicies();
   });
 
@@ -103,7 +101,7 @@ void main() {
           ratePlan: 'standard',
         ),
       );
-      expect(issued.key.organizationId, acme.id);
+      expect(issued.key.tenant, acme);
       expect(issued.key.createdBy, 'ada');
       expect(askedScopes, <List<String>>[
         <String>['orders:read'],
@@ -126,7 +124,7 @@ void main() {
         throwsA(isA<StateError>()),
       );
       final DVApiKeys keys = await DVPlatformApi.installed!.keys();
-      expect(await keys.forOrganization(acme.id), isEmpty);
+      expect(await keys.forTenant(acme), isEmpty);
     });
 
     test('a refused issue writes no key, and the policy saw the scopes',
@@ -155,7 +153,7 @@ void main() {
       );
       expect(askedScopes.last, <String>['orders:write']);
       final DVApiKeys keys = await DVPlatformApi.installed!.keys();
-      expect(await keys.forOrganization(acme.id), isEmpty);
+      expect(await keys.forTenant(acme), isEmpty);
     });
 
     test('nobody signed in manages nothing', () async {
@@ -209,7 +207,7 @@ void main() {
         'acme',
         () => platform.apiKeys.list(user: admin),
       );
-      expect(listed.map((DVApiKey k) => k.organizationId), <String>[acme.id]);
+      expect(listed.map((DVApiKey k) => k.tenant), <String>[acme]);
       await expectLater(
         onTenant('acme', () => platform.apiKeys.list(user: member)),
         throwsA(isA<StateError>()),
@@ -242,7 +240,7 @@ void main() {
       );
       final DVApiKeys keys = await DVPlatformApi.installed!.keys();
       expect(await keys.authenticate(theirs.secret, tenant: 'globex'), isNotNull);
-      expect(await keys.forOrganization(globex.id), hasLength(1));
+      expect(await keys.forTenant(globex), hasLength(1));
     });
 
     test('rotation overlaps and revocation is immediate, each authorized',
@@ -291,7 +289,6 @@ void main() {
         tenant: 'acme',
         scopes: <String>{'orders:read'},
         actions: <String>{'Order.view'},
-        organizationId: acme.id,
       );
       const DVAuthAuthorization().register<DVApiPrincipal, DVApiKeyResource>(
         'create',
@@ -324,7 +321,7 @@ void main() {
           scopes: <String>['orders:read'],
         ),
       );
-      expect(registered.client.organizationId, acme.id);
+      expect(registered.client.id, startsWith('dvc_'));
       expect(registered.secret, startsWith('dvcs_'));
       await expectLater(
         onTenant(
