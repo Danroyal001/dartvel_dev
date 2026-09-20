@@ -121,7 +121,8 @@ Future<void> main() async {
   // What the process logged about each refusal, which is where a refused
   // route has to say why.
   out['logged'] = <String>[
-    for (final DVLogRecord record in DVObservability.recentLogs) record.message,
+    for (final DVLogRecord record in DV.ObservabilityAndLogging.recentLogs)
+      record.message,
   ];
   stdout.writeln('PROBE ${jsonEncode(out)}');
   exit(0);
