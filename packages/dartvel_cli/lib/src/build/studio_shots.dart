@@ -135,13 +135,14 @@ Future<DVStudioShotsResult> dvCaptureStudio({
   required Uri studio,
   required String outDir,
   required List<String> sections,
+  Map<String, String> open = const <String, String>{},
   Uri? signIn,
   String? email,
   String? password,
   DVShotSize size = const DVShotSize(1440, 900),
   String? chromePath,
   Duration settle = const Duration(seconds: 30),
-  Duration afterText = const Duration(milliseconds: 1200),
+  Duration afterText = const Duration(milliseconds: 2500),
 }) async {
   Browser browser;
   try {
@@ -211,8 +212,37 @@ Future<DVStudioShotsResult> dvCaptureStudio({
         (target['x']! as num).toDouble(),
         (target['y']! as num).toDouble(),
       ));
-      final bool arrived = await _settled(page, settle, leaving: leaving);
+      bool arrived = await _settled(page, settle, leaving: leaving);
+      // Something inside the section, when one was named: the function a
+      // builder should have open, the model whose records to show.
+      final String? inside = open[label];
+      if (inside != null) {
+        final List<Map<String, Object?>> found =
+            await _rail(page, <String>[inside]);
+        if (found.isNotEmpty) {
+          await page.mouse.click(Point<num>(
+            (found.first['x']! as num).toDouble(),
+            (found.first['y']! as num).toDouble(),
+          ));
+          await _settled(page, settle);
+        }
+      }
+      // Then again, from the far side of the delay. The semantics tree
+      // lags the click: at the moment the heading changes, the panel under
+      // it can still be the old section's, so the first look reports
+      // nothing loading while the new section has not begun. This one is
+      // asked when the tree is certainly the section's own, and it is what
+      // catches a panel still reading "Loading models…".
       await Future<void>.delayed(afterText);
+      arrived = await _settled(page, settle) && arrived;
+      // Then a frame, and then time for the renderer to put it on screen.
+      // The tree is updated in the frame that builds and the picture handed
+      // back is the last one rastered; on a debug build in a headless
+      // browser those are seconds apart, which is how a section reported its
+      // finished text while the screenshot still showed "Loading …".
+      await _painted(page);
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await _painted(page);
       final String file = p.join(outDir, dvStudioShotName(label));
       File(file).writeAsBytesSync(await page.screenshot());
       shots.add(DVStudioShot(
@@ -274,9 +304,18 @@ const String _state = r'''() => {
 /// fetch is in flight, and on a debug build that is seconds. A placeholder
 /// holds one length for as long as it takes, so "the text stopped changing"
 /// on its own is true of a section that never came.
-Future<bool> _settled(Page page, Duration limit, {String? leaving}) async {
+Future<bool> _settled(
+  Page page,
+  Duration limit, {
+  String? leaving,
+  Duration insist = const Duration(seconds: 5),
+}) async {
   final DVTextSettle settle = DVTextSettle();
   final DateTime deadline = DateTime.now().add(limit);
+  // The first section is already open, so clicking it changes no heading and
+  // insisting on a change would wait out the whole timeout on the one
+  // section that was ready before the capture started.
+  final DateTime insistUntil = DateTime.now().add(insist);
   while (DateTime.now().isBefore(deadline)) {
     final Map<String, Object?> state =
         (await page.evaluate<Map<dynamic, dynamic>>(_state))
@@ -287,7 +326,9 @@ Future<bool> _settled(Page page, Duration limit, {String? leaving}) async {
     // for what it holds and the rail for where it is: the Cache section is
     // headed "Cache tags", and requiring the two to agree waited out the
     // whole timeout on a section that had been open for half a minute.
-    final bool opened = leaving == null || state['title'] != leaving;
+    final bool opened = leaving == null ||
+        state['title'] != leaving ||
+        !DateTime.now().isBefore(insistUntil);
     final int length = (state['length'] as num?)?.toInt() ?? 0;
     if (!waiting && opened && settle.add(length)) return true;
     // Anything else resets the count, so the section being clicked away from
@@ -306,3 +347,15 @@ Future<String> _panel(Page page) async {
           .cast<String, Object?>();
   return '${state['title'] ?? ''}';
 }
+
+/// Waits for two composited frames.
+///
+/// The semantics tree is updated in the frame that builds, and the picture
+/// the browser hands back is the last one it rastered. On a debug build
+/// those are far enough apart that a section could report its finished text
+/// while the screenshot still showed "Loading …" -- the number and the
+/// picture disagreed, and only the picture went on the site.
+Future<void> _painted(Page page) => page.evaluate<Object?>(
+      '() => new Promise((done) => requestAnimationFrame(() => '
+      'requestAnimationFrame(() => done(0))))',
+    );

@@ -47,6 +47,12 @@ class StudioShotsCaptureCommand extends Command<void> {
               'capture photographs a 404.')
       ..addOption('email', help: 'The account to sign in as.')
       ..addOption('password', help: 'Its password.')
+      ..addOption('open',
+          defaultsTo: 'Frontend=orderAhead,Backend=placeOrder',
+          help: 'One thing to click inside a section once it is up, as '
+              'SECTION=ITEM pairs. A builder photographed with nothing open '
+              'is a true picture of an empty panel and says nothing about '
+              'what the builder does.')
       ..addOption('chrome',
           help: 'The browser to run. Defaults to DARTVEL_CHROME or a system '
               'Chrome.')
@@ -85,6 +91,11 @@ class StudioShotsCaptureCommand extends Command<void> {
       signIn: signIn == null ? null : Uri.parse(signIn),
       email: email,
       password: password,
+      open: <String, String>{
+        for (final String pair in (argResults!['open'] as String).split(','))
+          if (pair.contains('='))
+            pair.split('=').first.trim(): pair.split('=').last.trim(),
+      },
       size: sizes.single,
       chromePath: argResults!['chrome'] as String?,
     );
