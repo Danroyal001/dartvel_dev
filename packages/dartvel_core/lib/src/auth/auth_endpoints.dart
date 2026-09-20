@@ -52,6 +52,7 @@ import 'account_deletions.dart';
 import 'account_mail.dart';
 import 'api_scopes.dart' show DVApiPrincipal;
 import 'auth.dart';
+import 'first_run_owner.dart';
 import 'second_factor.dart';
 import 'session_authentication.dart';
 import 'sessions.dart';
@@ -722,6 +723,8 @@ class DVAuthEndpoints {
           () => factors.confirmTotp(principal.userId, code),
         );
         if (failed != null) return failed;
+        // The other half. A no-op for anybody who is not the first owner.
+        await DVFirstRunOwner.recordSecondFactor(principal.userId);
         final _Rotated? rotated =
             await _rotate(request, factorPresented: true);
         if (rotated == null) return _unauthenticated();
@@ -1283,6 +1286,11 @@ class DVAuthEndpoints {
         } on Object catch (error) {
           return _credentialError(error);
         }
+        // Half of what opens Studio on an application's first run. No
+        // endpoint of its own: a second password endpoint is a second place
+        // for the rate limit, the CSRF check and the session rotation to be
+        // got wrong. A no-op for anybody who is not the first owner.
+        await DVFirstRunOwner.recordPasswordChanged(userId);
         final _Rotated? rotated =
             await _rotate(request, factorPresented: factorPresented);
         if (rotated == null) return _unauthenticated();
