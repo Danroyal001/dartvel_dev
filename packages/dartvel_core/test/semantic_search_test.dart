@@ -7,6 +7,7 @@
 // rebuild that answers from half-written vectors returns confident nonsense
 // for hours. An embedding job that failed quietly leaves a record that is
 // simply never found, and nobody can report what they never see.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:math' as math;
 

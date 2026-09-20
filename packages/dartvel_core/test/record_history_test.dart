@@ -7,6 +7,7 @@
 // found by nobody until somebody reads the change log. A revert that rewrites
 // the past rather than adding to it loses exactly the entries an audit needs.
 // Each has a test below that fails if the behaviour quietly regresses.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';

@@ -7,7 +7,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
         DVLogLevel,
-        DVObservability,
+        DV,
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
@@ -621,7 +621,7 @@ bool _isHex(int unit) =>
 /// which is free to quote them.
 void _logRefused(int status, String what, [StackTrace? stack]) {
   try {
-    DVObservability.log(
+    DV.log(
       'dartvel: a request $what; answered $status',
       level: status >= 500 ? DVLogLevel.error : DVLogLevel.warn,
       context: <String, Object?>{'status': status},

@@ -9,6 +9,7 @@
 /// retention holds; a receipt that still verifies after it was edited.
 library dartvel_core.privacy;
 
+import '../observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 

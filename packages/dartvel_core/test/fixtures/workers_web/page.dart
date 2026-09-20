@@ -1,6 +1,7 @@
 // The page: runs each scenario through DV.Workers and prints one line per
 // outcome for workers_web_node_test.dart to read.
 // ignore_for_file: avoid_print
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:typed_data';
 
 import 'package:dartvel_core/dartvel.dart';

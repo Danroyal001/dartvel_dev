@@ -18,6 +18,7 @@
 // a blocked route already redirected and a lockout already carried a code.
 // Each assertion below names the member, and each has a control that must
 // report nothing at all.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 

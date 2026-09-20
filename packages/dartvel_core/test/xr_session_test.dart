@@ -6,6 +6,7 @@
 // anybody being told, an anchor written to storage nobody agreed to, a head
 // pose in a log line, a session still holding the device after its window
 // went away.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';

@@ -22,6 +22,7 @@
 ///   report a result they never saw, so a dead-lettered job is reported.
 library dartvel_core.search.semantic_search;
 
+import '../observability/observability.dart';
 import 'dart:async';
 import 'dart:math' as math;
 

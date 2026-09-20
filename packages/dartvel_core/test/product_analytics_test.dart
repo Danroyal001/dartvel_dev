@@ -8,6 +8,7 @@
 // erased subject's events left in the store, an anonymous id or a session id
 // that carries across a withdrawal, a changed consent policy that quietly
 // keeps the old answers: none of them throws, so each is asserted directly.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 

@@ -5,6 +5,7 @@
 // by a machine, that it can be joined to the trace it happened inside, that a
 // long-running process cannot be brought down by its own log buffer, and that
 // a password in a context map does not end up in the log file.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';

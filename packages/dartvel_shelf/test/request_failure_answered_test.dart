@@ -15,7 +15,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVLogRecord, DVObservability;
+import 'package:dartvel_core/dartvel.dart' show DV, DVLogRecord;
 import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'package:test/test.dart';
 
@@ -113,7 +113,7 @@ void main() {
   }
 
   List<DVLogRecord> logsSince(int count) =>
-      DVObservability.recentLogs.skip(count).toList();
+      DV.ObservabilityAndLogging.recentLogs.skip(count).toList();
 
   group('a request that cannot be read', () {
     test('a garbled request line is answered 400', () async {
@@ -135,7 +135,7 @@ void main() {
 
     test('an asterisk-form target is answered 400 and the server lives',
         () async {
-      final int before = DVObservability.recentLogs.length;
+      final int before = DV.ObservabilityAndLogging.recentLogs.length;
       final Exchange result = await exchange(
           server.port,
           ascii.encode('OPTIONS * HTTP/1.1\r\nHost: localhost\r\n'
@@ -150,7 +150,7 @@ void main() {
         () async {
       // Handed on, it throws in whichever handler first decodes the path --
       // a 500 for the client's mistake, or a 404 that hides it.
-      final int before = DVObservability.recentLogs.length;
+      final int before = DV.ObservabilityAndLogging.recentLogs.length;
       final Exchange result =
           await exchange(server.port, get('/segments/$marker%zz'));
       answered(result, 400);
@@ -309,7 +309,7 @@ void main() {
 
     test('throwing synchronously is answered 500, and logged without the '
         'request', () async {
-      final int before = DVObservability.recentLogs.length;
+      final int before = DV.ObservabilityAndLogging.recentLogs.length;
       answered(
           await exchange(bare.port,
               get('/throws?q=$marker', headers: <String>['X-Token: $marker'])),
@@ -325,7 +325,7 @@ void main() {
     });
 
     test('throwing asynchronously is answered 500', () async {
-      final int before = DVObservability.recentLogs.length;
+      final int before = DV.ObservabilityAndLogging.recentLogs.length;
       answered(await exchange(bare.port, get('/throws-later?q=$marker')), 500);
       expect(logsSince(before), isNotEmpty);
       for (final DVLogRecord record in logsSince(before)) {

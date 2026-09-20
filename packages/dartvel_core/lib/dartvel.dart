@@ -146,6 +146,7 @@ export 'src/compute/worker_types.dart'
         dvCheckedProgress;
 export 'src/compute/workers.dart';
 export 'src/data/change_capture.dart';
+export 'src/dv.dart';
 export 'src/data/import_chunking.dart';
 export 'src/data/offline_store.dart';
 export 'src/data/record_history.dart';
@@ -193,7 +194,10 @@ export 'src/modules/modules.dart';
 export 'src/notifications/push.dart';
 export 'src/notifications/web_push.dart';
 export 'src/notifications/web_push_vapid.dart';
-export 'src/observability/observability.dart';
+// The framework's own implementation of the observability namespace. The
+// surface a project uses is DV.log and DV.ObservabilityAndLogging, in
+// src/dv.dart; DVObservability itself stays inside the framework.
+export 'src/observability/observability.dart' hide DVObservability;
 export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';

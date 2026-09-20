@@ -199,6 +199,9 @@ const Map<String, String> _dynamicSites = <String, String>{
       "A model's columns are TEXT and dvRecordColumns, each with a type.",
   'dartvel_core/lib/src/schema/generated_schema.dart':
       "dvAddColumnSql writes the change's type, TEXT when none is recorded.",
+  'dartvel_core/lib/src/database/records.dart':
+      'Every column comes from a DVRecordShape field, whose DVFieldType is a '
+      'closed set of SQL types; a text key is VARCHAR(255). Run below.',
 };
 
 class _Ddl implements DVDatabaseAdapter {
