@@ -54,6 +54,16 @@ enum DVPageShellMode {
 class DVPage {
   final String? path;
   final String? title;
+
+  /// What this page is about, in a sentence: its meta description, its
+  /// og:description and the description in its structured data.
+  ///
+  /// A page could say what it was called and not what it was about, so
+  /// every page on a site shipped the project-wide description -- fifty pages
+  /// competing for one snippet, which is fifty pages a search engine has no
+  /// reason to tell apart. Null keeps the project's own, which is the right
+  /// answer for a page nobody has written a sentence for yet.
+  final String? description;
   final String? policy;
   final DVPageShellMode shell;
   final bool scaffold;
@@ -85,6 +95,7 @@ class DVPage {
   const DVPage({
     this.path,
     this.title,
+    this.description,
     this.policy,
     this.mfa,
     this.shell = DVPageShellMode.adaptive,
