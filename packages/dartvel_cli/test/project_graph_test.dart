@@ -25,9 +25,11 @@ Future<DartvelProjectGraph> graphFor(Map<String, String> files) async {
 
 void main() {
   test('the graph version is a contract, not a build stamp', () async {
+    // It moves when the shape moves and at no other time. It went to 2 when
+    // the graph started carrying modules.
     final DartvelProjectGraph graph = await graphFor(<String, String>{});
-    expect(graph.graphVersion, 1);
-    expect(graph.toJson()['graphVersion'], 1);
+    expect(graph.graphVersion, 2);
+    expect(graph.toJson()['graphVersion'], 2);
   });
 
   group('models', () {

@@ -24,10 +24,14 @@ class DartvelProjectGraph {
     required this.routes,
     required this.functions,
     required this.jobs,
+    this.modules = const <DVGraphModule>[],
   });
 
   /// The shape version. See the class doc: this is a contract, not a stamp.
-  int get graphVersion => 1;
+  ///
+  /// Version 2 added the modules key. A consumer that understood version 1
+  /// can tell that this file carries a key it has never seen.
+  int get graphVersion => 2;
 
   /// Application nodes only. The backend generator also registers framework
   /// built-ins -- `/health`, `/openapi.json`, `/graphql` and its two siblings
@@ -38,6 +42,12 @@ class DartvelProjectGraph {
   final List<DVGraphRoute> routes;
   final List<DVGraphFunction> functions;
   final List<DVGraphJob> jobs;
+
+  /// The modules this project mounts, including the ones the build could
+  /// not mount. A declaration the build could not honour has to appear
+  /// somewhere an operator looks; leaving it out is how an application ships
+  /// without a section and nobody finds out until a customer does.
+  final List<DVGraphModule> modules;
 
   /// Scans [root] and answers what it is made of.
   static Future<DartvelProjectGraph> build({
@@ -66,6 +76,7 @@ class DartvelProjectGraph {
 
     routes.addAll(_accountRoutesIn(root));
     routes.addAll(_moduleRoutesIn(root));
+    final List<DVGraphModule> modules = _modulesIn(root);
 
     // Ordered so two builds of one project diff cleanly.
     models.sort((DVGraphModel a, DVGraphModel b) => a.name.compareTo(b.name));
@@ -79,6 +90,7 @@ class DartvelProjectGraph {
       routes: routes,
       functions: functions,
       jobs: jobs,
+      modules: modules,
     );
   }
 
@@ -88,6 +100,7 @@ class DartvelProjectGraph {
         'routes': routes.map((DVGraphRoute r) => r.toJson()).toList(),
         'functions': functions.map((DVGraphFunction f) => f.toJson()).toList(),
         'jobs': jobs.map((DVGraphJob j) => j.toJson()).toList(),
+        'modules': modules.map((DVGraphModule m) => m.toJson()).toList(),
       };
 
   static List<File> _dartFiles(String root) {
@@ -257,6 +270,34 @@ class DartvelProjectGraph {
           kind: 'account page',
         ),
     ];
+  }
+
+  /// The modules the parent declares, mounted or not.
+  static List<DVGraphModule> _modulesIn(String root) {
+    if (_dartvelSection(root)?['modules'] == null) {
+      return const <DVGraphModule>[];
+    }
+    final List<DVGraphModule> found = <DVGraphModule>[
+      for (final DVModuleMount mount in dvDiscoverModuleMounts(root))
+        DVGraphModule(
+          id: mount.id,
+          package: mount.packageName,
+          mount: mount.mount,
+          source: mount.fromPackage ? mount.packageName : mount.sourcePath,
+          deployment: mount.deployment.name,
+          mounted: mount.mounted,
+          pages: mount.routes.length,
+          data: mount.data,
+          name: mount.name,
+          version: mount.version,
+          location: mount.location,
+          backend: mount.backend,
+          fromPackage: mount.fromPackage,
+          problems: mount.problems,
+        ),
+    ];
+    found.sort((DVGraphModule a, DVGraphModule b) => a.id.compareTo(b.id));
+    return found;
   }
 
   /// The routes mounted modules contribute, at the path the parent serves
@@ -477,4 +518,111 @@ class DVGraphJob {
         'queue': queue,
         'source': source,
       };
+}
+
+/// One module the parent mounts, as the graph records it.
+///
+/// Studio's Modules section is the reader: it names what is mounted, where it
+/// came from, where it answers, and what is wrong with a declaration the
+/// build could not honour. That last one is the reason this is in the graph
+/// at all -- a module that failed to mount used to leave no trace anywhere an
+/// operator looks.
+class DVGraphModule {
+  const DVGraphModule({
+    required this.id,
+    required this.package,
+    required this.mount,
+    required this.source,
+    required this.deployment,
+    required this.mounted,
+    required this.pages,
+    required this.data,
+    this.name,
+    this.version,
+    this.location,
+    this.backend,
+    this.fromPackage = false,
+    this.problems = const <String>[],
+  });
+
+  /// What the parent knows it by: `DV.Modules.<id>`.
+  final String id;
+
+  /// The module project's package name.
+  final String package;
+
+  /// Where the parent serves it.
+  final String mount;
+
+  /// Where its project is, relative to the parent, or the package it came
+  /// from.
+  final String source;
+
+  /// `embedded`, `split-backend` or `federated`, as declared.
+  final String deployment;
+
+  /// Whether the build could honour the declaration. False when there is no
+  /// project at the source, or a federated manifest will not verify.
+  final bool mounted;
+
+  /// How many pages it contributes to the parent.
+  final int pages;
+
+  /// `shared`, `schema-isolated`, `database-isolated` or `remote`.
+  final String data;
+
+  final String? name;
+  final String? version;
+
+  /// Where a federated module answers from, or null when the parent serves
+  /// it.
+  final String? location;
+
+  /// Where a split-backend module's functions answer.
+  final String? backend;
+
+  /// Whether it is mounted as a dependency instead of from a path.
+  final bool fromPackage;
+
+  /// What is wrong with the declaration.
+  final List<String> problems;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'id': id,
+        'package': package,
+        'mount': mount,
+        'source': source,
+        'deployment': deployment,
+        'mounted': mounted,
+        'pages': pages,
+        'data': data,
+        if (name != null) 'name': name,
+        if (version != null) 'version': version,
+        if (location != null) 'location': location,
+        if (backend != null) 'backend': backend,
+        if (fromPackage) 'fromPackage': true,
+        if (problems.isNotEmpty) 'problems': problems,
+      };
+
+  /// Reads one back, for a consumer of `graph.json`.
+  factory DVGraphModule.fromJson(Map<String, Object?> json) => DVGraphModule(
+        id: '${json['id'] ?? ''}',
+        package: '${json['package'] ?? ''}',
+        mount: '${json['mount'] ?? '/'}',
+        source: '${json['source'] ?? ''}',
+        deployment: '${json['deployment'] ?? 'embedded'}',
+        mounted: json['mounted'] != false,
+        pages: json['pages'] is int ? json['pages']! as int : 0,
+        data: '${json['data'] ?? 'shared'}',
+        name: json['name'] as String?,
+        version: json['version'] as String?,
+        location: json['location'] as String?,
+        backend: json['backend'] as String?,
+        fromPackage: json['fromPackage'] == true,
+        problems: <String>[
+          for (final Object? problem
+              in (json['problems'] as List?) ?? const <Object?>[])
+            '$problem',
+        ],
+      );
 }
