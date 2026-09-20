@@ -39,6 +39,21 @@ void main() {
     );
   });
 
+  // A server's Request carries the path and keeps the host in the header:
+  // reading the host off a path-only URL left every local cookie Secure.
+  test('a path-only request is judged by its host header', () {
+    expect(
+      DVSessionCookie.plainLocal(Uri.parse('/api/auth/sign-in'),
+          host: 'localhost:8093'),
+      isTrue,
+    );
+    expect(
+      DVSessionCookie.plainLocal(Uri.parse('/api/auth/sign-in'),
+          host: 'shop.example.com'),
+      isFalse,
+    );
+  });
+
   test('the header follows that, name and all', () {
     final String local = cookie.header('dvs_abc', development: true);
     final String served = cookie.header('dvs_abc', development: false);
