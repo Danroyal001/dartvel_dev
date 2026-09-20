@@ -235,7 +235,7 @@ void nodeCatalogue() {
 
       final source = document.toDartSource();
       expect(source, contains('DVText'));
-      expect(source, contains('DVImageView'));
+      expect(source, contains('backgroundImage'));
       expect(source, contains('semanticButton'));
       expect(source, contains('SizedBox'));
       expect(source, contains('ColoredBox'));
