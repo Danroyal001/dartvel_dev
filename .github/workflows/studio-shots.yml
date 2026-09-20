@@ -81,6 +81,12 @@ jobs:
               > /dev/null
           done
 
+      # Two functions, so the builders are photographed with something open.
+      # A builder with an empty canvas is a true picture of an empty panel and
+      # says nothing at all about what the builder does.
+      - name: Put a frontend and a backend function in
+        run: dart tool/ci/seed_studio_functions.dart http://127.0.0.1:8099
+
       - name: Photograph every section
         working-directory: examples/dartvel_example
         run: |
@@ -90,6 +96,7 @@ jobs:
             --out /tmp/studio-shots \
             --sign-in http://127.0.0.1:8099/api/auth/sign-in \
             --email owner@dartvel.test --password 'a-long-enough-password-1' \
+            --open 'Frontend=orderAhead,Backend=placeOrder' \
             --chrome "$(command -v google-chrome)"
 
       - name: None of them is a flat colour
