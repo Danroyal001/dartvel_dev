@@ -1,0 +1,124 @@
+# Photographs every section of Studio, from a Studio that was actually run.
+#
+# The site's Studio screenshots were captured by hand and went stale twice: a
+# section added after the last session is a section nobody photographs, and
+# the page then shows a Studio that no longer exists. This builds the example
+# as a web-server binary, starts it, signs in and drives the rail, so the
+# pictures on the site are of the Studio at this commit.
+#
+# It fails on a section that renders nothing, because an empty panel and a
+# section that never loaded photograph identically.
+name: Studio screenshots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/dartvel_flutter/lib/src/studio/**'
+      - 'packages/dartvel_core/lib/src/admin/**'
+      - 'packages/dartvel_cli/lib/src/build/studio_shots.dart'
+      - '.github/workflows/studio-shots.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: studio-shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    name: build the example, open Studio, photograph every section
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+
+      - name: Install the tools the capture needs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+
+      # --profile development, because a release build serves no admin unless
+      # dartvel.admin.enabled says so, and this is photographing the admin.
+      - name: Build the example as a web-server binary, with Studio
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart run dartvel_cli:dartvel build web-server --profile development
+
+      - name: Start it, and make an account that may open Studio
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/studio-run
+          cp build/server /tmp/studio-run/server
+          (cd /tmp/studio-run && DARTVEL_PORT=8099 ./server > /tmp/studio-run/server.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:8099/__studio; then break; fi
+            sleep 2
+          done
+          curl -sf -X POST http://127.0.0.1:8099/api/auth/sign-up \
+            -H 'content-type: application/json' \
+            -H 'x-dartvel-csrf-token: cccccccccccccccccccccccccccccccc' \
+            -c /tmp/studio-run/cookies.txt \
+            -d '{"email":"owner@dartvel.test","password":"a-long-enough-password-1"}' \
+            > /dev/null
+
+      # Records, so the Data section is photographed with something in it. An
+      # empty table is a true picture of an empty database and tells a visitor
+      # nothing about what Studio does.
+      - name: Put some records in
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            curl -sf -X POST http://127.0.0.1:8099/__studio/api/models/Product/records \
+              -H 'content-type: application/json' \
+              -H 'x-dartvel-csrf-token: cccccccccccccccccccccccccccccccc' \
+              -b /tmp/studio-run/cookies.txt \
+              -d "{\"values\":{\"slug\":\"roast-$i\",\"name\":\"House Blend $i\",\"origin\":\"Ethiopia\",\"roast\":\"Medium\",\"notes\":\"Cocoa, citrus\",\"description\":\"A washed Yirgacheffe with a long finish.\",\"priceCents\":$((1200 + i * 150)),\"weightGrams\":250,\"published\":true}}" \
+              > /dev/null
+          done
+
+      - name: Photograph every section
+        working-directory: examples/dartvel_example
+        run: |
+          set -euo pipefail
+          dart run dartvel_cli:dartvel capture studio \
+            --url http://127.0.0.1:8099/__studio/ \
+            --out /tmp/studio-shots \
+            --sign-in http://127.0.0.1:8099/api/auth/sign-in \
+            --email owner@dartvel.test --password 'a-long-enough-password-1' \
+            --chrome "$(command -v google-chrome)"
+
+      - name: None of them is a flat colour
+        run: |
+          set -uo pipefail
+          failed=0
+          for shot in /tmp/studio-shots/*.png; do
+            spread=$(convert "$shot" -colorspace Gray -format '%[fx:standard_deviation]' info:)
+            if awk "BEGIN { exit !($spread < 0.01) }"; then
+              echo "::error::$(basename "$shot") is blank ($spread)"; failed=1
+            fi
+          done
+          exit $failed
+
+      - name: A contact sheet for a person to look at
+        if: always()
+        run: |
+          set -uo pipefail
+          cd /tmp/studio-shots
+          montage -label '%t' *.png -tile 3x -geometry 640x400+4+4 -pointsize 14 \
+            /tmp/studio-shots/contact-sheet.png || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-sections
+          path: /tmp/studio-shots/
+          retention-days: 30
+
+      - name: The server's own output, when something went wrong
+        if: failure()
+        run: tail -100 /tmp/studio-run/server.log || true
