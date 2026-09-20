@@ -23,6 +23,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dv.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart' show BuildContext, Element;
