@@ -54,6 +54,21 @@ void main() {
     );
   });
 
+  // A binary serving every interface builds the URL from 0.0.0.0, and the
+  // browser reached it at localhost: the Host header is the one that counts.
+  test('the host header wins over the address the server bound', () {
+    expect(
+      DVSessionCookie.plainLocal(Uri.parse('http://0.0.0.0:8093/api/x'),
+          host: 'localhost:8093'),
+      isTrue,
+    );
+    expect(
+      DVSessionCookie.plainLocal(Uri.parse('http://0.0.0.0:8093/api/x'),
+          host: 'shop.example.com'),
+      isFalse,
+    );
+  });
+
   test('the header follows that, name and all', () {
     final String local = cookie.header('dvs_abc', development: true);
     final String served = cookie.header('dvs_abc', development: false);

@@ -761,9 +761,11 @@ class DVSessionCookie {
     final String scheme =
         (forwardedProto ?? (url.hasScheme ? url.scheme : 'http')).toLowerCase();
     if (scheme == 'https') return false;
-    // A server's Request carries the path; the host is in the header.
+    // The header, first: a server builds the request's URL from the address
+    // it bound -- 0.0.0.0 for a binary serving every interface -- and the
+    // browser's own address is the one in Host.
     final String name =
-        (url.host.isNotEmpty ? url.host : (host ?? '')).toLowerCase();
+        (host != null && host.isNotEmpty ? host : url.host).toLowerCase();
     return _loopback(name);
   }
 
