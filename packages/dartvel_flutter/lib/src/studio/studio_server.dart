@@ -461,7 +461,8 @@ class DVStudioRemoteFunctionStore implements DVFunctionStore {
 
 /// The sections Studio has on a server, named for someone who has never
 /// written code: the app's data, its site map, its backend logic, background
-/// tasks and their queue, the cache, and the team who may open Studio.
+/// tasks and their queue, the modules it mounts, the cache, and the team who
+/// may open Studio.
 List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
     <DVStudioSection>[
       DVStudioSection(
@@ -498,6 +499,13 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
               if (entry is Map) entry.cast<String, Object?>(),
           ];
         },
+      ),
+      DVStudioSection(
+        id: 'modules',
+        label: 'Modules',
+        icon: Icons.extension_outlined,
+        build: (BuildContext context) =>
+            DVStudioModulesSection(manifest: client.manifest),
       ),
       DVStudioSection(
         id: 'jobs',
