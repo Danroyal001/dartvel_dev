@@ -86,6 +86,7 @@ Widget _siteHeader(BuildContext context) {
                 NavLink('Features', '/features'),
                 NavLink('Studio', '/studio'),
                 NavLink('Cloud', '/cloud'),
+                NavLink('Compared', '/vs'),
               ], spacing: 12),
             ], spacing: 6)
           : DVBox.row(<Widget>[
@@ -95,6 +96,7 @@ Widget _siteHeader(BuildContext context) {
                 NavLink('Features', '/features'),
                 NavLink('Studio', '/studio'),
                 NavLink('Cloud', '/cloud'),
+                NavLink('Compared', '/vs'),
               ], spacing: 18),
               // Four site links and two outbound ones do not fit a tablet or a
               // phone on its side, and the site links are the ones a visitor
@@ -265,6 +267,7 @@ Widget _siteCard(
   String body, {
   bool? built,
   String? section,
+  String? href,
 }) {
   final Palette palette = Palette.of(context);
   // Copied to a local before it is tested. The body of a
@@ -286,7 +289,11 @@ Widget _siteCard(
       : (declared == null ? null : (declared ? 'Built' : 'Planned'));
   final bool? status = label == null ? null : label != 'Planned';
   final bool partial = label == 'Partial';
-  return DVBox(
+  // A card that names a page is a link to it, not a box with a hover state
+  // that does nothing: it navigates, previews, preloads, takes keyboard focus
+  // and opens in a new tab on a middle click, and a crawler follows it.
+  final String? to = href;
+  final Widget card = DVBox(
     DVBox.list(<Widget>[
       DVBox.wrapLine(<Widget>[
         DVText(title).modifier(const DVModifier()
@@ -331,6 +338,8 @@ Widget _siteCard(
           ]),
         ),
   );
+  if (to == null) return card;
+  return DVNavLink(to: DVRouteTarget(to), child: card);
 }
 
 @DVFunctionalWidget()
