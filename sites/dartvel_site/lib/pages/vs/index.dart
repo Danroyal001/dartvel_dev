@@ -4,11 +4,11 @@ import '../../components/versus.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel compared with Expo, Laravel, Hasura, Rails and Qt',
+  title: 'Dartvel compared with Bubble, Expo, Laravel, Hasura, Rails and Qt',
   description: 'How Dartvel compares with the tools people already use: Expo '
       'for Flutter, Laravel for Flutter, Hasura for Flutter, Ruby on Rails '
-      'for Flutter, PocketBase and Qt. Each page says where the other one '
-      'wins.',
+      'for Flutter, Bubble, PocketBase and Qt. Each page says where the '
+      'other one wins.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.8,
@@ -37,7 +37,7 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
           tint: true,
           children: <Widget>[
             const Eyebrow('THE PAGES'),
-            const Heading('Six comparisons.'),
+            const Heading('Seven comparisons.'),
             DVBox.wrapLine(<Widget>[
               for (final VersusPage page in kVersusPages)
                 SiteCard(page.phrase, page.summary, href: page.path),

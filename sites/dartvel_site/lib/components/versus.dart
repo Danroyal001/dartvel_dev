@@ -64,6 +64,13 @@ const List<VersusPage> kVersusPages = <VersusPage>[
         'files, models generate their own client, forms and admin.',
   ),
   VersusPage(
+    path: '/vs/bubble',
+    name: 'Bubble',
+    phrase: 'Dartvel vs Bubble',
+    summary: 'A visual builder with a backend built in, on more platforms, '
+        'writing real Dart you own when the drag-and-drop runs out.',
+  ),
+  VersusPage(
     path: '/vs/pocketbase',
     name: 'PocketBase',
     phrase: 'Dartvel vs PocketBase',
