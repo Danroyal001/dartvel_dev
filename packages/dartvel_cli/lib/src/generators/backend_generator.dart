@@ -939,7 +939,10 @@ Future<dv.Response> _dvAuthenticated(
   final core.DVSessionAuthenticationResult session =
       await core.DVSessionAuthentication.authenticateRequest(
           authorization: req.headers.get('authorization'),
-          cookie: cookies ? req.headers.get('cookie') : null);
+          cookie: cookies ? req.headers.get('cookie') : null,
+          plainLocal: core.DVSessionCookie.plainLocal(req.url,
+              forwardedProto: req.headers.get('x-forwarded-proto'),
+              host: req.headers.get('host')));
   if (session.refused) {
     return dv.Response(session.status!,
         headers: dv.Headers({
@@ -1185,19 +1188,6 @@ ${backendEntries.map((e) {
               : "\n    if (!await _dvAllowed('$policy', req)) "
                   "return _dvPolicyForbidden('$policy');";
 
-      if (typed.isEmpty) {
-        // A raw handler owns the request, so there is no body prelude and no
-        // argument to decode. It still has to be guarded: a policy declared
-        // on one of these was read, recorded and never emitted, so
-        // @DVBackendFunction(policy: ...) on a raw handler was a route
-        // anybody could call.
-        // No shortcut for the plainest raw handler any more. It used to be
-        // registered bare, which meant the one kind of route that reads the
-        // request itself ran with no tenant scope around it.
-        return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate
-    return await f$i.handler(req);
-$routeClose''';
-      }
       final tparams =
           (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
       final ttypes = (e['ttypes'] ?? '').split(',');
@@ -1251,6 +1241,41 @@ $routeClose''';
               '\n        }'
               '\n      }'
           : '';
+
+      final bool takesOnlyRequest = tparams.length == 1 &&
+          !tnamed &&
+          (ttypes[0].trim() == 'Request' ||
+              ttypes[0].trim() == 'RequestType' ||
+              ttypes[0].trim() == 'dv.Request' ||
+              ttypes[0].trim() == 'core.Request');
+      final bool isRawHandler = typed.isEmpty || takesOnlyRequest;
+
+      if (isRawHandler) {
+        // A raw handler owns the request, so there is no body prelude and no
+        // argument to decode. It still has to be guarded: a policy declared
+        // on one of these was read, recorded and never emitted, so
+        // @DVBackendFunction(policy: ...) on a raw handler was a route
+        // anybody could call.
+        // No shortcut for the plainest raw handler any more. It used to be
+        // registered bare, which meant the one kind of route that reads the
+        // request itself ran with no tenant scope around it.
+        final String rawCall = typed.isEmpty
+            ? 'await f$i.handler(req)'
+            : 'await $invocation($callArgs)';
+        return '''$limitDeclarations  router.$method($routeTarget, $handlerOpen$mfaGate$policyGate$contextPrelude
+    try {
+      final result = $rawCall;$contextDone
+      if (result is dv.Response) return result;
+      return dv.Response(200, body: Stream<List<int>>.value(conv.utf8.encode(result.toString())));
+    } catch (e, st) {
+$contextFailed
+      core.DVServerCrashes.record(e, st);
+      stderr.writeln('[dartvel backend] ERROR in ${method.toUpperCase()} $path: \${e.toString()}');
+      stderr.writeln(st);
+      return dv.Response(500, body: Stream<List<int>>.value(conv.utf8.encode('Internal Server Error')));
+    }
+$routeClose''';
+      }
       // The declared body limit, enforced where the body is read.
       //
       // bodyLimit and uploadLimit cannot be middleware in the ordinary
