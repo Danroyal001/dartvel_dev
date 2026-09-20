@@ -561,6 +561,13 @@ class BuildCommand extends Command<void> {
       ..addFlag('obfuscate',
           defaultsTo: true, help: 'Obfuscate code (release only)')
       ..addFlag('tree-shake-icons', defaultsTo: true, help: 'Tree shake icons')
+      ..addFlag('prerender',
+          defaultsTo: true,
+          help: 'Read the semantics tree of each page into the HTML a '
+              'crawler sees. --no-prerender skips it, and every page then '
+              'ships with an empty body to anything that does not run '
+              'scripts. For a build nobody serves: a screenshot, a smoke '
+              'test, a local run.')
       ..addFlag('auto-install',
           defaultsTo: null,
           help: 'Install missing build tools without prompting. Defaults to '
@@ -2972,6 +2979,14 @@ class BuildCommand extends Command<void> {
   /// pages fall back to reading string literals out of the page source, which
   /// cannot tell a heading from a sentence and produces no links at all.
   Future<void> _captureSemantics(String root) async {
+    // Asked for explicitly. The build is otherwise right to refuse to ship
+    // pages with no crawler-visible content, and this is the one way to say
+    // the pages are not going to be served to anybody.
+    if (argResults?['prerender'] == false) {
+      Logger.log('   Skipping the semantics capture: --no-prerender. Every '
+          'page in this build has an empty body to a crawler.');
+      return;
+    }
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
     final routes = dvRoutesToCapture(

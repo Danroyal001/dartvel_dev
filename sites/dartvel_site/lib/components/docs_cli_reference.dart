@@ -126,6 +126,8 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '                                 (defaults to on)',
       '    --[no-]tree-shake-icons      Tree shake icons',
       '                                 (defaults to on)',
+      '    --[no-]prerender             Read the semantics tree of each page into the HTML a crawler sees. --no-prerender skips it, and every page then ships with an empty body to anything that does not run scripts. For a build nobody serves: a screenshot, a smoke test, a local run.',
+      '                                 (defaults to on)',
       '    --[no-]auto-install          Install missing build tools without prompting. Defaults to prompting when interactive, and to installing in CI. Use --no-auto-install to require a pre-provisioned toolchain.',
       '    --cloud                      Build on Dartvel Cloud instead of this machine, which needs no SDK for the target: iOS and macOS build on a macOS worker. Prints the build log as it runs and downloads the artifacts into build/cloud/<target>. Needs a paid Dartvel Cloud plan.',
       '    --cloud-os                   With --cloud and web-server: the operating system of the worker, which is the one the server executable runs on. Defaults to linux.',
