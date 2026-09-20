@@ -308,7 +308,7 @@ Future<Map<String, bool>> quote() async => <String, bool>{'ok': true};
         p.join(root.path, '.dart_tool', 'dartvel_backend_routes.g.dart'),
       ).readAsStringSync();
 
-      expect(routes, contains('core.dvTraced(core.DVObservability.tracer'));
+      expect(routes, contains('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer'));
       // Outside the chain, not inside it.
       final traceAt = routes.indexOf('core.dvTraced(');
       final guardAt = routes.indexOf('_dvGuarded(', traceAt);

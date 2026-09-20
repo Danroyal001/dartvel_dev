@@ -249,7 +249,7 @@ Future<void> main() async {
   }
   out['mail'] = mail;
   out['logs'] = <String>[
-    for (final DVLogRecord record in DVObservability.recentLogs)
+    for (final DVLogRecord record in DV.ObservabilityAndLogging.recentLogs)
       '${record.message} ${record.context} ${record.error}',
   ];
   stdout.writeln('PROBE ${jsonEncode(out)}');
