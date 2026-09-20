@@ -207,10 +207,20 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'Export writes ordinary Dart, so you can drop the builder.',
         ]),
         StudioShot(
-          'assets/studio/workflow-builder.png',
-          'Studio Pro builder showing the welcomeCustomer backend function '
-              'as Set, Call, Condition and Return steps',
-          caption: 'The welcomeCustomer backend function in Studio Pro.',
+          'assets/studio/frontend-function.png',
+          'The Frontend section of Studio with the orderAhead function open: '
+              'Set, Call, Condition and Return steps on the canvas, and its '
+              'typed inputs on the right',
+          caption: 'A frontend function: what a button does, built from '
+              'steps, with its inputs typed.',
+        ),
+        StudioShot(
+          'assets/studio/backend-function.png',
+          'The Backend section with the placeOrder function open, and the '
+              'backend functions the project wrote in code listed underneath '
+              'by the address each answers',
+          caption: 'The Backend section builds one and lists the ones your '
+              'code already declares.',
         ),
         Body('Export writes this backend function, and nothing in it refers '
             'to the builder:'),
