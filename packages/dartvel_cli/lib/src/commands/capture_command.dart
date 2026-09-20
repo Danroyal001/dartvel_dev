@@ -8,6 +8,7 @@ import 'firefox_capture_command.dart';
 import 'page_shots_capture_command.dart';
 import 'pty_capture_command.dart';
 import 'pwa_sync_capture_command.dart';
+import 'studio_shots_capture_command.dart';
 
 /// `dartvel capture verify` — proving a runtime-verification screenshot shows
 /// the application.
@@ -29,6 +30,7 @@ class CaptureCommand extends Command<void> {
     addSubcommand(FirefoxCaptureCommand());
     addSubcommand(PwaSyncCaptureCommand());
     addSubcommand(PageShotsCaptureCommand());
+    addSubcommand(StudioShotsCaptureCommand());
   }
 }
 
