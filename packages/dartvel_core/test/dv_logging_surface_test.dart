@@ -7,6 +7,7 @@
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dv.dart';
 import 'package:test/test.dart';
 
 void main() {

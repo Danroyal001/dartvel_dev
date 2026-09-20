@@ -146,7 +146,6 @@ export 'src/compute/worker_types.dart'
         dvCheckedProgress;
 export 'src/compute/workers.dart';
 export 'src/data/change_capture.dart';
-export 'src/dv.dart';
 export 'src/data/import_chunking.dart';
 export 'src/data/offline_store.dart';
 export 'src/data/record_history.dart';

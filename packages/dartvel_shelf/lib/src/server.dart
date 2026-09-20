@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:dartvel_core/dv.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
         DVLogLevel,
-        DV,
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,

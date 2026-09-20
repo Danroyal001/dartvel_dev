@@ -15,7 +15,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DV, DVLogRecord;
+import 'package:dartvel_core/dartvel.dart' show DVLogRecord;
+import 'package:dartvel_core/dv.dart';
 import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'package:test/test.dart';
 

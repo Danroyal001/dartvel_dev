@@ -18,7 +18,6 @@ import 'dart:async';
 
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
-import 'package:dartvel_core/dartvel.dart' as server show DV;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVAlertEpisode,
@@ -41,6 +40,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSignalReading,
         DVSignalReadingStatus,
         DVStatusSnapshot;
+import 'package:dartvel_core/dv.dart' as server show DV;
 import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
 
