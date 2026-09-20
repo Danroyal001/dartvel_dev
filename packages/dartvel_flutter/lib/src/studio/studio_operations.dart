@@ -18,6 +18,7 @@ import 'dart:async';
 
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
+import 'package:dartvel_core/dartvel.dart' as server show DV;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVAlertEpisode,
@@ -33,7 +34,6 @@ import 'package:dartvel_core/dartvel.dart'
         DVIncident,
         DVIncidentStatus,
         DVIncidents,
-        DVObservability,
         DVServiceLevel,
         DVServiceLevelStatus,
         DVServiceLevels,
@@ -152,7 +152,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       }
     }
     try {
-      health = await (widget.health ?? DVObservability.health.reportAsync)();
+      health = await (widget.health ?? server.DV.ObservabilityAndLogging.health.reportAsync)();
     } on Object catch (error) {
       healthError = '$error';
     }
