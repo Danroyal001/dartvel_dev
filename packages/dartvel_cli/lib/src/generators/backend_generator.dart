@@ -769,6 +769,7 @@ import 'dart:convert' as conv;
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart' as core;
+import 'package:dartvel_core/dv.dart' as dvapi;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
@@ -1088,7 +1089,7 @@ ${backendEntries.map((e) {
       final List<(String, String)> layers = <(String, String)>[
         ('core.dvWithRequestTenant(req, ', '()'),
         if (traces)
-          ('core.dvTraced(core.DVObservability.tracer, req, ',
+          ('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer, req, ',
               '(dv.Request req)'),
         // On every route, with or without dartvel.platformApi: the
         // application's own sessions authenticate here too.

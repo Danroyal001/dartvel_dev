@@ -61,6 +61,9 @@ class DVObservabilityAndLogging {
   /// The spans this process still holds.
   List<DVSpan> get recentSpans => DVObservability.recentSpans;
 
+  /// The tracer a request's span is opened on.
+  DVTracer get tracer => DVObservability.tracer;
+
   /// Where lines go: the sinks beside the buffer, and the level below which
   /// nothing is written.
   void useLogging({
