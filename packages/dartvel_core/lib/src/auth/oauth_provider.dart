@@ -35,7 +35,6 @@ import '../tenancy/tenants.dart';
 import '../transaction/transaction.dart';
 import 'api_keys.dart';
 import 'api_scopes.dart';
-import 'organizations.dart';
 import 'secret_hash.dart';
 
 /// A registered OAuth client. Nothing on it is the secret.
@@ -47,7 +46,7 @@ class DVOAuthClient {
     required this.scopes,
     required this.isPublic,
     required this.createdAt,
-    this.organizationId,
+    this.tenant,
     this.revokedAt,
   });
 
@@ -62,8 +61,10 @@ class DVOAuthClient {
   final bool isPublic;
   final DateTime createdAt;
 
-  /// The organization that registered and manages the client, if any.
-  final String? organizationId;
+  /// The tenant it was registered on. A client of another tenant is not this
+  /// tenant's to list or revoke.
+  final String? tenant;
+
   final DateTime? revokedAt;
 
   @override
@@ -192,7 +193,6 @@ class DVOAuthIntrospection {
       clientId = null,
       subject = null,
       tenant = null,
-      organizationId = null,
       expiresAt = null;
 
   const DVOAuthIntrospection._active({
@@ -201,7 +201,6 @@ class DVOAuthIntrospection {
     required String this.subject,
     required String this.tenant,
     required DateTime this.expiresAt,
-    this.organizationId,
   }) : active = true;
 
   final bool active;
@@ -209,7 +208,6 @@ class DVOAuthIntrospection {
   final String? clientId;
   final String? subject;
   final String? tenant;
-  final String? organizationId;
   final DateTime? expiresAt;
 
   /// An inactive token says nothing else, so introspection cannot be used to
@@ -224,7 +222,6 @@ class DVOAuthIntrospection {
           'token_type': 'access_token',
           'exp': expiresAt!.millisecondsSinceEpoch ~/ 1000,
           'tenant': tenant,
-          if (organizationId != null) 'organization_id': organizationId,
         };
 }
 
@@ -270,7 +267,7 @@ class DVOAuthProvider {
         'redirect_uris',
         'scopes',
         'public',
-        'organization_id',
+        'tenant',
         'created_by',
         'created_at',
         'revoked_at',
@@ -282,7 +279,7 @@ class DVOAuthProvider {
         'redirect_uris': 'TEXT',
         'scopes': 'TEXT',
         'public': 'INTEGER',
-        'organization_id': 'TEXT',
+        'tenant': 'TEXT',
         'created_by': 'TEXT',
         'created_at': 'TEXT',
         'revoked_at': 'TEXT',
@@ -328,7 +325,6 @@ class DVOAuthProvider {
         'client_id',
         'user_id',
         'key_id',
-        'organization_id',
         'tenant',
         'scopes',
         'created_at',
@@ -340,7 +336,6 @@ class DVOAuthProvider {
         'client_id': 'TEXT',
         'user_id': 'TEXT',
         'key_id': 'TEXT',
-        'organization_id': 'TEXT',
         'tenant': 'TEXT',
         'scopes': 'TEXT',
         'created_at': 'TEXT',
@@ -449,7 +444,7 @@ class DVOAuthProvider {
     required List<String> redirectUris,
     required List<String> scopes,
     bool public = false,
-    DVOrganization? organization,
+    String? tenant,
     String? actor,
   }) async {
     if (scopes.isEmpty) {
@@ -490,13 +485,13 @@ class DVOAuthProvider {
         'redirect_uris': jsonEncode(redirectUris),
         'scopes': jsonEncode(_unique(scopes)),
         'public': public ? 1 : 0,
-        'organization_id': organization?.id,
+        'tenant': tenant,
         'created_by': actor,
         'created_at': _stamp(now),
         'revoked_at': null,
       },
       actor: actor,
-      tenant: organization?.tenant,
+      tenant: tenant,
     )).record;
     return DVRegisteredOAuthClient(_clientFrom(record), secret);
   }
@@ -674,7 +669,6 @@ class DVOAuthProvider {
           'client_id': client.id,
           'user_id': userId,
           'key_id': null,
-          'organization_id': null,
           'tenant': tenant,
           'scopes': jsonEncode(request.scopes),
           'created_at': _stamp(now),
@@ -847,7 +841,6 @@ class DVOAuthProvider {
         'client_id': key.prefix,
         'user_id': null,
         'key_id': key.id,
-        'organization_id': key.organizationId,
         'tenant': key.tenant,
         'scopes': jsonEncode(requested),
         'created_at': _stamp(now),
@@ -885,7 +878,7 @@ class DVOAuthProvider {
       subject: principal.subject,
       tenant: principal.tenant,
       expiresAt: principal.expiresAt!,
-      organizationId: principal.organizationId,
+
     );
   }
 
@@ -1003,13 +996,6 @@ class DVOAuthProvider {
       if (keys == null) return null;
       final DVApiKey? key = await keys.find('$keyId');
       if (key == null || !key.isLiveAt(now)) return null;
-      final DVOrganizations? orgs = keys.organizations;
-      if (orgs != null) {
-        final DVOrganization? organization = await orgs.find(
-          key.organizationId,
-        );
-        if (organization == null || organization.isClosed) return null;
-      }
     } else {
       final DVRecord? client = await _clients.read('${g['client_id']}');
       if (client == null || client.values['revoked_at'] != null) return null;
@@ -1027,7 +1013,7 @@ class DVOAuthProvider {
             : DVApiPrincipalKind.oauthUser,
         subject: keyId != null ? '$keyId' : '$userId',
         tenant: grantTenant,
-        organizationId: g['organization_id'] as String?,
+
         clientId: '${g['client_id']}',
         scopes: tokenScopes.toSet(),
         actions: scopes.actionsOf(tokenScopes),
@@ -1219,7 +1205,7 @@ class DVOAuthProvider {
       scopes: _list(v['scopes']),
       isPublic: v['public'] == 1 || v['public'] == true || v['public'] == '1',
       createdAt: _date(v['created_at'])!,
-      organizationId: v['organization_id'] as String?,
+      tenant: v['tenant'] as String?,
       revokedAt: _date(v['revoked_at']),
     );
   }

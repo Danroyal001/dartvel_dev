@@ -27,7 +27,6 @@ import 'dart:async';
 
 import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
-import 'organizations.dart';
 import 'sessions.dart';
 
 /// Who a request authenticated with the application's own session is.
@@ -36,7 +35,7 @@ import 'sessions.dart';
 /// request. A route policy written against the application's user type is
 /// handed [user]; one written against this type is handed the principal.
 class DVSessionPrincipal {
-  DVSessionPrincipal({required this.session, this.user, this.membership});
+  DVSessionPrincipal({required this.session, this.user});
 
   /// The session, as it was checked for this request.
   final DVSession session;
@@ -45,11 +44,6 @@ class DVSessionPrincipal {
   /// request, or null when it set none. Its server-safe user: a generated
   /// model reaches Flutter and cannot load in the server.
   final Object? user;
-
-  /// The person's membership in the organization on the request's tenant,
-  /// read on this request, or null when there is no such organization, they
-  /// are not a member, or no organizations were configured.
-  final DVMembership? membership;
 
   String get userId => session.userId;
 
@@ -139,7 +133,6 @@ class DVSessionAuthentication {
   DVSessionAuthentication({
     DVSessions? sessions,
     this.resolveUser,
-    this.organizations,
     this.cookie = const DVSessionCookie(),
     this.development = false,
   }) : _sessions = sessions ?? DVSessions();
@@ -151,10 +144,6 @@ class DVSessionAuthentication {
   /// application's user type is handed. Null from it refuses the session --
   /// the person it belonged to no longer exists.
   final FutureOr<Object?> Function(DVSession session)? resolveUser;
-
-  /// Where memberships are read from, when the application uses
-  /// organizations.
-  final FutureOr<DVOrganizations?> Function()? organizations;
 
   /// The cookie a browser carries the session in.
   final DVSessionCookie cookie;
@@ -183,14 +172,12 @@ class DVSessionAuthentication {
   static DVSessionAuthentication install({
     DVSessions? sessions,
     FutureOr<Object?> Function(DVSession session)? resolveUser,
-    FutureOr<DVOrganizations?> Function()? organizations,
     DVSessionCookie cookie = const DVSessionCookie(),
     bool development = false,
   }) =>
       _installed = DVSessionAuthentication(
         sessions: sessions,
         resolveUser: resolveUser,
-        organizations: organizations,
         cookie: cookie,
         development: development,
       );
@@ -306,18 +293,9 @@ class DVSessionAuthentication {
         user = await resolve(session);
         if (user == null) return _refused(fromCookie);
       }
-      DVMembership? membership;
-      final DVOrganizations? orgs = await organizations?.call();
-      if (orgs != null) {
-        final DVOrganization? organization = await orgs.forTenant(requested);
-        if (organization != null) {
-          membership = await orgs.membership(organization.id, session.userId);
-        }
-      }
       return DVSessionAuthenticationResult.authenticated(DVSessionPrincipal(
         session: session,
         user: user,
-        membership: membership,
       ));
     } on Object catch (error) {
       // The type only. A store's or a resolver's message can quote what it

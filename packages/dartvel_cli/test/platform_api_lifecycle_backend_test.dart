@@ -80,24 +80,19 @@ Future<void> main() async {
     return allow;
   };
 
-  final DVOrganizations orgs = DVOrganizations(database: db);
-  await orgs.ensureSchema();
-  final DVOrganization acme =
-      await orgs.create(name: 'Acme', tenant: 'acme', ownerId: 'u1');
   final DVApiKeys keys = DVApiKeys(
     database: db,
     scopes: api.dartvelPlatformApi!.scopes,
-    organizations: orgs,
   );
   await keys.ensureSchema();
   final DVIssuedApiKey read =
-      await keys.issue(organization: acme, scopes: <String>['orders:read']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:read']);
   final DVIssuedApiKey write =
-      await keys.issue(organization: acme, scopes: <String>['orders:write']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:write']);
   final DVIssuedApiKey limited = await keys.issue(
-      organization: acme, scopes: <String>['orders:read'], ratePlan: 'tiny');
+      tenant: 'acme', scopes: <String>['orders:read'], ratePlan: 'tiny');
   final DVIssuedApiKey revoked =
-      await keys.issue(organization: acme, scopes: <String>['orders:read']);
+      await keys.issue(tenant: 'acme', scopes: <String>['orders:read']);
   await keys.revoke(revoked.key.id);
 
   final dynamic handle = await gen.startBackend(host: '127.0.0.1', port: 0);

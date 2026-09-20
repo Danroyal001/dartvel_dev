@@ -31,7 +31,6 @@ import '../tenancy/tenants.dart';
 import 'api_keys.dart';
 import 'api_scopes.dart';
 import 'oauth_provider.dart';
-import 'organizations.dart';
 import 'platform_api_config.dart';
 
 /// What the authentication stage made of a request.
@@ -190,10 +189,6 @@ class DVPlatformApi {
   /// The OAuth provider, or null when `dartvel.platformApi.oauth` is off.
   Future<DVOAuthProvider?> oauthProvider() async => (await _require()).oauth;
 
-  /// The organizations keys belong to.
-  Future<DVOrganizations> organizations() async =>
-      (await _require()).organizations;
-
   Future<_DVPlatformRuntime> _require() async {
     final _DVPlatformRuntime? runtime = await _ready();
     if (runtime == null) {
@@ -224,14 +219,9 @@ class DVPlatformApi {
   }
 
   Future<_DVPlatformRuntime?> _start(DVDatabaseAdapter database) async {
-    final DVOrganizations organizations = DVOrganizations(
-      database: database,
-      clock: _clock,
-    );
     final DVApiKeys keys = DVApiKeys(
       database: database,
       scopes: config.scopes,
-      organizations: organizations,
       requireExpiry: config.requireExpiry,
       clock: _clock,
     );
@@ -247,11 +237,9 @@ class DVPlatformApi {
             refreshTokenLifetime: settings.refreshTokenLifetime,
             clock: _clock,
           );
-    await organizations.ensureSchema();
     await keys.ensureSchema();
     await oauth?.ensureSchema();
     return _DVPlatformRuntime(
-      organizations: organizations,
       keys: keys,
       oauth: oauth,
       rateLimit: keys.rateLimit(config.ratePlans),
@@ -261,13 +249,11 @@ class DVPlatformApi {
 
 class _DVPlatformRuntime {
   const _DVPlatformRuntime({
-    required this.organizations,
     required this.keys,
     required this.oauth,
     required this.rateLimit,
   });
 
-  final DVOrganizations organizations;
   final DVApiKeys keys;
   final DVOAuthProvider? oauth;
   final Middleware rateLimit;

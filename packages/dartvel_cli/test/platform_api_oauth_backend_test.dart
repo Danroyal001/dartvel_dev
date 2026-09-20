@@ -103,15 +103,12 @@ Future<void> main() async {
   try {
     final DVPlatformApi platform = DVPlatformApi.installed!;
     final DVOAuthProvider oauth = (await platform.oauthProvider())!;
-    final DVOrganizations orgs = await platform.organizations();
     final DVApiKeys keys = await platform.keys();
-    final DVOrganization acme =
-        await orgs.create(name: 'Acme', tenant: 'acme', ownerId: 'ada');
     final DVRegisteredOAuthClient web = await oauth.registerClient(
       name: 'Partner Web',
       redirectUris: <String>['https://partner.example/cb'],
       scopes: <String>['orders:read'],
-      organization: acme,
+      tenant: 'acme',
     );
     final DVRegisteredOAuthClient spa = await oauth.registerClient(
       name: 'Partner SPA',
@@ -120,9 +117,9 @@ Future<void> main() async {
       public: true,
     );
     final DVIssuedApiKey plainKey =
-        await keys.issue(organization: acme, scopes: <String>['orders:read']);
+        await keys.issue(tenant: 'acme', scopes: <String>['orders:read']);
     final DVIssuedApiKey introspector = await keys
-        .issue(organization: acme, scopes: <String>['tokens:introspect']);
+        .issue(tenant: 'acme', scopes: <String>['tokens:introspect']);
     secrets.addAll(<String>[web.secret!, plainKey.secret, introspector.secret]);
 
     const String verifier =

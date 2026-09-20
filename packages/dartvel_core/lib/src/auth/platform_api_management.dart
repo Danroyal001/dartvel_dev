@@ -1,5 +1,5 @@
-/// API key and OAuth client management for the organization on the current
-/// tenant, asked of `DV.Auth.authorization` before anything is written.
+/// API key and OAuth client management on the current tenant, asked of
+/// `DV.Auth.authorization` before anything is written.
 ///
 /// `DVApiKeys` and `DVOAuthProvider` issue, rotate and revoke for whoever
 /// calls them. This is the surface an application's settings page and
@@ -25,21 +25,20 @@ import '../../dartvel.dart' show DVAuthAuthorization;
 import '../tenancy/tenants.dart';
 import 'api_keys.dart';
 import 'oauth_provider.dart';
-import 'organizations.dart';
 import 'platform_api.dart';
 
 /// What a policy on API keys is asked about.
 class DVApiKeyResource {
   const DVApiKeyResource({
-    required this.organization,
+    required this.tenant,
     this.key,
     this.scopes = const <String>[],
     this.ratePlan,
     this.expiresIn,
   });
 
-  /// The organization on the current tenant.
-  final DVOrganization organization;
+  /// The tenant the work is running for.
+  final String tenant;
 
   /// The key being rotated or revoked; null for an issue or a list.
   final DVApiKey? key;
@@ -53,14 +52,14 @@ class DVApiKeyResource {
 /// What a policy on OAuth clients is asked about.
 class DVOAuthClientResource {
   const DVOAuthClientResource({
-    required this.organization,
+    required this.tenant,
     this.client,
     this.scopes = const <String>[],
     this.redirectUris = const <String>[],
     this.isPublic = false,
   });
 
-  final DVOrganization organization;
+  final String tenant;
 
   /// The client being revoked; null for a registration or a list.
   final DVOAuthClient? client;
@@ -109,20 +108,20 @@ class DVApiKeyManagement {
             '${platform.config.ratePlans.keys.toList()..sort()})',
       );
     }
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     await _authorize<DVApiKeyResource>(
       authorization,
       user,
       'create',
       DVApiKeyResource(
-        organization: organization,
+        tenant: tenant,
         scopes: List<String>.unmodifiable(scopes),
         ratePlan: ratePlan,
         expiresIn: expiresIn,
       ),
     );
     return (await platform.keys()).issue(
-      organization: organization,
+      tenant: tenant,
       scopes: scopes,
       expiresIn: expiresIn,
       name: name,
@@ -134,14 +133,14 @@ class DVApiKeyManagement {
   /// The current organization's keys, revoked and expired ones included.
   Future<List<DVApiKey>> list({required Object? user}) async {
     final DVPlatformApi platform = _platform();
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     await _authorize<DVApiKeyResource>(
       authorization,
       user,
       'viewAny',
-      DVApiKeyResource(organization: organization),
+      DVApiKeyResource(tenant: tenant),
     );
-    return (await platform.keys()).forOrganization(organization.id);
+    return (await platform.keys()).forTenant(tenant);
   }
 
   /// Rotates key [id] of the current organization, with an overlap.
@@ -152,14 +151,14 @@ class DVApiKeyManagement {
     Duration? overlap,
   }) async {
     final DVPlatformApi platform = _platform();
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     final DVApiKeys keys = await platform.keys();
-    final DVApiKey key = await _own(keys, organization, id);
+    final DVApiKey key = await _own(keys, tenant, id);
     await _authorize<DVApiKeyResource>(
       authorization,
       user,
       'update',
-      DVApiKeyResource(organization: organization, key: key, scopes: key.scopes),
+      DVApiKeyResource(tenant: tenant, key: key, scopes: key.scopes),
     );
     return keys.rotate(id, overlap: overlap, actor: actor);
   }
@@ -171,14 +170,14 @@ class DVApiKeyManagement {
     required String? actor,
   }) async {
     final DVPlatformApi platform = _platform();
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     final DVApiKeys keys = await platform.keys();
-    final DVApiKey key = await _own(keys, organization, id);
+    final DVApiKey key = await _own(keys, tenant, id);
     await _authorize<DVApiKeyResource>(
       authorization,
       user,
       'delete',
-      DVApiKeyResource(organization: organization, key: key, scopes: key.scopes),
+      DVApiKeyResource(tenant: tenant, key: key, scopes: key.scopes),
     );
     await keys.revoke(id, actor: actor);
   }
@@ -187,12 +186,12 @@ class DVApiKeyManagement {
   /// is answered as no key at all, so an id cannot be probed from here.
   static Future<DVApiKey> _own(
     DVApiKeys keys,
-    DVOrganization organization,
+    String tenant,
     String id,
   ) async {
     final DVApiKey? key = await keys.find(id);
-    if (key == null || key.organizationId != organization.id) {
-      throw DVApiKeyNotLive(id, 'no such key in this organization');
+    if (key == null || key.tenant != tenant) {
+      throw DVApiKeyNotLive(id, 'no such key on this tenant');
     }
     return key;
   }
@@ -216,13 +215,13 @@ class DVOAuthClientManagement {
   }) async {
     final DVPlatformApi platform = _platform();
     final DVOAuthProvider provider = await _provider(platform);
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     await _authorize<DVOAuthClientResource>(
       authorization,
       user,
       'create',
       DVOAuthClientResource(
-        organization: organization,
+        tenant: tenant,
         scopes: List<String>.unmodifiable(scopes),
         redirectUris: List<String>.unmodifiable(redirectUris),
         isPublic: public,
@@ -233,7 +232,7 @@ class DVOAuthClientManagement {
       redirectUris: redirectUris,
       scopes: scopes,
       public: public,
-      organization: organization,
+      tenant: tenant,
       actor: actor,
     );
   }
@@ -242,16 +241,16 @@ class DVOAuthClientManagement {
   Future<List<DVOAuthClient>> list({required Object? user}) async {
     final DVPlatformApi platform = _platform();
     final DVOAuthProvider provider = await _provider(platform);
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     await _authorize<DVOAuthClientResource>(
       authorization,
       user,
       'viewAny',
-      DVOAuthClientResource(organization: organization),
+      DVOAuthClientResource(tenant: tenant),
     );
     final List<Map<String, Object?>> rows = await provider.database.query(
-      'SELECT id FROM dv_oauth_clients WHERE organization_id = ?',
-      <Object?>[organization.id],
+      'SELECT id FROM dv_oauth_clients WHERE tenant = ?',
+      <Object?>[tenant],
     );
     final List<DVOAuthClient> clients = <DVOAuthClient>[
       for (final Map<String, Object?> row in rows)
@@ -271,18 +270,21 @@ class DVOAuthClientManagement {
   }) async {
     final DVPlatformApi platform = _platform();
     final DVOAuthProvider provider = await _provider(platform);
-    final DVOrganization organization = await _currentOrganization(platform);
+    final String tenant = const DVTenants().currentTenant;
     final DVOAuthClient? client = await provider.findClient(clientId);
-    if (client == null || client.organizationId != organization.id) {
-      throw StateError('No OAuth client with that id belongs to this '
-          'organization.');
+    // The tenant check, not just existence. Without it a caller on one
+    // tenant revokes another tenant's client by naming its id, which is the
+    // whole of what the ownership check was for.
+    if (client == null || client.tenant != tenant) {
+      throw StateError(
+          'No OAuth client with that id belongs to this tenant.');
     }
     await _authorize<DVOAuthClientResource>(
       authorization,
       user,
       'delete',
       DVOAuthClientResource(
-        organization: organization,
+        tenant: tenant,
         client: client,
         scopes: client.scopes,
         redirectUris: client.redirectUris,
@@ -311,22 +313,6 @@ DVPlatformApi _platform() =>
       'clients are managed where dartvel.platformApi is declared and the '
       'database is: the generated backend.',
     ));
-
-Future<DVOrganization> _currentOrganization(DVPlatformApi platform) async {
-  final String tenant = const DVTenants().currentTenant;
-  final DVOrganizations organizations = await platform.organizations();
-  final DVOrganization? organization = await organizations.forTenant(tenant);
-  if (organization == null) throw DVTenantHasNoOrganization(tenant);
-  final DateTime? closedAt = organization.closedAt;
-  if (closedAt != null) {
-    throw DVOrganizationClosed(
-      organization.id,
-      closedAt: closedAt,
-      restorableUntil: closedAt.add(organizations.closeGrace),
-    );
-  }
-  return organization;
-}
 
 /// Asks [authorization] whether [user] may [action] [resource], typed by
 /// the resource so the policy registered for it is the one asked.

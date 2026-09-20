@@ -12,8 +12,8 @@
 /// * rotation overlaps: the replacement is live at once and the old key
 ///   keeps working until the overlap ends (`DV-APIKEY-003` afterwards), while
 ///   revocation is immediate;
-/// * a key belongs to one organization on one tenant, and a request resolved
-///   to another tenant does not authenticate with it;
+/// * a key belongs to one tenant, and a request resolved to another tenant
+///   does not authenticate with it;
 /// * issue, rotation and revocation are [DVRecordTable] writes with history,
 ///   so each carries its actor, tenant and transaction.
 library dartvel_core.auth.api_keys;
@@ -30,14 +30,12 @@ import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
 import '../transaction/transaction.dart';
 import 'api_scopes.dart';
-import 'organizations.dart';
 import 'secret_hash.dart';
 
 /// One issued key, as stored. Nothing on it is the secret.
 class DVApiKey {
   const DVApiKey({
     required this.id,
-    required this.organizationId,
     required this.tenant,
     required this.scopes,
     required this.createdAt,
@@ -52,7 +50,6 @@ class DVApiKey {
 
   /// The identifying part, stored in clear.
   final String id;
-  final String organizationId;
   final String tenant;
   final List<String> scopes;
   final DateTime createdAt;
@@ -77,7 +74,7 @@ class DVApiKey {
   }
 
   @override
-  String toString() => 'DVApiKey($prefix for $organizationId)';
+  String toString() => 'DVApiKey($prefix on $tenant)';
 }
 
 /// A key and its secret, returned once, at issue.
@@ -106,8 +103,6 @@ enum DVApiKeyFailure {
   /// Issued for another tenant than the request resolved to.
   wrongTenant,
 
-  /// The organization the key belongs to is closed or gone.
-  organizationClosed,
 }
 
 /// The outcome of checking a presented key.
@@ -161,7 +156,6 @@ class DVApiKeys {
   DVApiKeys({
     required this.database,
     required this.scopes,
-    this.organizations,
     this.requireExpiry = false,
     this.defaultOverlap = const Duration(days: 7),
     DateTime Function()? clock,
@@ -177,7 +171,6 @@ class DVApiKeys {
         'id',
         'secret_hash',
         'name',
-        'organization_id',
         'tenant',
         'scopes',
         'rate_plan',
@@ -192,7 +185,6 @@ class DVApiKeys {
         'id': 'TEXT',
         'secret_hash': 'TEXT',
         'name': 'TEXT',
-        'organization_id': 'TEXT',
         'tenant': 'TEXT',
         'scopes': 'TEXT',
         'rate_plan': 'TEXT',
@@ -230,8 +222,6 @@ class DVApiKeys {
   final DVDatabaseAdapter database;
   final DVApiScopes scopes;
 
-  /// When given, a key stops authenticating when its organization closes.
-  final DVOrganizations? organizations;
 
   /// Whether a key issued with no expiry raises `DV-APIKEY-005`.
   final bool requireExpiry;
@@ -250,16 +240,22 @@ class DVApiKeys {
 
   Future<void> ensureSchema() => _keys.ensureSchema();
 
-  /// Issues a key for [organization] with [scopes].
+  /// Issues a key on [tenant] with [scopes], defaulting to the tenant the
+  /// current work is running for.
+  ///
+  /// The tenant is the whole of a key's boundary. It is in every row, it is
+  /// what a backup is taken of, and a key issued on one tenant is refused on
+  /// another. A grouping inside it was one more thing to keep in step and
+  /// answered no question the tenant did not already answer.
   Future<DVIssuedApiKey> issue({
-    required DVOrganization organization,
     required List<String> scopes,
+    String? tenant,
     Duration? expiresIn,
     String? name,
     String? ratePlan,
     String? actor,
   }) async {
-    final DVOrganization current = await _open(organization);
+    final String on = tenant ?? const DVTenants().currentTenant;
     if (scopes.isEmpty) {
       throw ArgumentError.value(
         scopes,
@@ -273,8 +269,7 @@ class DVApiKeys {
     }
     final DateTime now = _now();
     return _insert(
-      organizationId: current.id,
-      tenant: current.tenant,
+      tenant: on,
       scopes: scopes,
       now: now,
       expiresAt: expiresIn == null ? null : now.add(expiresIn),
@@ -327,16 +322,6 @@ class DVApiKeys {
     if (requested != null && requested != key.tenant) {
       return DVApiKeyCheck.failed(DVApiKeyFailure.wrongTenant, key: key);
     }
-    final DVOrganizations? orgs = organizations;
-    if (orgs != null) {
-      final DVOrganization? organization = await orgs.find(key.organizationId);
-      if (organization == null || organization.isClosed) {
-        return DVApiKeyCheck.failed(
-          DVApiKeyFailure.organizationClosed,
-          key: key,
-        );
-      }
-    }
     return DVApiKeyCheck.valid(key, principalFor(key));
   }
 
@@ -352,7 +337,6 @@ class DVApiKeys {
     kind: DVApiPrincipalKind.apiKey,
     subject: key.id,
     tenant: key.tenant,
-    organizationId: key.organizationId,
     scopes: key.scopes.toSet(),
     actions: scopes.actionsOf(key.scopes),
     ratePlan: key.ratePlan,
@@ -362,7 +346,7 @@ class DVApiKeys {
   /// Issues a replacement for key [id] and leaves [id] working for [overlap]
   /// (or [defaultOverlap]), never past its own expiry.
   ///
-  /// The replacement has the same organization, scopes and rate plan, and the
+  /// The replacement has the same tenant, scopes and rate plan, and the
   /// lifetime the original was issued with, counted from now.
   Future<DVIssuedApiKey> rotate(
     String id, {
@@ -385,14 +369,6 @@ class DVApiKeys {
         'it was already rotated to $keyPrefix${key.rotatedTo}',
       );
     }
-    final DVOrganizations? orgs = organizations;
-    if (orgs != null) {
-      final DVOrganization? organization = await orgs.find(key.organizationId);
-      if (organization == null) {
-        throw DVApiKeyNotLive(id, 'its organization no longer exists');
-      }
-      await _open(organization);
-    }
     final Duration window = overlap ?? defaultOverlap;
     if (window < Duration.zero) {
       throw ArgumentError.value(window, 'overlap', 'cannot be negative');
@@ -403,7 +379,6 @@ class DVApiKeys {
 
     return DVTransactionRunner()<DVIssuedApiKey>((DVContext context) async {
       final DVIssuedApiKey next = await _insert(
-        organizationId: key.organizationId,
         tenant: key.tenant,
         scopes: key.scopes,
         now: now,
@@ -448,11 +423,11 @@ class DVApiKeys {
     return record == null ? null : _keyFrom(record);
   }
 
-  /// Every key of [organizationId], oldest first.
-  Future<List<DVApiKey>> forOrganization(String organizationId) async {
+  /// Every key on [tenant], oldest first.
+  Future<List<DVApiKey>> forTenant(String tenant) async {
     final List<Map<String, Object?>> rows = await database.query(
-      'SELECT id FROM dv_api_keys WHERE organization_id = ?',
-      <Object?>[organizationId],
+      'SELECT id FROM dv_api_keys WHERE tenant = ?',
+      <Object?>[tenant],
     );
     final List<DVApiKey> keys = <DVApiKey>[
       for (final Map<String, Object?> row in rows)
@@ -572,26 +547,7 @@ class DVApiKeys {
     return null;
   }
 
-  Future<DVOrganization> _open(DVOrganization organization) async {
-    final DVOrganization current =
-        await organizations?.find(organization.id) ?? organization;
-    final DateTime? closedAt = current.closedAt;
-    if (closedAt != null) {
-      final DateTime until = closedAt.add(
-        organizations?.closeGrace ?? DVOrganizations.defaultCloseGrace,
-      );
-      throw DVOrganizationClosed(
-        current.id,
-        closedAt: closedAt,
-        restorableUntil: until,
-        expired: !_now().isBefore(until),
-      );
-    }
-    return current;
-  }
-
   Future<DVIssuedApiKey> _insert({
-    required String organizationId,
     required String tenant,
     required List<String> scopes,
     required DateTime now,
@@ -618,7 +574,6 @@ class DVApiKeys {
         'id': id,
         'secret_hash': DVSecretHash.of(secret),
         'name': name,
-        'organization_id': organizationId,
         'tenant': tenant,
         'scopes': jsonEncode(sorted),
         'rate_plan': ratePlan,
@@ -650,7 +605,6 @@ class DVApiKeys {
     final Map<String, Object?> v = record.values;
     return DVApiKey(
       id: '${v['id']}',
-      organizationId: '${v['organization_id']}',
       tenant: '${v['tenant']}',
       scopes: List<String>.unmodifiable(
         (jsonDecode('${v['scopes']}') as List<Object?>).map(

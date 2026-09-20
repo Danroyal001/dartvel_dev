@@ -779,31 +779,18 @@ void main() {
     expect((await store.load('orders.total'))!.phase, evolution.phase);
   });
 
-  test('an organization, a member and an API key are stored', () async {
-    final DVOrganizations orgs = DVOrganizations(
-      database: db,
-      clock: () => now,
-    );
-    await orgs.ensureSchema();
-    final DVOrganization acme = await orgs.create(
-      name: 'Acme',
-      tenant: 'acme',
-      ownerId: 'ada',
-    );
-    expect((await orgs.find(acme.id))!.name, 'Acme');
-    expect(await orgs.members(acme.id), hasLength(1));
-
+  test('an API key is stored on its tenant', () async {
     final DVApiKeys keys = DVApiKeys(
       database: db,
       scopes: _apiScopes,
-      organizations: orgs,
       clock: () => now,
     );
     await keys.ensureSchema();
     final DVIssuedApiKey issued = await keys.issue(
-      organization: acme,
+      tenant: 'acme',
       scopes: const <String>['orders:read'],
     );
+    expect(issued.key.tenant, 'acme');
     expect(await keys.find(issued.key.id), isNotNull);
     expect(await keys.audit(issued.key.id), hasLength(1));
   });
