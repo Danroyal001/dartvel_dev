@@ -27,6 +27,8 @@ Future<DVFirstRunOwner?> firstRun() => DVFirstRunOwner.ensure(
     );
 
 void main() {
+  wiring();
+  reachable();
   setUp(() {
     data = Directory.systemTemp.createTempSync('dartvel_first_run_');
     database = SqliteDVDatabaseAdapter.memory();
@@ -157,5 +159,119 @@ void main() {
     expect(await DVFirstRunOwner.mustChangePassword(), isFalse);
     expect(File('${data.path}/initial-owner-password.txt').existsSync(), isFalse,
         reason: 'the file is of no use once the password has changed');
+  });
+}
+
+// Finishing the setup is the application's own auth endpoints doing their
+// ordinary job: there is no first-run password endpoint and no first-run
+// second-factor endpoint, because a second pair of those is a second place
+// for a rate limit, a CSRF check and a session rotation to be got wrong.
+// What the first run adds is the record that it happened.
+void wiring() {
+  group('the gate is cleared by the endpoints that do the work', () {
+    test('the owner changing their password clears the first half', () async {
+      final DVFirstRunOwner owner = (await firstRun())!;
+      expect(await DVFirstRunOwner.mustChangePassword(database: database),
+          isTrue);
+
+      await DVFirstRunOwner.recordPasswordChanged(owner.userId);
+
+      expect(await DVFirstRunOwner.mustChangePassword(database: database),
+          isFalse);
+      expect(File('${data.path}/initial-owner-password.txt').existsSync(),
+          isFalse);
+    });
+
+    test('somebody else changing theirs clears nothing', () async {
+      // Every account on the application goes through the same endpoint. A
+      // hook that did not check whose password it was would open Studio the
+      // first time any user changed one, and delete the owner's file on the
+      // way.
+      await firstRun();
+      final AuthUser? ada =
+          await accounts.signUp('ada@oakline.test', 'a-long-enough-password');
+
+      await DVFirstRunOwner.recordPasswordChanged(ada!.id);
+      await DVFirstRunOwner.recordSecondFactor(ada.id);
+
+      expect(await DVFirstRunOwner.setupPending(database: database), isTrue);
+      expect(File('${data.path}/initial-owner-password.txt').existsSync(),
+          isTrue);
+    });
+
+    test('the owner enrolling a second factor opens Studio', () async {
+      final DVFirstRunOwner owner = (await firstRun())!;
+
+      await DVFirstRunOwner.recordPasswordChanged(owner.userId);
+      await DVFirstRunOwner.recordSecondFactor(owner.userId);
+
+      expect(await DVFirstRunOwner.setupPending(database: database), isFalse);
+    });
+  });
+}
+
+// The screen has to be reachable by somebody who has not signed in, because
+// signing in is what it is for. Studio's own rule is that a request from
+// somebody not allowed to open it is answered exactly as a route that does
+// not exist -- and applying that here made the setup screen unreachable by
+// the only person who needs it.
+void reachable() {
+  group('reaching the setup screen', () {
+    late DVAdminServer shut;
+
+    Future<Response?> get(DVAdminServer server, String path) =>
+        server.respond(Request(
+          method: 'GET',
+          url: Uri.parse('http://localhost:8080$path'),
+          headers: Headers(const <String, String>{}),
+          bodyStream: const Stream<List<int>>.empty(),
+        ));
+
+    setUp(() async {
+      await firstRun();
+      final Directory root = Directory.systemTemp.createTempSync('dv_shut_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/index.html').writeAsStringSync('<title>Studio</title>');
+      shut = DVAdminServer(
+        mount: const DVAdminMount(
+            path: '/__studio', enabled: true, requiresAuth: true),
+        root: root.path,
+        // Nobody is signed in, which is the state the owner is in.
+        authenticated: (Request _) async => false,
+        database: database,
+      );
+    });
+
+    test('a browser that has not signed in is given the setup screen',
+        () async {
+      final Response? response = await get(shut, '/__studio/');
+
+      expect(response?.status, 200);
+      expect(utf8.decode(await response!.body!.bytes()),
+          contains('Finish setting up'));
+    });
+
+    test('it does not name the owner to whoever found the mount', () async {
+      // The page is open to the internet while the setup is pending. Printing
+      // the address on it hands half a credential to whoever asks.
+      final Response? response = await get(shut, '/__studio/');
+
+      expect(utf8.decode(await response!.body!.bytes()),
+          isNot(contains('owner@oakline.test')));
+    });
+
+    test('once the setup is done the mount is shut to them again', () async {
+      final DVFirstRunOwner owner =
+          DVFirstRunOwner(userId: '', email: '', password: '');
+      expect(owner.password, '');
+      final List<Map<String, Object?>> rows = await DVRecordAdapter.over(database)
+          .find(DVFirstRunOwner.table);
+      await DVFirstRunOwner.recordPasswordChanged('${rows.first['user_id']}');
+      await DVFirstRunOwner.recordSecondFactor('${rows.first['user_id']}');
+
+      expect(await get(shut, '/__studio/'), isNull,
+          reason: 'a request from somebody not signed in is answered exactly '
+              'as a route that does not exist');
+    });
   });
 }

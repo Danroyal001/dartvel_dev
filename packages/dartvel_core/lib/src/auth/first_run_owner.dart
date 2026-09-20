@@ -141,6 +141,41 @@ class DVFirstRunOwner {
     }
   }
 
+  /// Records that the first owner changed their password, if [userId] is
+  /// the first owner. Called by the application's own password endpoint.
+  ///
+  /// Guarded, because every account goes through that endpoint. A hook that
+  /// did not check whose password it was would open Studio the first time
+  /// any user changed one, and delete the owner's file on the way.
+  static Future<void> recordPasswordChanged(String userId) async {
+    if (!await _isOwner(userId)) return;
+    await changed(userId);
+  }
+
+  /// Records that the first owner turned on a second factor, if [userId] is
+  /// the first owner. Called by the application's own confirm endpoint.
+  static Future<void> recordSecondFactor(String userId) async {
+    if (!await _isOwner(userId)) return;
+    await secondFactorEnrolled(userId);
+  }
+
+  /// Whether [userId] is the account this application's first run minted.
+  ///
+  /// Answers false when there is no database or no first-run table, so a
+  /// password change on an application that never had a first run is
+  /// untouched by any of this.
+  static Future<bool> _isOwner(String userId) async {
+    try {
+      final DVRecordAdapter records = const DVDatabase().records;
+      await records.ensure(_shape);
+      final List<Map<String, Object?>> rows = await records
+          .find(table, where: DVFilter.equals('user_id', userId));
+      return rows.isNotEmpty;
+    } on Object {
+      return false;
+    }
+  }
+
   /// Records that the owner turned on a second factor.
   static Future<void> secondFactorEnrolled(String userId,
       {DVDatabaseAdapter? database}) async {
