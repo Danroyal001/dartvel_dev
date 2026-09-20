@@ -749,6 +749,20 @@ class DVSessionCookie {
   });
 
   static final RegExp _cookieSafe = RegExp(r'^[A-Za-z0-9_\-]+$');
+  /// Whether a request arrived over plain http at a loopback host, where a
+  /// Secure cookie is one the browser drops.
+  ///
+  /// A fact about the request, not about how the binary was built: a release
+  /// binary run on a developer's machine is served over http://localhost, and
+  /// a Secure cookie set there is refused silently -- sign-in answers 200 and
+  /// the next page is signed out, with no error anywhere. A proxy that
+  /// terminated TLS says so in x-forwarded-proto, and the cookie stays Secure.
+  static bool plainLocal(Uri url, {String? forwardedProto}) {
+    final String scheme = (forwardedProto ?? url.scheme).toLowerCase();
+    if (scheme == 'https') return false;
+    final String host = url.host.toLowerCase();
+    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+  }
 
   /// The name the cookie is set under. `__Host-` requires `Secure`, which
   /// plain-HTTP development cannot have, so development drops both rather
