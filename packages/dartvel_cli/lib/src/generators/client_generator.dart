@@ -406,6 +406,7 @@ class ClientGenerator {
           // build, a whitelisted key, and a route that ran nothing.
           middleware: _pageMiddleware(src),
           sitemap: _pageSitemap(src),
+          description: _pageDescription(src),
           route: route,
           directory: dir,
           isFunctional: isFunctional,
@@ -1663,7 +1664,17 @@ class ${e.generatedWidget} extends DartvelPage {
 
   @override
   DVPageScaffoldSpec get pageScaffold => ${e.pageScaffold};
-
+${e.description == null ? '' : '''
+  /// What `@DVPage(description:)` says this page is about. The route puts it
+  /// under the page's own props, so a page that computes one still wins, and
+  /// it is what the static build writes into this route's meta tags.
+  @override
+  SeoProps buildWebSeo(
+    Map<String, String> params,
+    Map<String, String> query,
+  ) =>
+      const SeoProps(description: ${e.description});
+'''}
 ${e.isFunctional ? '''  @override
   Future<Object?> loadData(
     Map<String, String> params,
@@ -3029,6 +3040,17 @@ void startDartvelKiosk() {
   /// annotation carried and this parser does not know about survives into
   /// the router instead of being dropped on the way through. The result is
   /// checked by the analyzer, because the router is compiled.
+  /// The sentence `@DVPage(description:)` declares, as a Dart string
+  /// literal, or null.
+  ///
+  /// Re-emitted as written so an escape or an adjacent-string concatenation
+  /// survives; [_namedStringArg] is the same reader the title goes through.
+  static String? _pageDescription(String source) {
+    final String? args = dvAnnotationArgs(source, 'DVPage');
+    if (args == null) return null;
+    return _namedStringArg(args, 'description');
+  }
+
   static String? _pageSitemap(String source) {
     final String? args = dvAnnotationArgs(source, 'DVPage');
     if (args == null) return null;
@@ -4066,6 +4088,12 @@ class _PageEntry {
   /// annotation, and scraping one out of the router with a regular
   /// expression is what published every private route the last time it was
   /// tried.
+  /// The sentence `@DVPage(description:)` declares, as a Dart string
+  /// literal, or null. Becomes a `buildWebSeo` override on the page class,
+  /// so the running page applies it, and the static build reads it back out
+  /// of the router for the prerendered file's meta tags.
+  final String? description;
+
   final String? sitemap;
 
   const _PageEntry({
@@ -4084,6 +4112,7 @@ class _PageEntry {
     this.body,
     this.sourceSymbols = const <String>{},
     this.text = const <String>[],
+    this.description,
     this.sitemap,
     this.loadingAlias,
     this.errorAlias,

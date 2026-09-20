@@ -3121,6 +3121,11 @@ class BuildCommand extends Command<void> {
     // What each page calls itself, which is better than anything derivable
     // from the path.
     final declared = dvRouteTitles(_routerSource(root));
+    // And what each page says it is *about*. Without this every page on the
+    // site shipped dartvel.seo.description, so fifty pages competed for one
+    // snippet and a search engine had no reason to tell them apart.
+    final Map<String, String> declaredDescriptions =
+        dvRouteDescriptions(_routerSource(root));
 
     // Which icon each generated model page wears. `@DVModel(favicon:)` was
     // read by the web server's page resolver and by nothing else, so a site
@@ -3155,7 +3160,8 @@ class BuildCommand extends Command<void> {
         title: meta?.title ??
             declared[route] ??
             '${_routeLabel(route)} — $baseTitle',
-        description: dvSeoDescription(settings),
+        description:
+            declaredDescriptions[route] ?? dvSeoDescription(settings),
         content: meta?.content,
         siteUrl: siteUrl,
         image: settings['image'] as String?,
