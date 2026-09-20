@@ -18,7 +18,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
-import '../media/image_view.dart';
 
 /// A renderer that draws onto a Flutter canvas: the shape a Flutter GPU
 /// adapter takes, rendering to a texture and drawing it here.

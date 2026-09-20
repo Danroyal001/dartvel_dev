@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
-import '../media/image_view.dart';
 import 'deployed_pages_stub.dart'
     if (dart.library.io) 'deployed_pages_io.dart' as deployed;
 

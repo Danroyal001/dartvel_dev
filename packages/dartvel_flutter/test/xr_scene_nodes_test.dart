@@ -4,7 +4,7 @@
 // uses must resolve into the document every presentation reads, and a phone
 // showing that scene flat must draw it and say what it could not honour --
 // not refuse to render, and not render quietly with the sign at the origin.
-import 'package:dartvel_core/dartvel.dart'
+import 'package:dartvel_core/src/observability/observability.dart'
     show DVLogRecord, DVLogSink, DVLogger, DVMemoryLogSink, DVObservability;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
