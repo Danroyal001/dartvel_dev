@@ -1,4 +1,5 @@
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dv.dart';
 
 // docs:start backend-lifecycle
 @DVBackendFunction()
