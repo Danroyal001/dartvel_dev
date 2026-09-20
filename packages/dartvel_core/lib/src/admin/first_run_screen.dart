@@ -6,8 +6,19 @@
 /// this is what every route on the mount answers with.
 library dartvel_core.admin.first_run_screen;
 
-/// The page, with [mount] as the address its form posts to.
-String dvFirstRunScreen({required String mount, required String address}) => '''
+/// The page.
+///
+/// [api] is where the application's own auth endpoints answer, since the
+/// screen drives those: sign in, change the password, start the
+/// authenticator, confirm it. There is no first-run endpoint of its own,
+/// because a second copy of those four is a second place for the rate limit,
+/// the CSRF check and the session rotation to be got wrong.
+///
+/// It asks for the address instead of printing it. This screen is served
+/// before anybody has signed in -- it has to be, or the owner could never
+/// reach it -- and naming the owner's address on a page open to the internet
+/// is handing half a credential to whoever finds the mount.
+String dvFirstRunScreen({required String mount, required String api}) => '''
 <!doctype html>
 <html lang="en">
 <head>
@@ -53,12 +64,15 @@ String dvFirstRunScreen({required String mount, required String address}) => '''
       once you have replaced it and turned on a second factor.</p>
 
     <form class="step" data-on id="one">
+      <label for="address">The address it printed</label>
+      <input id="address" type="email" autocomplete="username" required>
       <label for="password">The password it printed</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <label for="next">Your new password</label>
       <input id="next" type="password" autocomplete="new-password" required>
       <button type="submit">Change it</button>
-      <p class="note">Signing in as $address.</p>
+      <p class="note">Both are in the line this application printed when it
+        first ran, and in initial-owner-password.txt beside its database.</p>
       <p class="bad" id="one-bad"></p>
     </form>
 
@@ -74,7 +88,7 @@ String dvFirstRunScreen({required String mount, required String address}) => '''
 </main>
 <script>
   const mount = ${_json(mount)};
-  const address = ${_json(address)};
+  const api = ${_json(api)};
   const csrf = 'b'.repeat(32);
   const post = (path, body) => fetch(path, {
     method: 'POST', credentials: 'same-origin',
@@ -91,21 +105,23 @@ String dvFirstRunScreen({required String mount, required String address}) => '''
     e.preventDefault();
     const bad = document.getElementById('one-bad');
     bad.textContent = '';
+    const address = document.getElementById('address').value;
     const current = document.getElementById('password').value;
     const next = document.getElementById('next').value;
-    const signedIn = await post('/api/auth/sign-in',
+    const signedIn = await post(api + '/auth/sign-in',
       { email: address, password: current });
     if (!signedIn.ok) {
-      bad.textContent = 'That is not the password this application printed.';
+      bad.textContent = 'That is not the address and password this '
+        + 'application printed.';
       return;
     }
-    const changed = await post(mount + '/api/first-run/password',
-      { current: current, password: next });
+    const changed = await post(api + '/auth/account/password',
+      { currentPassword: current, newPassword: next });
     if (!changed.ok) {
       bad.textContent = (await changed.json()).message || 'That did not work.';
       return;
     }
-    const started = await post(mount + '/api/first-run/second-factor', {});
+    const started = await post(api + '/auth/factors/totp', {});
     const enrolment = await started.json();
     document.getElementById('secret').textContent = enrolment.secret || '';
     show('two');
@@ -114,7 +130,7 @@ String dvFirstRunScreen({required String mount, required String address}) => '''
     e.preventDefault();
     const bad = document.getElementById('two-bad');
     bad.textContent = '';
-    const done = await post(mount + '/api/first-run/second-factor/confirm',
+    const done = await post(api + '/auth/factors/totp/confirm',
       { code: document.getElementById('code').value });
     if (!done.ok) {
       bad.textContent = 'That code did not match. Try the next one.';

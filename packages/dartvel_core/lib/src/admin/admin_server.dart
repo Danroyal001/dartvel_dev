@@ -249,6 +249,7 @@ class DVAdminServer {
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
     List<String>? queues,
+    this.apiBasePath = '/api',
     this.devGrant,
   })  : _authenticated =
             authenticated ?? devGrant?.check ?? dvAdminAuthorized,
@@ -274,6 +275,11 @@ class DVAdminServer {
   /// The adapter this mount reads, for the first-run check.
   final DVDatabaseAdapter? _database;
 
+  /// Where the application's own auth endpoints answer, which the first-run
+  /// screen drives. The application's setting, not a guess: a project that
+  /// moved its API would otherwise get a setup screen posting into nothing.
+  final String apiBasePath;
+
   /// The development grant, on a development server: the mount serves the
   /// browser that opened the grant's link, and nobody else.
   final DVStudioDevGrant? devGrant;
@@ -297,6 +303,33 @@ class DVAdminServer {
     if (!mount.owns(path)) return null;
     final Response? claimed = devGrant?.claim(request, mount);
     if (claimed != null) return claimed;
+    // An application still on the password its first run printed is one
+    // anybody who saw that console can open. Until the owner has replaced it
+    // and turned on a second factor, every route on the mount answers with
+    // the screen that finishes the setup, and nothing else does.
+    //
+    // Before the sign-in check, because signing in is what the screen is
+    // for: the owner has an address and a password and no session, so
+    // answering them the way this mount answers a stranger would make the
+    // setup screen unreachable by the only person who needs it. The screen
+    // names nobody and carries no data, and the only credential that opens
+    // anything behind it is 32 characters of secure random. It stops being
+    // served the moment the setup is done.
+    if (mount.enabled &&
+        await DVFirstRunOwner.setupPending(database: _database)) {
+      return Response(
+        200,
+        headers: Headers(const <String, String>{
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          // Not a page anybody should be able to frame.
+          'x-frame-options': 'DENY',
+          'referrer-policy': 'no-referrer',
+        }),
+        body: Stream<List<int>>.value(utf8.encode(
+            dvFirstRunScreen(mount: mount.path, api: apiBasePath))),
+      );
+    }
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
@@ -304,26 +337,6 @@ class DVAdminServer {
       authenticated: mount.requiresAuth && await _authenticated(request),
     );
     if (decision != DVAdminRequest.serve) return null;
-    // An application still on the password its first run printed is one
-    // anybody who saw that console can open. Until the owner has replaced it
-    // and turned on a second factor, every route on the mount answers with
-    // the screen that finishes the setup -- and nothing else does.
-    final String setupPrefix = '${mount.path}/api/first-run';
-    if (!path.startsWith(setupPrefix) &&
-        await DVFirstRunOwner.setupPending(database: _database)) {
-      return Response(
-        200,
-        headers: Headers(const <String, String>{
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-        }),
-        body: Stream<List<int>>.value(utf8.encode(dvFirstRunScreen(
-          mount: mount.path,
-          address: await DVFirstRunOwner.ownerAddress(database: _database) ??
-              'the owner',
-        ))),
-      );
-    }
     final String apiPrefix = '${mount.path}/api/';
     if (path.startsWith(apiPrefix)) {
       // On the request's tenant, as every route of the application is, so a
