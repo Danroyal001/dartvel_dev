@@ -1439,8 +1439,11 @@ class DVAuthEndpoints {
   /// machine that built it.
   static bool _plainCookie(Request request, DVSessionAuthentication? stage) =>
       (stage?.development ?? false) ||
-      DVSessionCookie.plainLocal(request.url,
-          forwardedProto: request.headers.get('x-forwarded-proto'));
+      DVSessionCookie.plainLocal(
+        request.url,
+        forwardedProto: request.headers.get('x-forwarded-proto'),
+        host: request.headers.get('host'),
+      );
 
   static DVSessionAuthentication _stage() =>
       DVSessionAuthentication.installed ??
