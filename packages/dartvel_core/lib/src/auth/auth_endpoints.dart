@@ -513,12 +513,12 @@ class DVAuthEndpoints {
           tenant: const DVTenants().currentTenant,
         );
         final DVSession? session = check.session;
-        if (session == null) return _invalidSession(stage, presented);
+        if (session == null) return _invalidSession(stage, presented, request: request);
         if (session.mfaPending &&
             DateTime.now().toUtc().difference(session.createdAt) >
                 _secondFactorWindow) {
           await sessions.revoke(session.id);
-          return _invalidSession(stage, presented);
+          return _invalidSession(stage, presented, request: request);
         }
         final _Body body = await _body(request);
         final Response? refused = body.refused;
@@ -564,7 +564,6 @@ class DVAuthEndpoints {
   static Future<Response> signOut(Request request) => _guard(() async {
         final DVSessionAuthentication? stage = DVSessionAuthentication.installed;
         final DVSessionCookie cookie = stage?.cookie ?? const DVSessionCookie();
-        final bool development = stage?.development ?? false;
         if (stage != null) {
           final _Presented? presented = _presented(request, stage);
           if (presented != null) {
@@ -581,7 +580,8 @@ class DVAuthEndpoints {
           204,
           headers: Headers(<String, Object?>{
             ..._noStore,
-            'set-cookie': cookie.clearHeader(development: development),
+            'set-cookie':
+                cookie.clearHeader(development: _plainCookie(request, stage)),
           }),
         );
       });
@@ -642,7 +642,8 @@ class DVAuthEndpoints {
             ..._noStore,
             // Revoking this session is signing this device out.
             if (target.id == principal.session.id)
-              'set-cookie': stage.cookie.clearHeader(development: stage.development),
+              'set-cookie': stage.cookie
+                  .clearHeader(development: _plainCookie(request, stage)),
           }),
         );
       });
@@ -1162,7 +1163,8 @@ class DVAuthEndpoints {
               'erasesAt': dueAt.toIso8601String(),
             },
             headers: <String, String>{
-              'set-cookie': stage.cookie.clearHeader(development: stage.development),
+              'set-cookie': stage.cookie
+                  .clearHeader(development: _plainCookie(request, stage)),
             },
           );
         }
@@ -1196,7 +1198,8 @@ class DVAuthEndpoints {
             },
           },
           headers: <String, String>{
-            'set-cookie': stage.cookie.clearHeader(development: stage.development),
+            'set-cookie': stage.cookie
+                  .clearHeader(development: _plainCookie(request, stage)),
           },
         );
       });
@@ -1415,7 +1418,8 @@ class DVAuthEndpoints {
       headers: <String, String>{
         if (!inBody)
           'set-cookie':
-              stage.cookie.header(issued.token, development: stage.development),
+              stage.cookie.header(issued.token,
+                  development: _plainCookie(request, stage)),
       },
     );
   }
@@ -1426,6 +1430,18 @@ class DVAuthEndpoints {
           if (s.tenant == principal.tenant) s,
       ];
 
+  /// Whether this request's cookie drops Secure and the `__Host-` prefix.
+  ///
+  /// The installed stage says so for a development build; the request says
+  /// so when it arrived over plain http at a loopback host, where a browser
+  /// refuses a Secure cookie and the sign-in that set it silently does
+  /// nothing. That is every `dartvel build web-server` binary run on the
+  /// machine that built it.
+  static bool _plainCookie(Request request, DVSessionAuthentication? stage) =>
+      (stage?.development ?? false) ||
+      DVSessionCookie.plainLocal(request.url,
+          forwardedProto: request.headers.get('x-forwarded-proto'));
+
   static DVSessionAuthentication _stage() =>
       DVSessionAuthentication.installed ??
       (throw StateError('No session authentication is installed.'));
@@ -1435,7 +1451,8 @@ class DVAuthEndpoints {
         DVSessionAuthentication.credentialOf(request.headers.get('authorization'));
     if (bearer != null) return _Presented(bearer, fromCookie: false);
     final String? carried = stage.cookie
-        .read(request.headers.get('cookie'), development: stage.development);
+        .read(request.headers.get('cookie'),
+            development: _plainCookie(request, stage));
     return carried == null ? null : _Presented(carried, fromCookie: true);
   }
 
@@ -1525,8 +1542,9 @@ class DVAuthEndpoints {
 
   static Response _invalidSession(
     DVSessionAuthentication stage,
-    _Presented presented,
-  ) =>
+    _Presented presented, {
+    Request? request,
+  }) =>
       Response(
         401,
         headers: Headers(<String, Object?>{
@@ -1534,7 +1552,10 @@ class DVAuthEndpoints {
           'www-authenticate': 'Bearer error="invalid_token"',
           ..._noStore,
           if (presented.fromCookie)
-            'set-cookie': stage.cookie.clearHeader(development: stage.development),
+            'set-cookie': stage.cookie.clearHeader(
+                development: request == null
+                    ? stage.development
+                    : _plainCookie(request, stage)),
         }),
         body: Stream<List<int>>.value(utf8.encode('Unauthorized')),
       );
