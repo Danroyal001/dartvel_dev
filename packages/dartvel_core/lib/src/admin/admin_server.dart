@@ -20,6 +20,7 @@ import 'dart:typed_data';
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/auth.dart' show DVAccountDirectory;
 import '../auth/session_authentication.dart';
+import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
@@ -211,6 +212,11 @@ Future<bool> dvAdminAuthorized(Request request) =>
     dvWithRequestTenant(request, () async {
       final DVSessionAuthenticationResult result =
           await DVSessionAuthentication.authenticateRequest(
+        plainLocal: DVSessionCookie.plainLocal(
+          request.url,
+          forwardedProto: request.headers.get('x-forwarded-proto'),
+          host: request.headers.get('host'),
+        ),
         authorization: request.headers.get('authorization'),
         cookie: request.headers.get('cookie'),
       );

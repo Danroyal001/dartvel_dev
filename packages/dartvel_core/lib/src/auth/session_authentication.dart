@@ -231,13 +231,21 @@ class DVSessionAuthentication {
   /// Without an installed stage a presented session is refused with 503
   /// rather than ignored: ignoring it would hand the route a request its
   /// caller believes is authenticated and nothing checked.
+  /// [plainLocal] says the request arrived over plain http at a loopback
+  /// host, where the cookie could not be Secure and so carries the bare
+  /// name. `DVSessionCookie.plainLocal` answers it from the request.
   static Future<DVSessionAuthenticationResult> authenticateRequest({
     String? authorization,
     String? cookie,
+    bool plainLocal = false,
   }) async {
     final DVSessionAuthentication? stage = _installed;
     if (stage != null) {
-      return stage.authenticate(authorization: authorization, cookie: cookie);
+      return stage.authenticate(
+        authorization: authorization,
+        cookie: cookie,
+        plainLocal: plainLocal,
+      );
     }
     const DVSessionCookie defaults = DVSessionCookie();
     final bool presented = credentialOf(authorization) != null ||
@@ -255,10 +263,17 @@ class DVSessionAuthentication {
     String? authorization,
     String? cookie,
     String? tenant,
+    bool plainLocal = false,
   }) async {
     final String? bearer = credentialOf(authorization);
-    final String? carried =
-        bearer == null ? this.cookie.read(cookie, development: development) : null;
+    // The name this deployment sets, and -- on this machine only -- the
+    // bare name a browser keeps when the cookie could not be Secure. A
+    // request from anywhere else is read under one name, so a cookie set on
+    // a neighbouring subdomain is not a session here.
+    final String? carried = bearer == null
+        ? (this.cookie.read(cookie, development: development) ??
+            (plainLocal ? this.cookie.read(cookie, development: true) : null))
+        : null;
     final String? token = bearer ?? carried;
     if (token == null) return DVSessionAuthenticationResult.none;
     final bool fromCookie = bearer == null;
