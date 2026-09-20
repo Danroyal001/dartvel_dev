@@ -154,9 +154,24 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
   }
 
   Future<void> _open(String name) async {
-    final document = await _store.load(name);
-    if (!mounted || document == null) return;
-    _select(document);
+    // A load that threw used to leave the panel reading "No function open"
+    // beside a list with that very function in it, so a document that will
+    // not parse was indistinguishable from a tap that missed. Found while
+    // photographing Studio: the Frontend list had the function, the tap
+    // landed, and the builder stayed empty in every capture.
+    try {
+      final document = await _store.load(name);
+      if (!mounted) return;
+      if (document == null) {
+        setState(() => _problem = 'There is no function called $name any '
+            'more. Reload the list.');
+        return;
+      }
+      _select(document);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _problem = 'Could not open $name: $error');
+    }
   }
 
   void _select(DVWorkflowDocument document) {
