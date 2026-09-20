@@ -757,11 +757,29 @@ class DVSessionCookie {
   /// a Secure cookie set there is refused silently -- sign-in answers 200 and
   /// the next page is signed out, with no error anywhere. A proxy that
   /// terminated TLS says so in x-forwarded-proto, and the cookie stays Secure.
-  static bool plainLocal(Uri url, {String? forwardedProto}) {
-    final String scheme = (forwardedProto ?? url.scheme).toLowerCase();
+  static bool plainLocal(Uri url, {String? forwardedProto, String? host}) {
+    final String scheme =
+        (forwardedProto ?? (url.hasScheme ? url.scheme : 'http')).toLowerCase();
     if (scheme == 'https') return false;
-    final String host = url.host.toLowerCase();
-    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+    // A server's Request carries the path; the host is in the header.
+    final String name =
+        (url.host.isNotEmpty ? url.host : (host ?? '')).toLowerCase();
+    return _loopback(name);
+  }
+
+  /// Whether [host] is this machine, with any port and IPv6 brackets off.
+  ///
+  /// Split on the last colon only outside brackets: `::1` is a host, not a
+  /// host and a port.
+  static bool _loopback(String host) {
+    String bare = host;
+    if (bare.startsWith('[')) {
+      final int close = bare.indexOf(']');
+      bare = close < 0 ? bare.substring(1) : bare.substring(1, close);
+    } else if (':'.allMatches(bare).length == 1) {
+      bare = bare.split(':').first;
+    }
+    return bare == 'localhost' || bare == '127.0.0.1' || bare == '::1';
   }
 
   /// The name the cookie is set under. `__Host-` requires `Secure`, which
