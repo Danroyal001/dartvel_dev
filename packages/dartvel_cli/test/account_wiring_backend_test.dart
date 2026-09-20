@@ -32,6 +32,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' hide Platform;
+import 'package:dartvel_core/dv.dart';
 
 import '../.dart_tool/dartvel_backend_routes.g.dart' as gen;
 
