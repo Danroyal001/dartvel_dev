@@ -9,6 +9,7 @@
 // workers_web.dart.
 library;
 
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:typed_data';
 

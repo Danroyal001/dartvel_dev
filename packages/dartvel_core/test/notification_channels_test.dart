@@ -13,6 +13,7 @@
 // the address that channel needs, preferences and quiet hours can suppress a
 // channel, push falls back to Web Push, and a send that reached nobody says so
 // instead of returning quietly.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';

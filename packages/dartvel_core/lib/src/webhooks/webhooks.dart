@@ -10,6 +10,7 @@
 /// every delivery that answers "we never got it".
 library dartvel_core.webhooks;
 
+import '../observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';

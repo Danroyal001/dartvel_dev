@@ -4,6 +4,7 @@
 // resource uploaded and never released, a resource released twice or drawn
 // after release, draw order that changes between runs, and a poster shown
 // without anyone being told why.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
