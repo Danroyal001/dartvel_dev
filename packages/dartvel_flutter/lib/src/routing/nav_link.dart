@@ -210,6 +210,13 @@ class _DVNavLinkState extends State<DVNavLink> {
       // about layout, and there is none until the first frame has run.
       WidgetsBinding.instance.addPostFrameCallback((_) => _watchVisibility());
     }
+    if (widget.autofocus && widget.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.enabled) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
