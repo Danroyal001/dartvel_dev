@@ -225,6 +225,29 @@ void main() {
           }));
       expect(browser?.status, 200);
 
+      // And the cookie a browser keeps when the binary is served over
+      // http://localhost, which is every build run on the machine that
+      // made it: Secure cannot be set there, so the name carries no
+      // __Host- prefix. Studio answered the application's own page
+      // instead of itself, and the developer saw their shop.
+      final Response? local = await server.respond(_get('/__studio/',
+          headers: <String, String>{
+            'host': 'localhost:8093',
+            'cookie':
+                '${cookie.cookieName(development: true)}=${issued.token}',
+          }));
+      expect(local?.status, 200);
+
+      // The same cookie from somewhere that is not this machine is not a
+      // session: only the prefixed name counts there.
+      expect(
+        await server.respond(_get('/__studio/', headers: <String, String>{
+          'host': 'shop.example.com',
+          'cookie':
+              '${cookie.cookieName(development: true)}=${issued.token}',
+        })),
+        isNull,
+      );
       // The grant is taken away: nothing again, on the same live session.
       expect(await grants.revoke('u-operator'), isTrue);
       expect(
