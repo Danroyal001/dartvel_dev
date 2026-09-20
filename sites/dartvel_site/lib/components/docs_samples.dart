@@ -251,7 +251,7 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  final DVLifecycleSignal<DVRequestLifecycle> request = context.lifecycle.request;',
     '  request.listen((DVRequestLifecycle state) {',
     '    if (state == DVRequestLifecycle.failed) {',
-    '      DVObservability.log(\'export \$id failed\', level: DVLogLevel.warn);',
+    '      DV.log(\'export \$id failed\', level: DVLogLevel.warn);',
     '    }',
     '  });',
     '  return <String, Object?>{\'id\': id, \'stage\': request.value.name};',
