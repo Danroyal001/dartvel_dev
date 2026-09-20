@@ -2,8 +2,6 @@
 // the exporter emits an ordinary @DVBackendFunction. Same bargain as the page
 // builder — data so saving publishes, code so the builder can be dropped.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:dartvel_core/dartvel.dart';
-
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
