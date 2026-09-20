@@ -58,6 +58,7 @@ Future<Map<String, Object?>> call(
         await http.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
     request.headers.set('x-tenant', 'acme');
     request.headers.set('x-forwarded-for', '203.0.113.9');
+    request.headers.set('x-forwarded-proto', 'https');
     if (client == 'native') {
       request.headers.set('x-dartvel-session-delivery', 'token');
     } else {

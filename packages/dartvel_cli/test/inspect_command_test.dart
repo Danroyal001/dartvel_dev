@@ -80,7 +80,7 @@ void main() {
         jsonDecode(await runInspect(<String>['--json'], root))
             as Map<String, Object?>;
 
-    expect(json['graphVersion'], 1);
+    expect(json['graphVersion'], 2);
     expect(json.keys, containsAll(<String>['models', 'routes']));
   });
 
