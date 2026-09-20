@@ -23,6 +23,12 @@ DVImageVariants _builtVariants() =>
 /// configured widths -- the way NextFaster's `srcset` does, so a phone
 /// downloads the 640 and not the 3840. Everywhere else, and for a file or a
 /// stored image, it fetches the image as it is.
+/// A widget that renders an image.
+///
+/// Use [DVBox.image] or [DVModifier.backgroundImage] on the public surface.
+@Deprecated('Use DVBox.image or DVModifier.backgroundImage instead')
+typedef DVImageView = DVImageRender;
+
 class DVImageRender extends StatelessWidget {
   final DVImage? image;
 
