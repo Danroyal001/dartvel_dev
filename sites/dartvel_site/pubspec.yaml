@@ -43,6 +43,7 @@ flutter:
   # Screenshots of the real Studio, shown on /studio and the home page.
   assets:
     - assets/studio/
+    - assets/studio/sections/
 
 dartvel:
   backendHost: 0.0.0.0
