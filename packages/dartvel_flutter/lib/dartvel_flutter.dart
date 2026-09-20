@@ -702,7 +702,11 @@ export 'src/lifecycle/app_lifecycle_bridge.dart';
 // The renderer behind DVBox.image is not a second image widget, so it is
 // not exported; what the site build needs from it is.
 export 'src/media/image_view.dart'
-    show dvImageServedPath, dvImageVariantProvider;
+    show
+        DVImageRender,
+        DVImageView,
+        dvImageServedPath,
+        dvImageVariantProvider;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/modules/module_shell.dart';
