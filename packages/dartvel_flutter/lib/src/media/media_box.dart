@@ -9,7 +9,7 @@ library;
 
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/dartvel.dart' hide DV;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

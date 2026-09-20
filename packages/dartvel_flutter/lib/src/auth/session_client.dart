@@ -188,7 +188,7 @@ class DVSealedSessionTokenStore implements DVSessionTokenStore {
     try {
       return DVAppKeyCipher(await DVAppKey.ensure(await keys()));
     } on Object catch (error) {
-      DVObservability.log(
+      DV.log(
         'The application key store could not be used '
         '(${error.runtimeType}); the session token is not written down.',
         level: DVLogLevel.warn,
@@ -379,7 +379,7 @@ class DVSessionClient {
     const String path = DVAuthEndpoints.sessionPath;
     final DVHttpResponse response = await _request('GET', path, bearer: _token);
     if (response.statusCode == 401) {
-      DVObservability.log(
+      DV.log(
         'DV-SESSION-002: this device\'s session is no longer live; it was '
         'signed out.',
         code: 'DV-SESSION-002',
@@ -640,7 +640,7 @@ class DVSessionClient {
       try {
         await _tokens?.write(token);
       } on Object catch (error) {
-        DVObservability.log(
+        DV.log(
           'The session token could not be stored (${error.runtimeType}); it '
           'lasts for this process.',
           level: DVLogLevel.warn,

@@ -260,17 +260,13 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
           const SizedBox(height: DVStudioStyle.space3),
           DVStudioStyle.tooltip(
             'Dartvel Studio',
-            // The Dartvel mark on a white tile, which keeps its gradient
-            // legible on the dark rail in both themes.
+            // On the rail itself. A white tile under it read as a logo
+            // pasted onto a dark tool, and the mark's own gradient is
+            // bright enough on the rail without one.
             Container(
               key: const ValueKey<String>('dv-studio-mark'),
-              width: 36,
-              height: 36,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFFFF),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              width: 32,
+              height: 32,
               child: const CustomPaint(painter: DVStudioMarkPainter()),
             ),
           ),
