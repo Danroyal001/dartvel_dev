@@ -110,6 +110,12 @@ void main() {
           find.descendant(of: mark, matching: find.byType(CustomPaint)).first).painter,
       isA<DVStudioMarkPainter>(),
     );
+    // On the rail itself, not on a tile: a white plate under the mark reads
+    // as a logo pasted onto a dark tool.
+    final Container tile = tester.widget<Container>(mark);
+    final BoxDecoration? plate = tile.decoration as BoxDecoration?;
+    expect(plate?.color, anyOf(isNull, const Color(0x00000000)),
+        reason: 'the mark sits on the rail, not on a plate');
   });
 
   // The button says Deploy, so the overview that explains it must not send
