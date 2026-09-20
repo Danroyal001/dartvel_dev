@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
+import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/qr_code.dart' show DVQrImage;
@@ -673,6 +674,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelSerializer;
 export 'package:go_router/go_router.dart';
 
+export 'src/accessibility/keyboard_scroll.dart';
 export 'src/accessibility/switch_control.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
@@ -9357,7 +9359,13 @@ class _DVPageShellState extends State<DVPageShell> {
     final bool onTop = ModalRoute.of(context)?.isCurrent ?? true;
     if (onTop) _everOnTop = true;
     final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
-    final content = selectable
+    // The arrow keys, Page Up, Page Down, Home, End and the space bar. Above
+    // the page rather than inside it, so a focused control still gets its own
+    // keys first and only what is left over scrolls -- and no page has to ask
+    // for this, because a page a keyboard cannot move is a broken page rather
+    // than a style.
+    final Widget scrollable = DVKeyboardScroll(child: keyed);
+    final Widget selectionWrapped = selectable
         ? SelectionArea(
             // skipTraversal, because a SelectionArea is focusable and would
             // otherwise take the first tab stop on every page: the first Tab
@@ -9371,11 +9379,12 @@ class _DVPageShellState extends State<DVPageShell> {
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
-              child: keyed,
+              child: scrollable,
             ),
           )
-        : keyed;
-    final Widget framed = spec.safeArea ? SafeArea(child: content) : content;
+        : scrollable;
+    final Widget framed =
+        spec.safeArea ? SafeArea(child: selectionWrapped) : selectionWrapped;
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
       return framed;
     }
