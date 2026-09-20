@@ -217,14 +217,25 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       // builder should have open, the model whose records to show.
       final String? inside = open[label];
       if (inside != null) {
-        final List<Map<String, Object?>> found =
-            await _rail(page, <String>[inside]);
-        if (found.isNotEmpty) {
+        // Polled. The section's own list arrives after the section does, so
+        // one look finds nothing and the capture silently photographed a
+        // builder with the function sitting unopened beside it.
+        final DateTime by = DateTime.now().add(const Duration(seconds: 15));
+        List<Map<String, Object?>> found = const <Map<String, Object?>>[];
+        while (DateTime.now().isBefore(by)) {
+          found = await _rail(page, <String>[inside]);
+          if (found.isNotEmpty) break;
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+        if (found.isEmpty) {
+          stderr.writeln('studio: nothing called "$inside" in $label');
+        } else {
+          final String before = await _panel(page);
           await page.mouse.click(Point<num>(
             (found.first['x']! as num).toDouble(),
             (found.first['y']! as num).toDouble(),
           ));
-          await _settled(page, settle);
+          arrived = await _settled(page, settle, leaving: before) && arrived;
         }
       }
       // Then again, from the far side of the delay. The semantics tree
@@ -244,7 +255,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       await Future<void>.delayed(const Duration(seconds: 3));
       await _painted(page);
       final String file = p.join(outDir, dvStudioShotName(label));
-      File(file).writeAsBytesSync(await page.screenshot());
+      File(file).writeAsBytesSync(await _stablePicture(page));
       shots.add(DVStudioShot(
         label: label,
         file: file,
@@ -359,3 +370,40 @@ Future<void> _painted(Page page) => page.evaluate<Object?>(
       '() => new Promise((done) => requestAnimationFrame(() => '
       'requestAnimationFrame(() => done(0))))',
     );
+
+/// Photographs until two shots in a row are the same picture.
+///
+/// Every earlier attempt at this guessed a delay, and every guess was wrong
+/// somewhere: the semantics tree is updated in the frame that builds while
+/// the picture the browser hands back is the frame it last rastered, and on a
+/// debug build in a headless browser the gap between them is neither small
+/// nor constant. Sections reported their finished text and photographed as
+/// "Loading modules…".
+///
+/// Two identical frames is the thing actually being waited for, and it needs
+/// no guess: a renderer still catching up produces a different picture each
+/// time it is asked.
+///
+/// Bounded, and the last shot kept when the tries run out. Anything animating
+/// on the page -- a caret, a hover, a transition -- means two frames are never
+/// identical, and a section is better photographed mid-animation than after a
+/// wait nobody budgeted for.
+Future<List<int>> _stablePicture(Page page, {int tries = 8}) async {
+  List<int> previous = await page.screenshot();
+  for (int i = 0; i < tries; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final List<int> next = await page.screenshot();
+    if (_same(previous, next)) return next;
+    previous = next;
+  }
+  return previous;
+}
+
+/// Whether two PNGs are byte for byte the same.
+bool _same(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
