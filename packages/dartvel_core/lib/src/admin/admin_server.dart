@@ -19,11 +19,13 @@ import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../auth/auth.dart' show DVAccountDirectory;
+import '../auth/first_run_owner.dart';
 import '../auth/session_authentication.dart';
 import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import 'first_run_screen.dart';
 import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
@@ -250,6 +252,7 @@ class DVAdminServer {
     this.devGrant,
   })  : _authenticated =
             authenticated ?? devGrant?.check ?? dvAdminAuthorized,
+        _database = database,
         api = DVStudioApi(
           models: models,
           database: database,
@@ -267,6 +270,9 @@ class DVAdminServer {
   final String root;
 
   final Future<bool> Function(Request request) _authenticated;
+
+  /// The adapter this mount reads, for the first-run check.
+  final DVDatabaseAdapter? _database;
 
   /// The development grant, on a development server: the mount serves the
   /// browser that opened the grant's link, and nobody else.
@@ -298,6 +304,26 @@ class DVAdminServer {
       authenticated: mount.requiresAuth && await _authenticated(request),
     );
     if (decision != DVAdminRequest.serve) return null;
+    // An application still on the password its first run printed is one
+    // anybody who saw that console can open. Until the owner has replaced it
+    // and turned on a second factor, every route on the mount answers with
+    // the screen that finishes the setup -- and nothing else does.
+    final String setupPrefix = '${mount.path}/api/first-run';
+    if (!path.startsWith(setupPrefix) &&
+        await DVFirstRunOwner.setupPending(database: _database)) {
+      return Response(
+        200,
+        headers: Headers(const <String, String>{
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        }),
+        body: Stream<List<int>>.value(utf8.encode(dvFirstRunScreen(
+          mount: mount.path,
+          address: await DVFirstRunOwner.ownerAddress(database: _database) ??
+              'the owner',
+        ))),
+      );
+    }
     final String apiPrefix = '${mount.path}/api/';
     if (path.startsWith(apiPrefix)) {
       // On the request's tenant, as every route of the application is, so a

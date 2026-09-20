@@ -53,6 +53,7 @@ export 'src/auth/auth.dart';
 export 'src/auth/auth_endpoints.dart';
 export 'src/auth/backend_policy.dart';
 export 'src/auth/database_auth_provider.dart';
+export 'src/auth/first_run_owner.dart';
 export 'src/auth/oauth_endpoints.dart';
 export 'src/auth/platform_api.dart';
 export 'src/auth/platform_api_management.dart';
