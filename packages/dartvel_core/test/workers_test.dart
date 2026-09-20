@@ -9,6 +9,7 @@
 @Timeout(Duration(seconds: 30))
 library;
 
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:isolate';
 

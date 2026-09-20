@@ -11,6 +11,7 @@
 //
 // And a percentile taken from the wrong index is off by one sample, which on a
 // latency alert is the difference between firing and not.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:math';
 
 import 'package:dartvel_core/dartvel.dart';

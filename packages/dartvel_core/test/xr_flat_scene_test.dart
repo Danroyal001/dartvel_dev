@@ -6,6 +6,7 @@
 // silent failures are a passthrough scene that refuses to start because
 // "passthrough" was looked up as an asset, and anchored content drawn at the
 // origin with nobody told.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 

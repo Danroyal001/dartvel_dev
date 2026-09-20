@@ -7,6 +7,7 @@
 // running, a breaker that keeps sending traffic into a service that is down, a
 // credential that ends up in a URL — rather than on the 200 that was never
 // going to be the problem.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 

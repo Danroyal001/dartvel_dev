@@ -9,6 +9,7 @@
 // one they were written in leave the older value standing. A sensitive field
 // or an erased subject that reaches a destination has left the system for
 // good. Each has a test below that fails if the behaviour quietly regresses.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 

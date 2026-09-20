@@ -9,6 +9,7 @@
 /// [DVSemanticRetrieval]'s, and prompts are [DVPrompts].
 library dartvel_core.ai.features;
 
+import '../observability/observability.dart';
 import 'dart:async';
 import 'dart:convert';
 
