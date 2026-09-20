@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Studio image export shares the box modifier chain.** An exported image is
+  emitted as `.backgroundImage(...)` inside the single `DVModifier` chain rather
+  than on `DVBox.image`, so subsequent sizing and box styling modifiers do not
+  replace the image.
+
 - **Studio follows dark mode.** `DVStudioApp` reads the system's setting,
   `prefers-color-scheme` in a browser, and redraws when it changes. Each
   `DVStudioStyle` colour is a `DVStudioColor` with a light and a dark value,

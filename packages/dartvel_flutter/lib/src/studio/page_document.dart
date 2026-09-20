@@ -547,6 +547,18 @@ class DVPageDocument {
         ? 'const DVModifier().semanticButton().minimumTapTarget()'
         : 'const DVModifier()';
     var any = button;
+    if (node.type == 'image') {
+      final DVImage image = dvStudioImageOf(properties);
+      final String alt = image.alt == null
+          ? ''
+          : ", alt: '${_escape('${image.alt}')}'";
+      final BoxFit fit = dvStudioImageFitOf(properties['fit']);
+      final String fitArgument =
+          fit == BoxFit.cover ? '' : ', fit: BoxFit.${fit.name}';
+      source = '$source.backgroundImage(DVImage.${image.source.name}'
+          "('${_escape(image.reference)}'$alt)$fitArgument)";
+      any = true;
+    }
     properties = dvStudioEffectiveProperties(node, properties);
     final action = node.action;
     if (action != null && action['type'] == 'navigate') {
@@ -877,19 +889,10 @@ final List<DVStudioLeafType> dvStudioLeafTypes = <DVStudioLeafType>[
       dvStudioImageOf(node.properties),
       fit: dvStudioImageFitOf(node.properties['fit']),
     ),
-    source: (node, escape) {
-      final DVImage image = dvStudioImageOf(node.properties);
-      final String alt = image.alt == null
-          ? ''
-          : ", alt: '${escape('${image.alt}')}'";
-      // The default is not written: the export is the page as somebody would
-      // have written it, and nobody writes the default.
-      final BoxFit fit = dvStudioImageFitOf(node.properties['fit']);
-      final String fitArgument =
-          fit == BoxFit.cover ? '' : ', fit: BoxFit.${fit.name}';
-      return 'DVBox.image(DVImage.${image.source.name}'
-          "('${escape(image.reference)}'$alt)$fitArgument)";
-    },
+    // The image is part of the box's one modifier chain. Returning a
+    // pre-modified box here would let the style modifier appended by the
+    // exporter replace it, silently leaving a styled but empty box.
+    source: (_, _) => 'const DVBox()',
   ),
   // A button is a text node that announces itself as one. The tap itself is
   // the node's action, the same mechanism any node uses, so this adds the

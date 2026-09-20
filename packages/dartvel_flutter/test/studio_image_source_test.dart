@@ -100,6 +100,28 @@ void main() {
     expect(network, contains("DVImage.network('https://example.com/a.png')"));
   });
 
+  test('the exported image and its box styles share one modifier', () {
+    // A second .modifier(...) replaces the first one. Writing the image as
+    // one modifier and its dimensions as another therefore exports a blank
+    // box even though Studio still shows the image.
+    final String source = pageWith(const <String, Object?>{
+      'src': 'figma/1-2/logo.png',
+      'source': 'stored',
+      'fit': 'contain',
+      'width': 240,
+      'height': 160,
+    }).toDartSource();
+
+    expect(
+      source,
+      contains(
+        ".backgroundImage(DVImage.stored('figma/1-2/logo.png'), "
+        'fit: BoxFit.contain).width(240.0).height(160.0)',
+      ),
+    );
+    expect('.modifier('.allMatches(source), hasLength(1));
+  });
+
   testWidgets('a node with no image yet draws nothing, and does not throw',
       (WidgetTester tester) async {
     // One just dropped onto the canvas, or one an import could not resolve.
@@ -116,6 +138,6 @@ void main() {
     // The export walks the same nodes, so a page with an unresolved image
     // could not leave the builder at all.
     expect(pageWith(const <String, Object?>{'src': ''}).toDartSource(),
-        contains('DVImageView'));
+        contains('backgroundImage'));
   });
 }
