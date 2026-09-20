@@ -134,7 +134,7 @@ void main() {
       kind: DVApiPrincipalKind.apiKey,
       subject: 'key_1',
       tenant: 'acme',
-      organizationId: 'org_1',
+
       scopes: scopes.toSet(),
       actions: _scopes.actionsOf(scopes),
     );
@@ -210,16 +210,16 @@ void main() {
     group('API keys on $name', () {
       late DateTime now;
       late DVDatabaseAdapter database;
-      late DVOrganizations orgs;
-      late DVOrganization acme;
-      late DVOrganization globex;
       late DVApiKeys keys;
+
+      // Two tenants, which is the whole of a key's boundary.
+      const String acme = 'acme';
+      const String globex = 'globex';
 
       DVApiKeys build({bool requireExpiry = false, DVLogger? logger}) =>
           DVApiKeys(
             database: database,
             scopes: _scopes,
-            organizations: orgs,
             requireExpiry: requireExpiry,
             clock: () => now,
             logger: logger,
@@ -228,14 +228,6 @@ void main() {
       setUp(() async {
         now = DateTime.utc(2026, 9, 14, 9);
         database = create();
-        orgs = DVOrganizations(database: database, clock: () => now);
-        await orgs.ensureSchema();
-        acme = await orgs.create(name: 'Acme', tenant: 'acme', ownerId: 'ada');
-        globex = await orgs.create(
-          name: 'Globex',
-          tenant: 'globex',
-          ownerId: 'hank',
-        );
         keys = build();
         await keys.ensureSchema();
       });
@@ -251,7 +243,7 @@ void main() {
           'the secret is shown once and authenticates as the organization',
           () async {
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
               expiresIn: const Duration(days: 90),
               actor: 'ada',
@@ -265,7 +257,6 @@ void main() {
             expect(principal, isNotNull);
             expect(principal!.kind, DVApiPrincipalKind.apiKey);
             expect(principal.subject, issued.key.id);
-            expect(principal.organizationId, acme.id);
             expect(principal.tenant, 'acme');
             expect(principal.scopes, <String>{'orders:read'});
             expect(principal.permits('Order.view'), isTrue);
@@ -275,7 +266,7 @@ void main() {
 
         test('neither the table nor its history holds the secret', () async {
           final DVIssuedApiKey issued = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
             actor: 'ada',
           );
@@ -292,7 +283,7 @@ void main() {
 
         test('the history records the hash changed, never the hash', () async {
           final DVIssuedApiKey issued = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
             actor: 'ada',
           );
@@ -311,7 +302,7 @@ void main() {
           'nothing printed about an issued key carries the secret',
           () async {
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
             );
             expect('$issued', isNot(contains(issued.secret)));
@@ -321,11 +312,11 @@ void main() {
 
         test('two keys never share a secret or an id', () async {
           final DVIssuedApiKey a = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
           );
           final DVIssuedApiKey b = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
           );
           expect(a.key.id, isNot(b.key.id));
@@ -335,24 +326,12 @@ void main() {
         test('an undeclared scope is refused at issue', () async {
           await expectLater(
             keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:admin'],
             ),
             throwsA(isA<DVUndeclaredApiScope>()),
           );
           expect(await database.query('SELECT * FROM dv_api_keys'), isEmpty);
-        });
-
-        test('a key is not issued on a closed organization', () async {
-          await orgs.close(acme.id, actor: 'ada');
-          final DVOrganization closed = (await orgs.find(acme.id))!;
-          await expectLater(
-            keys.issue(
-              organization: closed,
-              scopes: const <String>['orders:read'],
-            ),
-            throwsA(isA<DVOrganizationClosed>()),
-          );
         });
 
         test(
@@ -365,7 +344,7 @@ void main() {
               logger: DVLogger(sinks: <DVLogSink>[sink]),
             );
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
             );
             expect(issued.codes, <String>['DV-APIKEY-005']);
@@ -379,7 +358,7 @@ void main() {
             );
 
             final DVIssuedApiKey expiring = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
               expiresIn: const Duration(days: 30),
             );
@@ -393,7 +372,7 @@ void main() {
 
         setUp(() async {
           issued = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
             expiresIn: const Duration(days: 90),
             actor: 'ada',
@@ -490,22 +469,14 @@ void main() {
           );
         });
 
-        test('a key stops working when its organization closes', () async {
-          await orgs.close(acme.id, actor: 'ada');
-          expect(
-            (await keys.check(issued.secret)).failure,
-            DVApiKeyFailure.organizationClosed,
-          );
-        });
-
-        test('keys of two organizations stay apart', () async {
+        test('keys of two tenants stay apart', () async {
           final DVIssuedApiKey theirs = await keys.issue(
-            organization: globex,
+            tenant: globex,
             scopes: const <String>['orders:write'],
           );
           expect((await keys.authenticate(theirs.secret))!.tenant, 'globex');
           expect(
-            (await keys.forOrganization(acme.id)).map((DVApiKey k) => k.id),
+            (await keys.forTenant(acme)).map((DVApiKey k) => k.id),
             <String>[issued.key.id],
           );
         });
@@ -516,7 +487,7 @@ void main() {
 
         setUp(() async {
           old = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read', 'orders:write'],
             expiresIn: const Duration(days: 90),
             actor: 'ada',
@@ -619,7 +590,7 @@ void main() {
           'the authentication stage puts the principal on the context',
           () async {
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
             );
             final Middleware authenticate = keys.authentication(
@@ -645,12 +616,12 @@ void main() {
 
         test('a key past its rate plan is throttled (DV-APIKEY-006)', () async {
           final DVIssuedApiKey partner = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
             ratePlan: 'starter',
           );
           final DVIssuedApiKey other = await keys.issue(
-            organization: acme,
+            tenant: acme,
             scopes: const <String>['orders:read'],
             ratePlan: 'starter',
           );
@@ -680,7 +651,7 @@ void main() {
           'a key with a plan the application does not declare is refused',
           () async {
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
               ratePlan: 'enterprise',
             );
@@ -708,7 +679,7 @@ void main() {
               atLimit: DVQuota.block,
             );
             final DVIssuedApiKey issued = await keys.issue(
-              organization: acme,
+              tenant: acme,
               scopes: const <String>['orders:read'],
             );
             int request = 0;

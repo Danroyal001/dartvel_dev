@@ -314,12 +314,6 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'creating the per-tenant schemas and databases.',
   ),
   (
-    'Organizations, Membership and Invitations',
-    'DVOrganizations',
-    'Present: typed roles, invitations and seats in dartvel_core. Absent: '
-        'generated models and the accept-invitation page.',
-  ),
-  (
     'Feature Flags and Staged Rollout',
     'DVFlags',
     'Present: typed flags with percentage rollout and targeting. Absent: '

@@ -492,29 +492,16 @@ void main() {
         test(
           'a role changed mid-review takes effect at the next transition',
           () async {
-            final DVOrganizations orgs = DVOrganizations(
-              database: adapter.$2(),
-              clock: () => _now,
-            );
-            await orgs.ensureSchema();
-            final DVOrganization org = await orgs.create(
-              name: 'Acme',
-              tenant: 't-acme',
-              ownerId: 'owner',
-            );
-            await orgs.addMember(
-              org.id,
-              'grace',
-              role: DVOrgRole.admin,
-              actor: 'owner',
-            );
+            // A role the application keeps for itself, changed under the
+            // review. The claim is that the policy is asked at every
+            // transition rather than once when the review opened, so what
+            // holds the role does not matter -- only that it can change.
+            final Set<String> reviewers = <String>{'grace'};
 
-            // Grants come from the organization, read at every check.
             _grants.remove('grace');
             const DVAuthAuthorization().register<_User, _Page>(
               DVContentAction.review,
-              (_User user, _Page page) =>
-                  orgs.hasRole(org.id, user.id, DVOrgRole.admin),
+              (_User user, _Page page) => reviewers.contains(user.id),
             );
             addTearDown(_registerPolicies);
 
@@ -526,12 +513,7 @@ void main() {
               to: 'grace',
               as: ada,
             );
-            await orgs.changeRole(
-              org.id,
-              'grace',
-              DVOrgRole.member,
-              actor: 'owner',
-            );
+            reviewers.remove('grace');
             await expectLater(
               wf.approve(review, as: grace),
               throwsA(isA<DVContentRefused>()),

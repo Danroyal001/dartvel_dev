@@ -87,7 +87,6 @@ export 'src/auth/ldap_unsupported.dart'
 export 'src/auth/oauth2.dart';
 export 'src/auth/oauth_provider.dart';
 export 'src/auth/one_time_code.dart';
-export 'src/auth/organizations.dart';
 export 'src/auth/password.dart';
 export 'src/auth/saml.dart';
 export 'src/auth/second_factor.dart';

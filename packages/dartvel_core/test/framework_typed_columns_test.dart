@@ -324,7 +324,10 @@ void main() {
         }
       }
     }
-    expect(calls, greaterThan(10));
+    // A floor, so a refactor that stopped finding the calls fails here
+    // rather than passing on nothing. It came down by one when the
+    // organization tables went.
+    expect(calls, greaterThan(8));
     expect(bare, isEmpty);
   });
 
@@ -349,11 +352,6 @@ void main() {
     });
 
     test('by the framework record tables', () async {
-      final DVOrganizations orgs = DVOrganizations(
-        database: ddl,
-        clock: () => now,
-      );
-      await orgs.ensureSchema();
       final DVApiScopes scopes = DVApiScopes(const <String, List<String>>{
         'read': <String>['Thing.view'],
       });
@@ -374,7 +372,7 @@ void main() {
       ).ensureSchema();
       expect(
         ddl.statements.where((String s) => s.contains('__history')),
-        hasLength(greaterThanOrEqualTo(8)),
+        hasLength(greaterThanOrEqualTo(6)),
       );
     });
 

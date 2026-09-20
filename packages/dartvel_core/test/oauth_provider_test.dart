@@ -771,22 +771,13 @@ void main() {
       });
 
       group('client credentials are an API key with a grant', () {
-        late DVOrganizations orgs;
         late DVApiKeys keys;
         late DVIssuedApiKey key;
 
         setUp(() async {
-          orgs = DVOrganizations(database: database, clock: () => now);
-          await orgs.ensureSchema();
-          final DVOrganization acme = await orgs.create(
-            name: 'Acme',
-            tenant: 'acme',
-            ownerId: 'ada',
-          );
           keys = DVApiKeys(
             database: database,
             scopes: _scopes,
-            organizations: orgs,
             clock: () => now,
           );
           await keys.ensureSchema();
@@ -797,7 +788,7 @@ void main() {
             clock: () => now,
           );
           key = await keys.issue(
-            organization: acme,
+            tenant: 'acme',
             scopes: const <String>['orders:read', 'orders:write'],
           );
         });
@@ -816,7 +807,6 @@ void main() {
             ))!;
             expect(principal.kind, DVApiPrincipalKind.oauthClient);
             expect(principal.subject, key.key.id);
-            expect(principal.organizationId, key.key.organizationId);
             expect(principal.tenant, 'acme');
             expect(principal.scopes, <String>{'orders:read'});
           },
@@ -835,7 +825,7 @@ void main() {
 
         test('the id must be the key\'s own', () async {
           final DVIssuedApiKey other = await keys.issue(
-            organization: (await orgs.forTenant('acme'))!,
+            tenant: 'acme',
             scopes: const <String>['orders:read'],
           );
           await expectLater(
