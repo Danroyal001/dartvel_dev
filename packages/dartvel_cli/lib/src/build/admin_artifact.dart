@@ -79,6 +79,12 @@ const Map<String, List<List<String>>> dvAdminSections =
     <String>['queue', 'Queue'],
     <String>['source', 'Declared in'],
   ],
+  'modules': <List<String>>[
+    <String>['id', 'Module'],
+    <String>['mount', 'Mount'],
+    <String>['deployment', 'Deployment'],
+    <String>['source', 'Declared in'],
+  ],
 };
 
 /// The section titles, which are the plural the graph uses, capitalised.

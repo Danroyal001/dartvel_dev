@@ -137,7 +137,7 @@ Widget _loginPage(BuildContext context) => DV.Auth.SignInWithEmailAndPasswordPag
 /// signs in at `<api>/auth/sign-in` instead.
 @DVBackendFunction(rawPath: '/auth/login')
 @pragma('vm:entry-point')
-Future<Response> handler(Request request) async {
+Future<Response> _login(Request request) async {
   if (!DVAuthEndpoints.deliversToken(request)) {
     return Response.json(<String, Object?>{
       'error': 'token_delivery_required',
@@ -156,7 +156,7 @@ Future<Response> handler(Request request) async {
 /// session on the server, so the token stops working everywhere.
 @DVBackendFunction(rawPath: '/auth/logout')
 @pragma('vm:entry-point')
-Future<Response> handler(Request request) async {
+Future<Response> _logout(Request request) async {
   // A bearer token was judged before this ran; without one there is no
   // session this endpoint may end.
   if (DVSessionPrincipal.current == null) {
@@ -180,7 +180,7 @@ Future<Response> handler(Request request) async {
 /// nothing a caller writes into a token decides who they are.
 @DVBackendFunction(rawPath: '/auth/me')
 @pragma('vm:entry-point')
-Future<Response> handler(Request request) => DVAuthEndpoints.account(request);
+Future<Response> _me(Request request) => DVAuthEndpoints.account(request);
 ''';
 
   static const String _analyticsUtilTemplate =

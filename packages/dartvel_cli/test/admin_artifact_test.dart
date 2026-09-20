@@ -52,6 +52,18 @@ Map<String, Object?> graph() => const DartvelProjectGraph(
         ),
       ],
       jobs: <DVGraphJob>[],
+      modules: <DVGraphModule>[
+        DVGraphModule(
+          id: 'shop',
+          package: 'shop_module',
+          mount: '/shop',
+          source: 'packages/shop',
+          deployment: 'embedded',
+          mounted: true,
+          pages: 3,
+          data: 'shared',
+        ),
+      ],
     ).toJson();
 
 void main() {
