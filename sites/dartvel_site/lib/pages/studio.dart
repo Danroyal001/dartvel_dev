@@ -142,6 +142,13 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
+            'Modules',
+            'The modules your app mounts: where each is served, where it came '
+                'from and whose tables it uses. One the build could not mount '
+                'says so, with the reason.',
+            section: 'Modules',
+          ),
+          SiteCard(
             'Team',
             'Lists who may open Studio. Grant and revoke run on the server '
                 'with dartvel admin.',
@@ -315,6 +322,19 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             built: false,
           ),
         ], spacing: 16),
+      ],
+    ),
+    Section(
+      tint: true,
+      children: <Widget>[
+        Eyebrow('EVERY SECTION'),
+        Heading('All ten sections, photographed from a Studio that was run.'),
+        Body('Each picture below was taken by dartvel capture studio against a '
+            'web-server binary built from this repository: it signs in, clicks '
+            'each item on the rail and photographs what is on screen. A job '
+            'takes them again whenever Studio changes, so a section added this '
+            'week is a section you can see this week.'),
+        StudioSectionGallery(),
       ],
     ),
     Section(

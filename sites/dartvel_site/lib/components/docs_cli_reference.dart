@@ -222,6 +222,27 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
         ],
       ),
       DocsCliCommand(
+        name: 'studio',
+        description: 'Photograph every section of a running Studio, and fail on one that renders nothing.',
+        options: <String>[
+          '    --url                Where the running Studio is.',
+          '                         (defaults to "http://127.0.0.1:8080/__studio/")',
+          '    --out                Where the screenshots are written.',
+          '                         (defaults to "build/studio-shots")',
+          '    --sections           The rail labels to photograph, comma separated. One that is not on this rail is skipped.',
+          '                         (defaults to "Pages,Data,Site map,Frontend,Backend,Modules,Tasks,Queue,Cache,Team,Flags,Operations")',
+          '    --size               The viewport, as WIDTHxHEIGHT.',
+          '                         (defaults to "1440x900")',
+          '    --sign-in            The sign-in endpoint, e.g. http://127.0.0.1:8080/api/auth/sign-in. Studio answers somebody who may not open it exactly as it answers a route that does not exist, so without this a capture photographs a 404.',
+          '    --email              The account to sign in as.',
+          '    --password           Its password.',
+          '    --open               One thing to click inside a section once it is up, as SECTION=ITEM pairs. A builder photographed with nothing open is a true picture of an empty panel and says nothing about what the builder does.',
+          '                         (defaults to "Frontend=orderAhead,Backend=placeOrder")',
+          '    --chrome             The browser to run. Defaults to DARTVEL_CHROME or a system Chrome.',
+          '    --[no-]allow-skip    Exit 0 when no browser can be launched, instead of failing.',
+        ],
+      ),
+      DocsCliCommand(
         name: 'verify',
         description: 'Fail unless the capture is a PNG showing something rendered.',
         options: <String>[
