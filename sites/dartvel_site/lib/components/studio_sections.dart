@@ -62,10 +62,11 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   StudioSection(
     label: 'Frontend',
     asset: 'assets/studio/sections/frontend.png',
-    summary: 'The frontend function builder: what a button does, built from '
-        'steps, with its inputs typed. Free, in the Studio your own binary '
-        'serves.',
-    alt: 'The Frontend section of Studio with its function builder',
+    summary: 'The frontend function builder, and the frontend functions this '
+        'app has. What a button does, built from steps; the Backend picture '
+        'below shows one open. Free, in the Studio your own binary serves.',
+    alt: 'The Frontend section of Studio listing a frontend function, with '
+        'Create function above it',
   ),
   StudioSection(
     label: 'Backend',

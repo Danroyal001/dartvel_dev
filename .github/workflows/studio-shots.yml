@@ -46,7 +46,11 @@ jobs:
         run: |
           set -euo pipefail
           flutter pub get
-          dart run dartvel_cli:dartvel build web-server --profile development
+          # --no-prerender: this build exists to be photographed, and reading
+          # the semantics tree of sixteen routes on a two-core runner is six
+          # minutes that nothing here looks at.
+          dart run dartvel_cli:dartvel build web-server --profile development \
+            --no-prerender
 
       - name: Start it, and make an account that may open Studio
         working-directory: examples/dartvel_example
