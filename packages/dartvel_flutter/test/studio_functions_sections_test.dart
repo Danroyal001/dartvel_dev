@@ -65,6 +65,50 @@ void main() {
     });
   });
 
+  // Two backend functions written in code can share a file name -- every
+  // [id].get.dart is called "id" -- and the list showed that name, so the
+  // section read "id, index, todos, todos, id, id". What tells them apart is
+  // the address each answers.
+  group('the functions a project wrote in code', () {
+    testWidgets('are listed by the address they answer',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Material(
+          child: DVStudioScreen(sections: dvFunctionStudioSections(
+            store: DVStudioRemoteFunctionStore(client),
+            written: () async => <Map<String, Object?>>[
+              <String, Object?>{
+                'name': 'id',
+                'method': 'GET',
+                'path': '/blog/<id>',
+                'source': 'lib/backend/functions/blog/[id].get.dart',
+              },
+              <String, Object?>{
+                'name': 'id',
+                'method': 'DELETE',
+                'path': '/db/todos/<id>',
+                'source': 'lib/backend/functions/db/todos/[id].delete.dart',
+              },
+            ],
+          )),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(
+          find.byKey(const ValueKey<String>('dv-studio-section-functions')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('GET /blog/<id>'), findsOneWidget);
+      expect(find.text('DELETE /db/todos/<id>'), findsOneWidget);
+      expect(find.text('id'), findsNothing);
+      expect(find.text('lib/backend/functions/blog/[id].get.dart'),
+          findsOneWidget);
+    });
+  });
+
   group('the served Studio', () {
     testWidgets('has Frontend and Backend sections, and no separate list',
         (WidgetTester tester) async {

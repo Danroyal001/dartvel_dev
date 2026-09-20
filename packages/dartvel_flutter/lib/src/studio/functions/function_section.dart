@@ -242,6 +242,15 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     );
   }
 
+  /// What a function written in code is called in the list: the method and
+  /// the address it answers, or its name when the manifest has no address.
+  static String _codeTitle(Map<String, Object?> fn) {
+    final String path = '${fn['path'] ?? ''}';
+    if (path.isEmpty) return '${fn['name'] ?? ''}';
+    final String method = '${fn['method'] ?? ''}'.toUpperCase();
+    return method.isEmpty ? path : '$method $path';
+  }
+
   /// A function the project wrote in code: what it is and where it lives.
   /// Studio does not edit it -- the file is the developer's.
   Widget _writtenDetail(Map<String, Object?> fn) {
@@ -375,9 +384,13 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 ),
                 for (final Map<String, Object?> fn in _written)
                   DVStudioListRow(
-                    key: ValueKey<String>('dv-studio-code-function-${fn['name']}'),
-                    title: '${fn['name']}',
-                    subtitle: '${fn['path'] ?? fn['source'] ?? ''}',
+                    key: ValueKey<String>(
+                        'dv-studio-code-function-${fn['path'] ?? fn['name']}'),
+                    // The address, not the file name: every [id].get.dart is
+                    // called "id", and a list of those says nothing about
+                    // which is which.
+                    title: _codeTitle(fn),
+                    subtitle: '${fn['source'] ?? ''}',
                     icon: DVStudioIcons.code,
                     selected: identical(fn, _writtenOpen),
                     onTap: () => setState(() {
