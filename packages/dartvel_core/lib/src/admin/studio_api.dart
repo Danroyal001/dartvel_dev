@@ -25,6 +25,7 @@ import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
+import '../auth/sessions.dart' show DVSessionCookie;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../database/records.dart';
@@ -189,6 +190,11 @@ class _StudioRefusal implements Exception {
 Future<String?> dvStudioSessionUserId(Request request) async {
   final DVSessionAuthenticationResult result =
       await DVSessionAuthentication.authenticateRequest(
+    plainLocal: DVSessionCookie.plainLocal(
+      request.url,
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      host: request.headers.get('host'),
+    ),
     authorization: request.headers.get('authorization'),
     cookie: request.headers.get('cookie'),
   );
