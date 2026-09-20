@@ -15,6 +15,7 @@ import 'dart:math';
 import '../database/adapter.dart';
 import '../database/framework_tables.dart';
 import 'auth.dart';
+import 'first_run_owner.dart' show DVAccountRoll;
 import 'password.dart';
 
 /// Accounts in a `dv_accounts` table: an id, the address, a name and a salted
@@ -29,6 +30,7 @@ class DVDatabaseAuthProvider
         AuthProvider,
         DVAccountProvider,
         DVAccountLookup,
+        DVAccountRoll,
         DVPasswordProvider {
   DVDatabaseAuthProvider(
     this.adapter, {
@@ -68,6 +70,16 @@ class DVDatabaseAuthProvider
         'email VARCHAR(254) NOT NULL UNIQUE, '
         'name TEXT, password_hash TEXT NOT NULL, created_at BIGINT)',
       );
+
+  /// Whether this application has any account at all, which is what makes a
+  /// start a first run.
+  @override
+  Future<bool> anyAccount() async {
+    await _ensure();
+    final List<Map<String, Object?>> rows =
+        await adapter.query('SELECT id FROM $table LIMIT 1');
+    return rows.isNotEmpty;
+  }
 
   @override
   Future<AuthUser?> signUp(String email, String password, {String? name}) async {
