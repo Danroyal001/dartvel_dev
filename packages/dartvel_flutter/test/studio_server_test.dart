@@ -560,6 +560,9 @@ void main() {
       await tester.tap(
           find.byKey(const ValueKey<String>('dv-studio-section-functions')));
       await tester.pumpAndSettle();
+      expect(find.text('POST /orders'), findsOneWidget);
+      await tester.tap(find.text('POST /orders'));
+      await tester.pumpAndSettle();
       expect(find.text('placeOrder'), findsOneWidget);
     });
 

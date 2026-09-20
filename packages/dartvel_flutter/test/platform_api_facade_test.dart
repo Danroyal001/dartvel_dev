@@ -24,11 +24,6 @@ void main() {
       }),
       database: () => db,
     );
-    await (await DVPlatformApi.installed!.organizations()).create(
-      name: 'Acme',
-      tenant: 'acme',
-      ownerId: 'ada',
-    );
   });
 
   tearDown(() {
