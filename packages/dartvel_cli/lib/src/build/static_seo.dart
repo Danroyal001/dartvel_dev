@@ -518,6 +518,56 @@ Map<String, String> dvRouteTitles(String routerSource) {
   return titles;
 }
 
+/// The sentence each route's page declares, read from the generated router.
+///
+/// Every page on a site used to ship `dartvel.seo.description`, because
+/// `@DVPage` could say what a page was called and not what it was about.
+/// Fifty pages with one snippet are fifty pages a search engine has no reason
+/// to tell apart. `@DVPage(description:)` becomes a `buildWebSeo` override on
+/// the page class, which is what this reads: the same declaration the running
+/// page applies, rather than a second copy written for the build.
+///
+/// A route with no entry keeps the project's own description. Absent is not
+/// empty -- writing an empty description over a project that has a good one
+/// is worse than repeating it.
+Map<String, String> dvRouteDescriptions(String routerSource) {
+  // class <Name> ... SeoProps(description: '<sentence>')
+  final Map<String, String> byClass = <String, String>{};
+  final RegExp classPattern = RegExp(
+    r"class\s+(\w+)\s+extends[\s\S]*?SeoProps\(description:\s*'((?:[^'\\]|\\.)*)'",
+  );
+  for (final RegExpMatch match in classPattern.allMatches(routerSource)) {
+    byClass[match.group(1)!] = _unescapeDart(match.group(2)!);
+  }
+
+  // path: '<route>' ... const <Name>()
+  final Map<String, String> descriptions = <String, String>{};
+  final RegExp routePattern = RegExp(
+    r"path:\s*'([^']+)'[\s\S]{0,600}?const\s+(\w+)\(\)",
+  );
+  for (final RegExpMatch match in routePattern.allMatches(routerSource)) {
+    final String? description = byClass[match.group(2)!];
+    if (description != null && description.isNotEmpty) {
+      descriptions[match.group(1)!] = description;
+    }
+  }
+  return descriptions;
+}
+
+/// A single-quoted Dart literal's escapes, as the text they stand for.
+///
+/// The router carries the literal as the page wrote it, so an apostrophe
+/// arrives here as `\'` and would otherwise reach a meta tag that way.
+String _unescapeDart(String literal) => literal.replaceAllMapped(
+      RegExp(r'\\(.)'),
+      (Match m) => switch (m.group(1)!) {
+        'n' => '\n',
+        't' => '\t',
+        'r' => '\r',
+        final String other => other,
+      },
+    );
+
 /// The stylesheet that makes `sitemap.xml` readable.
 ///
 /// A bare urlset renders as the browser's XML tree view: a wall of angle
