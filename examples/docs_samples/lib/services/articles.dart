@@ -63,7 +63,7 @@ Future<void> softDelete(Article article) async {
 }
 
 // docs:start models-widgets
-Widget articleEditor(Article article) => Article.Form(article, (Article edited) => edited.save());
+Widget articleEditor(Article article) => article.Form();
 
 Widget articleTable(List<Article> articles) => Article.Table(articles);
 
