@@ -154,8 +154,15 @@ Future<String?> _signUp(HttpClient client, String base) async =>
     await _post(client, base, '/api/auth/sign-in');
 
 Future<String?> _post(HttpClient client, String base, String path) async {
-  final HttpClientRequest request =
-      await client.postUrl(Uri.parse(''));
+  // Built from both, because this went out as Uri.parse('') and every run of
+  // the Studio screenshots died on "No host specified in URI" before the
+  // capture started. It parses and it compiles; it just asks nobody.
+  final Uri url = Uri.parse('$base$path');
+  if (url.host.isEmpty) {
+    stderr.writeln('seed: "$url" names no host');
+    return null;
+  }
+  final HttpClientRequest request = await client.postUrl(url);
   request.headers.contentType = ContentType.json;
   request.headers.set('x-dartvel-csrf-token', 'c' * 32);
   request.write(jsonEncode(<String, String>{
