@@ -3,6 +3,9 @@
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
+// The transport is the framework's own, hidden from the barrel an
+// application imports, so its own tests reach for the library directly.
+import 'package:dartvel_core/src/sync/presence.dart' show DVPresenceTransport;
 import 'package:test/test.dart';
 
 /// A loopback transport: what goes out comes back, the way a fanout returns a
