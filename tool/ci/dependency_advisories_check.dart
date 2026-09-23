@@ -18,7 +18,12 @@ import 'dependency_advisories.dart';
 Future<void> main(List<String> arguments) async {
   final Map<String, Map<String, String>> byFile = dvRepositoryPackages();
   if (byFile.isEmpty) {
-    stdout.writeln('::error::no pubspec.lock was found to check');
+    // Lock files are gitignored, so a fresh checkout has none until something
+    // resolves. Refusing here rather than reporting a clean scan is the
+    // difference this check exists for, and its first run needed it.
+    stdout.writeln('::error::no pubspec.lock was found to check. Resolve '
+        'first: flutter pub get in each package, which is what '
+        '.github/workflows/dependencies.yml does.');
     exitCode = 1;
     return;
   }
