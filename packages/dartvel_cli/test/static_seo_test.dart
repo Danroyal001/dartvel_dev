@@ -229,6 +229,41 @@ class DocsPageGeneratedPage extends DVGeneratedPage {
       expect(dvRouteTitles('')['/'], isNull);
     });
 
+    // A title long enough to be worth writing is wrapped in the page that
+    // declares it, and the router carries the literals as written. Reading
+    // the first one puts half a title in the prerendered <title> tag, which
+    // is the shape nothing reports: a tab and a search result that both read
+    // as a finished heading.
+    test('a title split across literals arrives whole', () {
+      const String wrapped = """
+class BuildingPageGeneratedPage extends DVGeneratedPage {
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec(title: 'Dartvel build targets: every platform '
+      'and its verified status', showAppBar: false);
+}
+      path: '/docs/building',
+        final page = const BuildingPageGeneratedPage();
+""";
+
+      expect(
+        dvRouteTitles(wrapped)['/docs/building'],
+        'Dartvel build targets: every platform and its verified status',
+      );
+    });
+
+    test('an apostrophe in a title survives the read', () {
+      const String owned = r"""
+class GuidePageGeneratedPage extends DVGeneratedPage {
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec(title: 'A developer\'s guide', showAppBar: false);
+}
+      path: '/guide',
+        final page = const GuidePageGeneratedPage();
+""";
+
+      // Truncating at the escaped quote leaves "A developer\", which reaches
+      // a <title> tag with a backslash where the apostrophe was.
+      expect(dvRouteTitles(owned)['/guide'], "A developer's guide");
+    });
+
     test('it does not confuse two pages whose classes look alike', () {
       const String tricky = """
 class FeaturesPageGeneratedPage extends DVGeneratedPage {
