@@ -255,7 +255,7 @@ import 'package:flutter/widgets.dart';
 @DVFunctionalWidget()
 @pragma('vm:entry-point')
 Widget _${lower}Form(BuildContext context, $capitalized model) =>
-    $capitalized.Form(model);
+    model.Form();
 ''');
     Logger.log('Generated form: ${file.path}');
   }

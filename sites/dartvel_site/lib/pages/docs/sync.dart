@@ -27,8 +27,9 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Generated models publish created, updated, deleted, restored and '
                   'synced changes.',
-              'A watcher only gets changes for the current tenant. Pass '
-                  'allTenants: true to DVModelSync.changes for all of them.',
+              'A watcher only gets changes for the current tenant. '
+                  'Article.allChanges is every tenant\'s, for a process '
+                  'that serves all of them.',
               'The generated backend also serves GraphQL subscriptions over '
                   'server-sent events.',
             ]),

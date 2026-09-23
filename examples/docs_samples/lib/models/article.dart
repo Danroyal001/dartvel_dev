@@ -4,6 +4,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVModel(
   generatePublicPages: true,
+  semantic: true,
   history: DVHistory(keep: Duration(days: 365)),
   softDelete: true,
   subject: DVSubject.field('authorId'),

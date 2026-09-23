@@ -364,6 +364,15 @@ class DVModel {
   /// has configured no log writes normally and captures nothing.
   final bool capture;
 
+  /// Whether this model has a semantic index. On, its searchable fields are
+  /// embedded when a record is saved and [semanticSearch] answers from the
+  /// vectors; the embedder and the vector store are configured once with
+  /// the model's own `useSemanticSearch`. Off, nothing is embedded.
+  ///
+  /// The id, the fields, the loader, the sensitive set and the JSON come
+  /// from the model, because an index that restates them drifts from it.
+  final bool semantic;
+
   /// Whether every write is checked against the version it read: on by
   /// default, because a lost update is silent. `version: false` is for
   /// append-only data whose writes never contend, and says so here.
@@ -388,6 +397,7 @@ class DVModel {
     this.retain,
     this.history,
     this.capture = false,
+    this.semantic = false,
     this.version = true,
     this.softDelete = false,
   })  : encrypted = false,
@@ -430,6 +440,7 @@ class DVModel {
         subject = null,
         history = null,
         capture = false,
+        semantic = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -457,6 +468,7 @@ class DVModel {
         subject = null,
         history = null,
         capture = false,
+        semantic = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -534,6 +546,7 @@ class DVModel {
         subject = null,
         history = null,
         capture = false,
+        semantic = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -571,6 +584,7 @@ class DVModel {
         subject = null,
         history = null,
         capture = false,
+        semantic = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -599,6 +613,7 @@ class DVModel {
         subject = null,
         history = null,
         capture = false,
+        semantic = false,
         version = true,
         softDelete = false,
         retain = null,

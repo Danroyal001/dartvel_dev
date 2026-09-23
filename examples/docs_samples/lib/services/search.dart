@@ -27,35 +27,30 @@ Future<void> highlights() async {
 }
 
 // docs:start search-semantic-index
-final DVSemanticIndex<Article> articleIndex = DVSemanticIndex<Article>(
-  name: 'articles',
-  embedder: DVAIEmbedder(
-    OpenAIDVAIAdapter(apiKey: DV.Secrets.get('OPENAI_API_KEY')),
-    id: 'openai/text-embedding-3-small',
-    dimensions: 1536,
-  ),
-  vectors: DVInMemoryVectorAdapter(),
-  idOf: (Article article) => article.slug,
-  fields: <String, String Function(Article)>{
-    'body': (Article article) => article.body,
-  },
-  load: Article.find,
-  sensitiveFields: Article.sensitiveFields,
-  toJson: (Article article) => article.toPublicJson(),
-);
+// The model says it has one. The embedder and the vector store are the only
+// things Dartvel cannot know, so they are the only things passed.
+void semanticIndex() {
+  Article.useSemanticSearch(
+    embedder: DVAIEmbedder(
+      OpenAIDVAIAdapter(apiKey: DV.Secrets.get('OPENAI_API_KEY')),
+      id: 'openai/text-embedding-3-small',
+      dimensions: 1536,
+    ),
+    vectors: DVInMemoryVectorAdapter(),
+  );
+}
 // docs:end
 
 Future<void> semanticSearch(Article article) async {
   // docs:start search-semantic-query
+  // Saving queues the embedding. There is no second call, and nothing waits
+  // on the embedder: a worker drains the queue with
+  //
+  //     dartvel queue work --queue semantic
   await article.save();
-  await articleIndex.indexed(article); // queues an embedding job
 
-  // A worker embeds it. Queries never wait on the embedder.
-  await DV.Jobs.work(queue: 'semantic');
-
-  final DVSemanticPage<Article> page = await articleIndex.query(
+  final DVSemanticPage<Article> page = await Article.semanticSearch(
     'how do refunds work',
-    mode: DVSearchMode.semantic,
     limit: 5,
   );
   for (final DVSemanticHit<Article> hit in page.hits) {
