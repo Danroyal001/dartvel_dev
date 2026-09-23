@@ -14,6 +14,8 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
+import 'page_shots.dart' show DVInFlight, DVTextSettle;
+
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
@@ -189,18 +191,37 @@ Future<DVCaptureRun> dvCaptureSemantics({
           images.add(image);
         }
       });
+      final DVInFlight flight = DVInFlight();
+      final List<StreamSubscription<Object?>> counting =
+          <StreamSubscription<Object?>>[
+        page.onRequest.listen((Object? _) => flight.started()),
+        page.onRequestFinished.listen((Object? _) => flight.ended()),
+        page.onRequestFailed.listen((Object? _) => flight.ended()),
+      ];
       try {
         await page.goto('$base$route', wait: Until.networkIdle);
 
         // Polled rather than slept: a page that is ready early should not
         // cost the whole budget, and one that never builds a tree has to be
         // reported rather than written out empty.
+        //
+        // Stopping at the first tree that is not empty is what this used to
+        // do, and it is why every page on the site shipped six words to a
+        // crawler. The docs shell draws first and its scroll button is a
+        // node, so the loop broke on a tree holding "To the bottom" while
+        // the article was still in a chunk on its way. The tree has to stop
+        // growing, and the page has to have stopped asking for things.
         String tree = '[]';
+        final DVTextSettle settled = DVTextSettle();
         final DateTime deadline = DateTime.now().add(settle);
         while (DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 400));
           tree = await page.evaluate<String>(_extract);
-          if (tree != '[]') break;
+          final int resources = await page.evaluate<int>(_resourceCount);
+          if (flight.idle &&
+              settled.add(tree == '[]' ? 0 : tree.length, resources)) {
+            break;
+          }
         }
 
         File(dvSemanticsPathFor(projectRoot, route)).writeAsStringSync(tree);
@@ -222,6 +243,9 @@ Future<DVCaptureRun> dvCaptureSemantics({
         if (nodes > 0) captured++;
       } finally {
         await watching.cancel();
+        for (final StreamSubscription<Object?> subscription in counting) {
+          await subscription.cancel();
+        }
         await page.close();
       }
     }
@@ -255,3 +279,12 @@ String? _header(Map<String, String> headers, String name) {
   }
   return null;
 }
+/// How many resources the page has fetched, which is still climbing while a
+/// deferred chunk is on its way.
+const String _resourceCount = '''() => {
+  try {
+    return performance.getEntriesByType('resource').length;
+  } catch (e) {
+    return 0;
+  }
+}''';

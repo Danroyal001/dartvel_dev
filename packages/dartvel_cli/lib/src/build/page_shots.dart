@@ -131,6 +131,32 @@ class DVShotLibrary {
   static String _fingerprint(List<int> bytes) => String.fromCharCodes(bytes);
 }
 
+/// How many requests the page has out right now.
+///
+/// The semantics tree does not carry the panel's "Loading cache tags…", so
+/// asking it whether anything is loading answered no while the picture said
+/// otherwise: one run photographed seven of eleven sections mid-fetch and
+/// reported every one as fine. Studio holds no long-lived connection, so a
+/// request still outstanding is an honest answer to the same question.
+class DVInFlight {
+  int _out = 0;
+
+  /// A request left the page.
+  void started() => _out++;
+
+  /// One came back, or failed.
+  ///
+  /// Floored at nought: a request that began before this was attached ends
+  /// after it, and a count that went negative would report idle through the
+  /// next fetch, which is the state this exists to catch.
+  void ended() {
+    if (_out > 0) _out--;
+  }
+
+  /// Whether the page is waiting on nothing.
+  bool get idle => _out == 0;
+}
+
 /// One photographed page.
 class DVPageShot {
   const DVPageShot({

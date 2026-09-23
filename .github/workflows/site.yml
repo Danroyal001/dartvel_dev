@@ -71,6 +71,14 @@ jobs:
           (cd /tmp/out && sha256sum "dartvel_site-web-$SHORT.zip" > "dartvel_site-web-$SHORT.zip.sha256")
           cat /tmp/out/*.sha256
 
+      # A page that renders in a browser and carries only a scroll button in
+      # its fallback is not indexed for what it is about. The site shipped
+      # that way on every page for weeks, and nothing said so: the pictures
+      # were right, the meta description was right, and the body a crawler
+      # reads held six words.
+      - name: Every page says something to a crawler
+        run: dart "$GITHUB_WORKSPACE/tool/ci/crawler_text_check.dart" /tmp/stage
+
       - uses: actions/upload-artifact@v4
         with:
           name: dartvel-site
