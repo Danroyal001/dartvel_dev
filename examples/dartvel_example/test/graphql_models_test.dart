@@ -7,6 +7,7 @@
 // Every generated field asks the model's policy before it reads or writes, so
 // each test registers a User policy whose answer it controls. The last test
 // has it refuse.
+import 'package:dartvel_core/framework.dart';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 

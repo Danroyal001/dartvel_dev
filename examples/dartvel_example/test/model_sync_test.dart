@@ -1,5 +1,6 @@
 // Drives the generated persistence and sync surface the way an application
 // would: real generated User class, real SQLite database, real change hub.
+import 'package:dartvel_core/framework.dart';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
