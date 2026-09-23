@@ -1,0 +1,82 @@
+// Every prerendered page has to say something to a crawler.
+//
+// The site shipped for weeks with six words in every page's fallback block:
+// "To the bottom To the bottom", the docs shell's scroll button and nothing
+// else. The semantics capture stopped at the first tree that was not empty,
+// and the shell's button is a node, so it recorded the shell while each
+// page's article was still in a deferred chunk on its way.
+//
+// Nothing reported it. The pages render perfectly in a browser, the meta
+// description is right, the sitemap is right, and a crawler that does not run
+// the app sees a scroll button. That is the shape this checks: not whether a
+// page exists, but whether it says anything.
+//
+// Usage: dart tool/ci/crawler_text_check.dart <web-root> [min-words]
+import 'dart:io';
+
+/// The text of the fallback block a prerendered page carries for a crawler.
+String fallbackText(String html) {
+  final RegExp block = RegExp(
+    r'<div class="dv-fallback"[^>]*>([\s\S]*?)</div>\s*<!-- /dartvel:text -->',
+  );
+  final RegExpMatch? found = block.firstMatch(html);
+  if (found == null) return '';
+  return found
+      .group(1)!
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+/// How many words [text] holds.
+int words(String text) =>
+    text.isEmpty ? 0 : text.split(' ').where((String w) => w.isNotEmpty).length;
+
+void main(List<String> args) {
+  if (args.isEmpty || args.length > 2) {
+    stderr.writeln('usage: crawler_text_check.dart <web-root> [min-words]');
+    exit(2);
+  }
+  final Directory root = Directory(args.first);
+  final int minimum = args.length == 2 ? int.parse(args[1]) : 25;
+  if (!root.existsSync()) {
+    stderr.writeln('::error::${root.path} does not exist');
+    exit(1);
+  }
+
+  final List<String> thin = <String>[];
+  int checked = 0;
+  for (final FileSystemEntity entity in root.listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('index.html')) continue;
+    // Studio and the admin are applications, not pages a crawler reads, and
+    // the 404 page is a page nobody should be indexed onto.
+    if (entity.path.contains('/__')) continue;
+    if (entity.path.contains('/404/')) continue;
+    checked++;
+    final int count = words(fallbackText(entity.readAsStringSync()));
+    if (count < minimum) {
+      final String route =
+          entity.path.substring(root.path.length).replaceAll('index.html', '');
+      thin.add('${route.isEmpty ? '/' : route} ($count words)');
+    }
+  }
+
+  if (checked == 0) {
+    stderr.writeln('::error::no pages under ${root.path}');
+    exit(1);
+  }
+
+  if (thin.isEmpty) {
+    stdout.writeln(
+        '$checked pages, each with at least $minimum words for a crawler.');
+    return;
+  }
+
+  thin.sort();
+  stderr.writeln(
+    '::error::${thin.length} of $checked pages say almost nothing to a '
+    'crawler. A page that renders in a browser and carries a scroll button '
+    'in its fallback is not indexed for what it is about: ${thin.join(', ')}',
+  );
+  exit(1);
+}
