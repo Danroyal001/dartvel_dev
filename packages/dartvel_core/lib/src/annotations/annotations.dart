@@ -351,6 +351,19 @@ class DVModel {
   /// never as values, and an erasure removes the log with the row.
   final DVHistory? history;
 
+  /// Whether every write to this model is recorded as a change.
+  ///
+  /// On, each insert, update, delete, soft delete and restore lands in the
+  /// process's configured [DVCapture] log with the record's version, the
+  /// tenant and the transaction it committed in, and a consumer copies them
+  /// onward in order. Sensitive fields are named in the change and never
+  /// carried in it. Off, nothing is recorded.
+  ///
+  /// Nothing else changes: a captured model is read and written like any
+  /// other, and saving a record is what records the change. A process that
+  /// has configured no log writes normally and captures nothing.
+  final bool capture;
+
   /// Whether every write is checked against the version it read: on by
   /// default, because a lost update is silent. `version: false` is for
   /// append-only data whose writes never contend, and says so here.
@@ -374,6 +387,7 @@ class DVModel {
     this.subject,
     this.retain,
     this.history,
+    this.capture = false,
     this.version = true,
     this.softDelete = false,
   })  : encrypted = false,
@@ -415,6 +429,7 @@ class DVModel {
   })  : searchable = false,
         subject = null,
         history = null,
+        capture = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -441,6 +456,7 @@ class DVModel {
       : searchable = true,
         subject = null,
         history = null,
+        capture = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -517,6 +533,7 @@ class DVModel {
   })  : isModel3dField = true,
         subject = null,
         history = null,
+        capture = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -553,6 +570,7 @@ class DVModel {
         retainBecause = because,
         subject = null,
         history = null,
+        capture = false,
         version = true,
         softDelete = false,
         retain = null,
@@ -580,6 +598,7 @@ class DVModel {
       : searchable = false,
         subject = null,
         history = null,
+        capture = false,
         version = true,
         softDelete = false,
         retain = null,

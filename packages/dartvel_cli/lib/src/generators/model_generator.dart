@@ -272,6 +272,11 @@ class ModelGenerator {
 
         final bool versioned = flagArg('version', true);
         final bool softDelete = flagArg('softDelete', false);
+        // @DVModel(capture: true): every write lands in the process's
+        // configured log. The model already declares its table, key, columns
+        // and sensitive fields here, so the log is the only thing left to
+        // hand it -- and handing it is what nobody could do before.
+        final bool capture = flagArg('capture', false);
 
         // billable and nativePrice, which the specification writes as
         //
@@ -1109,6 +1114,9 @@ class ModelGenerator {
           }
           if (!versioned) sb.writeln('        versioned: false,');
           if (softDelete) sb.writeln('        softDelete: true,');
+          if (capture) {
+            sb.writeln('        capture: DVCapture.configured,');
+          }
           if (tenantScoped) {
             // Read when the statement runs, not captured once.
             sb.writeln(
@@ -1120,6 +1128,31 @@ class ModelGenerator {
           }
           sb.writeln('      );');
           sb.writeln();
+          if (capture) {
+            // The consumer needs every row that is already there before it
+            // can follow new changes, and it reads them through the table.
+            // The table is the framework's, so the model does the asking:
+            // an application names the model it is copying, never the
+            // machinery underneath it.
+            sb.writeln(
+                '  /// Copies every [$className] already stored to [consumer],');
+            sb.writeln('  /// then leaves it following new changes in order.');
+            sb.writeln('  ///');
+            sb.writeln('  /// Resumable: each chunk is one job, and a run that');
+            sb.writeln('  /// stops picks up where it left off.');
+            sb.writeln(
+                '  static Future<DVCaptureBackfillProgress> backfillTo(');
+            sb.writeln('    DVCaptureConsumer consumer, {');
+            sb.writeln('    int chunkSize = 500,');
+            sb.writeln('    int? maxChunks,');
+            sb.writeln('  }) =>');
+            sb.writeln('      consumer.backfill(');
+            sb.writeln('        _dvRecords(),');
+            sb.writeln('        chunkSize: chunkSize,');
+            sb.writeln('        maxChunks: maxChunks,');
+            sb.writeln('      );');
+            sb.writeln();
+          }
           sb.writeln('  /// The record each [$className] loaded from the database');
           sb.writeln('  /// was read at, so saving it is checked against that');
           sb.writeln('  /// version. Beside the model rather than a field on it,');
