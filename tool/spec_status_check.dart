@@ -180,7 +180,7 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'UI Primitives': 'UI',
     'Routing': 'Routing',
     'State Management': 'State',
-    'Models & Forms': 'Models',
+    'Data models & Forms': 'Models',
     'Record History': 'Record History and Optimistic Concurrency',
     'Offline-First Models': 'Offline-First Models',
     'Backend Runtime': 'Backend',

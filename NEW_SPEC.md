@@ -248,7 +248,8 @@ imports that generated public class from `dartvel_client/dartvel_client.dart`.
 The generated public class owns the model-aware static API:
 
 ```dart
-User.Form(user, (edited) => save(edited)); // DVForm<User> over one record
+User.Form();                                // a form that creates one
+user.Form();                                // a form that edits that one
 User.List(users, builder: (user) => UserCard(user));
 User.Table(users);                          // a sortable table
 User.Card(user);
@@ -945,7 +946,8 @@ class _User {
 
 Annotated models are private schema inputs by validation: `@DVModel() class
 _User ...` generates the public `User` type. Generated static members such as
-`User.Form(...)`, `User.List(...)`, `User.Table(...)`, and `User.Page(...)`
+`User.Form()`, `user.Form()`, `User.List(...)`, `User.Table(...)`, and
+`User.Page(...)`
 belong to that generated public class.
 
 Pages, functional widgets, backend functions, jobs, AI tools, and models are
@@ -1175,17 +1177,20 @@ Editing
 DVForm<User>(user, (edited) => save(edited))
 ```
 
-Or the aliases, which build the same `DVForm<User>`:
+Or on the data model, which builds the same `DVForm<User>` and takes no
+callback at all:
 
 ```dart
-User.Form(user, (edited) => save(edited))
-user.Form()
+User.Form()   // creates a record
+user.Form()   // edits that record
 ```
 
-Without the second argument a form is display-only: it has nobody to hand the
-edited record to, and shows no submit or reset controls. The automatic form
-renders each field the model serializes as a text input
-(`DVModifier().input(...)`).
+Saving is what a form does, so neither asks the application to wire up its
+own save, and whether this reader may create or edit is the policy's answer —
+the same policy the page and the backend function ask. `DVForm<User>()` with
+no record and no callback is display-only: it has nobody to hand the edited
+record to, and shows no submit or reset controls. The automatic form renders
+each field the model serializes as a text input (`DVModifier().input(...)`).
 
 Manual
 
@@ -2956,9 +2961,11 @@ await User.watch((users) {
 ```
 
 What is built is the generated half inside one process. Every generated model
-publishes created, updated, deleted, restored and synced changes to
-`DVModelSync`, and `Model.changes`, `Model.watch` and `user.sync()` read and
-write that hub. `DVPresence` keeps channel membership by identity, scoped by
+publishes created, updated, deleted, restored and synced changes, and
+`Model.changes`, `Model.allChanges`, `Model.watch`, `Model.syncPolicy` and
+`user.sync()` are how an application reads and writes them. The hub
+underneath is the framework's and is not in the barrel an application
+imports. `DVPresence` keeps channel membership by identity, scoped by
 tenant and expiring when heartbeats stop. The generated backend also serves
 GraphQL subscriptions over Server-Sent Events.
 
@@ -2986,7 +2993,7 @@ work, and three chances to lose somebody's writes.
 Offline behaviour is declared on the model and generated:
 
 ```dart
-@DVModel(offline: DVOffline(strategy: DVConflict.lastWriteWins, encrypt: true))
+@DVModel(offline: DVConflict.lastWriteWins)
 class _Order(
     String reference,
     int quantity,
@@ -2997,11 +3004,17 @@ Application code does not branch on connectivity. `Order.find`, `order.save`
 and `Order.watch` read and write the same way in a tunnel as on Wi-Fi; what
 changes is where the answer comes from and when the write reaches the server.
 
-The declaration is not generated yet: `offline:` is not a parameter of
-`@DVModel`. The runtime underneath it is built as `DVOfflineStore`, with a
-local record table, an ordered mutation log that replays once per reconnect,
-and the conflict and clock handling below, and an application wires it by
-hand.
+The declaration is generated, and half of what it promises is built.
+`Order.offlineStore(database)` is this device's local copy and
+`Order.offlineRemote(database)` is the server side of replay, each built from
+the table, key, columns, sensitive set, versioning and soft-delete flag the
+model states once, so neither can drift from the other or from the model;
+`DVRecordTableRemote` is the framework's and is not in the barrel an
+application imports. `DVConflict.ask` stops the build, because a write made
+with no network has nobody to ask and would otherwise fail only on somebody's
+phone. What is not built is the sentence above it: `order.save` does not
+route through the local store on its own, so writing offline is still a call
+on the store, and `encrypt:` is not applied.
 
 ## The local store
 
@@ -3294,13 +3307,21 @@ Unified API, supports:
 - Cloudflare R2, through the S3 adapter
 - Azure Blob (`AzureBlobFileStorageAdapter`)
 - Google Cloud Storage (`GcsFileStorageAdapter`)
-- Local disk
+- The filesystem this process is standing on (`DVLocalFileStorageAdapter`)
 - In-memory blobs (`DVMemoryFileStorageAdapter`, the default)
 
+Local is not a lesser case reached some other way. On a server it is that
+server's disk; on a device it is the file manager — the directories the
+application owns, and what it may read and write there. A bucket is one more
+adapter behind the same calls. A key is a path inside the root and often
+comes from a request, so one that climbs out of the root is refused: a `../`
+in a key cannot read or overwrite anything else the process can reach. On the
+web there is no such filesystem, and the adapter says so rather than being
+absent, so code that names it compiles for every target.
+
 Each adapter puts, gets, deletes, checks and lists objects. In CI the Azure
-adapter runs against Azurite and the GCS adapter against fake-gcs-server. A
-local disk adapter is designed and not built, and the in-memory one keeps
-plain byte lists.
+adapter runs against Azurite and the GCS adapter against fake-gcs-server, and
+the in-memory one keeps plain byte lists.
 
 `DV.FileStorage.*`
 
@@ -5454,7 +5475,7 @@ Providers:
 - OpenSearch/Elasticsearch
 
 ```dart
-final results = await User.Search.query('ada');
+final results = await User.search('ada');
 ```
 
 Search integrates with queues, model lifecycle signals, tenant scoping, and
@@ -5472,20 +5493,21 @@ Generated behavior:
 @DVModel(searchable: true)
 class _User (@DVModel.searchableField() String name);
 
-final page = await User.Search.query(
+final page = await User.search(
   'ada',
-  facets: User.SearchFacets(role: ['admin']),
+  facets: UserFacets(role: ['admin']),
 );
 ```
 
 Search providers are explicit and typed. Small applications and tests can use
 the concrete local provider; production applications should configure a
-database or hosted search adapter. An unconfigured generated search facade
-throws a `StateError` instead of silently returning an empty result:
+database or hosted search adapter. Searching a data model with no provider
+configured throws a `StateError` instead of silently returning an empty
+result:
 
 ```dart
-User.Search.useProvider(
-  DVInMemorySearchProvider<User, UserSearchFacets>(
+User.useSearchProvider(
+  DVInMemorySearchProvider<User, UserFacets>(
     records: users,
     document: (user) => '${user.name} ${user.role}',
     facetMatcher: (user, facets) =>
@@ -5515,27 +5537,35 @@ the right rows first. That layer is declared on the model, like everything
 else the framework generates:
 
 ```dart
-@DVModel(searchable: true)
+@DVModel(searchable: true, semantic: true)
 class _Ticket(
-    @DVModel.searchableField(semantic: true) String body,
+    @DVModel.searchableField() String body,
     String status,
 );
 
-final page = await Ticket.Search.query(
+Ticket.useSemanticSearch(embedder: embedder, vectors: vectors);
+
+final page = await Ticket.semanticSearch(
   'customer sounded unhappy about delivery',
   mode: DVSearchMode.hybrid,
 );
 ```
 
-The generated half of this is not built. `@DVModel.searchableField()` takes
-no `semantic:` argument and there is no generated `Model.Search.query(mode:)`.
-The runtime is built as `DVSemanticIndex`, which an application wires to a
-model by hand, and its query takes the same three modes.
+The generated half is built, with one difference from the sketch above.
+`@DVModel.searchableField()` takes no `semantic:` argument: what is embedded
+is the prose the data model already declares — its searchable fields, its
+page title and its main content — and never a sensitive field, whose text
+would otherwise reach the vector store and every result that matched it. The
+index itself is `DVSemanticIndex`, which is the framework's and not in the
+barrel an application imports: `Model.useSemanticSearch(embedder:, vectors:)`
+builds it from the id, the fields, the loader, the sensitive set and the
+public JSON the model states once, so the only two things passed are the two
+Dartvel cannot know. Saving a record queues its embedding and destroying one
+removes it.
 
-`mode` is `keyword`, `semantic` or `hybrid`, and `keyword` stays the default:
-it is what the existing generated index does, it costs nothing per query, and
-a section that silently changed the meaning of every existing call would be a
-breaking change wearing a feature's name.
+`mode` is `keyword`, `semantic` or `hybrid`. `Model.semanticSearch` defaults
+to `semantic`, because that is the question it exists to answer; `keyword`
+and `hybrid` read the model's search provider as well.
 
 ## Embeddings are durable jobs
 
@@ -5562,8 +5592,8 @@ dartvel:
 ```
 
 This block is not read yet. The embedder and the vector adapter are passed to
-`DVSemanticIndex` in code, and `DVInMemoryVectorAdapter` is the only adapter
-built.
+`Model.useSemanticSearch` in code, and `DVInMemoryVectorAdapter` is the only
+adapter built.
 
 There is **no default embedder**, and `semantic: true` without one is a build
 error (`DV-SEMANTIC-001`). Vectors from two different models are not
@@ -5649,7 +5679,7 @@ is no way for the application to tell.
 ## Retrieval for AI features
 
 ```dart
-final context = await Ticket.Search.retrieve(
+final context = await Ticket.semanticRetrieve(
   question,
   limit: 8,
   mode: DVSearchMode.hybrid,
@@ -6387,7 +6417,12 @@ Runtime and tooling:
   announcements, and screen-reader summaries
 - motion modifiers respect platform reduced-motion settings
 - color modifiers can be checked for contrast in CI
-- kiosk/embedded targets support switch control and hardware-key navigation
+- every page carries keyboard scrolling, a remote's D-pad and switch control
+  with nothing added, and they are inert until something uses them. There is
+  no widget to remember in order to be reachable, because a page that is
+  accessible only when somebody remembered is not accessible. What a reader
+  chooses -- which keys their switches send, an auto-scan interval, whether
+  switch control is on at all -- is on `DV.Accessibility.switchControl`
 - accessibility regressions fail the release gate unless explicitly waived with
   a documented reason
 
@@ -9210,15 +9245,15 @@ Dartvel should include typed bulk data workflows:
 - streamed large exports
 
 ```dart
-await User.Import.csv(file);
-await User.Import.resumableCsv(file, queue: 'imports', chunkSize: 500);
-await User.Import.ndjson(lines);
-await User.Import.resumableNdjson(lines, queue: 'imports', chunkSize: 500);
-await User.Import.excel(tabSeparatedRows);
-final export = User.Export.ndjson(users);
-final spreadsheet = User.Export.excel(users);
-final document = await User.Export.pdf(users);
-final invoice = await order.Export.pdf();  // one record, the instance alias
+await User.importCsv(file);
+await User.importResumableCsv(file, queue: 'imports', chunkSize: 500);
+await User.importNdjson(lines);
+await User.importResumableNdjson(lines, queue: 'imports', chunkSize: 500);
+await User.importExcel(tabSeparatedRows);
+final export = User.exportNdjson(users);
+final spreadsheet = User.exportExcel(users);
+final document = await User.exportPdf(users);
+final invoice = await order.exportPdf();   // one record, the instance alias
 final tenantExport = User.Export.csv(
   users,
   options: DVExportOptions<User>(

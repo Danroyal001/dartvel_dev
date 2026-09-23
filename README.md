@@ -84,9 +84,9 @@ Everything else is automatically compiled, generated, or served by the framework
 | **UI Primitives** | `DVBox`, `DVText`, `DVNavLink`, and fluent styling through `DVModifier` | ✅ Shipped |
 | **Routing** | File-based pages with strongly-typed navigation targets, generated onto `go_router`. Path URLs on the web, and `DVNavLink` for links that preload and preview | ✅ Shipped |
 | **State Management** | Riverpod-powered signals (`context.signal`, reactive models, `DV.global`) | ✅ Shipped |
-| **Models & Forms** | `@DVModel` generates schema, CRUD, validation, serialization, `User.Form(...)`, `User.Table(...)` and `User.Page(...)` | ✅ Shipped |
+| **Data models & Forms** | `@DVModel` generates schema, CRUD, validation, serialization, `User.Form()` to create, `user.Form()` to edit, `User.Table(...)` and `User.Page(...)`. Search, import and export are members of the model too | ✅ Shipped |
 | **Record History** | Versioned writes refused on conflict, opt-in history with revert, soft delete and restore on generated models. No Studio history view or scheduled retention yet | ⚠️ Partial |
-| **Offline-First Models** | `DVOfflineStore`: local writes, an ordered mutation log replayed on reconnect, dead letters. `@DVModel(offline:)` is not generated yet, so it is wired by hand | ⚠️ Partial |
+| **Offline-First Models** | `@DVModel(offline:)` generates `Order.offlineStore(db)` and `Order.offlineRemote(db)` from the shape the model already declares: local writes, an ordered mutation log replayed on reconnect, dead letters. `Order.save()` does not route through the store yet | ⚠️ Partial |
 | **Backend Runtime** | Axum/Tokio Rust server calling Dart over FFI, with SSE streams | ✅ Shipped |
 | **Platform APIs** | `DV.Platform` through `dart:ffi` and jnigen, never platform channels. Coverage differs a lot per target and iOS binds the fewest; `dart tool/binding_coverage.dart` counts it from the source | ⚠️ Partial |
 | **Authentication** | Local provider with salted password hashes, OAuth2 (PKCE) presets for Google, GitHub, GitLab, Bitbucket and Microsoft, LDAP, SAML 2.0, passkeys (WebAuthn) and Sign-In with Ethereum | ✅ Shipped |
@@ -96,10 +96,10 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Database** | SQLite (file and in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines | ✅ Shipped |
 | **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker. No delayed jobs, backoff schedule or uniqueness keys yet | ⚠️ Partial |
 | **Cache** | Memory, database, Redis, Memcached and multi-node distributed adapters, with tags and revalidation | ✅ Shipped |
-| **File Storage** | Memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No local disk adapter or streaming put and get yet | ⚠️ Partial |
+| **File Storage** | One surface on both sides: the filesystem this process is standing on (a server's disk, or the directory an app owns on a device), memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No streaming put and get yet | ⚠️ Partial |
 | **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
 | **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
-| **Semantic Search** | `DVSemanticIndex`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The index is wired by hand and the only vector adapter is in-memory | ⚠️ Partial |
+| **Semantic Search** | `@DVModel(semantic: true)` gives a data model `useSemanticSearch` and `semanticSearch`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The only vector adapter is in-memory | ⚠️ Partial |
 | **SEO** | `dartvel build web` writes head tags, JSON-LD, per-route HTML from the semantics tree, `sitemap.xml` and `robots.txt` | ✅ Shipped |
 | **PWA** | Manifest, icons, a service worker that precaches routes and replays writes made offline (tested in a real Chrome on every push), an offline page, and `DV.Platform.install` | ✅ Shipped |
 | **AI Integration** | Adapters for Claude, OpenAI, Gemini, OpenRouter and Ollama plus a deterministic local one, structured output, tool calling and agents | ✅ Shipped |
@@ -121,7 +121,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
 | **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
-| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, switch control, and a release gate in `dartvel build web` that audits the semantics tree a real browser produced | ✅ Shipped |
+| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced | ✅ Shipped |
 | **Terminal Rendering** | `-cli`/`-tui` targets, build-time backend selection, terminal size and graphics detection. The renderer lives in the `dartvel_cli_flt` fork, which a build needs installed | ⚠️ Partial |
 | **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
 | **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
@@ -390,8 +390,11 @@ final Article article = Article(slug: 'hello-world', title: 'Hello', published: 
 await article.save();
 final Article? found = await Article.find('hello-world');
 
-Widget editor(Article article) =>
-    Article.Form(article, (Article edited) => edited.save());
+// On the class, a form that creates. On an article, a form that edits it.
+// Neither takes a callback: saving is what a form does, and the policy
+// decides whether this reader may.
+Widget composer() => Article.Form();
+Widget editor(Article article) => article.Form();
 Widget table(List<Article> articles) => Article.Table(articles);
 ```
 
