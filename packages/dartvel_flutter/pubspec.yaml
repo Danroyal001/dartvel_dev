@@ -21,7 +21,7 @@ dependencies:
   # no non-web target pulls it in.
   flutter_web_plugins:
     sdk: flutter
-  go_router: ^14.2.0
+  go_router: ">=14.2.0 <19.0.0"
   web: ^1.0.0
   seo: ^0.0.10
   # Upstream mix from pub.dev, at the version dartvel_mix tracks.
@@ -36,7 +36,7 @@ dependencies:
   # dependency and keeps working. That is a migration path, not something this
   # package needs to build.
   mix: ^2.2.0-beta.5
-  flutter_riverpod: ^2.5.1
+  flutter_riverpod: ">=2.5.1 <4.0.0"
   ffi: ^2.1.0
   # For @useResult on DV.Navigation.to, which returns a callback that is
   # useless if dropped.
@@ -44,7 +44,7 @@ dependencies:
   dartvel_core:
     version: ^0.5.0
   jni: ^1.0.3
-  dbus: ^0.7.15
+  dbus: ">=0.7.15 <0.9.0"
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -53,7 +53,7 @@ dev_dependencies:
   # a package that resolves only inside this workspace is not publishable.
   crypto: ^3.0.7
   build_runner: ^2.4.0
-  jnigen: ^0.17.0
+  jnigen: ">=0.17.0 <2.0.0"
 
 flutter:
   uses-material-design: true

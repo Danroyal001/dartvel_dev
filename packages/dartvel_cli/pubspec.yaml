@@ -37,7 +37,7 @@ dependencies:
   # dependency: pub warns on the undeclared import.
   pub_semver: ^2.1.0
 dev_dependencies:
-  lints: ^4.0.0
+  lints: ">=4.0.0 <7.0.0"
   # Used by semantics_capture_server_test to make real requests against the
   # capture's own handler. Declared rather than leaned on transitively, for
   # the same reason as pub_semver above.
