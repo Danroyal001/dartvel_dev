@@ -16,6 +16,7 @@ import '../database/adapter.dart';
 import '../database/framework_tables.dart';
 import '../diagnostics/diagnostics.dart';
 import '../observability/logging.dart';
+import '../privacy/opt_out.dart';
 
 /// A purpose somebody can consent to, by name.
 ///
@@ -419,6 +420,13 @@ class DVConsent {
   bool isGranted(DVConsentCategory category) {
     final DVConsentDeclaration d = _declared(category);
     if (d.required) return true;
+    // A Global Privacy Control signal on the request is an opt-out of sale
+    // and sharing, and a tracking category is what that means here. It beats
+    // a recorded grant deliberately: the header is the person's own
+    // instruction, sent now, and the stored answer is what they clicked once.
+    // Categories that are not tracking are untouched -- the law asked about
+    // sale and sharing, not about measurement.
+    if (d.tracking && dvPrivacyOptOut) return false;
     if (_unrecordedWithdrawals.contains(category.name)) return false;
     return _answers?[category.name] ?? d.defaultGranted;
   }
