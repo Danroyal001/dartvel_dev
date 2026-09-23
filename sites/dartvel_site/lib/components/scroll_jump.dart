@@ -110,6 +110,11 @@ class _JumpButton extends StatelessWidget {
     final String label = toTop ? 'Back to top' : 'To the bottom';
     return Tooltip(
       message: label,
+      // The Semantics below already names this button. Tooltip publishes its
+      // message as a label too, and the two merge into one node whose name is
+      // the string twice -- which is what a screen reader reads out and what
+      // the captured tree carried at the top of every page on the site.
+      excludeFromSemantics: true,
       child: Semantics(
         button: true,
         label: label,
