@@ -73,7 +73,7 @@ jobs:
           docker image prune -af || true
           df -h /
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: dartvel
 
@@ -272,7 +272,7 @@ jobs:
           dart run dartvel/packages/dartvel_cli/bin/dartvel.dart artifact split "$NAME" --out chunks
           ls -la chunks/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: engine-${{ inputs.arch }}-${{ inputs.mode }}-chunks
           path: chunks/

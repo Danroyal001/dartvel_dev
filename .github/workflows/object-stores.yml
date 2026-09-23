@@ -48,7 +48,7 @@ jobs:
           - 10000:10000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
@@ -85,7 +85,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
