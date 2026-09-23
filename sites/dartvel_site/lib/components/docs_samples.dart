@@ -1523,7 +1523,17 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'quantity.update((int n) => n + 1); // set from the current value',
     'final int now = quantity.read(); // read without subscribing',
   ],
+  'storage-local': <String>[
+    '// The filesystem this process is standing on. On a server that is the',
+    '// server\'s disk; on a device it is the directory the application owns, which',
+    '// is what a file manager writes into. Same calls either way.',
+    'void storeOnDisk(String directory) {',
+    '  DV.FileStorage.configure(DVLocalFileStorageAdapter(root: directory));',
+    '}',
+  ],
   'storage-s3': <String>[
+    '// A bucket is one more adapter behind the same calls. Swapping this line is',
+    '// the whole of moving from a disk to S3.',
     'void configureStorage() {',
     '  DV.FileStorage.configure(S3FileStorageAdapter(',
     '    bucket: \'uploads\',',

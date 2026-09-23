@@ -1,6 +1,17 @@
 import '../dartvel_client/dartvel_client.dart';
 
+// docs:start storage-local
+// The filesystem this process is standing on. On a server that is the
+// server's disk; on a device it is the directory the application owns, which
+// is what a file manager writes into. Same calls either way.
+void storeOnDisk(String directory) {
+  DV.FileStorage.configure(DVLocalFileStorageAdapter(root: directory));
+}
+// docs:end
+
 // docs:start storage-s3
+// A bucket is one more adapter behind the same calls. Swapping this line is
+// the whole of moving from a disk to S3.
 void configureStorage() {
   DV.FileStorage.configure(S3FileStorageAdapter(
     bucket: 'uploads',
