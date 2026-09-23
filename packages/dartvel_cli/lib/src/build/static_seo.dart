@@ -797,3 +797,25 @@ String _joinLiterals(String run) {
   }
   return joined.toString();
 }
+
+/// The root page's title and description, preferring what the page declares
+/// over the project-wide defaults.
+///
+/// Every other route is handed these by [dvStaticPage], which is given what
+/// `@DVPage` declared. The root is written before that loop runs, and was
+/// given neither, so the home page kept shipping `dartvel.seo.description`
+/// after every other page on the site had stopped. It is the page most likely
+/// to be the search result, describing itself the way the whole site used to.
+///
+/// A home page that declares nothing keeps the project's own sentence: absent
+/// is not empty here either.
+({String title, String? description}) dvRootHead({
+  required String routerSource,
+  required String fallbackTitle,
+  String? fallbackDescription,
+}) =>
+    (
+      title: dvRouteTitles(routerSource)['/'] ?? fallbackTitle,
+      description:
+          dvRouteDescriptions(routerSource)['/'] ?? fallbackDescription,
+    );
