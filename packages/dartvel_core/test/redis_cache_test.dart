@@ -79,6 +79,31 @@ void main() async {
     await client.command(<String>['DEL', 'other_app:key']);
   });
 
+  test('increment counts on the server, so racing hits are all counted',
+      () async {
+    // The reason a rate limit needs INCRBY rather than read-add-write: eight
+    // requests arriving together, from however many instances, have to come
+    // to eight. Read-add-write comes to some smaller number and lets the
+    // difference through.
+    final List<int> counted = await Future.wait(<Future<int>>[
+      for (int i = 0; i < 8; i++) adapter.increment('hits'),
+    ]);
+
+    expect(counted.toSet(), hasLength(8),
+        reason: 'every caller must get its own number back');
+    expect(counted.reduce((int a, int b) => a > b ? a : b), 8);
+  });
+
+  test('a counter expires, and the next window starts again', () async {
+    await adapter.increment('window', ttl: const Duration(milliseconds: 60));
+    expect(await adapter.increment('window', ttl: const Duration(milliseconds: 60)),
+        2);
+
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    expect(await adapter.increment('window'), 1,
+        reason: 'a counter that outlives its window blocks a caller for ever');
+  });
+
   test('writeIfAbsent is atomic: one winner under contention', () async {
     final results = await Future.wait(<Future<bool>>[
       for (var i = 0; i < 8; i++)

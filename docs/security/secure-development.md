@@ -144,9 +144,13 @@ every suite on every push; that is the evidence.
 Written down rather than implied, because a gap nobody names is a gap nobody
 closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
 
-- **Rate limiting is per process and in memory.** Two instances behind a load
-  balancer give an attacker twice the budget, and a restart clears it.
-  `CommonMiddleware.rateLimit` keeps its counters in a map.
+- **Rate limiting counts in one process unless a deployment says otherwise.**
+  `CommonMiddleware.rateLimit` takes a `store`, and
+  `DVMiddlewareSettings.rateLimitStore` hands it the cache every instance
+  shares; Redis counts with `INCRBY`, so hits that arrive together are all
+  counted. Left unset it counts in memory, which gives a caller one budget
+  per instance and a fresh one after a restart. Nothing refuses to start
+  without it, so a deployment behind a load balancer has to set it.
 - **Releases are checksummed, not signed.** `.github/workflows/cli-release.yml`
   publishes a `SHA256SUMS` file, which detects a corrupted download and not a
   substituted one. No signature, no provenance attestation.

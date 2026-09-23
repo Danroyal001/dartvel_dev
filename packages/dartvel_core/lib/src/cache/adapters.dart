@@ -27,9 +27,30 @@ abstract class DVAtomicCacheAdapter {
   Future<bool> writeIfAbsent(String key, Object? value, Duration? ttl);
 }
 
+/// Counting in the store rather than in a caller.
+///
+/// A caller that reads a number, adds one and writes it back loses every hit
+/// that lands between the read and the write, and the more instances there
+/// are the more it loses — which is exactly the case a shared counter exists
+/// for. A rate limit built on that is worse than none, because the
+/// deployment believes it has one.
+///
+/// So an adapter offers this only when the store itself can add: Redis
+/// `INCRBY`, a single process's own map. Anything else is honestly missing
+/// it, and callers refuse rather than pretending.
+abstract class DVCountingCacheAdapter {
+  /// Adds [by] to the number at [key] and returns the new total, creating it
+  /// at [by] when it is absent.
+  ///
+  /// [ttl] is how long the counter lives from this call. A caller counting
+  /// per window puts the window in the key, so an expiry that lands late
+  /// costs nothing: the next window is a different key.
+  Future<int> increment(String key, {int by, Duration? ttl});
+}
+
 /// Process-local cache. The default, and what `DV.Cache` used exclusively
 /// before adapters existed.
-class DVMemoryCacheAdapter implements DVCacheAdapter {
+class DVMemoryCacheAdapter implements DVCacheAdapter, DVCountingCacheAdapter {
   final Map<String, ({Object? value, DateTime? expiresAt})> _entries = {};
 
   @override
@@ -50,6 +71,16 @@ class DVMemoryCacheAdapter implements DVCacheAdapter {
       value: value,
       expiresAt: ttl == null ? null : DateTime.now().add(ttl),
     );
+  }
+
+  @override
+  Future<int> increment(String key, {int by = 1, Duration? ttl}) async {
+    // Through read, so an expired counter starts again rather than adding to
+    // a window that has already passed.
+    final Object? current = await read(key);
+    final int next = (current is int ? current : 0) + by;
+    await write(key, next, ttl);
+    return next;
   }
 
   @override

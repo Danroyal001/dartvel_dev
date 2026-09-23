@@ -3,8 +3,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../annotations/annotations.dart' show DVCSRF;
+import '../cache/adapters.dart';
 import '../http/client_address.dart';
 import '../http/wintercg.dart' as dv;
+import '../observability/logging.dart' show DVLogLevel;
+import '../observability/observability.dart' show DVObservability;
 import '../privacy/opt_out.dart';
 import '../tenancy/tenants.dart';
 
@@ -87,29 +90,89 @@ class CommonMiddleware {
     };
   }
 
-  /// Rate limiting middleware
+  /// Rate limiting middleware.
+  ///
+  /// Counts in this process unless [store] is given. That is the right
+  /// default for one server and the wrong answer for several: two instances
+  /// behind a load balancer give a caller twice the budget, three give three
+  /// times, and a restart hands everyone a fresh one. Nothing about that
+  /// looks wrong from inside any of them, which is why it is worth saying.
+  ///
+  /// [store] is the cache every instance already shares, and it has to be
+  /// able to count — see [DVCountingCacheAdapter]. One that cannot is
+  /// refused here rather than at the first burst: reading a number, adding
+  /// one and writing it back loses the hits that land in between, and a
+  /// limiter that does that silently is worse than none.
+  ///
+  /// Counters are keyed by caller and window, so the budget rolls without
+  /// anything having to expire on time, and a store that is unreachable
+  /// allows the request. Refusing everything while the cache is down turns a
+  /// cache outage into an outage.
   static Middleware rateLimit({
     int maxRequests = 100,
     Duration window = const Duration(minutes: 1),
     ClientIdentifier? clientIdentifier,
+    DVCacheAdapter? store,
+    DateTime Function()? clock,
   }) {
+    if (store != null && store is! DVCountingCacheAdapter) {
+      throw ArgumentError.value(
+        store,
+        'store',
+        'cannot count atomically, so hits that arrive together would be '
+            'lost and the limit would let more through than it says. Use an '
+            'adapter that implements DVCountingCacheAdapter, such as '
+            'DVRedisCacheAdapter, or leave store unset to count in this '
+            'process.',
+      );
+    }
+    final DVCountingCacheAdapter? shared = store as DVCountingCacheAdapter?;
+    final DateTime Function() now = clock ?? DateTime.now;
     final Map<String, List<DateTime>> requestsMap = {};
 
-    return (request, context) {
+    return (request, context) async {
       final clientId =
           clientIdentifier?.call(request) ?? _clientIdentifier(request);
+      final at = now();
 
-      final now = DateTime.now();
+      if (shared != null) {
+        // The window in the key: the counter for a window that has passed is
+        // simply not the one being read any more, so nothing depends on an
+        // expiry landing at the right moment.
+        final int slot = at.millisecondsSinceEpoch ~/ window.inMilliseconds;
+        try {
+          final int count = await shared.increment(
+            'dv:ratelimit:$clientId:$slot',
+            // Two windows, so a counter outlives the window it counts and
+            // still cannot pile up.
+            ttl: window * 2,
+          );
+          if (count > maxRequests) {
+            context.abort();
+            context.data['rateLimitError'] = 'Too many requests';
+          }
+        } on Object catch (error) {
+          DVObservability.log(
+            'The shared rate limit store did not answer; the request was '
+            'allowed.',
+            level: DVLogLevel.error,
+            code: 'DV-RATELIMIT-001',
+            error: error,
+          );
+        }
+        return;
+      }
+
       final requests = requestsMap[clientId] ?? [];
 
       // Remove old requests
-      requests.removeWhere((t) => now.difference(t) > window);
+      requests.removeWhere((t) => at.difference(t) > window);
 
       if (requests.length >= maxRequests) {
         context.abort();
         context.data['rateLimitError'] = 'Too many requests';
       } else {
-        requests.add(now);
+        requests.add(at);
         requestsMap[clientId] = requests;
       }
     };
