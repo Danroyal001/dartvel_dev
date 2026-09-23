@@ -57,9 +57,34 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    // autofocus only applies the first time this builds. Focus can afterwards
+    // end up on nothing at all -- a right-click opens the browser's menu and
+    // hands focus back to nobody, and a click on a paragraph focuses nothing
+    // either -- and from then on the page answered no key. The reader had to
+    // find a link to click before scrolling worked again.
+    FocusManager.instance.addListener(_focusChanged);
+  }
+
+  @override
   void dispose() {
+    FocusManager.instance.removeListener(_focusChanged);
     _node.dispose();
     super.dispose();
+  }
+
+  /// Takes the keys back when nothing else wants them.
+  ///
+  /// Only when focus has landed nowhere. Something a reader is using -- a
+  /// text field, a link, a button -- keeps it, because a page that snatched
+  /// focus back would take the reader out of what they were typing in.
+  void _focusChanged() {
+    if (!mounted || !_node.canRequestFocus) return;
+    final FocusNode? focused = FocusManager.instance.primaryFocus;
+    if (focused == null || focused is FocusScopeNode) {
+      _node.requestFocus();
+    }
   }
 
   @override

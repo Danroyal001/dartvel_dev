@@ -36,7 +36,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               '# a signed TPK, no Tizen Studio here',
               'dartvel build tizen --cloud',
               '# on a macOS worker',
-              'dartvel build tvos --cloud --simulator',
+              'dartvel build tvos --cloud',
               '# the extension and its web build',
               'dartvel build vscode --cloud',
               '# on a macOS worker',

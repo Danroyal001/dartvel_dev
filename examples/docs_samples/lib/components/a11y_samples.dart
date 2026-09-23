@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 import '../dartvel_client/dartvel_client.dart';
@@ -14,17 +15,22 @@ Widget checkoutButton(VoidCallback onCheckout) => DVText('Pay now').modifier(
 // docs:end
 
 // docs:start a11y-switch-control
-// Space steps focus through the page and Enter activates, while switch
-// control is on. autoScan steps on a timer for a single-switch user.
-Widget drivableBySwitches(Widget page) => DVSwitchControl(
-      autoScan: const Duration(seconds: 2),
-      child: page,
-    );
-
-// A TV remote's D-pad and select key move focus and activate.
-Widget drivableByRemote(Widget page) => DVHardwareKeys(child: page);
-
+// Every page is already reachable by a remote, by switches and by a
+// keyboard. This is the whole of what an application does about it: turn
+// switch control on for the reader who needs it.
 void turnSwitchControlOn() => DV.Accessibility.switchControl.enabled = true;
+
+// And, where the reader's switch is not the usual key, say which it is.
+// autoScan steps focus on a timer, which is what a single-switch user needs:
+// one switch to select, and the stepping done for them.
+void oneSwitch() {
+  DV.Accessibility.switchControl
+    ..settings = const DVSwitchControlSettings(
+      next: LogicalKeyboardKey.f7,
+      select: LogicalKeyboardKey.f8,
+    )
+    ..autoScan = const Duration(seconds: 2);
+}
 // docs:end
 
 bool checks() {
