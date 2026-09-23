@@ -1603,7 +1603,7 @@
         "packages/dartvel_dev/lib/dartvel_ui.dart",
         "packages/dartvel_dev/lib/dartvel_rust_bindings.dart"
       ],
-      "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DVRust and DVRustInt in dartvel_flutter, which is enough for the DV.Rust.Int example in the section and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06."
+      "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DVRust and DVRustInt in dartvel_flutter, reached by constructing DVRust and not through any DV.Rust member, and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06."
     },
     {
       "section": "Home Widgets",

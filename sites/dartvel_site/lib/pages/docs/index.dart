@@ -152,7 +152,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
                   'so pages cannot live in two directories.',
             ]),
             DocsStatus('Package Structure', missing: <String>[
-              'DV.Rust has one integer type and nothing more.',
+              'The Rust bindings are DVRust and DVRustInt, one integer '
+                  'type. They are types you construct, so there is no '
+                  'DV.Rust to call.',
             ]),
           ],
         ),
