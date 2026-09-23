@@ -386,7 +386,7 @@ String dvRenderRoute({
       siteName: siteName,
     ),
   );
-  return dvApplyPageText(html, text);
+  return dvApplyPageText(html, text, path: path);
 }
 
 /// The shell as the page for [path] from [data]: the head, the text, the
