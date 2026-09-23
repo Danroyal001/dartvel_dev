@@ -37,7 +37,7 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Native features, home widgets, kiosks, windows and trays', 'App'),
   DocsPageInfo(DVRoutes.docsmedia3d, 'Media, 3D and XR',
       'Players, recorders, 3D scenes and spatial windows', 'App'),
-  DocsPageInfo(DVRoutes.docsmodels, 'Models',
+  DocsPageInfo(DVRoutes.docsmodels, 'Data models',
       'One class gives you storage, forms, tables and pages', 'Data'),
   DocsPageInfo(DVRoutes.docsforms, 'Forms',
       'A create or edit form for every model', 'Data'),

@@ -88,7 +88,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       anchor: 'keys'),
 
   // Data
-  SpecCoverage('Models', 'Data', DVRoutes.docsmodels, 'Declare a model',
+  SpecCoverage('Models', 'Data', DVRoutes.docsmodels, 'Declare a data model',
       anchor: 'declare'),
   SpecCoverage('Forms', 'Data', DVRoutes.docsforms,
       'Generate a form from a model', anchor: 'automatic'),

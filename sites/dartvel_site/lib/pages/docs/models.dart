@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel models: storage, forms, tables, admin and pages',
-  description: 'Declare a class once and get storage, a form, a table, an '
-      'admin screen and public pages. Every generated name is public, '
+  title: 'Dartvel data models: storage, forms, tables, admin and pages',
+  description: 'Declare a data model once and get storage, a form, a table, '
+      'an admin screen and public pages. Every generated name is public, '
       'so your code never touches the private class.',
   showAppBar: false,
 )
@@ -13,15 +13,17 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _docsModelsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmodels,
       lead: <String>[
-        'Declare a class once and get storage, a form, a table, an admin '
-            'screen and public pages.',
+        'Declare a data model once and get storage, a form, a table, an '
+            'admin screen and public pages.',
+        'These are the models your data lives in. Dartvel has 3D models '
+            'too, under Media, 3D and XR.',
         'Every generated name is public, so your code never touches the '
             'private class.',
       ],
       sections: <DocsSection>[
         DocsSection(
           id: 'declare',
-          title: 'Declare a model',
+          title: 'Declare a data model',
           children: <Widget>[
             DocsCode('models-article'),
             Bullets(<String>[
@@ -40,7 +42,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'options',
-          title: 'Model options',
+          title: 'Data model options',
           children: <Widget>[
             DocsTable(columns: <String>[
               'Parameter',

@@ -59,7 +59,7 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
             DocsTable(
               columns: <String>['', 'Laravel', 'Dartvel'],
               rows: <List<String>>[
-                <String>['Models', 'Eloquent', '@DVModel, offline-first and realtime by default'],
+                <String>['Data models', 'Eloquent', '@DVModel, offline-first and realtime by default'],
                 <String>['Migrations', 'php artisan migrate', 'Generated from the model, run on start'],
                 <String>['CLI', 'artisan', 'dartvel'],
                 <String>['Queues and jobs', 'Queue, Horizon', 'DV.Jobs, DV.Queues, @DVJob'],
