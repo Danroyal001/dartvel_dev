@@ -2920,8 +2920,9 @@ class BuildCommand extends Command<void> {
     // 'RobotoMono' as a paragraph of its own.
     final String? semantics = _semanticHtmlFor(root, '/');
     after = semantics != null
-        ? dvApplyPageHtml(after, semantics)
-        : dvApplyPageText(after, _routeText(root)['/'] ?? const <String>[]);
+        ? dvApplyPageHtml(after, semantics, path: '/')
+        : dvApplyPageText(after, _routeText(root)['/'] ?? const <String>[],
+            path: '/');
     if (after == before) return;
     index.writeAsStringSync(after);
     Logger.log('   SEO head written for "$title".');
@@ -3226,8 +3227,8 @@ class BuildCommand extends Command<void> {
       File(p.join(web.path, target))
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(semantics != null
-            ? dvApplyPageHtml(page, semantics)
-            : dvApplyPageText(page, text));
+            ? dvApplyPageHtml(page, semantics, path: route)
+            : dvApplyPageText(page, text, path: route));
       written++;
     }
 

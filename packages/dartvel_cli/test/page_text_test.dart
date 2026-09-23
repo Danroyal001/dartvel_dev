@@ -136,12 +136,16 @@ DVText('A real sentence here.')
   group('putting it in the page', () {
     const String shell = '<html><head></head><body></body></html>';
 
-    test('it goes in a noscript block', () {
-      // Where a browser with scripting shows nothing and one without shows
-      // the page. A hidden div is for crawlers; noscript is for people.
+    test('it goes in the document, hidden from the screen', () {
+      // It used to go inside `<noscript>`, which a browser running the app
+      // does not parse into the document at all -- so the page's own words
+      // could not be styled, read by a screen reader or printed. Now it is a
+      // real element that the stylesheet hides, and that a printer and a
+      // browser with no scripting are both shown.
       final html = dvApplyPageText(shell, <String>['A heading', 'A sentence.']);
 
-      expect(html, contains('<noscript>'));
+      expect(html, contains('<div class="dv-fallback">'));
+      expect(html, contains('.dv-fallback{display:none}'));
       expect(html, contains('A heading'));
       expect(html, contains('A sentence.'));
     });
@@ -168,7 +172,7 @@ DVText('A real sentence here.')
       final twice = dvApplyPageText(once, <String>['One']);
 
       expect(twice, once);
-      expect('<noscript>'.allMatches(twice).length, 1);
+      expect('<div class="dv-fallback'.allMatches(twice).length, 1);
     });
 
     test('no text means no empty block', () {
@@ -196,12 +200,14 @@ DVText('A real sentence here.')
       expect(html, isNot(contains('&lt;h1&gt;')));
     });
 
-    test('it sits inside noscript, where the app is not running', () {
+    test('it sits in the document, where a printer can reach it', () {
       final html = dvApplyPageHtml(shell, '<h1>Docs</h1>');
+      final int heading = html.indexOf('<h1>Docs');
 
-      expect(html, contains('<noscript>'));
-      expect(html.indexOf('<noscript>'), lessThan(html.indexOf('<h1>Docs')));
-      expect(html.indexOf('<h1>Docs'), lessThan(html.indexOf('</noscript>')));
+      expect(html.indexOf('<div class="dv-fallback">'), lessThan(heading));
+      // Not inside the noscript element, which now holds one style rule and
+      // nothing a reader needs.
+      expect(heading, greaterThan(html.indexOf('</noscript>')));
     });
 
     test('applying it twice does not stack two copies', () {
