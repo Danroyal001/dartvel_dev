@@ -76,7 +76,10 @@ void main() {
   test('a route is served with its own crawler-visible text', () async {
     final body = await get('/docs');
 
-    expect(body, contains('<noscript>'));
+    // In the document, hidden from the screen: a crawler reads it, a reader
+    // with no scripting is shown it, and a printer is given it instead of
+    // the canvas.
+    expect(body, contains('<div class="dv-fallback"'));
     expect(body, contains('Read the docs'));
     expect(body, contains('Second line'));
   });
