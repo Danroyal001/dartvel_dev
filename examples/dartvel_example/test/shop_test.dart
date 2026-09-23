@@ -2,6 +2,7 @@
 // who may sign in -- against the generated models on a real store.
 import 'dart:async';
 
+import 'package:dartvel_core/framework.dart';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_example/shop/account.dart';
 import 'package:dartvel_example/shop/cart.dart';

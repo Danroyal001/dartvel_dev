@@ -7,11 +7,15 @@
 // rebuild that answers from half-written vectors returns confident nonsense
 // for hours. An embedding job that failed quietly leaves a record that is
 // simply never found, and nobody can report what they never see.
-import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart';
+// DVSemanticIndex is the machinery behind Model.semanticSearch and is not in
+// the barrel an application imports, so its own tests reach for the
+// framework library.
+import 'package:dartvel_core/framework.dart';
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:test/test.dart';
 
 class Ticket {

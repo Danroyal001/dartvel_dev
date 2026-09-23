@@ -3,6 +3,7 @@
 // Both exist to distinguish two states that look identical from calling code:
 // a message nobody sent from one a provider accepted, and a policy that denied
 // from one that was never registered.
+import 'package:dartvel_core/framework.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
