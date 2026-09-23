@@ -806,6 +806,12 @@ class _Builder {
         'Tenant scope: the tenant this request names is current for '
             'everything below.',
       ),
+      (
+        'privacy',
+        'Privacy scope: a <code>Sec-GPC: 1</code> header is in force for '
+            'everything below, and denies every consent category declared '
+            'as tracking.',
+      ),
       if (middleware.contains('tracing'))
         (
           'tracing',

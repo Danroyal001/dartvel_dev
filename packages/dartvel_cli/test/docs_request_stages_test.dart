@@ -55,6 +55,7 @@ Future<Map<String, Object?>> _status() async => <String, Object?>{};
 /// The text in the generated handler that marks each stage.
 Pattern _marker(String stage, String function) => switch (stage) {
   'tenant' => 'core.dvWithRequestTenant(',
+  'privacy' => 'core.dvWithRequestPrivacy(',
   'tracing' => 'core.dvTraced(',
   'body' => 'req.body',
   'csrf' => '_dvValidateCsrf(',

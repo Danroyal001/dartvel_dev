@@ -958,8 +958,9 @@ Future<dv.Response> _dvAuthenticated(
   return core.DVSessionPrincipal.actingAs(signedIn, run);
 }
 
-/// The tenant scope and authentication stage for a route that is not a
-/// backend function: GraphQL, the crash endpoint, OpenAPI and health.
+/// The tenant scope, the request's privacy signal and the authentication
+/// stage for a route that is not a backend function: GraphQL, the crash
+/// endpoint, OpenAPI and health.
 ///
 /// Each was registered bare, so a key for another tenant was refused with a
 /// 401 on a function's route and not looked at here -- where a GraphQL
@@ -969,7 +970,10 @@ Future<dv.Response> _dvStaged(
   dv.Request req,
   Future<dv.Response> Function() run,
 ) =>
-    core.dvWithRequestTenant(req, () => _dvAuthenticated(req, run));
+    core.dvWithRequestTenant(
+      req,
+      () => core.dvWithRequestPrivacy(req, () => _dvAuthenticated(req, run)),
+    );
 
 /// Runs a route's declared middleware around its handler.
 ///
@@ -1091,6 +1095,12 @@ ${backendEntries.map((e) {
       // runs knowing who is calling.
       final List<(String, String)> layers = <(String, String)>[
         ('core.dvWithRequestTenant(req, ', '()'),
+        // The request's Sec-GPC header, read once here rather than wherever
+        // somebody remembers to ask. It is an opt-out of sale and sharing
+        // that a business has to honour without asking again, and a route
+        // that never opens the scope answers normally, collects normally,
+        // and shows no symptom at all.
+        ('core.dvWithRequestPrivacy(req, ', '()'),
         if (traces)
           ('core.dvTraced(dvapi.DV.ObservabilityAndLogging.tracer, req, ',
               '(dv.Request req)'),

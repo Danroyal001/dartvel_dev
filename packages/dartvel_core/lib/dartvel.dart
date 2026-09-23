@@ -200,6 +200,7 @@ export 'src/observability/observability.dart' hide DVObservability;
 export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';
+export 'src/privacy/opt_out.dart';
 export 'src/privacy/privacy.dart';
 export 'src/process/process_configuration.dart';
 export 'src/process/process_health.dart';
