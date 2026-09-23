@@ -1,42 +1,48 @@
 import '../dartvel_client/dartvel_client.dart';
 
-Future<void> capture(DVDatabaseAdapter app, DVDatabaseAdapter warehouse) async {
-  // docs:start capture-log
+// docs:start capture-log
+// One log for the process, configured where the database is. A model says it
+// is captured and nothing else changes: saving a record is what records the
+// change, and a sensitive field is named in it and never carried.
+//
+//   @DVModel(capture: true)
+//   class _Order {
+//     final String id;
+//     final int total;
+//     @DVModel.sensitiveField()
+//     final String customerEmail;
+//     ...
+//   }
+Future<void> captureWrites(DVDatabaseAdapter app) async {
   final DVCapture log = DVCapture(
     database: app,
-    retention: const Duration(days: 7), // a consumer further behind must backfill
+    // A consumer further behind than this has to backfill.
+    retention: const Duration(days: 7),
   );
   await log.ensureSchema();
+  DVCapture.configure(log);
+}
 
-  final DVRecordTable orders = DVRecordTable(
-    table: 'orders',
-    key: 'id',
-    columns: <String>['id', 'reference', 'total', 'customer_email'],
-    sensitive: <String>{'customer_email'}, // named in the log, never stored
-    capture: log,
-    database: app,
-  );
-  await orders.ensureSchema();
+// And then an ordinary save, which is the whole of it.
+Future<void> takeOrder() => Shipment(
+      id: 'o1',
+      reference: 'R-1',
+      total: 4200,
+      customerEmail: 'ada@example.com',
+    ).save();
+// docs:end
 
-  // The write and its change land together.
-  await orders.write(<String, Object?>{
-    'id': 'o1',
-    'reference': 'R-1',
-    'total': 4200,
-    'customer_email': 'ada@example.com',
-  });
-  // docs:end
-
+Future<void> consume(DVCapture log, DVDatabaseAdapter warehouse) async {
   // docs:start capture-consumer
   final DVCaptureConsumer toWarehouse = log.consumer(
     'warehouse',
     sink: DVWarehouseSink(database: warehouse),
-    models: <String>{'orders'},
+    models: <String>{'shipments'},
     lagThreshold: const Duration(minutes: 10),
   );
 
   // Copy what is already there, then follow new changes in order.
-  await toWarehouse.backfill(orders);
+  await Shipment.backfillTo(toWarehouse);
   final DVCaptureDelivery delivery = await toWarehouse.deliverAll();
 
   final DVCaptureLag lag = await toWarehouse.lag();
