@@ -91,6 +91,15 @@ Type get carrier => DVPresenceTransport;
     expect(output, contains('undefined_identifier'));
   });
 
+  test('an application cannot name DVRecordTableRemote', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get remote => DVRecordTableRemote;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
   test('the framework itself has all of them', () async {
     final String output = await analyzed('''
 import 'package:dartvel_core/framework.dart';
@@ -99,6 +108,7 @@ Future<void> reset() => DVModelSync.reset();
 Type get index => DVSemanticIndex;
 Type get carrier => DVModelSyncTransport;
 Type get other => DVPresenceTransport;
+Type get remote => DVRecordTableRemote;
 ''');
     expect(output, isNot(contains(' error ')));
   });

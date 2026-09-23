@@ -73,11 +73,18 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
           id: 'offline',
           title: 'Keep writing while offline',
           children: <Widget>[
-            DocsText('DVOfflineStore keeps a local copy and a log of every write '
+            DocsText('A data model that has to work with no network says so, '
+                'and says how a write made offline is resolved when it '
+                'reaches the server.'),
+            DocsCode('offline-model'),
+            DocsText('It then keeps a local copy and a log of every write '
                 'made on the device. When the connection comes back, replay '
                 'sends the log to the server in order.'),
             DocsCode('offline-store'),
             Bullets(<String>[
+              'The store and the server side come from the table, the key '
+                  'and the columns the data model already declares, so '
+                  'neither can drift from the other.',
               'Replay stops at a dropped connection and picks up there next '
                   'time. Two replays at once share one run.',
               'A write the server refuses for good moves to rejected(), so '
@@ -96,10 +103,13 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
               'Last write wins by the time the write was made on the device, '
                   'corrected for clock drift. Arrival order does not decide.',
               'DVConflict.ask is refused offline, because nobody is there to '
-                  'answer.',
+                  'answer. A data model that declares it stops the build, so '
+                  'it cannot fail on somebody\'s phone instead.',
             ]),
             DocsStatus('Offline-First Models', missing: <String>[
-              'No @DVModel(offline:) yet, so you build the store by hand.',
+              'Model.save() does not write to the local store on its own. '
+                  'The store is the model\'s, and writing through it is '
+                  'still a separate call.',
               'No IndexedDB store on web.',
               'Signing out does not clear the store, and encrypt: true is not '
                   'applied.',
