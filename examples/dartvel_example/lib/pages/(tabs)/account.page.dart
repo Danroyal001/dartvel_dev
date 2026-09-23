@@ -59,8 +59,13 @@ Widget _accountPage(BuildContext context) => (() {
           ).modifier(p.muted),
           FilledButton(
             key: const Key('account-sign-in'),
+            // Both halves are generated targets. Written out as one
+            // string, either page could move and neither would be a
+            // compile error.
             onPressed: () => DV.Navigation.navigate(
-              const DVRouteTarget('/sign-in?from=/account'),
+              DVRoutes.signin.withQuery(<String, String>{
+                'from': DVRoutes.account.path,
+              }),
             ),
             child: const Text('Sign in'),
           ),

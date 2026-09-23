@@ -8782,6 +8782,32 @@ class DV {
 class DVRouteTarget {
   final String path;
   const DVRouteTarget(this.path);
+
+  /// This route with [query] appended, still a route rather than a string.
+  ///
+  /// `/sign-in?from=/account` used to be written out whole at every call
+  /// site, because a target held a path and nothing else. Two paths in one
+  /// literal drift when either page moves, and neither half is a compile
+  /// error -- which is what typed routes exist to prevent. Now both halves
+  /// are generated targets:
+  ///
+  /// ```dart
+  /// DVRoutes.signin.withQuery(<String, String>{
+  ///   'from': DVRoutes.account.path,
+  /// })
+  /// ```
+  ///
+  /// Values are encoded, so a path or a space in one is safe to pass.
+  DVRouteTarget withQuery(Map<String, String> query) {
+    if (query.isEmpty) return this;
+    final String separator = path.contains('?') ? '&' : '?';
+    final String encoded = query.entries
+        .map((MapEntry<String, String> entry) =>
+            '${Uri.encodeQueryComponent(entry.key)}='
+            '${Uri.encodeQueryComponent(entry.value)}')
+        .join('&');
+    return DVRouteTarget('$path$separator$encoded');
+  }
 }
 
 extension DartvelNavigationX on BuildContext {

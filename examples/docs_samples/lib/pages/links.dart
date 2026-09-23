@@ -29,5 +29,14 @@ Widget _linksPage(BuildContext context) => DVBox.list(<Widget>[
       DVText('Back to home').modifier(
         DVModifier().onTap(DV.Navigation.to(DVRoutes.index)),
       ),
+      // A query is still a typed route. Both halves are generated targets,
+      // so a page that moves is a compile error here.
+      DVText('Sign in and come back').modifier(
+        DVModifier().onTap(DV.Navigation.to(
+          DVRoutes.accountsecurity.withQuery(<String, String>{
+            'from': DVRoutes.accountsettings.path,
+          }),
+        )),
+      ),
       // docs:end
     ]);

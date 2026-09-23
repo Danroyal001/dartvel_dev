@@ -425,7 +425,7 @@ Widget _codeBlock(BuildContext context, List<String> lines) =>
 Widget _wordmark(BuildContext context) {
   final Palette palette = Palette.of(context);
   return DVNavLink(
-    to: const DVRouteTarget('/'),
+    to: DVRoutes.index,
     padding: EdgeInsets.zero,
     semanticLabel: 'Dartvel, home',
     child: DVBox.row(<Widget>[
