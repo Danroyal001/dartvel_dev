@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel images: resized variants for fast web pages', showAppBar: false)
+@DVPage(
+  title: 'Dartvel images: resized variants for fast web pages',
+  description: 'A phone downloads the 640-pixel image and a large screen gets '
+      'the 1920, from one asset you declared. The build writes the '
+      'sizes for you.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsMediaPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmedia,

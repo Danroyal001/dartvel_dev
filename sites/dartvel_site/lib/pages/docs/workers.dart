@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel workers and memory: heavy work off the UI thread', showAppBar: false)
+@DVPage(
+  title: 'Dartvel workers and memory: heavy work off the UI thread',
+  description: 'Run heavy work on another core with progress, a timeout and '
+      'cancellation while the UI keeps drawing, and reserve a memory '
+      'budget you fill with typed slices.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsWorkersPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsworkers,

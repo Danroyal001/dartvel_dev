@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Add Dartvel to an existing Flutter app', showAppBar: false)
+@DVPage(
+  title: 'Add Dartvel to an existing Flutter app',
+  description: 'Add Dartvel to the Flutter app you already have, one screen at '
+      'a time. dartvel init changes two lines in pubspec.yaml and '
+      'moves none of your files.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsadopting,

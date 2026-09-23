@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Testing Dartvel apps with DV.Test fakes', showAppBar: false)
+@DVPage(
+  title: 'Testing Dartvel apps with DV.Test fakes',
+  description: 'Test mail, HTTP calls, jobs and models without a network or a '
+      'server. Each DV.Test fake returns an object you can assert on.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsTestingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docstesting,

@@ -5,7 +5,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // Modules: a whole Dartvel app mounted inside another at a path, and the
 // signing and capability checks that decide whether a published one can be
 // trusted. Status boxes follow docs/spec-status.json.
-@DVPage(title: 'Dartvel modules: mount one app inside another', showAppBar: false)
+@DVPage(
+  title: 'Dartvel modules: mount one app inside another',
+  description: 'A Dartvel module is a complete app with its own pages, models '
+      'and backend. Mount it at a path and the parent serves all of '
+      'it, signed and scope-checked.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsModulesPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmodules,

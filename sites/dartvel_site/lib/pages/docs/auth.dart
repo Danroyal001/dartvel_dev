@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel auth: sign-in, second factor and sessions', showAppBar: false)
+@DVPage(
+  title: 'Dartvel auth: sign-in, second factor and sessions',
+  description: 'Sign people in with email and password, add a second factor, '
+      'and let them manage their devices. The account pages are '
+      'generated, so you write none of the forms.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsAuthPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsauth,

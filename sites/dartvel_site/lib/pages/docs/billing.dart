@@ -6,7 +6,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // tax, promotions and refunds, and usage limits per tenant. None of the
 // payment providers has been run against the live service, and each status
 // box says so. Source: the "absent" notes in docs/spec-status.json.
-@DVPage(title: 'Dartvel billing: subscriptions, purchases, tax and usage', showAppBar: false)
+@DVPage(
+  title: 'Dartvel billing: subscriptions, purchases, tax and usage',
+  description: 'Sell subscriptions through Stripe or Paddle, check store '
+      'purchases on your server, charge with tax and promotions, and '
+      'cap usage per customer.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsBillingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsbilling,

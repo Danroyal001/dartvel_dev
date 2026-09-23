@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel notifications: email, in-app and push', showAppBar: false)
+@DVPage(
+  title: 'Dartvel notifications: email, in-app and push',
+  description: 'Send email, in-app and push notifications through '
+      'DV.Notifications, with mail as part of it at '
+      'DV.Notifications.mail.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsnotifications,

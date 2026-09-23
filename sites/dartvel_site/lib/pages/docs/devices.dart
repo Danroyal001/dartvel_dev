@@ -5,7 +5,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // What an app does on the device it runs on: native APIs through DV.Platform,
 // home screen widgets, kiosks, windows and tabs, and desktop features such as
 // trays, menus and drag and drop. Status boxes follow docs/spec-status.json.
-@DVPage(title: 'Dartvel on devices: windows, widgets, kiosks and desktop', showAppBar: false)
+@DVPage(
+  title: 'Dartvel on devices: windows, widgets, kiosks and desktop',
+  description: 'Reach native features through DV.Platform on every target: '
+      'home screen widgets, kiosks, windows, tabs, foldables and '
+      'desktop trays, declared in Dart.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsdevices,

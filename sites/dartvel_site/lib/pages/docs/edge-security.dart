@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel edge security: sign-in limits, WAF rules and query budgets', showAppBar: false)
+@DVPage(
+  title: 'Dartvel edge security: sign-in limits, WAF rules and query budgets',
+  description: 'Password guessing is slowed on the sign-in your server already '
+      'has, with no setup. Add firewall rules, breached-password '
+      'checks and GraphQL budgets where you need them.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsEdgeSecurityPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsedgesecurity,

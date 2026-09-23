@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel database: SQLite, Postgres, MySQL and migrations', showAppBar: false)
+@DVPage(
+  title: 'Dartvel database: SQLite, Postgres, MySQL and migrations',
+  description: 'Start on a SQLite file and move to Postgres or MySQL with one '
+      'line. Your models create their own tables through dartvel db '
+      'migrate.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsdatabase,

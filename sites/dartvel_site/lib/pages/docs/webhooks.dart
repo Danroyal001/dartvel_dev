@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel webhooks: signed events with retries', showAppBar: false)
+@DVPage(
+  title: 'Dartvel webhooks: signed events with retries',
+  description: 'Tell your customers\' systems when something happens, with '
+      'signed and retried deliveries. Declare an event, let them '
+      'subscribe, then emit it.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsWebhooksPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docswebhooks,
