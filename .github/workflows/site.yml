@@ -120,6 +120,10 @@ jobs:
               echo "::error::$(basename "$shot") is blank ($spread)"; failed=1
             fi
           done
+          # And a page that drew its shell and not its article, which the
+          # check above passes because a sidebar is not one flat colour. Two
+          # routes with identical bytes did not both render.
+          dart "$GITHUB_WORKSPACE/tool/ci/shot_duplicates.dart" /tmp/shots || failed=1
           exit $failed
 
       - name: Contact sheets for a person to look at

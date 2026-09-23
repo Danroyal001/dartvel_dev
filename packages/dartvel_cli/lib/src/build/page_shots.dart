@@ -76,17 +76,28 @@ String dvShotName(String route, DVShotSize size) {
 /// three looks running. A shell that draws its navigation before the page
 /// it loads has text long before it has its content.
 class DVTextSettle {
-  int _last = -1;
+  int _lastLength = -1;
+  int _lastResources = -1;
   int _same = 0;
 
-  /// Records one look at the page's text length; true once it has settled.
-  bool add(int length) {
-    if (length > 0 && length == _last) {
+  /// Records one look at the page: how much text it shows, and how many
+  /// resources it has fetched.
+  ///
+  /// True once both have held still for three looks. Text alone is not
+  /// enough. Every page is a deferred library, so the docs shell draws its
+  /// sidebar from the first chunk and the article arrives in a second one:
+  /// the text stands at the sidebar's length for longer than three looks
+  /// while that chunk is still on its way, and a capture that trusted it
+  /// photographed the shell. The resource count is the part that is still
+  /// moving while that happens.
+  bool add(int length, [int resources = 0]) {
+    if (length > 0 && length == _lastLength && resources == _lastResources) {
       _same++;
     } else {
       _same = 1;
     }
-    _last = length;
+    _lastLength = length;
+    _lastResources = resources;
     return length > 0 && _same >= 3;
   }
 }
@@ -130,6 +141,19 @@ const String _pageText = '''() => {
   return host ? (host.innerText || '').trim().length : 0;
 }''';
 
+/// How many resources the page has fetched.
+///
+/// A page that is still pulling its own deferred chunk is still moving, even
+/// when the text on screen has stopped, and this is the part that says so.
+/// Counted rather than timed, so a fast machine waits less and a slow one
+/// waits as long as it needs to.
+const String _pageResources = '''() => {
+  try {
+    return performance.getEntriesByType('resource').length;
+  } catch (e) {
+    return 0;
+  }
+}''';
 /// Photographs [routes] from the build in [webRoot] at each of [sizes] into
 /// [outDir].
 Future<DVPageShotsResult> dvCapturePages({
@@ -177,7 +201,8 @@ Future<DVPageShotsResult> dvCapturePages({
           final DateTime deadline = DateTime.now().add(settle);
           while (DateTime.now().isBefore(deadline)) {
             text = await page.evaluate<int>(_pageText);
-            if (settled.add(text)) break;
+            final int resources = await page.evaluate<int>(_pageResources);
+            if (settled.add(text, resources)) break;
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
           // Fonts and images arrive after the first frame with text in it.

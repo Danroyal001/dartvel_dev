@@ -45,6 +45,52 @@ void main() {
           <bool>[false, false, false, true]);
     });
 
+    // Three looks is 1.5 seconds, and the docs sidebar holds still for
+    // longer than that while the route's own code is still being fetched:
+    // each page is a deferred library, so the article arrives in a second
+    // chunk after the shell has drawn. One build photographed 23 of 57 pages
+    // that way, 12 of them byte-identical to each other, and the check that
+    // every page painted something passed on all of them, because a sidebar
+    // is something.
+    //
+    // So the page is only still once the network is still too. The count of
+    // resources the page has fetched stands in for that: it climbs while the
+    // chunk is on its way and stops when it has arrived.
+    test('not while the page is still fetching its own code', () {
+      final DVTextSettle settle = DVTextSettle();
+      expect(
+        <bool>[
+          for (final (int, int) look in <(int, int)>[
+            (420, 14),
+            (420, 15),
+            (420, 16),
+            (420, 17),
+          ])
+            settle.add(look.$1, look.$2),
+        ],
+        everyElement(isFalse),
+        reason: 'the text held still at the shell while the article was '
+            'still being fetched',
+      );
+    });
+
+    test('once the text and the fetching have both stopped', () {
+      final DVTextSettle settle = DVTextSettle();
+      expect(
+        <bool>[
+          for (final (int, int) look in <(int, int)>[
+            (420, 14),
+            (420, 15),
+            (2400, 18),
+            (2400, 18),
+            (2400, 18),
+          ])
+            settle.add(look.$1, look.$2),
+        ],
+        <bool>[false, false, false, false, true],
+      );
+    });
+
     test('never while there is none', () {
       final DVTextSettle settle = DVTextSettle();
       expect(<bool>[for (final int n in <int>[0, 0, 0, 0]) settle.add(n)],
