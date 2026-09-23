@@ -201,6 +201,20 @@ Future<DVCaptureRun> dvCaptureSemantics({
       try {
         await page.goto('$base$route', wait: Until.networkIdle);
 
+        // Flutter web builds no semantics tree until something asks for one.
+        // It renders a hidden placeholder labelled "Enable accessibility" and
+        // waits for a screen reader to click it, so a capture that skips this
+        // reads a host holding almost nothing -- which is why every page on
+        // the site shipped its scroll button and none of its prose to a
+        // crawler. The studio capture has always clicked it; this one never
+        // did.
+        final DateTime enableBy =
+            DateTime.now().add(const Duration(seconds: 5));
+        while (DateTime.now().isBefore(enableBy)) {
+          if (await page.evaluate<bool>(_enableSemantics)) break;
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+        }
+
         // Polled rather than slept: a page that is ready early should not
         // cost the whole budget, and one that never builds a tree has to be
         // reported rather than written out empty.
@@ -287,4 +301,16 @@ const String _resourceCount = '''() => {
   } catch (e) {
     return 0;
   }
+}''';
+/// Turns Flutter's semantics tree on.
+///
+/// The same click the studio capture makes. Without it the host is there and
+/// nearly empty, which reads as a page that rendered nothing rather than as a
+/// tree nobody asked for.
+const String _enableSemantics = '''() => {
+  const spot = document.querySelector('flt-semantics-placeholder')
+      || document.querySelector('[aria-label="Enable accessibility"]');
+  if (!spot) return false;
+  spot.click();
+  return true;
 }''';
