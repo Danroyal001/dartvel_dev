@@ -241,18 +241,21 @@ void main() {
       return Order.find('formed');
     }))!;
     registerDartvelModels();
-    Order? edited;
+    // The form on an instance edits that instance, and saving is what it
+    // does: nothing hands it a closure, so the row is the only observable.
     await tester.pumpWidget(MaterialApp(
-      home: Material(child: Order.Form(loaded, (Order o) => edited = o)),
+      home: Material(child: loaded.Form()),
     ));
     await tester.pumpAndSettle();
     // Fields follow the serialized map: id, userId, note.
     await tester.enterText(find.byType(EditableText).at(2), 'typed in a form');
-    await tester.tap(find.text('Save'));
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Save'));
+      // The form's own save reaches the database, which needs real time.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    });
     await tester.pumpAndSettle();
-    expect(edited, isNotNull);
 
-    await tester.runAsync(() => edited!.save());
     final Order? stored = await tester.runAsync<Order?>(() => Order.find('formed'));
     expect(stored!.note, 'typed in a form');
 

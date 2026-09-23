@@ -89,16 +89,23 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
           id: 'semantic',
           title: 'Search by meaning with embeddings',
           children: <Widget>[
-            DocsText('DVSemanticIndex finds records by meaning: "how do refunds '
-                'work" finds an article about returning an order. Today you '
-                'wire it to a model by hand.'),
+            DocsText('Semantic search finds records by meaning: "how do '
+                'refunds work" finds an article about returning an order. '
+                'Add semantic: true to @DVModel and the data model gets it.'),
             DocsCode('search-semantic-index'),
             DocsCode('search-semantic-query'),
             Bullets(<String>[
-              'Saving queues an embedding job. Nothing is embedded during the '
-                  'save.',
-              'mode is keyword (the default), semantic or hybrid. keyword and '
-                  'hybrid also need a keyword: provider.',
+              'The embedder and the vector store are the only two things '
+                  'Dartvel cannot know, so they are the only two you pass.',
+              'What is embedded is the prose the data model already declares: '
+                  'its searchable fields, its page title and its main '
+                  'content. A sensitive field is never embedded.',
+              'Saving a record queues an embedding job and destroying one '
+                  'removes it. Nothing is embedded during the save.',
+              'A worker does the embedding: dartvel queue work --queue '
+                  'semantic. Queries never wait on it.',
+              'mode is semantic (the default), keyword or hybrid. keyword and '
+                  'hybrid also read the search provider.',
               'Long fields are split into chunks, and a record appears once '
                   'with the chunk that matched.',
             ]),
@@ -107,8 +114,6 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
                 'models cannot be compared, so changing the embedder builds a '
                 'new index beside the old one.'),
             DocsStatus('Semantic Search and Embeddings', missing: <String>[
-              'No @DVModel.searchableField(semantic: true) or generated '
-                  'semantic query.',
               'DVInMemoryVectorAdapter is the only vector store. There is no '
                   'pgvector or hosted vector adapter.',
               'The dartvel.search.semantic block in pubspec.yaml is not read.',

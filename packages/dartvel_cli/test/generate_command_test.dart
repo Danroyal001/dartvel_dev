@@ -101,7 +101,7 @@ void main() {
         source,
         contains('Widget _userForm(BuildContext context, User model) =>'),
       );
-      expect(source, contains('User.Form(model);'));
+      expect(source, contains('model.Form();'));
       expect(source, isNot(contains('Widget userForm(')));
     } finally {
       root.deleteSync(recursive: true);

@@ -278,6 +278,12 @@ class ModelGenerator {
         // hand it -- and handing it is what nobody could do before.
         final bool capture = flagArg('capture', false);
 
+        // Same reasoning for the semantic index. Building one by hand meant
+        // restating the id, the fields, the loader, the sensitive set and the
+        // JSON that are already declared a few lines above the annotation,
+        // and then remembering to index each record after saving it.
+        final bool semantic = flagArg('semantic', false);
+
         // billable and nativePrice, which the specification writes as
         //
         //     @DVModel(billable: true, nativePrice: 100)
@@ -1040,11 +1046,21 @@ class ModelGenerator {
           }
 
           sb.writeln();
-          sb.writeln('  /// Typed change stream for [$className].');
+          sb.writeln('  /// Typed change stream for [$className], for the');
+          sb.writeln('  /// current tenant.');
           sb.writeln(
             '  static Stream<DVModelChange<$className>> get changes =>',
           );
           sb.writeln('      DVModelSync.changes<$className>();');
+          sb.writeln();
+          sb.writeln('  /// Every tenant\'s changes, for a process that serves');
+          sb.writeln('  /// all of them rather than one.');
+          sb.writeln(
+            '  static Stream<DVModelChange<$className>> get allChanges =>',
+          );
+          sb.writeln(
+            '      DVModelSync.changes<$className>(allTenants: true);',
+          );
           sb.writeln();
           sb.writeln('  /// Reads a row back into a [$className].');
           sb.writeln(
@@ -1221,6 +1237,11 @@ class ModelGenerator {
           sb.writeln('          ? DVModelChangeKind.created');
           sb.writeln('          : DVModelChangeKind.updated,');
           sb.writeln('    );');
+          if (semantic) {
+            // Saving is what indexes it. The queue does the embedding, so
+            // this returns as soon as the job is written.
+            sb.writeln('    await _dvSemanticIndex?.indexed(model);');
+          }
           sb.writeln('    return model;');
           sb.writeln('  }');
           sb.writeln();
@@ -1235,6 +1256,11 @@ class ModelGenerator {
           sb.writeln(
             '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
           );
+          if (semantic) {
+            sb.writeln(
+              '    await _dvSemanticIndex?.removed(model.$keyField);',
+            );
+          }
           sb.writeln('  }');
           if (softDelete) {
             for (final String member in <String>['restore', 'withDeleted']) {
@@ -1363,10 +1389,10 @@ class ModelGenerator {
         sb.writeln('  /// The same read, one chunk per job, so a large file');
         sb.writeln('  /// survives a restart and resumes where it stopped.');
         sb.writeln(
-          '  static Future<List<DVJobEnvelope<DVImportChunk>>> importResumableCsv(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableCsv(content, queue: queue, chunkSize: chunkSize);',
+          '  static Future<core.List<DVJobEnvelope<DVImportChunk>>> importResumableCsv(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableCsv(content, queue: queue, chunkSize: chunkSize);',
         );
         sb.writeln(
-          '  static Future<List<DVJobEnvelope<DVImportChunk>>> importResumableNdjson(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableNdjson(content, queue: queue, chunkSize: chunkSize);',
+          '  static Future<core.List<DVJobEnvelope<DVImportChunk>>> importResumableNdjson(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableNdjson(content, queue: queue, chunkSize: chunkSize);',
         );
         sb.writeln();
         sb.writeln('  /// Writes [$className] rows out. A sensitive field is');
@@ -1384,10 +1410,10 @@ class ModelGenerator {
         sb.writeln('  /// The same write, a chunk at a time, so a large export');
         sb.writeln('  /// never holds every row in memory at once.');
         sb.writeln(
-          '  static Stream<DVExportResult> exportStreamCsv(Iterable<$className> items, {int chunkSize = 500}) => _${className}Export.streamCsv(items, chunkSize: chunkSize);',
+          '  static Stream<DVExportResult> exportStreamCsv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.streamCsv(items, fileName: fileName, options: options);',
         );
         sb.writeln(
-          '  static Stream<DVExportResult> exportStreamNdjson(Iterable<$className> items, {int chunkSize = 500}) => _${className}Export.streamNdjson(items, chunkSize: chunkSize);',
+          '  static Stream<DVExportResult> exportStreamNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.streamNdjson(items, fileName: fileName, options: options);',
         );
 
         // Searching an Article is Article.search. A companion class made the
@@ -1436,6 +1462,111 @@ class ModelGenerator {
           sb.writeln('      );');
           // Kept so the facet fields cannot drift from what is indexed.
           if (searchFields.isEmpty) sb.writeln();
+        }
+
+        // Who may see a change is a fact about the model, so it is set on the
+        // model. Naming DVModelSync to say it put the delivery machinery in
+        // the application's hands for one line of policy.
+        sb.writeln();
+        sb.writeln('  /// Which [$className] changes reach a watcher. Called');
+        sb.writeln('  /// with the model a change carries; false withholds it.');
+        sb.writeln(
+          '  static void syncPolicy(bool Function($className model) allow) {',
+        );
+        sb.writeln('    DVModelSync.registerPolicy<$className>(allow);');
+        sb.writeln('  }');
+
+        if (semantic) {
+          // The prose the model already declares: what it says is searchable,
+          // plus its title and its main content, which are prose by
+          // definition. A sensitive field is never embedded -- its text would
+          // reach the vector store and every result that matched it.
+          final Set<String> semanticNames = <String>{
+            ...searchableFields.map((Map<String, String> f) => f['name']!),
+            if (pageTitleField != null) pageTitleField,
+            ...mainContentCandidates,
+          };
+          final semanticFields = fields
+              .where(
+                (Map<String, String> field) =>
+                    field['type'] == 'String' &&
+                    field['name'] != keyField &&
+                    !sensitiveFieldNames.contains(field['name']) &&
+                    (semanticNames.isEmpty ||
+                        semanticNames.contains(field['name'])),
+              )
+              .toList(growable: false);
+          sb.writeln();
+          sb.writeln(
+            '  static DVSemanticIndex<$className>? _dvSemanticIndex;',
+          );
+          sb.writeln();
+          sb.writeln('  /// Where embedding and vector search for this model');
+          sb.writeln('  /// go. Saving a record indexes it from then on, and');
+          sb.writeln('  /// destroying one removes it.');
+          sb.writeln('  ///');
+          sb.writeln('  /// The id, the fields, the loader, the sensitive set');
+          sb.writeln('  /// and the JSON come from the model.');
+          sb.writeln('  static void useSemanticSearch({');
+          sb.writeln('    required DVEmbedder embedder,');
+          sb.writeln('    DVVectorAdapter? vectors,');
+          sb.writeln('    DVChunking chunking = const DVChunking(),');
+          sb.writeln('    String queue = \'semantic\',');
+          sb.writeln('  }) {');
+          sb.writeln('    _dvSemanticIndex = DVSemanticIndex<$className>(');
+          sb.writeln("      name: '${className.toLowerCase()}',");
+          sb.writeln('      embedder: embedder,');
+          sb.writeln(
+            '      vectors: vectors ?? DVInMemoryVectorAdapter(),',
+          );
+          sb.writeln(
+            '      idOf: ($className record) => record.$keyField,',
+          );
+          sb.writeln(
+            '      fields: <String, String Function($className)>{',
+          );
+          for (final Map<String, String> field in semanticFields) {
+            sb.writeln(
+              "        '${field['name']}': ($className record) => record.${field['name']},",
+            );
+          }
+          sb.writeln('      },');
+          sb.writeln('      load: $className.find,');
+          sb.writeln('      sensitiveFields: $className.sensitiveFields,');
+          if (tenantScoped) {
+            sb.writeln(
+              '      tenantOf: ($className record) => record.tenantId,',
+            );
+          }
+          sb.writeln(
+            '      toJson: ($className record) => record.toPublicJson(),',
+          );
+          sb.writeln('      chunking: chunking,');
+          sb.writeln('      queue: queue,');
+          sb.writeln('    );');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Searches the vectors. Answers nothing until');
+          sb.writeln('  /// [useSemanticSearch] has been called.');
+          sb.writeln(
+            '  static Future<DVSemanticPage<$className>> semanticSearch(',
+          );
+          sb.writeln('    String text, {');
+          sb.writeln('    DVSearchMode mode = DVSearchMode.semantic,');
+          sb.writeln('    int limit = 10,');
+          sb.writeln('  }) async {');
+          sb.writeln('    final index = _dvSemanticIndex;');
+          sb.writeln('    if (index == null) {');
+          sb.writeln('      throw StateError(');
+          sb.writeln(
+            "        '$className.semanticSearch needs $className.useSemanticSearch(...) first.',",
+          );
+          sb.writeln('      );');
+          sb.writeln('    }');
+          sb.writeln(
+            '    return index.query(text, mode: mode, limit: limit);',
+          );
+          sb.writeln('  }');
         }
         sb.writeln('}');
 
