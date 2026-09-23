@@ -607,6 +607,11 @@ export 'platform_api.g.dart';
 export 'policies.g.dart';
 export 'privacy.g.dart';
 export 'home_widgets.g.dart';
+// The mounted modules and their pages as typed targets. Generated and never
+// exported, so DV.Modules.<id>Routes was unreachable through the one import
+// application code is told to use, and a link into a module had to be written
+// out as a string -- which is the drift typed routes exist to prevent.
+export 'modules.g.dart';
 export 'router.g.dart';
 export 'schedules.g.dart';
 // The static-path manifest. It was generated and never exported, so the

@@ -110,6 +110,10 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'context.navigateToPage(target) goes there now.',
               'DV.Navigation.to(target) returns a callback for onTap.',
+              'target.withQuery(...) adds a query and stays a route. '
+                  '/sign-in?from=/account is two generated targets in one '
+                  'call, so either page moving is a compile error. Values '
+                  'are encoded.',
               'DV.Navigation also has push, back, canGoBack and currentPath.',
             ]),
           ],

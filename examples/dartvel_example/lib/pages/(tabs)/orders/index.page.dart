@@ -25,7 +25,9 @@ Widget _ordersPage(BuildContext context) => (() {
           action: FilledButton(
             key: const Key('orders-sign-in'),
             onPressed: () => DV.Navigation.navigate(
-              const DVRouteTarget('/sign-in?from=/orders'),
+              DVRoutes.signin.withQuery(<String, String>{
+                'from': DVRoutes.orders.path,
+              }),
             ),
             child: const Text('Sign in'),
           ),

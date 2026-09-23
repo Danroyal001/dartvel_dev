@@ -482,7 +482,17 @@ context.navigateToPage(DVRoutes.users);
 
 // For routes with parameters
 context.navigateToPage(DVRoutes.usersId(id: '1'));
+
+// A query is still a route. Both halves are generated targets, so either
+// page moving is a compile error; /sign-in?from=/account written out as one
+// literal holds two paths and neither is checked.
+context.navigateToPage(
+  DVRoutes.signin.withQuery(<String, String>{'from': DVRoutes.account.path}),
+);
 ```
+
+A module's pages are typed the same way, through `DV.Modules.<id>Routes`,
+which the generated barrel exports.
 
 Example:
 

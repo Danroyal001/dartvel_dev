@@ -58,8 +58,9 @@ class SettingsScreen extends StatelessWidget {
               label: Text('${t[0].toUpperCase()}${t.substring(1)}'),
               selected: t == current,
               showCheckmark: false,
-              onSelected: (_) =>
-                  DV.Navigation.navigate(DVRouteTarget('/settings?tab=$t')),
+              onSelected: (_) => DV.Navigation.navigate(
+                DVRoutes.settings.withQuery(<String, String>{'tab': t}),
+              ),
             ),
         ], spacing: 8),
         DVText('Showing $current settings').modifier(p.muted),

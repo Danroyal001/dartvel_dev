@@ -35,7 +35,7 @@ Widget _aboutPage(BuildContext context) => (() {
               in <(String, DVRouteTarget)>[
                 (
                   'Notes module, mounted at /notes',
-                  const DVRouteTarget('/notes'),
+                  DV.Modules.notesRoutes.index,
                 ),
                 ('Responsive images', DVRoutes.gallery),
                 ('Home screen widget', DVRoutes.nextShift),
