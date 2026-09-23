@@ -19,9 +19,22 @@ Widget _docsChangeCapturePage(BuildContext context) => const DocsArticle(
       ],
       sections: <DocsSection>[
         DocsSection(
+          id: 'model',
+          title: 'Say a model is captured',
+          children: <Widget>[
+            DocsText('One word on the model. Nothing else about it changes: '
+                'you read and write it the way you read and write any other '
+                'model, and saving a record is what records the change.'),
+            DocsCode('capture-model'),
+          ],
+        ),
+        DocsSection(
           id: 'log',
           title: 'Record every write in order',
           children: <Widget>[
+            DocsText('One log for the process, configured where the database '
+                'is. A model that says it is captured writes to it; a process '
+                'that configured none writes normally and records nothing.'),
             DocsCode('capture-log'),
             Bullets(<String>[
               'Each change gets a sequence number, the record version, the '

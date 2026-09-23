@@ -343,6 +343,27 @@ String _checkIdentifier(String name) {
 
 /// The capture log for one database.
 class DVCapture {
+  static DVCapture? _configured;
+
+  /// The log a model declared `@DVModel(capture: true)` writes to, or null
+  /// when this process configured none.
+  ///
+  /// Configured once, the way the database is, because a model that says it
+  /// is captured should not also have to be handed the machinery. Before
+  /// this existed the only way to capture a generated model was to build a
+  /// second [DVRecordTable] by hand, listing the columns of a model that had
+  /// already declared them — two descriptions of one model's shape, and the
+  /// hand-written one drifts the moment a field is added.
+  static DVCapture? get configured => _configured;
+
+  /// Records every captured model in this process to [log].
+  static void configure(DVCapture log) => _configured = log;
+
+  /// Leaves the process with no log. A captured model then writes normally
+  /// and records nothing, rather than failing on the first save: a change
+  /// nobody is consuming is not a reason to refuse the write.
+  static void unconfigure() => _configured = null;
+
   DVCapture({
     required this.database,
     required this.retention,
