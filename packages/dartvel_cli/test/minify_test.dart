@@ -102,6 +102,48 @@ void main() {
       expect(dvMinifyHtml(source), contains('<!--[if IE]>'));
     });
 
+    test('keeps the markers Dartvel writes, which are structure', () {
+      // `<!-- dartvel:text -->` is how the server finds the block it has to
+      // replace when it renders a route. Take the marker out and the regex
+      // matches nothing: instead of replacing the shell's block the server
+      // adds a second one, so every page ships the home page's words
+      // underneath its own. It renders, it validates, and the crawler reads
+      // both.
+      const String source = '<body>\n'
+          '<!-- dartvel:seo --><title>Home</title><!-- /dartvel:seo -->\n'
+          '<!-- dartvel:text --><div class="dv-fallback">Hi</div>'
+          '<!-- /dartvel:text -->\n'
+          '<!-- dartvel:preload --><!-- /dartvel:preload -->\n'
+          '<!-- dartvel:splash --><!-- /dartvel:splash -->\n'
+          '<!-- dartvel:prerendered --><!-- /dartvel:prerendered -->\n'
+          '<!-- a note nobody needs -->\n'
+          '</body>';
+      final String out = dvMinifyHtml(source);
+
+      for (final String marker in const <String>[
+        '<!-- dartvel:seo -->', '<!-- /dartvel:seo -->',
+        '<!-- dartvel:text -->', '<!-- /dartvel:text -->',
+        '<!-- dartvel:preload -->', '<!-- /dartvel:preload -->',
+        '<!-- dartvel:splash -->', '<!-- /dartvel:splash -->',
+        '<!-- dartvel:prerendered -->', '<!-- /dartvel:prerendered -->',
+      ]) {
+        expect(out, contains(marker), reason: '$marker was minified away');
+      }
+      expect(out, isNot(contains('a note nobody needs')));
+    });
+
+    test('a marker survives the whole pass over a built page', () {
+      // The pass is what runs on a real build, and the shell it rewrites is
+      // the one the web-server renders every page from.
+      final String page = dvMinifyHtml('<html>\n  <body>\n'
+          '    <!-- dartvel:text -->\n'
+          '    <div class="dv-fallback">Hi</div>\n'
+          '    <!-- /dartvel:text -->\n'
+          '  </body>\n</html>');
+      expect(page, contains('<!-- dartvel:text -->'));
+      expect(page, contains('<!-- /dartvel:text -->'));
+    });
+
     test('never touches the text inside an attribute', () {
       final String out =
           dvMinifyHtml('<meta name="description" content="one  two   three">');
