@@ -277,16 +277,6 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       await _painted(page);
       await Future<void>.delayed(const Duration(seconds: 3));
       await _painted(page);
-      // And then make it paint again, because waiting does not.
-      //
-      // The diagnostic settled this: every section reported its finished
-      // content -- "Cache tags 0 on this server", "Frontend functions 1" --
-      // at the moment it was photographed, and two of them still came back
-      // as "Loading the build manifest…" and "Loading…". The tree was right
-      // and the raster was old, so no amount of waiting for the tree helps.
-      // A resize is a repaint Flutter cannot skip: it rebuilds the scene for
-      // the new size and rasters it.
-      await _repaint(page, size);
       final String file = p.join(outDir, dvStudioShotName(label));
       File(file).writeAsBytesSync(await _stablePicture(page));
       // What the section said at the moment it was photographed, beside the
@@ -431,23 +421,6 @@ Future<void> _painted(Page page) => page.evaluate<Object?>(
       'requestAnimationFrame(() => done(0))))',
     );
 
-/// Forces a frame by resizing the viewport and putting it back.
-///
-/// Flutter rebuilds and rasters the whole scene for a new window size, so the
-/// picture that comes back afterwards is the one the tree describes rather
-/// than whatever was last rastered. Two frames are awaited at each size: the
-/// resize is the request, and the frames are it being served.
-Future<void> _repaint(Page page, DVShotSize size) async {
-  await page.setViewport(
-      DeviceViewport(width: size.width - 1, height: size.height));
-  await _painted(page);
-  await page.setViewport(
-      DeviceViewport(width: size.width, height: size.height));
-  await _painted(page);
-  await Future<void>.delayed(const Duration(milliseconds: 600));
-  await _painted(page);
-}
-
 /// Photographs until two shots in a row are the same picture.
 ///
 /// Every earlier attempt at this guessed a delay, and every guess was wrong
@@ -466,10 +439,16 @@ Future<void> _repaint(Page page, DVShotSize size) async {
 /// identical, and a section is better photographed mid-animation than after a
 /// wait nobody budgeted for.
 Future<List<int>> _stablePicture(Page page, {int tries = 8}) async {
-  List<int> previous = await page.screenshot();
+  // fromSurface: false renders the view for the shot instead of handing back
+  // whatever the compositor last rastered. The stale surface is the whole
+  // problem here -- the tree reported "Cache tags 0 on this server" while the
+  // picture was still "Loading cache tags…" -- and waiting does not refresh
+  // it, because a stale surface is perfectly stable. Resizing the viewport
+  // does refresh it, and makes the section re-fetch, which is worse.
+  List<int> previous = await page.screenshot(fromSurface: false);
   for (int i = 0; i < tries; i++) {
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    final List<int> next = await page.screenshot();
+    final List<int> next = await page.screenshot(fromSurface: false);
     if (_same(previous, next)) return next;
     previous = next;
   }
