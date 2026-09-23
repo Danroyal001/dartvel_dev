@@ -32,10 +32,10 @@ jobs:
     steps:
       # Full history: the commit step rebases onto whatever reached main while
       # jnigen ran, and a depth-1 clone has no merge base to rebase from.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
 
       - uses: subosito/flutter-action@v2
@@ -45,7 +45,7 @@ jobs:
       # first attempt died on "sdkmanager: command not found" before generating
       # anything. It also usually has a platform jar already, so this looks
       # before it installs.
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - name: Find or install a platform jar
         run: |
@@ -145,7 +145,7 @@ jobs:
           # Generated code is not exempt from compiling.
           flutter analyze --no-fatal-infos lib/src/platform/android/generated || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: android-bindings, path: /tmp/diag/, if-no-files-found: warn }
 

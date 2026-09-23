@@ -43,8 +43,8 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -102,7 +102,7 @@ jobs:
           cat /tmp/diag/devclient-verdict.txt
           head -1 /tmp/diag/devclient-verdict.txt | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: dev-client-android, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -120,7 +120,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -167,7 +167,7 @@ jobs:
           cat /tmp/diag/ios-devclient-verdict.txt
           head -1 /tmp/diag/ios-devclient-verdict.txt | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: dev-client-ios, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -181,7 +181,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -226,7 +226,7 @@ jobs:
           cat /tmp/diag/linux-devclient-verdict.txt
           head -1 /tmp/diag/linux-devclient-verdict.txt | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: dev-client-linux, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -241,7 +241,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -278,7 +278,7 @@ jobs:
           cat /tmp/diag/macos-devclient-verdict.txt
           head -1 /tmp/diag/macos-devclient-verdict.txt | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: dev-client-macos, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -296,7 +296,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /c/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -330,6 +330,6 @@ jobs:
           cat /c/diag/windows-devclient-verdict.txt
           head -1 /c/diag/windows-devclient-verdict.txt | tr -d '\r' | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: dev-client-windows, path: C:\diag, if-no-files-found: warn }

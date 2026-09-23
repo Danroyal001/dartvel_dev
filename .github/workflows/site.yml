@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -79,7 +79,7 @@ jobs:
       - name: Every page says something to a crawler
         run: dart "$GITHUB_WORKSPACE/tool/ci/crawler_text_check.dart" /tmp/stage
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dartvel-site
           path: /tmp/out/
@@ -96,7 +96,7 @@ jobs:
             sed -i -E 's#(href|src)="/([^/"]|")#\1="/dartvel_dev/\2#g' {} +
           grep -q '<base href="/dartvel_dev/">' /tmp/pages/index.html
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: /tmp/pages
 
@@ -153,7 +153,7 @@ jobs:
           rm -f sheets/d_?? sheets/m_??
           ls sheets | wc -l
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dartvel-site-shots
@@ -174,4 +174,4 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

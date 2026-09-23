@@ -50,7 +50,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
@@ -100,7 +100,7 @@ jobs:
           - 9324:9324
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
@@ -141,7 +141,7 @@ jobs:
           - 8681:8681
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
@@ -196,7 +196,7 @@ jobs:
           KAFKA_CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
