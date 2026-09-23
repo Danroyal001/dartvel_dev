@@ -25,6 +25,7 @@ library;
 
 import 'dart:async';
 
+import '../cache/adapters.dart';
 import 'middleware.dart';
 
 /// Configuration the built middleware need, with defaults that are safe when
@@ -55,6 +56,14 @@ class DVMiddlewareSettings {
 
   /// The window the limit counts over.
   static Duration rateLimitWindow = const Duration(minutes: 1);
+
+  /// Where the limit counts, when one process is not the whole deployment.
+  ///
+  /// Null counts in this process, which is right for one server and gives a
+  /// caller one budget per instance on any more than that. Set it to the
+  /// cache every instance shares — it has to be able to count, which
+  /// `DVRedisCacheAdapter` can and a plain adapter cannot.
+  static DVCacheAdapter? rateLimitStore;
 
   /// Whether a request that names no tenant is refused rather than served
   /// the default tenant's data.
@@ -256,6 +265,7 @@ Middleware _build(String key) {
       return CommonMiddleware.rateLimit(
         maxRequests: DVMiddlewareSettings.rateLimitMaxRequests,
         window: DVMiddlewareSettings.rateLimitWindow,
+        store: DVMiddlewareSettings.rateLimitStore,
       );
     case 'requestLogging':
       return CommonMiddleware.logger();
@@ -378,6 +388,7 @@ void dvResetMiddlewareRuntime() {
   DVMiddlewareSettings.locales = const <String>['en'];
   DVMiddlewareSettings.rateLimitMaxRequests = 100;
   DVMiddlewareSettings.rateLimitWindow = const Duration(minutes: 1);
+  DVMiddlewareSettings.rateLimitStore = null;
   DVMiddlewareSettings.requireTenant = false;
   DVMiddlewareSettings.requireIdempotencyKey = false;
   DVMiddlewareSettings.authUserId = null;

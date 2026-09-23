@@ -163,7 +163,8 @@ class DVRedisClient {
 /// Values are JSON-wrapped the way [DVDatabaseCacheAdapter] wraps them, so
 /// the two adapters are interchangeable. Redis expires keys natively:
 /// [purgeExpired] therefore has nothing to reclaim and reports zero.
-class DVRedisCacheAdapter implements DVCacheAdapter, DVAtomicCacheAdapter {
+class DVRedisCacheAdapter
+    implements DVCacheAdapter, DVAtomicCacheAdapter, DVCountingCacheAdapter {
   final DVRedisClient client;
 
   /// Prefix isolating this application's keys in a shared Redis.
@@ -203,6 +204,37 @@ class DVRedisCacheAdapter implements DVCacheAdapter, DVAtomicCacheAdapter {
       if (ttl != null) ...<String>['PX', '${ttl.inMilliseconds}'],
     ]);
     return reply == 'OK';
+  }
+
+  @override
+  Future<int> increment(String key, {int by = 1, Duration? ttl}) async {
+    // INCRBY is the server's own addition, which is the whole point: two
+    // instances that read, add and write back lose the hits in between, and
+    // a rate limit built on that lets more through than it says.
+    //
+    // The counter is a bare number rather than the `{"v": ...}` envelope
+    // `write` uses, because Redis can only add to a number. Read it back
+    // through this, not through `read`.
+    final Object? reply = await client.command(<String>[
+      'INCRBY',
+      _k(key),
+      '$by',
+    ]);
+    final int count =
+        reply is int ? reply : int.tryParse('$reply') ?? by;
+    if (ttl != null) {
+      // On every hit, not only the first. A PEXPIRE that is skipped because
+      // the process died between INCRBY and here leaves a counter with no
+      // expiry, and the caller it belongs to is then over the limit for
+      // ever. Callers put the window in the key, so re-arming the expiry
+      // cannot extend a window either.
+      await client.command(<String>[
+        'PEXPIRE',
+        _k(key),
+        '${ttl.inMilliseconds}',
+      ]);
+    }
+    return count;
   }
 
   @override
