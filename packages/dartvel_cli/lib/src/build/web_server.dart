@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -304,7 +304,11 @@ Handler dvWebServerHandler({
           'url': request.requestedUri,
           'headers': request.headers,
         },
-        () async {
+        // And the request's own Sec-GPC signal, in force for the page it
+        // renders: a page is where the measurement an opt-out is about
+        // usually starts.
+        () => dvWithPrivacyOptOut(dvGlobalPrivacyControl(request.headers),
+            () async {
           final path = '/${request.url.path}';
 
     // The admin, before anything else looks at the path.
@@ -501,7 +505,7 @@ Handler dvWebServerHandler({
       ),
       headers: htmlHeaders,
     );
-        },
+        }),
       );
 }
 

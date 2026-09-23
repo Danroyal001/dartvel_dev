@@ -134,15 +134,18 @@ because it was built for erasure and export in the first place.
 | Know / access | `DVPrivacy.export` walks the model graph from a subject and produces an archive | — |
 | Delete | `DVPrivacy.erase`, with a receipt, tombstones, and a replay for erasures that were interrupted | — |
 | Correct | Records are writable; nothing makes a correction request a first-class thing | Minor |
-| Opt out of sale or sharing | Nothing | **Global Privacy Control is not read.** A `Sec-GPC: 1` header has to be honoured, and nothing in the request path looks at it |
+| Opt out of sale or sharing | `Sec-GPC: 1` is read on every request and denies every consent category declared `tracking: true` — `packages/dartvel_core/lib/src/privacy/opt_out.dart`, answered in `packages/dartvel_core/lib/src/analytics/consent.dart` | Nothing records that a request arrived carrying it, which is what an auditor would ask for |
 | Limit use of sensitive information | Sensitive fields exist and are excluded by default | No notion of "sensitive personal information" as the statute defines it, which is a subset with its own rules |
 | Deadlines | `DVPrivacy.checkErasureDeadlines` tracks the clock on an open erasure | — |
 
 ### Plan
 
-1. **Read `Sec-GPC`.** A middleware key, a signal on the request, and a
-   documented place for an application to act on it. Small, and the one
-   outright absence in this column.
+1. ~~**Read `Sec-GPC`.**~~ Done. The signal is read where the request arrives
+   and carried through everything that request does, as the tenant is, and
+   `DVConsent.isGranted` denies a tracking category while it is in force —
+   over a recorded grant, because the header is the person's own instruction
+   and the stored answer is what they clicked once. What is left is evidence:
+   nothing writes down that a request carried it.
 2. A correction request that goes through the same declaration erasure and
    export use, so it inherits the model graph rather than being hand-written
    per application.
@@ -180,8 +183,8 @@ nothing.
 
 Across all four, ranked by what removes the most risk per unit of effort:
 
-1. `Sec-GPC` on the request, and an application-facing signal for it. *(CCPA;
-   the only flat absence in a column that is otherwise done.)*
+1. ~~`Sec-GPC` on the request, and an application-facing signal for it.~~ Done;
+   what remains is recording that a request carried it.
 2. Dependency scanning with a remediation window. *(SOC 2; also plain
    engineering hygiene.)*
 3. CI evidence that is dated and retained. *(SOC 2 Type II is evidence over a

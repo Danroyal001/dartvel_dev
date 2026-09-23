@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../annotations/annotations.dart' show DVCSRF;
 import '../http/client_address.dart';
 import '../http/wintercg.dart' as dv;
+import '../privacy/opt_out.dart';
 import '../tenancy/tenants.dart';
 
 /// Request context for middleware
@@ -573,3 +574,20 @@ Future<T> dvWithRequestTenant<T>(Object? request, Future<T> Function() body) {
   );
   return tenants.withTenant(resolved ?? tenants.currentTenant, body);
 }
+
+/// Runs [body] with [request]'s Global Privacy Control signal in force for
+/// all of it.
+///
+/// The generated backend wraps every request in this, beside the tenant
+/// scope and for the same reason: a signal written to a field at the top of a
+/// handler belongs to whichever request arrived last, and here that means
+/// honouring one visitor's opt-out for another while collecting from the one
+/// who sent it.
+///
+/// What reads it is [DVConsent.isGranted], which denies a tracking category
+/// while the signal is in force. Nothing else has to remember to ask.
+Future<T> dvWithRequestPrivacy<T>(Object? request, Future<T> Function() body) =>
+    dvWithPrivacyOptOut(
+      dvGlobalPrivacyControl(_requestHeaders(request)),
+      body,
+    );
