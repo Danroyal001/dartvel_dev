@@ -61,6 +61,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                   'chrome, and take a redirect that may be async, so a '
                   'session check shows the pending view and never a blank '
                   'screen.',
+              'DVRoute is a screen, DVShellRoute wraps its children in a '
+                  'frame, and DVStatefulShellRoute keeps a stack per branch. '
+                  'DVGoRoutes mounts a GoRoute list you already have.',
               'dartvel.routes in pubspec.yaml points at another file. A route '
                   'the reader cannot parse stops the build with DV-ROUTE-003. '
                   'It is not skipped: a skipped route still runs, with no '
@@ -214,19 +217,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
-          id: 'config-routes',
-          title: 'Declare routes in lib/routes.dart',
+          id: 'layouts-and-mounting',
+          title: 'Layouts, tabs and somebody else\'s router',
           children: <Widget>[
-            DocsText('A top-level routes list in lib/routes.dart joins the '
-                'file pages in one router. Each route gets a typed target on '
-                'DVRoutes, derived from its path or set with name:.'),
-            Bullets(<String>[
-              'DVRoute is a screen, DVShellRoute wraps its children in a frame, '
-                  'and DVStatefulShellRoute keeps a stack per branch.',
-              'A redirect returns a DVRouteTarget. While an async redirect '
-                  'decides, the router shows a pending view.',
-              'DVGoRoutes mounts a GoRoute list you already have.',
-            ]),
             DocsSubheading('Tabs from a folder'),
             DocsText('A _layout.dart that extends DartvelTabsLayout makes its '
                 'folder a set of tabs. A detail page is pushed inside its tab, '

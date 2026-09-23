@@ -461,7 +461,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Data Import, Export, and Reporting',
-    'OrderImport.csv',
+    'Order.importCsv',
     'Present: CSV, NDJSON and tab-separated import, CSV, JSON, NDJSON and '
         'Excel export, and monthly reports, per model. Absent: PDF export.',
   ),

@@ -289,6 +289,31 @@ class ModelGenerator {
         // and then remembering to index each record after saving it.
         final bool semantic = flagArg('semantic', false);
 
+        // @DVModel(offline: DVConflict.lastWriteWins). Same reasoning again:
+        // the local store and the server side of replay each needed a
+        // DVRecordTable written out by hand, so one model's table, key and
+        // columns were stated three times and drifted on the first new field.
+        final RegExpMatch? offlineMatch = RegExp(
+          r'\boffline\s*:\s*DVConflict\.([A-Za-z0-9_]+)',
+        ).firstMatch(modelArgs);
+        final String? offlineStrategy = offlineMatch?.group(1);
+        if (offlineStrategy == 'ask') {
+          // There is nobody to ask on a device with no network, so this
+          // could only fail where it is hardest to see. Stop the build.
+          throw StateError(
+            'Dartvel: $sourceClassName: offline: DVConflict.ask cannot work '
+            'offline, because a write made with no network has nobody to '
+            'ask. Name lastWriteWins, firstWriteWins or merge.',
+          );
+        }
+        if (offlineMatch == null &&
+            RegExp(r'\boffline\s*:').hasMatch(modelArgs)) {
+          throw StateError(
+            'Dartvel: $sourceClassName: offline: must be a DVConflict '
+            'literal, which the generator reads.',
+          );
+        }
+
         // billable and nativePrice, which the specification writes as
         //
         //     @DVModel(billable: true, nativePrice: 100)
@@ -1480,6 +1505,66 @@ class ModelGenerator {
         );
         sb.writeln('    DVModelSync.registerPolicy<$className>(allow);');
         sb.writeln('  }');
+
+        if (offlineStrategy != null) {
+          // The local store and the server side of replay, each built from
+          // the table, key and columns declared once, above.
+          final String offlineColumns = <String>[
+            if (tenantScoped) tenantColumn,
+            ...fields.map((Map<String, String> f) => f['name']!),
+          ].map((String c) => "'$c'").join(', ');
+          sb.writeln();
+          sb.writeln('  /// This device\'s local copy of [$className]: a write');
+          sb.writeln('  /// lands at once and waits in an ordered log until');
+          sb.writeln('  /// [DVOfflineStore.replay] reaches the server.');
+          sb.writeln('  ///');
+          sb.writeln('  /// [database] is the device\'s own, such as');
+          sb.writeln('  /// SqliteDVDatabaseAdapter.file(\'device.db\').');
+          sb.writeln('  static DVOfflineStore offlineStore(');
+          sb.writeln('    DVDatabaseAdapter database, {');
+          sb.writeln('    DVOffline? policy,');
+          sb.writeln('  }) =>');
+          sb.writeln('      DVOfflineStore(');
+          sb.writeln('        table: _dvOfflineTable(database),');
+          sb.writeln('        policy: policy ??');
+          sb.writeln(
+            '            const DVOffline(strategy: DVConflict.$offlineStrategy),',
+          );
+          sb.writeln('      );');
+          sb.writeln();
+          sb.writeln('  /// The server side of that replay: it deduplicates by');
+          sb.writeln('  /// mutation id and resolves by the declared strategy.');
+          sb.writeln('  static DVOfflineRemote offlineRemote(');
+          sb.writeln('    DVDatabaseAdapter database, {');
+          sb.writeln(
+            '    bool Function(Map<String, Object?> values)? validate,',
+          );
+          sb.writeln('  }) =>');
+          sb.writeln('      DVRecordTableRemote(');
+          sb.writeln('        _dvOfflineTable(database),');
+          sb.writeln('        strategy: DVConflict.$offlineStrategy,');
+          sb.writeln('        validate: validate,');
+          sb.writeln('      );');
+          sb.writeln();
+          sb.writeln('  /// One shape for both sides, from what the model');
+          sb.writeln('  /// declares, so neither can drift from the other.');
+          sb.writeln(
+            '  static DVRecordTable _dvOfflineTable(DVDatabaseAdapter database) =>',
+          );
+          sb.writeln('      DVRecordTable(');
+          sb.writeln("        table: '$tableName',");
+          sb.writeln("        key: '$keyField',");
+          sb.writeln('        columns: const <String>[$offlineColumns],');
+          if (sensitiveFieldNames.isNotEmpty) {
+            sb.writeln(
+              "        sensitive: const <String>{${sensitiveFieldNames.map((String n) => "'$n'").join(', ')}},",
+            );
+          }
+          if (!versioned) sb.writeln('        versioned: false,');
+          if (softDelete) sb.writeln('        softDelete: true,');
+          sb.writeln('        database: database,');
+          sb.writeln('      );');
+        }
 
         if (semantic) {
           // The prose the model already declares: what it says is searchable,

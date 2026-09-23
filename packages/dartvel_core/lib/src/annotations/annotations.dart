@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import '../auth/sessions.dart' show DVMfa;
-import '../data/record_history.dart' show DVHistory;
+import '../data/record_history.dart' show DVConflict, DVHistory;
 import '../privacy/privacy.dart' show DVRetention;
 
 /// Annotation for a route
@@ -373,6 +373,15 @@ class DVModel {
   /// from the model, because an index that restates them drifts from it.
   final bool semantic;
 
+  /// How a write made on a device that could not reach the server is
+  /// resolved when it is replayed. Set, the model gets a local store and a
+  /// server side built from the table, key and columns it already declares,
+  /// so neither is written out a second time.
+  ///
+  /// `DVConflict.ask` cannot work offline -- there is nobody to ask -- and
+  /// stops the build rather than failing on a device.
+  final DVConflict? offline;
+
   /// Whether every write is checked against the version it read: on by
   /// default, because a lost update is silent. `version: false` is for
   /// append-only data whose writes never contend, and says so here.
@@ -398,6 +407,7 @@ class DVModel {
     this.history,
     this.capture = false,
     this.semantic = false,
+    this.offline,
     this.version = true,
     this.softDelete = false,
   })  : encrypted = false,
@@ -441,6 +451,7 @@ class DVModel {
         history = null,
         capture = false,
         semantic = false,
+        offline = null,
         version = true,
         softDelete = false,
         retain = null,
@@ -469,6 +480,7 @@ class DVModel {
         history = null,
         capture = false,
         semantic = false,
+        offline = null,
         version = true,
         softDelete = false,
         retain = null,
@@ -547,6 +559,7 @@ class DVModel {
         history = null,
         capture = false,
         semantic = false,
+        offline = null,
         version = true,
         softDelete = false,
         retain = null,
@@ -585,6 +598,7 @@ class DVModel {
         history = null,
         capture = false,
         semantic = false,
+        offline = null,
         version = true,
         softDelete = false,
         retain = null,
@@ -614,6 +628,7 @@ class DVModel {
         history = null,
         capture = false,
         semantic = false,
+        offline = null,
         version = true,
         softDelete = false,
         retain = null,

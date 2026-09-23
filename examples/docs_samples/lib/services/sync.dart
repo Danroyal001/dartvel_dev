@@ -44,39 +44,37 @@ Future<void> presence() async {
   DV.log('${here.length}');
 }
 
-Future<void> offline(DVOfflineRemote server) async {
+Future<void> offline(DVDatabaseAdapter serverDatabase) async {
   // docs:start offline-store
-  final DVOfflineStore orders = DVOfflineStore(
-    table: DVRecordTable(
-      table: 'orders',
-      key: 'id',
-      columns: <String>['id', 'reference', 'quantity'],
-      database: SqliteDVDatabaseAdapter.file('device.db'),
-    ),
-    policy: const DVOffline(strategy: DVConflict.lastWriteWins),
-  );
-  await orders.ensureSchema();
+  // On the device: the local copy of a data model that declared offline:.
+  final DVOfflineStore dispatches =
+      Dispatch.offlineStore(SqliteDVDatabaseAdapter.file('device.db'));
+  await dispatches.ensureSchema();
 
   // Written locally at once, and queued for the server.
-  await orders.write(<String, Object?>{'id': 'o1', 'reference': 'R-1', 'quantity': 2});
-  final List<DVMutation> waiting = await orders.pending();
+  await dispatches.write(<String, Object?>{
+    'id': 'd1',
+    'reference': 'R-1',
+    'quantity': 2,
+  });
+  final List<DVMutation> waiting = await dispatches.pending();
 
-  // On reconnect: send the queue in order.
-  final DVReplayResult result = await orders.replay(server);
+  // On reconnect: send the queue in order, to the server side of the same
+  // data model. Neither side states the table, the key or the columns, so
+  // neither can drift from the other or from the model.
+  final DVReplayResult result =
+      await dispatches.replay(Dispatch.offlineRemote(serverDatabase));
   DV.log('${result.applied} applied, ${result.rejected} refused');
   // docs:end
-  DV.log('${waiting.length} ${orders.syncStateOf('o1')}');
+  DV.log('${waiting.length} ${dispatches.syncStateOf('d1')}');
 }
 
 // docs:start offline-server
-DVOfflineRemote ordersRemote(DVDatabaseAdapter database) => DVRecordTableRemote(
-      DVRecordTable(
-        table: 'orders',
-        key: 'id',
-        columns: <String>['id', 'reference', 'quantity'],
-        database: database,
-      ),
-      strategy: DVConflict.lastWriteWins,
+// The server side, with a check on what it accepts. A write that fails it
+// is refused rather than applied, and the device is told.
+DVOfflineRemote dispatchesRemote(DVDatabaseAdapter database) =>
+    Dispatch.offlineRemote(
+      database,
       validate: (Map<String, Object?> values) => values['quantity'] is int,
     );
 // docs:end
