@@ -1,0 +1,105 @@
+// The machinery is not in the surface an application imports.
+//
+// A model's capabilities are members of the model, so an application never
+// needs DVModelSync or DVSemanticIndex; naming one of them meant the model
+// was missing something. They stay in the library for the framework, its
+// generated code and its tests, and out of dartvel.dart.
+//
+// The check compiles a file that imports what an application imports, so it
+// fails when a name comes back to the barrel -- by any route, including some
+// other export -- rather than when a string in one export line changes.
+@TestOn('vm')
+library;
+
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+/// Analyzes [source] as if an application had written it, and answers what
+/// the analyzer said.
+Future<String> analyzed(String source) async {
+  // Inside the package's own .dart_tool, so package: resolution finds this
+  // package, and the repository's analysis_options keeps it out of every
+  // other run. A directory per call, because dart analyze caches on path.
+  final Directory scratch = Directory(
+    p.join(
+      Directory.current.path,
+      '.dart_tool',
+      'dv_surface_check',
+      'probe_${DateTime.now().microsecondsSinceEpoch}',
+    ),
+  )..createSync(recursive: true);
+  addTearDown(() {
+    if (scratch.parent.existsSync()) scratch.parent.deleteSync(recursive: true);
+  });
+  final File probe = File(p.join(scratch.path, 'probe.dart'))
+    ..writeAsStringSync(source);
+  final ProcessResult result = await Process.run(
+    Platform.resolvedExecutable,
+    <String>['analyze', '--no-fatal-warnings', probe.path],
+  );
+  return '${result.stdout}${result.stderr}';
+}
+
+void main() {
+  test('what an application reads off a model is there', () async {
+    // If this ever stops holding, the checks below start passing because
+    // nothing resolves rather than because the machinery is hidden.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+DVModelChangeKind kindOf(DVModelChange<Object?> change) => change.kind;
+DVSearchMode get mode => DVSearchMode.semantic;
+''');
+    expect(output, isNot(contains(' error ')));
+  });
+
+  test('an application cannot name DVModelSync', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Future<void> reset() => DVModelSync.reset();
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
+  test('an application cannot name DVSemanticIndex', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get index => DVSemanticIndex;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
+  test('an application cannot name the model sync transport', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get carrier => DVModelSyncTransport;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
+  test('an application cannot name the presence transport', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get carrier => DVPresenceTransport;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
+  test('the framework itself has all of them', () async {
+    final String output = await analyzed('''
+import 'package:dartvel_core/framework.dart';
+
+Future<void> reset() => DVModelSync.reset();
+Type get index => DVSemanticIndex;
+Type get carrier => DVModelSyncTransport;
+Type get other => DVPresenceTransport;
+''');
+    expect(output, isNot(contains(' error ')));
+  });
+}

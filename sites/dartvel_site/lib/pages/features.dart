@@ -371,9 +371,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Semantic Search and Embeddings',
-    'DVSemanticIndex',
-    'Present: keyword, semantic and hybrid search with tenant filtering. '
-        'Absent: a pgvector or hosted vector adapter.',
+    'Model.semanticSearch',
+    'Present: keyword, semantic and hybrid search with tenant filtering, on '
+        'the data model. Absent: a pgvector or hosted vector adapter.',
   ),
   (
     'Billing',

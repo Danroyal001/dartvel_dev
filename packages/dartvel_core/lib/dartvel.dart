@@ -222,7 +222,7 @@ export 'src/scheduling/scheduler.dart';
 export 'src/schema/schema.dart';
 export 'src/search/postgres_search.dart';
 export 'src/search/search_tuning.dart';
-export 'src/search/semantic_search.dart';
+export 'src/search/semantic_search.dart' hide DVSemanticIndex;
 export 'src/secrets/env_format.dart';
 export 'src/secrets/public_env_library.dart';
 export 'src/secrets/secrets.dart';
@@ -241,7 +241,7 @@ export 'src/storage/local_unsupported.dart'
 // is read and written like any other; there is no object to implement and
 // nothing to connect. They stay in the library for the framework and its
 // tests, and out of the surface an application sees.
-export 'src/sync/model_sync.dart' hide DVModelSyncTransport;
+export 'src/sync/model_sync.dart' hide DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' hide DVPresenceTransport;
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';

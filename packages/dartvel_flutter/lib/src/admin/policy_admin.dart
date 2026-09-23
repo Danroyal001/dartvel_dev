@@ -1,3 +1,4 @@
+import 'package:dartvel_core/framework.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';

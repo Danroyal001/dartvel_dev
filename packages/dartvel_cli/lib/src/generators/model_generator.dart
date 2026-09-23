@@ -86,6 +86,11 @@ class ModelGenerator {
     sb.writeln();
     sb.writeln("import 'package:flutter/widgets.dart';");
     sb.writeln("import 'package:dartvel_core/dartvel.dart';");
+    // Publishing a change and embedding a record are the framework's own
+    // work, and this file is the framework doing it. An application sees the
+    // members these back -- Model.changes, Model.semanticSearch -- and never
+    // the machinery, which is why it is not in dartvel.dart.
+    sb.writeln("import 'package:dartvel_core/framework.dart';");
     sb.writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
     sb.writeln();
     sb.writeln('/// Reads a numeric column. The generated columns have TEXT');

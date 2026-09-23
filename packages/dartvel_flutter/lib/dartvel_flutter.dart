@@ -346,7 +346,6 @@ export 'package:dartvel_core/dartvel.dart'
         DVPresenceEvent,
         DVPresenceEventKind,
         DVPresenceMember,
-        DVModelSync,
         DVModelChange,
         DVModelChangeKind,
         DVModelWatch,
