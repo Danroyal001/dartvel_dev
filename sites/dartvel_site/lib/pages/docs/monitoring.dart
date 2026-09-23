@@ -6,7 +6,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // running Dartvel app tells you about itself. Every line here is checked
 // against docs/spec-status.json, whose "absent" notes are the source for each
 // status box.
-@DVPage(title: 'Dartvel monitoring: metrics, traces, crashes and alerts', showAppBar: false)
+@DVPage(
+  title: 'Dartvel monitoring: metrics, traces, crashes and alerts',
+  description: 'Every generated backend serves Prometheus metrics and a health '
+      'check, and every app records its own crashes. Traces, alerts '
+      'and error budgets build on the same signals.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmonitoring,

@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel import and export: CSV, NDJSON, Excel and reports', showAppBar: false)
+@DVPage(
+  title: 'Dartvel import and export: CSV, NDJSON, Excel and reports',
+  description: 'Load a spreadsheet into a model and get back the rows that did '
+      'not fit, with their row numbers. Export to CSV, JSON, NDJSON '
+      'or Excel with sensitive fields left out.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsimportexport,

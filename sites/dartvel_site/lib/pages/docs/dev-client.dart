@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Run a Dartvel app on your phone with dartvel dev', showAppBar: false)
+@DVPage(
+  title: 'Run a Dartvel app on your phone with dartvel dev',
+  description: 'Scan a QR code and your phone runs the code on your laptop. '
+      'Every save hot reloads over the network, with no cable and no '
+      'rebuild.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsdevclient,

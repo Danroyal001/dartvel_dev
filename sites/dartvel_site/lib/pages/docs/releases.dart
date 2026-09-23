@@ -5,7 +5,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // Shipping a change safely: feature flags, previews per branch, the gates a
 // backend release passes, and old clients kept working. Status boxes follow
 // the "absent" notes in docs/spec-status.json.
-@DVPage(title: 'Dartvel releases: flags, previews, rollouts and old clients', showAppBar: false)
+@DVPage(
+  title: 'Dartvel releases: flags, previews, rollouts and old clients',
+  description: 'Turn a feature on for a slice of users, try a branch on its '
+      'own preview URL, and keep old app versions working after the '
+      'backend changes.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsreleases,

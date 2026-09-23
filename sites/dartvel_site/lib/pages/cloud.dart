@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import '../components/docs.dart';
 import '../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel Cloud and Studio Pro', showAppBar: false)
+@DVPage(
+  title: 'Dartvel Cloud and Studio Pro',
+  description: 'Build, sign and ship Dartvel apps on Dartvel-run machines: '
+      'cloud builds for every target, store submission, over-the-air '
+      'updates and managed credentials.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _cloudPage(BuildContext context) => DocsAnchors(
   // The CLI sends an account with no plan to #plans.

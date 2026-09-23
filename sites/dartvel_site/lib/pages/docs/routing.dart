@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel routing: file pages, links and layouts', showAppBar: false)
+@DVPage(
+  title: 'Dartvel routing: file pages, links and layouts',
+  description: 'Add a page by adding a file, and its URL comes from where the '
+      'file lives. Link through a typed DVRoutes target, so a moved '
+      'page is a compile error.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsrouting,

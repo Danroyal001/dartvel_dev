@@ -5,6 +5,8 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Dartvel docs: install the CLI and run your first app',
+  description: 'Install the dartvel command and run your first app. Every '
+      'command on this page matches what dartvel --help prints.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')

@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel secrets and environments: keys that stay on the server', showAppBar: false)
+@DVPage(
+  title: 'Dartvel secrets and environments: keys that stay on the server',
+  description: 'A backend secret that reaches client code stops the build '
+      'before it can ship in an app bundle, and a deploy stops when '
+      'its environment is missing one.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsSecretsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docssecrets,

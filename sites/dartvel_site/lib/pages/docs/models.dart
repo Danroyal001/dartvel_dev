@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel models: storage, forms, tables, admin and pages', showAppBar: false)
+@DVPage(
+  title: 'Dartvel models: storage, forms, tables, admin and pages',
+  description: 'Declare a class once and get storage, a form, a table, an '
+      'admin screen and public pages. Every generated name is public, '
+      'so your code never touches the private class.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsModelsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmodels,

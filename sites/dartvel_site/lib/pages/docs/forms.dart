@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel forms: a form for every model, generated', showAppBar: false)
+@DVPage(
+  title: 'Dartvel forms: a form for every model, generated',
+  description: 'Every Dartvel model gets a form with an input per field, so a '
+      'create or edit screen is one line. Lay it out yourself and '
+      'keep the typed fields.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsFormsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsforms,

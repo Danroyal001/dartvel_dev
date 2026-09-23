@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel outbound HTTP: declared hosts, retries and timeouts', showAppBar: false)
+@DVPage(
+  title: 'Dartvel outbound HTTP: declared hosts, retries and timeouts',
+  description: 'Declare each API your app calls once, with its timeout and '
+      'retries. A call to a host you did not declare is refused '
+      'before anything leaves the process.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsHttpPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docshttp,

@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel privacy: export and erase personal data', showAppBar: false)
+@DVPage(
+  title: 'Dartvel privacy: export and erase personal data',
+  description: 'Answer an export or deletion request with one call across '
+      'every model that holds a person\'s data, and honour a browser '
+      'that sends Sec-GPC.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsPrivacyPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsprivacy,

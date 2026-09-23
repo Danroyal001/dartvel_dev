@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel AI: chat, structured output, embeddings and tools', showAppBar: false)
+@DVPage(
+  title: 'Dartvel AI: chat, structured output, embeddings and tools',
+  description: 'Call Anthropic, OpenAI, Gemini, OpenRouter or a local Ollama '
+      'model through one API, and turn any backend function into a '
+      'tool a model can call.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsAiPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsai,

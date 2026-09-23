@@ -4,7 +4,13 @@ import '../../components/docs_cli_command.dart';
 import '../../components/docs_cli_reference.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel CLI reference: every command and flag', showAppBar: false)
+@DVPage(
+  title: 'Dartvel CLI reference: every command and flag',
+  description: 'Every dartvel command and flag, taken from the CLI itself: '
+      'create, dev, build, deploy, db and test, matching what dartvel '
+      '--help prints.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsCliPage(BuildContext context) => DocsArticle(
       page: DVRoutes.docscli,

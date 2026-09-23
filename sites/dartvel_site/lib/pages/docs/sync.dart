@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel sync, presence and offline models', showAppBar: false)
+@DVPage(
+  title: 'Dartvel sync, presence and offline models',
+  description: 'React to every change to a model, see who else is on a page, '
+      'and keep taking writes when the network drops. It runs on your '
+      'models, signals and queues.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsSyncPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docssync,

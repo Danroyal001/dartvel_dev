@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel change capture: keep a warehouse in step with your data', showAppBar: false)
+@DVPage(
+  title: 'Dartvel change capture: keep a warehouse in step with your data',
+  description: 'Keep a reporting database in step with every insert, update '
+      'and delete, in the order they happened, and let a destination '
+      'that was down catch up.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsChangeCapturePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docschangecapture,

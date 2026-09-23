@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import '../../components/docs_cli_reference.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Host a Dartvel web build on Apache or LiteSpeed', showAppBar: false)
+@DVPage(
+  title: 'Host a Dartvel web build on Apache or LiteSpeed',
+  description: 'dartvel build web writes static files you can upload to any '
+      'shared host, and the .htaccess it writes makes deep links and '
+      'caching work on Apache or LiteSpeed.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docswebhosting,

@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel UI: DVBox, DVText, modifiers and layouts', showAppBar: false)
+@DVPage(
+  title: 'Dartvel UI: DVBox, DVText, modifiers and layouts',
+  description: 'Build screens from two widgets, DVBox for layout and DVText '
+      'for text, and style both with one chain of modifiers.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsUiPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsui,

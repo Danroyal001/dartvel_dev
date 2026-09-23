@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel multi-tenancy: one deployment, many customers', showAppBar: false)
+@DVPage(
+  title: 'Dartvel multi-tenancy: one deployment, many customers',
+  description: 'Serve many customers from one deployment, each seeing only '
+      'their own data. The tenant is resolved per request and carried '
+      'into jobs and the cache.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docstenancy,

@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel search: full text, hosted engines and semantic search', showAppBar: false)
+@DVPage(
+  title: 'Dartvel search: full text, hosted engines and semantic search',
+  description: 'Search your models with typed results, from an in-memory index '
+      'in tests to Meilisearch or OpenSearch in production, and add '
+      'semantic search by meaning.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsSearchPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docssearch,

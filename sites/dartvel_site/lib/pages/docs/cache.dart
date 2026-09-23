@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel cache: remember values and revalidate by tag', showAppBar: false)
+@DVPage(
+  title: 'Dartvel cache: remember values and revalidate by tag',
+  description: 'Compute an expensive value once and serve it from DV.Cache, '
+      'then tag your keys and drop a whole group when the data behind '
+      'them changes.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsCachePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docscache,

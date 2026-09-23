@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel queues and jobs: background work with retries', showAppBar: false)
+@DVPage(
+  title: 'Dartvel queues and jobs: background work with retries',
+  description: 'Send email, resize images and call slow APIs after the '
+      'response, with retries. A job is a small class: dispatch it '
+      'and a worker runs it.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsqueues,

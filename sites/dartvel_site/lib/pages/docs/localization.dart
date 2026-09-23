@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel localization: typed keys, plurals and ARB catalogues', showAppBar: false)
+@DVPage(
+  title: 'Dartvel localization: typed keys, plurals and ARB catalogues',
+  description: 'Declare each string once as a typed key and dartvel i18n tells '
+      'you which languages are missing it. Plurals follow the CLDR '
+      'rules of each language.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsLocalizationPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docslocalization,

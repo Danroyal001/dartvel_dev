@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel platform API: API keys, scopes and OAuth', showAppBar: false)
+@DVPage(
+  title: 'Dartvel platform API: API keys, scopes and OAuth',
+  description: 'Let other systems call your API with scoped keys or OAuth '
+      'tokens, where each scope maps to the same policy action your '
+      'own app uses.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsPlatformApiPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsplatformapi,

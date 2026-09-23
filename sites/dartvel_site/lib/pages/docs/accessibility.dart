@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel accessibility: audits, switch control and remote keys', showAppBar: false)
+@DVPage(
+  title: 'Dartvel accessibility: audits, switch control and remote keys',
+  description: 'dartvel build web fails when a screen reader would meet an '
+      'unnamed button or a broken heading order, and two widgets let '
+      'switch users and TV remotes drive any page.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsaccessibility,

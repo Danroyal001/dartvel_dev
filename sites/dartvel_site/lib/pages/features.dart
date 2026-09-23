@@ -643,6 +643,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
 
 @DVPage(
   title: 'Dartvel features: what ships and what is partial',
+  description: 'What ships in Dartvel today and what is partial, section by '
+      'section, with the evidence behind each status.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.8,
