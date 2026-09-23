@@ -29,6 +29,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Linux binds the most today and iOS the fewest. CI checks every '
                   'claimed binding against its handler on a real device.',
             ]),
+            DocsCode('devices-platform'),
             DocsStatus('Platform', missing: <String>[
               'On Android, biometrics and NFC tags are not bound yet.',
               'iOS binds only a handful of features so far.',
@@ -45,6 +46,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Android and iOS widgets are packaged by dartvel build. A target '
                   'with nowhere to put one leaves it out and tells you.',
             ]),
+            DocsCode('devices-home-widget'),
             DocsStatus('Home Widgets'),
           ],
         ),
@@ -69,14 +71,15 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           title: 'Open more windows and tabs',
           children: <Widget>[
             Bullets(<String>[
-              'DV.Window.open opens a page in its own window on Linux, once: '
-                  'opening it again focuses the one that is open. A second '
+              'DV.Platform.Window.open opens a page in its own window on Linux, '
+                  'once: opening it again focuses the one that is open. A second '
                   'launch of the app hands its arguments to the first.',
               'Tab workspaces keep tabs in order, let you drag one out into a '
                   'window where the target allows it, and restore them per '
                   'user and tenant.',
               'On a TV the tabs become tiles the remote moves between.',
             ]),
+            DocsCode('devices-window'),
             DocsStatus('Multi-Window'),
             DocsStatus('Tab Workspaces'),
           ],
@@ -95,6 +98,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'next: its fold comes from iOS 27.1, which needs a binding '
                   'built against that SDK.',
             ]),
+            DocsCode('devices-foldable'),
           ],
         ),
         DocsSection(
@@ -108,6 +112,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'dropped and where.',
               'Native print and file dialogs are bound on Linux first.',
             ]),
+            DocsCode('devices-desktop'),
             DocsStatus('Desktop, Embedded, and Qt-Critical Capabilities'),
           ],
         ),
