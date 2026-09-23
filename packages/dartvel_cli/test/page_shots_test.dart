@@ -98,6 +98,41 @@ void main() {
     });
   });
 
+  group('a picture already taken is not this page', () {
+    // Waiting on the text and on the network still let 12 routes be
+    // photographed as the same empty docs shell. Whatever the cause, the
+    // invariant holds: two routes cannot honestly have the same picture at
+    // the same size, so a repeat means the second page had not drawn, and
+    // the capture waits and looks again instead of filing it.
+    test('the same bytes at the same size is a repeat', () {
+      final DVShotLibrary library = DVShotLibrary();
+      const DVShotSize desktop = DVShotSize(1440, 900);
+
+      expect(library.isRepeat(desktop, <int>[1, 2, 3]), isFalse);
+      library.keep(desktop, <int>[1, 2, 3]);
+      expect(library.isRepeat(desktop, <int>[1, 2, 3]), isTrue);
+    });
+
+    test('the same bytes at a different size is not', () {
+      // A phone and a desktop never produce the same picture anyway, and
+      // keeping them apart means one size cannot veto the other.
+      final DVShotLibrary library = DVShotLibrary();
+      library.keep(const DVShotSize(1440, 900), <int>[1, 2, 3]);
+
+      expect(library.isRepeat(const DVShotSize(390, 844), <int>[1, 2, 3]),
+          isFalse);
+    });
+
+    test('a different picture is never a repeat', () {
+      final DVShotLibrary library = DVShotLibrary();
+      const DVShotSize desktop = DVShotSize(1440, 900);
+      library.keep(desktop, <int>[1, 2, 3]);
+
+      expect(library.isRepeat(desktop, <int>[1, 2, 4]), isFalse);
+      expect(library.isRepeat(desktop, <int>[1, 2]), isFalse);
+    });
+  });
+
   test('each shot is named for its route and size', () {
     expect(dvShotName('/', const DVShotSize(1440, 900)), 'home-1440x900.png');
     expect(dvShotName('/docs/ai', const DVShotSize(390, 844)),
