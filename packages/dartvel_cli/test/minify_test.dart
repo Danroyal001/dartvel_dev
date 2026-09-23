@@ -9,11 +9,24 @@
 // differently, which is worth more test effort than one that throws.
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:dartvel_cli/src/build/minify.dart';
+import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
+  group('the flag', () {
+    test('a build minifies unless it is told not to', () {
+      // The owner's ask is that this needs no flag to happen. --no-minify is
+      // the escape for a build somebody is about to read.
+      final Option? option = BuildCommand().argParser.options['minify'];
+      expect(option, isNotNull);
+      expect(option!.defaultsTo, isTrue);
+      expect(option.negatable, isTrue);
+    });
+  });
+
   group('HTML', () {
     test('drops comments and the whitespace between tags', () {
       final String out = dvMinifyHtml('''
@@ -246,6 +259,42 @@ const b = 2;
 
       expect(File(p.join(web.path, 'small.css')).readAsStringSync(), already);
       expect(report.files, 0);
+    });
+
+    test('the build step runs over build/web and says what it saved', () {
+      final Directory root = Directory.systemTemp.createTempSync('dv_build_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File(p.join(root.path, 'build', 'web', 'index.html'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('<html>\n  <body>\n    <p>hi</p>\n  </body>\n</html>');
+
+      final DVMinifyReport report = dvMinifyBuildOutput(root.path);
+
+      expect(File(p.join(root.path, 'build', 'web', 'index.html')).readAsStringSync(),
+          '<html><body><p>hi</p></body></html>');
+      expect(dvMinifySummary(report), contains('1 file'));
+    });
+
+    test('a build told not to minify is left as it was', () {
+      final Directory root = Directory.systemTemp.createTempSync('dv_build_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      const String page = '<html>\n  <body>\n    <p>hi</p>\n  </body>\n</html>';
+      File(p.join(root.path, 'build', 'web', 'index.html'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(page);
+
+      final DVMinifyReport report = dvMinifyBuildOutput(root.path, enabled: false);
+
+      expect(File(p.join(root.path, 'build', 'web', 'index.html')).readAsStringSync(),
+          page);
+      expect(report.files, 0);
+    });
+
+    test('a build with no web output is not an error', () {
+      final Directory root = Directory.systemTemp.createTempSync('dv_build_');
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      expect(dvMinifyBuildOutput(root.path).files, 0);
     });
 
     test('a file it cannot read as text is left where it is', () {

@@ -8,6 +8,7 @@ import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
 import '../build/image_variants_build.dart';
+import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
@@ -568,6 +569,12 @@ class BuildCommand extends Command<void> {
               'ships with an empty body to anything that does not run '
               'scripts. For a build nobody serves: a screenshot, a smoke '
               'test, a local run.')
+      ..addFlag('minify',
+          defaultsTo: true,
+          help: 'Take the whitespace and the comments out of the HTML, CSS '
+              'and JavaScript the build writes. Nobody downloads the '
+              'indentation. --no-minify leaves it in, for a build somebody '
+              'is about to read.')
       ..addFlag('auto-install',
           defaultsTo: null,
           help: 'Install missing build tools without prompting. Defaults to '
@@ -1163,6 +1170,9 @@ class BuildCommand extends Command<void> {
             return _PlatformBuildResult.failed;
           }
           final DVAdminMount? admin = dashboard.admin;
+          // Before the executable packs build/web into itself: what is not
+          // minified by now ships inside the binary as it was written.
+          _minifyWebOutput(root);
           // The backend that serves all of it, as one executable file.
           if (await _buildServerBinary(root, admin: admin) ==
               _PlatformBuildResult.failed) {
@@ -1171,6 +1181,9 @@ class BuildCommand extends Command<void> {
           }
         } else {
           await _writeStaticPages(root);
+          // After the per-route pages, so the pass takes the indentation out
+          // of every one of them rather than only out of the shell.
+          _minifyWebOutput(root);
         }
         // The App Links and Universal Links documents, served from the site
         // the links point at, whichever way the site is served.
@@ -2971,6 +2984,17 @@ class BuildCommand extends Command<void> {
     Logger.log('   $templates parameterised route(s) expanded to '
         '${served.length} page(s).');
     return <String>{...concrete, ...served}.toList()..sort();
+  }
+
+  /// Take the whitespace and the comments out of what the build wrote.
+  ///
+  /// Every reader downloads this, and none of them reads it. The pass leaves
+  /// dart2js's own output and the application's bundled assets alone.
+  void _minifyWebOutput(String root) {
+    final DVMinifyReport report =
+        dvMinifyBuildOutput(root, enabled: argResults?['minify'] != false);
+    if (report.files == 0) return;
+    Logger.log('   ${dvMinifySummary(report)}');
   }
 
   /// Capture each route's semantics tree from the finished build.
