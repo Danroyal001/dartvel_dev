@@ -32,6 +32,8 @@ Widget page({Axis axis = Axis.vertical, ScrollController? controller}) =>
     );
 
 void main() {
+  focusReturnsTests();
+
   late ScrollController controller;
 
   setUp(() => controller = ScrollController());
@@ -117,5 +119,71 @@ void main() {
 
     expect(controller.offset, 0,
         reason: 'the caret moved; the page must not have');
+  });
+}
+
+// Scrolling comes back after focus goes somewhere that cannot use it.
+//
+// autofocus only applies the first time the page builds. A right-click, or a
+// click on a paragraph, can leave nothing focused at all -- on the web the
+// context menu takes focus out of the Flutter view and hands it back to
+// nobody -- and from then on the page answered no key at all. The reader has
+// to click a link to get scrolling back, which is not something anyone would
+// guess.
+void focusReturnsTests() {
+  late ScrollController controller;
+
+  setUp(() => controller = ScrollController());
+  tearDown(() => controller.dispose());
+
+  testWidgets('the arrows work again after focus is dropped',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(page(controller: controller));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(controller.offset, greaterThan(0), reason: 'scrolls to begin with');
+
+    // What a right-click leaves behind: nothing holds focus.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
+    final double before = controller.offset;
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+
+    expect(controller.offset, greaterThan(before),
+        reason: 'the page takes the keys back when nothing else wants them');
+  });
+
+  testWidgets('a field that takes focus still keeps its own keys',
+      (WidgetTester tester) async {
+    // The page must not snatch focus back from something a reader is using.
+    final FocusNode field = FocusNode();
+    addTearDown(field.dispose);
+    await tester.pumpWidget(MaterialApp(
+      home: DVPageShell(
+        spec: const DVPageScaffoldSpec(title: 'Long'),
+        child: Column(children: <Widget>[
+          TextField(focusNode: field),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: controller,
+              child: const SizedBox(height: 4000),
+            ),
+          ),
+        ]),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    field.requestFocus();
+    await tester.pumpAndSettle();
+    expect(field.hasPrimaryFocus, isTrue);
+
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    expect(field.hasPrimaryFocus, isTrue,
+        reason: 'the page does not take focus off what the reader is typing in');
   });
 }

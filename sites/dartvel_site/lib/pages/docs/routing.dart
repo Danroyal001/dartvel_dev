@@ -41,6 +41,34 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'config-routes',
+          title: 'Or declare routes in a file, if you prefer',
+          children: <Widget>[
+            DocsText('A file under lib/pages is the short way. A route can '
+                'also be declared in code, in lib/routes.dart, which suits a '
+                'screen that is not a page of its own, a path built from '
+                'something else, or a codebase that already keeps its routes '
+                'in one place.'),
+            DocsCode('routing-config'),
+            Bullets(<String>[
+              'dartvel routes reads the file, so each route gets a typed '
+                  'DVRoutes target beside the pages\' own. One router, one '
+                  'DVRoutes, whichever way a route was declared.',
+              'DVRoute nests through routes:. A nested path joins its '
+                  'parent\'s, so :person under /roasters is '
+                  '/roasters/:person.',
+              'DVShellRoute and DVStatefulShellRoute wrap children in shared '
+                  'chrome, and take a redirect that may be async, so a '
+                  'session check shows the pending view and never a blank '
+                  'screen.',
+              'dartvel.routes in pubspec.yaml points at another file. A route '
+                  'the reader cannot parse stops the build with DV-ROUTE-003. '
+                  'It is not skipped: a skipped route still runs, with no '
+                  'typed target and no page on the web.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'page-body',
           title: 'Write logic in a page body',
           children: <Widget>[

@@ -346,11 +346,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVPresenceEvent,
         DVPresenceEventKind,
         DVPresenceMember,
-        DVPresenceTransport,
         DVModelSync,
         DVModelChange,
         DVModelChangeKind,
-        DVModelSyncTransport,
         DVModelWatch,
         DVAssetKind,
         DVOneTimeCode,
@@ -9370,6 +9368,16 @@ class _DVPageShellState extends State<DVPageShell> {
     // for this, because a page a keyboard cannot move is a broken page rather
     // than a style.
     final Widget scrollable = DVKeyboardScroll(child: keyed);
+    // And every other way somebody drives a page: a TV remote's D-pad and
+    // select key, and one or two switches. On the same argument as the keys
+    // above, and for the same reason no page asks for those -- a page one
+    // input method cannot reach is a broken page rather than a style, and a
+    // page somebody has to remember to wrap is unreachable on the days they
+    // forget. Both are inert until they are needed: the switch keys are left
+    // to the page until switch control is turned on, so an ordinary keyboard
+    // user is never hijacked.
+    final Widget reachable =
+        DVHardwareKeys(child: DVSwitchControl(child: scrollable));
     final Widget selectionWrapped = selectable
         ? SelectionArea(
             // skipTraversal, because a SelectionArea is focusable and would
@@ -9384,10 +9392,10 @@ class _DVPageShellState extends State<DVPageShell> {
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
-              child: scrollable,
+              child: reachable,
             ),
           )
-        : scrollable;
+        : reachable;
     final Widget framed =
         spec.safeArea ? SafeArea(child: selectionWrapped) : selectionWrapped;
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {

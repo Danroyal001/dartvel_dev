@@ -31,6 +31,34 @@ class DVSwitchControlState extends ChangeNotifier {
 
   void toggle() => enabled = !enabled;
 
+  DVSwitchControlSettings _settings = const DVSwitchControlSettings();
+
+  /// Which keys the reader's switches send.
+  ///
+  /// Beside the on switch rather than on a widget, because every page carries
+  /// switch control now and no page wraps itself in anything. A reader whose
+  /// switch is not Space has one place to say so, and it holds for the whole
+  /// application rather than for the pages somebody remembered.
+  DVSwitchControlSettings get settings => _settings;
+
+  set settings(DVSwitchControlSettings value) {
+    _settings = value;
+    notifyListeners();
+  }
+
+  Duration? _autoScan;
+
+  /// How often focus steps on its own, or null to step only on a switch.
+  ///
+  /// A reader with one switch cannot both step and select, so the stepping is
+  /// done for them and their switch selects.
+  Duration? get autoScan => _autoScan;
+
+  set autoScan(Duration? value) {
+    _autoScan = value;
+    notifyListeners();
+  }
+
   /// Off, as at boot. For tests.
   void reset() => enabled = false;
 }
@@ -63,15 +91,24 @@ class DVSwitchControlSettings {
 /// the page and an ordinary keyboard user is not hijacked.
 class DVSwitchControl extends StatefulWidget {
   final Widget child;
-  final DVSwitchControlSettings settings;
+
+  /// The keys for this subtree, or null to take the application's.
+  ///
+  /// Null is the ordinary case now that the page shell carries one of these
+  /// for every page: a reader says which switches they have once, on
+  /// DV.Accessibility.switchControl, and it holds everywhere.
+  final DVSwitchControlSettings? settings;
+
+  /// How often focus steps on its own here, or null to take the
+  /// application's.
   final Duration? autoScan;
 
   const DVSwitchControl({
     super.key,
     required this.child,
-    DVSwitchControlSettings? settings,
+    this.settings,
     this.autoScan,
-  }) : settings = settings ?? const DVSwitchControlSettings();
+  });
 
   @override
   State<DVSwitchControl> createState() => _DVSwitchControlState();
@@ -107,7 +144,7 @@ class _DVSwitchControlState extends State<DVSwitchControl> {
   void _onStateChanged() {
     _timer?.cancel();
     _timer = null;
-    final Duration? every = widget.autoScan;
+    final Duration? every = widget.autoScan ?? _state.autoScan;
     if (_state.enabled && every != null) {
       _timer = Timer.periodic(every, (_) => _step(forward: true));
     }
@@ -126,7 +163,7 @@ class _DVSwitchControlState extends State<DVSwitchControl> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!_state.enabled || event is KeyUpEvent) return KeyEventResult.ignored;
     final LogicalKeyboardKey key = event.logicalKey;
-    final DVSwitchControlSettings s = widget.settings;
+    final DVSwitchControlSettings s = widget.settings ?? _state.settings;
     if (key == s.next) {
       _step(forward: true);
       return KeyEventResult.handled;

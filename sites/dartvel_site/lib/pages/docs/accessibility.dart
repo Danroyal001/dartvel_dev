@@ -82,15 +82,21 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
           id: 'switches',
           title: 'Drive a page with switches or a remote',
           children: <Widget>[
-            DocsCode('a11y-switch-control'),
+            DocsText('Nothing to add and nothing to wrap. Every page is '
+                'driven by a TV remote, by one or two switches, and by a '
+                'keyboard, the same way every page already scrolls from the '
+                'arrow keys.'),
             Bullets(<String>[
-              'DVSwitchControl steps focus with Space and activates with Enter '
-                  'while switch control is on. Pass settings to choose the keys.',
-              'DVHardwareKeys maps a D-pad and select key onto focus, with '
-                  'nothing to switch on.',
+              'A remote\'s D-pad moves focus and its select key activates.',
+              'While switch control is on, Space steps focus and Enter '
+                  'activates. Until it is on, those keys belong to the page, '
+                  'so an ordinary keyboard user is never hijacked.',
+              'Turn it on with DV.Accessibility.switchControl.enabled, and '
+                  'choose the keys and an auto-scan interval in settings.',
               'Kiosk mode never blocks these keys, so a locked kiosk stays '
                   'usable.',
             ]),
+            DocsCode('a11y-switch-control'),
           ],
         ),
         DocsSection(

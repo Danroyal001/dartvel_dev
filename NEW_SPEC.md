@@ -2960,13 +2960,16 @@ publishes created, updated, deleted, restored and synced changes to
 `DVModelSync`, and `Model.changes`, `Model.watch` and `user.sync()` read and
 write that hub. `DVPresence` keeps channel membership by identity, scoped by
 tenant and expiring when heartbeats stop. The generated backend also serves
-GraphQL subscriptions over Server-Sent Events. Both hubs take a transport
-(`DVModelSyncTransport`, `DVPresenceTransport`) that carries changes between
-processes and clients, and no transport is shipped. So a change made on one
-server instance, or on one device, reaches another only through a transport
-the application writes. A WebSocket transport, a reconnect policy,
-backpressure, collaborative editing and fanout through Redis, NATS or Kafka
-are designed and not built.
+GraphQL subscriptions over Server-Sent Events.
+
+Carrying a change between processes and clients is the framework's own job and
+is not built. An application never writes that part and has no object to
+implement: a model opted into syncing is read and written like any other, and
+saving a record is what publishes the change. The carriers each hub uses
+internally are not in the surface an application imports. So a change made on
+one server instance, or on one device, does not reach another yet. A WebSocket
+carrier, a reconnect policy, backpressure, collaborative editing and fanout
+through Redis, NATS or Kafka are designed and not built.
 
 ---
 

@@ -50,16 +50,20 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
-          id: 'transport',
-          title: 'Carry changes between servers and devices',
+          id: 'across-processes',
+          title: 'Reaching another server or another device',
           children: <Widget>[
-            DocsText('Out of the box, changes and presence reach listeners in '
-                'the same process. To reach another server or a phone, give '
-                'each hub a transport.'),
-            DocsCode('sync-transport'),
+            DocsText('A model you have opted into syncing is read and written '
+                'the way any other model is. There is nothing to wire up and '
+                'no object to implement: saving a record is what publishes the '
+                'change, and watching one is what receives it.'),
+            DocsText('Today that delivery happens inside one process. Carrying '
+                'it between servers and devices is the framework\'s job and is '
+                'not built yet, so a change on one instance does not reach '
+                'another.'),
             DocsStatus('Model Sync and Presence', missing: <String>[
-              'No transport ships. There is no WebSocket, Redis, NATS or Kafka '
-                  'transport yet.',
+              'Delivery is in-process only. Nothing carries a change to '
+                  'another server or to a phone yet.',
               'No reconnect policy, backpressure or collaborative editing.',
             ]),
           ],

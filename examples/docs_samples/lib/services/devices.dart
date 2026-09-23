@@ -35,8 +35,10 @@ Future<void> refreshShift(String when) =>
 // docs:start devices-window
 // Idempotent by route: opening a route a window already shows returns that
 // window instead of a second copy of it.
-Future<DVWindow> openOrders() =>
-    DV.Platform.Window.open(const DVRouteTarget('/orders'));
+// The route is the generated target, never a string: moving the page moves
+// this with it, and a route that no longer exists is a compile error rather
+// than a window onto nothing.
+Future<DVWindow> openCart() => DV.Platform.Window.open(DVRoutes.cart);
 // docs:end
 
 // docs:start devices-foldable
@@ -60,13 +62,13 @@ Future<void> installDesktopChrome() async {
     icon: 'assets/tray.png',
     tooltip: 'Oakline',
     menu: const <DVTrayMenuItem>[
-      DVTrayMenuItem(id: 'orders', label: 'Open orders'),
+      DVTrayMenuItem(id: 'cart', label: 'Open the cart'),
     ],
-    onSelected: (String id) => DV.Platform.Window.open(DVRouteTarget('/$id')),
+    onSelected: (String id) => DV.Platform.Window.open(DVRoutes.cart),
   );
   await DV.Platform.Shortcuts.register(
-    const DVGlobalShortcut(id: 'orders', accelerator: 'Ctrl+Shift+O'),
-    onPressed: () => DV.Platform.Window.open(const DVRouteTarget('/orders')),
+    const DVGlobalShortcut(id: 'cart', accelerator: 'Ctrl+Shift+O'),
+    onPressed: () => DV.Platform.Window.open(DVRoutes.cart),
   );
 }
 // docs:end

@@ -44,24 +44,6 @@ Future<void> presence() async {
   DV.log('${here.length}');
 }
 
-// docs:start sync-transport
-/// Carries changes between processes. Dartvel ships none yet, so this is
-/// yours to write over WebSockets, Redis or anything else.
-class MyTransport implements DVModelSyncTransport {
-  MyTransport(this.incoming, this._publish);
-
-  final Future<void> Function(Map<String, Object?> envelope) _publish;
-
-  @override
-  final Stream<Map<String, Object?>> incoming;
-
-  @override
-  Future<void> send(Map<String, Object?> envelope) => _publish(envelope);
-}
-
-void connect(MyTransport transport) => DVModelSync.useTransport(transport);
-// docs:end
-
 Future<void> offline(DVOfflineRemote server) async {
   // docs:start offline-store
   final DVOfflineStore orders = DVOfflineStore(

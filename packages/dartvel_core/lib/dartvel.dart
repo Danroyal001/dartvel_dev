@@ -231,8 +231,13 @@ export 'src/storage/adapters.dart';
 export 'src/storage/azure_blob.dart';
 export 'src/storage/file.dart';
 export 'src/storage/gcs.dart';
-export 'src/sync/model_sync.dart';
-export 'src/sync/presence.dart';
+// The transports are the framework's own way of carrying a change between
+// processes, not something an application writes. A model opted into syncing
+// is read and written like any other; there is no object to implement and
+// nothing to connect. They stay in the library for the framework and its
+// tests, and out of the surface an application sees.
+export 'src/sync/model_sync.dart' hide DVModelSyncTransport;
+export 'src/sync/presence.dart' hide DVPresenceTransport;
 export 'src/tenancy/tenants.dart';
 export 'src/transaction/transaction.dart';
 export 'src/updates/ota.dart';

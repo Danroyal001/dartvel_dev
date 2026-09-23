@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
+// The transport is the framework's own, hidden from the barrel an
+// application imports, so its own tests reach for the library directly.
+import 'package:dartvel_core/src/sync/model_sync.dart' show DVModelSyncTransport;
 import 'package:test/test.dart';
 
 class _Note {
