@@ -1556,19 +1556,47 @@ jobs:
           test -f build/web/__admin/main.dart.js
           test ! -f build/web/__admin/admin.js
 
-          dart run dartvel_cli:dartvel preview --port 8098 &
+          dart run dartvel_cli:dartvel preview --port 8098 \
+            > /tmp/diag/preview.log 2>&1 &
           SERVER=$!
           for i in $(seq 1 30); do
             curl -sf -o /dev/null http://127.0.0.1:8098/ && break
             sleep 1
           done
 
-          curl -sf http://127.0.0.1:8098/__studio > /tmp/diag/studio.html
+          # Studio is not open to whoever reaches the port. The preview server
+          # prints a one-time link and only a request carrying that grant is
+          # answered; everybody else gets what a missing route gets. This
+          # step used to curl the mount with nothing and expect the dashboard,
+          # so it has failed since the grant landed -- on the security
+          # property working.
+          code=$(curl -s -o /tmp/diag/studio-unclaimed.html \
+            -w '%{http_code}' http://127.0.0.1:8098/__studio)
+          if grep -q '<title>Studio' /tmp/diag/studio-unclaimed.html; then
+            echo "::error::Studio answered a request with no grant ($code)"
+            exit 1
+          fi
+
+          # Then the browser's path: open the printed link, which sets the
+          # cookie for the mount and redirects without the token in the URL.
+          GRANT=$(grep -o 'http://localhost:8098/__studio/?dev_grant=[A-Za-z0-9._~-]*' \
+            /tmp/diag/preview.log | head -1 | sed 's|http://localhost|http://127.0.0.1|')
+          if [ -z "$GRANT" ]; then
+            echo "::error::the preview printed no development grant link"
+            cat /tmp/diag/preview.log
+            exit 1
+          fi
+          curl -sf -c /tmp/diag/studio-cookies -o /dev/null -L "$GRANT"
+
+          curl -sf -b /tmp/diag/studio-cookies \
+            http://127.0.0.1:8098/__studio > /tmp/diag/studio.html
           grep -q '<title>Studio' /tmp/diag/studio.html
           grep -q '<base href="/__studio/">' /tmp/diag/studio.html
-          curl -sf -o /dev/null http://127.0.0.1:8098/__studio/main.dart.js
+          curl -sf -b /tmp/diag/studio-cookies -o /dev/null \
+            http://127.0.0.1:8098/__studio/main.dart.js
 
-          curl -sf http://127.0.0.1:8098/__studio/graph.json \
+          curl -sf -b /tmp/diag/studio-cookies \
+            http://127.0.0.1:8098/__studio/graph.json \
             > /tmp/diag/studio-graph.json
 
           # A path that climbs out of the mount must not be answered with
@@ -1579,9 +1607,11 @@ jobs:
           # the one the unit test drives directly, with a Request built by
           # hand; this is the end-to-end half, and what it can show is that
           # the studio is not served from outside its own mount.
-          curl -s --path-as-is -o /tmp/diag/studio-climb.html \
+          curl -s --path-as-is -b /tmp/diag/studio-cookies \
+            -o /tmp/diag/studio-climb.html \
             'http://127.0.0.1:8098/__studio/../index.html'
-          curl -s --path-as-is -o /tmp/diag/studio-encoded.html \
+          curl -s --path-as-is -b /tmp/diag/studio-cookies \
+            -o /tmp/diag/studio-encoded.html \
             'http://127.0.0.1:8098/__studio/%2e%2e/index.html'
           kill $SERVER 2>/dev/null || true
 
