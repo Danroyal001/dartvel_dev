@@ -292,12 +292,22 @@ Future<DVPageShotsResult> dvCapturePages({
           // And if what came out is a picture already taken, this page has
           // not drawn: keep looking until it differs or the deadline passes.
           // Writing it anyway is what filed twelve routes as one shell.
-          List<int> picture = await page.screenshot();
+          // fromSurface: false renders the view for the shot instead of
+          // handing back whatever the compositor last rastered. Every page is
+          // a deferred library, and on a debug build in a headless browser
+          // the surface lags the frame that drew the article by seconds --
+          // waiting does not refresh it, because a stale surface is perfectly
+          // stable. Fifteen of the site's fifty-seven desktop pages came back
+          // as the docs shell with an empty pane this way, while all
+          // fifty-seven at phone width, where the shell is a collapsed menu,
+          // were right. The studio capture had the same fault and the same
+          // cure.
+          List<int> picture = await page.screenshot(fromSurface: false);
           final DateTime own = DateTime.now().add(settle);
           while (library.isRepeat(size, picture) &&
               DateTime.now().isBefore(own)) {
             await Future<void>.delayed(const Duration(milliseconds: 500));
-            picture = await page.screenshot();
+            picture = await page.screenshot(fromSurface: false);
           }
           final bool ownPicture = !library.isRepeat(size, picture);
           library.keep(size, picture);
