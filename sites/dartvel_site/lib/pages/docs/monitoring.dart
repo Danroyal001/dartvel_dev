@@ -34,6 +34,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
               'dartvel metrics fetches the running server\'s /metrics and says '
                   'plainly when no server answers.',
             ]),
+            DocsCode('monitoring-log'),
           ],
         ),
         DocsSection(
@@ -48,6 +49,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
               'Recent spans are kept in memory and served at /_dartvel/traces '
                   'when diagnostics endpoints are on.',
             ]),
+            DocsCode('monitoring-trace'),
             DocsStatus('Distributed Tracing', missing: <String>[
               'No OTLP exporter, so spans do not reach a collector yet.',
               'Only the request itself gets a span. Database queries, outbound '
@@ -94,6 +96,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'snapshot shows each component\'s health without internal '
                   'detail.',
             ]),
+            DocsCode('monitoring-slo'),
             DocsStatus('Alerting, SLOs and Status Pages', missing: <String>[
               'No hosted status page yet, and no incidents view in Studio.',
               'Rule state and incident history live in memory and are lost on '

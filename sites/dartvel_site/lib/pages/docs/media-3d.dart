@@ -29,6 +29,7 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'Protected content with no DRM adapter is refused up front, '
                   'never played broken.',
             ]),
+            DocsCode('media3d-video'),
             DocsStatus('Media Playback and Capture', missing: <String>[
               'Linux plays through GStreamer, and only the audio: video frames '
                   'are not drawn yet.',
@@ -50,6 +51,7 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'Assets must come from your own storage or listed hosts, with a '
                   'digest that is checked before use.',
             ]),
+            DocsCode('media3d-scene'),
             DocsStatus('3D Scenes', missing: <String>[
               'There is no GPU renderer yet, so every target shows the scene\'s '
                   'poster image.',

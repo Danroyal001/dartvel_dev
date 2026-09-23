@@ -30,6 +30,10 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
                   'matches within five minutes.',
               'Trials and usage meters are passed through to the provider.',
             ]),
+            DocsCode('billing-plans'),
+            DocsCode('billing-provider'),
+            DocsCode('billing-checkout'),
+            DocsCode('billing-entitlement'),
             DocsStatus('Billing', missing: <String>[
               'Neither provider has been exercised against the live service.',
               'Stripe and Paddle keep webhook grants in memory, so a refund '
