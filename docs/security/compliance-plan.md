@@ -59,7 +59,7 @@ time is the deliverable, not a screenshot.
 | Encryption in transit | The server refuses to set a session cookie over plain HTTP outside development | TLS termination is the deployment's, which an auditor will ask about |
 | Encryption at rest | `DVFieldCipher` for declared fields | Whole-database encryption is the deployment's |
 | Monitoring | Logs, metrics, traces, health checks | No alert routing, no on-call, no incident record |
-| Vulnerability management | Vulnerabilities reported privately, fixed in the next patch | No dependency scanning, no schedule, no tracked remediation window |
+| Vulnerability management | Reported privately and fixed in the next patch; OSV asked weekly about every pinned version by `.github/workflows/dependencies.yml`, with a remediation window in [secure-development.md](secure-development.md) | Nothing tracks a finding from report to fix, so the window is written and not evidenced |
 
 ### Availability (A)
 
@@ -88,7 +88,8 @@ evidenced over a period.
    dated, retained record of what ran on each commit.
 2. Branch protection with a required review, so change management is
    evidenceable.
-3. Dependency scanning on a schedule, with a written remediation window.
+3. ~~Dependency scanning on a schedule, with a written remediation window.~~
+   Done. What is left is evidence that a finding was acted on.
 4. Backup and restore for the framework tables, with a restore that is
    actually run.
 5. Incident response: a written procedure, a channel, and a log with dates.
@@ -185,8 +186,8 @@ Across all four, ranked by what removes the most risk per unit of effort:
 
 1. ~~`Sec-GPC` on the request, and an application-facing signal for it.~~ Done;
    what remains is recording that a request carried it.
-2. Dependency scanning with a remediation window. *(SOC 2; also plain
-   engineering hygiene.)*
+2. ~~Dependency scanning with a remediation window.~~ Done, weekly and on
+   any commit that changes a lock file.
 3. CI evidence that is dated and retained. *(SOC 2 Type II is evidence over a
    period, and there is none today.)*
 4. Read auditing on declared models. *(HIPAA; the largest build of the four,
