@@ -17,6 +17,9 @@ library;
 import 'dart:io' as io;
 
 import 'package:dartvel_core/dartvel.dart';
+// DVRecordTableRemote is the framework's own: an application asks the model
+// for it through Model.offlineRemote.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 class _Ping {

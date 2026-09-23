@@ -9,6 +9,9 @@
 // work somebody believed was saved. And `DVConflict.ask`, accepted offline,
 // waits for an answer from somebody who is not there.
 import 'package:dartvel_core/dartvel.dart';
+// DVRecordTableRemote is the framework's own: an application asks the model
+// for it through Model.offlineRemote.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 typedef _Adapter = (String name, DVDatabaseAdapter Function() create);
