@@ -347,6 +347,11 @@ void main() {
         ).allMatches(checkout).map((RegExpMatch m) => m.group(1)!).toList();
         expect(stages, <String>[
           'tenant',
+          // Sec-GPC is read for every request, so the scope it opens is a
+          // stage of the lifecycle and belongs in the list that documents
+          // it. It sits above tracing because the denial is in force for
+          // everything below, the span included.
+          'privacy',
           'tracing',
           'middleware:rateLimit',
           'body',
@@ -365,7 +370,8 @@ void main() {
         ).allMatches(health).map((RegExpMatch m) => m.group(1)!).toList();
         // A GET never has its body read, so listing that stage would describe
         // a step this request does not take.
-        expect(healthStages, <String>['tenant', 'csrf', 'function']);
+        expect(healthStages,
+            <String>['tenant', 'privacy', 'csrf', 'function']);
       },
     );
   });
