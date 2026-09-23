@@ -13,6 +13,8 @@ import 'package:dartvel_cli/src/build/studio_shots.dart';
 import 'package:test/test.dart';
 
 void main() {
+  inFlightTests();
+
   group('what a section is called on disk', () {
     test('a label becomes a file name anybody can read', () {
       expect(dvStudioShotName('Pages'), 'pages.png');
@@ -61,5 +63,47 @@ void main() {
       expect(result.ok, isTrue);
       expect(result.failures, isEmpty);
     });
+  });
+}
+
+// The panel is photographed while it still reads "Loading cache tags…".
+//
+// The capture asked the semantics tree whether anything was loading, and the
+// tree does not carry the placeholder: one run passed with seven of eleven
+// sections photographed mid-fetch, and reported every one of them as fine.
+// Studio holds no long-lived connection, so its own requests are the honest
+// signal -- a section that is still asking the server has not arrived.
+void inFlightTests() {
+  test('a section with a request outstanding has not arrived', () {
+    final DVInFlight flight = DVInFlight();
+    expect(flight.idle, isTrue, reason: 'nothing asked for yet');
+
+    flight.started();
+    expect(flight.idle, isFalse);
+
+    flight.ended();
+    expect(flight.idle, isTrue);
+  });
+
+  test('several at once all have to finish', () {
+    final DVInFlight flight = DVInFlight();
+    flight.started();
+    flight.started();
+    flight.ended();
+
+    expect(flight.idle, isFalse, reason: 'one is still out');
+
+    flight.ended();
+    expect(flight.idle, isTrue);
+  });
+
+  test('a response nothing asked for does not make it negative', () {
+    // A request that began before the tracker was attached ends after it, and
+    // a count that went below nought would report idle through the next fetch.
+    final DVInFlight flight = DVInFlight();
+    flight.ended();
+    flight.started();
+
+    expect(flight.idle, isFalse);
   });
 }

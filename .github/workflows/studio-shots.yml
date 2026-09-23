@@ -100,7 +100,7 @@ jobs:
             --out /tmp/studio-shots \
             --sign-in http://127.0.0.1:8099/api/auth/sign-in \
             --email owner@dartvel.test --password 'a-long-enough-password-1' \
-            --open 'Frontend=orderAhead,Backend=placeOrder' \
+            --open 'Frontend=orderAhead,Backend=placeOrder,Data=Product' \
             --chrome "$(command -v google-chrome)"
 
       - name: None of them is a flat colour
