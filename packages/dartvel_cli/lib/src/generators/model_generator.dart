@@ -634,16 +634,23 @@ class ModelGenerator {
           sb.writeln('  Widget viewer3D() => DVModel3DViewer($first);');
         }
         sb.writeln();
-        sb.writeln('  /// Generated form component for [$className].');
+        sb.writeln('  /// A form that creates a [$className].');
         sb.writeln('  ///');
-        sb.writeln('  /// Pass [onSubmit] to receive the edited model; without');
-        sb.writeln('  /// it the form has no one to hand a value to and shows');
-        sb.writeln('  /// no controls.');
+        sb.writeln('  /// Saving is what the form does, so there is nothing to');
+        sb.writeln('  /// hand it. Whether this reader may create one is the');
+        sb.writeln('  /// policy\'s answer, as it is everywhere else.');
+        sb.writeln('  static Widget Form() =>');
         sb.writeln(
-          '  static Widget Form($className model, [void Function($className)? onSubmit]) {',
+          '      DVForm<$className>(null, ($className model) => model.save());',
         );
-        sb.writeln('    return DVForm<$className>(model, onSubmit);');
-        sb.writeln('  }');
+        sb.writeln();
+        sb.writeln('  /// The same form with a submit of its own, for the');
+        sb.writeln('  /// generated admin, which refreshes its list after a');
+        sb.writeln('  /// write. An application never needs this.');
+        sb.writeln(
+          '  static Widget _dvFormWith($className model, void Function($className) onSubmit) =>',
+        );
+        sb.writeln('      DVForm<$className>(model, onSubmit);');
         sb.writeln();
         sb.writeln('  /// Generated lazy list component for [$className].');
         sb.writeln('  static Widget List(');
@@ -1293,7 +1300,7 @@ class ModelGenerator {
           sb.writeln(
             '      form: ($className model, void Function($className) onSubmit) =>',
           );
-          sb.writeln('          Form(model, onSubmit),');
+          sb.writeln('          _dvFormWith(model, onSubmit),');
           sb.writeln('    );');
           sb.writeln('  }');
           sb.writeln();
@@ -1331,6 +1338,30 @@ class ModelGenerator {
           nativePrice == null
               ? '  static const DVMoney? nativePrice = null;'
               : "  static final DVMoney? nativePrice = DVMoney(amount: $nativePrice, currency: '$nativeCurrency');",
+        );
+        sb.writeln('}');
+
+        sb.writeln();
+        // The instance form is an extension because a class cannot hold a
+        // static Form and an instance Form under one name. Generated per
+        // model so it can save, which the generic alias on T cannot: T has
+        // no save().
+        sb.writeln(
+          '/// The form that edits one [$className].',
+        );
+        sb.writeln('///');
+        sb.writeln(
+          '/// Model.Form() creates a record; model.Form() edits that record.',
+        );
+        sb.writeln(
+          '/// Neither takes a callback: saving is what the form does, and',
+        );
+        sb.writeln(
+          '/// whether this reader may is the policy\'s answer.',
+        );
+        sb.writeln('extension ${className}FormX on $className {');
+        sb.writeln(
+          '  Widget Form() => DVForm<$className>(this, ($className model) => model.save());',
         );
         sb.writeln('}');
 

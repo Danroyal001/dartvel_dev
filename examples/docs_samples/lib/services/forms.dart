@@ -3,16 +3,15 @@ import 'package:flutter/widgets.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 // docs:start forms-automatic
-// A blank form, started from the model's generated default.
-Widget newArticleForm() => DVForm<Article>();
+// On the model, a form that creates one.
+Widget newArticleForm() => Article.Form();
 
-// An edit form. Submitting hands you the edited model.
-Widget editArticleForm(Article article) =>
-    DVForm<Article>(article, (Article edited) => edited.save());
+// On an article, a form that edits that article.
+Widget editArticleForm(Article article) => article.Form();
 
-// The same form through the generated alias.
-Widget editArticleFormAlias(Article article) =>
-    Article.Form(article, (Article edited) => edited.save());
+// Neither takes a callback. Saving is what the form does, and whether this
+// reader may create or edit is the policy's answer, the same policy the page
+// and the backend function ask.
 // docs:end
 
 // docs:start forms-builder

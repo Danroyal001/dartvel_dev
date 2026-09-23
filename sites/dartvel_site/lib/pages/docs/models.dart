@@ -109,8 +109,8 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('models-widgets'),
             Bullets(<String>[
-              'Article.Form(model, onSubmit) edits every field. Without onSubmit '
-                  'it shows no buttons.',
+              'Article.Form() creates one and article.Form() edits that '
+                  'one. Saving is what the form does.',
               'Article.Table(rows) sorts by column and skips sensitive fields.',
               'Article.Page has .sync, .async, .signal and .fromId.',
             ]),

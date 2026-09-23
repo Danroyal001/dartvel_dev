@@ -25,13 +25,14 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('forms-automatic'),
             Bullets(<String>[
-              'DVForm<Article>() starts from the model\'s generated default.',
+              'Article.Form() creates a record. article.Form() edits that '
+                  'record.',
+              'Neither takes a callback. Saving is what the form does.',
               'Each field the model serializes becomes a text input.',
-              'Article.Form(article, onSubmit) builds the same DVForm<Article>.',
+              'Whether this reader may create or edit is the policy\'s '
+                  'answer, the same policy the page and the backend function '
+                  'ask.',
             ]),
-            DocsNote('No onSubmit means no buttons',
-                'A form without a second argument has nobody to hand the edited '
-                'record to. It shows the fields and no Save or Reset.'),
           ],
         ),
         DocsSection(
