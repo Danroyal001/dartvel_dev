@@ -200,7 +200,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       if (await page.evaluate<bool>(_enableSemantics)) break;
       await Future<void>.delayed(const Duration(milliseconds: 400));
     }
-    if (!await _settled(page, settle, flight: flight)) {
+    if (!await _settled(page, settle, flight: flight, patient: true)) {
       return const DVStudioShotsResult(
           skipped: 'Studio drew no text; it may not be served here');
     }
@@ -334,6 +334,7 @@ Future<bool> _settled(
   DVInFlight? flight,
   String? leaving,
   Duration insist = const Duration(seconds: 5),
+  bool patient = false,
 }) async {
   final DVTextSettle settle = DVTextSettle();
   final DateTime deadline = DateTime.now().add(limit);
@@ -348,8 +349,17 @@ Future<bool> _settled(
     // Either answer is enough to say the section has not arrived: the
     // tree's own word for it, and a request still out that the tree does
     // not mention.
-    final bool waiting =
-        state['waiting'] == true || (flight?.busy ?? false);
+    // A section that is still asking the server has not arrived, and it is
+    // better to fail the capture than to publish a panel reading "Loading
+    // cache tags…" as a tour of what Studio does.
+    //
+    // The first look, before any section has been clicked, is the exception:
+    // the application is still starting and a counter that never reaches
+    // nought there aborts the whole run with "Studio drew no text", which is
+    // a true sentence about the wrong thing.
+    final bool outstanding =
+        patient ? (flight?.busy ?? false) : !(flight?.idle ?? true);
+    final bool waiting = state['waiting'] == true || outstanding;
     // The heading has to have moved off the one the capture clicked away
     // from. Not matched against the rail label, because a panel is titled
     // for what it holds and the rail for where it is: the Cache section is
