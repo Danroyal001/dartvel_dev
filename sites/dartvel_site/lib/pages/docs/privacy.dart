@@ -51,6 +51,22 @@ Widget _docsPrivacyPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'opt-out',
+          title: 'Honour a browser that says no to tracking',
+          children: <Widget>[
+            Bullets(<String>[
+              'Every generated route reads Sec-GPC before the handler runs, so '
+                  'a consent category declared tracking: true is already '
+                  'denied while the header is in force.',
+              'dvPrivacyOptOut is for what the application decides on top: what '
+                  'it personalises, and what it hands to somebody else.',
+              'It is a signal from the reader, so a page that ignores it is '
+                  'making a choice, and the log line says which was served.',
+            ]),
+            DocsCode('privacy-opt-out'),
+          ],
+        ),
+        DocsSection(
           id: 'cli',
           title: 'Do it from the CLI',
           children: <Widget>[

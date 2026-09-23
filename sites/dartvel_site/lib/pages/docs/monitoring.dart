@@ -34,7 +34,26 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
               'dartvel metrics fetches the running server\'s /metrics and says '
                   'plainly when no server answers.',
             ]),
+            DocsCode('monitoring-server-metrics'),
+            DocsCode('monitoring-server-health'),
+          ],
+        ),
+        DocsSection(
+          id: 'logging',
+          title: 'Log a line, on the client and on the server',
+          children: <Widget>[
+            Bullets(<String>[
+              'DV.log writes one line with whatever belongs beside it, and '
+                  'DV.ObservabilityAndLogging is the rest of the surface. '
+                  'There is no second logger to configure per package.',
+              'The two halves take different arguments. In the app, level is a '
+                  'string and defaults to info. On the server it is a '
+                  'DVLogLevel, and a line can carry a code.',
+              'A code is what an alert rule matches on, so it survives a '
+                  'rewording of the message.',
+            ]),
             DocsCode('monitoring-log'),
+            DocsCode('monitoring-server-log'),
           ],
         ),
         DocsSection(
@@ -50,6 +69,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'when diagnostics endpoints are on.',
             ]),
             DocsCode('monitoring-trace'),
+            DocsCode('monitoring-server-trace'),
             DocsStatus('Distributed Tracing', missing: <String>[
               'No OTLP exporter, so spans do not reach a collector yet.',
               'Only the request itself gets a span. Database queries, outbound '
