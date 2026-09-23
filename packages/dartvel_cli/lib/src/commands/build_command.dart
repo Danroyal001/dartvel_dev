@@ -2859,6 +2859,17 @@ class BuildCommand extends Command<void> {
     final index = File(p.join(root, 'build', 'web', 'index.html'));
     if (!index.existsSync()) return;
 
+    // What the home page says it is called and what it is about. Every other
+    // route gets this from dvStaticPage, which is handed the declarations;
+    // the loop that does it skips index.html because this function has
+    // already written the head, so without this the home page was the one
+    // page on the site still carrying dartvel.seo.description.
+    final ({String title, String? description}) rootHead = dvRootHead(
+      routerSource: _routerSource(root),
+      fallbackTitle: title,
+      fallbackDescription: description,
+    );
+
     // hreflang, when the site is built for more than one language. A default
     // locale the site does not have is refused rather than written, because
     // it sends x-default to a 404.
@@ -2873,10 +2884,12 @@ class BuildCommand extends Command<void> {
     final (Map<String, String> rootAlternates, String? rootDefault) =
         _alternatesFor(root, '/');
     final head = dvSeoHead(
-      title: title,
-      description: description,
+      title: rootHead.title,
+      description: rootHead.description,
       siteUrl: settings['siteUrl'] as String?,
       image: settings['image'] as String?,
+      // The site's name stays the site's name. Only the page's own title and
+      // description come from the page.
       siteName: settings['siteName'] as String? ?? title,
       alternates: rootAlternates,
       defaultAlternate: rootDefault,

@@ -285,6 +285,54 @@ class FeaturePageGeneratedPage extends DVGeneratedPage {
     });
   });
 
+  group('the root page', () {
+    // Every other route is handed its title and description by dvStaticPage,
+    // which reads what the page declared. The root is written before that
+    // loop and was handed neither, so the home page was the one page on the
+    // site still shipping the project-wide snippet -- the page most likely to
+    // be the search result, describing itself the way every other page used
+    // to.
+    const String router = """
+class HomePageGeneratedPage extends DVGeneratedPage {
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec(title: 'Dartvel: an app and its backend in one project', showAppBar: false);
+  SeoProps buildWebSeo(
+    Map<String, String> params,
+    Map<String, String> query,
+  ) =>
+      const SeoProps(description: 'Pages, models, backend functions and UI in '
+      'one Dart project.');
+}
+      path: '/',
+        final page = const HomePageGeneratedPage();
+""";
+
+    test('takes the title and description the home page declares', () {
+      final head = dvRootHead(
+        routerSource: router,
+        fallbackTitle: 'Dartvel',
+        fallbackDescription: 'the whole site says this',
+      );
+
+      expect(head.description, 'Pages, models, backend functions and UI in '
+          'one Dart project.');
+      expect(head.title, 'Dartvel: an app and its backend in one project');
+    });
+
+    test('falls back when the home page declares nothing', () {
+      // Absent, so the project default still applies. A home page that says
+      // nothing about itself is better served by the site's own sentence than
+      // by an empty tag.
+      final head = dvRootHead(
+        routerSource: '',
+        fallbackTitle: 'Dartvel',
+        fallbackDescription: 'the whole site says this',
+      );
+
+      expect(head.title, 'Dartvel');
+      expect(head.description, 'the whole site says this');
+    });
+  });
+
   group('the social image on a sub-route', () {
     // dvStaticPage passes the page's canonical URL as siteUrl, because that is
     // what the canonical link and og:url need. The image resolver takes the
