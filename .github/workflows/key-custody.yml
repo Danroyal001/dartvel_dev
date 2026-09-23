@@ -40,7 +40,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
       # An unsigned `dart test` process: the login keychain, round-trip,
@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -99,7 +99,7 @@ jobs:
           "${{ steps.sim.outputs.device }}"
           examples/dartvel_example/build/ios/iphonesimulator/Runner.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: key-custody-ios, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -110,8 +110,8 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -167,6 +167,6 @@ jobs:
           cat /tmp/diag/key-custody-android-verdict.txt
           head -1 /tmp/diag/key-custody-android-verdict.txt | grep -qx passed
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: key-custody-android, path: /tmp/diag/, if-no-files-found: warn }

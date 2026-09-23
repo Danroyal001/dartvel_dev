@@ -56,12 +56,12 @@ jobs:
           - { package: dartvel_windowing, runner: flutter }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The CLI compiles and runs the Java a development build carries
       # (android_dev_tunnel_java_test.dart), which skips without a JDK. Set up
       # explicitly rather than trusting whatever the image happens to ship.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         if: matrix.package == 'dartvel_cli'
         with: { distribution: temurin, java-version: '17' }
 
@@ -77,7 +77,7 @@ jobs:
       # unlike a missing cargo, so it has to be installed rather than assumed.
       - name: Cache cbindgen
         id: cbindgen-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cbindgen
           key: cbindgen-${{ runner.os }}-${{ runner.arch }}
@@ -88,7 +88,7 @@ jobs:
 
       # Keyed on the Rust sources, so a hit is a build of the same crate.
       - name: Cache the Rust runtime build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/dartvel_shelf/rust/target
@@ -192,7 +192,7 @@ jobs:
           --health-retries 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -230,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -246,7 +246,7 @@ jobs:
 
       - name: Cache cbindgen
         id: cbindgen-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cbindgen
           key: cbindgen-${{ runner.os }}-${{ runner.arch }}
@@ -256,7 +256,7 @@ jobs:
         run: cargo install cbindgen --locked
 
       - name: Cache the Rust runtime build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/dartvel_shelf/rust/target
@@ -364,7 +364,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -405,7 +405,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -438,7 +438,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -498,7 +498,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -623,7 +623,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -707,7 +707,7 @@ jobs:
           test -f build/web/dartvel_prefetch.json
           grep -q 'dartvel:splash' build/web/index.html
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dartvel-site
           path: sites/dartvel_site/build/web
@@ -732,7 +732,7 @@ jobs:
         # that stops compiling fails here. The site checks its copy matches.
         example: [basic_app, class_widgets_app, docs_samples]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -742,7 +742,7 @@ jobs:
       # cbindgen during `flutter test`; see the test job.
       - name: Cache cbindgen
         id: cbindgen-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cbindgen
           key: cbindgen-${{ runner.os }}-${{ runner.arch }}
@@ -789,7 +789,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -799,7 +799,7 @@ jobs:
       # runs cbindgen; see the test job.
       - name: Cache cbindgen
         id: cbindgen-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cbindgen
           key: cbindgen-${{ runner.os }}-${{ runner.arch }}
@@ -820,7 +820,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: 3.12.2

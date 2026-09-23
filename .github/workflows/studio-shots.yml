@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -123,7 +123,7 @@ jobs:
           montage -label '%t' *.png -tile 3x -geometry 640x400+4+4 -pointsize 14 \
             /tmp/studio-shots/contact-sheet.png || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: studio-sections
