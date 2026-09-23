@@ -29,6 +29,53 @@ void main() {
     });
   });
 
+  group('which node on the rail a name means', () {
+    // The click landed on a container, so the Data section photographed an
+    // empty model list and the Frontend section photographed no open
+    // function. A row and every box around it can answer to one name, and
+    // the document order the browser hands back puts the outermost first,
+    // so taking the first match aimed at the middle of the whole panel.
+    test('the smallest node wins, because that is the row', () {
+      final List<Map<String, Object?>> nodes = <Map<String, Object?>>[
+        // The panel around the list: same name, most of the window.
+        <String, Object?>{'label': 'Product', 'x': 720.0, 'y': 450.0,
+            'area': 1440.0 * 900.0},
+        // The row itself.
+        <String, Object?>{'label': 'Product', 'x': 110.0, 'y': 220.0,
+            'area': 200.0 * 44.0},
+      ];
+
+      final List<Map<String, Object?>> picked = dvRailTargets(nodes);
+
+      expect(picked, hasLength(1));
+      expect(picked.single['x'], 110.0);
+      expect(picked.single['y'], 220.0);
+    });
+
+    test('two different names both come back', () {
+      final List<Map<String, Object?>> nodes = <Map<String, Object?>>[
+        <String, Object?>{'label': 'Data', 'x': 40.0, 'y': 120.0,
+            'area': 3000.0},
+        <String, Object?>{'label': 'Pages', 'x': 40.0, 'y': 180.0,
+            'area': 3000.0},
+      ];
+
+      expect(dvRailTargets(nodes), hasLength(2));
+    });
+
+    test('a node with no area is not preferred over one with', () {
+      // A zero-area node is already filtered in the browser, but a value
+      // that did not come back should not win by being smallest.
+      final List<Map<String, Object?>> nodes = <Map<String, Object?>>[
+        <String, Object?>{'label': 'Data', 'x': 40.0, 'y': 120.0},
+        <String, Object?>{'label': 'Data', 'x': 41.0, 'y': 121.0,
+            'area': 3000.0},
+      ];
+
+      expect(dvRailTargets(nodes).single['x'], 41.0);
+    });
+  });
+
   group('a section that did not render is a failure, not a picture', () {
     test('a blank section fails the capture', () {
       const DVStudioShot blank =

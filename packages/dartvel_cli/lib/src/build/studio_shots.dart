@@ -128,15 +128,47 @@ String _railScript(List<String> known) => '''() => {
     if (!known.includes(name)) continue;
     const rect = node.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1) continue;
-    if (found.some((f) => f.label === name)) continue;
+    // Every match, with its size. A row and each box around it can all
+    // answer to one name, and the browser hands them back outermost first,
+    // so taking the first was aiming at the middle of the whole panel.
+    // Which one is the row is decided in Dart, where it can be tested.
     found.push({
       label: name,
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
+      area: rect.width * rect.height,
     });
   }
   return found;
 }''';
+
+/// One target per name: the smallest node that answers to it.
+///
+/// A row on the rail and the panel around it can carry the same name, and the
+/// panel is the bigger of the two by an order of magnitude. Clicking its
+/// centre lands somewhere in the middle of the section rather than on the
+/// row, which is why the Data section photographed an empty model and the
+/// Frontend section photographed no open function.
+///
+/// A node whose area did not come back does not win by being smallest; it
+/// only wins when nothing else answers to the name.
+List<Map<String, Object?>> dvRailTargets(List<Map<String, Object?>> nodes) {
+  final Map<String, Map<String, Object?>> best = <String, Map<String, Object?>>{};
+  for (final Map<String, Object?> node in nodes) {
+    final Object? label = node['label'];
+    if (label is! String || label.isEmpty) continue;
+    final Map<String, Object?>? held = best[label];
+    if (held == null) {
+      best[label] = node;
+      continue;
+    }
+    final num? mine = node['area'] as num?;
+    final num? theirs = held['area'] as num?;
+    if (mine == null) continue;
+    if (theirs == null || mine < theirs) best[label] = node;
+  }
+  return best.values.toList(growable: false);
+}
 
 /// Photographs each section of the Studio at [studio] into [outDir].
 ///
@@ -308,11 +340,11 @@ Future<DVStudioShotsResult> dvCaptureStudio({
 
 Future<List<Map<String, Object?>>> _rail(Page page, List<String> known) async {
   final Object? found = await page.evaluate<Object?>(_railScript(known));
-  return <Map<String, Object?>>[
+  return dvRailTargets(<Map<String, Object?>>[
     if (found is List)
       for (final Object? item in found)
         if (item is Map) item.cast<String, Object?>(),
-  ];
+  ]);
 }
 
 /// How long the section has been showing, and whether it is still waiting on
