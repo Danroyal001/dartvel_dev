@@ -232,7 +232,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
           await Future<void>.delayed(const Duration(milliseconds: 400));
           tree = await page.evaluate<String>(_extract);
           final int resources = await page.evaluate<int>(_resourceCount);
-          if (flight.idle &&
+          if (!flight.busy &&
               settled.add(tree == '[]' ? 0 : tree.length, resources)) {
             break;
           }
