@@ -115,15 +115,22 @@ String _railScript(List<String> known) => '''() => {
   if (!host) return [];
   const found = [];
   for (const node of host.querySelectorAll('[aria-label],flt-semantics')) {
-    const label = (node.getAttribute('aria-label') || node.innerText || '')
-        .trim();
-    if (!label || label.includes('\\n')) continue;
-    if (!known.includes(label)) continue;
+    // A row that names itself over two lines -- "Product" above "9 fields"
+    // -- is still called Product. Its first line counts, but only when the
+    // name is an explicit aria-label: innerText belongs to everything inside
+    // the node too, and a container's first line is the heading above the
+    // whole panel, which would click the panel instead of the row.
+    const aria = (node.getAttribute('aria-label') || '').trim();
+    const label = aria || (node.innerText || '').trim();
+    if (!label) continue;
+    const name = aria ? aria.split('\\n')[0].trim() : label;
+    if (!name || (!aria && label.includes('\\n'))) continue;
+    if (!known.includes(name)) continue;
     const rect = node.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1) continue;
-    if (found.some((f) => f.label === label)) continue;
+    if (found.some((f) => f.label === name)) continue;
     found.push({
-      label: label,
+      label: name,
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     });
@@ -270,6 +277,16 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       await _painted(page);
       await Future<void>.delayed(const Duration(seconds: 3));
       await _painted(page);
+      // And then make it paint again, because waiting does not.
+      //
+      // The diagnostic settled this: every section reported its finished
+      // content -- "Cache tags 0 on this server", "Frontend functions 1" --
+      // at the moment it was photographed, and two of them still came back
+      // as "Loading the build manifest…" and "Loading…". The tree was right
+      // and the raster was old, so no amount of waiting for the tree helps.
+      // A resize is a repaint Flutter cannot skip: it rebuilds the scene for
+      // the new size and rasters it.
+      await _repaint(page, size);
       final String file = p.join(outDir, dvStudioShotName(label));
       File(file).writeAsBytesSync(await _stablePicture(page));
       // What the section said at the moment it was photographed, beside the
@@ -413,6 +430,23 @@ Future<void> _painted(Page page) => page.evaluate<Object?>(
       '() => new Promise((done) => requestAnimationFrame(() => '
       'requestAnimationFrame(() => done(0))))',
     );
+
+/// Forces a frame by resizing the viewport and putting it back.
+///
+/// Flutter rebuilds and rasters the whole scene for a new window size, so the
+/// picture that comes back afterwards is the one the tree describes rather
+/// than whatever was last rastered. Two frames are awaited at each size: the
+/// resize is the request, and the frames are it being served.
+Future<void> _repaint(Page page, DVShotSize size) async {
+  await page.setViewport(
+      DeviceViewport(width: size.width - 1, height: size.height));
+  await _painted(page);
+  await page.setViewport(
+      DeviceViewport(width: size.width, height: size.height));
+  await _painted(page);
+  await Future<void>.delayed(const Duration(milliseconds: 600));
+  await _painted(page);
+}
 
 /// Photographs until two shots in a row are the same picture.
 ///
