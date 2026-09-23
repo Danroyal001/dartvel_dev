@@ -77,21 +77,34 @@ List<String> dvPageText(String source) {
   return found;
 }
 
-/// The fallback's own stylesheet.
+/// The fallback's own stylesheet, and the rules that print it.
 ///
 /// The crawler-visible block is real semantic HTML -- headings, links, code
 /// blocks -- and it shipped with none. Viewed with scripting off, or by
 /// anything that does not run the app, every line ran the full width of the
 /// window in the browser's default serif.
 ///
-/// Inside the noscript block, deliberately. Outside it these rules would
-/// apply to the running application too, and a max-width on body would break
-/// every Dartvel app's own layout.
+/// Every rule is scoped to `.dv-fallback`, so none of it reaches the running
+/// application: a `max-width` on `body` would break every Dartvel app's own
+/// layout, and nothing here sets one.
+///
+/// The block is hidden from the screen and shown again in two places. A
+/// reader with scripting off gets it from the `<noscript>` override below,
+/// which is the one thing noscript is still needed for. A printer gets it
+/// from the `@media print` rules, which also take away what Flutter paints
+/// into: a canvas prints as one bitmap the width of the window -- clipped, at
+/// screen resolution, with no text to select and no page break anywhere
+/// sensible. The page's own HTML is already here; printing it is a
+/// stylesheet, not a feature.
 ///
 /// A reading column, a system font, and the reader's colour scheme. Nothing
 /// decorative: this is the page someone sees when the app cannot run, and it
 /// should look like a document rather than like a broken site.
-const String dvFallbackStyle = '<style>'
+const String dvFallbackStyle = '<style class="dv-fallback-style">'
+    // In the document, off the screen. The application is what the reader
+    // came for; this is what the crawler, the printer and a browser with no
+    // scripting get instead.
+    '.dv-fallback{display:none}'
     '.dv-fallback{max-width:44rem;margin:0 auto;padding:2rem 1.25rem;'
     'font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
     'color:#0b1020;background:#fff}'
@@ -106,18 +119,68 @@ const String dvFallbackStyle = '<style>'
     '@media (prefers-color-scheme:dark){'
     '.dv-fallback{color:#f2f5fa;background:#0a0d13}'
     '.dv-fallback a{color:#7ba2ff}}'
-    '</style>';
+    // What the printer is given. Flutter's own host elements go first: they
+    // are what the page looks like and not what it says.
+    '@media print{'
+    'flutter-view,flt-glass-pane,flt-scene-host,flt-semantics-host,canvas'
+    '{display:none!important}'
+    '.dv-fallback{display:block!important;max-width:none;margin:0;padding:0;'
+    'color:#000;background:#fff;font-size:11pt}'
+    '.dv-fallback a{color:#000;text-decoration:underline}'
+    // Nobody clicks a printed link, so it has to say where it went.
+    '.dv-fallback a[href]::after{content:" (" attr(href) ")";font-size:.85em}'
+    '.dv-fallback pre{background:#fff;color:#000;border:1px solid #999;'
+    'white-space:pre-wrap}'
+    '.dv-fallback h1,.dv-fallback h2,.dv-fallback h3{break-after:avoid}'
+    '@page{margin:18mm}'
+    '}'
+    '</style>'
+    // The reader whose browser will never run the app. A style element here
+    // rather than the content itself: the content is in the document now, and
+    // this only turns it back on.
+    '<noscript class="dv-fallback-style">'
+    '<style>.dv-fallback{display:block}</style></noscript>';
+
+/// Whether the block a page was served with is no longer the page on screen.
+///
+/// The application routes on the client, so one navigation later the block in
+/// the document describes the page the reader arrived on. Printing that is a
+/// worse answer than printing nothing, and it is the kind that looks right:
+/// the right title in the tab, somebody else's page on the paper. [stamped]
+/// is what the build wrote on the block, [current] is where the reader is.
+///
+/// Nothing stamped means nothing to compare, and a block dropped on a guess
+/// is a page that stops printing for no reason.
+bool dvFallbackIsStale(String? stamped, String current) {
+  if (stamped == null || stamped.isEmpty) return false;
+  String trim(String path) {
+    final String trimmed = path.replaceAll(RegExp(r'/+$'), '');
+    return trimmed.isEmpty ? '/' : trimmed;
+  }
+
+  return trim(stamped) != trim(current);
+}
+
+/// The block's opening tag, carrying the path it was written for.
+String _openFallback(String? path) {
+  if (path == null || path.isEmpty) return '<div class="dv-fallback">';
+  const escape = HtmlEscape(HtmlEscapeMode.attribute);
+  return '<div class="dv-fallback" data-dv-path="${escape.convert(path)}">';
+}
 
 /// Markers, so a rebuild replaces the block rather than adding another.
 const String _open = '<!-- dartvel:text -->';
 const String _close = '<!-- /dartvel:text -->';
 
-/// Put [lines] into [html] as a `noscript` block.
+/// Put [lines] into [html] as the page's own document.
 ///
-/// `noscript` rather than a hidden div: a hidden div is for crawlers, and this
-/// is for people too — someone with scripting off gets the page's words
-/// instead of a blank rectangle. Crawlers read it as readily.
-String dvApplyPageText(String html, List<String> lines) {
+/// In the document rather than inside `<noscript>`: a browser that is running
+/// the app does not parse noscript content into the page at all, so nothing
+/// there can be styled, read by a screen reader or printed. It is hidden from
+/// the screen by [dvFallbackStyle], shown again for a reader with scripting
+/// off, and shown again for a printer -- which is the only copy of the page
+/// worth printing, since the app itself is a canvas.
+String dvApplyPageText(String html, List<String> lines, {String? path}) {
   final cleaned =
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (lines.isEmpty) return cleaned;
@@ -130,9 +193,8 @@ String dvApplyPageText(String html, List<String> lines) {
   const escape = HtmlEscape(HtmlEscapeMode.element);
   final buffer = StringBuffer()
     ..writeln(_open)
-    ..writeln('<noscript>')
     ..writeln(dvFallbackStyle)
-    ..writeln('<div class="dv-fallback">');
+    ..writeln(_openFallback(path));
   // The first line is the page's own heading; a document with no h1 reads as
   // a fragment to a crawler.
   buffer.writeln('<h1>${escape.convert(lines.first)}</h1>');
@@ -141,7 +203,6 @@ String dvApplyPageText(String html, List<String> lines) {
   }
   buffer
     ..writeln('</div>')
-    ..writeln('</noscript>')
     ..writeln(_close);
 
   return '${cleaned.substring(0, at)}$buffer${cleaned.substring(at)}';
@@ -157,7 +218,7 @@ String dvApplyPageText(String html, List<String> lines) {
 ///
 /// Both write into the same marked region, so calling this after the text
 /// extractor replaces its output rather than appending to it.
-String dvApplyPageHtml(String html, String content) {
+String dvApplyPageHtml(String html, String content, {String? path}) {
   final cleaned =
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (content.trim().isEmpty) return cleaned;
@@ -169,12 +230,10 @@ String dvApplyPageHtml(String html, String content) {
 
   final buffer = StringBuffer()
     ..writeln(_open)
-    ..writeln('<noscript>')
     ..writeln(dvFallbackStyle)
-    ..writeln('<div class="dv-fallback">')
+    ..writeln(_openFallback(path))
     ..writeln(content.trim())
     ..writeln('</div>')
-    ..writeln('</noscript>')
     ..writeln(_close);
   return cleaned.substring(0, at) + buffer.toString() + cleaned.substring(at);
 }

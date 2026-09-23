@@ -20,17 +20,27 @@ void main() {
     expect(out, contains('max-width'));
   });
 
-  test('the style is inside the noscript block', () {
-    // Outside it, the rules apply to the real application too -- and a
-    // max-width on body would break every Dartvel app's own layout.
+  test('no rule in it can reach the running application', () {
+    // It used to be kept inside the noscript block for this, and cannot be
+    // any more: content a printer must reach has to be in the document. What
+    // kept the application safe was never the noscript wrapper but the
+    // scope -- a bare `max-width` on `body` would break every Dartvel app's
+    // own layout, and nothing here sets one.
     final String out = dvApplyPageHtml(_page, '<h1>Hello</h1>');
-    final int noscript = out.indexOf('<noscript>');
-    final int style = out.indexOf('<style');
-    final int close = out.indexOf('</noscript>');
+    final int opens = out.indexOf('<style class="dv-fallback-style">');
+    final String css = out.substring(
+        out.indexOf('>', opens) + 1, out.indexOf('</style>', opens));
 
-    expect(noscript, greaterThanOrEqualTo(0));
-    expect(style, greaterThan(noscript));
-    expect(style, lessThan(close));
+    for (final String rule in css.split('}')) {
+      final int brace = rule.indexOf('{');
+      if (brace < 0) continue;
+      final String selectors = rule.substring(0, brace).trim();
+      if (selectors.startsWith('@') || selectors.isEmpty) continue;
+      for (final String selector in selectors.split(',')) {
+        expect(selector.trim(), anyOf(startsWith('.dv-fallback'), startsWith('flutter-view'), startsWith('flt-'), equals('canvas')),
+            reason: 'a rule that is not scoped to the fallback reaches the app');
+      }
+    }
   });
 
   test('it follows the reader dark-mode setting', () {
@@ -49,9 +59,12 @@ void main() {
   });
 
   test('rebuilding does not stack stylesheets', () {
+    // A build runs many times in a working tree. Counting the style elements
+    // says nothing now that the block carries two of them; that applying it
+    // again changes nothing is the property that matters.
     final String once = dvApplyPageHtml(_page, '<h1>x</h1>');
     final String twice = dvApplyPageHtml(once, '<h1>x</h1>');
-    expect('<style'.allMatches(twice).length, 1);
+    expect(twice, once);
   });
 
   test('an empty fallback adds nothing at all', () {

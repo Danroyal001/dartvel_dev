@@ -1,5 +1,43 @@
+import 'package:dartvel_core/dartvel.dart' show dvFallbackIsStale;
 import 'package:web/web.dart' as web;
 import '../dartvel_flutter.dart';
+
+/// Where the reader is, as the served page's block would have written it.
+///
+/// The hash first, for an application using the hash URL strategy: there the
+/// path is `#/invoice/12` and `pathname` is whatever served the shell.
+String _currentPath() {
+  final String hash = web.window.location.hash;
+  if (hash.startsWith('#/')) return hash.substring(1);
+  return web.window.location.pathname;
+}
+
+/// Drop the crawler-visible block once the reader has routed off the page it
+/// was written for.
+///
+/// The build writes the page's own HTML into the document, hidden from the
+/// screen, and the print stylesheet shows it instead of the canvas Flutter
+/// paints into. The application routes on the client, so one navigation later
+/// that block is the page the reader arrived on. Printing it would put the
+/// right title in the header and somebody else's page on the paper.
+///
+/// Removing it takes the print rules with it -- they are in the style element
+/// beside it -- so printing goes back to what the browser would do without
+/// Dartvel. That is the safe direction, and it is also where this lands if
+/// the comparison is ever wrong: the worst a mistake here can do is print the
+/// page the way Flutter does.
+void _dropStaleFallback() {
+  final web.Element? block = web.document.querySelector('.dv-fallback');
+  if (block == null) return;
+  if (!dvFallbackIsStale(block.getAttribute('data-dv-path'), _currentPath())) {
+    return;
+  }
+  final web.NodeList parts =
+      web.document.querySelectorAll('.dv-fallback,.dv-fallback-style');
+  for (int i = parts.length - 1; i >= 0; i--) {
+    (parts.item(i) as web.Element?)?.remove();
+  }
+}
 
 web.HTMLMetaElement _ensureMeta(String attr, String name) {
   final head = web.document.head!;
@@ -20,6 +58,9 @@ void _upsertMeta(String name, String content, {String attr = 'name'}) {
 
 void applySeo(SeoProps p) {
   final doc = web.document;
+  // First, and before any early return below: a page the reader has left
+  // must not be the page their printer is given.
+  _dropStaleFallback();
   if (p.title != null) doc.title = p.title!;
 
   _upsertMeta('description', p.description ?? '');

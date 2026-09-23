@@ -3,4 +3,4 @@
 /// the build and the preview server do.
 library;
 
-export 'package:dartvel_core/dartvel.dart' show dvPageText, dvFallbackStyle, dvApplyPageText, dvApplyPageHtml;
+export 'package:dartvel_core/dartvel.dart' show dvPageText, dvFallbackStyle, dvApplyPageText, dvApplyPageHtml, dvFallbackIsStale;
