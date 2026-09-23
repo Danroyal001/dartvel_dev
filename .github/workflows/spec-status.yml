@@ -89,3 +89,10 @@ jobs:
       # script is six lines, and the language breakdown of a project sold as
       # "Flutter's Laravel" then says Python. A rule nothing checks drifts.
       - run: dart run tool/ci/no_python_check.dart
+
+      # The security documents are worth reading because they name files --
+      # this is where the password hasher lives, this is the filter deciding
+      # what reaches a browser. Naming them is also how they rot: rename one
+      # file and a policy starts sending its next reader somewhere that does
+      # not exist. Same reasoning as the spec status index, same check.
+      - run: dart tool/ci/security_docs_check.dart
