@@ -497,13 +497,18 @@ DVPrerenderedMeta? dvPrerenderedMeta(String source) {
 /// "Docs — Dartvel — Flutter, full stack": a capitalised path segment glued to
 /// a site title that already contained the site name.
 Map<String, String> dvRouteTitles(String routerSource) {
-  // class <Name> ... title: '<title>'
+  // class <Name> ... title: '<title>', where the title may be several
+  // adjacent literals and may contain an escaped apostrophe. Both reach a
+  // <title> tag, so reading half of one is a half heading in a tab and in a
+  // search result, with nothing to report it.
   final byClass = <String, String>{};
   final classPattern = RegExp(
-    r"class\s+(\w+)\s+extends[\s\S]*?DVPageScaffoldSpec\(title:\s*'([^']*)'",
+    r'class\s+(\w+)\s+extends[\s\S]*?DVPageScaffoldSpec\(title:\s*('
+    '$_literalRun'
+    r')',
   );
   for (final RegExpMatch match in classPattern.allMatches(routerSource)) {
-    byClass[match.group(1)!] = match.group(2)!;
+    byClass[match.group(1)!] = _joinLiterals(match.group(2)!);
   }
 
   // path: '<route>' ... const <Name>()
