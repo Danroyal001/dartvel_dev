@@ -186,6 +186,36 @@ void inFlightTests() {
     expect(flight.idle, isTrue);
   });
 
+  test('a count that never moves is written off', () async {
+    // Not every request reports back: one served from the cache, cancelled,
+    // or answered by a worker can leave the count above nought for the life
+    // of the page. Waiting for nought refused every section of Studio and
+    // failed the run with "Studio drew no text", so a count that has not
+    // moved for a while stops being believed.
+    final DVInFlight flight =
+        DVInFlight(patience: const Duration(milliseconds: 40));
+    flight.started();
+
+    expect(flight.busy, isTrue, reason: 'it has only just been asked for');
+    expect(flight.stuck, isFalse);
+
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(flight.stuck, isTrue);
+    expect(flight.busy, isFalse, reason: 'nothing is going to come back');
+    expect(flight.idle, isFalse, reason: 'it is still out, just disbelieved');
+  });
+
+  test('a new request restarts the patience', () async {
+    final DVInFlight flight =
+        DVInFlight(patience: const Duration(milliseconds: 60));
+    flight.started();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    flight.started();
+
+    expect(flight.stuck, isFalse, reason: 'the page asked for something new');
+  });
+
   test('a response nothing asked for does not make it negative', () {
     // A request that began before the tracker was attached ends after it, and
     // a count that went below nought would report idle through the next fetch.
