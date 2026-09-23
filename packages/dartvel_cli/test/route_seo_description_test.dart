@@ -66,6 +66,8 @@ const String _sentence =
     'Expo for Flutter: builds, updates and submissions without a Mac.';
 
 void main() {
+  _readerTests();
+
   test('a page says what it is about, and the route carries it', () async {
     final String router = await routerFor(
       "@DVPage(title: 'Dartvel vs Expo', description: '$_sentence')",
@@ -106,5 +108,87 @@ void main() {
         reason: 'an empty override would replace the project default with '
             'nothing on every route that declared no description',
     );
+  });
+}
+
+// A description long enough to be worth writing does not fit on one line, and
+// a description about a product whose name ends in "'s" contains an
+// apostrophe. Both go through `_namedStringArg`, which read a single quoted
+// run and stopped: the first produced a sentence cut off at its first line,
+// which is the dangerous shape because a half sentence still looks like a
+// description; the second produced `'Dartvel is Flutter\'`, which does not
+// compile, and took the whole generated router down with it.
+//
+// Titles go through the same reader, so each case is checked there too.
+void _readerTests() {
+  const String wrapped = 'Build screens from two widgets, DVBox for layout '
+      'and DVText for text, and style both with one chain of modifiers.';
+
+  test('a description split across lines arrives whole', () async {
+    final String router = await routerFor('''
+@DVPage(
+  title: 'Dartvel UI',
+  description: 'Build screens from two widgets, DVBox for layout '
+      'and DVText for text, and style both with one chain of modifiers.',
+)''');
+
+    expect(
+      dvRouteDescriptions(router)['/vs/expo'],
+      wrapped,
+      reason: 'every fragment of an adjacent-string literal belongs to the '
+          'sentence; stopping at the first leaves a meta tag that reads as a '
+          'finished thought and is half of one',
+    );
+  });
+
+  test('an apostrophe in a description still compiles', () async {
+    final String router = await routerFor(
+      "@DVPage(title: 'Dartvel', description: "
+      "'Dartvel is Flutter\\'s Laravel, in one Dart project.')",
+    );
+
+    expect(
+      dvRouteDescriptions(router)['/vs/expo'],
+      "Dartvel is Flutter's Laravel, in one Dart project.",
+      reason: 'the escape must survive the round trip through the router',
+    );
+    expect(
+      router,
+      isNot(contains(r"description: 'Dartvel is Flutter\')")),
+      reason: 'a literal truncated at the escaped quote is not valid Dart, '
+          'and every page in the project fails to compile behind it',
+    );
+  });
+
+  test('a title split across lines arrives whole', () async {
+    final String router = await routerFor('''
+@DVPage(
+  title: 'Dartvel build targets: every platform '
+      'and its verified status',
+  showAppBar: false,
+)''');
+
+    // The scaffold title is re-emitted as the literals it was written as,
+    // which Dart joins when the router is compiled, so the assertion is that
+    // the second half arrives at all. It used to be dropped: the page kept a
+    // title ending in "every platform " and nothing said a word.
+    expect(router, contains('and its verified status'),
+        reason: 'the reader stopped at the first literal and threw the rest '
+            'of the title away');
+    expect(
+      router,
+      matches(RegExp(r"title: 'Dartvel build targets: every platform '"
+          r"\s*'and its verified status'")),
+      reason: 'both fragments belong to the one title the page declared',
+    );
+  });
+
+  test('an apostrophe in a title still compiles', () async {
+    final String router = await routerFor(
+      "@DVPage(title: 'Flutter\\'s Laravel')",
+    );
+
+    expect(router, contains(r"Flutter\'s Laravel"));
+    expect(router, isNot(contains(r"title: 'Flutter\')")));
   });
 }
