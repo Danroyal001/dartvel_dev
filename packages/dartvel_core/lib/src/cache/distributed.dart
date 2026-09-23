@@ -23,7 +23,7 @@ import 'adapters.dart';
 
 /// Spreads keys across several cache nodes.
 class DVDistributedCacheAdapter
-    implements DVCacheAdapter, DVAtomicCacheAdapter {
+    implements DVCacheAdapter, DVAtomicCacheAdapter, DVCountingCacheAdapter {
   DVDistributedCacheAdapter({
     required Map<String, DVCacheAdapter> nodes,
     this.replicas = 1,
@@ -188,5 +188,27 @@ class DVDistributedCacheAdapter
     } on Object {
       return false;
     }
+  }
+
+  @override
+  Future<int> increment(String key, {int by = 1, Duration? ttl}) async {
+    // The primary alone, for the same reason a lock takes it alone: adding
+    // on every replica counts each hit once per replica, so a rate limit
+    // over a two-replica cache would refuse at half the budget it states.
+    //
+    // A node that joins or leaves moves this key's counter with it, which
+    // hands its callers one fresh window. That is a cache topology change,
+    // it is rare, and the alternative is a counter that cannot move at all.
+    final String primary = nodesFor(key).first;
+    final DVCacheAdapter node = nodes[primary]!;
+    if (node is! DVCountingCacheAdapter) {
+      throw StateError(
+        'The node "$primary" cannot count, so adding to a number on it '
+        'would mean reading it, adding one and writing it back -- which '
+        'loses every hit that arrives in between. Use Redis nodes for a '
+        'cache that counts.',
+      );
+    }
+    return (node as DVCountingCacheAdapter).increment(key, by: by, ttl: ttl);
   }
 }
