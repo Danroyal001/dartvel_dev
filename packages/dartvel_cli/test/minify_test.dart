@@ -169,6 +169,22 @@ const b = 2;
           r'const r = /a\/\/b/g;');
     });
 
+    test('a division is not the start of a regular expression', () {
+      // The one way this minifier can eat working code: read `/` as opening a
+      // pattern and swallow everything to the next one, comments and all.
+      // What decides it is the token before the slash.
+      expect(dvMinifyJs('const a = b / c;\nconst d = e[0] / f() / 2;'),
+          'const a = b / c;\nconst d = e[0] / f() / 2;');
+      expect(dvMinifyJs('let x = 1;\nx /= 2;'), 'let x = 1;\nx /= 2;');
+    });
+
+    test('a slash that opens nothing closes on its own line', () {
+      // Wrong either way, and the damage is bounded to the line: a pattern
+      // that does not terminate before the newline was a division.
+      expect(dvMinifyJs('const a = (b) / c;\nconst d = 2;'),
+          'const a = (b) / c;\nconst d = 2;');
+    });
+
     test('never joins two lines, because a semicolon may be missing', () {
       // `const a = 1 const b = 2` is a syntax error, and joining lines that
       // relied on automatic semicolon insertion is how a minifier produces
