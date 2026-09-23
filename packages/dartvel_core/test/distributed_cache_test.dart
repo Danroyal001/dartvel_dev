@@ -63,6 +63,19 @@ class FlakyNode implements DVCacheAdapter, DVAtomicCacheAdapter {
   }
 }
 
+/// A node that can count, which is what a shared rate limit needs.
+class CountingNode extends FlakyNode implements DVCountingCacheAdapter {
+  CountingNode(super.name);
+
+  @override
+  Future<int> increment(String key, {int by = 1, Duration? ttl}) async {
+    _check();
+    final int next = ((entries[key] as int?) ?? 0) + by;
+    entries[key] = next;
+    return next;
+  }
+}
+
 List<String> keys(int count) =>
     List<String>.generate(count, (int i) => 'user:$i');
 
@@ -308,6 +321,40 @@ void main() {
 
       // Returning true here would hand out a lock nobody is holding.
       expect(await cache.writeIfAbsent('lock', 1, null), isFalse);
+    });
+  });
+
+  group('counting', () {
+    test('a count goes to one node, not to every replica', () async {
+      // Counting on each replica would count each hit as many times as there
+      // are replicas, so a rate limit over a two-replica cache would refuse
+      // at half its stated budget.
+      final CountingNode a = CountingNode('a');
+      final CountingNode b = CountingNode('b');
+      final DVDistributedCacheAdapter cache = DVDistributedCacheAdapter(
+        nodes: <String, DVCacheAdapter>{'a': a, 'b': b},
+        replicas: 2,
+      );
+
+      expect(await cache.increment('hits'), 1);
+      expect(await cache.increment('hits'), 2);
+      expect(await cache.increment('hits'), 3);
+
+      final String primary = cache.nodesFor('hits').first;
+      final CountingNode holder = primary == 'a' ? a : b;
+      final CountingNode other = primary == 'a' ? b : a;
+      expect(holder.entries['hits'], 3);
+      expect(other.entries.containsKey('hits'), isFalse);
+    });
+
+    test('a node that cannot count says so rather than losing hits', () async {
+      // FlakyNode is a plain adapter. Falling back to read-add-write here
+      // would lose whatever arrives between the two, quietly.
+      final DVDistributedCacheAdapter cache = DVDistributedCacheAdapter(
+        nodes: <String, DVCacheAdapter>{'plain': FlakyNode('plain')},
+      );
+
+      expect(() => cache.increment('hits'), throwsStateError);
     });
   });
 
