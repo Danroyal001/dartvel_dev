@@ -73,11 +73,22 @@ String dvMinifyHtml(String html) {
     final String c = html[i];
 
     if (c == '<') {
-      // A comment. `<!--[if IE]>` is markup a browser acts on, not a note.
+      // A comment. Two kinds survive: `<!--[if IE]>`, which is markup a
+      // browser acts on, and `<!-- dartvel:... -->`, which is where the
+      // build and the server find the block they replace.
+      //
+      // Taking a Dartvel marker out is the quiet kind of wrong. The server
+      // renders a route by replacing what is between the markers; with no
+      // markers its regex matches nothing, so it adds a second block instead
+      // of replacing the first, and every page ships the home page's words
+      // underneath its own. The page renders and the crawler reads both.
       if (html.startsWith('<!--', i)) {
         final int end = html.indexOf('-->', i + 4);
         final int stop = end < 0 ? html.length : end + 3;
-        if (html.startsWith('<!--[', i)) out.write(html.substring(i, stop));
+        final String comment = html.substring(i, stop);
+        if (comment.startsWith('<!--[') || _isMarker(comment)) {
+          out.write(comment);
+        }
         i = stop;
         continue;
       }
@@ -128,6 +139,19 @@ String dvMinifyHtml(String html) {
     out.write(collapsed);
   }
   return out.toString();
+}
+
+/// Whether [comment] is one of the markers a build or a server looks for.
+///
+/// `<!-- dartvel:text -->`, `:seo`, `:preload`, `:splash`, `:prerendered` and
+/// whatever is added next: the shape is the contract, so a new marker needs
+/// no change here.
+bool _isMarker(String comment) {
+  final String inner = comment
+      .replaceFirst('<!--', '')
+      .replaceFirst('-->', '')
+      .trim();
+  return inner.startsWith('dartvel:') || inner.startsWith('/dartvel:');
 }
 
 /// Whitespace runs in [text] as one space each, the leading and trailing runs
