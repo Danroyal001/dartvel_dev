@@ -79,12 +79,12 @@ Widget liveArticle(BuildContext context, Article article) {
 
 Future<void> search() async {
   // docs:start models-search
-  ArticleSearch.useProvider(DVInMemorySearchProvider<Article, ArticleSearchFacets>(
+  Article.useSearchProvider(DVInMemorySearchProvider<Article, ArticleFacets>(
     records: await Article.all(),
     document: (Article article) => '${article.title} ${article.body}',
   ));
 
-  final DVSearchResultPage<Article> page = await ArticleSearch.query('dart', perPage: 10);
+  final DVSearchResultPage<Article> page = await Article.search('dart', perPage: 10);
   // docs:end
   debugPrint('${page.total}');
 }

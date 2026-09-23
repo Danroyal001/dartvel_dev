@@ -1339,6 +1339,104 @@ class ModelGenerator {
               ? '  static const DVMoney? nativePrice = null;'
               : "  static final DVMoney? nativePrice = DVMoney(amount: $nativePrice, currency: '$nativeCurrency');",
         );
+
+        // Importing into an Article is Article.importCsv, and exporting is
+        // Article.exportCsv. ArticleImport and ArticleExport were two more
+        // names for one model's own capabilities; they stay as the private
+        // machinery the model reaches for.
+        sb.writeln();
+        sb.writeln('  /// Reads [$className] rows from a file.');
+        sb.writeln('  ///');
+        sb.writeln('  /// The result carries what parsed and, row by row, what');
+        sb.writeln('  /// did not, so a bad line names itself instead of');
+        sb.writeln('  /// failing the file.');
+        sb.writeln(
+          '  static DVImportResult<$className> importCsv(String content) => _${className}Import.csv(content);',
+        );
+        sb.writeln(
+          '  static DVImportResult<$className> importNdjson(String content) => _${className}Import.ndjson(content);',
+        );
+        sb.writeln(
+          '  static DVImportResult<$className> importExcel(String content) => _${className}Import.excel(content);',
+        );
+        sb.writeln();
+        sb.writeln('  /// The same read, one chunk per job, so a large file');
+        sb.writeln('  /// survives a restart and resumes where it stopped.');
+        sb.writeln(
+          '  static Future<List<DVJobEnvelope<DVImportChunk>>> importResumableCsv(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableCsv(content, queue: queue, chunkSize: chunkSize);',
+        );
+        sb.writeln(
+          '  static Future<List<DVJobEnvelope<DVImportChunk>>> importResumableNdjson(String content, {String queue = \'imports\', int chunkSize = 500}) => _${className}Import.resumableNdjson(content, queue: queue, chunkSize: chunkSize);',
+        );
+        sb.writeln();
+        sb.writeln('  /// Writes [$className] rows out. A sensitive field is');
+        sb.writeln('  /// left out unless it is asked for by name.');
+        sb.writeln(
+          '  static DVExportResult exportCsv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.csv(items, fileName: fileName, options: options);',
+        );
+        sb.writeln(
+          '  static DVExportResult exportJson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.json\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.json(items, fileName: fileName, options: options);',
+        );
+        sb.writeln(
+          '  static DVExportResult exportNdjson(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.ndjson\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) => _${className}Export.ndjson(items, fileName: fileName, options: options);',
+        );
+        sb.writeln();
+        sb.writeln('  /// The same write, a chunk at a time, so a large export');
+        sb.writeln('  /// never holds every row in memory at once.');
+        sb.writeln(
+          '  static Stream<DVExportResult> exportStreamCsv(Iterable<$className> items, {int chunkSize = 500}) => _${className}Export.streamCsv(items, chunkSize: chunkSize);',
+        );
+        sb.writeln(
+          '  static Stream<DVExportResult> exportStreamNdjson(Iterable<$className> items, {int chunkSize = 500}) => _${className}Export.streamNdjson(items, chunkSize: chunkSize);',
+        );
+
+        // Searching an Article is Article.search. A companion class made the
+        // reader learn a second name -- ArticleSearch -- for one model's own
+        // capability, and put the tuning and the provider there too.
+        if (isSearchableModel || searchableFields.isNotEmpty) {
+          final searchFields =
+              (searchableFields.isEmpty ? fields : searchableFields)
+                  .where(
+                    (Map<String, String> field) =>
+                        !sensitiveFieldNames.contains(field['name']),
+                  )
+                  .toList(growable: false);
+          sb.writeln();
+          sb.writeln('  /// Ranking configured under `dartvel.search` in');
+          sb.writeln('  /// pubspec.yaml, in one place rather than at each call.');
+          sb.writeln(
+            '  static const DVSearchTuning searchTuning = $searchTuningSrc;',
+          );
+          sb.writeln();
+          sb.writeln(
+            '  static DVSearchProvider<$className, ${className}Facets> _searchProvider = const DVUnconfiguredSearchProvider<$className, ${className}Facets>();',
+          );
+          sb.writeln();
+          sb.writeln('  /// Where searching this model goes.');
+          sb.writeln(
+            '  static void useSearchProvider(DVSearchProvider<$className, ${className}Facets> provider) {',
+          );
+          sb.writeln('    _searchProvider = provider;');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Searches [$className].');
+          sb.writeln(
+            '  static Future<DVSearchResultPage<$className>> search(',
+          );
+          sb.writeln('    String value, {');
+          sb.writeln('    ${className}Facets? facets,');
+          sb.writeln('    int page = 1,');
+          sb.writeln('    int perPage = 20,');
+          sb.writeln('  }) =>');
+          sb.writeln('      _searchProvider.query(');
+          sb.writeln('        value,');
+          sb.writeln('        facets: facets,');
+          sb.writeln('        page: page,');
+          sb.writeln('        perPage: perPage,');
+          sb.writeln('      );');
+          // Kept so the facet fields cannot drift from what is indexed.
+          if (searchFields.isEmpty) sb.writeln();
+        }
         sb.writeln('}');
 
         sb.writeln();
@@ -2123,8 +2221,8 @@ class ModelGenerator {
           sb.writeln('}');
         }
         sb.writeln();
-        sb.writeln('/// Generated bulk import helpers for [$className].');
-        sb.writeln('class ${className}Import {');
+        sb.writeln('/// How [$className] reads a file. Reached through the model.');
+        sb.writeln('class _${className}Import {');
         sb.writeln('  static DVImportResult<$className> csv(String content) {');
         sb.writeln('    final lines = const convert.LineSplitter()');
         sb.writeln('        .convert(content)');
@@ -2293,7 +2391,7 @@ class ModelGenerator {
         sb.writeln('}');
         sb.writeln();
         sb.writeln('/// Generated export helpers for [$className].');
-        sb.writeln('class ${className}Export {');
+        sb.writeln('class _${className}Export {');
         sb.writeln(
           '  static DVExportResult csv(Iterable<$className> items, {String fileName = \'${className.toLowerCase()}s.csv\', DVExportOptions<$className> options = const DVExportOptions<$className>()}) {',
         );
@@ -2557,15 +2655,15 @@ class ModelGenerator {
                   )
                   .toList(growable: false);
           sb.writeln();
-          sb.writeln('/// Generated search facets for [$className].');
-          sb.writeln('class ${className}SearchFacets {');
+          sb.writeln('/// The facets [$className] can be filtered by when searched.');
+          sb.writeln('class ${className}Facets {');
           for (final field in effectiveSearchableFields) {
             final type = field['type']!;
             final name = field['name']!;
             sb.writeln('  final List<$type>? $name;');
           }
           sb.writeln();
-          sb.writeln('  const ${className}SearchFacets({');
+          sb.writeln('  const ${className}Facets({');
           for (final field in effectiveSearchableFields) {
             final name = field['name']!;
             sb.writeln('    this.$name,');
@@ -2573,46 +2671,6 @@ class ModelGenerator {
           sb.writeln('  });');
           sb.writeln('}');
           sb.writeln();
-          sb.writeln('/// Generated typed search facade for [$className].');
-          sb.writeln('class ${className}Search {');
-          sb.writeln(
-            '  /// Ranking configured under `dartvel.search` in pubspec.yaml.',
-          );
-          sb.writeln(
-            '  ///',
-          );
-          sb.writeln(
-            '  /// Pass it to a provider that post-processes matches, so the',
-          );
-          sb.writeln(
-            '  /// configuration lives in one place rather than at each call.',
-          );
-          sb.writeln('  static const DVSearchTuning tuning = $searchTuningSrc;');
-          sb.writeln();
-          sb.writeln(
-            '  static DVSearchProvider<$className, ${className}SearchFacets> _provider = const DVUnconfiguredSearchProvider<$className, ${className}SearchFacets>();',
-          );
-          sb.writeln();
-          sb.writeln(
-            '  static void useProvider(DVSearchProvider<$className, ${className}SearchFacets> provider) {',
-          );
-          sb.writeln('    _provider = provider;');
-          sb.writeln('  }');
-          sb.writeln();
-          sb.writeln('  static Future<DVSearchResultPage<$className>> query(');
-          sb.writeln('    String value, {');
-          sb.writeln('    ${className}SearchFacets? facets,');
-          sb.writeln('    int page = 1,');
-          sb.writeln('    int perPage = 20,');
-          sb.writeln('  }) {');
-          sb.writeln('    return _provider.query(');
-          sb.writeln('      value,');
-          sb.writeln('      facets: facets,');
-          sb.writeln('      page: page,');
-          sb.writeln('      perPage: perPage,');
-          sb.writeln('    );');
-          sb.writeln('  }');
-          sb.writeln('}');
         }
       }
     }

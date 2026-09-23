@@ -2,12 +2,12 @@ import '../dartvel_client/dartvel_client.dart';
 
 void hostedSearch() {
   // docs:start search-hosted
-  ArticleSearch.useProvider(MeilisearchProvider<Article, ArticleSearchFacets>(
+  Article.useSearchProvider(MeilisearchProvider<Article, ArticleFacets>(
     baseUrl: Uri.parse('https://search.example.com'),
     apiKey: DV.Secrets.get('MEILISEARCH_KEY'),
     indexName: 'articles',
     fromJson: ArticleParser.fromJson,
-    tuning: ArticleSearch.tuning, // from dartvel.search in pubspec.yaml
+    tuning: Article.searchTuning, // from dartvel.search in pubspec.yaml
   ));
   // docs:end
 }
@@ -15,7 +15,7 @@ void hostedSearch() {
 Future<void> highlights() async {
   // docs:start search-results
   final DVSearchResultPage<Article> page =
-      await ArticleSearch.query('dart', page: 1, perPage: 20);
+      await Article.search('dart', page: 1, perPage: 20);
 
   for (int i = 0; i < page.items.length; i++) {
     final Article article = page.items[i];
