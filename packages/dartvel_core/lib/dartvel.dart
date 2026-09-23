@@ -231,6 +231,11 @@ export 'src/storage/adapters.dart';
 export 'src/storage/azure_blob.dart';
 export 'src/storage/file.dart';
 export 'src/storage/gcs.dart';
+// The filesystem this process is standing on: a server's disk, or the
+// directory an application owns on a device. Conditional, because the web
+// has neither, and there the adapter says so rather than not existing.
+export 'src/storage/local_unsupported.dart'
+    if (dart.library.io) 'src/storage/local_io.dart';
 // The transports are the framework's own way of carrying a change between
 // processes, not something an application writes. A model opted into syncing
 // is read and written like any other; there is no object to implement and
