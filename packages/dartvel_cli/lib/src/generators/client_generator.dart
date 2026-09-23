@@ -3130,9 +3130,27 @@ void startDartvelKiosk() {
     ).hasMatch(source);
   }
 
+  /// One Dart string literal, with its quotes and any `r` prefix.
+  ///
+  /// `\'` is matched as one unit. A pattern that treats it as a closing
+  /// quote ends the literal early, and the text re-emitted from it is
+  /// `'Dartvel is Flutter\'`, which does not compile and takes every page in
+  /// the project down with it.
+  static const String _oneLiteral =
+      r"""(?:r?'(?:[^'\\]|\\.)*'|r?"(?:[^"\\]|\\.)*")""";
+
+  /// A run of adjacent string literals, which Dart joins into one string.
+  ///
+  /// A sentence worth writing does not fit on one line, so it is written as
+  /// `'first half ' 'second half'`. Reading only the first literal returns a
+  /// sentence cut off at its first line, and that is the dangerous shape:
+  /// half a description still reads as a finished one, so nothing looks
+  /// wrong in the page, in the router or in the meta tag it ends up in.
+  static const String _literalRun = '$_oneLiteral(?:\\s*$_oneLiteral)*';
+
   static String? _namedStringArg(String args, String name) {
     final match = RegExp(
-      '$name\\s*:\\s*((?:r)?(?:\'[^\']*\'|"[^"]*"))',
+      '$name\\s*:\\s*($_literalRun)',
       dotAll: true,
     ).firstMatch(args);
     return match?.group(1);
@@ -3299,14 +3317,35 @@ void startDartvelKiosk() {
   /// that survives review because it looks deliberate.
   static String? _unquoted(String? literal) {
     if (literal == null) return null;
-    String value = literal.trim();
-    if (value.startsWith('r')) value = value.substring(1);
-    if (value.length < 2) return null;
-    final String quote = value[0];
-    if (quote != "'" && quote != '"') return null;
-    if (!value.endsWith(quote)) return null;
-    return value.substring(1, value.length - 1);
+    final List<RegExpMatch> fragments =
+        RegExp(_oneLiteral).allMatches(literal.trim()).toList();
+    if (fragments.isEmpty) return null;
+    final StringBuffer joined = StringBuffer();
+    for (final RegExpMatch fragment in fragments) {
+      String value = fragment[0]!;
+      final bool raw = value.startsWith('r');
+      if (raw) value = value.substring(1);
+      if (value.length < 2) return null;
+      final String body = value.substring(1, value.length - 1);
+      // A raw literal has no escapes to undo; in any other one `\'` stands
+      // for an apostrophe, and a launcher's widget picker showing a
+      // backslash is the kind of thing that survives review because it
+      // looks deliberate.
+      joined.write(raw ? body : _unescapeLiteral(body));
+    }
+    return joined.toString();
   }
+
+  /// The escapes in a Dart string literal's body, as the text they stand for.
+  static String _unescapeLiteral(String body) => body.replaceAllMapped(
+        RegExp(r'\\(.)'),
+        (Match m) => switch (m.group(1)!) {
+          'n' => '\n',
+          't' => '\t',
+          'r' => '\r',
+          final String other => other,
+        },
+      );
 
   /// `_stepCounterWidget` as `StepCounterWidget`.
   static String _publicWidgetName(String declared) {
