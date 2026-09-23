@@ -102,6 +102,35 @@ class DVTextSettle {
   }
 }
 
+/// The pictures taken so far, so a page can be told it has drawn nothing.
+///
+/// Two routes cannot honestly produce the same picture at the same size.
+/// Waiting on the text and on the network still let twelve routes be filed as
+/// the same empty docs shell, and the cause is hard to pin down from outside
+/// the browser; the invariant is not. A repeat means the page under the
+/// camera had not drawn yet, so the capture waits and looks again instead of
+/// writing it.
+class DVShotLibrary {
+  final Map<String, Set<String>> _bySize = <String, Set<String>>{};
+
+  String _key(DVShotSize size) => '${size.width}x${size.height}';
+
+  /// Whether a picture exactly like [bytes] has already been taken at [size].
+  bool isRepeat(DVShotSize size, List<int> bytes) =>
+      _bySize[_key(size)]?.contains(_fingerprint(bytes)) ?? false;
+
+  /// Records [bytes] as taken at [size].
+  void keep(DVShotSize size, List<int> bytes) {
+    _bySize.putIfAbsent(_key(size), () => <String>{}).add(_fingerprint(bytes));
+  }
+
+  /// The bytes as a string, which compares them whole.
+  ///
+  /// Not a hash: a screenshot is under a megabyte, there are a hundred or so,
+  /// and a hash would need a dependency to save nothing that matters here.
+  static String _fingerprint(List<int> bytes) => String.fromCharCodes(bytes);
+}
+
 /// One photographed page.
 class DVPageShot {
   const DVPageShot({
@@ -184,6 +213,7 @@ Future<DVPageShotsResult> dvCapturePages({
   Directory(outDir).createSync(recursive: true);
 
   final List<DVPageShot> shots = <DVPageShot>[];
+  final DVShotLibrary library = DVShotLibrary();
   try {
     for (final DVShotSize size in sizes) {
       for (final String route in routes) {
@@ -209,10 +239,31 @@ Future<DVPageShotsResult> dvCapturePages({
           await page.evaluate<Object?>(
               '() => document.fonts ? document.fonts.ready.then(() => 0) : 0');
           await Future<void>.delayed(afterText);
+
+          // And if what came out is a picture already taken, this page has
+          // not drawn: keep looking until it differs or the deadline passes.
+          // Writing it anyway is what filed twelve routes as one shell.
+          List<int> picture = await page.screenshot();
+          final DateTime own = DateTime.now().add(settle);
+          while (library.isRepeat(size, picture) &&
+              DateTime.now().isBefore(own)) {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            picture = await page.screenshot();
+          }
+          final bool ownPicture = !library.isRepeat(size, picture);
+          library.keep(size, picture);
+
           final String file = p.join(outDir, dvShotName(route, size));
-          File(file).writeAsBytesSync(await page.screenshot());
+          File(file).writeAsBytesSync(picture);
           shots.add(DVPageShot(
-              route: route, size: size, file: file, textLength: text));
+            route: route,
+            size: size,
+            file: file,
+            // Nought when the page never showed anything of its own, so a
+            // shell photographed under this route's name is a failure and
+            // not a screenshot.
+            textLength: ownPicture ? text : 0,
+          ));
         } finally {
           await page.close();
         }
