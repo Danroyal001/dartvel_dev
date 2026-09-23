@@ -103,6 +103,23 @@ saying in the commit message what it does and why the standard library does
 not. Vendored or forked code carries the upstream name and version in its
 header.
 
+`dart tool/ci/dependency_advisories_check.dart` asks OSV about every version
+pinned in every tracked `pubspec.lock`. It runs weekly and on any commit that
+changes a lock file, from `.github/workflows/dependencies.yml`, and Dependabot
+proposes the ordinary upgrades monthly.
+
+**When it finds something**, the window starts at the run that reported it:
+
+| Severity | Fixed within |
+|---|---|
+| Critical or high, reachable from Dartvel's own code | 7 days |
+| Critical or high, in a package nothing here calls into | 30 days, or a recorded reason why it does not apply |
+| Moderate or low | the next release |
+
+Recording why an advisory does not apply is part of the fix, not an
+alternative to it: a finding that is dismissed in somebody's head is one the
+next person re-investigates from scratch.
+
 ## SD-9 — A security fix starts with a failing test
 
 The project's test-driven rule is not relaxed for security work; it is where
@@ -130,9 +147,6 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
 - **Rate limiting is per process and in memory.** Two instances behind a load
   balancer give an attacker twice the budget, and a restart clears it.
   `CommonMiddleware.rateLimit` keeps its counters in a map.
-- **No dependency scanning in CI.** Nothing watches for an advisory against a
-  package this repository pins, and there is no Dependabot configuration under
-  .github/.
 - **Releases are checksummed, not signed.** `.github/workflows/cli-release.yml`
   publishes a `SHA256SUMS` file, which detects a corrupted download and not a
   substituted one. No signature, no provenance attestation.

@@ -1,0 +1,44 @@
+name: Dependency advisories
+
+# Asks OSV whether anything is known about the packages this repository pins.
+#
+# Nothing was watching before. The secure-development policy listed that as a
+# gap and the compliance plan ranked it second, because an advisory against a
+# transitive package is the one class of hole nobody here will find by
+# reading the diff.
+#
+# Weekly, because an advisory is published on somebody else's schedule and a
+# repository that only checks on push stops checking the moment it goes quiet.
+# On push as well when a lock file or the checker itself changes, so a
+# dependency that arrives with something already reported against it is caught
+# at the commit that adds it.
+on:
+  schedule:
+    # Monday, early. A finding that lands at the start of a week gets looked
+    # at in that week.
+    - cron: '17 6 * * 1'
+  push:
+    paths:
+      - '**/pubspec.lock'
+      - 'tool/ci/dependency_advisories*.dart'
+      - '.github/workflows/dependencies.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: dependencies-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.12.2
+      # dart, not dart run: this imports only dart: libraries, so it needs no
+      # package resolution and cannot be broken by one. The parser and the
+      # batch reader have their own suite, run with the rest of test/unit in
+      # the Tests workflow.
+      - run: dart tool/ci/dependency_advisories_check.dart
