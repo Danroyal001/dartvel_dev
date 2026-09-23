@@ -382,18 +382,19 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Check the declared floors
-        run: dart test test/unit/sdk_floor_test.dart
-      # What decides that a cloud build returned the target it was asked for.
-      - name: The cloud artifact checks
-        run: dart test test/unit/cloud_artifact_check_test.dart
-      # The npm launchers' own checks, and the bump that wrote a version into
-      # dartvel_dev's bin: 0.5.0 shipped `npx dartvel_dev` pointing at a file
-      # named 0.5.0, and the check that would have said so was never run.
+      # The whole directory, not three files by name. Naming them is how the
+      # other seven suites in here ended up running nowhere: the declared
+      # floors, the cloud artifact checks and the version bump were listed,
+      # and spec coverage, evidence reachability, the live-suite parser, the
+      # Android focus holder and the security documents' citations were not.
+      # A test nobody runs is a test that passes forever.
+      - name: The repository's own unit tests
+        run: dart test test/unit
+      # The npm launchers' own checks, whose Dart half is in the run above:
+      # 0.5.0 shipped `npx dartvel_dev` pointing at a file named 0.5.0, and
+      # the check that would have said so was never run.
       - name: The npm manifests
-        run: |
-          dart test test/unit/bump_version_test.dart
-          node npm/dartvel_dev/test.js
+        run: node npm/dartvel_dev/test.js
 
   # The browser bindings run in a browser, or they are untested. The VM suite
   # resolves the stub, so it proves what web claims and nothing about whether
