@@ -349,7 +349,7 @@ Future<bool> _settled(
     // tree's own word for it, and a request still out that the tree does
     // not mention.
     final bool waiting =
-        state['waiting'] == true || !(flight?.idle ?? true);
+        state['waiting'] == true || (flight?.busy ?? false);
     // The heading has to have moved off the one the capture clicked away
     // from. Not matched against the rail label, because a panel is titled
     // for what it holds and the rail for where it is: the Cache section is

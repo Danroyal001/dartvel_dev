@@ -139,10 +139,25 @@ class DVShotLibrary {
 /// reported every one as fine. Studio holds no long-lived connection, so a
 /// request still outstanding is an honest answer to the same question.
 class DVInFlight {
+  DVInFlight({this.patience = const Duration(seconds: 4)});
+
+  /// How long a count that never moves is believed before it is written off.
+  ///
+  /// Not every request reports back. One served from the cache, cancelled, or
+  /// answered by a worker can leave the count above nought for the life of
+  /// the page, and a capture that waited for nought would photograph nothing
+  /// at all -- which is what a stricter version of this did: it refused every
+  /// section of Studio and the run failed with "Studio drew no text".
+  final Duration patience;
+
   int _out = 0;
+  DateTime _moved = DateTime.now();
 
   /// A request left the page.
-  void started() => _out++;
+  void started() {
+    _out++;
+    _moved = DateTime.now();
+  }
 
   /// One came back, or failed.
   ///
@@ -151,10 +166,18 @@ class DVInFlight {
   /// next fetch, which is the state this exists to catch.
   void ended() {
     if (_out > 0) _out--;
+    _moved = DateTime.now();
   }
 
   /// Whether the page is waiting on nothing.
   bool get idle => _out == 0;
+
+  /// Whether the count has been stuck above nought long enough to disbelieve.
+  bool get stuck =>
+      _out > 0 && DateTime.now().difference(_moved) > patience;
+
+  /// Whether the page still has something outstanding worth waiting for.
+  bool get busy => !idle && !stuck;
 }
 
 /// One photographed page.
