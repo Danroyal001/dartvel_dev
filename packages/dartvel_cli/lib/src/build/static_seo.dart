@@ -531,13 +531,17 @@ Map<String, String> dvRouteTitles(String routerSource) {
 /// empty -- writing an empty description over a project that has a good one
 /// is worse than repeating it.
 Map<String, String> dvRouteDescriptions(String routerSource) {
-  // class <Name> ... SeoProps(description: '<sentence>')
+  // class <Name> ... SeoProps(description: '<sentence>'), where the sentence
+  // may be several adjacent literals, because one long enough to be worth
+  // writing is wrapped over two or three lines in the page that declares it.
   final Map<String, String> byClass = <String, String>{};
   final RegExp classPattern = RegExp(
-    r"class\s+(\w+)\s+extends[\s\S]*?SeoProps\(description:\s*'((?:[^'\\]|\\.)*)'",
+    r'class\s+(\w+)\s+extends[\s\S]*?SeoProps\(description:\s*('
+    '$_literalRun'
+    r')',
   );
   for (final RegExpMatch match in classPattern.allMatches(routerSource)) {
-    byClass[match.group(1)!] = _unescapeDart(match.group(2)!);
+    byClass[match.group(1)!] = _joinLiterals(match.group(2)!);
   }
 
   // path: '<route>' ... const <Name>()
@@ -758,4 +762,33 @@ List<String> dvRemoveStaleRoutePages({
     }
   }
   return removed;
+}
+
+/// One Dart string literal, with its quotes and any `r` prefix.
+///
+/// `\'` is matched as one unit, so a literal is not ended on a quote that
+/// was escaped.
+const String _oneLiteral = r"""(?:r?'(?:[^'\\]|\\.)*'|r?"(?:[^"\\]|\\.)*")""";
+
+/// A run of adjacent string literals, which Dart joins into one string.
+const String _literalRun = '$_oneLiteral(?:\\s*$_oneLiteral)*';
+
+/// A run of adjacent Dart string literals, as the one string they stand for.
+///
+/// A description worth writing is wrapped over two or three lines in the page
+/// that declares it, and reaches the router the same way. Reading only the
+/// first literal gives back a sentence cut off at its first line, which is
+/// worse than reading none: half a description still looks like a whole one
+/// in a meta tag, so nothing downstream reports anything wrong.
+String _joinLiterals(String run) {
+  final StringBuffer joined = StringBuffer();
+  for (final RegExpMatch fragment in RegExp(_oneLiteral).allMatches(run)) {
+    String value = fragment[0]!;
+    final bool raw = value.startsWith('r');
+    if (raw) value = value.substring(1);
+    if (value.length < 2) continue;
+    final String body = value.substring(1, value.length - 1);
+    joined.write(raw ? body : _unescapeDart(body));
+  }
+  return joined.toString();
 }
