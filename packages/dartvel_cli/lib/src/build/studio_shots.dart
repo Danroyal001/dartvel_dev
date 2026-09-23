@@ -90,6 +90,12 @@ const String _enableSemantics = r'''() => {
   return true;
 }''';
 
+/// The panel's text right now, first line and all, for the record beside the
+/// picture.
+const String _saidNow = '''() => {
+  const host = document.querySelector('flt-semantics-host');
+  return host ? (host.innerText || '').trim() : '(no semantics host)';
+}''';
 /// The semantics tree's text length, which is nought until Flutter has drawn
 /// a frame with text in it.
 const String _text = '''() => {
@@ -266,6 +272,15 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       await _painted(page);
       final String file = p.join(outDir, dvStudioShotName(label));
       File(file).writeAsBytesSync(await _stablePicture(page));
+      // What the section said at the moment it was photographed, beside the
+      // picture. A panel that reads "Loading cache tags…" in the picture and
+      // reports its finished text here is the renderer lagging the tree, and
+      // one that reads the placeholder in both is a section that never came:
+      // the two look identical in the artifact and have different fixes.
+      final String said = await page.evaluate<String>(_saidNow);
+      File('$file.txt').writeAsStringSync(said);
+      stdout.writeln('      said: '
+          '');
       shots.add(DVStudioShot(
         label: label,
         file: file,
@@ -334,7 +349,7 @@ Future<bool> _settled(
   DVInFlight? flight,
   String? leaving,
   Duration insist = const Duration(seconds: 5),
-  bool patient = false,
+  bool patient = true,
 }) async {
   final DVTextSettle settle = DVTextSettle();
   final DateTime deadline = DateTime.now().add(limit);
