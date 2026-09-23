@@ -805,7 +805,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     if (models.isEmpty) {
       return DVStudioStyle.emptyState(
         icon: Icons.table_chart_outlined,
-        title: 'No models',
+        title: 'No data models',
         message: 'Declare a @DVModel in lib/models and rebuild, and its '
             'records are listed here.',
       );

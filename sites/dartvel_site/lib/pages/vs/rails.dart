@@ -49,7 +49,7 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
               columns: <String>['', 'Rails', 'Dartvel'],
               rows: <List<String>>[
                 <String>['Routing', 'config/routes.rb', 'The file path. Moving a page breaks every link to it'],
-                <String>['Models', 'Active Record', '@DVModel: schema, client, form and admin from one class'],
+                <String>['Data models', 'Active Record', '@DVModel: schema, client, form and admin from one class'],
                 <String>['Migrations', 'rails db:migrate', 'Generated from the model'],
                 <String>['Generators', 'rails generate', 'dartvel dev regenerates on save'],
                 <String>['Background jobs', 'Active Job, Sidekiq', 'DV.Jobs, DV.Queues, @DVJob'],
