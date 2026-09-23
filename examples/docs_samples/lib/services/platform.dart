@@ -85,8 +85,11 @@ void queues() {
 
 Future<void> work() async {
   // docs:start jobs-work
-  await DV.Jobs.work(queue: 'mail', maxJobs: 10);
-
+  // A worker drains the queue. It is a process, not a line in a page:
+  //
+  //     dartvel queue work --queue mail --max-jobs 10
+  //
+  // What an application does is look at what failed.
   final List<DVJobEnvelope<DVJobPayload>> dead = await DV.Jobs.deadLetters('mail');
   for (final DVJobEnvelope<DVJobPayload> job in dead) {
     DV.log('${job.id} failed ${job.attempts} times: ${job.lastError}');

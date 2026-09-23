@@ -20,7 +20,7 @@ Future<void> modelChanges(Article article) async {
 void syncPolicy() {
   // docs:start sync-policy
   // A change is delivered only to watchers allowed to see the model.
-  DVModelSync.registerPolicy<Article>((Article article) => article.published);
+  Article.syncPolicy((Article article) => article.published);
   // docs:end
 }
 
