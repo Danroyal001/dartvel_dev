@@ -43,13 +43,7 @@ int _run(List<String> arguments) {
         .firstMatch(html)
         ?.group(1)
         ?.trim();
-    final int text =
-        RegExp(r'<div class="dv-fallback">(.*?)</div>', dotAll: true)
-                .firstMatch(html)
-                ?.group(1)
-                ?.trim()
-                .length ??
-            0;
+    final int text = dvPageTextLength(html);
     titles.add(title);
     stdout.writeln('${file.path.padRight(34)} '
         '${(title ?? 'null').padRight(34)} text:$text');
@@ -69,4 +63,22 @@ int _run(List<String> arguments) {
     failures++;
   }
   return failures == 0 ? 0 : 1;
+}
+
+/// How much of [html] a crawler can read without running anything.
+///
+/// The block the build writes, which is `<div class="dv-fallback">` — with
+/// the path stamped on it when the build knew one, so the tag is matched
+/// with its attributes rather than exactly. Matching it exactly is how this
+/// started reading zero on every page the moment the stamp was added.
+///
+/// The `<noscript>` beside it is deliberately not counted: what is left in
+/// there is one style rule that turns the block back on for a reader with no
+/// scripting, and counting it would pass every page in a build that had
+/// stopped writing text at all.
+int dvPageTextLength(String html) {
+  final RegExpMatch? match =
+      RegExp(r'<div class="dv-fallback"[^>]*>(.*?)</div>', dotAll: true)
+          .firstMatch(html);
+  return match?.group(1)?.trim().length ?? 0;
 }
