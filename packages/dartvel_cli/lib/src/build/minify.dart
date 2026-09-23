@@ -490,6 +490,28 @@ DVMinifyReport dvMinifyWebOutput(Directory web) {
   return DVMinifyReport(files: files, saved: saved);
 }
 
+/// The build's own step: build/web under [root], minified unless [enabled] is
+/// false.
+///
+/// Both web targets go through it. `dartvel build web` writes a file per route
+/// and this is the last thing to touch them; `dartvel build web-server` builds
+/// its pages from build/web/index.html on request, so minifying the shell
+/// minifies every page the server will ever answer with.
+DVMinifyReport dvMinifyBuildOutput(String root, {bool enabled = true}) {
+  if (!enabled) return DVMinifyReport.none;
+  return dvMinifyWebOutput(Directory(p.join(root, 'build', 'web')));
+}
+
+/// [report] as the build prints it.
+String dvMinifySummary(DVMinifyReport report) {
+  if (report.files == 0) return 'Nothing left to minify.';
+  final String files = report.files == 1 ? '1 file' : '${report.files} files';
+  final String size = report.saved < 1024
+      ? '${report.saved} bytes'
+      : '${(report.saved / 1024).toStringAsFixed(1)} KB';
+  return 'Minified $files, $size smaller.';
+}
+
 /// Whether [relative] is a file the pass does not own.
 bool _leaveAlone(String relative) {
   final List<String> parts = p.split(relative);
