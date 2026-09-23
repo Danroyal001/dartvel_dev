@@ -28,9 +28,9 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
               'Call',
               'Reads',
             ], rows: <List<String>>[
-              <String>['ArticleImport.csv', 'CSV with a header row'],
-              <String>['ArticleImport.ndjson', 'One JSON object per line'],
-              <String>['ArticleImport.excel', 'Tab-separated rows copied from a '
+              <String>['Article.importCsv', 'CSV with a header row'],
+              <String>['Article.importNdjson', 'One JSON object per line'],
+              <String>['Article.importExcel', 'Tab-separated rows copied from a '
                   'spreadsheet, with a header row'],
             ]),
             Bullets(<String>[
@@ -92,8 +92,8 @@ Widget _docsImportExportPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsStatus('Data Import, Export, and Reporting', missing: <String>[
               'No PDF export.',
-              'The generated classes are ArticleImport and ArticleExport. '
-                  'The Article.Import form in the spec is not generated.',
+              'No streaming import: a file is read whole before its rows '
+                  'are chunked onto the queue.',
             ]),
           ],
         ),

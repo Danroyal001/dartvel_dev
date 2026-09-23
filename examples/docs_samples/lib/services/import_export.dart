@@ -2,7 +2,7 @@ import '../dartvel_client/dartvel_client.dart';
 
 Future<void> importCsv(String csv) async {
   // docs:start import-csv
-  final DVImportResult<Article> result = ArticleImport.csv(csv);
+  final DVImportResult<Article> result = Article.importCsv(csv);
 
   for (final DVImportRowError error in result.errors) {
     DV.log('Row ${error.row}: ${error.message}');
@@ -18,19 +18,19 @@ Future<void> resumableImport(String csv) async {
   // Handle each chunk in a worker. Every chunk carries the header row.
   DV.Jobs.register<DVImportChunk>((DVImportChunk chunk) async {
     final String rows = <String>[chunk.header!, ...chunk.rows].join('\n');
-    for (final Article article in ArticleImport.csv(rows).items) {
+    for (final Article article in Article.importCsv(rows).items) {
       await article.save();
     }
   });
 
   // Split a large file into jobs of 500 rows on the imports queue.
-  await ArticleImport.resumableCsv(csv, queue: 'imports', chunkSize: 500);
+  await Article.importResumableCsv(csv, queue: 'imports', chunkSize: 500);
   // docs:end
 }
 
 Future<void> exports(List<Article> articles) async {
   // docs:start export-files
-  final DVExportResult csv = ArticleExport.csv(
+  final DVExportResult csv = Article.exportCsv(
     articles,
     options: DVExportOptions<Article>(
       policyFilter: (Article article) => article.published,
@@ -39,7 +39,7 @@ Future<void> exports(List<Article> articles) async {
   await DV.FileStorage.put(csv.fileName, csv.bytes, contentType: csv.contentType);
 
   // Large exports in parts of 1,000 rows each.
-  await for (final DVExportResult part in ArticleExport.streamNdjson(articles)) {
+  await for (final DVExportResult part in Article.exportStreamNdjson(articles)) {
     await DV.FileStorage.put('exports/${part.fileName}', part.bytes);
   }
   // docs:end

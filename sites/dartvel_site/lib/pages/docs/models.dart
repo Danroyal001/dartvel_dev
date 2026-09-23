@@ -55,7 +55,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               <String>['softDelete: true', 'destroy() hides the row and '
                   'restore() brings it back'],
               <String>['version: false', 'Turns off the stale-write check'],
-              <String>['searchable: true', 'Generates ArticleSearch'],
+              <String>['searchable: true', 'Gives the model Article.search'],
               <String>['tenantScoped: true', 'Rows belong to the current '
                   'tenant'],
               <String>['subject:, retain:', 'Who the data is about and how long '

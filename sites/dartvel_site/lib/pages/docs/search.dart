@@ -23,9 +23,10 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
           id: 'providers',
           title: 'Choose a search provider',
           children: <Widget>[
-            DocsText('@DVModel(searchable: true) generates ArticleSearch. It '
-                'has no provider until you set one, and a query before that '
-                'throws a StateError.'),
+            DocsText('@DVModel(searchable: true) gives the model '
+                'Article.search. It has no provider until you set one with '
+                'Article.useSearchProvider, and a search before that throws '
+                'a StateError.'),
             DocsTable(columns: <String>[
               'Provider',
               'Searches with',
@@ -65,8 +66,8 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
           title: 'Tune synonyms, typos and highlights',
           children: <Widget>[
             DocsYaml('yaml-search'),
-            DocsText('Generation writes these into ArticleSearch.tuning. Pass '
-                'it to the provider so the settings live in one place. '
+            DocsText('Generation writes these into Article.searchTuning. '
+                'Pass it to the provider so the settings live in one place. '
                 'Synonyms work in both directions.'),
           ],
         ),
