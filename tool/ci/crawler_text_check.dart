@@ -49,9 +49,12 @@ void main(List<String> args) {
   for (final FileSystemEntity entity in root.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('index.html')) continue;
     // Studio and the admin are applications, not pages a crawler reads, and
-    // the 404 page is a page nobody should be indexed onto.
+    // the 404 and offline pages are pages nobody should be indexed onto:
+    // one is an error and the other is what a service worker serves when
+    // there is no network, and neither has content of its own.
     if (entity.path.contains('/__')) continue;
     if (entity.path.contains('/404/')) continue;
+    if (entity.path.contains('/offline/')) continue;
     checked++;
     final int count = words(fallbackText(entity.readAsStringSync()));
     if (count < minimum) {
