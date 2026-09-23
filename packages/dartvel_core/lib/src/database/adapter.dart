@@ -31,10 +31,11 @@ abstract class DVDatabaseAdapter {
 /// * `UPDATE t SET col = ... [WHERE ...]` and `DELETE FROM t [WHERE ...]`
 /// * `SELECT [DISTINCT] * | cols | COUNT(*) [AS alias] FROM t`
 ///   `[WHERE ...] [ORDER BY col [ASC|DESC], ...] [LIMIT n] [OFFSET n]`
-/// * a `WHERE` of conditions joined by `AND`, comparing with
-///   `= != <> < <= > >=`, `IS NULL` and `IS NOT NULL`
+/// * a `WHERE` of comparisons -- `= != <> < <= > >=`, `IS NULL` and
+///   `IS NOT NULL` -- joined by `AND` and `OR` and grouped by parentheses,
+///   with `AND` binding tighter as it does in SQL
 ///
-/// Anything else -- a join, a subquery, `OR`, SQLite's FTS5 `MATCH`, an
+/// Anything else -- a join, a subquery, SQLite's FTS5 `MATCH`, an
 /// `ALTER TABLE` -- throws an [ArgumentError] naming the statement. An
 /// in-memory adapter that quietly answers a query it did not understand is
 /// worse than one that cannot: the wrong rows look exactly like the right
@@ -78,8 +79,6 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       RegExp(r'\s+(?:order\s+by|limit|offset)\s+', caseSensitive: false);
   static final RegExp _afterOrder =
       RegExp(r'\s+(?:limit|offset)\s+', caseSensitive: false);
-  static final RegExp _and = RegExp(r'\s+and\s+', caseSensitive: false);
-  static final RegExp _or = RegExp(r'\bor\b', caseSensitive: false);
   static final RegExp _count = RegExp(
     r'^count\s*\(\s*\*\s*\)(?:\s+as\s+([A-Za-z_]\w*))?$',
     caseSensitive: false,
@@ -121,7 +120,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
 
     final rows = <_MemoryRow>[
       for (final row in _tables[select.group(3)!]?.rows ?? const <_MemoryRow>[])
-        if (clauses.where.every((condition) => condition.matches(row))) row,
+        if (clauses.where.matches(row)) row,
     ];
     _sort(rows, clauses.order);
 
@@ -203,7 +202,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       var affected = 0;
       final rows = _tables[update.group(1)!]?.rows ?? const <_MemoryRow>[];
       for (final row in rows) {
-        if (!conditions.every((condition) => condition.matches(row))) continue;
+        if (!conditions.matches(row)) continue;
         row.values.addAll(assignments);
         affected++;
       }
@@ -218,7 +217,7 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
       if (table == null) return 0;
       final before = table.rows.length;
       table.rows.removeWhere(
-        (row) => conditions.every((condition) => condition.matches(row)),
+        (row) => conditions.matches(row),
       );
       return before - table.rows.length;
     }
@@ -228,11 +227,11 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
 
   /// The `WHERE`, `ORDER BY`, `LIMIT` and `OFFSET` that follow a `FROM`, read
   /// in the order they are written so their `?` placeholders bind in it too.
-  ({List<_Condition> where, List<_SortKey> order, int? limit, int? offset})
+  ({_Predicate where, List<_SortKey> order, int? limit, int? offset})
       _readClauses(String tail, _Binding binding, String statement) {
     var remaining = tail.trim();
 
-    var where = const <_Condition>[];
+    _Predicate where = const _Always();
     final whereAt = _whereKeyword.firstMatch(remaining);
     if (whereAt != null) {
       remaining = remaining.substring(whereAt.end);
@@ -275,36 +274,49 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
     return (where: where, order: order, limit: limit, offset: offset);
   }
 
-  List<_Condition> _readConditions(
+  /// The `WHERE` as a predicate tree.
+  ///
+  /// A flat list joined by `AND` was enough while the framework wrote every
+  /// statement itself. The record layer compiles `DVFilter.any` to
+  /// `(a = ? OR b = ?)` and nests it under an `AND`, so a database that
+  /// refused a parenthesis refused a filter the layer publishes. This reads
+  /// the grammar SQL actually has: comparisons, grouped by parentheses,
+  /// joined by `OR` at the loosest level and `AND` inside it.
+  ///
+  /// Read in one pass over the text, because a `?` binds in the order the
+  /// statement writes it and splitting the text up first loses that order.
+  _Predicate _readConditions(
     String? text,
     _Binding binding,
     String statement,
   ) {
-    if (text == null || text.trim().isEmpty) return const <_Condition>[];
-    if (text.contains('(') || _or.hasMatch(text)) {
-      throw _unsupported(statement);
+    if (text == null || text.trim().isEmpty) return const _Always();
+    final _WhereParser parser = _WhereParser(text, binding, statement, this);
+    final _Predicate predicate = parser.parse();
+    // Anything left over is something this does not understand, and matching
+    // on the half it read would answer a question nobody asked.
+    if (!parser.done) throw _unsupported(statement);
+    return predicate;
+  }
+
+  /// One comparison, or a null test.
+  _Predicate _readComparison(String text, _Binding binding, String statement) {
+    final String trimmed = text.trim();
+    final RegExpMatch? nullTest = _nullTest.firstMatch(trimmed);
+    if (nullTest != null) {
+      return _Condition(
+        nullTest.group(1)!,
+        nullTest.group(2) == null ? 'is null' : 'is not null',
+        null,
+      );
     }
-    final conditions = <_Condition>[];
-    for (final clause in text.split(_and)) {
-      final trimmed = clause.trim();
-      final nullTest = _nullTest.firstMatch(trimmed);
-      if (nullTest != null) {
-        conditions.add(_Condition(
-          nullTest.group(1)!,
-          nullTest.group(2) == null ? 'is null' : 'is not null',
-          null,
-        ));
-        continue;
-      }
-      final comparison = _comparison.firstMatch(trimmed);
-      if (comparison == null) throw _unsupported(statement);
-      conditions.add(_Condition(
-        comparison.group(1)!,
-        comparison.group(2)!,
-        _readValue(comparison.group(3)!, binding, statement),
-      ));
-    }
-    return conditions;
+    final RegExpMatch? comparison = _comparison.firstMatch(trimmed);
+    if (comparison == null) throw _unsupported(statement);
+    return _Condition(
+      comparison.group(1)!,
+      comparison.group(2)!,
+      _readValue(comparison.group(3)!, binding, statement),
+    );
   }
 
   List<_SortKey> _readOrder(String text, String statement) {
@@ -478,14 +490,142 @@ class _MemoryTable {
   }
 }
 
+/// Something a row either satisfies or does not.
+abstract class _Predicate {
+  const _Predicate();
+
+  bool matches(_MemoryRow row);
+}
+
+/// No `WHERE` at all: every row.
+class _Always extends _Predicate {
+  const _Always();
+
+  @override
+  bool matches(_MemoryRow row) => true;
+}
+
+/// Every branch, or any branch.
+class _Junction extends _Predicate {
+  const _Junction(this.parts, {required this.all});
+
+  final List<_Predicate> parts;
+  final bool all;
+
+  @override
+  bool matches(_MemoryRow row) => all
+      ? parts.every((_Predicate part) => part.matches(row))
+      : parts.any((_Predicate part) => part.matches(row));
+}
+
+/// Reads `a = ? AND (b = ? OR c IS NULL)` into a tree.
+///
+/// One pass, left to right, so each `?` binds in the order the statement
+/// writes it. `AND` binds tighter than `OR`, as it does in SQL.
+class _WhereParser {
+  _WhereParser(this.text, this.binding, this.statement, this.owner);
+
+  final String text;
+  final _Binding binding;
+  final String statement;
+  final MemoryDVDatabaseAdapter owner;
+  int _at = 0;
+
+  /// Whether the whole text was consumed.
+  bool get done {
+    _skipSpace();
+    return _at >= text.length;
+  }
+
+  _Predicate parse() => _readOr();
+
+  _Predicate _readOr() {
+    final List<_Predicate> parts = <_Predicate>[_readAnd()];
+    while (_take(_orWord)) {
+      parts.add(_readAnd());
+    }
+    return parts.length == 1 ? parts.single : _Junction(parts, all: false);
+  }
+
+  _Predicate _readAnd() {
+    final List<_Predicate> parts = <_Predicate>[_readTerm()];
+    while (_take(_andWord)) {
+      parts.add(_readTerm());
+    }
+    return parts.length == 1 ? parts.single : _Junction(parts, all: true);
+  }
+
+  _Predicate _readTerm() {
+    _skipSpace();
+    if (_at < text.length && text[_at] == '(') {
+      _at++;
+      final _Predicate inside = _readOr();
+      _skipSpace();
+      if (_at >= text.length || text[_at] != ')') {
+        throw MemoryDVDatabaseAdapter._unsupported(statement);
+      }
+      _at++;
+      return inside;
+    }
+    // A comparison runs to the next AND, OR or closing parenthesis that is
+    // not inside a quoted string: 'Smith and Sons' is a value, not a join.
+    final int from = _at;
+    bool quoted = false;
+    while (_at < text.length) {
+      final String character = text[_at];
+      if (character == "'") quoted = !quoted;
+      if (!quoted) {
+        if (character == ')') break;
+        if (_startsWith(_andWord) || _startsWith(_orWord)) break;
+      }
+      _at++;
+    }
+    final String piece = text.substring(from, _at);
+    if (piece.trim().isEmpty) {
+      throw MemoryDVDatabaseAdapter._unsupported(statement);
+    }
+    return owner._readComparison(piece, binding, statement);
+  }
+
+  static final RegExp _andWord = RegExp(r'^and\b', caseSensitive: false);
+  static final RegExp _orWord = RegExp(r'^or\b', caseSensitive: false);
+
+  /// Whether a keyword starts here, as a word.
+  ///
+  /// The character before it has to end a word too. Testing only the far side
+  /// found the `or` inside `actor = ?` and cut the comparison in half, which
+  /// every agreement-acceptance test caught at once.
+  bool _startsWith(RegExp word) {
+    if (_at > 0 && text[_at - 1].trim().isNotEmpty && text[_at - 1] != ')') {
+      return false;
+    }
+    return word.hasMatch(text.substring(_at));
+  }
+
+  bool _take(RegExp word) {
+    _skipSpace();
+    final Match? found = word.matchAsPrefix(text.substring(_at));
+    if (found == null) return false;
+    _at += found.end;
+    return true;
+  }
+
+  void _skipSpace() {
+    while (_at < text.length && text[_at].trim().isEmpty) {
+      _at++;
+    }
+  }
+}
+
 /// One `WHERE` comparison, its right-hand side already bound.
-class _Condition {
+class _Condition extends _Predicate {
   _Condition(this.column, this.operator, this.value);
 
   final String column;
   final String operator;
   final Object? value;
 
+  @override
   bool matches(_MemoryRow row) {
     final actual = row[column];
     switch (operator) {
