@@ -512,8 +512,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Package Structure',
     'dartvel_dev',
-    'Present: the barrels under dartvel_dev. Absent: DV.Rust beyond one '
-        'integer type.',
+    'Present: the barrels under dartvel_dev. Absent: the Rust bindings '
+        'beyond one integer type. DVRust and DVRustInt are types you '
+        'construct; DV has no Rust member.',
   ),
   (
     'Home Widgets',
