@@ -12,6 +12,7 @@
 /// the section to draw, and photographs what is on screen.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -157,6 +158,15 @@ Future<DVStudioShotsResult> dvCaptureStudio({
   Directory(outDir).createSync(recursive: true);
   final List<DVStudioShot> shots = <DVStudioShot>[];
   final Page page = await browser.newPage();
+  // Counted from the page's own requests, because a panel still fetching is
+  // a panel that has not arrived and the semantics tree does not say so.
+  final DVInFlight flight = DVInFlight();
+  final List<StreamSubscription<Object?>> watching =
+      <StreamSubscription<Object?>>[
+    page.onRequest.listen((Object? _) => flight.started()),
+    page.onRequestFinished.listen((Object? _) => flight.ended()),
+    page.onRequestFailed.listen((Object? _) => flight.ended()),
+  ];
   try {
     await page.setViewport(DeviceViewport(width: size.width, height: size.height));
     // Signed in from a page on the same origin, so the session cookie is set
@@ -190,7 +200,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       if (await page.evaluate<bool>(_enableSemantics)) break;
       await Future<void>.delayed(const Duration(milliseconds: 400));
     }
-    if (!await _settled(page, settle)) {
+    if (!await _settled(page, settle, flight: flight)) {
       return const DVStudioShotsResult(
           skipped: 'Studio drew no text; it may not be served here');
     }
@@ -212,7 +222,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
         (target['x']! as num).toDouble(),
         (target['y']! as num).toDouble(),
       ));
-      bool arrived = await _settled(page, settle, leaving: leaving);
+      bool arrived = await _settled(page, settle, flight: flight, leaving: leaving);
       // Something inside the section, when one was named: the function a
       // builder should have open, the model whose records to show.
       final String? inside = open[label];
@@ -235,7 +245,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
             (found.first['x']! as num).toDouble(),
             (found.first['y']! as num).toDouble(),
           ));
-          arrived = await _settled(page, settle, leaving: before) && arrived;
+          arrived = await _settled(page, settle, flight: flight, leaving: before) && arrived;
         }
       }
       // Then again, from the far side of the delay. The semantics tree
@@ -245,7 +255,7 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       // asked when the tree is certainly the section's own, and it is what
       // catches a panel still reading "Loading models…".
       await Future<void>.delayed(afterText);
-      arrived = await _settled(page, settle) && arrived;
+      arrived = await _settled(page, settle, flight: flight) && arrived;
       // Then a frame, and then time for the renderer to put it on screen.
       // The tree is updated in the frame that builds and the picture handed
       // back is the last one rastered; on a debug build in a headless
@@ -265,6 +275,9 @@ Future<DVStudioShotsResult> dvCaptureStudio({
       ));
     }
   } finally {
+    for (final StreamSubscription<Object?> subscription in watching) {
+      await subscription.cancel();
+    }
     await page.close();
     await browser.close();
   }
@@ -318,6 +331,7 @@ const String _state = r'''() => {
 Future<bool> _settled(
   Page page,
   Duration limit, {
+  DVInFlight? flight,
   String? leaving,
   Duration insist = const Duration(seconds: 5),
 }) async {
@@ -331,7 +345,11 @@ Future<bool> _settled(
     final Map<String, Object?> state =
         (await page.evaluate<Map<dynamic, dynamic>>(_state))
             .cast<String, Object?>();
-    final bool waiting = state['waiting'] == true;
+    // Either answer is enough to say the section has not arrived: the
+    // tree's own word for it, and a request still out that the tree does
+    // not mention.
+    final bool waiting =
+        state['waiting'] == true || !(flight?.idle ?? true);
     // The heading has to have moved off the one the capture clicked away
     // from. Not matched against the rail label, because a panel is titled
     // for what it holds and the rail for where it is: the Cache section is
@@ -349,6 +367,32 @@ Future<bool> _settled(
     await Future<void>.delayed(const Duration(milliseconds: 400));
   }
   return false;
+}
+
+/// How many requests the page has out right now.
+///
+/// The semantics tree does not carry the panel's "Loading cache tags…", so
+/// asking it whether anything is loading answered no while the picture said
+/// otherwise: one run photographed seven of eleven sections mid-fetch and
+/// reported every one as fine. Studio holds no long-lived connection, so a
+/// request still outstanding is an honest answer to the same question.
+class DVInFlight {
+  int _out = 0;
+
+  /// A request left the page.
+  void started() => _out++;
+
+  /// One came back, or failed.
+  ///
+  /// Floored at nought: a request that began before this was attached ends
+  /// after it, and a count that went negative would report idle through the
+  /// next fetch, which is the state this exists to catch.
+  void ended() {
+    if (_out > 0) _out--;
+  }
+
+  /// Whether the page is waiting on nothing.
+  bool get idle => _out == 0;
 }
 
 /// The heading showing now, for [_settled] to wait past.
