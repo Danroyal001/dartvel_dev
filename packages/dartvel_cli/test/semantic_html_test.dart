@@ -29,6 +29,8 @@ DVSemanticNode node({
     );
 
 void main() {
+  wrappingControlTests();
+
   group('structure', () {
     test('a heading is a heading at its own level', () {
       expect(
@@ -181,5 +183,59 @@ void main() {
       expect(html, isNot(contains('<script>')));
       expect(html, contains('&lt;script&gt;'));
     });
+  });
+}
+
+// A control that happens to wrap the page does not swallow it.
+//
+// Every page on dartvel.dev shipped "To the bottom To the bottom" and nothing
+// else. The scroll button's semantics node sat above the page's own content,
+// and a button was written as its label and nothing more, so the whole
+// document was thrown away one line into the conversion. The pages rendered,
+// the tree was captured whole, and the body a crawler reads held six words.
+void wrappingControlTests() {
+  test('a button with children keeps them', () {
+    const List<DVSemanticNode> tree = <DVSemanticNode>[
+      DVSemanticNode(
+        role: 'button',
+        label: 'To the bottom',
+        children: <DVSemanticNode>[
+          DVSemanticNode(label: 'Call Anthropic, OpenAI or Gemini.'),
+          DVSemanticNode(role: 'heading', headingLevel: 2, label: 'Pick a provider'),
+        ],
+      ),
+    ];
+
+    final String html = dvSemanticHtml(tree);
+
+    expect(html, contains('To the bottom'));
+    expect(html, contains('Call Anthropic, OpenAI or Gemini.'),
+        reason: 'the page was inside the button and was dropped');
+    expect(html, contains('<h2>Pick a provider</h2>'));
+  });
+
+  test('a button with nothing inside is still just a button', () {
+    const List<DVSemanticNode> tree = <DVSemanticNode>[
+      DVSemanticNode(role: 'button', label: 'Copy code to clipboard'),
+    ];
+
+    expect(dvSemanticHtml(tree),
+        '<p><strong>Copy code to clipboard</strong></p>');
+  });
+
+  test('an image that wraps something keeps it too', () {
+    // The same shape, and the same mistake: a role written as a leaf when the
+    // tree says it has a subtree under it.
+    const List<DVSemanticNode> tree = <DVSemanticNode>[
+      DVSemanticNode(
+        role: 'img',
+        label: 'A stoneware mug',
+        children: <DVSemanticNode>[
+          DVSemanticNode(label: 'Turning slowly on a wheel.'),
+        ],
+      ),
+    ];
+
+    expect(dvSemanticHtml(tree), contains('Turning slowly on a wheel.'));
   });
 }

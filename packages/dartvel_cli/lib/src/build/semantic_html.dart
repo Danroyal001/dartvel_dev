@@ -138,6 +138,9 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
               '"${_attribute.convert(label)}">'
               '<figcaption>${_text.convert(label)}</figcaption></figure>');
         }
+        // And whatever it wraps. A role is a description of one node, never a
+        // promise that nothing is under it.
+        _write(out, node.children, depth + 1);
         continue;
       case 'code':
         // Preformatted, because in code the line breaks are the content. A
@@ -145,9 +148,16 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth) {
         if (hasLabel) {
           out.writeln('<pre><code>${_text.convert(label)}</code></pre>');
         }
+        _write(out, node.children, depth + 1);
         continue;
       case 'button':
+        // A control that wraps the page is still a control, and the page is
+        // still the page. Writing the label and stopping is what shipped
+        // "To the bottom To the bottom" as the entire crawler-visible body of
+        // every page on the site: the scroll button's node sat above the
+        // document, and the document went out with it.
         if (hasLabel) out.writeln('<p><strong>${_text.convert(label)}</strong></p>');
+        _write(out, node.children, depth + 1);
         continue;
     }
 
