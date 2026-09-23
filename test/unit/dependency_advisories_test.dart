@@ -140,11 +140,15 @@ void main() {
   });
 
   group('this repository', () {
-    test('every tracked lock file is read, and names packages', () {
-      // The check is pointed at lock files by path. A rename leaves it
-      // scanning nothing and reporting a clean run.
+    test('every lock file resolution left is read, and names packages', () {
+      // Lock files are gitignored, so they exist only once something has
+      // resolved. That is what the check's first CI run found out the hard
+      // way -- it read nothing and would have reported a clean scan if it
+      // had not refused an empty set outright.
       final Map<String, Map<String, String>> byFile = dvRepositoryPackages();
-      expect(byFile, isNotEmpty);
+      expect(byFile, isNotEmpty,
+          reason: 'no pubspec.lock anywhere: run `flutter pub get` first, '
+              'which is what the workflow does before the check');
       expect(byFile.keys, contains('pubspec.lock'));
       expect(byFile.values.expand((Map<String, String> p) => p.keys),
           contains('args'));
