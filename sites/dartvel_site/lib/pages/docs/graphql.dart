@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel GraphQL and OpenAPI endpoints', showAppBar: false)
+@DVPage(
+  title: 'Dartvel GraphQL and OpenAPI endpoints',
+  description: 'Your models already have a GraphQL API and your backend '
+      'functions already have an OpenAPI document. The generated '
+      'backend serves both with no setup.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsGraphqlPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsgraphql,

@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel backend functions: typed endpoints in Dart', showAppBar: false)
+@DVPage(
+  title: 'Dartvel backend functions: typed endpoints in Dart',
+  description: 'Write a Dart function under lib/backend/functions and it '
+      'becomes an HTTP endpoint you call from your app as a typed '
+      'function, with no client code to write.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsbackendfunctions,

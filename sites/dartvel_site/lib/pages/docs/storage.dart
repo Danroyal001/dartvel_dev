@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel file storage: S3, Google Cloud Storage and Azure', showAppBar: false)
+@DVPage(
+  title: 'Dartvel file storage: S3, Google Cloud Storage and Azure',
+  description: 'Store uploads and generated files with one API on S3, Google '
+      'Cloud Storage or Azure Blob Storage. Swap the adapter and your '
+      'code stays the same.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsStoragePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsstorage,

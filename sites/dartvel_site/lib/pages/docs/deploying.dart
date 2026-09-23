@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Run and deploy a Dartvel backend', showAppBar: false)
+@DVPage(
+  title: 'Run and deploy a Dartvel backend',
+  description: 'Run a generated Dartvel backend as a web server, a job worker '
+      'or a cron process, and deploy it with dartvel deploy or your '
+      'own servers with dartvel infra.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsdeploying,

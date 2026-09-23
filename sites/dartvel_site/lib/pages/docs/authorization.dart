@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel authorization: policies and permission checks', showAppBar: false)
+@DVPage(
+  title: 'Dartvel authorization: policies and permission checks',
+  description: 'Write who may do what once, in a policy class. Pages, backend '
+      'functions and the generated admin all ask that same policy '
+      'before they act.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsAuthorizationPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsauthorization,

@@ -14,6 +14,9 @@ import '../dartvel_client/dartvel_client.dart';
 // screenshots are of the real Studio.
 @DVPage(
   title: 'Dartvel Studio and Studio Pro',
+  description: 'Dartvel Studio is the visual builder for a Dartvel app: pages, '
+      'models, backend functions, modules and deploys, in the browser '
+      'and on a phone.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.8,

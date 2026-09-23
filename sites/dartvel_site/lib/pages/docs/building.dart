@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import '../../components/site.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel build targets: every platform and its status', showAppBar: false)
+@DVPage(
+  title: 'Dartvel build targets: every platform and its status',
+  description: 'Build one Dartvel app for phones, desktops, the web, TVs, '
+      'browser extensions and the terminal, with the verified status '
+      'of every target.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsbuilding,

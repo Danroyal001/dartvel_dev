@@ -5,7 +5,13 @@ import '../../dartvel_client/dartvel_client.dart';
 // Audio and video, 3D scenes and spatial (XR) presentation. Most of each is a
 // platform-independent runtime waiting on native backends, and the status
 // boxes say which targets have none. Source: docs/spec-status.json.
-@DVPage(title: 'Dartvel media, 3D and XR: players, scenes and spatial windows', showAppBar: false)
+@DVPage(
+  title: 'Dartvel media, 3D and XR: players, scenes and spatial windows',
+  description: 'Players, recorders, 3D scenes and spatial windows in Dartvel, '
+      'and which targets have a native player, renderer or headset '
+      'binding today.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsmedia3d,

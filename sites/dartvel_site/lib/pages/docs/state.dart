@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-@DVPage(title: 'Dartvel state: signals, derived signals and globals', showAppBar: false)
+@DVPage(
+  title: 'Dartvel state: signals, derived signals and globals',
+  description: 'Keep a value in a signal and the widget that reads it redraws '
+      'when it changes. Combine signals with + * > and & and the '
+      'result is a signal too.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _docsStatePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsstate,

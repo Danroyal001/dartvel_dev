@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 import '../components/site.dart';
 
-@DVPage(title: 'Dartvel: a Flutter app and its backend in one Dart project', showAppBar: false)
+@DVPage(
+  title: 'Dartvel: a Flutter app and its backend in one Dart project',
+  description: 'Dartvel is Flutter\'s Laravel: pages, models, backend functions '
+      'and UI in one Dart project, with the client, the server and '
+      'every build target generated for you.',
+  showAppBar: false,
+)
 @pragma('vm:entry-point')
 Widget _indexPage(BuildContext context) => const SingleChildScrollView(
       // A scroll, like every other page on the site. This was a deck: one
