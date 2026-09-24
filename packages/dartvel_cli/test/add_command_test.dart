@@ -1,0 +1,185 @@
+// `dartvel add`, for the sources that are already Dartvel projects.
+//
+// The first rung of the ladder, and the only one that needs no generation: a
+// source that is already a Dartvel project is mounted directly. Generating a
+// wrapper around a module that is already a module would add a layer whose
+// only job is to be walked through.
+//
+// What the command has to get right is not the happy path. It edits somebody's
+// pubspec, which is a file they wrote, so it has to say what it will do before
+// it does it, refuse an id that is already taken rather than overwrite a
+// mount, and leave the file alone entirely when it refuses.
+import 'dart:io';
+
+import 'package:args/command_runner.dart';
+import 'package:dartvel_cli/src/commands/add_command.dart';
+import 'package:dartvel_cli/src/graph/module_mounts.dart';
+import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
+import 'package:test/test.dart';
+
+String _project({String modules = ''}) {
+  final Directory root = Directory.systemTemp.createTempSync('dartvel_add_');
+  addTearDown(() => root.deleteSync(recursive: true));
+  File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shop
+environment:
+  sdk: ^3.12.0
+dartvel:
+  app:
+    name: Shop$modules
+''');
+  // A Dartvel project beside it, which is what `dartvel add ../store` means.
+  final Directory store = Directory(p.join(root.path, 'packages', 'store'))
+    ..createSync(recursive: true);
+  File(p.join(store.path, 'pubspec.yaml')).writeAsStringSync('''
+name: store
+environment:
+  sdk: ^3.12.0
+dartvel:
+  module:
+    id: store
+''');
+  return root.path;
+}
+
+Future<int> _run(String root, List<String> args) async {
+  final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
+    ..addCommand(AddCommand(root: root));
+  try {
+    await runner.run(<String>['add', ...args]);
+  } on UsageException {
+    return 64;
+  } on DVAddRefused {
+    return 1;
+  }
+  return 0;
+}
+
+String _pubspec(String root) =>
+    File(p.join(root, 'pubspec.yaml')).readAsStringSync();
+
+void main() {
+  test('a Dartvel project beside the parent is mounted, not wrapped',
+      () async {
+    final String root = _project();
+
+    expect(await _run(root, <String>['packages/store']), 0);
+
+    final String pubspec = _pubspec(root);
+    expect(pubspec, contains('modules:'));
+    expect(pubspec, contains('store:'));
+    expect(pubspec, contains('path: packages/store'));
+    expect(pubspec, contains('mount: /store'));
+    // No wrapper package was written anywhere.
+    expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
+  });
+
+  test('what it writes is a pubspec that still parses, and a mount that '
+      'discovery finds', () async {
+    // A command that edits somebody's pubspec by appending text has to leave
+    // a file that still reads as YAML, and a mount the rest of the toolchain
+    // resolves -- otherwise the project builds until the next command runs.
+    final String root = _project();
+    expect(await _run(root, <String>['packages/store']), 0);
+
+    final Object? doc = loadYaml(_pubspec(root));
+    expect(doc, isA<Map>());
+    final Object? modules = ((doc! as Map)['dartvel'] as Map)['modules'];
+    expect((modules! as Map)['store'], isNotNull);
+
+    final List<DVModuleMount> mounts = dvDiscoverModuleMounts(root);
+    final DVModuleMount store =
+        mounts.firstWhere((DVModuleMount m) => m.id == 'store');
+    expect(store.sourcePath, 'packages/store');
+    expect(store.mount, '/store');
+    expect(store.problems, isEmpty);
+  });
+
+  test('a second module is added beside the first, not on top of it',
+      () async {
+    final String root = _project();
+    Directory(p.join(root, 'packages', 'billing')).createSync(recursive: true);
+    File(p.join(root, 'packages', 'billing', 'pubspec.yaml'))
+        .writeAsStringSync('name: billing\n'
+            'environment:\n  sdk: ^3.12.0\n'
+            'dartvel:\n  module:\n    id: billing\n');
+
+    expect(await _run(root, <String>['packages/store']), 0);
+    expect(await _run(root, <String>['packages/billing']), 0);
+
+    final Object? modules =
+        ((loadYaml(_pubspec(root))! as Map)['dartvel'] as Map)['modules'];
+    expect((modules! as Map).keys.map((Object? k) => '$k').toSet(),
+        <String>{'store', 'billing'});
+  });
+
+  test('the id comes from the module, and --as overrides it', () async {
+    final String root = _project();
+
+    expect(await _run(root, <String>['packages/store', '--as', 'catalogue']),
+        0);
+
+    expect(_pubspec(root), contains('catalogue:'));
+    expect(_pubspec(root), isNot(contains('\n    store:')));
+  });
+
+  test('--dry-run changes nothing at all', () async {
+    final String root = _project();
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['packages/store', '--dry-run']), 0);
+
+    expect(_pubspec(root), before);
+  });
+
+  test('an id already mounted is refused, and the file is left alone',
+      () async {
+    // Overwriting a mount would repoint an id somebody else's code calls
+    // through, and the pubspec is a file a person wrote.
+    // The leading newline is explicit: a ''' literal strips the one that
+    // opens it, so this would otherwise land as "name: Shop  modules:" on
+    // one line and the block would not be a block at all.
+    final String root = _project(modules: '\n'
+        '  modules:\n'
+        '    store:\n'
+        '      source:\n'
+        '        path: somewhere/else\n'
+        '      mount: /shop');
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['packages/store']), 1);
+
+    expect(_pubspec(root), before);
+  });
+
+  test('a path that is not a Dartvel project is refused', () async {
+    final String root = _project();
+    Directory(p.join(root, 'not_dartvel')).createSync();
+    File(p.join(root, 'not_dartvel', 'pubspec.yaml'))
+        .writeAsStringSync('name: plain\nenvironment:\n  sdk: ^3.12.0\n');
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['not_dartvel']), 1);
+    expect(_pubspec(root), before);
+  });
+
+  test('a path that does not exist is refused', () async {
+    final String root = _project();
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['packages/nothing']), 1);
+    expect(_pubspec(root), before);
+  });
+
+  test('a foreign source says so rather than half-doing it', () async {
+    // Every other scheme is specified and unbuilt. Answering "maven is not
+    // supported yet" is the honest failure; writing a mount that resolves to
+    // nothing would be a project that no longer builds.
+    final String root = _project();
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['maven:com.vendor:scanner']), 1);
+    expect(_pubspec(root), before);
+  });
+}
