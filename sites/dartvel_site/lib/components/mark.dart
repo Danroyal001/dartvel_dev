@@ -82,9 +82,9 @@ class DartvelMarkPainter extends CustomPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: <Color>[
-          Color(0xFF7A3BFF),
-          Color(0xFF2F6BFF),
-          Color(0xFF1FB6F5),
+          Color(0xFF7A2E10),
+          Color(0xFFB03E19),
+          Color(0xFFF0824B),
         ],
         stops: <double>[0, 0.55, 1],
       ).createShader(_bounds);

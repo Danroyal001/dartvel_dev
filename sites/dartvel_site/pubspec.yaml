@@ -110,11 +110,11 @@ dartvel:
     name: Dartvel
     shortName: Dartvel
     description: A Flutter app and its backend in one Dart project.
-    themeColor: "#2F6BFF"
-    backgroundColor: "#FFFFFF"
+    themeColor: "#B03E19"
+    backgroundColor: "#FFFCF8"
 
   # The launch splash takes its light colour from pwa.backgroundColor. The
   # dark one is the dark palette's page, so a phone in dark mode does not open
   # on a white screen before a dark site.
   splash:
-    darkColor: "#0A0D13"
+    darkColor: "#12100E"
