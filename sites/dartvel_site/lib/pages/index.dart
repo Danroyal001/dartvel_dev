@@ -42,7 +42,7 @@ Widget _heroSection(BuildContext context) {
   final bool narrow = context.screen.isMobile;
   const Widget copy = HeroCopy();
   return Section(
-    glow: true,
+    grain: true,
     children: <Widget>[
       // Two columns where there is room. On a phone the terminal follows the
       // buttons, so the proof is still the next thing a thumb reaches.
@@ -70,7 +70,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
         .modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 34, desktop: 50))
-          .fontWeight(FontWeight.w800)
+          .fontWeight(FontWeight.w700)
           .color(Palette.of(context).ink)
           .lineHeight(1.08)
           // The site's one h1.
@@ -115,7 +115,7 @@ Widget _heroTerminal(BuildContext context) {
   final palette = Palette.of(context);
   return Container(
     decoration: BoxDecoration(
-      color: const Color(0xFF0B1020),
+      color: Palette.deep,
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: palette.rule),
       boxShadow: <BoxShadow>[
@@ -157,7 +157,7 @@ Widget _heroTerminal(BuildContext context) {
                 'dartvel dev',
                 style: TextStyle(
                   color: Color(0xFF8A95AD),
-                  fontFamily: 'RobotoMono',
+                  fontFamily: 'JetBrainsMono',
                   fontSize: 12,
                 ),
               ),
@@ -170,7 +170,7 @@ Widget _heroTerminal(BuildContext context) {
           // type and what it answers are three different things.
           child: Typewriter(
             style: TextStyle(
-              fontFamily: 'RobotoMono',
+              fontFamily: 'JetBrainsMono',
               fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
               fontSize: 12.5,
               height: 1.75,

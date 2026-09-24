@@ -16,7 +16,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
       child: DVBox.list(<Widget>[
         Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('DARTVEL VS QT'),
             Heading(
