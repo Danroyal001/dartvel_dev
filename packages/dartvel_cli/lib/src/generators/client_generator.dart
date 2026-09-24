@@ -21,6 +21,7 @@ import 'account_generator.dart';
 import 'config_routes.dart';
 import 'annotation_args.dart';
 import 'function_body.dart';
+import '../modules/described_api.dart' show dvClassName;
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';
 import 'page_names.dart';
@@ -2885,15 +2886,34 @@ void startDartvelKiosk() {
   static String _modulesSource({
     required List<DVModuleMount> modules,
   }) {
+    // A module generated from a described API is reached as its calls
+    // rather than as a registry entry: it has no pages, no models and no
+    // backend, so DVModule is the one thing about it an application does
+    // not want. The specification writes DV.Modules.vendorErp.getOrder(...)
+    // and this is what makes that resolve.
+    final List<DVModuleMount> describedApis = modules
+        .where((DVModuleMount m) => m.kind == 'describedApi')
+        .toList();
     final StringBuffer out = StringBuffer()
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
       ..writeln('library dartvel_client_modules;')
       ..writeln()
-      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';")
+      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart';");
+    for (final DVModuleMount m in describedApis) {
+      out.writeln("import 'package:${m.packageName}/${m.packageName}.dart';");
+    }
+    out
       ..writeln()
       // Re-exported so everything that used to import this file for the
       // registration still finds it, the generated runtime included.
       ..writeln("export 'modules_data.g.dart' show registerDartvelModules;")
+      // The module's own types are not re-exported. This file reaches the
+      // barrel every page imports, and a module generated from somebody's
+      // document names its types after their domain: an Order, a Status, a
+      // Customer. One of those colliding with a model would be an ambiguous
+      // import in every page, and not one the application could fix. A page
+      // that wants to name the type imports the module's package, which it
+      // depends on already.
       ..writeln();
     if (modules.isEmpty) {
       out
@@ -2968,6 +2988,20 @@ void startDartvelKiosk() {
       ..writeln('extension DartvelModules on DVModuleRegistry {');
     for (final DVModuleMount m in modules) {
       final String getter = _moduleGetter(m.id);
+      if (m.kind == 'describedApi') {
+        final String api = '${dvClassName(m.id)}Api';
+        out
+          ..writeln('  /// The `${m.id}` API, generated from the document it')
+          ..writeln('  /// was added from and called over DV.Http.')
+          ..writeln('  ///')
+          ..writeln('  /// Its host is declared in the module\'s own pubspec')
+          ..writeln('  /// and installed by configureDartvelHttp, so a base')
+          ..writeln('  /// URL, a credential, a retry policy and a timeout')
+          ..writeln('  /// are configuration rather than code.')
+          ..writeln('  $api get $getter => const $api();')
+          ..writeln();
+        continue;
+      }
       out
         ..writeln('  /// The `${m.id}` module, mounted at `${m.mount}`.')
         ..writeln("  DVModule get $getter => this('${m.id}');")

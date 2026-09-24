@@ -297,7 +297,13 @@ Future<void> generate({
 
   // The hosts DV.Http sends to, which the client runtime and every server
   // role declare at startup.
-  HttpHostsGenerator.generate(root: root, http: httpHosts);
+  // The parent's hosts and every mounted module's, in one block: a module
+  // generated from a described API carries the host its calls go to, and a
+  // host nobody declared is DV-HTTP-001 on its first request.
+  HttpHostsGenerator.generate(
+    root: root,
+    http: HttpHostsGenerator.merge(http: httpHosts, modules: modules),
+  );
 
   // The scope registry, rate plans and OAuth settings, which the client and
   // the generated server both read.

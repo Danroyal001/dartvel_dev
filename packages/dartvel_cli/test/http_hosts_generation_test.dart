@@ -291,4 +291,87 @@ Future<int> handler() async {
       expect(_read(dir, 'http.g.dart'), contains('configureDartvelHttp'));
     });
   });
+
+  group('a mounted module declares its own hosts', () {
+    // A module generated from an OpenAPI document or a GraphQL schema
+    // carries the host its calls go to in its own pubspec. Nothing read it,
+    // so every call that module made met DV-HTTP-001 in a running
+    // application: the module was generated, mounted, imported and could not
+    // make one request.
+    void writeModule(Directory dir, String id, String host, String url) {
+      final File pubspec =
+          File(p.join(dir.path, 'modules', id, 'pubspec.yaml'));
+      pubspec.parent.createSync(recursive: true);
+      pubspec.writeAsStringSync('''
+name: $id
+publish_to: none
+environment:
+  sdk: ^3.9.0
+dartvel:
+  module:
+    id: $id
+    kind: describedApi
+  http:
+    hosts:
+      $host:
+        baseUrl: $url
+''');
+    }
+
+    void mount(Directory dir, List<String> ids) {
+      final File pubspec = File(p.join(dir.path, 'pubspec.yaml'));
+      final StringBuffer entries = StringBuffer('  modules:\n');
+      for (final String id in ids) {
+        entries.write('    $id:\n'
+            '      source:\n'
+            '        path: modules/$id\n'
+            '      mount: /$id\n');
+      }
+      pubspec.writeAsStringSync(
+          '${pubspec.readAsStringSync().trimRight()}\n$entries');
+    }
+
+    test('and the generated client installs them beside the parent\'s',
+        () async {
+      final Directory dir = project(_validHttp);
+      writeModule(dir, 'vendor', 'vendor', 'https://api.vendor.com');
+      mount(dir, <String>['vendor']);
+
+      await routes.generate(root_: dir.path);
+
+      final String generated = _read(dir, 'http.g.dart');
+      expect(generated, contains('paystack'));
+      expect(generated, contains('vendor'));
+      expect(generated, contains('https://api.vendor.com'));
+    });
+
+    test('a module whose host name the parent already uses stops the build',
+        () async {
+      // A host name decides a base URL and a credential. One quietly
+      // winning would send the parent's bearer token to the module's
+      // service, or the module's calls to the parent's.
+      final Directory dir = project(_validHttp);
+      writeModule(dir, 'vendor', 'paystack', 'https://api.vendor.com');
+      mount(dir, <String>['vendor']);
+
+      await expectLater(
+        routes.generate(root_: dir.path),
+        throwsA(isA<StateError>().having((StateError e) => e.message,
+            'message', allOf(contains('paystack'), contains('vendor')))),
+      );
+    });
+
+    test('two modules claiming one host name stop the build', () async {
+      final Directory dir = project(_validHttp);
+      writeModule(dir, 'alpha', 'shared', 'https://alpha.example.com');
+      writeModule(dir, 'beta', 'shared', 'https://beta.example.com');
+      mount(dir, <String>['alpha', 'beta']);
+
+      await expectLater(
+        routes.generate(root_: dir.path),
+        throwsA(isA<StateError>().having((StateError e) => e.message,
+            'message', allOf(contains('shared'), contains('beta')))),
+      );
+    });
+  });
 }
