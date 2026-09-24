@@ -194,10 +194,13 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Model Sync and Presence': 'Partial',
   'Models': 'Shipped',
   'Module Distribution and Trust': 'Partial',
+  'Module Health': 'Designed',
+  'Module Sources': 'Designed',
   'Modules': 'Partial',
   'Monitoring and Observability': 'Partial',
   'Multi-tenancy': 'Partial',
   'Multi-Window': 'Partial',
+  'Native Binding Graph': 'Designed',
   'Offline-First Models': 'Partial',
   'OTA Updates': 'Partial',
   'Outbound HTTP': 'Partial',
@@ -517,12 +520,22 @@ Widget _docsStatus(
 }) {
   final Palette palette = Palette.of(context);
   final String status = kDocsSpecStatus[section] ?? 'Unknown';
-  final bool partial = status != 'Shipped';
+  final bool built = status == 'Shipped';
+  // Three states, not two. A Designed section has no code at all, and
+  // labelling it Partial would claim some -- which is the overclaim this
+  // badge exists to prevent rather than to commit.
+  final bool designed = status == 'Designed';
+  final bool partial = !built;
   final List<String> gaps = missing;
   return DVBox(
     DVBox.list(<Widget>[
       DVBox.wrapLine(<Widget>[
-        DVText(partial ? 'Partial' : 'Built').modifier(const DVModifier()
+        DVText(designed
+                ? 'Designed'
+                : built
+                    ? 'Built'
+                    : 'Partial')
+            .modifier(const DVModifier()
             .fontSize(12)
             .fontWeight(FontWeight.w700)
             .color(partial ? palette.ink : palette.accent)
