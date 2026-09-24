@@ -16,6 +16,10 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../../dartvel.dart';
+// The record layer directly: the public barrel hides it, because a model is
+// the surface and the table under one is not. Erasure walks the table,
+// because a subject's rows have to go whether or not the model is loadable.
+import '../data/record_history.dart';
 import '../database/framework_tables.dart' show dvEnsureFrameworkTable;
 
 enum _DVSubjectKind { self, field, through }

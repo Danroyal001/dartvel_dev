@@ -12,6 +12,9 @@
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and a test of it
+// does.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 const DVConsentCategory product = DVConsentCategory('product');

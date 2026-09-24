@@ -1,5 +1,7 @@
 import 'dart:io';
 
+// The record layer is the framework's, not an application's.
+import 'package:dartvel_core/framework.dart' show DVRecordTable;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDatabaseAdapter,
@@ -8,7 +10,6 @@ import 'package:dartvel_core/dartvel.dart'
         DVPrivacy,
         DVPrivacyFinding,
         DVPrivacyModel,
-        DVRecordTable,
         DVRetain,
         DVRetention,
         DVRetentionAction,
@@ -393,6 +394,10 @@ class DVPrivacyDeclarations {
       ..writeln('// ignore_for_file: prefer_const_constructors')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';")
+      // The record layer, which is generated code's to name and not an
+      // application's: erasure walks a model's table directly because a
+      // subject's rows have to go whether or not the model is loadable.
+      ..writeln("import 'package:dartvel_core/framework.dart';")
       ..writeln()
       ..writeln('/// Every model that declares a subject path, a retention or a')
       ..writeln('/// sensitive field, as the privacy walk sees it, over [database].')

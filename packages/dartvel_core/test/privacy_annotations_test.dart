@@ -7,6 +7,9 @@
 // the walk could not apply is refused where it is declared rather than
 // discovered by a sweep that deletes nothing.
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and a test of it
+// does.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 void main() {
