@@ -12,7 +12,15 @@
 /// should be able to hand a table a write from outside.
 library;
 
+import '../../dartvel.dart' show DVAuthAuthorization;
+import '../admin/studio_api.dart';
+import '../auth/backend_policy.dart';
+import '../database/adapter.dart';
+import '../observability/observability.dart';
+import '../schema/generated_schema.dart' show dvTenantColumn;
+import '../tenancy/tenants.dart';
 import 'offline_store.dart';
+import 'record_history.dart';
 
 /// What the route answers.
 ///
@@ -46,6 +54,98 @@ class DVOfflineReplay {
   /// connection and somebody else's database open for as long as the sender
   /// likes.
   static const int maxMutations = 500;
+
+  /// The route the generated backend serves this on, under the API base path.
+  static const String path = '/offline/replay';
+
+  /// The registry the generated backend builds, from the specs it already
+  /// has for Studio.
+  ///
+  /// Only the specs that declare a strategy. The backend cannot import
+  /// models.g.dart -- that file imports Flutter -- so a remote is resolved
+  /// from the spec's table, key, columns, sensitive fields, tenancy,
+  /// versioning and soft delete rather than from the model class.
+  factory DVOfflineReplay.forSpecs(
+    List<DVStudioModelSpec> specs, {
+    required DVDatabaseAdapter database,
+  }) {
+    final Map<String, DVOfflineRemote> remotes = <String, DVOfflineRemote>{};
+    for (final DVStudioModelSpec spec in specs) {
+      final DVConflict? strategy = spec.offline;
+      if (strategy == null) continue;
+      remotes[spec.id] = DVRecordTableRemote(
+        DVRecordTable(
+          table: spec.table,
+          key: spec.key,
+          columns: <String>[
+            if (spec.tenantScoped) dvTenantColumn,
+            for (final DVStudioFieldSpec field in spec.fields) field.name,
+          ],
+          sensitive: <String>{
+            for (final DVStudioFieldSpec field in spec.fields)
+              if (field.sensitive) field.name,
+          },
+          versioned: spec.versioned,
+          softDelete: spec.softDelete,
+          // The same scope every other read and write on this table carries.
+          // Read when the statement runs, not captured once.
+          scope: spec.tenantScoped
+              ? DVRecordScope(dvTenantColumn, const DVTenants().currentTenant)
+              : null,
+          database: database,
+        ),
+        strategy: strategy,
+        authorize: (DVMutation mutation) =>
+            _authorized(spec, mutation, database),
+      );
+    }
+    return DVOfflineReplay(remotes);
+  }
+
+  /// Whether the caller may make this change, asked of the model's policy.
+  ///
+  /// The server has no model class, so the policy is asked with the values.
+  /// A policy written for the model's own type does not accept those and
+  /// refuses, saying so once -- which is the same default-deny the rest of
+  /// the generated server gives a policy it cannot reach, and is why a model
+  /// that has to work offline needs its policy written against dartvel_core.
+  static Future<bool> _authorized(
+    DVStudioModelSpec spec,
+    DVMutation mutation,
+    DVDatabaseAdapter database,
+  ) async {
+    try {
+      final DVRecord? stored = await DVRecordTable(
+        table: spec.table,
+        key: spec.key,
+        columns: <String>[
+          for (final DVStudioFieldSpec field in spec.fields) field.name,
+        ],
+        database: database,
+      ).read(mutation.key, withDeleted: true);
+      final String action = mutation.isDelete
+          ? '${spec.model}.delete'
+          : stored == null
+              ? '${spec.model}.create'
+              : '${spec.model}.update';
+      // Awaited inside the try, or the future escapes it and a policy that
+      // throws asynchronously is an error on the way out rather than the
+      // refusal the catch below is here to make it.
+      return await const DVAuthAuthorization().canAction(
+        DVBackendPolicy.callerFor(action),
+        action,
+        resource: stored?.values ?? mutation.values,
+      );
+    } catch (error) {
+      // Default deny. A policy that could not be reached, or a read that
+      // failed on the way to asking it, has not said yes.
+      DVObservability.logger.warn(
+        'Replay authorization for ${spec.model} could not decide, so it '
+        'refused: $error',
+      );
+      return false;
+    }
+  }
 
   Future<DVOfflineReplayResult> handle(Object? body) async {
     if (body is! Map<Object?, Object?>) {
