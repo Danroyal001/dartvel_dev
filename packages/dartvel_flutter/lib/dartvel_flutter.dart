@@ -2778,14 +2778,7 @@ class _DVRevealState extends State<_DVReveal> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _check());
     }
 
-    return NotificationListener<ScrollNotification>(
-      // False: this is watching, not consuming. True would stop the
-      // notification reaching the scrollbar and any reveal above it.
-      onNotification: (ScrollNotification notification) {
-        _check();
-        return false;
-      },
-      child: AnimatedSlide(
+    final Widget animated = AnimatedSlide(
         offset: _shown ? Offset.zero : const Offset(0, 0.26),
         duration: const Duration(milliseconds: 620),
         curve: Curves.easeOutCubic,
@@ -2799,8 +2792,23 @@ class _DVRevealState extends State<_DVReveal> {
           // section the reader has not reached.
           alwaysIncludeSemantics: true,
           child: widget.child,
-        ),
-      ),
+        ));
+
+    // Watched only while there is something to find out. A revealed section
+    // that kept listening would ask the render tree for its position on
+    // every scroll notification, for as long as the page is open, to answer
+    // a question that was settled once; a long page is a dozen of them, and
+    // the reader is scrolling at the time.
+    if (_shown) return animated;
+
+    return NotificationListener<ScrollNotification>(
+      // False: this is watching, not consuming. True would stop the
+      // notification reaching the scrollbar and any reveal above it.
+      onNotification: (ScrollNotification notification) {
+        _check();
+        return false;
+      },
+      child: animated,
     );
   }
 }
