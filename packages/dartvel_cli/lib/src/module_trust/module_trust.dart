@@ -475,12 +475,17 @@ void _checkPin(
   } on DVModuleDigestException catch (e) {
     add('DV-MODULE-004', '${m.packageName}: ${e.message}');
   }
-  if (digest != null && digest != pin.sha256) {
+  // Against the digest the pin actually carries. A pub.dev module is pinned
+  // by its archive and a foreign one by the wrapper generated from its
+  // source, and comparing the second against sha256 would compare it against
+  // nothing -- reporting every foreign module as substituted for having
+  // exactly the bytes it was pinned with.
+  if (digest != null && digest != pin.pinnedDigest) {
     add(
       'DV-MODULE-004',
       '${m.packageName}\'s digest is $digest and the '
-          'lockfile pins ${pin.sha256}. The installed bytes are not the ones '
-          'that were reviewed.',
+          'lockfile pins ${pin.pinnedDigest}. The installed bytes are not the '
+          'ones that were reviewed.',
     );
   }
 
