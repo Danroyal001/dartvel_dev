@@ -23,6 +23,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../modules/graphql_module.dart';
 import '../modules/openapi_module.dart';
 import '../modules/source_detection.dart';
 import '../utils/logger.dart';
@@ -93,8 +94,7 @@ class DVAddPlan {
     }
     return <String>[
       'module   $id',
-      'from     $from  (an OpenAPI document, generated into a pure Dart '
-          'module)',
+      'from     $from  (a described API, generated into a pure Dart module)',
       'mount    $mount',
       'package  $packageName',
       'host     ${module.host}, declared in the generated pubspec',
@@ -111,6 +111,9 @@ class AddCommand extends Command<void> {
     argParser
       ..addOption('as', help: 'The id the parent knows the module by.')
       ..addOption('mount', help: 'Where the parent serves it.')
+      ..addOption('url',
+          help: 'The endpoint a described API is called at. Required for a '
+              'GraphQL schema, which names no server of its own.')
       ..addFlag('dry-run',
           negatable: false,
           help: 'Print the installation plan and change nothing.');
@@ -137,7 +140,8 @@ class AddCommand extends Command<void> {
     final String target = root ?? Directory.current.path;
     final DVAddPlan plan = planFor(target, rest.single,
         id: argResults?['as'] as String?,
-        mount: argResults?['mount'] as String?);
+        mount: argResults?['mount'] as String?,
+        url: argResults?['url'] as String?);
 
     for (final String line in plan.lines) {
       Logger.log('  $line');
@@ -158,6 +162,7 @@ class AddCommand extends Command<void> {
     String source, {
     String? id,
     String? mount,
+    String? url,
   }) {
     final int colon = source.indexOf(':');
     // A Windows drive letter is not a scheme, and neither is a bare path.
@@ -189,7 +194,8 @@ class AddCommand extends Command<void> {
       case DVSourceKind.dartvel:
         break;
       case DVSourceKind.describedApi:
-        return _describedApiPlan(root, source, dir, id: id, mount: mount);
+        return _describedApiPlan(root, source, dir,
+            id: id, mount: mount, url: url);
       case DVSourceKind.apple:
       case DVSourceKind.jvm:
       case DVSourceKind.rust:
@@ -249,13 +255,14 @@ class AddCommand extends Command<void> {
     Directory dir, {
     String? id,
     String? mount,
+    String? url,
   }) {
-    final File? document = _openApiDocumentIn(dir);
+    final File? document = _describedApiDocumentIn(dir);
     if (document == null) {
       throw DVAddRefused(
-        '$source holds a described API this cannot read yet. OpenAPI is '
-        'built; a GraphQL schema or a .proto is specified in Module Sources '
-        'and is not, so nothing was written.',
+        '$source holds a described API this cannot read yet. OpenAPI and '
+        'GraphQL are built; a .proto is specified in Module Sources and is '
+        'not, so nothing was written.',
       );
     }
 
@@ -269,12 +276,29 @@ class AddCommand extends Command<void> {
       );
     }
 
+    final bool isGraphQl = const <String>{'.graphql', '.graphqls', '.gql'}
+        .contains(p.extension(document.path).toLowerCase());
+    if (isGraphQl && (url == null || url.isEmpty)) {
+      throw DVAddRefused(
+        '${p.relative(document.path, from: root)} is a GraphQL schema, and a '
+        'schema names no server of its own. Pass --url with the endpoint to '
+        'post to, such as --url https://api.vendor.com/graphql.',
+      );
+    }
+
     final DVGeneratedModule module;
     try {
-      module = dvGenerateDescribedApiModule(
-        document: _documentIn(document),
-        moduleId: resolved,
-      );
+      module = isGraphQl
+          ? dvGenerateGraphQlModule(
+              schema: document.readAsStringSync(),
+              moduleId: resolved,
+              url: url!,
+            )
+          : dvGenerateDescribedApiModule(
+              document: _documentIn(document),
+              moduleId: resolved,
+              baseUrl: url,
+            );
     } on DVDescribedApiRefused catch (error) {
       throw DVAddRefused(
         '${p.relative(document.path, from: root)}: ${error.message}',
@@ -303,13 +327,23 @@ class AddCommand extends Command<void> {
 
   /// The document in [dir], or null when what is there is a described API
   /// this does not read.
-  static File? _openApiDocumentIn(Directory dir) {
-    final RegExp named = RegExp(r'^openapi\.(json|ya?ml)$', caseSensitive: false);
+  ///
+  /// OpenAPI first, because a project holding both is one whose HTTP surface
+  /// is the one to generate against: a schema beside it is usually the
+  /// service's own, not the one a client calls.
+  static File? _describedApiDocumentIn(Directory dir) {
+    final RegExp openApi =
+        RegExp(r'^openapi\.(json|ya?ml)$', caseSensitive: false);
+    final RegExp graphQl =
+        RegExp(r'\.(graphqls?|gql)$', caseSensitive: false);
+    File? schema;
     for (final FileSystemEntity entity in dir.listSync()) {
       if (entity is! File) continue;
-      if (named.hasMatch(p.basename(entity.path))) return entity;
+      final String name = p.basename(entity.path);
+      if (openApi.hasMatch(name)) return entity;
+      if (schema == null && graphQl.hasMatch(name)) schema = entity;
     }
-    return null;
+    return schema;
   }
 
   /// The document, decoded. JSON is YAML, so one reader answers both, but a

@@ -207,7 +207,7 @@ void main() {
 
   group('an OpenAPI document', () {
     /// A directory holding a document, beside the parent.
-    String _describedApi(String root, {String name = 'openapi.yaml'}) {
+    String describedApi(String root, {String name = 'openapi.yaml'}) {
       final Directory dir = Directory(p.join(root, 'vendor_api'))
         ..createSync(recursive: true);
       File(p.join(dir.path, name)).writeAsStringSync('''
@@ -244,7 +244,7 @@ components:
 
     test('becomes a module package the parent mounts', () async {
       final String root = _project();
-      _describedApi(root);
+      describedApi(root);
 
       expect(await _run(root, <String>['vendor_api', '--as', 'vendorErp']), 0);
 
@@ -286,7 +286,7 @@ components:
 
     test('--dry-run writes no package and no mount', () async {
       final String root = _project();
-      _describedApi(root);
+      describedApi(root);
       final String before = _pubspec(root);
 
       expect(
@@ -302,7 +302,7 @@ components:
       // The directory may hold work somebody did, and a generator that
       // overwrote it would take it with no way back.
       final String root = _project();
-      _describedApi(root);
+      describedApi(root);
       Directory(p.join(root, 'modules', 'vendor_erp'))
           .createSync(recursive: true);
       File(p.join(root, 'modules', 'vendor_erp', 'keep.txt'))
@@ -358,16 +358,108 @@ components:
 
     test('the plan says what will be written before it is', () async {
       final String root = _project();
-      _describedApi(root);
+      describedApi(root);
 
       final DVAddPlan plan =
           AddCommand.planFor(root, 'vendor_api', id: 'vendorErp');
 
       expect(plan.lines.join('\n'), contains('modules/vendor_erp'));
-      expect(plan.lines.join('\n'), contains('OpenAPI'));
+      expect(plan.lines.join('\n'), contains('a described API'));
       // Nothing was written by planning it.
       expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
     });
+  });
+
+  group('a GraphQL schema', () {
+    void writeSchema(String root) {
+      final Directory dir = Directory(p.join(root, 'vendor_api'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'schema.graphql')).writeAsStringSync('''
+type Query {
+  order(id: ID!): Order
+}
+
+type Order {
+  id: ID!
+  total: Float
+}
+''');
+    }
+
+    test('becomes a module when it is told where to post', () async {
+      // A schema does not name its own server, so the endpoint is the one
+      // thing that cannot be read out of the document.
+      final String root = _project();
+      writeSchema(root);
+
+      expect(
+        await _run(root, <String>[
+          'vendor_api',
+          '--as',
+          'vendorErp',
+          '--url',
+          'https://api.vendor.com/graphql',
+        ]),
+        0,
+      );
+
+      final String library =
+          File(p.join(root, 'modules', 'vendor_erp', 'lib', 'vendor_erp.dart'))
+              .readAsStringSync();
+      expect(library, contains('Future<OrderResult?> order('));
+      expect(library, contains("const String endpoint = '/graphql';"));
+      expect(_pubspec(root), contains('path: modules/vendor_erp'));
+    });
+
+    test('without --url it is refused, and says what is missing', () async {
+      final String root = _project();
+      writeSchema(root);
+      final String before = _pubspec(root);
+
+      late final DVAddRefused refused;
+      try {
+        AddCommand.planFor(root, 'vendor_api', id: 'vendorErp');
+        fail('a schema with no endpoint is not enough to generate a client');
+      } on DVAddRefused catch (e) {
+        refused = e;
+      }
+
+      expect(refused.message, contains('--url'));
+      expect(_pubspec(root), before);
+      expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
+    });
+  });
+
+  test('--url overrides the server an OpenAPI document names', () async {
+    // A document published with its production server, used against a
+    // staging one. Editing the document would be editing somebody else's
+    // file.
+    final String root = _project();
+    final Directory dir = Directory(p.join(root, 'vendor_api'))
+      ..createSync(recursive: true);
+    File(p.join(dir.path, 'openapi.json')).writeAsStringSync(
+      '{"openapi":"3.0.3","info":{"title":"Vendor"},'
+      '"servers":[{"url":"https://api.vendor.com"}],'
+      '"paths":{"/ping":{"get":{"operationId":"ping",'
+      '"responses":{"204":{}}}}}}',
+    );
+
+    expect(
+      await _run(root, <String>[
+        'vendor_api',
+        '--as',
+        'vendor',
+        '--url',
+        'https://staging.vendor.com',
+      ]),
+      0,
+    );
+
+    expect(
+      File(p.join(root, 'modules', 'vendor', 'pubspec.yaml'))
+          .readAsStringSync(),
+      contains('baseUrl: "https://staging.vendor.com"'),
+    );
   });
 
   test('a plain Dart package is sent to dart pub add', () async {
