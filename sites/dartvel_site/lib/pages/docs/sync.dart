@@ -117,7 +117,13 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('offline-server'),
             Bullets(<String>[
+              'Every replayed mutation is put to the data model\'s policy '
+                  'first: create, update or delete, the same question an '
+                  'online write asks. A policy that refuses, or that cannot '
+                  'answer, refuses the write.',
               'A resent write is recognised by its mutation id and applied once.',
+              'A refusal is remembered with the mutation id, so a device '
+                  'resending one it was refused does not get a second answer.',
               'Last write wins by the time the write was made on the device, '
                   'corrected for clock drift. Arrival order does not decide.',
               'DVConflict.ask is refused offline, because nobody is there to '

@@ -3022,7 +3022,19 @@ model states once, so neither can drift from the other or from the model;
 `DVRecordTableRemote` is the framework's and is not in the barrel an
 application imports. `DVConflict.ask` stops the build, because a write made
 with no network has nobody to ask and would otherwise fail only on somebody's
-phone. What is not built is the sentence above it: `order.save` does not
+phone.
+
+Every replayed mutation is put to the model's policy before anything is
+written. Replay is the one write path where the server is handed a change
+that nothing on the server decided to make: it was made on a device, possibly
+days ago, possibly by somebody whose access has since been withdrawn, and it
+names its own table and key. Applying it because it arrived is the same as
+having no authorization on the route that carries it. The action is `create`,
+`update` or `delete` as the stored row decides, asked the same way an online
+write asks, and a policy that refuses or that cannot answer refuses the
+write. The refusal is recorded against the mutation id, so a device resending
+one it was refused does not get a second answer from a policy that has since
+changed. What is not built is the sentence above it: `order.save` does not
 route through the local store on its own, so writing offline is still a call
 on the store, and `encrypt:` is not applied.
 
