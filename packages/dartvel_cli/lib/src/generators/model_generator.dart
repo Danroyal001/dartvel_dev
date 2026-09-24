@@ -1543,6 +1543,37 @@ class ModelGenerator {
           sb.writeln('      DVRecordTableRemote(');
           sb.writeln('        _dvOfflineTable(database),');
           sb.writeln('        strategy: DVConflict.$offlineStrategy,');
+          // The same question an online write asks, asked per mutation.
+          // Replay is handed a change nothing on the server decided to
+          // make: made on a device, possibly days ago, possibly by somebody
+          // whose access has since been withdrawn, and naming its own key.
+          sb.writeln('        authorize: (DVMutation mutation) async {');
+          sb.writeln(
+            "          final $className? stored = await find('\${mutation.key}');",
+          );
+          sb.writeln('          final String action = mutation.isDelete');
+          sb.writeln("              ? '$className.delete'");
+          sb.writeln('              : stored == null');
+          sb.writeln("                  ? '$className.create'");
+          sb.writeln("                  : '$className.update';");
+          sb.writeln('          try {');
+          sb.writeln('            await DVGraphQL.authorizeModel(');
+          sb.writeln('              action,');
+          // The stored record for a delete or an update; for a create there
+          // is nothing stored, so the policy is asked about the candidate.
+          sb.writeln('              resource: stored ??');
+          sb.writeln('                  (mutation.isDelete');
+          sb.writeln('                      ? null');
+          sb.writeln('                      : _fromRow(mutation.values)),');
+          sb.writeln('              user: const DVAuth().currentUser,');
+          sb.writeln('            );');
+          sb.writeln('            return true;');
+          sb.writeln('          } catch (_) {');
+          // A refusal is a refusal. Letting DVGraphQLForbidden escape would
+          // stop replay as a transient failure and resend for ever.
+          sb.writeln('            return false;');
+          sb.writeln('          }');
+          sb.writeln('        },');
           sb.writeln('        validate: validate,');
           sb.writeln('      );');
           sb.writeln();

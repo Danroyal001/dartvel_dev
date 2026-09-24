@@ -61,6 +61,24 @@ void main() {
     expect(content, contains('DVConflict.lastWriteWins'));
   });
 
+  test('the server side asks the model\'s policy, per mutation', () async {
+    // Replay is the one write path where the server is handed a change that
+    // nothing on the server decided to make. Before this, Model.offlineRemote
+    // applied a device's queued writes with at most a synchronous look at
+    // the values -- and a queued delete was not even given that.
+    final String content = await generated(
+      '@DVModel(offline: DVConflict.lastWriteWins)',
+    );
+
+    expect(content, contains('authorize: (DVMutation mutation) async {'));
+    // The same three actions an online write asks about, chosen the same way.
+    expect(content, contains("'Order.delete'"));
+    expect(content, contains("'Order.update'"));
+    expect(content, contains("'Order.create'"));
+    // And a refusal is a refusal, not an exception that escapes replay.
+    expect(content, contains('return false;'));
+  });
+
   test('a model that did not ask for it has neither', () async {
     final String content = await generated('@DVModel()');
 
