@@ -12,7 +12,7 @@ Widget _indexPageError(BuildContext context) => DVBox.list(<Widget>[
       const DVText('Go back').modifier(
         const DVModifier()
             .padding(12)
-            .rounded(8)
+            .rounded(10)
             .backgroundColor(Colors.black)
             .color(Colors.white)
             .onPressed(() => Navigator.of(context).pop()),

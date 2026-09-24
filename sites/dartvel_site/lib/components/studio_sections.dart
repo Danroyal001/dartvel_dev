@@ -131,7 +131,7 @@ Widget _studioSectionShot(
     DVBox.list(<Widget>[
       StudioShot(asset, alt),
       DVText(label).modifier(const DVModifier()
-          .fontSize(16)
+          .fontSize(17)
           .fontWeight(FontWeight.w700)
           .color(Palette.of(context).ink)),
       DVText(summary).modifier(const DVModifier()
