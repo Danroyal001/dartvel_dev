@@ -177,8 +177,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Module Sources',
     'dartvel add',
-    'Present: the lockfile pins a foreign source and the graph reports it. '
-        'Absent: the resolver, so nothing is generated.',
+    'Present: dartvel add mounts a Dartvel project, and generates a module '
+        'from a local OpenAPI document. Absent: every other resolver, so a '
+        'crate or an artifact is named and refused.',
   ),
   (
     'Native Binding Graph',
