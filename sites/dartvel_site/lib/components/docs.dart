@@ -378,7 +378,7 @@ Widget _docsArticle(
             DVBox.list(<Widget>[
               Eyebrow((info?.group ?? 'Docs').toUpperCase()),
               DVText(info?.title ?? '').modifier(const DVModifier()
-                  .fontSize(context.screen.value<double>(mobile: 30, desktop: 40))
+                  .fontSize(context.screen.value<double>(mobile: 30, desktop: 38))
                   .fontWeight(FontWeight.w700)
                   .color(palette.ink)
                   .lineHeight(1.15)
@@ -438,7 +438,7 @@ Widget _docsSection(
   final Palette palette = Palette.of(context);
   return DVBox.list(<Widget>[
     DVText(title).modifier(const DVModifier()
-        .fontSize(context.screen.value<double>(mobile: 22, desktop: 26))
+        .fontSize(context.screen.value<double>(mobile: 20, desktop: 24))
         .fontWeight(FontWeight.w700)
         .color(palette.ink)
         .lineHeight(1.25)
@@ -451,7 +451,7 @@ Widget _docsSection(
 @DVFunctionalWidget()
 Widget _docsSubheading(BuildContext context, String text) =>
     DVText(text).modifier(const DVModifier()
-        .fontSize(18)
+        .fontSize(17)
         .fontWeight(FontWeight.w700)
         .color(Palette.of(context).ink)
         .semanticHeading(3));
@@ -460,7 +460,7 @@ Widget _docsSubheading(BuildContext context, String text) =>
 @DVFunctionalWidget()
 Widget _docsText(BuildContext context, String text) =>
     DVText(text).modifier(const DVModifier()
-        .fontSize(16)
+        .fontSize(17)
         .color(Palette.of(context).muted)
         .lineHeight(1.6)
         .maxWidth(680));
@@ -683,7 +683,7 @@ Widget _docsNav(
                   ExcludeSemantics(
                     child: DVText(openGroup.value == group ? '−' : '+')
                         .modifier(const DVModifier()
-                            .fontSize(18)
+                            .fontSize(17)
                             .fontWeight(FontWeight.w600)
                             .color(palette.faint)),
                   ),

@@ -69,7 +69,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     const DVText('Ship a Flutter app and its backend from one Dart project.')
         .modifier(
       const DVModifier()
-          .fontSize(context.screen.value<double>(mobile: 34, desktop: 50))
+          .fontSize(context.screen.value<double>(mobile: 30, desktop: 50))
           .fontWeight(FontWeight.w700)
           .color(Palette.of(context).ink)
           .lineHeight(1.08)
@@ -172,7 +172,7 @@ Widget _heroTerminal(BuildContext context) {
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
-              fontSize: 12.5,
+              fontSize: 13,
               height: 1.75,
               color: Color(0xFFD7E1F5),
             ),
@@ -224,7 +224,7 @@ Widget _heroTerminal(BuildContext context) {
 Widget _proof(BuildContext context) => const Section(
   tint: true,
   children: <Widget>[
-    Eyebrow('MODELS'),
+    Eyebrow('DATA MODELS'),
     Heading('Write one class. Get its form, table, admin and typed client.'),
     CodeBlock(<String>[
       '@DVModel(generatePublicPages: true)',

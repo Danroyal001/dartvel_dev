@@ -76,9 +76,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             CodeBlock(<String>[
               'export DARTVEL_UPDATES_TOKEN=\\',
               '\$DARTVEL_CLOUD_TOKEN',
-              'src=https://cloud.dartvel.dev/updates',
+              'u=https://cloud.dartvel.dev/updates',
               'dartvel updates patch \\',
-              '  --patch-source \$src/<account>/<app>',
+              '  --patch-source \$u/<account>/<app>',
             ]),
           ],
         ),
