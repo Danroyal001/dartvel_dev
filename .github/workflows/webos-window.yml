@@ -75,7 +75,7 @@ jobs:
 
       - name: Install the cross toolchain, the emulator and a compositor
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           # Host tools and armhf libraries are installed separately, on
           # purpose. Asked for together, apt has to find one solution
@@ -219,7 +219,7 @@ jobs:
 
       - name: Run it in a window and photograph it
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           # Before weston, not after. Weston creates its socket inside
           # XDG_RUNTIME_DIR, so starting it first meant the socket landed

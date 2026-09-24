@@ -90,6 +90,14 @@ jobs:
       # "Flutter's Laravel" then says Python. A rule nothing checks drifts.
       - run: dart run tool/ci/no_python_check.dart
 
+      # GitHub runs every step as `bash -e {0}`, so `set -uo pipefail` adds
+      # two options and leaves errexit exactly where it was -- while reading
+      # as though it had turned it off. The Linux GUI capture died on that
+      # for three runs: a grep that matched nothing failed a pipeline inside
+      # a variable assignment, and the -e nobody thought was on killed the
+      # shell before the line that would have said so.
+      - run: dart run tool/ci/workflow_errexit_check.dart
+
       # The security documents are worth reading because they name files --
       # this is where the password hasher lives, this is the filter deciding
       # what reaches a browser. Naming them is also how they rot: rename one
