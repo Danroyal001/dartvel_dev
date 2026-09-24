@@ -43,6 +43,16 @@ Map<String, Object?> _mutation({
       'correctedTime': DateTime.utc(2026).toIso8601String(),
     };
 
+const DVStudioModelSpec _invoice = DVStudioModelSpec(
+  model: 'Invoice',
+  table: 'invoices',
+  key: 'id',
+  module: 'billing',
+  data: DVModuleData('billing'),
+  offline: DVConflict.lastWriteWins,
+  fields: <DVStudioFieldSpec>[DVStudioFieldSpec(name: 'id', type: 'String')],
+);
+
 void main() {
   late MemoryDVDatabaseAdapter database;
   late DVRecordTable table;
@@ -246,6 +256,122 @@ void main() {
           (result.body['outcomes']! as List<Object?>).single!
               as Map<String, Object?>;
       expect(outcome['rejection'], 'refused by authorization');
+    });
+
+    test('under a schema per tenant the write goes to the tenant schema', () {
+      // The hole dvTenantTable exists to close, in the one place that takes
+      // writes from a device: the replay built its table from the model's
+      // bare name, so a tenant whose separation is a schema replayed onto
+      // the shared table and every row landed where nobody was looking.
+      dvRegisterTenantScopedTables(<String>{'orders'});
+      const DVTenants().configure(isolation: DVTenantIsolation.schemaPerTenant);
+      addTearDown(
+        () => const DVTenants().configure(
+          isolation: DVTenantIsolation.sharedDatabase,
+        ),
+      );
+
+      final DVRecordTableRemote remote = const DVTenants().withTenant(
+        'acme',
+        () =>
+            DVOfflineReplay.forSpecs(
+                  <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+                  database: database,
+                ).remotes['Order']!
+                as DVRecordTableRemote,
+      );
+
+      expect(remote.table.table, 'dartvel_acme.orders');
+    });
+
+    test('a module model is replayed onto the table its mount gave it', () {
+      // A module mounted with its own schema names its tables through the
+      // mount. Studio reads that name; a replay that wrote the bare one
+      // would be writing to a table the module never reads, and the module
+      // would come back up to find the device's week of work missing.
+      dvModuleRegistry.resetForTesting();
+      addTearDown(dvModuleRegistry.resetForTesting);
+      dvModuleRegistry.register(
+        id: 'billing',
+        mountPath: '/billing',
+        config: const <String, Object?>{
+          'deployment': 'embedded',
+          'data': 'schema-isolated',
+        },
+      );
+
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[_invoice],
+        database: database,
+      );
+
+      final DVRecordTableRemote remote =
+          replay.remotes['billing.Invoice']! as DVRecordTableRemote;
+      expect(remote.table.table, 'billing_invoices');
+    });
+
+    test('a module that owns its database is replayed into that one', () {
+      // Not the application's. A module mounted database-isolated keeps its
+      // rows somewhere else entirely, and a replay that used the adapter the
+      // route resolved would create the module's table in the parent and
+      // write a device's queue into it.
+      dvModuleRegistry.resetForTesting();
+      addTearDown(dvModuleRegistry.resetForTesting);
+      final MemoryDVDatabaseAdapter own = MemoryDVDatabaseAdapter();
+      dvModuleRegistry.register(
+        id: 'billing',
+        mountPath: '/billing',
+        config: const <String, Object?>{'data': 'database-isolated'},
+      ).useDatabase(own);
+
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[_invoice],
+        database: database,
+      );
+
+      final DVRecordTableRemote remote =
+          replay.remotes['billing.Invoice']! as DVRecordTableRemote;
+      expect(identical(remote.table.database, own), isTrue);
+    });
+
+    test('a remote module is not in the registry at all', () {
+      // Its deployment owns its data and this process cannot reach it.
+      // Resolving its table throws rather than guessing, and a registry that
+      // let that escape would answer the whole batch with a server error
+      // instead of refusing the one model it cannot apply.
+      dvModuleRegistry.resetForTesting();
+      addTearDown(dvModuleRegistry.resetForTesting);
+      dvModuleRegistry.register(
+        id: 'billing',
+        mountPath: '/billing',
+        config: const <String, Object?>{'data': 'remote'},
+      );
+
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[_invoice],
+        database: database,
+      );
+
+      expect(replay.remotes, isEmpty);
+    });
+
+    test('every replayed column has a declared type', () {
+      // A record table with no types makes untyped columns when it creates
+      // the table, and an untyped column in SQLite takes whatever it is
+      // given. The generated model declares every field column TEXT and
+      // Studio writes the same table, so the replay route has to agree with
+      // both or it is writing a different shape into the same rows.
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[
+          spec(offline: DVConflict.lastWriteWins, tenantScoped: true),
+        ],
+        database: database,
+      );
+
+      final DVRecordTableRemote remote =
+          replay.remotes['Order']! as DVRecordTableRemote;
+      expect(remote.table.types, isNotNull);
+      expect(remote.table.types!.keys, containsAll(remote.table.columns));
     });
 
     test('nothing offline means an empty registry, not an open door', () {

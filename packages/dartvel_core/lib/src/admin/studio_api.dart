@@ -114,6 +114,37 @@ class DVStudioModelSpec {
   /// The plain table name; the tenant's schema is resolved per request.
   final String table;
 
+  /// The table this model's rows are actually in, for this request.
+  ///
+  /// Two different resolutions, and a caller that skips either writes rows
+  /// where nobody reads them: a tenant whose separation is a schema keeps
+  /// its rows in that schema, and a module's tables are named by the mount
+  /// rather than by the model. Every server-side reader and writer of a
+  /// spec's table goes through here so the two cannot drift apart -- Studio
+  /// and the route that replays a device's offline writes read and write
+  /// the same rows or one of them is silently alone.
+  ///
+  /// Throws [StateError] for a module mounted remotely: its deployment owns
+  /// its data and this process has no table to name.
+  String get resolvedTable =>
+      data == null ? dvTenantTable(table) : data!.table(table);
+
+  /// The database this model's rows are in, or [fallback] for the
+  /// application's own models and for a module sharing the parent's data.
+  ///
+  /// Throws [StateError] for a module mounted remotely, and for one mounted
+  /// with its own database before anything gave it one.
+  DVDatabaseAdapter resolvedDatabase(DVDatabaseAdapter fallback) {
+    final String? id = module;
+    if (data == null || id == null) return fallback;
+    return switch (dvModuleRegistry.maybeGet(id)?.dataMode) {
+      DVModuleDataMode.databaseIsolated ||
+      DVModuleDataMode.remote =>
+        data!.database,
+      _ => fallback,
+    };
+  }
+
   /// The field records are found by.
   final String key;
   final List<DVStudioFieldSpec> fields;
@@ -460,9 +491,7 @@ class DVStudioApi {
     // A module's table is the one its mount gave it: the model's own name
     // under a shared mount, the module's id before it under a
     // schema-isolated one.
-    table: spec.data == null
-        ? dvTenantTable(spec.table)
-        : spec.data!.table(spec.table),
+    table: spec.resolvedTable,
     key: spec.key,
     columns: <String>[
       if (spec.tenantScoped) dvTenantColumn,
@@ -489,16 +518,8 @@ class DVStudioApi {
   /// The application's database, or the module's own for a module mounted
   /// with one. A remote module has none here: its deployment owns its data.
   DVDatabaseAdapter _databaseFor(DVStudioModelSpec spec) {
-    final String? module = spec.module;
-    if (spec.data == null || module == null) return _database;
-    final mounted = dvModuleRegistry.maybeGet(module);
     try {
-      return switch (mounted?.dataMode) {
-        DVModuleDataMode.databaseIsolated ||
-        DVModuleDataMode.remote =>
-          spec.data!.database,
-        _ => _database,
-      };
+      return spec.resolvedDatabase(_database);
     } on StateError catch (error) {
       throw _StudioRefusal(503, 'module_data', error.message);
     }

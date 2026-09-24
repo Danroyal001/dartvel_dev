@@ -73,9 +73,27 @@ class DVOfflineReplay {
     for (final DVStudioModelSpec spec in specs) {
       final DVConflict? strategy = spec.offline;
       if (strategy == null) continue;
+      final String table;
+      final DVDatabaseAdapter store;
+      try {
+        // Where this model's rows actually are: the tenant's schema where
+        // that is the separation, the name the module's mount gave it, and
+        // the module's own database where it owns one. Studio resolves a
+        // spec the same way through the same two members, so the route that
+        // takes a device's queue writes the rows Studio reads.
+        table = spec.resolvedTable;
+        store = spec.resolvedDatabase(database);
+      } on StateError {
+        // A module mounted remotely, or one whose own database nothing has
+        // given it. Its rows are not this process's to write, so it is not
+        // in the registry and a mutation naming it is refused like any other
+        // model nobody declared offline -- rather than a batch that dies
+        // with a server error, or one applied to the parent's tables.
+        continue;
+      }
       remotes[spec.id] = DVRecordTableRemote(
         DVRecordTable(
-          table: spec.table,
+          table: table,
           key: spec.key,
           columns: <String>[
             if (spec.tenantScoped) dvTenantColumn,
@@ -85,18 +103,27 @@ class DVOfflineReplay {
             for (final DVStudioFieldSpec field in spec.fields)
               if (field.sensitive) field.name,
           },
+          // A generated model declares every field column TEXT, and so does
+          // Studio. Declared here rather than left off because a table this
+          // route created first would otherwise have untyped columns, which
+          // in SQLite take whatever they are given.
+          types: <String, String>{
+            if (spec.tenantScoped) dvTenantColumn: 'TEXT',
+            for (final DVStudioFieldSpec field in spec.fields)
+              field.name: 'TEXT',
+          },
           versioned: spec.versioned,
           softDelete: spec.softDelete,
           // The same scope every other read and write on this table carries.
-          // Read when the statement runs, not captured once.
+          // The whole registry is built inside the request, so the tenant
+          // read here is the one that asked.
           scope: spec.tenantScoped
               ? DVRecordScope(dvTenantColumn, const DVTenants().currentTenant)
               : null,
-          database: database,
+          database: store,
         ),
         strategy: strategy,
-        authorize: (DVMutation mutation) =>
-            _authorized(spec, mutation, database),
+        authorize: (DVMutation mutation) => _authorized(spec, mutation, store),
       );
     }
     return DVOfflineReplay(remotes);
@@ -116,11 +143,15 @@ class DVOfflineReplay {
   ) async {
     try {
       final DVRecord? stored = await DVRecordTable(
-        table: spec.table,
+        table: spec.resolvedTable,
         key: spec.key,
         columns: <String>[
           for (final DVStudioFieldSpec field in spec.fields) field.name,
         ],
+        types: <String, String>{
+          for (final DVStudioFieldSpec field in spec.fields)
+            field.name: 'TEXT',
+        },
         database: database,
       ).read(mutation.key, withDeleted: true);
       final String action = mutation.isDelete
