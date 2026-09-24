@@ -62,6 +62,12 @@ class _RecordingRemote implements DVOfflineRemote {
   /// Throw after the server has applied, as if the acknowledgement was lost.
   final Set<String> loseAckFor = <String>{};
 
+  // Whatever the remote it wraps must not echo back. A wrapper that answered
+  // an empty set would quietly undo the filtering of the thing it wraps,
+  // which is why the member is required rather than defaulted.
+  @override
+  Set<String> get sensitiveColumns => inner.sensitiveColumns;
+
   @override
   Future<DVRemoteOutcome> apply(DVMutation mutation) async {
     seen.add(mutation.mutationId);

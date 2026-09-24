@@ -91,6 +91,7 @@ class DVStudioModelSpec {
     this.tenantScoped = false,
     this.versioned = true,
     this.softDelete = false,
+    this.offline,
     this.module,
     this.data,
   });
@@ -120,6 +121,19 @@ class DVStudioModelSpec {
   final bool versioned;
   final bool softDelete;
 
+  /// How a write this model made offline is resolved when it is replayed, or
+  /// null when it declared no `offline:` at all.
+  ///
+  /// Null is what keeps the route that applies replayed writes from being an
+  /// arbitrary-table write primitive: only the models that said so are in
+  /// its registry, and a spec that defaulted to a strategy would put every
+  /// model in it.
+  ///
+  /// Here rather than in a registry of its own because the backend cannot
+  /// import models.g.dart -- that file imports Flutter -- and this spec
+  /// already carries everything else a remote needs to resolve the table.
+  final DVConflict? offline;
+
   /// Everything a development server needs to serve this model's records
   /// without the generated code: [fromManifest] reads it back. The build
   /// writes the application's own models this way; a module's resolve their
@@ -134,6 +148,7 @@ class DVStudioModelSpec {
     'tenantScoped': tenantScoped,
     'versioned': versioned,
     'softDelete': softDelete,
+    if (offline != null) 'offline': offline!.name,
   };
 
   /// A spec from [toManifest]'s output.
@@ -145,6 +160,9 @@ class DVStudioModelSpec {
         tenantScoped: json['tenantScoped'] == true,
         versioned: json['versioned'] != false,
         softDelete: json['softDelete'] == true,
+        offline: json['offline'] == null
+            ? null
+            : DVConflict.byName('${json['offline']}'),
         fields: <DVStudioFieldSpec>[
           for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
             if (field is Map)
