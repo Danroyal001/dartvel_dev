@@ -164,6 +164,98 @@ void main() {
     );
   });
 
+  group('the registry the generated backend builds', () {
+    DVStudioModelSpec spec({DVConflict? offline, bool tenantScoped = false}) =>
+        DVStudioModelSpec(
+          model: 'Order',
+          table: 'orders',
+          key: 'id',
+          tenantScoped: tenantScoped,
+          offline: offline,
+          fields: const <DVStudioFieldSpec>[
+            DVStudioFieldSpec(name: 'id', type: 'String'),
+            DVStudioFieldSpec(name: 'reference', type: 'String'),
+            DVStudioFieldSpec(
+                name: 'cardNumber', type: 'String', sensitive: true),
+          ],
+        );
+
+    test('holds only the models that said they work offline', () {
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[
+          spec(offline: DVConflict.lastWriteWins),
+          DVStudioModelSpec(
+            model: 'Ledger',
+            table: 'ledgers',
+            key: 'id',
+            fields: const <DVStudioFieldSpec>[
+              DVStudioFieldSpec(name: 'id', type: 'String'),
+            ],
+          ),
+        ],
+        database: database,
+      );
+
+      expect(replay.remotes.keys, <String>['Order']);
+    });
+
+    test('a remote knows which columns it must not echo back', () {
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+        database: database,
+      );
+
+      expect(replay.remotes['Order']!.sensitiveColumns, <String>{'cardNumber'});
+    });
+
+    test('a tenant-scoped model keeps its scope on the server too', () {
+      // The same hole the generated device store had: without it a device
+      // signed into one tenant replays onto a table with no tenant filter.
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[
+          spec(offline: DVConflict.lastWriteWins, tenantScoped: true),
+        ],
+        database: database,
+      );
+
+      final DVRecordTableRemote remote =
+          replay.remotes['Order']! as DVRecordTableRemote;
+      expect(remote.table.scope, isNotNull);
+      expect(remote.table.scope!.column, dvTenantColumn);
+    });
+
+    test('a policy that throws refuses, even asynchronously', () async {
+      // The analyzer found this one: returning the future from inside the
+      // try let it escape, so a policy that threw after the first await was
+      // an error on the way out of replay rather than a refusal.
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+        database: database,
+      );
+      await (replay.remotes['Order']! as DVRecordTableRemote).ensureSchema();
+
+      // No policy is registered at all, which is the reachable form of the
+      // same thing: canAction answers false for an action nobody declared.
+      final DVOfflineReplayResult result =
+          await DVOfflineReplay(replay.remotes).handle(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      final Map<String, Object?> outcome =
+          (result.body['outcomes']! as List<Object?>).single!
+              as Map<String, Object?>;
+      expect(outcome['rejection'], 'refused by authorization');
+    });
+
+    test('nothing offline means an empty registry, not an open door', () {
+      final DVOfflineReplay replay =
+          DVOfflineReplay.forSpecs(<DVStudioModelSpec>[], database: database);
+
+      expect(replay.remotes, isEmpty);
+    });
+  });
+
   test('one malformed mutation refuses the batch and applies none of it',
       () async {
     // Order is the whole point of a queue, so the batch is decoded before
