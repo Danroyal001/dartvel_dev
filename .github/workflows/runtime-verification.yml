@@ -1705,6 +1705,17 @@ jobs:
       # a version the armhf sources cannot offer -- and apt reports that as
       # "you have held broken packages", naming nothing. Leaving noble-security
       # out is why this job passed for weeks and then failed on unchanged code.
+      #
+      # Adding the suite narrowed that window without closing it: the ports
+      # archive builds after the amd64 one, so a mesa update lands on one side
+      # first and the job fails for however long the gap is. The fix is not to
+      # ask for mesa at all. Cross-compiling needs the EGL and GLES *headers*,
+      # which are Khronos' and come from libglvnd as libegl-dev and
+      # libgles-dev -- both in noble/main, neither in -updates, and neither
+      # pinned to a mesa version. The implementation is on the television.
+      #
+      # The install does not run -qq. apt's reasoning is the only thing that
+      # says which package broke, and twice now it has been thrown away.
       - name: Enable armhf packages
         run: |
           set -euo pipefail
@@ -1720,9 +1731,18 @@ jobs:
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           EOF
           sudo apt-get update -qq
-          sudo apt-get install -y -qq crossbuild-essential-armhf \
+          sudo apt-get install -y crossbuild-essential-armhf \
             libwayland-dev:armhf libxkbcommon-dev:armhf \
-            libegl1-mesa-dev:armhf libgles2-mesa-dev:armhf wayland-protocols
+            libegl-dev:armhf libgles-dev:armhf wayland-protocols
+          # What the CMake build looks for, so a missing one is named here
+          # rather than as a compile error four minutes later. Against the
+          # armhf pkg-config path the toolchain file sets, not the host's:
+          # the amd64 .pc files answering would prove nothing about the
+          # cross build.
+          test -f /usr/include/EGL/egl.h
+          test -f /usr/include/GLES2/gl2.h
+          PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig \
+            pkg-config --exists egl glesv2 wayland-client xkbcommon
 
       # The executable appinfo.json names. Sony's Wayland client, because
       # webOS's runner template is Sony's -- the package shipped for weeks
