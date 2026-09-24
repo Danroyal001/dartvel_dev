@@ -1,4 +1,6 @@
-import 'package:dartvel_core/dartvel.dart' show DVHistory, DVRecordTable;
+import 'package:dartvel_core/dartvel.dart' show DVHistory;
+// The record layer is the framework's, not an application's.
+import 'package:dartvel_core/framework.dart' show DVRecordTable;
 
 /// A column every generated model table carries beside its fields, for
 /// [DVRecordTable], which generated persistence writes through.

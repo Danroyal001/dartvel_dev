@@ -124,6 +124,43 @@ Type get replay => DVOfflineReplay;
     expect(output, contains('undefined_identifier'));
   });
 
+  test('an application cannot name the record layer', () async {
+    // A model is the surface. The table under it, a raw row, a write's
+    // outcome and the tenant filter are how the model is delivered, and an
+    // application that names one of them is re-implementing the model it
+    // already has: its table, its key, its columns and its types, written
+    // out a second time and free to disagree with the first.
+    for (final String name in <String>[
+      'DVRecordTable',
+      'DVRecord',
+      'DVWriteResult',
+      'DVRecordScope',
+    ]) {
+      final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get it => $name;
+''');
+      expect(output, contains('undefined_identifier'), reason: name);
+    }
+  });
+
+  test('what a model hands back is still nameable', () async {
+    // The line is not "nothing from that library". A model's history()
+    // returns entries and revert() returns a result, so an application has
+    // to be able to write their types down.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get entry => DVHistoryEntry;
+Type get change => DVFieldChange;
+Type get revert => DVRevertResult;
+Type get history => DVHistory;
+Type get conflict => DVConflictError;
+''');
+    expect(output, isNot(contains(' error ')));
+  });
+
   test('the framework itself has all of them', () async {
     final String output = await analyzed('''
 import 'package:dartvel_core/framework.dart';
@@ -136,6 +173,10 @@ Type get remote => DVRecordTableRemote;
 Object get encode => dvOutcomeToJson;
 Object get decode => dvOutcomeFromJson;
 Type get replay => DVOfflineReplay;
+Type get table => DVRecordTable;
+Type get record => DVRecord;
+Type get write => DVWriteResult;
+Type get scope => DVRecordScope;
 ''');
     expect(output, isNot(contains(' error ')));
   });

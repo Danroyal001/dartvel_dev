@@ -1,11 +1,22 @@
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and this one has to.
+//
+// A backend function cannot import the generated model: models.g.dart
+// imports Flutter, and this runs in a pure Dart server. So the one place in
+// this project that should most obviously be `Product.all()` writes the
+// model's table, key, columns and types out a second time instead, and
+// re-types every column by hand on the way back because it is reading rows
+// rather than products.
+//
+// This import is here to make that visible rather than ambient. It goes when
+// the generator emits a Flutter-free model surface for the server.
+import 'package:dartvel_core/framework.dart';
 
 import '../catalog_rows.dart';
 
 /// The Product model's records, as the server keeps them: its table and key,
-/// read and written through DVRecordTable -- the same path the generated
-/// model and Studio's Models section take, so a product edited in Studio is
-/// the product this answers with.
+/// read and written through DVRecordTable, which is the model's own plumbing
+/// named by hand because the server cannot reach the model.
 DVRecordTable _products() => DVRecordTable(
   table: dvTenantTable('products'),
   key: 'slug',

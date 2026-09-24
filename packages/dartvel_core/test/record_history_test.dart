@@ -11,6 +11,9 @@ import 'package:dartvel_core/src/observability/observability.dart';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and a test of it
+// does.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 /// Wraps an adapter and refuses writes to one table, so a history insert can
