@@ -52,7 +52,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-KIOSK-002',
-      reason: 'exit method degraded (e.g. `gesture+pin` → `pin` on touchless device)',
+      reason:
+          'exit method degraded (e.g. `gesture+pin` → `pin` on touchless device)',
       level: 'info',
     ),
     DVDiagnostic(
@@ -87,12 +88,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-KIOSK-009',
-      reason: '`onIdle: home` with sensitive fields reachable from allowed routes',
+      reason:
+          '`onIdle: home` with sensitive fields reachable from allowed routes',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-KIOSK-010',
-      reason: 'display-scoped input confinement is device-wide on this platform',
+      reason:
+          'display-scoped input confinement is device-wide on this platform',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -142,7 +145,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-WINDOW-010',
-      reason: 'kiosk window\'s display unavailable; presented in place, fullscreen',
+      reason:
+          'kiosk window\'s display unavailable; presented in place, fullscreen',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -157,17 +161,20 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-WINDOW-013',
-      reason: '`display:` hint matched no connected display; the OS placed the window',
+      reason:
+          '`display:` hint matched no connected display; the OS placed the window',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-WINDOW-014',
-      reason: 'volume requested where none can be presented; shown as a viewport',
+      reason:
+          'volume requested where none can be presented; shown as a viewport',
       level: 'debug',
     ),
     DVDiagnostic(
       code: 'DV-WINDOW-015',
-      reason: 'immersive space requested where none can be presented; '
+      reason:
+          'immersive space requested where none can be presented; '
           'shown as a fullscreen page',
       level: 'debug',
     ),
@@ -203,7 +210,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-XR-007',
-      reason: "frame rate below the device profile's target for a sustained window",
+      reason:
+          "frame rate below the device profile's target for a sustained window",
       level: 'warning',
     ),
     DVDiagnostic(
@@ -213,7 +221,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-INFRA-002',
-      reason: 'certificate expires within the renewal window and renewal is failing',
+      reason:
+          'certificate expires within the renewal window and renewal is failing',
       level: 'error',
     ),
     DVDiagnostic(
@@ -263,18 +272,21 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-101',
-      reason: 'adaptive source on a target with no streaming support; '
+      reason:
+          'adaptive source on a target with no streaming support; '
           'fell back to progressive',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-102',
-      reason: 'protected content with no DRM adapter configured for this target',
+      reason:
+          'protected content with no DRM adapter configured for this target',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-103',
-      reason: 'background audio requested without the platform capability declared',
+      reason:
+          'background audio requested without the platform capability declared',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -304,7 +316,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-HTTP-005',
-      reason: 'declared host used from client code with a backend-scoped secret',
+      reason:
+          'declared host used from client code with a backend-scoped secret',
       level: 'error',
     ),
     DVDiagnostic(
@@ -329,7 +342,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-CRON-001',
-      reason: 'declared interval finer than the target\'s granularity; coalesced to it',
+      reason:
+          'declared interval finer than the target\'s granularity; coalesced to it',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -344,12 +358,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-CRON-004',
-      reason: 'the platform refused to register background work (permission or battery policy)',
+      reason:
+          'the platform refused to register background work (permission or battery policy)',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-SCHEMA-001',
-      reason: 'a blocking change was written where an expand/contract plan exists',
+      reason:
+          'a blocking change was written where an expand/contract plan exists',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -359,7 +375,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-SCHEMA-003',
-      reason: 'backfill throttled below its floor for longer than the configured patience',
+      reason:
+          'backfill throttled below its floor for longer than the configured patience',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -369,7 +386,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-SCHEMA-005',
-      reason: 'contract phase requested while clients inside the protocol window '
+      reason:
+          'contract phase requested while clients inside the protocol window '
           'read the old shape',
       level: 'error',
     ),
@@ -385,7 +403,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-OFFLINE-001',
-      reason: 'no writable storage; the store is memory-backed for this session',
+      reason:
+          'no writable storage; the store is memory-backed for this session',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -395,7 +414,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-OFFLINE-003',
-      reason: 'mutation permanently rejected by the server; moved to dead letters',
+      reason:
+          'mutation permanently rejected by the server; moved to dead letters',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -405,17 +425,20 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-OFFLINE-005',
-      reason: 'offline model has no conflict strategy for a field type it merges',
+      reason:
+          'offline model has no conflict strategy for a field type it merges',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-OFFLINE-006',
-      reason: 'local store schema behind the protocol; store rebuilt from the server',
+      reason:
+          'local store schema behind the protocol; store rebuilt from the server',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-PROTO-001',
-      reason: 'contract shape changed without incrementing the protocol version',
+      reason:
+          'contract shape changed without incrementing the protocol version',
       level: 'error',
     ),
     DVDiagnostic(
@@ -440,12 +463,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-PROTO-006',
-      reason: 'enum member added with no declared fallback, narrowing the window',
+      reason:
+          'enum member added with no declared fallback, narrowing the window',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-3D-001',
-      reason: 'scene presented as poster (unsupported target / disabled / GPU init failed)',
+      reason:
+          'scene presented as poster (unsupported target / disabled / GPU init failed)',
       level: 'info',
     ),
     DVDiagnostic(
@@ -500,32 +525,38 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-LINKS-001',
-      reason: 'deep-link domains declared with no application identifier for a target',
+      reason:
+          'deep-link domains declared with no application identifier for a target',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-LINKS-002',
-      reason: 'verification file unreachable, redirected, or not served as JSON',
+      reason:
+          'verification file unreachable, redirected, or not served as JSON',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-LINKS-003',
-      reason: 'fingerprint in the served file does not match the signing certificate',
+      reason:
+          'fingerprint in the served file does not match the signing certificate',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-LINKS-004',
-      reason: 'a route the application handles is not covered by the served patterns',
+      reason:
+          'a route the application handles is not covered by the served patterns',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-STORE-001',
-      reason: 'a declared store credential is not resolvable in this environment',
+      reason:
+          'a declared store credential is not resolvable in this environment',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-STORE-002',
-      reason: 'privacy declaration drift between the application and the store form',
+      reason:
+          'privacy declaration drift between the application and the store form',
       level: 'error',
     ),
     DVDiagnostic(
@@ -555,13 +586,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-MODULE-002',
-      reason: 'the same, reached at runtime where the build could not resolve '
+      reason:
+          'the same, reached at runtime where the build could not resolve '
           'it',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-MODULE-003',
-      reason: "the installed module's capabilities differ from what was "
+      reason:
+          "the installed module's capabilities differ from what was "
           'granted',
       level: 'error',
     ),
@@ -587,30 +620,186 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-MODULE-008',
-      reason: 'a module opens its own socket or `HttpClient` instead of a '
+      reason:
+          'a module opens its own socket or `HttpClient` instead of a '
           'generated call',
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-MODULE-009',
+      reason: 'a source could not be detected; what was found is named',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-010',
+      reason: 'a source resolved but exposes no usable public surface',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-011',
+      reason: 'two modules claim the same id',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-012',
+      reason:
+          'a costlier carrier was chosen where a cheaper one reaches '
+          'the same environment',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-013',
+      reason:
+          'an operation is called where the module declares '
+          '`unavailable` and the call site is statically reachable',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-014',
+      reason:
+          'a module is called from a target or environment it declares '
+          'nothing for',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-015',
+      reason:
+          'a refresh changes the surface in a way that breaks call '
+          'sites',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-016',
+      reason: 'a generated wrapper was hand-edited; changes will be lost',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-017',
+      reason:
+          '`compat` is declared but no compatibility path can be '
+          'generated',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-018',
+      reason: 'a watched upstream has a newer version within `track`',
+      level: 'info',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-019',
+      reason: 'scheduled regeneration failed; the recipe is degraded',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-MODULE-020',
+      reason:
+          'an ambient requirement cannot be satisfied on a declared '
+          'target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-001',
+      reason:
+          'a source\'s surface cannot be expressed across the chosen '
+          'boundary',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-002',
+      reason:
+          'generation is non-deterministic: two runs differ on the same '
+          'input',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-003',
+      reason:
+          'memory ownership is ambiguous for a value crossing a '
+          'boundary',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-004',
+      reason: 'a foreign callback\'s arity cannot be determined',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-005',
+      reason: 'a binding kind is unavailable on a declared target',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-006',
+      reason: 'a JNI reference escapes its thread attachment',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-007',
+      reason:
+          'no carrier exists for a kind/target/environment triple and '
+          'none is declared',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BIND-008',
+      reason:
+          'a generated `compat` path crosses an environment boundary '
+          'the deployment mode does not provide',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-AI-010',
+      reason: 'a tool was invoked without the approval it requires',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-AI-011',
+      reason: 'a tool catalog query could not be satisfied',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SECRETS-001',
+      reason:
+          'a backend-scoped secret is reached from client-reachable '
+          'code',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SECRETS-002',
+      reason: 'a secret name is used that no declaration lists',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-SECRETS-003',
+      reason:
+          'a `PUBLIC_` variable in an env file that no declaration '
+          'justifies',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-MEDIA-001',
-      reason: 'an image could not be decoded at build; no variants were written',
+      reason:
+          'an image could not be decoded at build; no variants were written',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-002',
-      reason: 'a variant was requested at a width outside the configured set; '
+      reason:
+          'a variant was requested at a width outside the configured set; '
           'refused',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-003',
-      reason: 'a remote image host is not allowed, or a redirect left the '
+      reason:
+          'a remote image host is not allowed, or a redirect left the '
           'allowed host',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-004',
-      reason: "an upload's decoded format or dimensions do not match what it "
+      reason:
+          "an upload's decoded format or dimensions do not match what it "
           'declared; rejected',
       level: 'warning',
     ),
@@ -626,13 +815,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-MEDIA-007',
-      reason: 'a media field declares video and no encoder adapter is '
+      reason:
+          'a media field declares video and no encoder adapter is '
           'configured',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-AIOPS-001',
-      reason: 'a stored prompt version has no counterpart in the repository; '
+      reason:
+          'a stored prompt version has no counterpart in the repository; '
           'the next deploy reverts it',
       level: 'warning',
     ),
@@ -648,7 +839,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-AIOPS-004',
-      reason: 'provider failed and no fallback is declared; the feature is '
+      reason:
+          'provider failed and no fallback is declared; the feature is '
           'unavailable',
       level: 'error',
     ),
@@ -674,7 +866,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-WEBHOOK-002',
-      reason: 'endpoint resolved to a private, loopback, link-local or '
+      reason:
+          'endpoint resolved to a private, loopback, link-local or '
           'metadata address; refused',
       level: 'warning',
     ),
@@ -700,7 +893,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-WEBHOOK-007',
-      reason: 'signing key rotated; both signatures are sent until the '
+      reason:
+          'signing key rotated; both signatures are sent until the '
           'overlap ends',
       level: 'info',
     ),
@@ -711,19 +905,22 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-SEMANTIC-002',
-      reason: 'the vector adapter cannot filter; semantic search refused on a '
+      reason:
+          'the vector adapter cannot filter; semantic search refused on a '
           'scoped model',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-SEMANTIC-003',
-      reason: 'embedder or chunking changed; a new index is building and '
+      reason:
+          'embedder or chunking changed; a new index is building and '
           'queries use the previous one',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-SEMANTIC-004',
-      reason: 'an embedding job failed permanently; the record is absent from '
+      reason:
+          'an embedding job failed permanently; the record is absent from '
           'the index',
       level: 'warning',
     ),
@@ -739,7 +936,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-SEMANTIC-007',
-      reason: 'embedding budget exhausted for this tenant; the search was '
+      reason:
+          'embedding budget exhausted for this tenant; the search was '
           'refused',
       level: 'warning',
     ),
@@ -806,12 +1004,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-RELEASE-002',
-      reason: 'the adapter cannot weight traffic; canary degraded to blue-green',
+      reason:
+          'the adapter cannot weight traffic; canary degraded to blue-green',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-RELEASE-003',
-      reason: 'no previous release to compare against; the gate held the rollout',
+      reason:
+          'no previous release to compare against; the gate held the rollout',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -821,12 +1021,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-RELEASE-005',
-      reason: 'contract step refused while a windowed client still reads the old shape',
+      reason:
+          'contract step refused while a windowed client still reads the old shape',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-RELEASE-006',
-      reason: 'a release was deployed with no provenance record; rollback cannot name it',
+      reason:
+          'a release was deployed with no provenance record; rollback cannot name it',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -836,12 +1038,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-HISTORY-002',
-      reason: '`DVConflict.ask` declared as an offline strategy, where nobody is present to ask',
+      reason:
+          '`DVConflict.ask` declared as an offline strategy, where nobody is present to ask',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-HISTORY-003',
-      reason: 'revert could not restore a sensitive field; history records the change, not the value',
+      reason:
+          'revert could not restore a sensitive field; history records the change, not the value',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -851,7 +1055,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-HISTORY-005',
-      reason: 'history entry could not be written; the transaction was rolled back',
+      reason:
+          'history entry could not be written; the transaction was rolled back',
       level: 'error',
     ),
     DVDiagnostic(
@@ -866,7 +1071,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ANALYTICS-002',
-      reason: 'a declared consent category has no way to ask on a target the application builds for',
+      reason:
+          'a declared consent category has no way to ask on a target the application builds for',
       level: 'error',
     ),
     DVDiagnostic(
@@ -881,12 +1087,14 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ANALYTICS-005',
-      reason: 'an analytics provider is configured with no consent category declared',
+      reason:
+          'an analytics provider is configured with no consent category declared',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-ANALYTICS-006',
-      reason: 'a consent choice could not be recorded; it is not treated as consent',
+      reason:
+          'a consent choice could not be recorded; it is not treated as consent',
       level: 'error',
     ),
     DVDiagnostic(
@@ -901,7 +1109,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-APIKEY-003',
-      reason: 'rotation overlap expired; the previous key no longer authenticates',
+      reason:
+          'rotation overlap expired; the previous key no longer authenticates',
       level: 'info',
     ),
     DVDiagnostic(
@@ -911,7 +1120,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-APIKEY-005',
-      reason: 'a key was issued with no expiry where the configuration requires one',
+      reason:
+          'a key was issued with no expiry where the configuration requires one',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -933,7 +1143,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-FLAGS-003',
-      reason: 'the rule set is newer than this build understands; unreadable '
+      reason:
+          'the rule set is newer than this build understands; unreadable '
           'rules were skipped',
       level: 'warning',
     ),
@@ -944,25 +1155,29 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-FLAGS-005',
-      reason: 'a percentage rollout was evaluated with no subject identifier; '
+      reason:
+          'a percentage rollout was evaluated with no subject identifier; '
           'the flag held its default',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-FLAGS-006',
-      reason: "a rule's value type differs from the flag's declared type; the "
+      reason:
+          "a rule's value type differs from the flag's declared type; the "
           'flag held its default',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-FLAGS-007',
-      reason: 'exposure not recorded: consent was withheld for the declared '
+      reason:
+          'exposure not recorded: consent was withheld for the declared '
           'analytics category',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-FLAGS-008',
-      reason: 'a local override is in force; this build is not answering from '
+      reason:
+          'a local override is in force; this build is not answering from '
           'the rules',
       level: 'warning',
     ),
@@ -978,13 +1193,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-CRASH-002',
-      reason: 'the build obfuscates and kept no symbols; its reports could '
+      reason:
+          'the build obfuscates and kept no symbols; its reports could '
           'never be read',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-CRASH-003',
-      reason: 'no symbols for the release a report names; the stack is '
+      reason:
+          'no symbols for the release a report names; the stack is '
           'unsymbolicated',
       level: 'warning',
     ),
@@ -995,13 +1212,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-CRASH-005',
-      reason: 'a report was dropped: the on-disk record was truncated by the '
+      reason:
+          'a report was dropped: the on-disk record was truncated by the '
           'crash that wrote it',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-CRASH-006',
-      reason: 'the native crash handler could not be installed; only '
+      reason:
+          'the native crash handler could not be installed; only '
           'Dart-level errors are captured',
       level: 'warning',
     ),
@@ -1022,31 +1241,36 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-CRASH-010',
-      reason: 'release health crossed its declared threshold; the rollout was '
+      reason:
+          'release health crossed its declared threshold; the rollout was '
           'held',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-001',
-      reason: 'preview created; it is destroyed when the branch merges or its '
+      reason:
+          'preview created; it is destroyed when the branch merges or its '
           'TTL expires',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-002',
-      reason: 'a secret required for previews has no value; the preview was '
+      reason:
+          'a secret required for previews has no value; the preview was '
           'not deployed',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-003',
-      reason: 'database branching refused: the source holds sensitive fields '
+      reason:
+          'database branching refused: the source holds sensitive fields '
           'and no sanitization is declared',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-004',
-      reason: 'the concurrent preview cap was reached; the oldest idle preview '
+      reason:
+          'the concurrent preview cap was reached; the oldest idle preview '
           'was suspended',
       level: 'warning',
     ),
@@ -1057,19 +1281,22 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-006',
-      reason: 'an outbound notification was captured rather than sent, because '
+      reason:
+          'an outbound notification was captured rather than sent, because '
           'this is a preview',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-007',
-      reason: 'the preview is declared publicly visible; it is excluded from '
+      reason:
+          'the preview is declared publicly visible; it is excluded from '
           'indexing but not from visitors',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-PREVIEW-008',
-      reason: 'a scheduled job did not run: schedules are off in previews '
+      reason:
+          'a scheduled job did not run: schedules are off in previews '
           'unless declared',
       level: 'info',
     ),
@@ -1085,19 +1312,22 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-001',
-      reason: 'a model carries a sensitive field and declares no subject path; '
+      reason:
+          'a model carries a sensitive field and declares no subject path; '
           'erasure cannot reach it',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-002',
-      reason: 'a model carrying personal data declares no retention; it is '
+      reason:
+          'a model carrying personal data declares no retention; it is '
           'kept indefinitely',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-003',
-      reason: 'rows were kept under a declared retention; their personal '
+      reason:
+          'rows were kept under a declared retention; their personal '
           'fields were anonymized',
       level: 'info',
     ),
@@ -1113,7 +1343,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-006',
-      reason: 'an exported record names another subject; only the requesting '
+      reason:
+          'an exported record names another subject; only the requesting '
           "subject's contribution was included",
       level: 'info',
     ),
@@ -1124,19 +1355,22 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-008',
-      reason: 'a retention sweep would delete rows a longer retention holds; '
+      reason:
+          'a retention sweep would delete rows a longer retention holds; '
           'the longer one won',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-009',
-      reason: 'an erasure could not reach a configured adapter; the subject\'s '
+      reason:
+          'an erasure could not reach a configured adapter; the subject\'s '
           'data there was not removed',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-PRIVACY-010',
-      reason: 'a consent record was retained after erasure as evidence, '
+      reason:
+          'a consent record was retained after erasure as evidence, '
           'carrying no personal fields',
       level: 'info',
     ),
@@ -1167,13 +1401,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-METER-006',
-      reason: 'usage could not be reported to the billing provider; it is '
+      reason:
+          'usage could not be reported to the billing provider; it is '
           'queued, not dropped',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-METER-007',
-      reason: 'a record arrived after its period closed and was accepted into '
+      reason:
+          'a record arrived after its period closed and was accepted into '
           'it under the declared grace',
       level: 'info',
     ),
@@ -1184,13 +1420,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-METER-009',
-      reason: 'a metered entitlement has no price on the plan; usage is '
+      reason:
+          'a metered entitlement has no price on the plan; usage is '
           'counted and not billed',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-METER-010',
-      reason: "the tenant has no billing period; the deployment's calendar "
+      reason:
+          "the tenant has no billing period; the deployment's calendar "
           'period was used',
       level: 'info',
     ),
@@ -1206,7 +1444,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-TRACE-003',
-      reason: 'the collector could not be reached; spans were dropped after '
+      reason:
+          'the collector could not be reached; spans were dropped after '
           'the declared retries',
       level: 'error',
     ),
@@ -1217,7 +1456,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-TRACE-005',
-      reason: "a job ran outside its originating trace's window; its span is "
+      reason:
+          "a job ran outside its originating trace's window; its span is "
           'linked rather than nested',
       level: 'info',
     ),
@@ -1233,7 +1473,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-TRACE-008',
-      reason: 'a client span was refused: client ingest is not enabled on this '
+      reason:
+          'a client span was refused: client ingest is not enabled on this '
           'deployment',
       level: 'warning',
     ),
@@ -1244,31 +1485,36 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-TRACE-010',
-      reason: 'a span reached its attribute limit; further attributes were '
+      reason:
+          'a span reached its attribute limit; further attributes were '
           'dropped',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-CONTENT-001',
-      reason: 'a preview link failed verification or had expired; the '
+      reason:
+          'a preview link failed verification or had expired; the '
           'published version was served',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-CONTENT-002',
-      reason: 'a scheduled publish was refused because the document changed '
+      reason:
+          'a scheduled publish was refused because the document changed '
           'after approval',
       level: 'warning',
     ),
     DVDiagnostic(
       code: 'DV-CONTENT-003',
-      reason: 'a publish or schedule was refused; the actor lacks the policy '
+      reason:
+          'a publish or schedule was refused; the actor lacks the policy '
           'action',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-CONTENT-004',
-      reason: 'a machine-translated string reached published without human '
+      reason:
+          'a machine-translated string reached published without human '
           'review',
       level: 'warning',
     ),
@@ -1294,7 +1540,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-EDGE-004',
-      reason: 'a credential was refused: the password appears in a breach '
+      reason:
+          'a credential was refused: the password appears in a breach '
           'corpus',
       level: 'warning',
     ),
@@ -1310,7 +1557,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-EDGE-007',
-      reason: 'a security scan found an advisory, a secret, or a licence '
+      reason:
+          'a security scan found an advisory, a secret, or a licence '
           'problem',
       level: 'error',
     ),
@@ -1331,7 +1579,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ALERT-004',
-      reason: 'the status page served a stale snapshot; the application was '
+      reason:
+          'the status page served a stale snapshot; the application was '
           'unreachable',
       level: 'warning',
     ),
@@ -1347,7 +1596,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-COMMERCE-001',
-      reason: 'a sale was priced from the offline tax table and is marked for '
+      reason:
+          'a sale was priced from the offline tax table and is marked for '
           're-rating',
       level: 'warning',
     ),
@@ -1383,13 +1633,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ADOPT-001',
-      reason: 'multi-tenancy scopes Dartvel-managed models only in this '
+      reason:
+          'multi-tenancy scopes Dartvel-managed models only in this '
           'project',
       level: 'info',
     ),
     DVDiagnostic(
       code: 'DV-ADOPT-002',
-      reason: 'a route is defined by both the host router and a generated '
+      reason:
+          'a route is defined by both the host router and a generated '
           'route',
       level: 'error',
     ),
@@ -1405,13 +1657,15 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ADOPT-005',
-      reason: 'dartvel create found a pubspec.yaml it did not write and refused '
+      reason:
+          'dartvel create found a pubspec.yaml it did not write and refused '
           'to overwrite it',
       level: 'error',
     ),
     DVDiagnostic(
       code: 'DV-ROUTE-001',
-      reason: 'a path is declared twice: by a page file and a config route, '
+      reason:
+          'a path is declared twice: by a page file and a config route, '
           'or by two config routes',
       level: 'error',
     ),
@@ -1432,7 +1686,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-ROUTE-005',
-      reason: 'a tabs layout names a tab that is not a page in its folder, or '
+      reason:
+          'a tabs layout names a tab that is not a page in its folder, or '
           'a page in its folder belongs to no tab',
       level: 'error',
     ),
@@ -1468,7 +1723,8 @@ final class DVDiagnostics {
     ),
     DVDiagnostic(
       code: 'DV-WORKER-002',
-      reason: 'a task captured state it cannot send; make it top-level or '
+      reason:
+          'a task captured state it cannot send; make it top-level or '
           'static',
       level: 'error',
     ),
@@ -1485,6 +1741,13 @@ final class DVDiagnostics {
     DVDiagnostic(
       code: 'DV-WORKER-005',
       reason: 'the worker pool is saturated and tasks are queueing behind it',
+      level: 'warning',
+    ),
+    DVDiagnostic(
+      code: 'DV-WORKER-006',
+      reason:
+          'a native implementation has no committed Dart baseline to '
+          'justify it',
       level: 'warning',
     ),
     DVDiagnostic(
@@ -1584,8 +1847,7 @@ final class DVDiagnostics {
   static List<String> families() {
     final List<String> names = <String>[];
     for (final DVDiagnostic entry in all) {
-      final String name =
-          entry.code.substring(0, entry.code.lastIndexOf('-'));
+      final String name = entry.code.substring(0, entry.code.lastIndexOf('-'));
       if (!names.contains(name)) names.add(name);
     }
     return names;

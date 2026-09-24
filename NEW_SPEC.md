@@ -4645,6 +4645,13 @@ final agentResult = await DV.AI.runAgent(
 transcription, and agent execution. The local adapter provides deterministic
 testable behavior so tests do not pass through ignored or empty AI paths.
 
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-AI-010` | a tool was invoked without the approval it requires | `error` |
+| `DV-AI-011` | a tool catalog query could not be satisfied | `error` |
+
 ---
 
 # AI Operations
@@ -9806,6 +9813,14 @@ deciding what to rely on needs to know which is which.
    target environment does not resolve.** Checked against the declaration, so a
    secret forgotten in a new environment fails the deploy rather than the first
    request that needs it.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-SECRETS-001` | a backend-scoped secret is reached from client-reachable code | build `error` |
+| `DV-SECRETS-002` | a secret name is used that no declaration lists | build `error` |
+| `DV-SECRETS-003` | a `PUBLIC_` variable in an env file that no declaration justifies | build `error` |
 
 ## Redaction
 
