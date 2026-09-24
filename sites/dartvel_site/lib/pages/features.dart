@@ -177,9 +177,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Module Sources',
     'dartvel add',
-    'Present: dartvel add mounts a Dartvel project, and generates a module '
-        'from a local OpenAPI document. Absent: every other resolver, so a '
-        'crate or an artifact is named and refused.',
+    'Present: dartvel add mounts a Dartvel project, and generates one from '
+        'an OpenAPI document or a GraphQL schema. Absent: every other '
+        'resolver, so a crate or an artifact is named and refused.',
   ),
   (
     'Native Binding Graph',
