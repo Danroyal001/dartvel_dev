@@ -114,18 +114,27 @@ String _railScript(List<String> known) => '''() => {
   const host = document.querySelector('flt-semantics-host');
   if (!host) return [];
   const found = [];
-  for (const node of host.querySelectorAll('[aria-label],flt-semantics')) {
-    // A row that names itself over two lines -- "Product" above "9 fields"
-    // -- is still called Product. Its first line counts, but only when the
-    // name is an explicit aria-label: innerText belongs to everything inside
-    // the node too, and a container's first line is the heading above the
-    // whole panel, which would click the panel instead of the row.
+  for (const node of host.querySelectorAll(
+      '[flt-semantics-identifier],[aria-label],flt-semantics')) {
+    // What this node might be called, most exact first.
+    //
+    // flt-semantics-identifier is what Semantics(identifier:) becomes on the
+    // web, and it is the only one of these that is unambiguous. A label is
+    // not: Flutter web renders a node's label and its value into the
+    // element, so a row reads "Product 9 fields" and a search for "Product"
+    // misses it. innerText is worse again -- it belongs to everything inside
+    // the node, so a container's is the whole panel.
+    const id = (node.getAttribute('flt-semantics-identifier') || '').trim();
     const aria = (node.getAttribute('aria-label') || '').trim();
-    const label = aria || (node.innerText || '').trim();
-    if (!label) continue;
-    const name = aria ? aria.split('\\n')[0].trim() : label;
-    if (!name || (!aria && label.includes('\\n'))) continue;
-    if (!known.includes(name)) continue;
+    const text = (node.innerText || '').trim();
+    const names = [
+      id,
+      aria.split('\\n')[0].trim(),
+      text.split('\\n')[0].trim(),
+      text,
+    ];
+    const name = names.find((n) => n && known.includes(n));
+    if (!name) continue;
     const rect = node.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1) continue;
     // Every match, with its size. A row and each box around it can all
@@ -283,7 +292,16 @@ Future<DVStudioShotsResult> dvCaptureStudio({
           await Future<void>.delayed(const Duration(milliseconds: 500));
         }
         if (found.isEmpty) {
-          stderr.writeln('studio: nothing called "$inside" in $label');
+          // What it did see, so the next run says why rather than only that.
+          // "nothing called Product in Data" was true for two runs and named
+          // neither cause: first the click landing on the panel, then the
+          // rows reading "Product 9 fields" because Flutter web renders a
+          // label and its value into one element.
+          final List<String> names = await _named(page);
+          stderr.writeln(
+            'studio: nothing called "$inside" in $label. '
+            'What is there: ${names.take(20).join(' | ')}',
+          );
         } else {
           final String before = await _panel(page);
           await page.mouse.click(Point<num>(
@@ -337,6 +355,42 @@ Future<DVStudioShotsResult> dvCaptureStudio({
   }
   return DVStudioShotsResult(shots: shots);
 }
+
+/// Every name the semantics tree offers, as the matcher would read it.
+///
+/// For the message a failed `--open` prints. Knowing that the rows read
+/// "Product 9 fields" rather than "Product" is the difference between one
+/// more guess and a fix.
+Future<List<String>> _named(Page page) async {
+  final Object? found = await page.evaluate<Object?>(_namesScript);
+  return <String>[
+    if (found is List)
+      for (final Object? item in found)
+        if (item is String) item,
+  ];
+}
+
+const String _namesScript = r"""() => {
+  const host = document.querySelector('flt-semantics-host');
+  if (!host) return [];
+  const seen = [];
+  for (const node of host.querySelectorAll(
+      '[flt-semantics-identifier],[aria-label],flt-semantics')) {
+    const rect = node.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) continue;
+    const id = (node.getAttribute('flt-semantics-identifier') || '').trim();
+    const aria = (node.getAttribute('aria-label') || '').trim();
+    const text = (node.innerText || '').trim().split('\n')[0].trim();
+    const name = id
+        ? 'id=' + id
+        : aria
+            ? 'aria=' + aria
+            : text;
+    if (!name || seen.includes(name)) continue;
+    seen.push(name);
+  }
+  return seen;
+}""";
 
 Future<List<Map<String, Object?>>> _rail(Page page, List<String> known) async {
   final Object? found = await page.evaluate<Object?>(_railScript(known));

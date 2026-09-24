@@ -324,14 +324,28 @@ void main() {
           captureWith().recordAudio(format: DVAudioFormat.opus);
       addTearDown(session.dispose);
       await until(() => session.capturing.value);
+      // Against the time it actually recorded for, not against the 1000 ms
+      // asked for. A delayed future is a floor, not a promise: on a loaded
+      // machine this slept 1947 ms and the file was correct at 1947 ms, so
+      // an assertion written against the number in the argument failed for
+      // the scheduler rather than for the recording.
+      final Stopwatch ran = Stopwatch()..start();
       await Future<void>.delayed(const Duration(milliseconds: 1000));
       unawaited(session.stop());
       final DVFile file = await session;
+      ran.stop();
 
       expect(session.capturing.value, isFalse);
       expect(File(file.path).statSync().modeString(), 'rw-------');
       expect(file.sizeBytes, greaterThan(1000));
-      expect(file.duration!.inMilliseconds, closeTo(1000, 400));
+      // It recorded for about as long as it ran. The tolerance is pipeline
+      // skew at each end -- capturing goes true a little after the first
+      // buffer, and the muxer flushes a little after stop -- which is a
+      // bounded cost, unlike how long a loaded machine sleeps for.
+      expect(
+        file.duration!.inMilliseconds,
+        closeTo(ran.elapsedMilliseconds, 400),
+      );
 
       // Finalised, not just stopped: the muxer wrote its last page, flagged
       // end-of-stream. A stream cut off by tearing the pipeline down still
