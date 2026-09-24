@@ -162,11 +162,15 @@ void main() {
     // New opens the same blank the form falls back to.
     expect(admin, contains('createDVModel<Post>()!'));
     // The form has to be able to hand back an edited model, or saving from
-    // the admin would write the record it opened.
-    expect(admin, contains('Form(model, onSubmit)'));
+    // the admin would write the record it opened. Model.Form() takes no
+    // callback, so the admin uses the generated form that does -- the one
+    // place that needs it, and the reason it still exists.
+    expect(admin, contains('_dvFormWith(model, onSubmit)'));
     expect(
       generated,
-      contains('static Widget Form(Post model, [void Function(Post)? onSubmit])'),
+      contains(
+        'static Widget _dvFormWith(Post model, void Function(Post) onSubmit)',
+      ),
     );
   });
 

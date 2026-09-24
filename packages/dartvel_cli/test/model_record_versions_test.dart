@@ -102,6 +102,7 @@ class _Tally {
 const String _writes = r'''
 import 'dart:async';
 
+import 'package:dartvel_core/framework.dart';
 import 'package:model_versions_probe/dartvel_client/dartvel_client.dart';
 import 'package:model_versions_probe/dartvel_client/privacy.g.dart';
 import 'package:flutter/material.dart';

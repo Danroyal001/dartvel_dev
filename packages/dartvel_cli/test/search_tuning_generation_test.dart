@@ -42,14 +42,16 @@ Future<String> generateWith(String pubspec) async {
 }
 
 void main() {
-  test('with no configuration the facade carries the defaults', () async {
+  test('with no configuration the data model carries the defaults', () async {
     final String generated = await generateWith('name: search_app\n');
 
-    expect(generated, contains('static const DVSearchTuning tuning'));
+    // Ranking is the model's own, like searching. It used to sit on an
+    // ArticleSearch companion as `tuning`.
+    expect(generated, contains('static const DVSearchTuning searchTuning'));
     expect(generated, contains('typoTolerance: true'));
   });
 
-  test('synonyms configured in pubspec reach the facade', () async {
+  test('synonyms configured in pubspec reach the data model', () async {
     final String generated = await generateWith('''
 name: search_app
 dartvel:

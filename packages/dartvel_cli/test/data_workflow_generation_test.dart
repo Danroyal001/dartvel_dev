@@ -43,7 +43,11 @@ class _Order {
           isNot(contains("export 'package:workflow_app/models/order.dart'")));
       expect(content, contains('class Order {'));
       expect(content, contains('const Order({'));
-      expect(content, contains('static Widget Form(Order model, [void Function(Order)? onSubmit])'));
+      // The form on the class creates, the form on an instance edits, and
+      // neither takes a callback: saving is what a form does.
+      expect(content, contains('static Widget Form() =>'));
+      expect(content, contains('extension OrderFormX on Order {'));
+      expect(content, contains('Widget Form() => DVForm<Order>(this,'));
       expect(content, contains('static Widget List('));
       expect(content, contains('static Widget Table('));
       expect(
@@ -56,7 +60,12 @@ class _Order {
       expect(content, isNot(contains('Widget OrderList(')));
       expect(content, isNot(contains('Widget OrderTable(')));
       expect(content, isNot(contains('Widget OrderPage(')));
-      expect(content, contains('class OrderImport'));
+      // Importing is a member of the data model. The class behind it is
+      // private, so no reader learns a second name for one model's own
+      // capability.
+      expect(content, contains('static DVImportResult<Order> importCsv('));
+      expect(content, contains('class _OrderImport'));
+      expect(content, isNot(contains('class OrderImport')));
       expect(content, contains('class OrderFactory'));
       expect(content, contains('Map<String, Object?> toJson()'));
       expect(
@@ -87,7 +96,9 @@ class _Order {
               'static Future<List<DVJobEnvelope<DVImportChunk>>> resumableNdjson'));
       expect(content, contains('static DVImportResult<Order> excel'));
       expect(content, contains('const DVQueues().dispatch<DVImportChunk>'));
-      expect(content, contains('class OrderExport'));
+      expect(content, contains('static DVExportResult exportCsv('));
+      expect(content, contains('class _OrderExport'));
+      expect(content, isNot(contains('class OrderExport')));
       expect(content, contains('static DVExportResult csv'));
       expect(content, contains('static DVExportResult json'));
       expect(content, contains('static DVExportResult ndjson'));
