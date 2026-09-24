@@ -10,7 +10,6 @@
 // the failure worth testing: the page still renders, in Roboto, and looks
 // fine to whoever changed it.
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dartvel_site/main.dart';
