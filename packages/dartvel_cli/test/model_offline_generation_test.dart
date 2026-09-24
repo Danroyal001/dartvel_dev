@@ -120,6 +120,68 @@ class _Invoice {
     expect(offlineTable, contains('const DVTenants().currentTenant'));
   });
 
+  test('the backend learns which models are offline, and how they resolve',
+      () async {
+    // The generated backend cannot import models.g.dart -- that file imports
+    // Flutter -- so the route that applies replayed writes cannot call
+    // Model.offlineRemote. It builds its remotes from the specs in
+    // model_pages.g.dart, which already carry the table, the key, the
+    // sensitive fields, tenancy, versioning and soft delete for exactly this
+    // reason. The conflict strategy is the one thing they were missing.
+    final Directory root =
+        await Directory.systemTemp.createTemp('dartvel_offline_spec_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'models', 'order.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(offline: DVConflict.lastWriteWins)
+class _Order {
+  final String id;
+  final String reference;
+
+  const _Order({required this.id, required this.reference});
+}
+''');
+    File(p.join(root.path, 'lib', 'models', 'ledger.dart'))
+        .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _Ledger {
+  final String id;
+  final int balance;
+
+  const _Ledger({required this.id, required this.balance});
+}
+''');
+    await ModelGenerator.generate(
+      root: root.path,
+      pkgName: 'offline_spec_app',
+      buildId: 'test-build',
+    );
+    final String pages =
+        File(p.join(root.path, 'lib', 'dartvel_client', 'model_pages.g.dart'))
+            .readAsStringSync();
+
+    // The one that declared it says which strategy, and the one that did not
+    // says nothing -- a spec that defaulted to a strategy would put every
+    // model in the registry the route writes through.
+    final int order = pages.indexOf("model: 'Order'");
+    final int ledger = pages.indexOf("model: 'Ledger'");
+    expect(order, isNonNegative);
+    expect(ledger, isNonNegative);
+    final String orderSpec =
+        pages.substring(order, order < ledger ? ledger : pages.length);
+    final String ledgerSpec =
+        pages.substring(ledger, ledger < order ? order : pages.length);
+
+    expect(orderSpec, contains('offline: DVConflict.lastWriteWins'));
+    expect(ledgerSpec, isNot(contains('offline:')));
+  });
+
   test('a model that did not ask for it has neither', () async {
     final String content = await generated('@DVModel()');
 
