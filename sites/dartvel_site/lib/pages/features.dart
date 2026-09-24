@@ -175,6 +175,18 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
   (
+    'Module Sources',
+    'dartvel add',
+    'Present: the lockfile pins a foreign source and the graph reports it. '
+        'Absent: the resolver, so nothing is generated.',
+  ),
+  (
+    'Native Binding Graph',
+    'Five binding kinds',
+    'Present: the set is closed and checked. Absent: the five kinds '
+        'themselves.',
+  ),
+  (
     'Styling',
     'Fluent modifiers',
     'Present: padding, corners, colour, type, shadows, blur and rotation on '
@@ -662,7 +674,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('WHAT WORKS TODAY'),
         Heading('Twenty-five shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-five more are partial, and each card says what is missing.',
+          'Seventy-seven more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
