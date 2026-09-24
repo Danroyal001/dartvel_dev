@@ -281,7 +281,7 @@ Widget _codeSample(BuildContext context, List<String> lines) {
             // on a page whose whole argument is what the code looks like.
             fontFamily: 'JetBrainsMono',
             fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
-            fontSize: 13.5,
+            fontSize: 14,
             height: 1.65,
           ),
         ),

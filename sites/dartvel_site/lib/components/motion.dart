@@ -63,7 +63,7 @@ Widget _countUp(
 Widget _typewriter(
   BuildContext context,
   List<TextSpan> spans, {
-  TextStyle style = const TextStyle(fontFamily: 'JetBrainsMono', fontSize: 13.5),
+  TextStyle style = const TextStyle(fontFamily: 'JetBrainsMono', fontSize: 14),
   Duration perCharacter = const Duration(milliseconds: 13),
 }) {
   final int length = spans.fold<int>(

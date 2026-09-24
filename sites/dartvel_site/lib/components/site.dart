@@ -74,6 +74,56 @@ const String kSpecStatusUrl =
 const String kBuildTargetsUrl =
     'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/build-targets.md';
 
+/// The sizes the site sets type at, and the only ones it may.
+///
+/// Not a rule imposed from outside: these are the sizes the pages actually
+/// needed, with the near-duplicates collapsed. There were fourteen, among
+/// them 12.5, 13.5 and 19, each one written because something had to be a
+/// little smaller than the thing above it. No single one of them is wrong,
+/// and together they are why a page reads as assembled rather than designed.
+///
+/// `test/type_scale_test.dart` holds every fontSize on the site to this
+/// list, and holds this list to being used: a step nothing sets is a step
+/// somebody hoped for.
+const List<double> kTypeScale = <double>[
+  12, // labels, eyebrows, chips
+  13, // small print
+  14, // captions and the quiet line under a figure
+  15, // secondary body
+  17, // body
+  20, // a lead paragraph
+  24, // a section heading on a phone
+  30, // a section heading, and a figure on a phone
+  38, // a figure
+  50, // the one h1
+];
+
+/// The corner radii the site uses, and the only ones it may.
+///
+/// Small, because a radius chosen by feel is how a page ends up with an 8, a
+/// 9 and a 10 doing the same job. The rule for a shape inside another shape
+/// is concentric: where the gap between them is under 32 points, the inner
+/// radius is the outer one minus the gap, which is what keeps the two curves
+/// parallel. [insideBorder] is that rule for the common case.
+///
+/// `test/corner_radius_test.dart` holds the site to it.
+const List<double> kRadii = <double>[
+  3, // a bullet dot: a square with the corner taken off
+  6, // something sitting inside a 10, with 4 points of padding
+  10, // a code block, a panel, an inset
+  12, // a card, a figure, a framed screenshot
+  14, // the outermost thing on a band: the hero terminal
+  999, // a pill, which is not a radius but a shape
+];
+
+/// A shape clipped inside a framed one takes its frame's radius less the
+/// border between them, which is what keeps the two curves parallel.
+///
+/// `StudioShot` is the worked example: a 12 frame with a one-point border
+/// around an 11 image. So 11 is a legal radius and 9 is not, and the
+/// difference is whether there is an outer shape it was derived from.
+double insideBorder(double outer, [double border = 1]) => outer - border;
+
 /// The reading column every band shares.
 const double kColumn = 1040;
 
@@ -248,9 +298,9 @@ Widget _heading(
 }) =>
     DVText(text).modifier(
       const DVModifier()
-          .fontSize(context.screen.value<double>(mobile: 26, desktop: 34))
+          .fontSize(context.screen.value<double>(mobile: 24, desktop: 30))
           .fontWeight(FontWeight.w700)
-          .color(onDark ? const Color(0xFFF2F5FC) : Palette.of(context).ink)
+          .color(onDark ? Palette.deepInk : Palette.of(context).ink)
           .lineHeight(1.15)
           // Declared, so the outline exists for a screen reader moving by
           // heading and for the crawler-visible HTML built from the semantics
@@ -326,7 +376,7 @@ Widget _siteCard(
             .color(palette.ink)),
         if (status != null && label != null)
           DVText(label).modifier(const DVModifier()
-              .fontSize(11)
+              .fontSize(12)
               .fontWeight(FontWeight.w700)
               .color(partial
                   ? palette.ink
@@ -415,7 +465,7 @@ Widget _stats(
   bool onDark = false,
 }) {
   final Palette palette = Palette.of(context);
-  final double size = context.screen.value<double>(mobile: 32, desktop: 42);
+  final double size = context.screen.value<double>(mobile: 30, desktop: 38);
 
   return DVBox.wrapLine(<Widget>[
     for (final Figure item in items)
@@ -430,7 +480,7 @@ Widget _stats(
           color: onDark ? Palette.deepAccent : palette.accent,
         ),
         DVText(item.label).modifier(const DVModifier()
-            .fontSize(13.5)
+            .fontSize(14)
             .fontWeight(FontWeight.w600)
             .color(onDark ? Palette.deepMuted : palette.muted)
             .lineHeight(1.4)),
@@ -526,7 +576,7 @@ Widget _siteButton(
           .border(filled
               ? Border.all(color: const Color(0x00000000), width: 0)
               : Border.all(color: palette.rule, width: 1.5))
-          .rounded(9),
+          .rounded(10),
     ),
   );
 }
@@ -612,7 +662,7 @@ Widget _siteRecordEntry(BuildContext context,
   return DVBox.list(<Widget>[
     DVBox.wrapLine(<Widget>[
       DVText(area).modifier(const DVModifier()
-          .fontSize(19)
+          .fontSize(20)
           .fontWeight(FontWeight.w700)
           .color(palette.ink)
           // Level 3 under the section's level 2, so the record is reachable
@@ -657,12 +707,12 @@ Widget _objection(
   final Palette palette = Palette.of(context);
   return DVBox.list(<Widget>[
     DVText(question).modifier(const DVModifier()
-        .fontSize(16)
+        .fontSize(17)
         .fontWeight(FontWeight.w700)
-        .color(onDark ? const Color(0xFFF2F5FC) : palette.ink)
+        .color(onDark ? Palette.deepInk : palette.ink)
         .lineHeight(1.4)),
     DVText(answer).modifier(const DVModifier()
-        .fontSize(16)
+        .fontSize(17)
         .color(onDark ? const Color(0xFF9AA6C4) : palette.muted)
         .lineHeight(1.55)
         .maxWidth(600)),
@@ -692,7 +742,7 @@ Widget _bullets(BuildContext context, List<String> items, {bool onDark = false})
           ),
           Flexible(
             child: DVText(item).modifier(const DVModifier()
-                .fontSize(16)
+                .fontSize(17)
                 .color(text)
                 .lineHeight(1.5)
                 .maxWidth(620)),
