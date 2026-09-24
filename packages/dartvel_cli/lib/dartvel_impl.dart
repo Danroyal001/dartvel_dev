@@ -9,6 +9,7 @@ import 'src/commands/modules_command.dart';
 import 'src/commands/analyze_command.dart';
 import 'src/commands/inspect_command.dart';
 import 'src/commands/admin_command.dart';
+import 'src/commands/add_command.dart';
 import 'src/commands/ai_command.dart';
 import 'src/commands/artifact_command.dart';
 import 'src/commands/capture_command.dart';
@@ -103,6 +104,7 @@ DartvelCommandRunner dartvelCommandRunner() =>
       ..addCommand(PrerenderCommand())
       ..addCommand(PrivacyCommand())
       ..addCommand(PluginCommand())
+      ..addCommand(AddCommand())
       ..addCommand(ModulesCommand())
       ..addCommand(UpdatesCommand())
       ..addCommand(QueueCommand())
