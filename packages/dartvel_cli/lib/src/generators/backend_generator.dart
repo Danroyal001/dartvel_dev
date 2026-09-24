@@ -770,6 +770,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_core/dv.dart' as dvapi;
+// The replay route's handler, which applies writes a device made offline.
+// It is deliberately not in the barrel an application imports: only the
+// generated backend should be able to hand a table writes from outside.
+import 'package:dartvel_core/framework.dart' as framework;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
@@ -1416,6 +1420,52 @@ $routeClose''';
     // everywhere else rather than read as a sign this route checks nothing.
     router.get(cfg.apiBasePath + '/health', (dv.Request req) => _dvStaged(req, () async => dv.Response.text('ok')));
   }
+  // Writes a device made while it could not reach this server, replayed.
+  //
+  // Behind the authentication stage like every other route, and refused
+  // outright without a session: a queue belongs to somebody, and applying
+  // one for nobody is applying one for anybody. CSRF is validated because a
+  // browser is one of the clients that replays. The registry holds only the
+  // models that declared offline:, so the route can write to those tables
+  // and no others, and each mutation is put to that model's policy before
+  // anything is written.
+  router.post(cfg.apiBasePath + framework.DVOfflineReplay.path, (dv.Request req) => _dvStaged(req, () async {
+    if (core.DVSessionPrincipal.current == null) {
+      return dv.Response(401,
+          headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(
+              const <String, Object?>{'message': 'sign in to replay'}))));
+    }
+    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
+    Object? decoded;
+    try {
+      final text = await req.body.text();
+      decoded = text.isEmpty ? null : conv.jsonDecode(text);
+    } on Object {
+      // Not JSON is not a replay request, and is refused as one rather than
+      // reported as this server being broken.
+      decoded = null;
+    }
+    // Resolved per request rather than captured at start, so the route uses
+    // whatever this process configured and refuses honestly when nothing
+    // has: a replay applied to no database would answer that it worked.
+    final database = const core.DVDatabase().configuredAdapter;
+    if (database == null) {
+      return dv.Response(503,
+          headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(
+              const <String, Object?>{'message': 'no database configured'}))));
+    }
+    final result = await framework.DVOfflineReplay.forSpecs(
+      dartvelStudioModels,
+      database: database,
+    ).handle(decoded);
+    return dv.Response(result.status,
+        headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
+        body: Stream<List<int>>.value(conv.utf8.encode(conv.jsonEncode(
+            <String, Object?>{'message': result.message, ...result.body}))));
+  }));
+
   // GraphQL: whatever the application registered on DVGraphQL, served on
   // the spec-shaped POST body {query, variables, operationName}, on the
   // request's tenant and behind the authentication stage. Each field declaring
