@@ -1513,16 +1513,27 @@ class DVModifier {
       );
 
   /// The image behind a box: a bundled one, or one a model holds.
+  ///
+  /// [repeat] tiles it, which is how a texture is made: grain, a hairline
+  /// grid, paper fibre. A tile is small and a band is wide, so a texture
+  /// needs `fit: BoxFit.none` beside it, and without both the only thing a
+  /// background image can do is stretch one picture over the box.
   DVModifier backgroundImage(
     Object source, {
     BoxFit fit = BoxFit.cover,
     double opacity = 1,
+    ImageRepeat repeat = ImageRepeat.noRepeat,
   }) {
     final ImageProvider<Object>? provider =
         DVImageRender.providerFor(dvImageOf(source));
     if (provider == null) return this;
     return _copyWith(
-      bgImage: DecorationImage(image: provider, fit: fit, opacity: opacity),
+      bgImage: DecorationImage(
+        image: provider,
+        fit: fit,
+        opacity: opacity,
+        repeat: repeat,
+      ),
     );
   }
 
