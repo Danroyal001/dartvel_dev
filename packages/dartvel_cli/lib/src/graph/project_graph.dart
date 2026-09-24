@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../module_trust/module_lock.dart';
 
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -277,6 +278,11 @@ class DartvelProjectGraph {
     if (_dartvelSection(root)?['modules'] == null) {
       return const <DVGraphModule>[];
     }
+    // Read once for every module rather than once per module: the lockfile is
+    // one file, and reading it in a loop would parse it as many times as the
+    // project has modules. A lockfile that will not parse pins nothing, and
+    // the graph reports no pin rather than a wrong one.
+    final Map<String, DVModulePin> pins = DVModuleLock.read(root).pins;
     final List<DVGraphModule> found = <DVGraphModule>[
       for (final DVModuleMount mount in dvDiscoverModuleMounts(root))
         DVGraphModule(
@@ -294,6 +300,12 @@ class DartvelProjectGraph {
           backend: mount.backend,
           fromPackage: mount.fromPackage,
           problems: mount.problems,
+          // Keyed by package, which is what the lockfile pins: a module's id
+          // is what the parent calls it and two parents may call one package
+          // different things.
+          pin: pins[mount.packageName] == null
+              ? null
+              : DVGraphModulePin.of(pins[mount.packageName]!),
         ),
     ];
     found.sort((DVGraphModule a, DVGraphModule b) => a.id.compareTo(b.id));
@@ -543,6 +555,7 @@ class DVGraphModule {
     this.backend,
     this.fromPackage = false,
     this.problems = const <String>[],
+    this.pin,
   });
 
   /// What the parent knows it by: `DV.Modules.<id>`.
@@ -587,6 +600,16 @@ class DVGraphModule {
   /// What is wrong with the declaration.
   final List<String> problems;
 
+  /// What the lockfile pinned for this module, or null when nothing did.
+  ///
+  /// Provenance in one place rather than spread across the node: `source`
+  /// here already means where the module's project is, and a reader asking
+  /// which bytes a module came from should not have to know that those are
+  /// two different questions. Null is a real answer -- a path module in a
+  /// monorepo is never pinned -- and inventing a digest for one would make
+  /// the graph claim provenance it does not have.
+  final DVGraphModulePin? pin;
+
   Map<String, Object?> toJson() => <String, Object?>{
         'id': id,
         'package': package,
@@ -602,6 +625,7 @@ class DVGraphModule {
         if (backend != null) 'backend': backend,
         if (fromPackage) 'fromPackage': true,
         if (problems.isNotEmpty) 'problems': problems,
+        if (pin != null) 'pin': pin!.toJson(),
       };
 
   /// Reads one back, for a consumer of `graph.json`.
@@ -624,5 +648,102 @@ class DVGraphModule {
               in (json['problems'] as List?) ?? const <Object?>[])
             '$problem',
         ],
+        pin: json['pin'] is Map
+            ? DVGraphModulePin.fromJson(
+                (json['pin']! as Map).cast<String, Object?>())
+            : null,
+      );
+}
+
+/// What the lockfile pinned for a module, as the graph reports it.
+///
+/// A module from pub.dev is pinned by the archive the registry served and
+/// carries the publisher it verified. A module generated from a foreign
+/// source has neither: it is pinned by what was fetched and what was
+/// generated from it, and those are separate because a changed source and a
+/// changed wrapper are different events whose fixes are opposite.
+class DVGraphModulePin {
+  const DVGraphModulePin({
+    required this.version,
+    this.sha256,
+    this.publisher,
+    this.source,
+    this.sourceDigest,
+    this.wrapperHash,
+    this.generator,
+    this.resolvedFrom,
+    this.targets = const <String>[],
+  });
+
+  final String version;
+
+  /// The pub.dev archive's digest, or null for a foreign source.
+  final String? sha256;
+
+  /// The publisher pub.dev verified, or null when none could be asked and
+  /// always null for a foreign source, which has no publisher to verify.
+  final String? publisher;
+
+  /// The descriptor a foreign module was resolved from, such as
+  /// `maven:com.vendor:scanner`.
+  final String? source;
+
+  /// The digest of what was fetched.
+  final String? sourceDigest;
+
+  /// The digest of the module generated from it.
+  final String? wrapperHash;
+
+  /// The generator version that produced [wrapperHash].
+  final String? generator;
+
+  /// Where the source was fetched from.
+  final String? resolvedFrom;
+
+  /// The targets the generated module declares.
+  final List<String> targets;
+
+  /// Whether this came from outside pub.dev.
+  bool get isForeign => source != null;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'version': version,
+        if (sha256 != null) 'sha256': sha256,
+        if (publisher != null) 'publisher': publisher,
+        if (source != null) 'source': source,
+        if (sourceDigest != null) 'sourceDigest': sourceDigest,
+        if (wrapperHash != null) 'wrapperHash': wrapperHash,
+        if (generator != null) 'generator': generator,
+        if (resolvedFrom != null) 'resolvedFrom': resolvedFrom,
+        if (targets.isNotEmpty) 'targets': targets,
+      };
+
+  factory DVGraphModulePin.fromJson(Map<String, Object?> json) =>
+      DVGraphModulePin(
+        version: '${json['version'] ?? ''}',
+        sha256: json['sha256'] as String?,
+        publisher: json['publisher'] as String?,
+        source: json['source'] as String?,
+        sourceDigest: json['sourceDigest'] as String?,
+        wrapperHash: json['wrapperHash'] as String?,
+        generator: json['generator'] as String?,
+        resolvedFrom: json['resolvedFrom'] as String?,
+        targets: <String>[
+          for (final Object? t in (json['targets'] as List?) ?? const <Object?>[])
+            '$t',
+        ],
+      );
+
+  /// The pin a lockfile entry becomes.
+  factory DVGraphModulePin.of(DVModulePin pin) => DVGraphModulePin(
+        version: pin.version,
+        sha256: pin.sha256,
+        publisher: pin.publisher,
+        source: pin.source,
+        sourceDigest: pin.sourceDigest,
+        wrapperHash: pin.wrapperHash,
+        generator: pin.generator,
+        resolvedFrom: pin.resolvedFrom,
+        targets: pin.targets,
       );
 }
