@@ -1883,7 +1883,12 @@ class ModelGenerator {
         sb.writeln('    return dvCopy;');
         sb.writeln('  }');
 
-        // Instance persistence, per the spec's `await user.sync()`.
+        // Instance persistence.
+        //
+        // There is no sync(). Saving is what publishes the change, and a
+        // model that has to be told to sync is not realtime: the surface
+        // carried two ways to do one thing, and the second one said that
+        // syncing is something an application triggers.
         if (fields.isNotEmpty) {
           sb.writeln();
           sb.writeln('  /// Stores this model and publishes the change, checked');
@@ -1893,16 +1898,6 @@ class ModelGenerator {
           sb.writeln();
           sb.writeln('  /// Removes this model and publishes the deletion.');
           sb.writeln('  Future<void> destroy() => $className.destroy(this);');
-          sb.writeln();
-          sb.writeln('  /// Persists this model and announces it as synced,');
-          sb.writeln('  /// so other watchers converge on this state.');
-          sb.writeln('  Future<$className> sync() async {');
-          sb.writeln('    await $className.save(this);');
-          sb.writeln(
-            '    await DVModelSync.publish<$className>(this, kind: DVModelChangeKind.synced);',
-          );
-          sb.writeln('    return this;');
-          sb.writeln('  }');
           if (history != null) {
             if (fields.any((Map<String, String> f) => f['name'] == 'history')) {
               throw StateError(
