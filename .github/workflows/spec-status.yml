@@ -98,6 +98,14 @@ jobs:
       # shell before the line that would have said so.
       - run: dart run tool/ci/workflow_errexit_check.dart
 
+      # Three closed sets: one public surface for capability, five binding
+      # kinds, and no platform channels. Each is closed for a reason the
+      # specification gives, and each is a name somebody will reach for --
+      # DVSwiftBinding is the obvious one, and it is wrong because Swift,
+      # Objective-C, C++ and Rust all cross the same C ABI. A rule nothing
+      # checks drifts back.
+      - run: dart run tool/ci/reserved_names_check.dart
+
       # The security documents are worth reading because they name files --
       # this is where the password hasher lives, this is the filter deciding
       # what reaches a browser. Naming them is also how they rot: rename one

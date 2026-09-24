@@ -1762,16 +1762,22 @@
     {
       "section": "Module Sources",
       "stability": "Contract",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "dartvel add; the source resolver; source detection; the generation pipeline; per-environment carrier selection and the compat generator; per-environment tree-shaking; dartvel.module.lock sourceDigest and wrapperHash; dartvel inspect modules --json; exports: components:; DV-MODULE-009 through DV-MODULE-017 and DV-MODULE-020."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_cli/lib/src/module_trust/module_lock.dart",
+        "packages/dartvel_cli/test/module_lock_foreign_source_test.dart",
+        "tool/ci/reserved_names_check.dart"
+      ],
+      "absent": "Built: dartvel.module.lock pins a foreign source -- source, sourceDigest, wrapperHash, generator, resolvedFrom and targets -- refusing an entry whose digests are missing or malformed rather than skipping it; a module node in the project graph reports that pin; and the one-public-surface rule is checked, so DVModuleManager, DVBindingManager, DVBindings, DVIntegrations, DVPackages and DVPlugins fail a build. Absent: dartvel add and the source resolver; source detection; the generation pipeline; per-environment carrier selection and the compat generator; per-environment tree-shaking; dartvel inspect modules --json; exports: components:; DV-MODULE-009 through DV-MODULE-017 and DV-MODULE-020."
     },
     {
       "section": "Native Binding Graph",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "DVBindingGraph; all five binding kinds; the carrier matrix; ownership annotation and DV-BIND-003; async and error conversion; dartvel inspect bindings --json; DV-BIND-001 through DV-BIND-008."
+      "status": "Partial",
+      "evidence": [
+        "tool/ci/reserved_names_check.dart"
+      ],
+      "absent": "Built: the five kinds are a closed set that something checks -- tool/ci/reserved_names_check.dart fails a tracked Dart file naming DVSwiftBinding, DVRustBinding, DVKotlinBinding, DVObjCBinding, DVAppleBinding, DVWindowsBinding, DVLinuxBinding, DVAndroidBinding or DVJvmBinding, and fails one naming MethodChannel, EventChannel or BasicMessageChannel. Absent: DVBindingGraph and all five kinds themselves; the carrier matrix; ownership annotation and DV-BIND-003; async and error conversion; dartvel inspect bindings --json; DV-BIND-001 through DV-BIND-008."
     },
     {
       "section": "Module Health",
