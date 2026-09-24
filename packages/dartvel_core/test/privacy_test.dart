@@ -13,6 +13,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and a test of it
+// does.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 typedef _Adapter = (String name, DVDatabaseAdapter Function() create);

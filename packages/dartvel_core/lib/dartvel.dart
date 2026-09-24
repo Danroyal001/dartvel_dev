@@ -153,7 +153,17 @@ export 'src/data/import_chunking.dart';
 // for the framework and out of the surface.
 export 'src/data/offline_store.dart'
     hide DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
-export 'src/data/record_history.dart';
+// A model is the surface, and the record layer is how it is delivered.
+// DVRecordTable is the table under a model, DVRecord a raw row, DVWriteResult
+// a write's outcome and DVRecordScope the tenant filter. An application that
+// names one of them is writing its model's table, key, columns and types out
+// a second time, where the two are free to disagree; they stay in
+// framework.dart, which the generated models import.
+//
+// What a model hands back is not hidden: history() returns DVHistoryEntry,
+// revert() returns DVRevertResult, and both have to be nameable.
+export 'src/data/record_history.dart'
+    hide DVRecordTable, DVRecord, DVWriteResult, DVRecordScope;
 export 'src/devclient/dev_backend_url.dart';
 export 'src/devclient/dev_client.dart';
 export 'src/devclient/dev_client_certificate.dart';

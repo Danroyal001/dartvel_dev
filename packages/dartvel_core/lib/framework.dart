@@ -13,6 +13,10 @@
 library;
 
 export 'src/data/offline_replay.dart';
+// The record layer, which the generated models are built on and an
+// application does not name. See the note in dartvel.dart.
+export 'src/data/record_history.dart'
+    show DVRecordTable, DVRecord, DVWriteResult, DVRecordScope;
 export 'src/data/offline_store.dart'
     show DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
 export 'src/search/semantic_search.dart' show DVSemanticIndex;

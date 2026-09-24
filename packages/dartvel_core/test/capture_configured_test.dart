@@ -11,6 +11,9 @@
 // A capture log is configured once, like the database, and a model says it is
 // captured. Nothing else changes: saving a record is what records the change.
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which an application does not name and a test of it
+// does.
+import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
 void main() {
