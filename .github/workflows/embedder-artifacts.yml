@@ -95,7 +95,7 @@ jobs:
         id: build
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           cd elinux-src
           cmake -E make_directory build
           cp ../engine/libflutter_engine.so build/

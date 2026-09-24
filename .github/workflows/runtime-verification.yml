@@ -74,7 +74,7 @@ jobs:
 
       - name: Generate and build
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/linux-build.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -92,7 +92,7 @@ jobs:
         continue-on-error: true
         working-directory: examples/dartvel_example
         run: |
-          set -uo pipefail
+          set -euo pipefail
           Xvfb :99 -screen 0 1280x900x24 &
           sleep 3
           export DISPLAY=:99
@@ -117,8 +117,17 @@ jobs:
           # never mapped still leaves evidence.
           for attempt in $(seq 1 20); do
             sleep 3
+            # `|| true`, because GitHub runs every step with bash -e --
+            # `shell: /usr/bin/bash -e {0}` -- and `set -uo pipefail` above
+            # does not take that off. With pipefail on, a grep that matches
+            # nothing fails the pipeline, and -e then killed the shell on
+            # this line: before the echo, before the import, before anything
+            # said why. That is the whole of it. The window had simply not
+            # mapped within the first three seconds, the loop never reached
+            # its second attempt, and the job reported a capture failure
+            # with an empty log.
             WID=$(xwininfo -root -tree 2>/dev/null \
-              | grep -m1 '"Oakline Coffee":' | awk '{ print $1 }')
+              | grep -m1 '"Oakline Coffee":' | awk '{ print $1 }' || true)
             if [ -n "$WID" ]; then
               xwininfo -id "$WID" | grep -E "Width|Height" || true
               import -display :99 -window "$WID" /tmp/diag/linux-gui.png \
@@ -305,7 +314,7 @@ jobs:
         id: run
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           mkdir -p /tmp/diag
           exec > >(tee -a /tmp/diag/elinux-run.log) 2>&1
 
@@ -368,7 +377,7 @@ jobs:
         id: release
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/elinux-release.log) 2>&1
 
           cd examples/dartvel_example
@@ -459,7 +468,7 @@ jobs:
 
       - name: Build the terminal embedder
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/terminal-build.log) 2>&1
           git clone --depth 1 https://github.com/Danroyal001/dartvel_cli_flt.git flt
           cd flt
@@ -481,7 +490,7 @@ jobs:
       # Dartvel, which is the claim this job exists to support.
       - name: Assemble a terminal bundle from the example
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/terminal-assemble.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -517,7 +526,7 @@ jobs:
         id: run
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/terminal-run.log) 2>&1
           echo "=== bundle ==="; find /tmp/terminal-out -maxdepth 2
           # The capture is a Dart command now, so the CLI has to resolve
@@ -533,7 +542,7 @@ jobs:
         id: shot
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/terminal-shot.log) 2>&1
           Xvfb :99 -screen 0 1400x900x24 &
           sleep 3
@@ -598,7 +607,7 @@ jobs:
 
       - name: Build for web
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/web-build.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -611,7 +620,7 @@ jobs:
         continue-on-error: true
         working-directory: examples/dartvel_example/build/web
         run: |
-          set -uo pipefail
+          set -euo pipefail
           dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8080 > /tmp/serve.log 2>&1 &
           sleep 3
           # CanvasKit downloads and the first frame takes a moment; a shot taken
@@ -730,7 +739,7 @@ jobs:
 
       - name: Generate and build the APK
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/android-build.log) 2>&1
           cd examples/dartvel_example
 
@@ -847,7 +856,7 @@ jobs:
 
       - name: Generate
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/apple-generate.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -857,7 +866,7 @@ jobs:
         id: macos
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/macos-run.log) 2>&1
           cd examples/dartvel_example
           flutter build macos --debug
@@ -878,7 +887,7 @@ jobs:
         id: ios
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/ios-run.log) 2>&1
           cd examples/dartvel_example
           xcrun simctl list devices available | head -20
@@ -1015,7 +1024,7 @@ jobs:
         id: embedder
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/tvos-setup.log) 2>&1
           git clone --depth 1 https://github.com/Danroyal001/dartvel_tvos.git "$HOME/dartvel_tvos"
           echo "$HOME/dartvel_tvos/bin" >> $GITHUB_PATH
@@ -1025,7 +1034,7 @@ jobs:
         id: run
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/tvos-run.log) 2>&1
           export PATH="$HOME/dartvel_tvos/bin:$PATH"
 
@@ -1109,7 +1118,7 @@ jobs:
 
       - name: Build the extension
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/extension-build.log) 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -1121,7 +1130,7 @@ jobs:
         id: run
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/extension-run.log) 2>&1
           EXT="$GITHUB_WORKSPACE/examples/dartvel_example/build/chrome-extension"
           # Headless Chrome refuses --load-extension, so this needs a display:
@@ -1341,7 +1350,7 @@ jobs:
 
       - name: Load it in Firefox and photograph the page
         run: |
-          set -uo pipefail
+          set -euo pipefail
           EXT="$GITHUB_WORKSPACE/examples/dartvel_example/build/firefox-extension"
           ID=$(cat /tmp/addon-id)
           # Fixed, so the page has a URL this job can ask for. Firefox assigns
@@ -1442,7 +1451,7 @@ jobs:
         id: run
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a /tmp/diag/refusals.log) 2>&1
           cd examples/dartvel_example
           flutter pub get

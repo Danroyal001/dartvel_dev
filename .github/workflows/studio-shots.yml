@@ -105,7 +105,7 @@ jobs:
 
       - name: None of them is a flat colour
         run: |
-          set -uo pipefail
+          set -euo pipefail
           failed=0
           for shot in /tmp/studio-shots/*.png; do
             spread=$(convert "$shot" -colorspace Gray -format '%[fx:standard_deviation]' info:)
@@ -118,7 +118,7 @@ jobs:
       - name: A contact sheet for a person to look at
         if: always()
         run: |
-          set -uo pipefail
+          set -euo pipefail
           cd /tmp/studio-shots
           montage -label '%t' *.png -tile 3x -geometry 640x400+4+4 -pointsize 14 \
             /tmp/studio-shots/contact-sheet.png || true
