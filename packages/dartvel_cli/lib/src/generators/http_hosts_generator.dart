@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart' show DVHttp;
 import 'package:path/path.dart' as p;
 
+import '../graph/module_mounts.dart';
 import '../http/http_analysis.dart';
 import '../secrets/secrets_analysis.dart';
 
@@ -36,6 +37,65 @@ class HttpHostsGenerator {
       throw StateError('${error.message}');
     }
     return http;
+  }
+
+  /// The parent's block with every mounted module's hosts folded in.
+  ///
+  /// A module generated from an OpenAPI document or a GraphQL schema carries
+  /// the one host its calls go to. Nothing read it, so a module that was
+  /// generated, mounted and imported met DV-HTTP-001 on its first request,
+  /// which is every request it makes.
+  ///
+  /// A name that two of them claim stops the build. A host name decides a
+  /// base URL and a credential, so one quietly winning would send the
+  /// parent's bearer token to the module's service, or the module's calls to
+  /// the parent's.
+  ///
+  /// Throws [StateError] naming both claimants.
+  static Map<Object?, Object?>? merge({
+    required Map<Object?, Object?>? http,
+    required List<DVModuleMount> modules,
+  }) {
+    final Map<Object?, Object?> hosts = <Object?, Object?>{};
+    final Map<String, String> claimed = <String, String>{};
+    void take(String by, Map<Object?, Object?> block) {
+      final Object? declared = block['hosts'];
+      if (declared is! Map) return;
+      for (final MapEntry<Object?, Object?> entry in declared.entries) {
+        final String name = '${entry.key}';
+        final String? previous = claimed[name];
+        if (previous != null) {
+          throw StateError(
+            'The host "$name" is declared by $previous and by $by. A host '
+            'name decides a base URL and a credential, so one of them '
+            'winning would send a call or a token to the wrong service. '
+            'Rename one of them.',
+          );
+        }
+        claimed[name] = by;
+        hosts[name] = entry.value;
+      }
+    }
+
+    if (http != null) take('this project', http);
+    for (final DVModuleMount module in modules) {
+      final Map<Object?, Object?>? block = module.http;
+      if (block == null) continue;
+      take('the ${module.id} module', block);
+    }
+    if (hosts.isEmpty) return http;
+    final Map<Object?, Object?> merged = <Object?, Object?>{
+      if (http != null) ...http,
+      'hosts': hosts,
+    };
+    // Through the same reader, so a module's block is held to what the
+    // parent's is held to rather than trusted because it was generated.
+    try {
+      DVHttp.readConfig(merged);
+    } on ArgumentError catch (error) {
+      throw StateError('${error.message}');
+    }
+    return merged;
   }
 
   /// `DV-HTTP-001` and `DV-HTTP-005` over the project's own sources, before

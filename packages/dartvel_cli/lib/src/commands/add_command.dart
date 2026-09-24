@@ -89,7 +89,8 @@ class DVAddPlan {
         'from     $path  (a Dartvel project, mounted directly)',
         'mount    $mount',
         'package  $packageName',
-        'writes   pubspec.yaml: dartvel.modules.$id',
+        'writes   pubspec.yaml: dependencies.$packageName, '
+            'dartvel.modules.$id',
       ];
     }
     return <String>[
@@ -99,7 +100,8 @@ class DVAddPlan {
       'package  $packageName',
       'host     ${module.host}, declared in the generated pubspec',
       for (final String file in module.files.keys) 'writes   $path/$file',
-      'writes   pubspec.yaml: dartvel.modules.$id',
+      'writes   pubspec.yaml: dependencies.$packageName, '
+          'dartvel.modules.$id',
     ];
   }
 }
@@ -151,6 +153,7 @@ class AddCommand extends Command<void> {
       return;
     }
     _write(target, plan);
+    _depend(target, plan);
     _mount(target, plan);
     Logger.log('Mounted ${plan.id} at ${plan.mount}. '
         'Run dartvel routes to regenerate the client.');
@@ -404,6 +407,39 @@ class AddCommand extends Command<void> {
       out.parent.createSync(recursive: true);
       out.writeAsStringSync(file.value);
     }
+  }
+
+  /// Adds the module's package to `dependencies`, creating the key if the
+  /// pubspec has none.
+  ///
+  /// The mount alone is not enough: the generated client writes
+  /// `import 'package:<name>/...'` for a mounted module's pages, and without
+  /// the dependency that import does not resolve. A mount on its own leaves
+  /// a project that no longer builds, which is the thing this command exists
+  /// not to do.
+  static void _depend(String root, DVAddPlan plan) {
+    final File file = File(p.join(root, 'pubspec.yaml'));
+    final String text = file.readAsStringSync();
+    final Object? doc = _yamlOf(file);
+    final Object? dependencies = doc is Map ? doc['dependencies'] : null;
+    if (dependencies is Map && dependencies.containsKey(plan.packageName)) {
+      return;
+    }
+    final String entry = '  ${plan.packageName}:\n'
+        '    path: ${plan.path}\n';
+
+    final RegExp key = RegExp(r'^dependencies:\s*$', multiLine: true);
+    final RegExpMatch? existing = key.firstMatch(text);
+    if (existing == null) {
+      file.writeAsStringSync(
+        '${text.trimRight()}\n\ndependencies:\n$entry',
+      );
+      return;
+    }
+    file.writeAsStringSync(
+      '${text.substring(0, existing.end)}\n$entry'
+      '${text.substring(existing.end).replaceFirst('\n', '')}',
+    );
   }
 
   /// Appends the mount to `dartvel.modules`, creating the key if it is the

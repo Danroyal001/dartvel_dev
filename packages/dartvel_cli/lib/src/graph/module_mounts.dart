@@ -95,6 +95,8 @@ class DVModuleMount {
     this.data = 'shared',
     this.problems = const <String>[],
     this.fromPackage = false,
+    this.kind,
+    this.http,
   });
 
   /// Whether the module is mounted as a dependency (`package:`) rather than
@@ -247,6 +249,22 @@ class DVModuleMount {
   /// What is wrong with the declaration, reported rather than thrown: a
   /// build says what it could not mount and carries on with the rest.
   final List<String> problems;
+
+  /// What generated this module, from `dartvel.module.kind`, or null for a
+  /// module somebody wrote.
+  ///
+  /// `describedApi` today. It is here rather than inferred because a
+  /// generated module is an ordinary Dart package and nothing about it on
+  /// disk says it was generated.
+  final String? kind;
+
+  /// The module's own `dartvel.http` block.
+  ///
+  /// A module generated from an OpenAPI document or a GraphQL schema carries
+  /// the host its calls go to, and the parent's build installs it: a host
+  /// nobody declared is DV-HTTP-001 on the module's first request, which is
+  /// every request it makes.
+  final Map<Object?, Object?>? http;
 }
 
 /// The routes a federated module answers, and the address that answers them.
@@ -459,6 +477,12 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       data: modes.data,
       problems: problems,
       fromPackage: fromPackage,
+      kind: moduleDeclaration['kind'] is String
+          ? moduleDeclaration['kind']! as String
+          : null,
+      http: moduleSection['http'] is Map
+          ? moduleSection['http']! as Map<Object?, Object?>
+          : null,
     ));
   });
   mounts.sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
