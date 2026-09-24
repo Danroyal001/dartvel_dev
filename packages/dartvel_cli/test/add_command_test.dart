@@ -205,6 +205,171 @@ void main() {
     expect(_pubspec(root), before);
   });
 
+  group('an OpenAPI document', () {
+    /// A directory holding a document, beside the parent.
+    String _describedApi(String root, {String name = 'openapi.yaml'}) {
+      final Directory dir = Directory(p.join(root, 'vendor_api'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, name)).writeAsStringSync('''
+openapi: 3.0.3
+info:
+  title: Vendor ERP
+  version: "1.0.0"
+servers:
+  - url: https://api.vendor.com
+paths:
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { \$ref: "#/components/schemas/Order" }
+components:
+  schemas:
+    Order:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+''');
+      return dir.path;
+    }
+
+    test('becomes a module package the parent mounts', () async {
+      final String root = _project();
+      _describedApi(root);
+
+      expect(await _run(root, <String>['vendor_api', '--as', 'vendorErp']), 0);
+
+      // A package on disk, with the calls the document describes.
+      final String library =
+          File(p.join(root, 'modules', 'vendor_erp', 'lib', 'vendor_erp.dart'))
+              .readAsStringSync();
+      expect(library, contains('Future<Order> getOrder({required String id})'));
+      expect(
+        File(p.join(root, 'modules', 'vendor_erp', 'pubspec.yaml'))
+            .readAsStringSync(),
+        contains('id: vendorErp'),
+      );
+      // And mounted, pointing at what was written rather than at the
+      // document it came from.
+      expect(_pubspec(root), contains('path: modules/vendor_erp'));
+      expect(_pubspec(root), contains('vendorErp:'));
+    });
+
+    test('a JSON document works the same way', () async {
+      final String root = _project();
+      final Directory dir = Directory(p.join(root, 'vendor_api'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'openapi.json')).writeAsStringSync(
+        '{"openapi":"3.0.3","info":{"title":"Vendor"},'
+        '"servers":[{"url":"https://api.vendor.com"}],'
+        '"paths":{"/ping":{"get":{"operationId":"ping",'
+        '"responses":{"204":{}}}}}}',
+      );
+
+      expect(await _run(root, <String>['vendor_api', '--as', 'vendor']), 0);
+
+      expect(
+        File(p.join(root, 'modules', 'vendor', 'lib', 'vendor.dart'))
+            .readAsStringSync(),
+        contains('Future<void> ping()'),
+      );
+    });
+
+    test('--dry-run writes no package and no mount', () async {
+      final String root = _project();
+      _describedApi(root);
+      final String before = _pubspec(root);
+
+      expect(
+        await _run(root, <String>['vendor_api', '--as', 'vendorErp', '--dry-run']),
+        0,
+      );
+
+      expect(_pubspec(root), before);
+      expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
+    });
+
+    test('it will not write over a package that is already there', () async {
+      // The directory may hold work somebody did, and a generator that
+      // overwrote it would take it with no way back.
+      final String root = _project();
+      _describedApi(root);
+      Directory(p.join(root, 'modules', 'vendor_erp'))
+          .createSync(recursive: true);
+      File(p.join(root, 'modules', 'vendor_erp', 'keep.txt'))
+          .writeAsStringSync('mine');
+      final String before = _pubspec(root);
+
+      // The message, not only the code: this refusal passed before the
+      // generator existed, when every described API was refused, and a test
+      // that cannot tell those apart proves nothing about either.
+      late final DVAddRefused refused;
+      try {
+        AddCommand.planFor(root, 'vendor_api', id: 'vendorErp');
+        fail('generating over an existing package takes what is in it');
+      } on DVAddRefused catch (e) {
+        refused = e;
+      }
+      expect(refused.message, contains('modules/vendor_erp is already there'));
+
+      expect(await _run(root, <String>['vendor_api', '--as', 'vendorErp']), 1);
+
+      expect(_pubspec(root), before);
+      expect(
+        File(p.join(root, 'modules', 'vendor_erp', 'keep.txt'))
+            .readAsStringSync(),
+        'mine',
+      );
+    });
+
+    test('a document it cannot read is refused before anything is written',
+        () async {
+      final String root = _project();
+      final Directory dir = Directory(p.join(root, 'vendor_api'))
+        ..createSync(recursive: true);
+      File(p.join(dir.path, 'openapi.yaml'))
+          .writeAsStringSync('swagger: "2.0"\ninfo:\n  title: Old\n');
+      final String before = _pubspec(root);
+
+      late final DVAddRefused refused;
+      try {
+        AddCommand.planFor(root, 'vendor_api', id: 'vendor');
+        fail('a Swagger 2 document is not one this reads');
+      } on DVAddRefused catch (e) {
+        refused = e;
+      }
+      expect(refused.message, contains('openapi.yaml'));
+      expect(refused.message, contains('not an OpenAPI document'));
+
+      expect(await _run(root, <String>['vendor_api', '--as', 'vendor']), 1);
+
+      expect(_pubspec(root), before);
+      expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
+    });
+
+    test('the plan says what will be written before it is', () async {
+      final String root = _project();
+      _describedApi(root);
+
+      final DVAddPlan plan =
+          AddCommand.planFor(root, 'vendor_api', id: 'vendorErp');
+
+      expect(plan.lines.join('\n'), contains('modules/vendor_erp'));
+      expect(plan.lines.join('\n'), contains('OpenAPI'));
+      // Nothing was written by planning it.
+      expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
+    });
+  });
+
   test('a plain Dart package is sent to dart pub add', () async {
     final String root = _project();
     Directory(p.join(root, 'intl')).createSync();
