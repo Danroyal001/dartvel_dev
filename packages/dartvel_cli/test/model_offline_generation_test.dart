@@ -79,6 +79,47 @@ void main() {
     expect(content, contains('return false;'));
   });
 
+  test('a tenant-scoped model carries its tenant into replay', () async {
+    // The hole: _dvRecords() scopes every ordinary read and write to the
+    // current tenant, and the table replay applied to did not. A device
+    // signed into one tenant could write a row that belonged to no tenant,
+    // and the server would read another tenant's row of the same key when
+    // it went looking for the stored one.
+    final Directory root =
+        await Directory.systemTemp.createTemp('dartvel_offline_tenant_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'models', 'invoice.dart'))
+        .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(tenantScoped: true, offline: DVConflict.lastWriteWins)
+class _Invoice {
+  final String id;
+  final int totalCents;
+
+  const _Invoice({required this.id, required this.totalCents});
+}
+''');
+    await ModelGenerator.generate(
+      root: root.path,
+      pkgName: 'tenant_offline_app',
+      buildId: 'test-build',
+    );
+    final String content =
+        File(p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'))
+            .readAsStringSync();
+
+    final int start = content.indexOf('_dvOfflineTable(DVDatabaseAdapter');
+    expect(start, isNonNegative);
+    final String offlineTable = content.substring(start, start + 500);
+
+    expect(offlineTable, contains('scope: DVRecordScope('));
+    expect(offlineTable, contains('const DVTenants().currentTenant'));
+  });
+
   test('a model that did not ask for it has neither', () async {
     final String content = await generated('@DVModel()');
 
