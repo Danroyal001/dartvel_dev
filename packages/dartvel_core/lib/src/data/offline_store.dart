@@ -318,6 +318,15 @@ class DVRemoteOutcome {
 /// is returned as [DVRemoteOutcome.rejected].
 abstract class DVOfflineRemote {
   Future<DVRemoteOutcome> apply(DVMutation mutation);
+
+  /// The columns an outcome must not carry back.
+  ///
+  /// Required rather than defaulted to empty, so a remote cannot forget
+  /// silently: after `lastWriteWins` the record an outcome carries can be
+  /// another writer's values, and answering with it whole hands the device
+  /// fields it never sent and may not be allowed to read. An empty default
+  /// would make that the behaviour of every remote nobody thought about.
+  Set<String> get sensitiveColumns;
 }
 
 /// The server side of replay over a [DVRecordTable]: deduplicates by mutation
@@ -335,6 +344,9 @@ class DVRecordTableRemote implements DVOfflineRemote {
 
   final DVRecordTable table;
   final DVConflict strategy;
+
+  @override
+  Set<String> get sensitiveColumns => table.sensitive;
 
   /// Whether this mutation may be applied at all, asked before anything is
   /// written and before [validate].
