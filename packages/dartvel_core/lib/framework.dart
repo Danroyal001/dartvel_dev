@@ -12,6 +12,7 @@
 /// import this.
 library;
 
+export 'src/data/offline_replay.dart';
 export 'src/data/offline_store.dart'
     show DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
 export 'src/search/semantic_search.dart' show DVSemanticIndex;
