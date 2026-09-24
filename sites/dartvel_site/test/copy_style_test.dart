@@ -54,6 +54,31 @@ final List<Banned> banned = <Banned>[
     r'\b(?:seamless(?:ly)?|powerful|robust|effortless(?:ly)?|unlock|supercharge|game-changer)\b',
     caseSensitive: false,
   )),
+  // A hyphen is for a compound word. Swapping an em dash for one is the
+  // first mistake people make when they set out to de-slop a paragraph, and
+  // it is the same punctuation error wearing a shorter mark: what the
+  // sentence usually wanted was a comma, a semicolon or a full stop.
+  // A word, a space, a hyphen, a space, a word. Narrower than a bare " - "
+  // because the docs pages quote YAML list items and a line of Dart
+  // operators, and neither is a sentence.
+  Banned('hyphen used as a dash', RegExp(r'\w\s-\s\w')),
+  // The reveal opener. It promises the next clause is worth waiting for,
+  // which is a promise a sentence should keep by being the point.
+  Banned('reveal opener', RegExp(
+    r"\b(?:here(?:'|\u2019)?s the (?:kicker|thing|best part)|the best part|but wait)\b",
+    caseSensitive: false,
+  )),
+  Banned('"at the end of the day"', RegExp(r'\bat the end of the day\b', caseSensitive: false)),
+  Banned('"delve"', RegExp(r'\bdelv(?:e|es|ing)\b', caseSensitive: false)),
+  Banned('"tapestry"', RegExp(r'\btapestr(?:y|ies)\b', caseSensitive: false)),
+  Banned('"in the world of"', RegExp(r'\bin the world of\b', caseSensitive: false)),
+  Banned('"elevate"', RegExp(r'\belevat(?:e|es|ing)\b', caseSensitive: false)),
+  Banned('"next-gen"', RegExp(r'\bnext[- ]gen(?:eration)?\b', caseSensitive: false)),
+  Banned('"leverage" as a verb', RegExp(r'\bleverag(?:e|es|ing)\b', caseSensitive: false)),
+  // A rounded invented figure. Real numbers are lumpy, and a claim on this
+  // site has to be checkable in docs/spec-status.json or
+  // docs/build-targets.md, which no invented number ever is.
+  Banned('invented round figure', RegExp(r'\b(?:99\.9|99|100|50|10)%')),
 ];
 
 /// Every string literal in [source], with adjacent literals joined the way
@@ -207,6 +232,16 @@ const b = "one";
       'CTA "Get started"': 'Get started',
       'CTA "Learn more"': 'Learn more',
       'filler adjective': 'A seamless experience',
+      'hyphen used as a dash': 'Fast - and small',
+      'reveal opener': "Here's the kicker",
+      '"at the end of the day"': 'At the end of the day it ships',
+      '"delve"': 'Delve into the router',
+      '"tapestry"': 'A rich tapestry of tools',
+      '"in the world of"': 'In the world of Flutter',
+      '"elevate"': 'Elevate your workflow',
+      '"next-gen"': 'A next-gen framework',
+      '"leverage" as a verb': 'Leverage the generated client',
+      'invented round figure': '99.9% uptime',
     };
     expect(samples.keys.toSet(), banned.map((Banned b) => b.name).toSet());
     for (final Banned b in banned) {
