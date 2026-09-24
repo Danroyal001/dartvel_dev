@@ -6,6 +6,15 @@ import 'docs_cli_command.dart';
 /// Every visible dartvel command, alphabetically.
 const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   DocsCliCommand(
+    name: 'add',
+    description: 'Resolve a capability source into a module the parent mounts.',
+    options: <String>[
+      '    --as         The id the parent knows the module by.',
+      '    --mount      Where the parent serves it.',
+      '    --dry-run    Print the installation plan and change nothing.',
+    ],
+  ),
+  DocsCliCommand(
     name: 'admin',
     description: 'Generate Dartvel admin surfaces, and say who may open Studio.',
     subcommands: <DocsCliCommand>[
