@@ -222,6 +222,12 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Module Distribution and Trust', 'Backend', DVRoutes.docsmodules,
       'Publish a signed module, and pin what you mount', anchor: 'trust'),
 
+  SpecCoverage('Module Sources', 'Backend', DVRoutes.docsmodules,
+      'Where a module can come from', anchor: 'sources'),
+
+  SpecCoverage('Native Binding Graph', 'Backend', DVRoutes.docsmodules,
+      'Where a module can come from', anchor: 'sources'),
+
   SpecCoverage('Web Server Rendering', 'Backend', DVRoutes.docsdeploying,
       'Serve each page with its data and head tags', anchor: 'rendering'),
 

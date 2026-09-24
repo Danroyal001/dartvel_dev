@@ -11750,7 +11750,7 @@ implementation costs a web build nothing until a web page calls it.
 
 # Module Sources
 
-Stability: `Contract` · Status: `Designed`
+Stability: `Contract` · Status: `Partial`
 
 A framework's ecosystem is not the packages written for it. It is the
 capabilities an application can reach. Every capability a product needs — a
@@ -12038,7 +12038,7 @@ build-time wherever it can be.
 
 # Native Binding Graph
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 **This section describes internal machinery.** Nothing here is a public API. It
 is specified because generated output must be inspectable to be trustworthy, and
