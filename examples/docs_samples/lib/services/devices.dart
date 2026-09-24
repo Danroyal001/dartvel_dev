@@ -13,19 +13,15 @@ Future<void> shareReceipt(String orderId) async {
 // docs:end
 
 // docs:start devices-home-widget
-// Any widget, with the annotation on it. A class is already a widget, so
-// nothing is generated from it and it stays public. The generated route
-// names it where it lives.
+// A widget, with the annotation on it. The same functional widget every
+// other piece of Dartvel UI is: the input is private, and the generated
+// NextShiftWidget is what the home screen and the route reach.
 @DVHomeWidget(title: 'Next shift')
-class NextShiftWidget extends StatelessWidget {
-  const NextShiftWidget({super.key});
-
-  @override
-  Widget build(BuildContext context) => const DVBox.list(<Widget>[
-        DVText('Next shift'),
-        DVText('Thursday, 07:00'),
-      ]);
-}
+@DVFunctionalWidget()
+Widget _nextShiftWidget(BuildContext context) => const DVBox.list(<Widget>[
+      DVText('Next shift'),
+      DVText('Thursday, 07:00'),
+    ]);
 
 // What the home screen shows, pushed from anywhere in the app.
 Future<void> refreshShift(String when) =>

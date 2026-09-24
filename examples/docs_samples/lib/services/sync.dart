@@ -14,7 +14,12 @@ Future<void> modelChanges(Article article) async {
     DV.log('${articles.length} articles');
   });
 
-  await article.sync(); // saves, then publishes a synced change
+  // Saving is what publishes it. There is no sync() to call: a model that
+  // has to be told to sync is not realtime.
+  await article.save();
+
+  // Only because this watch was started outside a widget. One started in a
+  // page goes when the page does.
   await watch.cancel();
   // docs:end
 }
