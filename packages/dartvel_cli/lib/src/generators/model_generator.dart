@@ -3318,9 +3318,14 @@ class ModelGenerator {
       }
     }
 
+    // core.List, not List. This lands inside the model's class body, which
+    // holds a static List widget, and there a bare List is that member rather
+    // than the type -- so every model with configured synonyms stopped
+    // compiling, and nothing in the generator's own tests reads a pubspec
+    // that declares any.
     final String synonymsSrc = synonyms.isEmpty
-        ? 'const <String, List<String>>{}'
-        : '<String, List<String>>{\n$synonyms  }';
+        ? 'const <String, core.List<String>>{}'
+        : '<String, core.List<String>>{\n$synonyms  }';
 
     return 'DVSearchTuning(\n'
         '    synonyms: $synonymsSrc,\n'
