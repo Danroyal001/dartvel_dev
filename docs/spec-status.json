@@ -1766,11 +1766,13 @@
       "evidence": [
         "packages/dartvel_cli/lib/src/commands/add_command.dart",
         "packages/dartvel_cli/lib/src/module_trust/module_lock.dart",
+        "packages/dartvel_cli/lib/src/modules/source_detection.dart",
         "packages/dartvel_cli/test/add_command_test.dart",
         "packages/dartvel_cli/test/module_lock_foreign_source_test.dart",
+        "packages/dartvel_cli/test/module_source_detection_test.dart",
         "tool/ci/reserved_names_check.dart"
       ],
-      "absent": "Built: dartvel.module.lock pins a foreign source -- source, sourceDigest, wrapperHash, generator, resolvedFrom and targets -- refusing an entry whose digests are missing or malformed rather than skipping it; a module node in the project graph reports that pin; and the one-public-surface rule is checked, so DVModuleManager, DVBindingManager, DVBindings, DVIntegrations, DVPackages and DVPlugins fail a build. dartvel add mounts a source that is already a Dartvel project, directly and with no wrapper, with --as, --mount and --dry-run, refusing an id already mounted, a path that is not a Dartvel project and every scheme that is not built, and writing nothing when it refuses. Absent: the source resolver for every other scheme; source detection; the generation pipeline; per-environment carrier selection and the compat generator; per-environment tree-shaking; dartvel inspect modules --json; exports: components:; DV-MODULE-009 through DV-MODULE-017 and DV-MODULE-020."
+      "absent": "Built: dartvel.module.lock pins a foreign source -- source, sourceDigest, wrapperHash, generator, resolvedFrom and targets -- refusing an entry whose digests are missing or malformed rather than skipping it; a module node in the project graph reports that pin; and the one-public-surface rule is checked, so DVModuleManager, DVBindingManager, DVBindings, DVIntegrations, DVPackages and DVPlugins fail a build. dartvel add mounts a source that is already a Dartvel project, directly and with no wrapper, with --as, --mount and --dry-run, refusing an id already mounted, a path that is not a Dartvel project and every scheme that is not built, and writing nothing when it refuses. Source detection reads a local path and answers what it is -- a Dartvel project, a plain Dart package, Apple, JVM, Rust, C, WASM, npm or a described API -- with the binding kind each would cross, a Dartvel project winning over anything beside it, and DV-MODULE-009 naming what a directory holds rather than reporting failure. A recognised foreign source is named and refused, since generation is not built. Absent: the source resolver for every other scheme, so nothing foreign is fetched or generated; the generation pipeline; per-environment carrier selection and the compat generator; per-environment tree-shaking; dartvel inspect modules --json; exports: components:; DV-MODULE-009 through DV-MODULE-017 and DV-MODULE-020."
     },
     {
       "section": "Native Binding Graph",
