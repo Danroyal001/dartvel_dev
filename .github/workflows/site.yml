@@ -114,7 +114,7 @@ jobs:
 
       - name: Every page painted something
         run: |
-          set -uo pipefail
+          set -euo pipefail
           expected=$(( $(wc -l < /tmp/shots/routes.txt) * 2 ))
           got=$(ls /tmp/shots/*.png | wc -l)
           failed=0
@@ -137,7 +137,7 @@ jobs:
       - name: Contact sheets for a person to look at
         if: always()
         run: |
-          set -uo pipefail
+          set -euo pipefail
           mkdir -p /tmp/shots/sheets
           cd /tmp/shots
           ls *-1440x900.png 2>/dev/null | split -l 4 -d -a 2 - sheets/d_ || true

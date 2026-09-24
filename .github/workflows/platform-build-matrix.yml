@@ -257,7 +257,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "tvos" ]; then
             extra="--simulator"
           fi
-          set -o pipefail
+          set -eo pipefail
           # Bounded well inside the job cap, so a stall is reported by Dartvel
           # with the command it ran rather than as a cancelled job with no
           # explanation.

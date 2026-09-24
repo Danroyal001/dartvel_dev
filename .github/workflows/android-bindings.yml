@@ -65,7 +65,7 @@ jobs:
       - name: Generate
         id: generate
         run: |
-          set -uo pipefail
+          set -euo pipefail
           mkdir -p /tmp/diag
           exec > >(tee -a /tmp/diag/jnigen.log) 2>&1
           cd packages/dartvel_flutter

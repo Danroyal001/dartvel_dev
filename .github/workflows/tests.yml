@@ -209,7 +209,7 @@ jobs:
         env:
           DARTVEL_TEST_POSTGRES_PORT: '5432'
         run: |
-          set -o pipefail
+          set -eo pipefail
           dart test test/framework_tables_postgres_live_test.dart -j 1 \
             --reporter expanded 2>&1 | tee /tmp/postgres-suite.log
           if grep -q 'skipped' /tmp/postgres-suite.log; then

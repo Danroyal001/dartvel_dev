@@ -75,7 +75,7 @@ jobs:
 
       - name: dartvel build ${{ matrix.target }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a "$RUNNER_TEMP/diag/build.log") 2>&1
           cd examples/dartvel_example
           flutter pub get
@@ -116,7 +116,7 @@ jobs:
       # moved aside, so nothing but the bundle can satisfy the loader.
       - name: Run it in a pseudo-terminal, then Ctrl+C
         run: |
-          set -uo pipefail
+          set -euo pipefail
           exec > >(tee -a "$RUNNER_TEMP/diag/run.log") 2>&1
           cp -R examples/dartvel_example/build/terminal "$RUNNER_TEMP/bundle"
           TARGET_DIR="$HOME/.dartvel/toolchains/dartvel_cli_flt/src/target"
