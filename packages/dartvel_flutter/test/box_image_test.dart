@@ -71,6 +71,30 @@ void main() {
     expect(image.fit, BoxFit.cover);
   });
 
+  testWidgets('a background image can tile, which is what a texture is',
+      (WidgetTester tester) async {
+    // Grain, a hairline grid, a paper fibre: a texture is a small tile
+    // repeated, and without repeat the only thing a background image can do
+    // is stretch one picture over the box. A 96-pixel grain tile covered
+    // over a page band is a blur, so a site that wanted texture reached for
+    // a gradient instead, which is the thing texture exists to replace.
+    await tester.pumpWidget(MaterialApp(
+      home: const DVBox(DVText('Hero')).modifier(const DVModifier()
+          .backgroundImage(_Asset.logoSmall,
+              repeat: ImageRepeat.repeat, fit: BoxFit.none, opacity: 0.06)),
+    ));
+
+    tester.takeException();
+    final DecoratedBox box = tester.widgetList<DecoratedBox>(
+      find.byType(DecoratedBox),
+    ).firstWhere((DecoratedBox b) =>
+        (b.decoration as BoxDecoration).image != null);
+    final DecorationImage image = (box.decoration as BoxDecoration).image!;
+    expect(image.repeat, ImageRepeat.repeat);
+    expect(image.fit, BoxFit.none);
+    expect(image.opacity, 0.06);
+  });
+
   testWidgets('a background video plays behind its box',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
