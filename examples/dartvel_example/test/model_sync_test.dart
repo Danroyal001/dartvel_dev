@@ -110,16 +110,20 @@ void main() {
     expect(snapshots.length, count);
   });
 
-  test('sync persists and announces the synced state', () async {
+  test('saving is what publishes: there is nothing else to call', () async {
+    // This used to call sync(), which saved and then published a second
+    // change of its own kind. Saving already publishes, so the method was a
+    // second way to do one thing and its existence said that syncing is
+    // something an application triggers.
     final kinds = <DVModelChangeKind>[];
     final sub = User.changes.listen(
       (DVModelChange<User> change) => kinds.add(change.kind),
     );
 
-    await user('ada').sync();
+    await user('ada').save();
     await Future<void>.delayed(Duration.zero);
 
-    expect(kinds, contains(DVModelChangeKind.synced));
+    expect(kinds, isNotEmpty);
     expect(await User.find('ada'), isNotNull);
     await sub.cancel();
   });
