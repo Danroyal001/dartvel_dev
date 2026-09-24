@@ -73,8 +73,8 @@ void main() {
   test('every step on the scale is used, so it is a scale and not a wish list',
       () {
     final Set<double> used = <double>{
-      for (final (String _, int __, String value) in sizesNamed())
-        double.parse(value),
+      for (final (String, int, String) entry in sizesNamed())
+        double.parse(entry.$3),
     };
     expect(kTypeScale.toSet().difference(used), isEmpty,
         reason: 'declared and never used');
