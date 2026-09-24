@@ -155,7 +155,13 @@ Widget _siteHeader(BuildContext context) {
                 NavLink('Studio', '/studio'),
                 NavLink('Cloud', '/cloud'),
                 NavLink('Compared', '/vs'),
-              ], spacing: 12),
+                // Four, not twelve. Five links in the site's own face need
+                // 367 points at twelve and a 360-point phone has 316 after
+                // its gutters, so the last one went onto a line of its own
+                // and read as a broken header on every page. Each link
+                // carries six points of padding either side, so the gap a
+                // reader sees is sixteen.
+              ], spacing: 4),
             ], spacing: 6)
           : DVBox.row(<Widget>[
               const DVBox.row(<Widget>[
@@ -536,7 +542,11 @@ Widget _navLink(BuildContext context, String label, String href) {
     to: DVRouteTarget(href),
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
     child: DVText(label).modifier(const DVModifier()
-        .fontSize(15)
+        // Smaller on a phone, so the five site links share one line. At 15
+        // they need 343 points and a 360-point phone has 316 after its
+        // gutters, which put Compared on a line of its own and read as a
+        // broken header on every page.
+        .fontSize(context.screen.value<double>(mobile: 13, desktop: 15))
         .fontWeight(active ? FontWeight.w700 : FontWeight.w500)
         .color(active ? palette.accent : palette.muted)),
   );

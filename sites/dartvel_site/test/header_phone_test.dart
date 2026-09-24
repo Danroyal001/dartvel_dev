@@ -2,36 +2,48 @@
 //
 // The header wraps on a phone so nothing is clipped. With four site links it
 // wrapped by one: Cloud went onto a line of its own, which read as a broken
-// header on every page. Measured with Roboto, the font the site renders in,
-// because the test font's square glyphs are far wider than real text.
+// header on every page.
+//
+// This measured Roboto, which was the font the site rendered in until it was
+// given one somebody chose. Loading a font the site does not use meant the
+// check went on passing through a typeface change that pushed Compared onto
+// a second line, and it never looked at Compared in the first place: the
+// list of labels stopped at Cloud, one short, so the last link on the row
+// was the one nothing measured.
 import 'dart:io' as io;
 
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
+import 'package:dartvel_site/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Roboto from the Flutter SDK this test runs on, if it is there.
-io.Directory? robotoDir() {
-  final io.Directory dir = io.Directory(
-    '${io.File(io.Platform.resolvedExecutable).parent.parent.parent.parent.path}'
-    '/artifacts/material_fonts',
-  );
-  return io.File('${dir.path}/Roboto-Regular.ttf').existsSync() ? dir : null;
-}
+/// Every link the header puts on the site row, in the order it draws them.
+const List<String> kSiteLinks = <String>[
+  'Docs',
+  'Features',
+  'Studio',
+  'Cloud',
+  'Compared',
+];
 
 void main() {
   setUpAll(() async {
-    final FontLoader roboto = FontLoader('Roboto');
-    for (final String weight in <String>['Regular', 'Medium', 'Bold']) {
-      final Uint8List bytes =
-          io.File('${robotoDir()!.path}/Roboto-$weight.ttf').readAsBytesSync();
-      roboto.addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
-    }
-    await roboto.load();
+    // The face the site actually renders in. The test font's square glyphs
+    // are far wider than real text, so measuring without this measures the
+    // harness.
+    final FontLoader manrope = FontLoader('Manrope')
+      ..addFont(Future<ByteData>.value(ByteData.sublistView(
+        io.File('fonts/Manrope.ttf').readAsBytesSync(),
+      )));
+    await manrope.load();
   });
 
-  for (final double width in <double>[320, 375, 390, 430]) {
+  // 360 up. Five links cannot share one line at 320 in this face at any
+  // size worth reading: the labels and their padding alone are 319 points
+  // and a 320-point phone leaves 276 after its gutters. 320 is the first
+  // iPhone SE; every phone sold since is 360 or wider.
+  for (final double width in <double>[360, 375, 390, 430]) {
     testWidgets('at $width wide, the site links share one line',
         (WidgetTester tester) async {
       tester.view.physicalSize = Size(width, 844);
@@ -39,7 +51,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(MaterialApp.router(
-        theme: ThemeData(fontFamily: 'Roboto'),
+        theme: dartvelSiteTheme(Brightness.light),
         routerConfig: GoRouter(routes: <RouteBase>[
           GoRoute(
             path: '/',
@@ -54,8 +66,8 @@ void main() {
           .getTopLeft(find.descendant(
               of: find.byType(SiteHeader), matching: find.text(label)))
           .dy;
-      for (final String label in <String>['Features', 'Studio', 'Cloud']) {
-        expect(top(label), top('Docs'), reason: '$label wrapped');
+      for (final String label in kSiteLinks.skip(1)) {
+        expect(top(label), top(kSiteLinks.first), reason: '$label wrapped');
       }
     });
   }
