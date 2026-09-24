@@ -10593,7 +10593,30 @@ suffix while the command stays `dartvel`. Each of these is a facade over the
 implementation packages — `dartvel_core`, `dartvel_flutter`, `dartvel_shelf`,
 `dartvel_cli`, `dartvel_generator` — which may also be depended on directly.
 
-All Dartvel code is valid on all platforms. Native integrations must use FFI/ffigen or JNI/jnigen bindings; unsupported platform targets fail during validation or are excluded from the generated artifact rather than silently ignoring work.
+All Dartvel code is valid on all platforms. Target-specific and
+runtime-specific implementation lives under `native/`, in a directory named for
+the target:
+
+```text
+native/
+├── android/      ios/        macos/      windows/     linux/
+├── fireos/       tvos/       tizen/      webos/       sony-elinux/
+├── fuchsia/
+├── web/          # DOM, Web Components, browser APIs, workers, JS SDK glue
+├── wasm/         # codecs, parsers, crypto, portable engines
+└── nodejs/       # only where a dependency genuinely requires Node
+```
+
+Only the targets a project uses are present. The rule is one sentence: **if an
+implementation belongs to a target or a runtime rather than to ordinary Dart
+application code, it belongs under `native/`.** There is no top-level `web/`,
+`wasm/` or `nodejs/` integration tree; a second location for the same kind of
+thing is how a convention stops being one.
+
+Integrations are generated FFI/ffigen, JNI/jnigen, web-interop, WASM or Node
+bindings — see *Native Binding Graph*. Never Flutter platform channels.
+Unsupported platform targets fail during validation or are excluded from the
+generated artifact rather than silently ignoring work.
 
 Dartvel also supports rust bindings for writing rust code in dart using constructs
 e.g
@@ -11337,6 +11360,684 @@ dartvel:
         inherit: [auth, theme, currentTenant]
 ```
 
+
+## What a module may be made of
+
+The sections above describe a module written in Dart. A module is also the unit
+that carries capability from outside Dart into the application: a native SDK, a
+browser component, a WASM artifact, a described API. Those arrive through
+*Module Sources*, and the only thing a parent sees is what it already saw — a
+module, mounted, reached through `DV.Modules.<id>`.
+
+This is the whole of the composition rule, and it is worth stating plainly
+because the alternative is what every other framework did: a module system for
+first-party code and a plugin system for everything else, two registries, two
+lifecycles, two trust models, and a permanent second-class tier for the code
+that actually talks to the hardware.
+
+**A module may contain zero, one, or several binding kinds, and the parent
+cannot tell.** `DV.Modules.payments` looks the same whether it is Dart calling a
+REST API, Dart over FFI into a Rust crate, or Dart over JNI into an Android AAR
+with a Swift framework beside it. Origin is metadata, not type.
+
+## Placement follows call sites, not source language
+
+**Where a module's implementation ends up is decided by where the module is
+called, never by what language it was written in.** A Rust crate is not a
+backend thing. The same crate ships as a `.so` or `.a` linked into an Android or
+Linux client, as an `.xcframework` on Apple targets, as a static library inside
+the Rust backend binary, and as `.wasm` in the web client — one source, four
+carriers, chosen by the environments the call sites are in. The same is true of
+every other kind: a Node package can be a backend process, an embedded runtime
+in a client artifact, or Node compiled to WASM in the browser.
+
+A rule that sent native libraries to the backend and browser SDKs to the client
+would make the deployment modes decide capability, which is backwards: the
+deployment modes decide where *code* runs, and the module graph then arranges
+for the capability to exist there.
+
+The deployment modes are unchanged — `embedded`, `split-backend`, `federated`,
+`backend-only` — and no `native-wrapper` mode is introduced.
+
+## Compatibility, degradation, and nothing in between
+
+For every environment a module is actually called from, the build produces
+exactly one of four outcomes, and the module declares which:
+
+| Outcome | Meaning |
+|---|---|
+| `real` | a carrier exists for this target and environment; the implementation ships |
+| `compat` | no direct carrier, but Dartvel generates a working path — a different carrier, or a call across to the environment that has one |
+| `noop` | deliberately does nothing here, returning a declared value |
+| `unavailable` | throws a typed failure naming the module, the operation and the environment |
+
+```yaml
+dartvel:
+  module:
+    id: scanner
+    targets: [android, ios, web]
+    operations:
+      scan:
+        android: real
+        ios: real
+        web: { compat: backend }     # web client calls the backend implementation
+      laserPower:
+        android: real
+        default: unavailable
+      telemetry:
+        default: noop
+```
+
+There is no fifth outcome and no default. A module called from an environment it
+says nothing about fails to build (`DV-MODULE-014`), which is the rule that keeps
+`compat` honest: a framework that silently invents a fallback is a framework that
+turns a missing capability into a wrong answer. `unavailable` is a perfectly good
+declaration — it throws where it is called, at a named operation, rather than
+returning a plausible zero.
+
+**`compat` is generated, not hand-written.** It is Dartvel's job to build the
+path — compiling the crate to WASM for the web, embedding the runtime in the
+client, or routing the call to the environment that has the real implementation
+and back. Where it cannot, the module says `noop` or `unavailable` and the
+developer knows at build time rather than in a crash report.
+
+## Ambient requirements
+
+A class of SDK is not a call surface at all: it is a runtime that wants
+app-lifecycle hooks, an entry in the app delegate or `Application` class,
+background execution, push registration, and its own persistent state. Firebase
+is the archetype and it is not alone, and pretending generation covers these
+would be the most damaging overclaim available — the SDKs in this class are the
+well-known ones, and a first impression is formed on exactly those.
+
+A module declares what it needs ambiently, and Dartvel wires each into a surface
+it already owns:
+
+```yaml
+dartvel:
+  module:
+    ambient:
+      lifecycle: [didFinishLaunching, didEnterBackground]
+      background: [fetch, processing]
+      push: true
+      nativeState: true
+```
+
+`lifecycle` goes to *Lifecycle Signals*, `background` to *Queues, Jobs, and
+Signals*, `push` to *Mail and Notifications*, and the target entry points are
+generated. An ambient requirement a target cannot satisfy is `DV-MODULE-020`
+rather than a runtime surprise. The hardest of these still need a hand-written
+official recipe with real native glue, and that is what a small official set is
+for.
+
+## Tree-shaking decides what ships
+
+A module never called is not bundled anywhere — not its Dart surface, not its
+native artifacts, not any runtime it would have needed. A module called only from
+backend functions ships only into the backend; called only from pages, only into
+the client; called from both, into both, each with its own carrier. This is the
+usage-driven bundling rule *Adoption* already states, resolved per environment
+instead of per project, and it is why adding a module with a heavy native
+implementation costs a web build nothing until a web page calls it.
+
+---
+
+# Module Sources
+
+Stability: `Contract` · Status: `Designed`
+
+A framework's ecosystem is not the packages written for it. It is the
+capabilities an application can reach. Every capability a product needs — a
+payment processor, a map renderer, a barcode scanner, a video codec, a partner's
+API — already exists, and it exists as a Swift package, a Maven artifact, a
+crate, a WASM binary, a browser SDK or an OpenAPI document. A framework that
+requires each of those to be rewritten as a first-party package before it can be
+used has an ecosystem problem that no amount of first-party packages will fix.
+
+Dartvel's answer is that all of them are **module sources**, one command resolves
+any of them, and what comes back is always a module.
+
+```bash
+dartvel add stripe                                  # official
+dartvel add ../store                                # local Dartvel project
+dartvel add github:company/store                    # remote Dartvel project
+dartvel add swift:github.com/vendor/scanner-ios     # Swift package
+dartvel add maven:com.vendor:scanner@4.2.0          # Maven artifact
+dartvel add cargo:image                             # Rust crate
+dartvel add npm:@vendor/device-sdk                  # browser or Node package
+dartvel add ./vendor_sdk                            # local foreign source
+dartvel add openapi:https://api.vendor.com/openapi.json
+dartvel add graphql:https://api.vendor.com/schema.graphql
+dartvel add grpc:./proto/service.proto
+dartvel add wasm:./engine.wasm
+```
+
+The result at the application level is the same in every case:
+
+```dart
+DV.Modules.scanner.scan()
+DV.Modules.stripe.createCheckout(amount: 500, currency: 'usd')
+```
+
+## What `dartvel add` is for
+
+`dartvel add` installs anything that **contributes to the project graph** —
+routes, models, backend functions, native artifacts, capabilities, store
+permissions, build-target requirements. `dart pub add` installs anything that
+does not. A date formatter contributes nothing to the graph and stays an
+ordinary Dart dependency; it does not become a module, and pretending it did
+would turn the module list into the dependency list.
+
+That is the test, and it is mechanical: if resolving the source changes what
+`dartvel inspect --json` prints, it is a module.
+
+## An existing Dartvel project is used, never wrapped
+
+A source that is already a Dartvel project — a `pubspec.yaml` with a `dartvel:`
+key — is mounted directly. No wrapper is generated, no indirection is
+introduced, and `DV.Modules.<id>` is its own surface. Generating a wrapper
+around a module that is already a module would add a layer whose only function
+is to be traversed.
+
+This is also what makes the symmetry in *Modules* usable in practice: a
+top-level application can be added as a module, a module can be run as a
+top-level application, and `dartvel add ../store` is how the first of those
+happens.
+
+## A foreign source becomes a full module
+
+Anything else is resolved into a generated Dartvel module: a normal Dart package
+with a `pubspec.yaml`, a `dartvel: module:` block, a public Dart surface,
+`native/` implementations for the targets it supports, generated tests and
+generated documentation. It obeys the same project contract as a hand-written
+module, because it is one.
+
+## Source detection
+
+A source is identified by an explicit scheme (`maven:`, `cargo:`, `swift:`,
+`npm:`, `openapi:`, `graphql:`, `grpc:`, `wasm:`, `github:`) or, for a local
+path, by inspection:
+
+| Found | Read as | Mechanism |
+|---|---|---|
+| `pubspec.yaml` with `dartvel:` | Dartvel project | used directly |
+| `Package.swift`, `.framework`, `.xcframework` | Apple | FFI |
+| `build.gradle`, `pom.xml`, `.jar`, `.aar` | JVM | JNI |
+| `Cargo.toml`, `.rs` | Rust | FFI, or WASM by target |
+| `.h`, `.hpp`, `CMakeLists.txt` | C/C++ | FFI |
+| `.wasm` | WASM | WASM |
+| `package.json` | npm | inspected — web or Node |
+| `openapi.{json,yaml}`, `schema.graphql`, `.proto` | described API | pure Dart |
+
+Detection is a proposal, not a verdict: `dartvel add --dry-run` prints what was
+detected and what will be generated, and `--target` and `--as` override it. A
+source that matches nothing is `DV-MODULE-009`, which names what was found
+rather than reporting failure.
+
+An npm source is inspected rather than assumed. A package exposing
+browser-compatible functionality gets a web binding; one that genuinely requires
+Node gets a Node binding; one exposing both may produce a single module with a
+web implementation on the client and a Node implementation on the backend.
+
+## Described APIs are sources, not bindings
+
+OpenAPI, GraphQL and gRPC produce **pure Dart modules**. There is no foreign
+runtime, no native artifact and no binding of any kind — a described API is
+generated into typed calls over `DV.Http`, with the host declared under
+`dartvel: http: hosts:` so that retries, timeouts, circuit breaking and secret
+resolution are the ones the specification already defines.
+
+```yaml
+dartvel:
+  http:
+    hosts:
+      vendorErp:
+        baseUrl: https://api.vendor.com
+        auth: { bearer: VENDOR_ERP_KEY }
+        retries: { attempts: 3, backoff: exponential, jitter: true }
+```
+
+```dart
+final order = await DV.Modules.vendorErp.getOrder(id: '1024');
+```
+
+A described API acquires a binding only when its chosen implementation
+separately requires a foreign runtime — a vendor gRPC library with no Dart
+implementation, say — and that is a property of the implementation, not of the
+schema.
+
+## Prefer the lowest-cost carrier, per environment
+
+A source usually has more than one way into a given environment, and the
+resolver takes the one adding the least runtime **for that environment** — the
+choice is made once per environment the module is called from, not once per
+module:
+
+```text
+pure Dart  →  described protocol/API  →  native link (FFI/JNI)  →  WASM
+           →  embedded foreign runtime  →  out-of-process runtime
+```
+
+A Rust crate called from an Android client takes the native link; the same crate
+called from the web takes WASM; a vendor who publishes an npm wrapper around a
+REST API has not created a reason to carry a Node runtime anywhere, because the
+described-API path is three rungs cheaper. Taking a costlier carrier when a
+cheaper one reaches the same environment is `DV-MODULE-012`, a warning that names
+both carriers and is silenced by declaring the choice at the mount point — a
+warning rather than an error because "cheaper" is measured in bundle size and
+operational surface, and there are real reasons to pay more.
+
+## Registration and resolution
+
+Modules are registered where modules are already registered — under `dartvel:
+modules:` in `pubspec.yaml`. There is no second manifest file.
+
+```yaml
+dartvel:
+  modules:
+    scanner:
+      source: maven:com.vendor:scanner@4.2.0
+      targets: [android]
+      grant:
+        nativeBindings: true
+        storePermissions: [android.permission.CAMERA]
+```
+
+Resolution is reproducible. Every source is pinned in `dartvel.module.lock` with
+its `sourceDigest`, its `wrapperHash` and the generator version that produced it;
+see *Module Distribution and Trust*. A resolution that produces a different
+`wrapperHash` from the same pinned inputs fails the build.
+
+## Transitive dependencies are not modules
+
+A module's own dependencies are its own business. If `scanner` depends on three
+Maven artifacts, the application has one module, not four. The public module
+graph represents **application capabilities**; the internal dependency graph
+represents packages, and they are different graphs for the same reason a
+product's feature list is not its `package-lock.json`.
+
+## Generation pipeline
+
+```text
+ 1  resolve the canonical source and version
+ 2  fetch and verify integrity against the pin
+ 3  detect source and runtime type
+ 4  inspect the public surface
+ 5  determine target support
+ 6  derive capabilities and store permissions
+ 7  choose interop mechanisms (lowest-cost first)
+ 8  build the internal binding graph, if any is needed
+ 9  normalize the Dart API
+10  generate the module: surface, native/, config, tests, documentation
+11  compute wrapperHash and write the lock entry
+12  register the module and validate it against the parent's targets
+13  regenerate dartvel_client
+```
+
+Stages 1–11 are pure: same inputs, same bytes, on any machine. Stages 12–13 are
+the existing generator doing what it already does.
+
+**One generator.** `dartvel add` runs the same compiler pipeline as the rest of
+the CLI. No new `build_runner` path is introduced, and the same resolver serves
+the CLI, Studio, CI, Cloud and the AI surfaces — a second implementation is a
+second set of wrappers that agree until they do not.
+
+## AI is advisory
+
+The AI surfaces may suggest a source, explain a generated surface, or draft the
+composition module that wraps one. They do not generate the wrapper. A wrapper
+whose bytes depend on a model's sampling is not deterministic, and determinism is
+the property this whole section rests on.
+
+## Official modules and recipes
+
+Dartvel maintains a set of official modules for common capabilities, published to
+pub.dev like any other. An official module is a normal module with no privileged
+status; what it has is a maintained **recipe** — the pinned source, the
+normalization decisions, the target mapping and the tests — so that `dartvel add
+stripe` resolves to a reviewed result rather than a fresh inspection of a
+vendor's SDK.
+
+Recipes are distributable. A team that solved a vendor SDK once publishes the
+recipe, and the next team's `dartvel add` uses it. One official module may
+resolve several platform sources behind one Dart surface, and a module that
+starts single-platform may gain implementations later without its surface
+changing.
+
+**A component library is a module**, declared with `exports: components:`, which
+is what makes the module system Dartvel's component registry as well as its
+capability registry. Exported components appear in Studio's builder palette and
+in the generated client like any other module surface — no new concept and no
+second registry.
+
+```yaml
+dartvel:
+  module:
+    exports:
+      components: [DataTable, Combobox, DateRangePicker]
+```
+
+## Updates and compatibility
+
+`dartvel add --refresh <id>` re-resolves a pinned source and prints the diff
+before writing it: surface changes, new or removed operations, changed target
+support, new capabilities, new store permissions. A refresh that would add a
+capability the parent has not granted stops (`DV-MODULE-003`, as *Module
+Distribution and Trust* specifies). A refresh that removes an operation the
+application calls is a build error naming the call sites.
+
+## Unused implementations do not ship
+
+Bundling is decided per environment by call sites, as *Modules* specifies: a
+module nothing calls ships nowhere, and a module called on one side ships only
+there. A project whose web build calls no Node-carried module carries no Node
+runtime in the web build even if its backend does. Implementation selection is
+build-time wherever it can be.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-MODULE-009` | a source could not be detected; what was found is named | `error` |
+| `DV-MODULE-010` | a source resolved but exposes no usable public surface | `error` |
+| `DV-MODULE-011` | two modules claim the same id | build `error` |
+| `DV-MODULE-012` | a costlier carrier was chosen where a cheaper one reaches the same environment | `warning` |
+| `DV-MODULE-013` | an operation is called where the module declares `unavailable` and the call site is statically reachable | build `error` |
+| `DV-MODULE-014` | a module is called from a target or environment it declares nothing for | build `error` |
+| `DV-MODULE-015` | a refresh changes the surface in a way that breaks call sites | build `error` |
+| `DV-MODULE-016` | a generated wrapper was hand-edited; changes will be lost | `warning` |
+| `DV-MODULE-017` | `compat` is declared but no compatibility path can be generated | build `error` |
+| `DV-MODULE-020` | an ambient requirement cannot be satisfied on a declared target | build `error` |
+
+## Deliberately absent
+
+- **`dartvel bind`.** There is no developer-facing binding command. Bindings are
+  generated beneath modules; a command that exposed them would make them a
+  concept developers manage.
+- **A second registry.** pub.dev distributes modules. Foreign sources are
+  resolved from their own ecosystems' registries, which Dartvel does not mirror.
+- **React, React Native, JSX or component hosting** as an interoperability
+  strategy. Web interop uses web standards: DOM, Custom Elements, Web Components,
+  `dart:js_interop`. Dartvel does not use Angular or Svelte either, and does not
+  say so anywhere else.
+- **A new `DV.*` namespace for foreign capability.** `DV.Modules.<id>` and the
+  existing subsystems. A module may register an adapter into `DV.Auth`,
+  `DV.Billing` or `DV.Notifications`; it may not invent a peer of them. This is
+  the standing rule of the whole specification, not a new one.
+- **Auditing a vendor's SDK.** Dartvel pins and generates; it does not vouch.
+- **Hand-patching generated wrappers.** Composition instead — and no `dartvel
+  eject`, here or anywhere.
+
+---
+
+# Native Binding Graph
+
+Stability: `Draft` · Status: `Designed`
+
+**This section describes internal machinery.** Nothing here is a public API. It
+is specified because generated output must be inspectable to be trustworthy, and
+because the choice of exactly five binding kinds is a decision worth recording
+rather than discovering later from the code.
+
+Modules answer *what* an application can do. Bindings answer *how* the call gets
+there. `DVBindingGraph` is internal; a parent application never names a binding,
+and `dartvel inspect bindings --json` is a diagnostic surface, not a contract.
+
+## Five kinds, and no more
+
+| Kind | Boundary |
+|---|---|
+| `DVFfiBinding` | the C ABI — generated with ffigen |
+| `DVJniBinding` | the JVM — generated with jnigen |
+| `DVWebBinding` | the browser — `dart:js_interop`, DOM, Custom Elements |
+| `DVWasmBinding` | a WebAssembly instance |
+| `DVNodeJsBinding` | a Node.js runtime |
+
+Never Flutter platform channels.
+
+**Binding kind, source language and target are three separate dimensions**, and
+collapsing them is the mistake this taxonomy exists to avoid. Swift,
+Objective-C, C++ and Rust all reach Dart across the C ABI, so all four are
+`DVFfiBinding` — there is no `DVSwiftBinding`, no `DVRustBinding`, no
+`DVAppleBinding`, no `DVWindowsBinding`, no `DVLinuxBinding`. A per-language or
+per-platform binding class would multiply the machinery by the cross product of
+two dimensions that do not vary independently.
+
+Android is the case that proves the taxonomy rather than breaking it: an Android
+module may carry both a JNI binding to a Kotlin SDK and an FFI binding to an NDK
+library, in one module, on one target.
+
+## Carriers: the fourth dimension
+
+A binding kind says how a call crosses. A **carrier** says how the implementation
+got to the place the call is crossing *in* — and it is a separate dimension from
+the other three, because one source reaches different environments by different
+means.
+
+| Source | Client, native target | Client, web | Backend |
+|---|---|---|---|
+| Rust crate | `.so` / `.a` / `.xcframework`, FFI | `.wasm`, WASM binding | static library in the backend binary, or FFI |
+| C/C++ | shared or static library, FFI | `.wasm` via Emscripten, WASM binding | linked into the backend, FFI |
+| Swift / Obj-C | `.xcframework`, FFI | `compat` or `unavailable` | `unavailable` on non-Apple hosts |
+| JVM (Maven, `.aar`) | JNI on Android | `compat` or `unavailable` | JNI where a JVM is present, else `compat: backend` |
+| Browser SDK | embedded web view, or `compat` | web binding, direct | `compat` or `unavailable` |
+| Node package | embedded Node runtime, or Node-on-WASM | Node-on-WASM | process, or in-process runtime |
+| WASM artifact | WASM runtime in the client | the browser's own | WASM runtime in the backend |
+| Described API | Dart over `DV.Http` | the same | the same |
+
+Two things follow. **A language does not imply a location** — every row above
+spans all three columns or declares why it cannot. And **a cell that cannot be
+filled is declared, not hidden**: it becomes the `compat`, `noop` or
+`unavailable` the module states per environment, and `unavailable` throws with
+the module id, the operation and the environment in the message rather than
+returning something that looks like an answer.
+
+**The web WASM carrier is real and is not free.** dart2wasm has no Wasm-to-Wasm
+interop, so a Dart-Wasm application calling a Rust-Wasm module routes through JS
+glue, and Flutter's own tooling treats Wasm↔JS interop in hot functions as a
+performance defect. That is an argument for coarse-grained module surfaces on
+web specifically: one call that does a lot, never a call per item.
+
+Carrier selection is build-time, recorded in the project graph's `bindings`
+nodes, and printed by `dartvel add --dry-run` before anything is written. A
+triple of kind, target and environment with no carrier and no declared
+degradation is `DV-BIND-007`.
+
+## Why JNI is its own kind
+
+jnigen can be implemented over FFI, so the question is fair. It stays separate
+because it does not model the same thing: a JVM object has a lifecycle, local and
+global references, a thread attachment, and a garbage collector Dart does not
+control. Folding that into `DVFfiBinding` would put JVM reference semantics into
+the one binding kind whose whole appeal is that it has none.
+
+The name is `DVJniBinding` rather than `DVJvmBinding` because JNI is the boundary
+being crossed. A future non-JNI JVM boundary would be a different kind, not a
+renaming of this one.
+
+## Per-kind semantics
+
+These are the rules a generator must implement, and each one is a place a
+hand-written integration usually gets it wrong.
+
+**Async.** A foreign callback, completion handler, future, promise or listener is
+converted to a Dart `Future` or `Stream` at the boundary. A callback that may
+fire more than once is a `Stream`; one that fires at most once is a `Future`; a
+callback with no arity guarantee the generator can determine is `DV-BIND-004`
+rather than a guess. Calls arriving on a foreign thread are marshalled to the
+Dart isolate.
+
+**Errors.** A foreign error becomes a typed Dart exception carrying the module
+id, the operation, the binding kind and the original error. An error that crosses
+a boundary and loses its origin is an error a developer debugs twice.
+
+**Memory ownership.** Every pointer, buffer and handle crossing an FFI or WASM
+boundary is annotated `owned`, `borrowed`, `shared`, `weak`, `pinned`,
+`dartManaged` or `foreignManaged`. **Ambiguous ownership is a generation error
+(`DV-BIND-003`), never a default.** A generator that guesses produces a
+use-after-free that appears under load on one platform, and no diagnostic
+anywhere in this specification is worth more than that one.
+
+**JNI references.** Local versus global reference lifetime, thread attachment and
+detachment, and the reference table's bounds are tracked explicitly.
+
+**Web lifecycle.** Element attachment and detachment, event listener removal, and
+the disposal of anything registered on `window` or `document`.
+
+**WASM memory.** Instance lifetime, linear memory growth, and the boundary
+between host and guest allocations.
+
+**Node.js lifecycle.** Whichever carrier it arrives by: start, health, restart
+and shutdown, and the backpressure of the channel to it. Out of process that is a
+supervised child; in process it is a runtime with its own event loop that must
+not block the isolate; on WASM it is a module instance with the memory rules
+above. The three differ enough that the generated lifecycle is per carrier, not
+per kind.
+
+## Native views
+
+A native view belongs to the module that provides it, and is exposed through the
+module's surface rather than through a platform-view API the application composes
+itself. Flutter remains the default renderer; a native view is a deliberate
+exception a module owns.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-BIND-001` | a source's surface cannot be expressed across the chosen boundary | build `error` |
+| `DV-BIND-002` | generation is non-deterministic: two runs differ on the same input | build `error` |
+| `DV-BIND-003` | memory ownership is ambiguous for a value crossing a boundary | build `error` |
+| `DV-BIND-004` | a foreign callback's arity cannot be determined | build `error` |
+| `DV-BIND-005` | a binding kind is unavailable on a declared target | build `error` |
+| `DV-BIND-006` | a JNI reference escapes its thread attachment | `error` |
+| `DV-BIND-007` | no carrier exists for a kind/target/environment triple and none is declared | build `error` |
+| `DV-BIND-008` | a generated `compat` path crosses an environment boundary the deployment mode does not provide | build `error` |
+
+## Deliberately absent
+
+- **Flutter platform channels.** Generated FFI/JNI only, everywhere.
+- **A public `DV.Bindings` namespace.** Internal means internal.
+- **Per-language or per-platform binding classes.** Three dimensions, five kinds.
+- **A runtime binding registry.** Implementation selection is build-time wherever
+  it can be.
+
+---
+
+# Module Health
+
+Stability: `Draft` · Status: `Designed`
+
+Generation makes the *first* version of a module nearly free. It does nothing
+about the fiftieth. pub.dev's real value was never that a package for Stripe
+exists; it is that somebody is keeping it working against the next iOS release.
+A framework that generates wrappers owns that burden for every official recipe,
+and a stale official recipe is worse than no recipe at all, because it carries
+the implication of maintenance.
+
+The architecture makes this better than the hand-written case rather than worse,
+for a specific reason: a hand-written plugin needs a human every time upstream
+moves; a recipe needs a human only when **regeneration fails**. Determinism plus
+generated tests turns maintenance from O(dependencies) into O(breakages), which
+is a different order of problem. This section is how that loop is made
+mechanical.
+
+## Watched upstreams
+
+A recipe declares what it watches:
+
+```yaml
+dartvel:
+  module:
+    upstream:
+      source: maven:com.stripe:stripe-android
+      track: ^21.0.0
+      schedule: weekly
+```
+
+Dartvel CI re-resolves every watched recipe on schedule, regenerates, runs the
+generated tests on every declared target, and records the outcome. A pass
+publishes a new recipe version. A failure opens an issue against the recipe and
+marks it degraded — **it does not quietly keep serving the old one as current**,
+which is the failure mode this exists to prevent.
+
+Three consequences, stated as policy rather than left implicit:
+
+- **The official recipe set stays deliberately small and is published as a
+  list.** A promise to maintain fifty recipes is keepable; a promise to maintain
+  the ecosystem is not, and the second is what an unbounded official set quietly
+  becomes.
+- **Community recipes are first-class and unmaintained by Dartvel.** The long
+  tail is distributed, not owned, and its health is reported rather than
+  guaranteed.
+- **A degraded recipe is visible at `dartvel add` time**, before a team depends
+  on it, not discovered six months later.
+
+## Health is mechanical, never an opinion
+
+*Module Distribution and Trust* deliberately has no ratings or reviews, and that
+is right: judgement is the ecosystem's. But integrity is not quality, and someone
+choosing between three scanner SDKs gets nothing from a digest. Scheduled
+regeneration produces genuinely mechanical signals as a by-product:
+
+| Signal | Derived from |
+|---|---|
+| recipe health | the last scheduled regeneration: `current`, `upstream ahead`, `degraded` |
+| target coverage | declared targets, and which resolve to `real` rather than `compat`/`noop`/`unavailable` |
+| generated test results | per target, from the last regeneration |
+| capability stability | whether the capability set has grown across recent versions |
+| upstream cadence | time since the source's last release |
+
+```bash
+dartvel modules health            # every module in the project
+dartvel modules health <id> --json
+```
+
+None of these is an opinion, none can be gamed by popularity, and all of them are
+things a team actually wants to know. Studio's module detail screen shows them;
+`dartvel add --dry-run` shows them before installation. The ban on stars and
+reviews stands.
+
+## Outbound: a module is consumable from outside Dartvel
+
+Everything above is inbound. A large polyglot organization trials a new stack one
+capability at a time, consumed by what it already runs, and a module that cannot
+be called from a Kotlin service or a React front end cannot be trialled that way.
+
+```bash
+dartvel modules export <id> --openapi    # the module's backend surface
+dartvel modules export <id> --wasm       # pure-Dart modules, for any WASM host
+```
+
+The OpenAPI document is generated from the module's backend functions and their
+types — the same project-graph nodes the generated client comes from, so the two
+cannot drift. A pure-Dart module additionally compiles to a WASM artifact with a
+declared interface.
+
+The boundary, stated plainly: **backend capability exports; UI does not.** A
+Dartvel page is not consumable from React and no amount of generation makes it
+so.
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-MODULE-018` | a watched upstream has a newer version within `track` | `info` |
+| `DV-MODULE-019` | scheduled regeneration failed; the recipe is degraded | `warning` at `add`, `error` in recipe CI |
+
+## Deliberately absent
+
+- **Stars, reviews and download counts.** Judgement belongs to the ecosystem;
+  what is published here is derived from a regeneration that either passed or did
+  not.
+- **Vendor endorsement.** A recipe published by a verified pub.dev publisher on
+  the vendor's own domain is displayed as such, and the generated tests plus a
+  conformance suite are something a vendor can run in their own CI. Whether any
+  vendor says yes is business development, not specification.
+- **The parts an ecosystem has to earn.** Install base, hiring pool and running
+  infrastructure arrive with users and time. Supply is closed by *Module
+  Sources*; maintenance and signal are closed here; the rest is not a mechanism.
+
 ---
 
 # Module Distribution and Trust
@@ -11404,6 +12105,9 @@ both.
 | `egress` | outbound network, **per domain** |
 | `filesystem` | a named root, not the disk |
 | `cron` | scheduled work in the parent's scheduler |
+| `nodejs` | a Node.js runtime in the deployment — see *Module Sources* |
+| `wasmRuntime` | a WASM runtime outside the browser's own |
+| `storePermissions` | OS permissions the module's native artifacts require |
 
 **Egress is per domain, and that is the decision the rest depends on.** A
 single `network: true` capability makes every other grant decorative: a module
@@ -11487,11 +12191,42 @@ once.
 | `DV-MODULE-007` | a manifest declares a capability the code never uses | `warning` |
 | `DV-MODULE-008` | a module opens its own socket or `HttpClient` instead of a generated call | build `error` |
 
+## Foreign sources have no publisher
+
+Publisher pinning works because pub.dev verifies a publisher against a domain.
+A Maven coordinate, a crate, an `.xcframework` or an OpenAPI URL has no such
+anchor, so the pin is the only thing there is, and it has to be stronger:
+
+```yaml
+# dartvel.module.lock
+scanner:
+  source: maven:com.vendor:scanner
+  version: 4.2.0
+  sourceDigest: sha256:3b1f...      # the fetched artifact
+  wrapperHash: sha256:9e04...       # the generated module
+  generator: 1.7.2
+  resolvedFrom: https://repo1.maven.org/...
+  targets: [android]
+```
+
+`sourceDigest` and `wrapperHash` are both pinned, and both are compared on every
+resolution. A changed source digest is `DV-MODULE-004`, the same error a changed
+pub.dev archive raises. A `wrapperHash` that changes when `sourceDigest` and
+`generator` did not is `DV-BIND-002` — a generator non-determinism bug, not a
+supply-chain event, and the distinction matters because the fixes are opposite.
+
+An OpenAPI or GraphQL source fetched from a live URL is pinned to the fetched
+document, not the URL. A schema that changed under a project is a reviewed
+upgrade (`dartvel add --refresh`), never a silent regeneration.
+
 ## Deliberately absent
 
 - **A Dartvel registry.** pub.dev is the registry. A second one would split
   the ecosystem and give Dartvel an availability problem it has no reason to
   own.
+- **Verifying a foreign SDK's own contents.** Dartvel pins what it fetched and
+  generates deterministically from it. It does not audit a vendor's binary, and
+  claiming otherwise would be a security claim it cannot keep.
 - **A certificate authority.** Covered above.
 - **A `network: true` capability.** Per domain or not at all.
 - **Runtime sandboxing.** Capabilities are enforced at the boundaries Dartvel
@@ -12807,6 +13542,34 @@ does change shape, `dartvel upgrade --plan` lists it with the diff it will
 cause, so the change arrives as a reviewed step rather than as an unexplained
 thousand-line commit. That is the same plan-before-acting rule the migration
 planner and the deploy gate already follow.
+
+## Generated modules are generated code
+
+A module wrapper generated from a foreign source is subject to this section in
+full: byte-identical output from identical inputs, stable ordering, no timestamps
+or absolute paths, formatted on the way out, `dartvel generate --check` in CI.
+
+Two things are specific to it. **The inputs include the source artifact**, so the
+identity of a generated wrapper is `hash(sourceDigest, generator version,
+normalization rules, declared targets)` and is recorded as `wrapperHash` in
+`dartvel.module.lock`. And **generation must be machine-independent**: the same
+source on a developer's laptop, in CI, and on a Cloud worker produces the same
+wrapper. A generator that reads an installed SDK's local path, a locale, or an
+environment variable into its output violates this, which is `DV-BIND-002` and is
+caught by generating twice in different working directories.
+
+**Build artifact identity is separate from wrapper identity.** A compiled `.so`,
+`.aar` or `.xcframework` is not required to be byte-identical — toolchain
+reproducibility is not Dartvel's to promise — and is tracked by its own digest.
+Conflating the two would make the determinism contract unkeepable and therefore
+worthless.
+
+Generated wrappers are framework-owned. They are readable, diffable and checked
+in like the rest of `dartvel_client/`, and they are not hand-patched: a patch is
+erased on the next generation. Customization is composition — a normal Dartvel
+module that mounts the generated one and exposes the surface it wants. That is
+the same answer the rest of the specification gives, and it is the reason there
+is no `dartvel eject`.
 
 ## Diagnostics
 

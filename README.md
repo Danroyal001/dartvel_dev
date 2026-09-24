@@ -111,6 +111,9 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Sensitive Fields** | `@DVModel.sensitiveField()` keeps fields out of public serialization, logs and AI context; `encrypted: true` adds AES-256-GCM at rest on the generated model's own read and write path | ⚠️ Partial |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction`. Some states are not emitted yet | ⚠️ Partial |
 | **Modules** | `DV.Modules.<id>` with modules mounted at build time, their pages, backend functions, cron and tables merged into the parent | ⚠️ Partial |
+| **Module Sources** | `dartvel add <source>` resolves a Swift package, a Maven artifact, a crate, an npm package, an OpenAPI or GraphQL document into a module. Designed, not built | 📐 Designed |
+| **Native Binding Graph** | Five binding kinds beneath modules — FFI, JNI, web, WASM, Node — with carriers chosen per environment. Designed, not built | 📐 Designed |
+| **Module Health** | Watched upstreams, scheduled regeneration, mechanical health signals, `dartvel modules export`. Designed, not built | 📐 Designed |
 | **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Shipped |
 | **Scheduling** | `@DVBackendCron` and `@DVClientCron`, a cron evaluator, and database leases so one process runs each occurrence. No per-target capability report yet | ⚠️ Partial |
 | **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences | ✅ Shipped |
