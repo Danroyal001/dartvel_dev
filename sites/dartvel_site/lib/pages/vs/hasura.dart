@@ -17,7 +17,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
       child: DVBox.list(<Widget>[
         Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('HASURA FOR FLUTTER'),
             Heading(

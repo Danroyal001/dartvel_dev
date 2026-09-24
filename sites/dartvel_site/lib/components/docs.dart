@@ -379,7 +379,7 @@ Widget _docsArticle(
               Eyebrow((info?.group ?? 'Docs').toUpperCase()),
               DVText(info?.title ?? '').modifier(const DVModifier()
                   .fontSize(context.screen.value<double>(mobile: 30, desktop: 40))
-                  .fontWeight(FontWeight.w800)
+                  .fontWeight(FontWeight.w700)
                   .color(palette.ink)
                   .lineHeight(1.15)
                   .semanticHeading(1)),
@@ -439,7 +439,7 @@ Widget _docsSection(
   return DVBox.list(<Widget>[
     DVText(title).modifier(const DVModifier()
         .fontSize(context.screen.value<double>(mobile: 22, desktop: 26))
-        .fontWeight(FontWeight.w800)
+        .fontWeight(FontWeight.w700)
         .color(palette.ink)
         .lineHeight(1.25)
         .semanticHeading(2)),
@@ -577,7 +577,7 @@ Widget _docsTable(
           DVText(row.first).modifier(const DVModifier()
               .fontSize(15)
               .fontWeight(FontWeight.w700)
-              .fontFamily('RobotoMono')
+              .fontFamily('JetBrainsMono')
               .color(palette.ink)),
           for (int i = 1; i < row.length && i < heads.length; i++)
             DVText('${heads[i]}: ${row[i]}').modifier(const DVModifier()

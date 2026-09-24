@@ -32,18 +32,34 @@ dev_dependencies:
 
 
 flutter:
-  # Bundled rather than named. Flutter web cannot resolve the generic
-  # "monospace" family -- it falls back to the body font -- so a developer
-  # site rendered every Dart sample in proportional text.
+  # Bundled rather than named, for two reasons. Flutter web cannot resolve
+  # the generic "monospace" family: it falls back to the body font, and a
+  # developer site rendered every Dart sample in proportional text. And a
+  # font fetched from Google at run time is a third-party request on a site
+  # that ships as a zip to somebody's shared host, where it would be a flash
+  # of unstyled text and one more thing that can be offline.
+  #
+  # Both are variable fonts with a wght axis, so one file covers every weight
+  # the site uses. Manrope is geometric and open: it holds up at 50 points in
+  # the headline and stays legible at 13 in a label, which is the range this
+  # site actually spans. JetBrains Mono is drawn for reading code, which is
+  # what half of these pages are. Neither is a default, and that is the
+  # point: Roboto is what a Flutter site renders in when nobody chose.
   fonts:
-    - family: RobotoMono
+    - family: Manrope
       fonts:
-        - asset: fonts/RobotoMono.ttf
+        - asset: fonts/Manrope.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: fonts/JetBrainsMono.ttf
   uses-material-design: true
   # Screenshots of the real Studio, shown on /studio and the home page.
   assets:
     - assets/studio/
     - assets/studio/sections/
+    # The film-grain tile the hero band is textured with. Written by
+    # tool/grain.dart, deterministically, so the file here can be reproduced.
+    - assets/texture/
 
 dartvel:
   backendHost: 0.0.0.0

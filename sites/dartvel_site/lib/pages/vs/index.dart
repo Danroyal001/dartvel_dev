@@ -19,7 +19,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
       child: DVBox.list(<Widget>[
         const Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('COMPARED'),
             Heading(

@@ -16,6 +16,7 @@
 // what TweenAnimationBuilder is.
 import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
+import 'site.dart';
 
 /// Counts up to [value] the first time it is built.
 ///
@@ -27,13 +28,16 @@ Widget _countUp(
   BuildContext context,
   String value, {
   double size = 42,
-  Color color = const Color(0xFF2F6BFF),
+  Color? color,
 }) {
   final int? target = int.tryParse(value);
   final DVModifier style = const DVModifier()
       .fontSize(size)
-      .fontWeight(FontWeight.w800)
-      .color(color)
+      .fontWeight(FontWeight.w700)
+      // The palette's, unless a caller on a dark band says otherwise. It
+      // used to default to a hard-coded blue, which is how the accent came
+      // to exist in four places at once.
+      .color(color ?? Palette.of(context).accent)
       .lineHeight(1.05);
 
   // Not a whole number, or reduced motion: show it and stop.
@@ -59,7 +63,7 @@ Widget _countUp(
 Widget _typewriter(
   BuildContext context,
   List<TextSpan> spans, {
-  TextStyle style = const TextStyle(fontFamily: 'RobotoMono', fontSize: 13.5),
+  TextStyle style = const TextStyle(fontFamily: 'JetBrainsMono', fontSize: 13.5),
   Duration perCharacter = const Duration(milliseconds: 13),
 }) {
   final int length = spans.fold<int>(

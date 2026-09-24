@@ -14,8 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUpAll(() async {
-    final ByteData font = ByteData.sublistView(File('fonts/RobotoMono.ttf').readAsBytesSync());
-    await (FontLoader('RobotoMono')..addFont(Future<ByteData>.value(font))).load();
+    final ByteData font = ByteData.sublistView(File('fonts/JetBrainsMono.ttf').readAsBytesSync());
+    await (FontLoader('JetBrainsMono')..addFont(Future<ByteData>.value(font))).load();
     await CloudPageGeneratedPage.loadLibrary();
   });
 

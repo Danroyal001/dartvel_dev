@@ -18,7 +18,7 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
     const SingleChildScrollView(
       child: DVBox.list(<Widget>[
         Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('FLUTTER WITHOUT A MAC'),
             Heading(

@@ -17,7 +17,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
       child: DVBox.list(<Widget>[
         Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('DARTVEL VS BUBBLE'),
             Heading(

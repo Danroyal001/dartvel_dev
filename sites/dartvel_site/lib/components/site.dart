@@ -26,15 +26,33 @@ class Palette {
   factory Palette.of(BuildContext context) =>
       Palette._(Theme.of(context).brightness == Brightness.dark);
 
+  /// The palette for [brightness], without a widget tree. For a test, and
+  /// for anything that has to reason about both modes at once.
+  factory Palette.forBrightness(Brightness brightness) =>
+      Palette._(brightness == Brightness.dark);
+
   final bool dark;
 
-  Color get ink => dark ? const Color(0xFFF2F5FA) : const Color(0xFF0B1020);
-  Color get muted => dark ? const Color(0xFF9AA7BD) : const Color(0xFF5A6478);
-  Color get faint => dark ? const Color(0xFF6E7B92) : const Color(0xFF8A93A6);
-  Color get accent => dark ? const Color(0xFF7BA2FF) : const Color(0xFF2F6BFF);
-  Color get surface => dark ? const Color(0xFF11161F) : const Color(0xFFF4F6FB);
-  Color get page => dark ? const Color(0xFF0A0D13) : const Color(0xFFFFFFFF);
-  Color get rule => dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF);
+  Color get ink => dark ? const Color(0xFFF6F1EA) : const Color(0xFF191210);
+  Color get muted => dark ? const Color(0xFFA8998C) : const Color(0xFF5C5049);
+  Color get faint => dark ? const Color(0xFF8A7B6D) : const Color(0xFF7D6F64);
+  Color get accent => dark ? const Color(0xFFF0824B) : const Color(0xFFB03E19);
+  Color get surface => dark ? const Color(0xFF1B1815) : const Color(0xFFF7F1E9);
+  Color get page => dark ? const Color(0xFF12100E) : const Color(0xFFFFFCF8);
+  Color get rule => dark ? const Color(0xFF342D27) : const Color(0xFFDFD1BE);
+
+  /// The one ground that stops the scroll: a band that is darker than the
+  /// page in either mode, so a section can sit apart without a gradient.
+  ///
+  /// It is also what a code block and a terminal sit on, so the dark thing
+  /// in the middle of a light page and the dark band around it are the same
+  /// colour instead of two nearly-equal ones.
+  static const Color deep = Color(0xFF16110E);
+
+  /// The text colours for [deep], which does not change with the mode.
+  static const Color deepInk = Color(0xFFF6F1EA);
+  static const Color deepMuted = Color(0xFFB5A697);
+  static const Color deepAccent = Color(0xFFF0824B);
 }
 
 /// One figure in a row of statistics.
@@ -154,20 +172,26 @@ Widget _siteFooter(BuildContext context) {
 ///
 /// [dark] is ink-dark, for the one or two bands that should stop the scroll:
 /// a page that is eight shades of the same cream reads as one very long
-/// section however good the type is. [glow] is a soft accent bloom in the
-/// corner -- the hero, and nothing else, because a page where everything
-/// glows is a page where nothing does.
+/// section however good the type is.
+///
+/// [grain] textures the band. It used to be a radial bloom of the accent,
+/// which is the most recognisable mark of an interface nobody art-directed:
+/// a flat page does need depth, and a gradient is the wrong way to get it.
+/// Grain is a 96-point tile of monochrome noise, repeated, at an opacity
+/// low enough that you notice it only when it is taken away. Used on the
+/// hero and nowhere else, because a page where every band is textured is a
+/// page with no texture.
 @DVFunctionalWidget()
 Widget _section(
   BuildContext context, {
   required List<Widget> children,
   bool tint = false,
   bool dark = false,
-  bool glow = false,
+  bool grain = false,
 }) {
   final Palette palette = Palette.of(context);
   final Color background =
-      dark ? const Color(0xFF0B1020) : (tint ? palette.surface : palette.page);
+      dark ? Palette.deep : (tint ? palette.surface : palette.page);
 
   DVModifier band = const DVModifier()
       .width(double.infinity)
@@ -177,15 +201,15 @@ Widget _section(
         vertical: context.screen.value<double>(mobile: 40, desktop: 64),
       );
 
-  if (glow) {
-    band = band.gradient(RadialGradient(
-      center: const Alignment(0.92, -1.1),
-      radius: 1.15,
-      colors: <Color>[
-        palette.accent.withValues(alpha: palette.dark ? 0.20 : 0.13),
-        background.withValues(alpha: 0),
-      ],
-    ));
+  if (grain) {
+    // The tile is black, so it reads as grain over a light ground and
+    // needs more of itself over a dark one.
+    band = band.backgroundImage(
+      const DVImage.asset('assets/texture/grain.png'),
+      fit: BoxFit.none,
+      repeat: ImageRepeat.repeat,
+      opacity: palette.dark ? 0.30 : 0.14,
+    );
   }
 
   return DVBox(
@@ -208,7 +232,7 @@ Widget _eyebrow(BuildContext context, String text, {bool onDark = false}) =>
           .fontSize(12)
           .fontWeight(FontWeight.w700)
           // On an ink band the page's own accent sits too dark to read.
-          .color(onDark ? const Color(0xFF7AA2F7) : Palette.of(context).accent)
+          .color(onDark ? Palette.deepAccent : Palette.of(context).accent)
           .letterSpacing(1.8),
     );
 
@@ -225,7 +249,7 @@ Widget _heading(
     DVText(text).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 26, desktop: 34))
-          .fontWeight(FontWeight.w800)
+          .fontWeight(FontWeight.w700)
           .color(onDark ? const Color(0xFFF2F5FC) : Palette.of(context).ink)
           .lineHeight(1.15)
           // Declared, so the outline exists for a screen reader moving by
@@ -366,7 +390,7 @@ Widget _stat(BuildContext context, String value, String label) {
     DVBox.list(<Widget>[
       DVText(value).modifier(const DVModifier()
           .fontSize(30)
-          .fontWeight(FontWeight.w800)
+          .fontWeight(FontWeight.w700)
           .color(palette.accent)),
       DVText(label)
           .modifier(const DVModifier().fontSize(13).color(palette.muted)),
@@ -403,12 +427,12 @@ Widget _stats(
         CountUp(
           item.value,
           size: size,
-          color: onDark ? const Color(0xFF7AA2F7) : palette.accent,
+          color: onDark ? Palette.deepAccent : palette.accent,
         ),
         DVText(item.label).modifier(const DVModifier()
             .fontSize(13.5)
             .fontWeight(FontWeight.w600)
-            .color(onDark ? const Color(0xFF98A6C9) : palette.muted)
+            .color(onDark ? Palette.deepMuted : palette.muted)
             .lineHeight(1.4)),
       ], spacing: 4, crossAlign: DVCrossAlign.start),
   ], spacing: context.screen.value<double>(mobile: 28, desktop: 56));
@@ -435,7 +459,7 @@ Widget _wordmark(BuildContext context) {
       const DartvelMark(size: 24),
       const DVText('Dartvel').modifier(const DVModifier()
           .fontSize(17)
-          .fontWeight(FontWeight.w800)
+          .fontWeight(FontWeight.w700)
           .color(palette.ink)),
     ], spacing: 9),
   );
@@ -517,7 +541,7 @@ Widget _externalLink(BuildContext context, String label, String url,
       child: DVText(label).modifier(const DVModifier()
           .fontSize(14)
           .fontWeight(FontWeight.w600)
-          .color(onDark ? const Color(0xFF7AA2F7) : Palette.of(context).accent)),
+          .color(onDark ? Palette.deepAccent : Palette.of(context).accent)),
     );
 
 /// A feature record, drawn as the two things it says rather than one block.
@@ -653,7 +677,7 @@ Widget _objection(
 Widget _bullets(BuildContext context, List<String> items, {bool onDark = false}) {
   final Palette palette = Palette.of(context);
   final Color text = onDark ? const Color(0xFFC9D3EA) : palette.ink;
-  final Color dot = onDark ? const Color(0xFF7AA2F7) : palette.accent;
+  final Color dot = onDark ? Palette.deepAccent : palette.accent;
   return DVBox.list(<Widget>[
     for (final String item in items)
       Row(
