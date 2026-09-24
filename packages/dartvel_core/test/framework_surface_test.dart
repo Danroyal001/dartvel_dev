@@ -112,6 +112,18 @@ Object get encode => dvOutcomeToJson;
     expect(output, contains('undefined_identifier'));
   });
 
+  test('an application cannot reach the replay route\'s handler', () async {
+    // It applies writes to whatever table its registry names. The generated
+    // backend serves it behind the session; an application constructing one
+    // would be handing a table writes from wherever it liked.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get replay => DVOfflineReplay;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
   test('the framework itself has all of them', () async {
     final String output = await analyzed('''
 import 'package:dartvel_core/framework.dart';
@@ -123,6 +135,7 @@ Type get other => DVPresenceTransport;
 Type get remote => DVRecordTableRemote;
 Object get encode => dvOutcomeToJson;
 Object get decode => dvOutcomeFromJson;
+Type get replay => DVOfflineReplay;
 ''');
     expect(output, isNot(contains(' error ')));
   });
