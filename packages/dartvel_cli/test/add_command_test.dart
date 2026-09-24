@@ -75,6 +75,33 @@ void main() {
     expect(Directory(p.join(root, 'modules')).existsSync(), isFalse);
   });
 
+  test('the module package becomes a dependency, or nothing can import it',
+      () async {
+    // The generated client writes `import 'package:store/...'` for a
+    // mounted module's pages. Without the dependency that import does not
+    // resolve, so a mount on its own leaves a project that does not build.
+    final String root = _project();
+
+    expect(await _run(root, <String>['packages/store']), 0);
+
+    final Object? doc = loadYaml(_pubspec(root));
+    final Object? store = ((doc! as Map)['dependencies'] as Map)['store'];
+    expect((store! as Map)['path'], 'packages/store');
+  });
+
+  test('a module already depended on is not added twice', () async {
+    final String root = _project();
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    pubspec.writeAsStringSync('${pubspec.readAsStringSync().trimRight()}\n'
+        'dependencies:\n'
+        '  store:\n'
+        '    path: packages/store\n');
+
+    expect(await _run(root, <String>['packages/store']), 0);
+
+    expect('\n${_pubspec(root)}'.split('\n  store:\n').length, 2);
+  });
+
   test('what it writes is a pubspec that still parses, and a mount that '
       'discovery finds', () async {
     // A command that edits somebody's pubspec by appending text has to leave

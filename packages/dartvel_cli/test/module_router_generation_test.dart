@@ -33,7 +33,11 @@ Widget _productPage(BuildContext context) => const DVText('product');
 /// A parent with one page and a module mounted at /store.
 Directory? lastParent;
 
-Future<String> generateParent({String mount = '/store', String deployment = 'embedded'}) async {
+Future<String> generateParent({
+  String mount = '/store',
+  String deployment = 'embedded',
+  String? kind,
+}) async {
   final Directory root = Directory.systemTemp.createTempSync('dartvel_module_router_');
   lastParent = root;
   addTearDown(() => root.deleteSync(recursive: true));
@@ -58,7 +62,7 @@ flutter:
     - assets/logo.png
 dartvel:
   module:
-    id: store
+    id: store${kind == null ? '' : '\n    kind: $kind'}
 ''');
   File(p.join(module.path, 'lib', 'pages', 'products', '[id].page.dart'))
     ..createSync(recursive: true)
@@ -205,6 +209,25 @@ void main() {
           File(p.join(lastParent!.path, 'lib', 'dartvel_client', 'dartvel_runtime.dart')).readAsStringSync();
 
       expect(runtime, contains('registerDartvelModules()'));
+    });
+
+    test('a described API is reached as its own calls, not as a DVModule',
+        () async {
+      // The specification writes DV.Modules.vendorErp.getOrder(id: '1024').
+      // A module generated from a document has no pages, no models and no
+      // backend, so the registry entry is nothing an application wants and
+      // the calls are everything it wants.
+      await generateParent(kind: 'describedApi');
+      final String generated = modulesFile();
+
+      expect(generated, contains("import 'package:store/store.dart'"));
+      expect(generated, contains('StoreApi get store => const StoreApi();'));
+      expect(generated, isNot(contains("DVModule get store =>")));
+      // And its types are not re-exported into the barrel every page
+      // imports. A module generated from somebody's document names its
+      // types after their domain, and one of those colliding with a model
+      // would be an ambiguous import in every page.
+      expect(generated, isNot(contains("export 'package:store/store.dart'")));
     });
   });
 }
