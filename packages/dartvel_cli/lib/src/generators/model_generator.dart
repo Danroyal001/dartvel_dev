@@ -1593,6 +1593,17 @@ class ModelGenerator {
           }
           if (!versioned) sb.writeln('        versioned: false,');
           if (softDelete) sb.writeln('        softDelete: true,');
+          if (tenantScoped) {
+            // The same scope every ordinary read and write carries. Without
+            // it a device signed into one tenant replayed writes onto a
+            // table with no tenant filter at all: the row it wrote belonged
+            // to nobody, and the stored row the server read back when it
+            // resolved a conflict could be another tenant's of the same key.
+            // Read when the statement runs, not captured once.
+            sb.writeln(
+              "        scope: DVRecordScope('$tenantColumn', $tenantValue),",
+            );
+          }
           sb.writeln('        database: database,');
           sb.writeln('      );');
         }
