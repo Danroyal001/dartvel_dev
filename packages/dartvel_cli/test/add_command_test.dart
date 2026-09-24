@@ -172,7 +172,56 @@ void main() {
     expect(_pubspec(root), before);
   });
 
-  test('a foreign source says so rather than half-doing it', () async {
+  test('a refusal says what it found, not just that it failed', () async {
+    // DV-MODULE-009 names what is there. "Could not detect the source" tells
+    // somebody nothing about what to do next, and the commonest reason a
+    // detection fails is that the path is one directory off.
+    final String root = _project();
+    Directory(p.join(root, 'sdk')).createSync();
+    File(p.join(root, 'sdk', 'README.md')).writeAsStringSync('# Scanner');
+
+    late final DVAddRefused refused;
+    try {
+      AddCommand.planFor(root, 'sdk');
+      fail('a directory holding a README is not a source');
+    } on DVAddRefused catch (e) {
+      refused = e;
+    }
+
+    expect(refused.message, contains('DV-MODULE-009'));
+    expect(refused.message, contains('README.md'));
+  });
+
+  test('a recognised foreign source is named, and still refused', () async {
+    // Detection is built and generation is not, so the honest answer names
+    // what it is and says the generator does not exist -- rather than
+    // pretending not to recognise a Cargo.toml.
+    final String root = _project();
+    Directory(p.join(root, 'engine')).createSync();
+    File(p.join(root, 'engine', 'Cargo.toml')).writeAsStringSync('[package]');
+    final String before = _pubspec(root);
+
+    expect(await _run(root, <String>['engine']), 1);
+    expect(_pubspec(root), before);
+  });
+
+  test('a plain Dart package is sent to dart pub add', () async {
+    final String root = _project();
+    Directory(p.join(root, 'intl')).createSync();
+    File(p.join(root, 'intl', 'pubspec.yaml')).writeAsStringSync('name: intl');
+
+    late final DVAddRefused refused;
+    try {
+      AddCommand.planFor(root, 'intl');
+      fail('a package with no dartvel section is not a module');
+    } on DVAddRefused catch (e) {
+      refused = e;
+    }
+
+    expect(refused.message, contains('dart pub add'));
+  });
+
+  test('a foreign scheme says so rather than half-doing it', () async {
     // Every other scheme is specified and unbuilt. Answering "maven is not
     // supported yet" is the honest failure; writing a mount that resolves to
     // nothing would be a project that no longer builds.

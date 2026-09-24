@@ -18,6 +18,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../modules/source_detection.dart';
 import '../utils/logger.dart';
 
 /// Thrown when `dartvel add` will not do what was asked.
@@ -135,28 +136,44 @@ class AddCommand extends Command<void> {
     }
 
     final Directory dir = Directory(p.join(root, source));
-    if (!dir.existsSync()) {
-      throw DVAddRefused('There is no directory at $source.');
-    }
-    final File pubspec = File(p.join(dir.path, 'pubspec.yaml'));
-    if (!pubspec.existsSync()) {
-      throw DVAddRefused('$source has no pubspec.yaml, so it is not a Dart '
-          'package and cannot be a module.');
+    // What is there decides what this is, and the answer is reported whether
+    // or not it is one this can install: a refusal that names a Cargo.toml is
+    // a refusal somebody can act on.
+    final DVDetectedSource found = dvDetectSource(dir.path);
+    switch (found.kind) {
+      case DVSourceKind.missing:
+        throw DVAddRefused('There is no directory at $source.');
+      case DVSourceKind.dartPackage:
+        throw DVAddRefused(
+          '$source is a Dart package and not a Dartvel project: '
+          '${found.reason}',
+        );
+      case DVSourceKind.unknown:
+        throw DVAddRefused('${found.code}: $source is not a source Dartvel '
+            'can read. ${found.reason}');
+      case DVSourceKind.dartvel:
+        break;
+      case DVSourceKind.apple:
+      case DVSourceKind.jvm:
+      case DVSourceKind.rust:
+      case DVSourceKind.c:
+      case DVSourceKind.wasm:
+      case DVSourceKind.npm:
+      case DVSourceKind.describedApi:
+        throw DVAddRefused(
+          '$source is ${found.kind.name}, reached by ${found.mechanism}. '
+          'Generating a module from one is specified in Module Sources and '
+          'is not built, so nothing was written. What works today is a '
+          'source that is already a Dartvel project.',
+        );
     }
 
-    final Object? doc = _yamlOf(pubspec);
+    final Object? doc = _yamlOf(File(p.join(dir.path, 'pubspec.yaml')));
     if (doc is! Map) {
       throw DVAddRefused('$source/pubspec.yaml is not a map.');
     }
-    final Object? dartvel = doc['dartvel'];
-    if (dartvel is! Map) {
-      throw DVAddRefused(
-        '$source is a Dart package and not a Dartvel project: its '
-        'pubspec.yaml declares no dartvel: section. A package that is not a '
-        'module is an ordinary dependency -- dart pub add it.',
-      );
-    }
-
+    final Map<Object?, Object?> dartvel =
+        (doc['dartvel']! as Map).cast<Object?, Object?>();
     final Object? module = dartvel['module'];
     final String packageName = '${doc['name'] ?? ''}';
     final String resolved = id ??
