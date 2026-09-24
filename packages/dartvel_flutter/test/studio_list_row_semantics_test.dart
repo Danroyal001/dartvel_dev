@@ -81,6 +81,22 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('it carries an identifier automation can find it by',
+      (tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await pumpRow(tester, subtitle: '9 fields', onTap: () {});
+
+    // On the web this becomes a flt-semantics-identifier attribute, which is
+    // exact. A label is not: Flutter web renders the label and the value into
+    // the element, so the row's own text reads "Product 9 fields", and the
+    // Studio capture looking for "Product" found nothing.
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Product')).identifier,
+      'Product',
+    );
+    handle.dispose();
+  });
+
   testWidgets('tapping it still runs the callback', (tester) async {
     int taps = 0;
     await pumpRow(tester, subtitle: '9 fields', onTap: () => taps++);

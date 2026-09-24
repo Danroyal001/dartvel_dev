@@ -626,6 +626,12 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
       selected: widget.selected,
       label: widget.title,
       value: widget.subtitle,
+      // On the web this becomes a flt-semantics-identifier attribute, which
+      // is exact. The label is not enough on its own: Flutter web renders
+      // the label and the value into the element, so the row's own text
+      // reads "Product 9 fields" and anything looking for "Product" finds
+      // nothing -- which is what the Studio capture was doing.
+      identifier: widget.title,
       onTap: widget.onTap,
       excludeSemantics: true,
       child: MouseRegion(
