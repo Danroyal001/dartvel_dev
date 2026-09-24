@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 import '../dartvel_client/dartvel_client.dart';
 
 Future<void> modelChanges(Article article) async {
@@ -68,6 +70,21 @@ Future<void> offline(DVDatabaseAdapter serverDatabase) async {
   // docs:end
   DV.log('${waiting.length} ${dispatches.syncStateOf('d1')}');
 }
+
+// docs:start offline-connectivity
+// What the device can reach, as a signal: a banner is a widget that
+// rebuilds, not a listener to remember to dispose.
+@DVFunctionalWidget()
+@pragma('vm:entry-point')
+Widget _connectionBanner(BuildContext context) {
+  final DVNetworkStatus status = DV.Platform.network.watch(context);
+  if (status != DVNetworkStatus.offline) return const DVBox.list(<Widget>[]);
+  return DVBox.list(<Widget>[
+    const DVText('Offline. Your changes are saved here and will be sent.'),
+    DVText('Since ${DV.Platform.network.since}'),
+  ]);
+}
+// docs:end
 
 // docs:start offline-server
 // The server side, with a check on what it accepts. A write that fails it

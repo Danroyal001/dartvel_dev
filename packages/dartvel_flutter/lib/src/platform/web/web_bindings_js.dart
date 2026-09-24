@@ -34,6 +34,8 @@ import 'package:web/web.dart' as web;
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import '../../pwa/install_prompt.dart';
+import '../network.dart';
+import '../network_source.dart';
 import 'web_bluetooth_js.dart';
 import 'web_capabilities.dart';
 import 'web_contacts_js.dart';
@@ -109,6 +111,70 @@ class DVWebBindings {
     if (standalone.matches) DVInstallPrompt.markInstalled();
   }
 
+  /// Reports what the browser can reach, now and whenever it changes.
+  ///
+  /// `navigator.onLine` is the one connectivity signal every browser has, and
+  /// it is honest about only one direction: false means no network, true
+  /// means a network that may still go nowhere. That is why
+  /// [DVNetworkStatus.online] is "worth trying" rather than "will succeed",
+  /// and why a write's own failure remains what proves the server is
+  /// unreachable.
+  ///
+  /// `navigator.connection` is Chromium-only, so it is probed rather than
+  /// assumed. Where it exists, a cellular or data-saver connection is
+  /// reported as metered -- a sync may proceed on one and a video prefetch
+  /// should not -- and its `change` event is what notices a phone moving
+  /// between Wi-Fi and mobile data, which fires no online or offline event
+  /// at all.
+  static void _wireNetwork() {
+    void report() {
+      if (!web.window.navigator.onLine) {
+        DVNetworkSource.report(DVNetworkStatus.offline);
+        return;
+      }
+      DVNetworkSource.report(
+        _metered() ? DVNetworkStatus.metered : DVNetworkStatus.online,
+      );
+    }
+
+    web.window.addEventListener('online', ((web.Event _) => report()).toJS);
+    web.window.addEventListener('offline', ((web.Event _) => report()).toJS);
+
+    final JSObject? connection = _connection();
+    if (connection != null) {
+      connection.callMethod<JSAny?>(
+        'addEventListener'.toJS,
+        'change'.toJS,
+        ((JSAny? _) => report()).toJS,
+      );
+    }
+    report();
+  }
+
+  /// `navigator.connection`, where this browser has it.
+  static JSObject? _connection() {
+    final JSObject navigator = web.window.navigator as JSObject;
+    final JSAny? connection = navigator.getProperty<JSAny?>('connection'.toJS);
+    return connection is JSObject ? connection : null;
+  }
+
+  /// Whether the connection is one to be careful on.
+  ///
+  /// Data saver first, because it is the reader saying so outright. Then the
+  /// effective type, where anything below 4g is a connection a prefetch
+  /// should stay off.
+  static bool _metered() {
+    final JSObject? connection = _connection();
+    if (connection == null) return false;
+    final JSAny? saveData = connection.getProperty<JSAny?>('saveData'.toJS);
+    if (saveData != null && (saveData as JSBoolean).toDart) return true;
+    final JSAny? effective =
+        connection.getProperty<JSAny?>('effectiveType'.toJS);
+    if (effective == null) return false;
+    return const <String>{'slow-2g', '2g', '3g'}
+        .contains((effective as JSString).toDart);
+  }
+
   /// The captured event, kept because prompt() has to be called on it.
   static web.Event? _deferred;
 
@@ -152,6 +218,7 @@ class DVWebBindings {
     }
 
     _wireInstallPrompt();
+    _wireNetwork();
     _initialLink = web.window.location.href;
 
     // The prompt itself. This binding existed and was called by nothing, so

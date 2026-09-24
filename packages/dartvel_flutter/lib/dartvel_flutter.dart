@@ -40,6 +40,7 @@ import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/drag_drop.dart';
 import 'src/platform/file_associations.dart';
+import 'src/platform/network.dart';
 import 'src/platform/printing.dart';
 import 'src/platform/terminal_graphics.dart';
 import 'src/platform/terminal_graphics_web.dart'
@@ -719,6 +720,10 @@ export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
 export 'src/platform/macos/macos_bindings.dart';
+// The application-facing half only. Reporting connectivity is the platform
+// binding's job and lives in src/platform/network_source.dart, which is not
+// exported: an application reads the signal rather than feeding it.
+export 'src/platform/network.dart';
 export 'src/platform/printing.dart';
 export 'src/platform/raster.dart';
 export 'src/platform/terminal_graphics.dart';
@@ -5864,6 +5869,11 @@ class DVPlatform {
   DVBrowserExtension get browserExtension => const DVBrowserExtension();
 
   /// The PWA install prompt, where the platform offers one.
+  /// What this device can reach, as a signal: online, metered, offline,
+  /// or unknown where no binding has reported. `since` is when it last
+  /// changed.
+  DVNetwork get network => const DVNetwork();
+
   DVInstall get install => const DVInstall();
   DVDisplayControls get display => const DVDisplayControls();
 
