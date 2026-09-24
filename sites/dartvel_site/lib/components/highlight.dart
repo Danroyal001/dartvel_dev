@@ -279,7 +279,7 @@ Widget _codeSample(BuildContext context, List<String> lines) {
             // "monospace" family and silently falls back to the body font, so
             // every Dart sample on this site rendered in proportional text --
             // on a page whose whole argument is what the code looks like.
-            fontFamily: 'RobotoMono',
+            fontFamily: 'JetBrainsMono',
             fontFamilyFallback: <String>['Menlo', 'Consolas', 'monospace'],
             fontSize: 13.5,
             height: 1.65,
@@ -297,9 +297,9 @@ Widget _codeSample(BuildContext context, List<String> lines) {
         .width(double.infinity)
         .maxWidth(680)
         .padding(18)
-        .backgroundColor(Palette.of(context).dark
-            ? const Color(0xFF0E141D)
-            : const Color(0xFF0B1020))
+        // One ground in both modes, and the same one the dark bands use.
+        // Two nearly-equal darks beside each other read as a mistake.
+        .backgroundColor(Palette.deep)
         .rounded(10),
   );
 }

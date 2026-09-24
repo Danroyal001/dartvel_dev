@@ -17,7 +17,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
     child: SingleChildScrollView(
       child: DVBox.list(<Widget>[
         const Section(
-          glow: true,
+          grain: true,
           children: <Widget>[
             Eyebrow('DARTVEL CLOUD'),
             Heading(
