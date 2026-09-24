@@ -2029,6 +2029,10 @@ class ModelGenerator {
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
             '${softDelete ? '    softDelete: true,\n' : ''}'
+            // Only the models that said so. The route that applies replayed
+            // writes builds its registry from these, and a spec that
+            // defaulted to a strategy would put every model in it.
+            '${offlineStrategy == null ? '' : '    offline: DVConflict.$offlineStrategy,\n'}'
             '${ownModuleId == null ? '' : "    module: '$ownModuleId',\n    data: _dvModule,\n"}'
             '  ),',
           );
@@ -3058,6 +3062,11 @@ class ModelGenerator {
       // A field spec is only named inside a model's spec, and a shown name
       // nothing uses is an analyzer warning in the application.
       "${studioSpecs.isEmpty ? '' : ', DVStudioFieldSpec'}, DVStudioModelSpec"
+      // Named only by a model that declared offline:, and this file is
+      // excluded from an application's own analyze, so a missing name here
+      // surfaces as a failure to compile the suite rather than as an error
+      // anybody reads.
+      "${studioSpecs.any((String spec) => spec.contains('offline: DVConflict.')) ? ', DVConflict' : ''}"
       '${ownModuleId == null ? '' : ', DVModuleData'};\n\n'
       '${ownModuleId == null ? '' : "const DVModuleData _dvModule = DVModuleData('$ownModuleId');\n\n"}'
       '/// Where each public model page\'s rows are and which fields carry its\n'

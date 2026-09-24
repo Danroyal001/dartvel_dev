@@ -44,6 +44,23 @@ final class DVConflict {
   /// writer's value, and every other field keeps the row's.
   static const DVConflict fieldMerge = DVConflict._('fieldMerge');
 
+  /// The named strategy, for a spec read back from a manifest.
+  ///
+  /// Only the ones a device may use offline: a resolver is a function and
+  /// does not survive a manifest, and `ask` has nobody to ask on a device.
+  /// An unknown name is refused rather than defaulted, because defaulting
+  /// would resolve somebody's conflicts by a rule they did not choose.
+  static DVConflict byName(String name) => switch (name) {
+        'lastWriteWins' => lastWriteWins,
+        'serverWins' => serverWins,
+        'fieldMerge' => fieldMerge,
+        _ => throw ArgumentError.value(
+            name,
+            'name',
+            'not a conflict strategy a device may use offline',
+          ),
+      };
+
   /// A resolver the application writes, given both versions, returning the
   /// values to store.
   factory DVConflict.resolver(
