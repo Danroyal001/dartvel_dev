@@ -147,10 +147,12 @@ export 'src/compute/worker_types.dart'
 export 'src/compute/workers.dart';
 export 'src/data/change_capture.dart';
 export 'src/data/import_chunking.dart';
-// DVRecordTableRemote is what Model.offlineRemote builds. An application
-// asks the model for it and never constructs one, so the class stays in the
-// library for the framework and out of the surface.
-export 'src/data/offline_store.dart' hide DVRecordTableRemote;
+// DVRecordTableRemote is what Model.offlineRemote builds, and the two
+// outcome codecs are how replay crosses the wire. An application asks the
+// model and never constructs or encodes either, so they stay in the library
+// for the framework and out of the surface.
+export 'src/data/offline_store.dart'
+    hide DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
 export 'src/data/record_history.dart';
 export 'src/devclient/dev_backend_url.dart';
 export 'src/devclient/dev_client.dart';

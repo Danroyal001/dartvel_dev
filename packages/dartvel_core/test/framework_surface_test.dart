@@ -100,6 +100,18 @@ Type get remote => DVRecordTableRemote;
     expect(output, contains('undefined_identifier'));
   });
 
+  test('an application cannot encode a replay outcome', () async {
+    // The codec drops the columns the table calls sensitive. An application
+    // reaching for it directly would be encoding an outcome the framework
+    // filters, which is the leak that filtering exists to stop.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Object get encode => dvOutcomeToJson;
+''');
+    expect(output, contains('undefined_identifier'));
+  });
+
   test('the framework itself has all of them', () async {
     final String output = await analyzed('''
 import 'package:dartvel_core/framework.dart';
@@ -109,6 +121,8 @@ Type get index => DVSemanticIndex;
 Type get carrier => DVModelSyncTransport;
 Type get other => DVPresenceTransport;
 Type get remote => DVRecordTableRemote;
+Object get encode => dvOutcomeToJson;
+Object get decode => dvOutcomeFromJson;
 ''');
     expect(output, isNot(contains(' error ')));
   });

@@ -190,3 +190,9 @@ sites/*.zip
 # rather than tidied up by hand: this is a public repository, and a stray
 # `git add -A` at the root would commit somebody's whole working copy into it.
 .claude/worktrees/
+
+# Redis writes its snapshot into the working directory of whoever started it,
+# so a suite that stands a server up leaves dump.rdb at the repository root.
+# Ignored for the same reason as the worktrees above: this repository is
+# public and a stray `git add -A` would commit it.
+dump.rdb

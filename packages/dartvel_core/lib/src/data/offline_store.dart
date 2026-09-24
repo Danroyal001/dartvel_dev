@@ -178,8 +178,109 @@ class DVMutation {
         rejection: rejection,
       );
 
+  /// This mutation as a device sends it.
+  ///
+  /// The queue is on a phone and the table is on a server, so replay is a
+  /// request whether or not anything has written that request yet. Both
+  /// times go: `lastWriteWins` resolves on [correctedTime], and
+  /// [deviceTime] is what the device's own user saw. [base] goes because
+  /// the server checks the queued write against the version this device
+  /// last saw acknowledged, and a write that arrives without one is a blind
+  /// write.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'mutationId': mutationId,
+        'sequence': sequence,
+        'table': table,
+        'op': op,
+        'key': key,
+        'values': values,
+        'deviceTime': deviceTime.toIso8601String(),
+        'correctedTime': correctedTime.toIso8601String(),
+        if (base != null)
+          'base': <String, Object?>{
+            'key': base!.key,
+            'version': base!.version,
+            'values': base!.values,
+          },
+      };
+
+  /// A mutation as it arrived. The caller decides whether to trust it: a
+  /// device names its own table and key, and nothing here checks either.
+  static DVMutation fromJson(Map<String, Object?> json) {
+    final Object? base = json['base'];
+    return DVMutation(
+      mutationId: '${json['mutationId']}',
+      sequence: (json['sequence'] as num).toInt(),
+      table: '${json['table']}',
+      op: '${json['op']}',
+      key: json['key'] as Object,
+      values: (json['values'] as Map<Object?, Object?>? ??
+              const <Object?, Object?>{})
+          .map((Object? k, Object? v) => MapEntry<String, Object?>('$k', v)),
+      deviceTime: DateTime.parse('${json['deviceTime']}'),
+      correctedTime: DateTime.parse('${json['correctedTime']}'),
+      base: base is Map<Object?, Object?>
+          ? DVRecord(
+              key: base['key'] as Object,
+              version: (base['version'] as num).toInt(),
+              values: (base['values'] as Map<Object?, Object?>? ??
+                      const <Object?, Object?>{})
+                  .map((Object? k, Object? v) =>
+                      MapEntry<String, Object?>('$k', v)),
+            )
+          : null,
+    );
+  }
+
   @override
   String toString() => 'DVMutation(#$sequence $op $table[$key])';
+}
+
+/// An outcome as the server answers, without the columns [sensitive] names.
+///
+/// The filtering is the point. After `lastWriteWins` the record this carries
+/// can be another writer's values, so answering with it whole would hand the
+/// device fields it never sent and may not be allowed to read -- a leak with
+/// no error and no log line, through a path the device is entitled to call.
+/// The table knows which columns those are; nothing else on the way out does.
+Map<String, Object?> dvOutcomeToJson(
+  DVRemoteOutcome outcome, {
+  required Set<String> sensitive,
+}) {
+  final DVRecord? record = outcome.record;
+  return <String, Object?>{
+    'discarded': outcome.discarded,
+    if (outcome.rejection != null) 'rejection': outcome.rejection,
+    if (record != null)
+      'record': <String, Object?>{
+        'key': record.key,
+        'version': record.version,
+        'values': <String, Object?>{
+          for (final MapEntry<String, Object?> entry in record.values.entries)
+            if (!sensitive.contains(entry.key)) entry.key: entry.value,
+        },
+      },
+  };
+}
+
+/// An outcome as it arrived back on the device.
+DVRemoteOutcome dvOutcomeFromJson(Map<String, Object?> json) {
+  final Object? rejection = json['rejection'];
+  if (rejection is String) return DVRemoteOutcome.rejected(rejection);
+  final Object? record = json['record'];
+  return DVRemoteOutcome.applied(
+    record is Map<Object?, Object?>
+        ? DVRecord(
+            key: record['key'] as Object,
+            version: (record['version'] as num).toInt(),
+            values: (record['values'] as Map<Object?, Object?>? ??
+                    const <Object?, Object?>{})
+                .map((Object? k, Object? v) =>
+                    MapEntry<String, Object?>('$k', v)),
+          )
+        : null,
+    discarded: json['discarded'] == true,
+  );
 }
 
 /// What the server did with a replayed mutation.

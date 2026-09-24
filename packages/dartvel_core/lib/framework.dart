@@ -12,7 +12,8 @@
 /// import this.
 library;
 
-export 'src/data/offline_store.dart' show DVRecordTableRemote;
+export 'src/data/offline_store.dart'
+    show DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
 export 'src/search/semantic_search.dart' show DVSemanticIndex;
 export 'src/sync/model_sync.dart' show DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' show DVPresenceTransport;
