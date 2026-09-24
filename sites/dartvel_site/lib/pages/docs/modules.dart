@@ -81,34 +81,52 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                 'already exists behind somebody\'s SDK, so one command '
                 'resolves any of them and what comes back is always a '
                 'module.'),
+            DocsShell(<String>[
+              'dartvel add ../store',
+              'dartvel add ./vendor_api --as vendorErp',
+              'dartvel add ./vendor_api --as vendorErp --dry-run',
+            ]),
             Bullets(<String>[
-              'One command will take a Dartvel project, a Maven artifact, a '
-                  'Rust crate, an npm package, a Swift package, a WASM '
-                  'binary, or an OpenAPI, GraphQL or gRPC document. It does '
-                  'not exist yet, so this page shows no shell for it.',
+              'add reads the directory and says what it found. A pubspec with '
+                  'a dartvel key is a Dartvel project; a Package.swift, a '
+                  'Cargo.toml, a build.gradle, a package.json or an '
+                  'openapi.yaml each name a source the spec covers. A '
+                  'directory matching none of them is refused with a list of '
+                  'what it holds.',
               'A source that is already a Dartvel project is mounted '
                   'directly. Nothing is wrapped, because wrapping a module '
                   'that is already a module adds a layer whose only job is '
                   'to be walked through.',
-              'Anything else becomes a generated module: an ordinary Dart '
-                  'package with a public surface, native implementations for '
-                  'the targets it supports, and generated tests.',
-              'Where an implementation ends up follows the call sites, never '
-                  'the language it was written in. One Rust crate ships as a '
-                  'library on a phone, as WASM on the web and inside the '
+              'An OpenAPI document is generated into modules/<package>: a '
+                  'pubspec declaring the module and the host its calls go '
+                  'through, and a Dart library of typed methods. There is no '
+                  'binding and no foreign runtime, so a described API is the '
+                  'cheapest source there is.',
+              'The host goes under dartvel.http, so the base URL, the '
+                  'credential, the retries and the timeout are configuration. '
+                  'The generated calls carry none of them.',
+              '--dry-run prints every file it would write and changes '
+                  'nothing. Everything is generated before anything is '
+                  'written, so a document add cannot read stops the command '
+                  'with an empty modules directory.',
+              'A Maven artifact, a Rust crate, an npm package, a Swift '
+                  'package, a WASM binary, a GraphQL schema and a .proto are '
+                  'each named and refused today. They are specified and not '
+                  'built.',
+              'Where an implementation ends up will follow the call sites, '
+                  'never the language it was written in. One Rust crate ships '
+                  'as a library on a phone, as WASM on the web and inside the '
                   'backend binary, chosen per environment.',
               'For every environment a module is called from it declares '
                   'real, compat, noop or unavailable. There is no fifth '
                   'answer and no default: a module called from somewhere it '
                   'says nothing about stops the build.',
-              'OpenAPI, GraphQL and gRPC produce pure Dart over DV.Http. '
-                  'There is no binding and no foreign runtime at all.',
             ]),
-            DocsNote('None of this is built yet',
-                'The lockfile already pins a foreign source, because a pin '
-                'has to exist before anything can be resolved into one. '
-                'Everything else here is a specified surface with no code '
-                'behind it.'),
+            DocsNote('Two sources of the ten work today',
+                'A Dartvel project and a local OpenAPI document. The '
+                'lockfile pins a foreign source and detection names all of '
+                'them, so the rest refuse by name instead of pretending not '
+                'to recognise what is there.'),
           ],
         ),
         DocsSection(
