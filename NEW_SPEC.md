@@ -3155,8 +3155,28 @@ DV.Platform.network.status   // online | offline | metered
 DV.Platform.network.since    // when it last changed
 ```
 
-`DV.Platform.network` does not exist yet. The clock correction does, as
-`DVOfflineClock`.
+`DV.Platform.network` is built. `status` is `online`, `metered`, `offline`
+or `unknown`, `since` is when it last changed, `changes` is the stream and
+`watch(context)` rebuilds a widget -- and `canReachTheServer` is the question
+most call sites are really asking, which is true on a metered connection and
+true when nothing has reported.
+
+`unknown` is separate from `online` for the same reason `metered` is separate
+from `offline`: assuming online is how the first write on a train is
+attempted, fails, and is reported as an error rather than queued. It is still
+treated as reachable, because refusing to try on a target whose binding is
+not registered would strand every one of them, and a write's own failure is
+what proves the server is gone.
+
+Reporting is the platform binding's job and is not in the barrel an
+application imports. The browser binding is built: `navigator.onLine` with
+the `online` and `offline` events, and, where Chromium has
+`navigator.connection`, data-saver or anything below 4g reported as metered,
+with its `change` event catching a phone moving between Wi-Fi and mobile
+data -- which fires no online or offline event at all. The other targets have
+no binding yet and report `unknown`.
+
+The clock correction exists too, as `DVOfflineClock`.
 
 A signal rather than a callback or a plugin, so a banner is a widget that
 rebuilds and not a listener an application has to remember to dispose. Metered

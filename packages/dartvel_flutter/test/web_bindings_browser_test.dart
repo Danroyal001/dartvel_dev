@@ -506,4 +506,26 @@ void main() {
       }
     });
   });
+
+  group('connectivity is reported, not guessed', () {
+    test('registering reports what this browser can reach', () {
+      // The signal exists so a banner has something to read and the offline
+      // store learns when to replay. A signal nothing ever reports into is
+      // worth nothing at all, which a VM test cannot tell: there the whole
+      // binding resolves to the stub.
+      expect(const DVNetwork().status, isNot(DVNetworkStatus.unknown));
+      expect(const DVNetwork().since, isNotNull);
+    });
+
+    test('a headless runner has a network, so it is not offline', () {
+      // navigator.onLine is true here. It is honest in one direction only --
+      // false means no network, true means a network that may still go
+      // nowhere -- so this asserts the direction it can be trusted in.
+      expect(const DVNetwork().canReachTheServer, isTrue);
+      expect(
+        const DVNetwork().status,
+        anyOf(DVNetworkStatus.online, DVNetworkStatus.metered),
+      );
+    });
+  });
 }

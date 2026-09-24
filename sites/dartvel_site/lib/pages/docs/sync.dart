@@ -91,6 +91,24 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
                   'nothing is lost silently.',
               'A full log refuses the next write. It never drops an old one.',
             ]),
+            DocsSubheading('Show what the device can reach'),
+            DocsText('Application code does not branch on connectivity: a '
+                'write is made the same way in a tunnel as on Wi-Fi. It does '
+                'show it, though, and that reading is a signal.'),
+            DocsCode('offline-connectivity'),
+            Bullets(<String>[
+              'status is online, metered, offline, or unknown where no '
+                  'binding on this target has reported.',
+              'canReachTheServer is what most call sites are asking. It is '
+                  'true on a metered connection, and true when nothing has '
+                  'reported: a write\'s own failure is what proves the '
+                  'server is gone.',
+              'since is when it last changed, so an offline banner can say '
+                  'how long. A platform that re-reports the same status does '
+                  'not move it.',
+              'The browser binding is built. Other targets report unknown '
+                  'until theirs is.',
+            ]),
           ],
         ),
         DocsSection(
