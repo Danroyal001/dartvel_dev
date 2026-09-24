@@ -239,7 +239,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Dartvel is at 0.5. Some features are complete and some are '
                   'partial.',
-              'Twenty-one sections are a frozen public contract with unfinished code '
+              'Twenty-two sections are a frozen public contract with unfinished code '
                   'behind them.',
               'Pages in these docs mark partial features and say what is '
                   'missing.',
