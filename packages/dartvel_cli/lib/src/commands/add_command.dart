@@ -1,23 +1,29 @@
 /// `dartvel add <source>`: resolve a capability source into a module.
 ///
-/// One installation verb, and what comes back is always a module. This is the
-/// first rung: a source that is **already a Dartvel project** is mounted
-/// directly, because generating a wrapper around a module that is already a
-/// module adds a layer whose only function is to be walked through.
+/// One installation verb, and what comes back is always a module.
 ///
-/// Every other scheme -- `maven:`, `cargo:`, `swift:`, `npm:`, `openapi:` and
-/// the rest -- is specified in *Module Sources* and not built. Each says so
-/// and changes nothing, rather than writing a mount that resolves to nothing:
-/// a half-done install leaves a project that no longer builds, which is worse
-/// than one that never started.
+/// Two rungs are built. A source that is **already a Dartvel project** is
+/// mounted directly, because generating a wrapper around a module that is
+/// already a module adds a layer whose only function is to be walked
+/// through. A **described API** -- a local OpenAPI document -- is generated
+/// into a pure Dart module and mounted: no foreign runtime, no artifact and
+/// no binding, which is what makes it the cheapest rung to build first.
+///
+/// Every other scheme -- `maven:`, `cargo:`, `swift:`, `npm:` and the rest --
+/// is specified in *Module Sources* and not built. Each says so and changes
+/// nothing, rather than writing a mount that resolves to nothing: a half-done
+/// install leaves a project that no longer builds, which is worse than one
+/// that never started.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../modules/openapi_module.dart';
 import '../modules/source_detection.dart';
 import '../utils/logger.dart';
 
@@ -42,6 +48,8 @@ class DVAddPlan {
     required this.path,
     required this.mount,
     required this.packageName,
+    this.generated,
+    this.from,
   });
 
   /// What the parent will know it by: `DV.Modules.<id>`.
@@ -56,18 +64,44 @@ class DVAddPlan {
   /// The module project's package name.
   final String packageName;
 
+  /// The package to write, for a source that is generated into one, or null
+  /// for a project that is mounted where it already is.
+  ///
+  /// Held on the plan rather than generated while writing, so `--dry-run`
+  /// reports what would be written having actually produced it: a plan that
+  /// described a generation that then failed would be worse than no plan.
+  final DVGeneratedModule? generated;
+
+  /// Where a generated module came from, for the line that says so.
+  final String? from;
+
   /// What `--dry-run` prints, and what is done otherwise.
   ///
   /// Printed before anything is written whether or not `--dry-run` was
   /// passed: a command that changes five things about a project without
   /// showing them first is a command teams learn not to run.
-  List<String> get lines => <String>[
+  List<String> get lines {
+    final DVGeneratedModule? module = generated;
+    if (module == null) {
+      return <String>[
         'module   $id',
         'from     $path  (a Dartvel project, mounted directly)',
         'mount    $mount',
         'package  $packageName',
         'writes   pubspec.yaml: dartvel.modules.$id',
       ];
+    }
+    return <String>[
+      'module   $id',
+      'from     $from  (an OpenAPI document, generated into a pure Dart '
+          'module)',
+      'mount    $mount',
+      'package  $packageName',
+      'host     ${module.host}, declared in the generated pubspec',
+      for (final String file in module.files.keys) 'writes   $path/$file',
+      'writes   pubspec.yaml: dartvel.modules.$id',
+    ];
+  }
 }
 
 class AddCommand extends Command<void> {
@@ -112,6 +146,7 @@ class AddCommand extends Command<void> {
       Logger.log('Nothing was written. Run it without --dry-run to mount it.');
       return;
     }
+    _write(target, plan);
     _mount(target, plan);
     Logger.log('Mounted ${plan.id} at ${plan.mount}. '
         'Run dartvel routes to regenerate the client.');
@@ -153,18 +188,19 @@ class AddCommand extends Command<void> {
             'can read. ${found.reason}');
       case DVSourceKind.dartvel:
         break;
+      case DVSourceKind.describedApi:
+        return _describedApiPlan(root, source, dir, id: id, mount: mount);
       case DVSourceKind.apple:
       case DVSourceKind.jvm:
       case DVSourceKind.rust:
       case DVSourceKind.c:
       case DVSourceKind.wasm:
       case DVSourceKind.npm:
-      case DVSourceKind.describedApi:
         throw DVAddRefused(
           '$source is ${found.kind.name}, reached by ${found.mechanism}. '
           'Generating a module from one is specified in Module Sources and '
           'is not built, so nothing was written. What works today is a '
-          'source that is already a Dartvel project.',
+          'source that is already a Dartvel project, or an OpenAPI document.',
         );
     }
 
@@ -200,6 +236,140 @@ class AddCommand extends Command<void> {
       mount: mount ?? '/$resolved',
       packageName: packageName,
     );
+  }
+
+  /// The plan for a local OpenAPI document.
+  ///
+  /// The whole package is generated here, before anything is written, so a
+  /// document the generator refuses refuses the command rather than leaving
+  /// half a package and a mount pointing at it.
+  static DVAddPlan _describedApiPlan(
+    String root,
+    String source,
+    Directory dir, {
+    String? id,
+    String? mount,
+  }) {
+    final File? document = _openApiDocumentIn(dir);
+    if (document == null) {
+      throw DVAddRefused(
+        '$source holds a described API this cannot read yet. OpenAPI is '
+        'built; a GraphQL schema or a .proto is specified in Module Sources '
+        'and is not, so nothing was written.',
+      );
+    }
+
+    final String resolved = id ?? _idFromDocumentName(dir);
+    final Map<Object?, Object?> mounted = _modulesOf(root);
+    if (mounted.containsKey(resolved)) {
+      throw DVAddRefused(
+        'dartvel.modules.$resolved is already mounted. Repointing it would '
+        'change what every DV.Modules.$resolved call reaches, so nothing was '
+        'written: remove it first, or pass --as with another id.',
+      );
+    }
+
+    final DVGeneratedModule module;
+    try {
+      module = dvGenerateDescribedApiModule(
+        document: _documentIn(document),
+        moduleId: resolved,
+      );
+    } on DVDescribedApiRefused catch (error) {
+      throw DVAddRefused(
+        '${p.relative(document.path, from: root)}: ${error.message}',
+      );
+    }
+
+    final String path = p.join('modules', module.packageName);
+    final Directory into = Directory(p.join(root, path));
+    if (into.existsSync()) {
+      throw DVAddRefused(
+        '$path is already there, and generating over it would take whatever '
+        'is in it with no way back. Delete it first, or pass --as with '
+        'another id.',
+      );
+    }
+
+    return DVAddPlan(
+      id: resolved,
+      path: path.replaceAll('\\', '/'),
+      mount: mount ?? '/$resolved',
+      packageName: module.packageName,
+      generated: module,
+      from: p.relative(document.path, from: root).replaceAll('\\', '/'),
+    );
+  }
+
+  /// The document in [dir], or null when what is there is a described API
+  /// this does not read.
+  static File? _openApiDocumentIn(Directory dir) {
+    final RegExp named = RegExp(r'^openapi\.(json|ya?ml)$', caseSensitive: false);
+    for (final FileSystemEntity entity in dir.listSync()) {
+      if (entity is! File) continue;
+      if (named.hasMatch(p.basename(entity.path))) return entity;
+    }
+    return null;
+  }
+
+  /// The document, decoded. JSON is YAML, so one reader answers both, but a
+  /// .json file is decoded as JSON: the YAML reader is the slower path and
+  /// its error messages are about YAML.
+  static Map<String, Object?> _documentIn(File file) {
+    final String text = file.readAsStringSync();
+    final Object? decoded = p.extension(file.path).toLowerCase() == '.json'
+        ? jsonDecode(text)
+        : loadYaml(text);
+    if (decoded is! Map) {
+      throw DVAddRefused('${p.basename(file.path)} is not a document: it '
+          'reads as ${decoded.runtimeType}.');
+    }
+    // A YAML map is not a Map<String, Object?>, and its nested maps are not
+    // either, so it is walked rather than cast.
+    return _plain(decoded)! as Map<String, Object?>;
+  }
+
+  static Object? _plain(Object? value) => switch (value) {
+        final Map<Object?, Object?> map => <String, Object?>{
+            for (final MapEntry<Object?, Object?> e in map.entries)
+              '${e.key}': _plain(e.value),
+          },
+        final List<Object?> list => <Object?>[for (final Object? e in list) _plain(e)],
+        _ => value,
+      };
+
+  /// The id for a document nobody named with --as: the directory's own name,
+  /// in the spelling DV.Modules.<id> wants.
+  static String _idFromDocumentName(Directory dir) {
+    final List<String> parts = p
+        .basename(dir.path)
+        .split(RegExp(r'[^A-Za-z0-9]+'))
+        .where((String part) => part.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) {
+      throw const DVAddRefused('This directory\'s name is not a module id. '
+          'Pass --as.');
+    }
+    final StringBuffer out = StringBuffer(parts.first.toLowerCase());
+    for (final String part in parts.skip(1)) {
+      out.write(part[0].toUpperCase());
+      out.write(part.substring(1).toLowerCase());
+    }
+    return out.toString();
+  }
+
+  /// Writes a generated module's package, for a plan that has one.
+  ///
+  /// Whole files, into a directory the plan has already established is not
+  /// there: nothing here overwrites anything.
+  static void _write(String root, DVAddPlan plan) {
+    final DVGeneratedModule? module = plan.generated;
+    if (module == null) return;
+    for (final MapEntry<String, String> file in module.files.entries) {
+      final File out = File(p.join(root, plan.path, file.key));
+      out.parent.createSync(recursive: true);
+      out.writeAsStringSync(file.value);
+    }
   }
 
   /// Appends the mount to `dartvel.modules`, creating the key if it is the
