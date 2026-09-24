@@ -611,16 +611,33 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
         : _hover
             ? DVStudioStyle.hover
             : const Color(0x00000000);
-    return MouseRegion(
-      cursor: widget.onTap == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
+    // One node for the row, named by its title.
+    //
+    // The icon, the title and the subtitle were three loose nodes with
+    // nothing saying they belong together, so a screen reader read "table
+    // rows", "Product", "9 fields" and never said the row could be opened.
+    // On the web the row's own node then had no accessible name and its text
+    // was the whole line, "Product 9 fields" -- which is why the Studio
+    // capture could not find the model it was told to open, and photographed
+    // the first one instead.
+    return Semantics(
+      container: true,
+      button: widget.onTap != null,
+      selected: widget.selected,
+      label: widget.title,
+      value: widget.subtitle,
+      onTap: widget.onTap,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: widget.onTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
           margin: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
           padding: EdgeInsets.fromLTRB(
             DVStudioStyle.space2 + widget.indent,
@@ -665,8 +682,9 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
                   ],
                 ),
               ),
-              if (widget.trailing != null) widget.trailing!,
-            ],
+                if (widget.trailing != null) widget.trailing!,
+              ],
+            ),
           ),
         ),
       ),
