@@ -147,6 +147,36 @@ void main() {
       expect(find.text('section'), findsOneWidget);
     });
 
+    testWidgets('once it has appeared it stops watching the scroll',
+        (WidgetTester tester) async {
+      // The reveal listens to scroll notifications to know when it is on
+      // screen. Leaving that listener in place afterwards means every
+      // revealed section on the page asks the render tree for its position
+      // on every scroll notification, for as long as the page is open, to
+      // answer a question that was settled once. A long page is a dozen of
+      // them.
+      // Against a baseline rather than against zero: Scaffold puts a scroll
+      // listener of its own in every tree, so `findsNothing` would have been
+      // asserting that Material had changed rather than that the reveal had.
+      Future<int> listeners(Widget child) async {
+        await show(tester, child);
+        await tester.pumpAndSettle(const Duration(seconds: 3));
+        return find
+            .byType(NotificationListener<ScrollNotification>)
+            .evaluate()
+            .length;
+      }
+
+      final int plain = await listeners(const DVBox(DVText('section')));
+      final int revealed = await listeners(
+        DVBox(const DVText('section'), const DVModifier().revealOnScroll()),
+      );
+
+      expect(revealed, plain,
+          reason: 'the section is shown and is still watching the scroll');
+      expect(find.text('section'), findsOneWidget);
+    });
+
     testWidgets('reduced motion shows it at once, with no animation',
         (WidgetTester tester) async {
       await showReduced(
