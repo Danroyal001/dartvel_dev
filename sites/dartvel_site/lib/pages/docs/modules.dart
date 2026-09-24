@@ -84,6 +84,8 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             DocsShell(<String>[
               'dartvel add ../store',
               'dartvel add ./vendor_api --as vendorErp',
+              'dartvel add ./vendor_api --as vendorErp \\',
+              '  --url https://api.vendor.com/graphql',
               'dartvel add ./vendor_api --as vendorErp --dry-run',
             ]),
             Bullets(<String>[
@@ -97,11 +99,20 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'directly. Nothing is wrapped, because wrapping a module '
                   'that is already a module adds a layer whose only job is '
                   'to be walked through.',
-              'An OpenAPI document is generated into modules/<package>: a '
-                  'pubspec declaring the module and the host its calls go '
-                  'through, and a Dart library of typed methods. There is no '
-                  'binding and no foreign runtime, so a described API is the '
-                  'cheapest source there is.',
+              'An OpenAPI document or a GraphQL schema is generated into '
+                  'modules/<package>: a pubspec declaring the module and the '
+                  'host its calls go through, and a Dart library of typed '
+                  'methods. There is no binding and no foreign runtime, so a '
+                  'described API is the cheapest source there is.',
+              'A GraphQL schema names no server, so --url gives the endpoint '
+                  'to post to. It overrides an OpenAPI document\'s servers '
+                  'too, which is how a published document is used against '
+                  'staging without editing it.',
+              'Each GraphQL call gets its own result types. A class carries '
+                  'the fields that query selected and no others, so a field '
+                  'that is null is one the service answered null for. Where '
+                  'the graph turns back on itself the selection stops and the '
+                  'class says which type it returned to.',
               'The host goes under dartvel.http, so the base URL, the '
                   'credential, the retries and the timeout are configuration. '
                   'The generated calls carry none of them.',
@@ -110,9 +121,8 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'written, so a document add cannot read stops the command '
                   'with an empty modules directory.',
               'A Maven artifact, a Rust crate, an npm package, a Swift '
-                  'package, a WASM binary, a GraphQL schema and a .proto are '
-                  'each named and refused today. They are specified and not '
-                  'built.',
+                  'package, a WASM binary and a .proto are each named and '
+                  'refused today. They are specified and not built.',
               'Where an implementation ends up will follow the call sites, '
                   'never the language it was written in. One Rust crate ships '
                   'as a library on a phone, as WASM on the web and inside the '
@@ -122,11 +132,11 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'answer and no default: a module called from somewhere it '
                   'says nothing about stops the build.',
             ]),
-            DocsNote('Two sources of the ten work today',
-                'A Dartvel project and a local OpenAPI document. The '
-                'lockfile pins a foreign source and detection names all of '
-                'them, so the rest refuse by name instead of pretending not '
-                'to recognise what is there.'),
+            DocsNote('Three sources of the ten work today',
+                'A Dartvel project, a local OpenAPI document and a local '
+                'GraphQL schema. The lockfile pins a foreign source and '
+                'detection names all of them, so the rest refuse by name '
+                'instead of pretending not to recognise what is there.'),
           ],
         ),
         DocsSection(

@@ -11,6 +11,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     options: <String>[
       '    --as         The id the parent knows the module by.',
       '    --mount      Where the parent serves it.',
+      '    --url        The endpoint a described API is called at. Required for a GraphQL schema, which names no server of its own.',
       '    --dry-run    Print the installation plan and change nothing.',
     ],
   ),
