@@ -58,13 +58,13 @@ ThemeData dartvelSiteTheme(Brightness brightness) {
     // so a page that styles nothing still gets it.
     fontFamily: 'Manrope',
     scaffoldBackgroundColor:
-        dark ? const Color(0xFF12100E) : const Color(0xFFFFFCF8),
+        dark ? const Color(0xFF0A0D13) : const Color(0xFFFFFFFF),
     colorScheme: ColorScheme.fromSeed(
       // Seeded from the site's own accent, so Material's generated roles
       // land in the same family as the palette the pages actually use.
       // It used to be seeded from a blue nobody picked, which is where
       // every cool grey on the site came from.
-      seedColor: const Color(0xFFB03E19),
+      seedColor: const Color(0xFF2F6BFF),
       brightness: brightness,
     ),
     // Always drawn, never faded. thumbVisibility keeps the thumb on screen
@@ -91,13 +91,13 @@ ThemeData dartvelSiteTheme(Brightness brightness) {
       // permanently in the corner of somebody's eye, so it is drawn at the
       // weight of a rule rather than of a control.
       thumbColor: WidgetStateProperty.all(
-        dark ? const Color(0xFF4A403A) : const Color(0xFFCDBCA8),
+        dark ? const Color(0xFF39435A) : const Color(0xFFC2C9D8),
       ),
       trackColor: WidgetStateProperty.all(
-        dark ? const Color(0xFF1B1815) : const Color(0xFFF7F1E9),
+        dark ? const Color(0xFF161B25) : const Color(0xFFF1F3F8),
       ),
       trackBorderColor: WidgetStateProperty.all(
-        dark ? const Color(0xFF342D27) : const Color(0xFFDFD1BE),
+        dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF),
       ),
     ),
   );

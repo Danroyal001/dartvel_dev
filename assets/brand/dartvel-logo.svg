@@ -2,16 +2,16 @@
   <title>Dartvel</title>
   <defs>
     <linearGradient id="lvg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7A2E10"/><stop offset="0.55" stop-color="#B03E19"/><stop offset="1" stop-color="#F0824B"/>
+      <stop offset="0" stop-color="#7A3BFF"/><stop offset="0.55" stop-color="#2F6BFF"/><stop offset="1" stop-color="#1FB6F5"/>
     </linearGradient>
     <clipPath id="lvc"><path clip-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/></clipPath>
   </defs>
   <g transform="translate(-39.8,-32.1) scale(0.641)">
     <path fill="url(#lvg)" fill-rule="evenodd" d="M112 100 H256 C336 100 400 170 400 256 C400 342 336 412 256 412 H112 Z M176 170 H256 L320 256 L256 342 H176 L240 256 Z"/>
-    <g clip-path="url(#lvc)"><polygon points="112,412 400,140 512,140 512,512 112,512" fill="#191210" opacity="0.20"/></g>
+    <g clip-path="url(#lvc)"><polygon points="112,412 400,140 512,140 512,512 112,512" fill="#0B1020" opacity="0.20"/></g>
   </g>
   <g transform="translate(236.8,55) scale(0.9167)">
-    <g fill="none" stroke="#191210" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="#0B1020" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
       <g transform="translate(20,12)">
         <g><circle cx="54" cy="96" r="36"/><path d="M102 12 V132"/></g>
         <g transform="translate(134,0)"><circle cx="54" cy="96" r="36"/><path d="M102 60 V132"/></g>

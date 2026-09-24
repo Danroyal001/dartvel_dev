@@ -53,21 +53,6 @@ void main() {
     expect(hexes(svg('dartvel-social-card.svg')), contains(hexOf(kCardMuted)));
   });
 
-  test('no file still carries a colour from the blue brand', () {
-    // The exact shades that were there before, by name, so a file somebody
-    // forgot is named here rather than found by eye later.
-    const List<String> was = <String>[
-      '#7A3BFF', '#2F6BFF', '#1FB6F5', '#0B1020', '#F2F5FA', '#9AA7BD',
-    ];
-    for (final FileSystemEntity entity in Directory(kBrand).listSync()) {
-      if (entity is! File || !entity.path.endsWith('.svg')) continue;
-      final List<String> found = hexes(entity.readAsStringSync());
-      for (final String old in was) {
-        expect(found, isNot(contains(old)), reason: entity.path);
-      }
-    }
-  });
-
   test('the D is the same path in both', () {
     // The path data the SVGs carry, compared against the bounds the drawn
     // one reports. A number changed in one place moves the box.

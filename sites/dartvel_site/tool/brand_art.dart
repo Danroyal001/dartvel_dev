@@ -21,27 +21,27 @@ const Size kLockupBox = Size(892, 264);
 /// The social card's box.
 const Size kCardBox = Size(1200, 630);
 
-/// The brand gradient: deep clay, the accent, ember.
+/// The brand gradient: violet, the accent, cyan.
 ///
 /// Three stops rather than two because the fold across the bowl is read as a
 /// change in value, and a two-stop ramp across a shape this small does not
 /// give it enough to turn against.
 const List<Color> kBrandStops = <Color>[
-  Color(0xFF7A2E10),
-  Color(0xFFB03E19),
-  Color(0xFFF0824B),
+  Color(0xFF7A3BFF),
+  Color(0xFF2F6BFF),
+  Color(0xFF1FB6F5),
 ];
 
 const List<double> kBrandOffsets = <double>[0, 0.55, 1];
 
 /// The ink the fold and the wordmark are drawn in.
-const Color kInk = Color(0xFF191210);
+const Color kInk = Color(0xFF0B1020);
 
 /// The paper the wordmark takes on a dark ground.
-const Color kPaper = Color(0xFFF6F1EA);
+const Color kPaper = Color(0xFFF2F5FA);
 
 /// The quiet text on the social card.
-const Color kCardMuted = Color(0xFFB5A697);
+const Color kCardMuted = Color(0xFF9AA7BD);
 
 /// The D, with the dart as its counter. Even-odd, so the counter is a hole.
 Path dartvelD() => Path()
@@ -241,13 +241,48 @@ void paintLockup(Canvas canvas, Size size, {required bool onDark}) {
   canvas.restore();
 }
 
+/// The colour the card's bloom is drawn in, and how strong it is at the
+/// centre. The same radial the SVG carries.
+const Color kCardGlow = Color(0xFF2F6BFF);
+const double kCardGlowOpacity = 0.28;
+
 /// The card a link to the site unfurls into.
 ///
-/// The ground is the deep warm ink the site's own dark bands use, and the
-/// texture is grain. It used to be a radial bloom of the accent over navy,
-/// which is the first thing the article about generated interfaces names.
+/// Ink, with a soft bloom of the accent behind the mark. The site's own
+/// bands are flat and textured with grain instead; the card keeps the bloom
+/// because it is one fixed image at one size, seen once, rather than a
+/// surface a reader scrolls through.
 void paintSocialCard(Canvas canvas, Size size) {
   canvas.drawRect(Offset.zero & size, Paint()..color = kInk);
+
+  // cx 600, cy 290, rx 640, ry 420, as the SVG has it.
+  final Rect bloom = Rect.fromCenter(
+    center: const Offset(600, 290),
+    width: 1280,
+    height: 840,
+  );
+  canvas.drawOval(
+    bloom,
+    Paint()
+      ..isAntiAlias = true
+      ..shader = ui.Gradient.radial(
+        bloom.center,
+        bloom.width / 2,
+        <Color>[
+          kCardGlow.withValues(alpha: kCardGlowOpacity),
+          kCardGlow.withValues(alpha: 0),
+        ],
+        <double>[0, 1],
+        TileMode.clamp,
+        // A circle squashed into the ellipse the SVG describes: the radial
+        // is round, and the matrix is what makes it 1280 by 840.
+        (Matrix4.identity()
+              ..translateByDouble(0, bloom.center.dy, 0, 1)
+              ..scaleByDouble(1, bloom.height / bloom.width, 1, 1)
+              ..translateByDouble(0, -bloom.center.dy, 0, 1))
+            .storage,
+      ),
+  );
 
   canvas.save();
   canvas.translate(192, 173);

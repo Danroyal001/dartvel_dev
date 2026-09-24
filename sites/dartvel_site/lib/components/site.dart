@@ -33,13 +33,13 @@ class Palette {
 
   final bool dark;
 
-  Color get ink => dark ? const Color(0xFFF6F1EA) : const Color(0xFF191210);
-  Color get muted => dark ? const Color(0xFFA8998C) : const Color(0xFF5C5049);
-  Color get faint => dark ? const Color(0xFF8A7B6D) : const Color(0xFF7D6F64);
-  Color get accent => dark ? const Color(0xFFF0824B) : const Color(0xFFB03E19);
-  Color get surface => dark ? const Color(0xFF1B1815) : const Color(0xFFF7F1E9);
-  Color get page => dark ? const Color(0xFF12100E) : const Color(0xFFFFFCF8);
-  Color get rule => dark ? const Color(0xFF342D27) : const Color(0xFFDFD1BE);
+  Color get ink => dark ? const Color(0xFFF2F5FA) : const Color(0xFF0B1020);
+  Color get muted => dark ? const Color(0xFF9AA7BD) : const Color(0xFF5A6478);
+  Color get faint => dark ? const Color(0xFF6E7B92) : const Color(0xFF8A93A6);
+  Color get accent => dark ? const Color(0xFF7BA2FF) : const Color(0xFF2F6BFF);
+  Color get surface => dark ? const Color(0xFF11161F) : const Color(0xFFF4F6FB);
+  Color get page => dark ? const Color(0xFF0A0D13) : const Color(0xFFFFFFFF);
+  Color get rule => dark ? const Color(0xFF222A38) : const Color(0xFFE3E7EF);
 
   /// The one ground that stops the scroll: a band that is darker than the
   /// page in either mode, so a section can sit apart without a gradient.
@@ -47,12 +47,12 @@ class Palette {
   /// It is also what a code block and a terminal sit on, so the dark thing
   /// in the middle of a light page and the dark band around it are the same
   /// colour instead of two nearly-equal ones.
-  static const Color deep = Color(0xFF16110E);
+  static const Color deep = Color(0xFF0B1020);
 
   /// The text colours for [deep], which does not change with the mode.
-  static const Color deepInk = Color(0xFFF6F1EA);
-  static const Color deepMuted = Color(0xFFB5A697);
-  static const Color deepAccent = Color(0xFFF0824B);
+  static const Color deepInk = Color(0xFFF2F5FC);
+  static const Color deepMuted = Color(0xFF98A6C9);
+  static const Color deepAccent = Color(0xFF7AA2F7);
 }
 
 /// One figure in a row of statistics.

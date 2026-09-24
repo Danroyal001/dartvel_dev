@@ -65,7 +65,7 @@ void main() {
       // is black behind a mark drawn to sit on a page.
       final ProcessResult result = Process.runSync('convert', <String>[
         path,
-        '-background', '#191210',
+        '-background', '#0B1020',
         '-flatten',
         '-quality', '92',
         target,

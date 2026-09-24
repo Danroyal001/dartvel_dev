@@ -9,12 +9,12 @@ project takes after:
   folded planes, and the crease is what stops a flat shape reading as a
   sticker. Dartvel's crease runs corner to corner across the bowl, so the D
   looks like one sheet turned rather than two colours.
-* **The gradient.** It is what makes a single letter feel like a product
-  rather than a favicon, and it is the only gradient anywhere in Dartvel: the
-  site's own bands are flat and textured with grain instead. It stays here
-  because the fold across the bowl is read as a change in value, and a flat
-  mark loses the form the fold exists to give it. Anchored on the site's own
-  accent, so the logo and the site are the same clay.
+* **The gradient.** Supabase and Firebase both carry one, and it is what makes
+  a single letter feel like a product rather than a favicon. This one is
+  anchored on the site's own accent so the logo and the site are the same
+  blue. The site's page bands are flat and textured with grain; the mark keeps
+  its gradient, because the fold across the bowl is read as a change in value
+  and a flat mark loses the form the fold exists to give it.
 * **The letter.** Webflow and Hasura hide a letterform in geometry. Here the
   counter — the hole in the D — is a chevron pointing right, which is the dart
   in the name and the velocity in the rest of it.
@@ -26,19 +26,18 @@ looked like for a decade.
 
 | Token | Hex | Where |
 |---|---|---|
-| Deep clay | `#7A2E10` | gradient start |
-| Clay | `#B03E19` | gradient middle, and the site's own accent |
-| Ember | `#F0824B` | gradient end, and the accent on a dark ground |
-| Ink | `#191210` | wordmark on light, background on dark |
-| Paper | `#F6F1EA` | wordmark on dark |
+| Violet | `#7A3BFF` | gradient start |
+| Accent | `#2F6BFF` | gradient middle, and the site's own accent |
+| Cyan | `#1FB6F5` | gradient end |
+| Ink | `#0B1020` | wordmark on light, background on dark |
+| Paper | `#F2F5FA` | wordmark on dark |
 
-It was violet, blue and cyan until September 2026, anchored on a seed colour
-nobody had chosen. Purple to indigo is the most recognisable mark of an
-interface that was generated rather than designed, and it had spread from
-that one seed into every neutral on the site. The palette is warm now and
-its temperature is checked: `sites/dartvel_site/test/palette_contrast_test.dart`
-fails a neutral with more blue in it than red, and fails a text pair under
-4.5:1, which nothing checked before.
+`sites/dartvel_site/test/palette_contrast_test.dart` measures the site palette
+these are anchored on. Two pairs miss and are pinned at what they measure
+rather than excused: the accent on white is 4.4988:1, which is AA by rounding
+and not by measurement, and the rule on the tinted surface is 1.1463:1, which
+is two greys that differ by less than a printer would hold. Nothing had
+checked either before. Both are a colour decision waiting to be taken.
 
 ## The files
 
@@ -79,9 +78,9 @@ run fails and names them if it is not installed.
   120px wide. Below that use the badge.
 * The wordmark is drawn, not set: it is constant-width strokes on a geometric
   skeleton, so it needs no font to render and cannot be substituted by one.
-* Do not stretch the lockup, and do not put the light lockup on a dark
-  background. There is a variant for that.
-* Do not recolour the gradient in a single file. The stops live in
-  `sites/dartvel_site/tool/brand_art.dart` and in every SVG here, and
-  `sites/dartvel_site/test/brand_geometry_test.dart` holds the two to the
-  same values.
+* Do not recolour the gradient, stretch the lockup, or put the light lockup on
+  a dark background. There is a variant for that.
+* If the gradient is ever recoloured deliberately, it has to change in two
+  places: the stops live in `sites/dartvel_site/tool/brand_art.dart` and in
+  every SVG here, and `sites/dartvel_site/test/brand_geometry_test.dart`
+  holds the two to the same values.
