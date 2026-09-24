@@ -21,12 +21,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         '.wrapLine take collections, and DVBox(child) takes one child.',
   ),
   (
-    'Styling',
-    'Fluent modifiers',
-    'Padding, corners, colour, type, shadows, blur and rotation in degrees, '
-        'on one DVModifier chain.',
-  ),
-  (
     'Pages',
     '@DVPage',
     'A private annotated function becomes a page. It can have a block body or '
@@ -112,19 +106,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
         'made offline replays in order, tested in Chrome on every push.',
   ),
   (
-    'AI',
-    'DV.AI',
-    'A local adapter, structured outputs, embeddings and provider extension '
-        'points. A function marked as an AI tool gets a JSON Schema and a '
-        'handler.',
-  ),
-  (
-    'Testing',
-    'dartvel test',
-    'Fakes for auth, queues, mail, storage and AI, plus generated model '
-        'factories.',
-  ),
-  (
     'Search',
     'Meilisearch, OpenSearch, Algolia',
     'Queries with highlights and facet counts. Meilisearch and OpenSearch run '
@@ -193,6 +174,27 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
 /// Partly built: what works, then what is missing after "Absent:". The
 /// checker holds this list to the index's Partial sections exactly.
 const List<(String, String, String)> partial = <(String, String, String)>[
+  (
+    'Styling',
+    'Fluent modifiers',
+    'Present: padding, corners, colour, type, shadows, blur and rotation on '
+        'one DVModifier chain. Absent: hover, pressed, dark and breakpoint '
+        'variants, and scale-valued padding and colour.',
+  ),
+  (
+    'AI',
+    'DV.AI',
+    'Present: a local adapter, structured outputs, embeddings and provider '
+        'extension points. Absent: tool approvals, searchable MCP tool '
+        'catalogs and per-step agent middleware.',
+  ),
+  (
+    'Testing',
+    'dartvel test',
+    'Present: fakes for auth, queues, mail, storage and AI, plus generated '
+        'model factories. Absent: running only the tests a diff can reach, '
+        'and scored AI evals.',
+  ),
   (
     'Project Structure',
     'dartvel: in pubspec.yaml',
@@ -658,9 +660,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Twenty-eight shipped sections.', level: 1),
+        Heading('Twenty-five shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-two more are partial, and each card says what is missing.',
+          'Seventy-five more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),

@@ -102,7 +102,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Semantic Search** | `@DVModel(semantic: true)` gives a data model `useSemanticSearch` and `semanticSearch`: embeddings queued on save, keyword, semantic and hybrid modes, tenant scoping pushed into the vector query. The only vector adapter is in-memory | ⚠️ Partial |
 | **SEO** | `dartvel build web` writes head tags, JSON-LD, per-route HTML from the semantics tree, `sitemap.xml` and `robots.txt` | ✅ Shipped |
 | **PWA** | Manifest, icons, a service worker that precaches routes and replays writes made offline (tested in a real Chrome on every push), an offline page, and `DV.Platform.install` | ✅ Shipped |
-| **AI Integration** | Adapters for Claude, OpenAI, Gemini, OpenRouter and Ollama plus a deterministic local one, structured output, tool calling and agents | ✅ Shipped |
+| **AI Integration** | Adapters for Claude, OpenAI, Gemini, OpenRouter and Ollama plus a deterministic local one, structured output, tool calling and agents . tool approvals, lazy MCP tool catalogs and per-step agent middleware are designed, not built | ⚠️ Partial |
 | **Feature Flags** | Typed flags from `@DVFlags`, percentage and targeted rollout, `dartvel flags list` and `prune`. Nothing publishes rules per environment yet | ⚠️ Partial |
 | **OTA Updates** | `dartvel updates release`, `patch` and `rollback` over Shorebird, or into a patch source your own web-server binary hosts. Patches apply on Android; iOS is not proven | ⚠️ Partial |
 | **Crash Reporting** | Crashes written by the handler and sent on the next launch, breadcrumbs, fingerprints, release health. No native signal or JVM handlers yet | ⚠️ Partial |
@@ -116,7 +116,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Module Health** | Watched upstreams, scheduled regeneration, mechanical health signals, `dartvel modules export`. Designed, not built | 📐 Designed |
 | **Reversible Transactions** | `DV.transaction(...)` with `context.afterCommit(...)` and `context.compensate(...)` | ✅ Shipped |
 | **Scheduling** | `@DVBackendCron` and `@DVClientCron`, a cron evaluator, and database leases so one process runs each occurrence. No per-target capability report yet | ⚠️ Partial |
-| **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences | ✅ Shipped |
+| **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences . `dartvel test --impacted` and `--evals` are designed, not built | ⚠️ Partial |
 | **Deployment** | `dartvel build web-server` makes one executable with the backend, the web app and Studio. `dartvel deploy` ships to Firebase, Vercel, Netlify and Cloudflare, or writes a per-function artifact | ✅ Shipped |
 | **Dartvel Studio** | The admin dashboard and visual page editor. The web-server binary serves it at `/__studio`: always in a development build, and in a release build only when `dartvel.admin.enabled` is set | ✅ Shipped |
 | **Development Builds** | `dartvel dev` pairs with a `--profile development` build over TLS and hot reloads it on save, on Android, iOS, macOS, Linux and Windows | ⚠️ Partial |

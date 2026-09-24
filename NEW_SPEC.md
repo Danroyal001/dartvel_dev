@@ -282,7 +282,7 @@ from models.
 
 # Styling
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Styling is a `DVModifier`: an immutable chain of style, interaction and
 accessibility settings that a `DVBox` or `DVText` applies. It is Dartvel's own
@@ -290,6 +290,53 @@ chain, rendered with Flutter widgets. The `mix` package is a declared
 dependency of `dartvel_flutter`, and the primitives do not call it yet, so a
 Mix modifier with no `DVModifier` counterpart is not available through the
 chain.
+
+**That dependency is meant to be the resolution engine, and closing the gap is
+the plan.** The chain stays the public surface — `DVModifier` is a frozen
+contract and does not move — and Mix resolves it underneath, which is what the
+declared dependency was for. What the chain gains by it is the thing that
+currently costs a `StatefulWidget` and a `WidgetStateProperty` every time:
+
+```dart
+const DVModifier()
+    .padding(DVSpace.s4)
+    .color(DVColor.primary)
+    .onHovered((m) => m.color(DVColor.primaryStrong))
+    .onDark((m) => m.color(DVColor.primaryDark))
+    .onBreakpoint(DVBreakpoint.md, (m) => m.padding(DVSpace.s6));
+```
+
+## A scale is an API, a number is a suggestion
+
+`padding(12)` takes a raw number, and a design system nothing enforces is a
+suggestion. The scale-valued forms — `.padding(DVSpace.s4)`,
+`.color(DVColor.primary)` — resolve from the theme, raw values keep working,
+and the analyzer reports a raw value where a scale value exists, at `info`.
+That is the whole of what makes a utility CSS framework a design system rather
+than shorthand: the token is the call.
+
+## Behaviour and appearance are separate layers
+
+Focus, keyboard handling, selection state and semantics belong to a headless
+behaviour layer; appearance belongs to the modifier chain. Dartvel's generated
+components and Studio's builder both consume the behaviour layer, so a themed
+component and a Studio-composed one are **the same widget** rather than two that
+agree until one is changed.
+
+## Tokens are one artifact, imported and exported
+
+```bash
+dartvel theme import tokens.json          # DTCG
+dartvel theme import app.css --tailwind   # a v4 @theme block
+dartvel theme export --dtcg
+```
+
+A team running a web front end and a Dartvel application hand-syncs two palettes
+today, and nothing in the Flutter ecosystem reads a design-token file: the
+Tailwind-shaped packages copy Tailwind's scales without reading a project's
+config, and the shadcn-shaped ones theme through `ThemeExtension` with no import
+path at all. Import and export together make the design system one artifact, and
+they connect to Studio's Figma import, which is already built.
 
 Shared styles:
 
@@ -1589,6 +1636,29 @@ Jobs are ordinary typed Dart payloads. The generator discovers `@DVJob`
 classes, generates readable dispatch helpers, and registers strongly typed
 handlers. No job payload uses `dynamic`, `Object`, or untyped maps in public
 APIs.
+
+**A long job declares checkpoints, and a deploy resumes it.** A job that runs
+for hours meets a deploy, a worker restart or a preemption eventually, and a job
+system that restarts it from the beginning is a job system a team schedules
+around rather than uses:
+
+```dart
+@DVJob.handler()
+Future<void> _handleReindex(Reindex job, DVJobProgress progress) async {
+  await for (final DVPage<Article> page in Article.pages(from: progress.cursor)) {
+    await index(page);
+    await progress.checkpoint(page.next);   // resumes here, not at the start
+  }
+}
+```
+
+This matters more to Dartvel than to most, not less: *Backend Release
+Management* gates a release on work in flight, and a release gate that must wait
+out an eight-hour job is a release gate nobody uses.
+
+**A debounced job** collapses a burst into one run — the last dispatch within a
+declared window wins — which is what an application otherwise hand-rolls with a
+cache key and a timestamp, badly.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
@@ -4419,7 +4489,7 @@ after the window has moved past the clients that read the old shape.
 
 # AI
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 First-class.
 
@@ -4457,6 +4527,50 @@ Tool generation:
 - Projects may set `dartvel.ai.exposeBackendFunctionsAsTools: true` in
   `pubspec.yaml` to expose backend functions as tools. Add `@DVAIHidden()` to
   a backend function that must remain private under that mode.
+
+## A tool that spends money asks first
+
+A tool may declare that it needs confirmation before it runs:
+
+```dart
+@DVAITool(description: 'Issue a refund', approval: DVToolApproval.required)
+```
+
+The approval is a **typed pause in the agent loop**, not a callback the
+application has to remember to install: the loop stops carrying the tool, its
+arguments and the reason, and resumes only when something resolves it — the
+application, or Studio. An agent that can move money or mutate data without this
+is a liability, and a framework that offers agents and not this is offering the
+liability.
+
+A tool invoked without its required approval is `DV-AI-010`, and it is an error
+rather than a prompt, because a loop that asked at that point would be asking
+after the decision was made.
+
+## A hundred tools is not a hundred tool descriptions
+
+`DVMcpServer` advertises a **searchable catalog** rather than the whole tool
+list. A project with a hundred backend functions exposed as tools should not
+spend its context window on `tools/list` before the first question is asked.
+
+Dartvel can do this from what it already has: the project graph holds every
+tool's name, description, inputs and owning module, so the catalog is a graph
+query rather than a second index to keep current. A catalog query that cannot be
+satisfied is `DV-AI-011`, which names what was searched rather than answering
+with nothing.
+
+## Middleware applies per step, not per request
+
+An agent loop runs several generations, and the thing worth intercepting is a
+step: what was asked, what the model answered, which tool it chose. This uses
+the middleware primitive *Middleware* already defines, applied per generation
+step. There is no second middleware concept.
+
+## The two calls nobody should hand-roll
+
+Typed classification and summarization helpers over the existing provider
+surface, so the most common two uses of a language model are not a prompt string
+in application code that drifts from the one beside it.
 
 Framework tools are a separate registry from application tools, and the
 separation is load-bearing rather than tidy:
@@ -5430,7 +5544,7 @@ one is a framework nobody bumps the version in.
 
 # Testing
 
-Stability: `Draft` · Status: `Shipped`
+Stability: `Draft` · Status: `Partial`
 
 Dartvel has a first-class testing layer.
 
@@ -5439,7 +5553,42 @@ dartvel test
 dartvel test e2e
 dartvel test golden
 dartvel test golden --update-goldens
+dartvel test --impacted          # only the tests this diff can affect
+dartvel test --evals             # AI evals, scored and gated
 ```
+
+## Only the tests a change can affect
+
+`--impacted` runs the tests a diff can reach and replays the rest from cache.
+The usual way to build that map is to infer it from coverage traces.
+**Dartvel does not have to infer it.** The project graph already records which
+pages, models, backend functions, jobs, policies and modules each test touches,
+with source mappings, so the impacted set is a graph query against the diff.
+
+That is both cheaper to compute and correct in the cases coverage-based
+inference gets wrong: a changed migration, a changed policy, a changed module
+version, a changed generated surface. None of those appear in a coverage trace
+of the previous run, and every one of them changes which tests matter.
+
+`--impacted` is refused on a dirty generated tree (`DV-GEN-001`). An impact map
+computed from a stale graph is worse than no impact map, because it is
+confidently wrong about what it skipped.
+
+## Evals are tests
+
+`dartvel test --evals` runs the golden tests *AI Operations* defines as part of
+the suite, scored by both deterministic and model scorers, and gated on the
+declared threshold. An eval that only runs when somebody remembers is not a
+gate.
+
+## A module's tests are the parent's tests
+
+A generated module ships generated tests covering its surface, and a module's
+tests run in the parent's suite under the module's own id, so a failure names
+which module it came from. A binding kind that cannot run on the host — JNI
+without a JVM, a web binding without a browser — is **skipped by target rather
+than failed**, and the skip is reported: a silently skipped test is a test that
+passes for the wrong reason.
 
 Built-ins:
 - generated model factories
@@ -5717,6 +5866,24 @@ megabytes on a phone. Over the declared budget the device keeps the keyword
 index and reports `DV-SEMANTIC-006`; it does not evict silently, because a
 half-populated semantic index returns confidently wrong neighbours and there
 is no way for the application to tell.
+
+## Similarity is a predicate, not a second API
+
+A vector search is a `where` in the ordinary typed query builder, over the same
+filter tree *Storage-Neutral Records* defines:
+
+```dart
+final near = await Ticket.where((t) => t.body.similarTo(question, limit: 20));
+```
+
+Because it is the same tree, a similarity search **composes with a tenant scope
+and a policy** instead of going around them, which is the whole reason not to
+give it an API of its own: a retrieval path that bypasses the scope is a
+retrieval path that returns another tenant's rows to a model's context window.
+
+A vector predicate on a store with no vector support is a **build error naming
+the store**. Falling back to a scan would answer correctly and cost a fortune,
+which is the failure nobody notices until the bill.
 
 ## Retrieval for AI features
 
@@ -6816,6 +6983,68 @@ This is the join the three sections were missing: an arena is where the data
 sits, a Rust binding is what processes it, and a worker is where that happens
 without the UI waiting.
 
+## When native offload is warranted
+
+"Rewrite every hot path in Rust" is the instinct, and the published measurements
+do not support it as a rule. **Dart AOT is not an interpreted runtime.** Every
+large Rust-rewrite win cited in this space replaced one: Pydantic v2 about 17×
+over CPython, Oxc 40× over Babel and 50–100× over ESLint, Tailwind's Oxide over
+100× incremental against PostCSS. The one case where Rust attacked an
+*already-compiled* path — Ruby's YJIT, itself written in Rust — produced 15–26%
+end to end on Rails, not 17×.
+
+On JSON decode, measured 2026-09-20 on an M4 Pro against Dart 3.14, Rust 1.98.1,
+Go 1.25.14 and Node 24.21, Dart runs at 360–720 MB/s against Rust's 880–1520:
+2.1–3.3× off, and **ahead of Go on every dataset**. Moving JSON across an FFI
+boundary would spend the copy and the crossing to chase a gap that small.
+
+So a hot path moves to Rust when **all three** hold. Any one alone is how a
+codebase acquires a Rust dependency that makes it slower:
+
+1. **Batchable.** The work crosses the boundary once, not per element. Per-pixel,
+   per-row and per-token crossings are the shape that loses.
+2. **Instruction-shaped.** SIMD, vector or cryptographic-primitive work, not
+   pointer-chasing. Tree walks, string assembly and map lookups do not qualify.
+3. **Measured.** A Dart baseline exists, is committed as a benchmark, and is more
+   than 5× off native. A rewrite without a baseline cannot be shown to have
+   worked and cannot be defended when it regresses.
+
+```bash
+dartvel bench <path>        # run the committed baselines
+dartvel bench --compare     # the Dart baseline against the native implementation
+```
+
+A native implementation with no committed Dart baseline is `DV-WORKER-006`, a
+build warning. The benchmark is the justification; without it the decision is
+taste.
+
+## The verdict today
+
+| Path | Verdict | Basis |
+|---|---|---|
+| Crypto, hashing, JWT | **Rust** | 5–8× measured; AES-NI and SHA-NI are not reachable from Dart at all |
+| Compression | **Rust** | same class; no Dart benchmark published, recorded as unverified |
+| Image decode, resize, transform | **Rust** | 2,280 ms against 142 ms, about 16× |
+| Vector similarity, embedding math | **Rust** | SIMD dot products; no Dart benchmark published |
+| OTA patch generation and apply | **Rust** | batch, CPU-bound |
+| JSON, protobuf, msgpack | **Dart** | 2.1–3.3× off Rust, ahead of Go; the boundary eats the delta |
+| Query building, SQL generation | **Dart** | microseconds against a network round trip |
+| Routing and URL matching | **Dart** | a trie walk on short strings; the crossing costs as much as the work |
+| Template and expression evaluation | **Dart** | pointer-chasing, not instruction-shaped |
+| Validation | **Dart** | Pydantic's 17× came from replacing interpreted Python |
+| Date, time and i18n formatting | **Dart** | correctness and ICU data, not throughput |
+| Reactive UI diffing | **Dart** | per-frame and fine-grained, the worst boundary shape |
+
+One measurement in the image case is worth stating on its own, because it
+contradicts the usual advice: the **isolate** variant was *slower* than the
+inline one, 4,609 ms against 2,280 ms. Isolates fix jank, not throughput. A
+section that recommends an isolate for heavy work should say which of those two
+problems it is solving.
+
+Dartvel's Rust backend is not in scope here. Axum and Tokio are the backend
+because the backend is a server, which is a different argument from offloading a
+client hot path.
+
 ## Diagnostics
 
 | Code | Reason | Level |
@@ -6825,6 +7054,7 @@ without the UI waiting.
 | `DV-WORKER-003` | heavy synchronous work detected on the UI isolate | `warning` (analyze) |
 | `DV-WORKER-004` | shared memory unavailable; input was copied to the worker | `info`, once |
 | `DV-WORKER-005` | the pool is saturated and tasks are queueing behind it | `warning` |
+| `DV-WORKER-006` | a native implementation has no committed Dart baseline to justify it | build `warning` |
 
 `DV-WORKER-003` is the one that earns the section. It lands in `dartvel
 analyze performance`, which is the existing command, next to the frame-budget
@@ -10563,7 +10793,43 @@ running one prints the usual unknown-command error:
 | `dartvel build --report`, `dartvel benchmark` | Unified Development, Transparency, and Contracts |
 | `dartvel theme check` | Theme |
 | `dartvel conformance list\|run` | Specification Status |
+| `dartvel add <source>` | Module Sources |
+| `dartvel inspect modules\|bindings --json` | Module Sources, Native Binding Graph |
+| `dartvel modules health\|export` | Module Health |
+| `dartvel ci` | this section |
+| `dartvel bench [--compare]` | Compute: Workers and Native Offload |
+| `dartvel test --impacted\|--evals` | Testing |
+| `dartvel theme import\|export` | Styling |
 | application commands declared with `@DVCommand` | this section |
+
+## Installing a capability, and reporting on one
+
+`dartvel add <source>` is the one installation command; `dartvel modules *`
+report on what is already there. The division is that `add` changes the project
+and `modules` does not.
+
+```bash
+dartvel add <source>                 # resolve a capability source into a module
+dartvel add <source> --as <id>       # explicit module id
+dartvel add <source> --target <t>    # restrict generated targets
+dartvel add <source> --dry-run       # print the installation plan, change nothing
+dartvel add --refresh <id>           # re-resolve a pinned source; reviewed upgrade
+```
+
+`--dry-run` is not optional. `dartvel add maven:com.vendor:scanner` may add an
+Android artifact, a JNI wrapper, a store permission, a capability grant and a
+build-target restriction; a command that does five things to a project without
+showing them first is a command teams learn not to run.
+
+## Running what CI runs
+
+`dartvel ci` runs the project's declared pipeline locally — the same steps, in
+the same order, as the generated workflow — including `dartvel generate
+--check`, `dartvel doctor`, the test suite and the target builds the project
+declares. The pipeline is declared once and both the local command and the
+generated workflow read it, so they cannot drift. "Works locally, fails in CI"
+is the failure this removes, and it is removed by there being one description of
+the pipeline rather than two.
 
 ---
 
@@ -12953,6 +13219,27 @@ Favicon selected → Raw semantic text generated → Flutter bootstrap embedded 
 HTML response returned
 ```
 
+## A page may flush before its data resolves
+
+A response may stream: the shell goes out first, and each suspended region
+follows as its data arrives. The boundary is declared **in the page**, beside
+the thing that is slow, rather than configured somewhere a reader of the page
+will not look:
+
+```dart
+DVBox.list(<Widget>[
+  const OrderHeader(),
+  DVSuspense(
+    placeholder: const OrderSkeleton(),
+    child: OrderTotals(),          // the slow query
+  ),
+])
+```
+
+The page that waits for its slowest query before sending anything is a page
+whose first byte is that query's latency, and on a server-rendered page that is
+the number a visitor experiences as the site being slow.
+
 `GET /products/123` returns HTML containing the SEO, featured image, favicon,
 and text content for product `123`; the Flutter client then activates when
 supported. Async page data may be awaited, cached, streamed, rendered
@@ -13299,6 +13586,39 @@ change → backend reload; model change → schema diff and migration preview;
 module change → affected-module rebuild; configuration change → subsystem
 reload; Rust/native change → native binding rebuild. Studio and the DevTools
 extension expose the same runtime signals the framework uses.
+
+## The project graph has modules and bindings
+
+The graph gains two node types, and the distinction between them is the one the
+module system rests on.
+
+**`modules` is public.** Each node carries the module's id, its source
+descriptor, resolved version, deployment mode, mount, declared targets,
+per-operation target support, capabilities, granted capabilities, store
+permissions, and `wrapperHash` where the module was generated.
+
+**`bindings` is internal.** Each node carries its kind, the target and
+environment it applies to, the carrier chosen, its source language, the artifact
+it binds, and ownership metadata.
+
+`dartvel inspect bindings --json` exists as a **diagnostic surface, not an
+API**: the module graph is the semantic application graph, and the binding graph
+is an implementation detail beneath it. A tool reading `bindings` to decide
+application behaviour is reading the wrong node.
+
+## The editor surface is a plugin, not a language server
+
+Dartvel does not ship a language server. Dart's analysis server exists, and a
+second one would be a second implementation of the thing every other rule here
+argues against.
+
+What it ships is an **analyzer plugin hosted in the Dart analysis server**, so
+every editor with Dart support gets it for nothing: `DV-` diagnostics inline
+with the text `dartvel explain` would print, navigation from a generation input
+to its generated output through the source mappings the graph already carries,
+completion for module surfaces and theme scale values, and the naming rules this
+specification states as rules rather than as documentation — a reserved name is
+worth rejecting where somebody types it, not in a document they have not read.
 
 ## Generated-code transparency
 
