@@ -39,7 +39,7 @@ void main() {
   };
 
   for (final MapEntry<String, Widget> page in pages.entries) {
-    for (final Size size in <Size>[Size(1400, 2400), Size(390, 2400)]) {
+    for (final Size size in <Size>[const Size(1400, 2400), const Size(390, 2400)]) {
       testWidgets('${page.key} at ${size.width.round()} sets type only on '
           'the scale', (WidgetTester tester) async {
         tester.view.physicalSize = size;
