@@ -9,7 +9,6 @@
 // photographed the first one instead.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> pumpRow(
@@ -60,10 +59,8 @@ void main() {
     await pumpRow(tester, subtitle: '9 fields', onTap: () {});
 
     expect(
-      tester
-          .getSemantics(find.bySemanticsLabel('Product'))
-          .hasFlag(SemanticsFlag.isButton),
-      isTrue,
+      tester.getSemantics(find.bySemanticsLabel('Product')),
+      isSemantics(isButton: true, hasTapAction: true),
     );
     handle.dispose();
   });
@@ -73,10 +70,8 @@ void main() {
     await pumpRow(tester, subtitle: '9 fields');
 
     expect(
-      tester
-          .getSemantics(find.bySemanticsLabel('Product'))
-          .hasFlag(SemanticsFlag.isButton),
-      isFalse,
+      tester.getSemantics(find.bySemanticsLabel('Product')),
+      isNot(isSemantics(isButton: true)),
     );
     handle.dispose();
   });

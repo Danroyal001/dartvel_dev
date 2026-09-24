@@ -81,7 +81,15 @@ jobs:
           dart run dartvel_cli:dartvel routes
           flutter build linux --release
 
+      # continue-on-error so its own logs, and the steps below that read
+      # them, still run. A capture that came back with nothing is caught by
+      # "The capture must show the application" further down, which is not
+      # continue-on-error -- so the job still goes red, with the diagnosis
+      # attached instead of stopping at the first symptom. Without this the
+      # step's exit code ended the job here and the three checks that would
+      # have said why never ran.
       - name: Run it and photograph the window
+        continue-on-error: true
         working-directory: examples/dartvel_example
         run: |
           set -uo pipefail
@@ -113,9 +121,17 @@ jobs:
               | grep -m1 '"Oakline Coffee":' | awk '{ print $1 }')
             if [ -n "$WID" ]; then
               xwininfo -id "$WID" | grep -E "Width|Height" || true
-              import -window "$WID" /tmp/diag/linux-gui.png || continue
+              import -display :99 -window "$WID" /tmp/diag/linux-gui.png \
+                || echo "attempt $attempt: import of $WID failed"
             else
-              import -window root /tmp/diag/linux-gui.png || continue
+              # Say which windows there are. "no window called Oakline
+              # Coffee" on its own is the same message whether the app has
+              # not opened one yet or has opened one under another name, and
+              # those have different fixes.
+              echo "attempt $attempt: no Oakline Coffee window. On :99:"
+              xwininfo -root -tree 2>/dev/null | sed -n '5,20p' || true
+              import -display :99 -window root /tmp/diag/linux-gui.png \
+                || echo "attempt $attempt: import of the root failed"
             fi
             colours=$(identify -format '%k' /tmp/diag/linux-gui.png 2>/dev/null || echo 0)
             echo "attempt $attempt: $colours colours"
@@ -130,10 +146,10 @@ jobs:
           kill $APP 2>/dev/null || true
           identify /tmp/diag/linux-gui.png
 
-      # A job that captured nothing is not a pass. The run step above is
-      # continue-on-error so its logs still upload; this is not, so the job
-      # goes red when there is no evidence — which is how tvOS went green while
-      # failing to build at all.
+      # A job that captured nothing is not a pass: "The capture must show
+      # the application", below, is what makes it red, and it is how tvOS
+      # was caught going green while failing to build at all.
+      #
       # Links, tapped on the device this job is running. A widget test cannot
       # tell a working link from one whose handler builds a callback and never
       # calls it -- the dartvel.dev header shipped dead while a widget suite
