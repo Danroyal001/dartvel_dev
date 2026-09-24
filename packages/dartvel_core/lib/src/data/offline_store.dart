@@ -225,6 +225,7 @@ class DVRecordTableRemote implements DVOfflineRemote {
   DVRecordTableRemote(
     this.table, {
     required this.strategy,
+    this.authorize,
     this.validate,
     this.actor,
   }) {
@@ -234,8 +235,30 @@ class DVRecordTableRemote implements DVOfflineRemote {
   final DVRecordTable table;
   final DVConflict strategy;
 
-  /// Returns false to refuse a write permanently, as failed validation or a
-  /// refused authorization would.
+  /// Whether this mutation may be applied at all, asked before anything is
+  /// written and before [validate].
+  ///
+  /// Replay is the one write path where the server is handed a change that
+  /// nothing on the server decided to make: it was made on a device,
+  /// possibly days ago, possibly by somebody whose access has since been
+  /// withdrawn, and it names its own table and key. Applying it because it
+  /// arrived is the same as having no authorization on the route that
+  /// carries it.
+  ///
+  /// A generated `Model.offlineRemote` always supplies one, which asks the
+  /// model's own policy -- the same policy an online write asks. This class
+  /// is not in the barrel an application imports, so the only remotes
+  /// without one are the framework's own and its tests'.
+  ///
+  /// An authorizer that throws refuses. A check that cannot reach its answer
+  /// is not a yes.
+  final Future<bool> Function(DVMutation mutation)? authorize;
+
+  /// Returns false to refuse a write permanently, as failed validation would.
+  ///
+  /// Asked for a delete as well as a write. It used to be asked only on the
+  /// write path, so a queued delete for any key in the table was applied
+  /// unchecked.
   final bool Function(Map<String, Object?> values)? validate;
   final String? actor;
 
@@ -290,14 +313,35 @@ class DVRecordTableRemote implements DVOfflineRemote {
   }
 
   Future<DVRemoteOutcome> _applyOnce(DVMutation mutation) async {
+    // Before anything is written, and before the shape of the values is
+    // looked at: whether this change may be made at all.
+    final Future<bool> Function(DVMutation)? asked = authorize;
+    if (asked != null) {
+      bool allowed;
+      try {
+        allowed = await asked(mutation);
+      } catch (_) {
+        // Default deny. A policy that could not decide is not a yes, and a
+        // replayed write that landed because the policy engine was
+        // unreachable is the failure nobody sees.
+        allowed = false;
+      }
+      if (!allowed) {
+        return const DVRemoteOutcome.rejected('refused by authorization');
+      }
+    }
+
+    // Asked for a delete too. This ran on the write path only, so a queued
+    // delete for any key in the table went through unchecked.
+    final bool Function(Map<String, Object?>)? check = validate;
+    if (check != null && !check(mutation.values)) {
+      return const DVRemoteOutcome.rejected('refused by validation');
+    }
+
     if (mutation.isDelete) {
       await table.delete(mutation.key, actor: actor);
       await _setClock(mutation.key, mutation.correctedTime);
       return const DVRemoteOutcome.applied(null);
-    }
-    final bool Function(Map<String, Object?>)? check = validate;
-    if (check != null && !check(mutation.values)) {
-      return const DVRemoteOutcome.rejected('refused by validation');
     }
 
     final DVRecord? current = await table.read(mutation.key, withDeleted: true);
