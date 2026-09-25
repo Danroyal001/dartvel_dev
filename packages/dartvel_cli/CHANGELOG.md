@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`dartvel doctor` no longer warns about a directory a project does not
+  need.** A project with no models printed `[!] lib/models missing` and then
+  "All system checks passed!" underneath it. An absent pages, backend
+  functions or models directory is now reported with `[-]` as information,
+  and the directories checked are the project's configured `pagesDir`,
+  `backendDir` and `modelsDir` rather than the defaults.
+
 - **`dartvel dev` serves Studio.** The development backend mounts Studio at
   `dartvel.admin.path` (`/__studio`), compiled in the background into
   `.dart_tool/dartvel_studio` and rebuilt when dependencies change, over the
