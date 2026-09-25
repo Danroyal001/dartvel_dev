@@ -34,11 +34,11 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                 'or Linux desktop, Samsung TVs, the backend, the database and '
                 'the admin.'),
             Bullets(<String>[
-              'On Windows or Linux: dartvel dev, and dartvel build web, '
+              'On Windows or Linux: `dartvel dev`, and `dartvel build web`, '
                   'web-server, android, tizen and vscode. Flutter does not '
                   'cross-compile desktops, so windows builds on Windows, and '
                   'linux and sony-elinux build on Linux.',
-              'The Mac is needed for dartvel build ios, macos and tvos, and '
+              'The Mac is needed for `dartvel build ios`, macos and tvos, and '
                   'for running a development build on an iPhone or the iOS '
                   'simulator.',
               'Testing on a phone without a Mac means an Android phone. See '
@@ -57,15 +57,15 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
             DocsTable(
               columns: <String>['Task', 'Needs a Mac?'],
               rows: <List<String>>[
-                <String>['Write the app, hot reload, dartvel dev', 'No'],
+                <String>['Write the app, hot reload, `dartvel dev`', 'No'],
                 <String>['Pair an Android phone over the QR code', 'No'],
                 <String>['Pair an iPhone or the iOS simulator', 'Yes, Xcode starts the development build'],
-                <String>['dartvel build web and web-server', 'No'],
-                <String>['dartvel build android, and ship to Google Play', 'No'],
-                <String>['dartvel build windows or linux', 'No Mac, and each on its own operating system'],
-                <String>['dartvel build tizen, sony-elinux, vscode', 'No'],
+                <String>['`dartvel build web` and web-server', 'No'],
+                <String>['`dartvel build android`, and ship to Google Play', 'No'],
+                <String>['`dartvel build windows` or linux', 'No Mac, and each on its own operating system'],
+                <String>['`dartvel build tizen`, sony-elinux, vscode', 'No'],
                 <String>['Backend, database, auth, queues, Studio', 'No'],
-                <String>['dartvel build ios, macos, tvos', 'Yes, Xcode'],
+                <String>['`dartvel build ios`, macos, tvos', 'Yes, Xcode'],
                 <String>['Signing an IPA, and App Store submission', 'Yes, Xcode'],
               ],
             ),
@@ -74,12 +74,12 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
         Section(
           children: <Widget>[
             Eyebrow('TEST ON A PHONE'),
-            Heading('dartvel dev pairs a phone. Without a Mac, that phone runs Android.'),
-            Body('dartvel dev prints a QR code that pairs a development build '
+            Heading('`dartvel dev` pairs a phone. Without a Mac, that phone runs Android.'),
+            Body('`dartvel dev` prints a QR code that pairs a development build '
                 'of your app, and every save hot reloads it. On Android the '
                 'development build installs like any APK and needs nothing '
                 'from Apple. On an iPhone it is a debug build that has to be '
-                'started from Xcode or flutter run, and in CI the iOS '
+                'started from Xcode or `flutter run`, and in CI the iOS '
                 'pairing is proven on the simulator, which also needs a Mac. '
                 'Expo users are used to scanning a code with Expo Go on an '
                 'iPhone and no Mac; Dartvel has no equivalent of Expo Go.'),
@@ -104,7 +104,7 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'A rented Mac. MacStadium, Scaleway and others rent one by the '
                   'hour or the month, and Xcode runs on it exactly as it '
                   'would on your desk.',
-              'dartvel build ios --cloud. The build runs on our macOS '
+              '`dartvel build ios --cloud`. The build runs on our macOS '
                   'workers, the log streams to your terminal, and the IPA '
                   'downloads into build/cloud checked against its SHA-256. '
                   'Cloud is built and not open yet, and it will be paid.',

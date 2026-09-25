@@ -14,7 +14,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docs,
       lead: <String>[
         'Install the dartvel command and run a new app on your machine.',
-        'Every command here matches what dartvel --help prints.',
+        'Every command here matches what `dartvel --help` prints.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -34,24 +34,24 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               'dart run dartvel_cli:dartvel --help',
             ]),
             Bullets(<String>[
-              'The command is dartvel, whichever way you install it.',
+              'The command is `dartvel`, whichever way you install it.',
               'You can also download the binary from the GitHub releases '
-                  'page. dartvel ensure-path adds it to your PATH if your shell '
+                  'page. `dartvel ensure-path` adds it to your PATH if your shell '
                   'cannot find it.',
               'The Homebrew tap is updated after each release, so it can be a '
                   'version behind npm.',
-              'dart pub global activate is not a supported install. Activating '
+              '`dart pub global activate` is not a supported install. Activating '
                   'dartvel_dev succeeds and every run then fails, because the '
                   'package depends on Flutter and pub will not run a global '
                   'command from a package that does.',
-              'dart run works in a project that already lists dartvel_cli in '
-                  'dev_dependencies, which dartvel create writes. The first '
+              '`dart run` works in a project that already lists dartvel_cli in '
+                  'dev_dependencies, which `dartvel create` writes. The first '
                   'run compiles the CLI, so it is slower than the binary.',
-              'dartvel update installs the latest release later.',
+              '`dartvel update` installs the latest release later.',
             ]),
             DocsNote('0.6.0 binaries are Linux only for now',
                 'As of 2026-09-25, the 0.6.0 release has Linux binaries only, '
-                'so npm install works on Linux. The macOS and Windows binaries '
+                'so `npm install` works on Linux. The macOS and Windows binaries '
                 'follow when the release workflow can run again. Until then, '
                 'install on a Linux machine or wait for those binaries.'),
             ExternalLink('Download a release', kReleasesUrl),
@@ -66,17 +66,17 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               'cd my_app',
             ]),
             Bullets(<String>[
-              'It runs flutter create, then adds pages, a backend and the '
+              'It runs `flutter create`, then adds pages, a backend and the '
                   'Dartvel dependencies.',
               'Web and mobile are on by default. Add --desktop for Windows, '
                   'macOS and Linux.',
-              'dartvel init adds Dartvel to a Flutter project you already have.',
+              '`dartvel init` adds Dartvel to a Flutter project you already have.',
             ]),
           ],
         ),
         DocsSection(
           id: 'dev',
-          title: 'Run it with dartvel dev',
+          title: 'Run it with `dartvel dev`',
           children: <Widget>[
             DocsShell(<String>['dartvel dev']),
             Bullets(<String>[
@@ -84,11 +84,11 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
                   'Flutter app.',
               'Edit a page and Flutter hot-reloads. Edit a backend function '
                   'and only the backend restarts.',
-              'Pick a device with -d, for example dartvel dev -d chrome.',
+              'Pick a device with -d, for example `dartvel dev -d chrome`.',
             ]),
             DocsNote('Generated code is not committed',
-                'dartvel dev and dartvel build write lib/dartvel_client for you. '
-                'After a fresh clone, run dartvel routes once before your '
+                '`dartvel dev` and `dartvel build` write lib/dartvel_client for you. '
+                'After a fresh clone, run `dartvel routes` once before your '
                 'editor analyzes the project.'),
           ],
         ),
@@ -155,7 +155,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               '# pubspec.yaml',
               'dartvel: config/dartvel.dart',
             ]),
-            DocsText('Point dartvel: at a Dart file instead of a map. The file '
+            DocsText('Point `dartvel:` at a Dart file instead of a map. The file '
                 'must declare a public class that extends DartvelConfig.'),
             DocsSubheading('One package with every import'),
             DocsText('dartvel_dev re-exports the Dartvel packages as barrels: '
@@ -208,11 +208,11 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               'Every step is one command, from a new project to a deployed '
                   'server.',
               'upgrade --plan lists what a new Dartvel release would change in '
-                  'your project, and dartvel migrate-code --apply rewrites the '
+                  'your project, and `dartvel migrate-code --apply` rewrites the '
                   'source for you.',
             ]),
             DocsStatus('The Golden Path', missing: <String>[
-              'dartvel upgrade does not apply an upgrade yet. It plans one, and '
+              '`dartvel upgrade` does not apply an upgrade yet. It plans one, and '
                   'you make the changes it lists.',
             ]),
           ],
@@ -250,7 +250,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
                   'stale, without touching the project.',
             ]),
             DocsStatus('Generated Code Determinism', missing: <String>[
-              'Generated files are not run through dart format.',
+              'Generated files are not run through `dart format`.',
             ]),
           ],
         ),

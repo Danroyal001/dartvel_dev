@@ -37,11 +37,11 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Project Structure', 'Getting started', DVRoutes.docs,
       'Project structure', anchor: 'structure'),
   SpecCoverage('Adoption', 'Getting started', DVRoutes.docsadopting,
-      'Run dartvel init', anchor: 'init'),
+      'Run `dartvel init`', anchor: 'init'),
   SpecCoverage('Package Structure', 'Getting started', DVRoutes.docs,
       'One package with every import'),
   SpecCoverage('Dev Client', 'Getting started', DVRoutes.docsdevclient,
-      'Pair it with dartvel dev', anchor: 'pair'),
+      'Pair it with `dartvel dev`', anchor: 'pair'),
 
   SpecCoverage('The Golden Path', 'Getting started', DVRoutes.docs,
       'Go from idea to production with one CLI', anchor: 'golden-path'),
@@ -225,7 +225,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
 
   // Operations
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
-      'Provision servers with dartvel infra', anchor: 'infra'),
+      'Provision servers with `dartvel infra`', anchor: 'infra'),
   SpecCoverage('Edge Security', 'Operations', DVRoutes.docsedgesecurity,
       'Sign-in is rate limited by default', anchor: 'sign-in'),
   SpecCoverage('Secrets and Environments', 'Operations', DVRoutes.docssecrets,
@@ -260,7 +260,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
 
   // Shipping
   SpecCoverage('Deployment', 'Shipping', DVRoutes.docsdeploying,
-      'Deploy with dartvel deploy', anchor: 'deploy'),
+      'Deploy with `dartvel deploy`', anchor: 'deploy'),
   SpecCoverage('Static Web Generation', 'Shipping', DVRoutes.docswebhosting,
       'What the build writes', anchor: 'output'),
   SpecCoverage('Embedded, Television, and Extension Build Targets', 'Shipping',

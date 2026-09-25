@@ -15,7 +15,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docswebhosting,
       lead: <String>[
-        'dartvel build web writes static files you can upload to any shared '
+        '`dartvel build web` writes static files you can upload to any shared '
             'host.',
         'On Apache or LiteSpeed, the .htaccess it writes makes deep links and '
             'caching work.',
@@ -85,7 +85,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           title: 'Install it as an app, and use it offline',
           children: <Widget>[
             Bullets(<String>[
-              'dartvel build web writes the manifest, icons from web/icon.png, '
+              '`dartvel build web` writes the manifest, icons from web/icon.png, '
                   'a service worker and an offline page.',
               'A change sent while offline is queued in the browser and sent in '
                   'order when the network is back. CI checks this in Chrome on '
@@ -102,7 +102,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             Bullets(<String>[
               'Any host works if it serves index.html for paths with no file.',
-              'dartvel deploy --target web --provider netlify runs the provider\'s '
+              '`dartvel deploy --target web --provider netlify` runs the provider\'s '
                   'own CLI. firebase-hosting, vercel and cloudflare work the same way.',
             ]),
           ],

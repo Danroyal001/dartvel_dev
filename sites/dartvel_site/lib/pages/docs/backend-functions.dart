@@ -200,7 +200,7 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
               '    trustedProxies: [10.0.0.0/8]',
             ]),
             DocsText('CORS sits in the same server block. Every key there is '
-                'checked when dartvel routes runs.'),
+                'checked when `dartvel routes` runs.'),
             DocsStatus('Middleware', missing: <String>[
               'Page middleware cannot preload data or set SEO context.',
               'No layout, model or storage scopes, and no global middleware '
