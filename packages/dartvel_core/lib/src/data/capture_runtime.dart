@@ -277,6 +277,12 @@ abstract final class DVCaptureRuntime {
           for (final DVStudioFieldSpec field in spec.fields)
             if (field.sensitive) field.name,
         },
+        // A generated model declares every field column TEXT, and so do
+        // Studio and the replay route over the same table.
+        types: <String, String>{
+          if (spec.tenantScoped) dvTenantColumn: 'TEXT',
+          for (final DVStudioFieldSpec field in spec.fields) field.name: 'TEXT',
+        },
         versioned: spec.versioned,
         softDelete: spec.softDelete,
         capture: log,
