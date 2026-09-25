@@ -74,25 +74,29 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'adapters',
-          title: 'Choose a queue adapter',
+          title: 'Where jobs are kept',
           children: <Widget>[
-            DocsCode('jobs-adapter'),
-            DocsTable(columns: <String>[
-              'Adapter',
-              'Stores jobs in',
-            ], rows: <List<String>>[
-              <String>['DVInMemoryQueueAdapter', 'Memory, for tests'],
-              <String>['DVDatabaseQueueAdapter', 'Your database, table '
-                  'dartvel_jobs'],
-              <String>['DVRedisQueueAdapter', 'Redis'],
-              <String>['DVSqsQueueAdapter', 'Amazon SQS'],
-              <String>['DVAmqpQueueAdapter', 'RabbitMQ and other AMQP brokers'],
-              <String>['DVPubSubQueueAdapter', 'Google Pub/Sub'],
-              <String>['DVKafkaQueueAdapter', 'Kafka'],
+            Bullets(<String>[
+              'With DATABASE_URL set, jobs are durable with no setup. The '
+                  'generated backend keeps them in that database, and every '
+                  'web, worker and cron process of the deployment shares them.',
+              'Generation writes how each job is encoded from its @DVJob '
+                  'class, so there is nothing to register.',
+              'Without DATABASE_URL, jobs stay in the memory of the process '
+                  'that dispatched them, except in a web-server binary, which '
+                  'keeps them in the SQLite file beside it.',
             ]),
-            DocsText('Only the database adapter is picked from DATABASE_URL. '
-                'Set any other with DV.Jobs.useAdapter. The SQS and Pub/Sub '
-                'adapters take a transport you write, and refuse job priorities.'),
+            DocsTable(columns: <String>[
+              'Broker',
+              'How it is chosen',
+            ], rows: <List<String>>[
+              <String>['Your database', 'DATABASE_URL, with no setup'],
+              <String>['Memory', 'In tests'],
+              <String>['Redis, Amazon SQS, RabbitMQ, Google Pub/Sub, Kafka',
+                  'Not from configuration yet'],
+            ]),
+            DocsText('Adapters for the other brokers exist, but nothing in '
+                'pubspec.yaml selects one yet. See the status below.'),
           ],
         ),
         DocsSection(
@@ -131,6 +135,9 @@ Widget _docsQueuesPage(BuildContext context) => const DocsArticle(
                   'queue are not built.',
               'The queue failed, retry and flush commands act on the CLI\'s own '
                   'process queue.',
+              'Only the database is chosen from configuration. Redis, SQS, '
+                  'AMQP, Pub/Sub and Kafka have adapters, but no pubspec.yaml '
+                  'key selects one.',
             ]),
           ],
         ),

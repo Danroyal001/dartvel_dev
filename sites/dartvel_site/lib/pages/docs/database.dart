@@ -21,13 +21,20 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           id: 'sqlite',
           title: 'Use SQLite locally',
           children: <Widget>[
-            DocsCode('database-configure'),
+            DocsText('You set the database in configuration and write no code '
+                'for it. Put '
+                'DATABASE_URL in .env and the generated backend opens it for '
+                'your data models, jobs and schedules.'),
+            DocsShell(<String>[
+              '# .env',
+              'DATABASE_URL=sqlite:dartvel.db',
+            ]),
             Bullets(<String>[
-              'SqliteDVDatabaseAdapter.file(path) turns on WAL mode and foreign '
-                  'keys by default.',
-              'SqliteDVDatabaseAdapter.memory() is a database for tests.',
-              'MemoryDVDatabaseAdapter() needs no SQLite and understands simple '
-                  'queries only.',
+              'SQLite turns on WAL mode and foreign keys.',
+              'A web-server binary from dartvel build needs no DATABASE_URL. '
+                  'It creates a SQLite file beside itself on its first run.',
+              'dartvel db migrate reads dartvel.database in pubspec.yaml, '
+                  'shown under the migrate section below.',
             ]),
           ],
         ),
@@ -35,28 +42,44 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           id: 'postgres-mysql',
           title: 'Connect to Postgres or MySQL',
           children: <Widget>[
-            DocsCode('database-postgres'),
-            DocsCode('database-mysql'),
-            Bullets(<String>[
-              'Both take sslMode, which defaults to prefer.',
-              'DVDatabaseConnection.parse(url) opens postgres://, mysql://, '
-                  'mariadb:// and sqlite:// URLs.',
+            DocsText('Moving is one line. Set DATABASE_URL where the backend '
+                'runs, and set the same engine as dartvel.database.provider so '
+                'dartvel db migrate writes statements for it.'),
+            DocsShell(<String>[
+              'DATABASE_URL=postgres://shop:secret@db.internal/shop?sslmode=require',
             ]),
-            DocsNote('The backend reads DATABASE_URL for queues and schedules',
-                'A server process opens DATABASE_URL for its job queue and '
-                'schedule leases. Configure DV.Database yourself for your '
-                'models.'),
+            DocsTable(columns: <String>[
+              'Engine',
+              'DATABASE_URL',
+              'dartvel.database.provider',
+            ], rows: <List<String>>[
+              <String>['SQLite', 'sqlite:path/to/file.db', 'sqlite'],
+              <String>['PostgreSQL', 'postgres:// or postgresql://',
+                  'postgres'],
+              <String>['MySQL and MariaDB', 'mysql:// or mariadb://', 'mysql'],
+            ]),
+            Bullets(<String>[
+              'sslmode defaults to prefer. It also takes disable, require, '
+                  'verify-ca and verify-full.',
+              'DATABASE_URL is read from the environment, then the '
+                  'supervisor\'s credentials, then .env, like any secret.',
+              'Web, worker and cron processes all open it, so they share '
+                  'your data, your jobs and your schedules.',
+            ]),
           ],
         ),
         DocsSection(
           id: 'queries',
-          title: 'Run SQL directly',
+          title: 'Read and write through your data models',
           children: <Widget>[
-            DocsCode('database-query'),
-            Bullets(<String>[
-              'Values are always bound parameters.',
-              'On a tenant-scoped table, a query without dv_tenant is refused.',
-            ]),
+            DocsText('Every read and write goes through a data model. The '
+                'same calls run on every engine above.'),
+            DocsCode('models-crud'),
+            DocsNote('Raw SQL is leaving the application surface',
+                'DV.Database.query and execute take a SQL string, which no '
+                'engine but SQL can run. They are being removed in favour of '
+                'model queries. Until those land, use Model.all, Model.find, '
+                'save and destroy.'),
           ],
         ),
         DocsSection(
@@ -111,6 +134,11 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           id: 'records',
           title: 'Store records without writing SQL',
           children: <Widget>[
+            DocsNote('Being replaced by data model queries',
+                'Records are the framework\'s contract with its engines. An '
+                'application does not write data through them. They are leaving the '
+                'application surface, and this section will be rewritten '
+                'around model queries. Write through a data model instead.'),
             DocsText('A page, a saved report, an audit entry: data that is '
                 'not a model still has to be stored. Records are how the '
                 'framework stores its own, and they name no SQL, so the same '
@@ -125,7 +153,10 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
                 'count:'),
             DocsCode('records-read'),
             DocsStatus('Storage-Neutral Records', missing: <String>[
-              'Models still go through DVRecordTable, which writes SQL.',
+              'Data models do not go through records yet, so a model runs '
+                  'only on the engines in the table above.',
+              'There is no model query API yet, so records are still in the '
+                  'application surface.',
               'There is no MongoDB engine yet.',
             ]),
           ],

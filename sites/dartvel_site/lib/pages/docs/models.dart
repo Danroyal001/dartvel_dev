@@ -31,8 +31,9 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'with final fields.',
               'The key is the slug field, else id, else the first String '
                   'field.',
-              'Rows live in a table named after the class in lower case plus '
-                  's: articles.',
+              'Where records are stored is the framework\'s job. You read and '
+                  'write them through the model, on whichever database '
+                  'DATABASE_URL names.',
             ]),
             DocsNote('Pick a name Dartvel does not use',
                 'Dartvel exports Get, Post, Put, Patch and Delete. A model with '
@@ -54,11 +55,11 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'paths to render statically'],
               <String>['history: DVHistory(...)', 'Keeps each version, with '
                   'history() and revert()'],
-              <String>['softDelete: true', 'destroy() hides the row and '
+              <String>['softDelete: true', 'destroy() hides the record and '
                   'restore() brings it back'],
               <String>['version: false', 'Turns off the stale-write check'],
               <String>['searchable: true', 'Gives the model Article.search'],
-              <String>['tenantScoped: true', 'Rows belong to the current '
+              <String>['tenantScoped: true', 'Records belong to the current '
                   'tenant'],
               <String>['subject:, retain:', 'Who the data is about and how long '
                   'to keep it'],
@@ -97,11 +98,12 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('models-crud'),
             Bullets(<String>[
-              'Model.all(), Model.find(key) and model.save() read and write '
-                  'through DV.Database.',
+              'Model.all() and Model.find(key) read, model.save() creates or '
+                  'updates, and model.destroy() deletes.',
               'copyWith keeps the version you read, so save() can spot a newer '
                   'write.',
-              'Create tables with dartvel db migrate. See Database.',
+              'Run dartvel db migrate after adding or changing a model. See '
+                  'Database.',
             ]),
           ],
         ),
@@ -124,7 +126,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('models-admin-page'),
             Bullets(<String>[
-              'Article.Admin() lists, creates, edits and deletes rows.',
+              'Article.Admin() lists, creates, edits and deletes records.',
               'It checks the Article.create, Article.update and Article.delete '
                   'policies.',
               'dartvel admin generate writes admin pages to '
@@ -198,11 +200,12 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'stops with DV-PRIVACY-001.',
               'encrypted: true encrypts a String field with keys from '
                   'DARTVEL_FIELD_KEYS.',
-              'onErase: DVErase.anonymize keeps the row and blanks the field '
+              'onErase: DVErase.anonymize keeps the record and blanks the field '
                   'on erasure.',
             ]),
             DocsStatus('Sensitive Model Fields', missing: <String>[
-              'Raw SQL, imports and backfills store encrypted fields as plain '
+              'Writes that skip the model, such as imports and backfills, store '
+                  'encrypted fields as plain '
                   'text.',
               'No key rotation, and showInAdmin does not gate anything yet.',
             ]),

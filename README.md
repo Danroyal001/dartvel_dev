@@ -662,42 +662,53 @@ failing observer can't break a transition for anyone else.
 
 ---
 
-## 🗄️ Local Database
+## 🗄️ Database
 
-SQLite is the zero-config local database — no separate service for development
-or tests:
+The database is configuration, not code. The generated backend opens
+`DATABASE_URL` -- read from the environment, then the supervisor's
+credentials, then `.env` -- for your data models, jobs and schedules, in every
+web, worker and cron process. SQLite is the zero-config local database:
 
-```dart
-// Tests and ephemeral work
-DV.Database.configure(SqliteDVDatabaseAdapter.memory());
+```sh
+# .env
+DATABASE_URL=sqlite:dartvel.db
 
-// Development and production files: WAL and foreign keys on by default
-DV.Database.configure(SqliteDVDatabaseAdapter.file('.dartvel/app.db'));
-
-await DV.Database.execute(
-  'INSERT INTO users (name, age) VALUES (?, ?)',
-  <Object?>['Ada', 36],
-);
-final rows = await DV.Database.query(
-  'SELECT * FROM users WHERE age > ?',
-  <Object?>[30],
-);
+# production
+DATABASE_URL=postgres://shop:secret@db.internal/shop?sslmode=require
 ```
 
-This executes arbitrary SQL — DDL, joins, aggregates, transactions, blobs.
-`MemoryDVDatabaseAdapter` remains available but understands only a few
-statement shapes and throws on anything else; prefer
-`SqliteDVDatabaseAdapter.memory()` for tests.
+A web-server binary from `dartvel build` needs no `DATABASE_URL` at all: it
+creates a SQLite file beside itself on its first run, with WAL and foreign keys
+on. `dartvel db migrate` targets the engine named in `pubspec.yaml`:
 
-SQLite needs `dart:ffi`, so on web `SqliteDVDatabaseAdapter` throws
-`UnsupportedError` at construction naming the alternative, rather than
-degrading to a fake database. The import is conditional, so web and Wasm
-builds do not pull in `dart:ffi` at all.
+```yaml
+dartvel:
+  database:
+    provider: sqlite     # sqlite, postgres or mysql
+    path: dartvel.db     # the SQLite file
+```
 
-Postgres and MySQL adapters ship too, each speaking its own wire protocol, and
-the Postgres one negotiates TLS — which is what a managed endpoint such as
-Aurora, Neon, Supabase or Cloud SQL requires, most of them refusing plaintext
-outright. `sslMode` takes libpq's names, so a connection string copied from a
+Data is read and written through data models, and the same calls run on every
+engine:
+
+```dart
+final List<Article> all = await Article.all();
+final Article? found = await Article.find('hello-world');
+final Article published = await found!.copyWith(published: true).save();
+await published.destroy();
+```
+
+Raw SQL (`DV.Database.query` and `execute`) is being removed from the
+application surface in favour of model queries: a SQL string is wrong for
+every engine that is not SQL.
+
+SQLite needs `dart:ffi`, so it is not available in a web build. The import is
+conditional, so web and Wasm builds do not pull in `dart:ffi` at all.
+
+The Postgres and MySQL engines each speak their own wire protocol, and the
+Postgres one negotiates TLS — which is what a managed endpoint such as Aurora,
+Neon, Supabase or Cloud SQL requires, most of them refusing plaintext
+outright. `sslmode` takes libpq's names, so a connection string copied from a
 provider's console pastes in unchanged.
 
 The supported engines are SQLite, PostgreSQL and MySQL, each with their
@@ -711,13 +722,10 @@ are sync destinations, not operational databases.
 ## 🧊 Cache
 
 `DV.Cache` runs on a swappable adapter. It defaults to process-local memory;
-point it at a database to survive restarts and share the application's SQLite
-file:
+point it at the application's database to survive restarts:
 
 ```dart
-final db = SqliteDVDatabaseAdapter.file('.dartvel/app.db');
-DV.Database.configure(db);
-DV.Cache.configure(DVDatabaseCacheAdapter(db));   // shares the same file
+DV.Cache.configure(DVDatabaseCacheAdapter(DV.Database.adapter));
 
 await DV.Cache.set('users:list', users, const Duration(minutes: 5));
 DV.Cache.tag('users:list', <String>['users']);
@@ -754,26 +762,16 @@ adapter stores values as JSON, so a value that cannot be encoded raises
 
 ## 📬 Durable queues
 
-`DV.Queues` defaults to an in-memory adapter, so dispatched jobs are lost on
-restart. Point it at a database to make them durable:
+With `DATABASE_URL` set, jobs are durable with no setup: the generated backend
+keeps them in that database, shared by every web, worker and cron process of
+the deployment. Generation writes how each `@DVJob` is encoded, so there is no
+codec to register. A job whose encoding is missing from the running process
+throws rather than being silently dropped. Without `DATABASE_URL`, jobs stay in
+the memory of the process that dispatched them and are lost on restart.
 
-```dart
-const DVJobPayloadCodecs().register(
-  DVJobPayloadCodec<SendWelcomeEmail>(
-    name: 'send_welcome_email',                       // stable across releases
-    encode: (job) => <String, Object?>{'userId': job.userId},
-    decode: (json) => SendWelcomeEmail(json['userId']! as String),
-  ),
-);
-DV.Queues.useAdapter(DVDatabaseQueueAdapter(db));
-```
-
-A durable queue has to write bytes, so every persisted payload type needs a
-codec. Dispatching a type with no codec throws, and so does draining a job
-whose codec is missing from the running process — neither silently drops work.
-The in-memory adapter keeps the Dart object and needs no codec.
-
-All five network adapters ship: Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The
+Adapters for five network brokers ship: Redis, SQS, RabbitMQ, Pub/Sub and
+Kafka. Nothing in `pubspec.yaml` selects one yet -- the database is the only
+broker chosen from configuration. The
 four that talk to a hosted service are verified in CI against the real thing --
 ElasticMQ, RabbitMQ's own image, Google's emulator and Apache Kafka -- rather
 than against a fake, which is how nine bugs were found that every unit test

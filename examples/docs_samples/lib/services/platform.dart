@@ -76,13 +76,6 @@ Future<void> jobs() async {
   // docs:end
 }
 
-void queues() {
-  // docs:start jobs-adapter
-  // Jobs survive a restart and are shared by every worker on this database.
-  DV.Jobs.useAdapter(DVDatabaseQueueAdapter(DV.Database.adapter));
-  // docs:end
-}
-
 Future<void> work() async {
   // docs:start jobs-work
   // A worker drains the queue. It is a process, not a line in a page:
