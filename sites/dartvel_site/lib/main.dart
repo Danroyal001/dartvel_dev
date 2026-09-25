@@ -31,9 +31,7 @@ Widget createDartvelApp() => MaterialApp.router(
 /// `buildScrollbar` and there is no flag for "also touch". The theme handles
 /// the other half — see [dartvelSiteTheme] — since a scrollbar that exists and
 /// fades after a second is barely better than none.
-class DartvelSiteScrollBehavior extends MaterialScrollBehavior {
-  const DartvelSiteScrollBehavior();
-
+class const DartvelSiteScrollBehavior() extends MaterialScrollBehavior {
   @override
   Widget buildScrollbar(
     BuildContext context,

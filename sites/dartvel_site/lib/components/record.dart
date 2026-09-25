@@ -11,15 +11,13 @@
 library dartvel_site.components.record;
 
 /// A record split into what is built and what is not.
-class SiteRecordParts {
-  const SiteRecordParts({required this.present, required this.absent});
-
+class const SiteRecordParts({
   /// Paragraphs describing what the section does.
-  final List<String> present;
+  required final List<String> present,
 
   /// Paragraphs describing what it does not, empty when it says nothing.
-  final List<String> absent;
-}
+  required final List<String> absent,
+});
 
 /// The word, only where it is being used as a label.
 ///

@@ -21,42 +21,31 @@ const String kAcknowledgementsHref = '/docs/building#upstream';
 ///
 /// A value class rather than a widget: it answers questions, it does not
 /// draw. [fork] is null for a project Dartvel uses as it is published.
-class Upstream {
-  const Upstream({
-    required this.id,
-    required this.project,
-    required this.vendor,
-    required this.url,
-    required this.license,
-    this.target,
-    this.fork,
-    this.forkAdds,
-  });
-
+class const Upstream({
   /// The key a page names it by.
-  final String id;
+  required final String id,
 
   /// The project, as its repository names it.
-  final String project;
+  required final String project,
 
   /// Who wrote it, as its copyright line or its GitHub owner names them.
-  final String vendor;
+  required final String vendor,
 
   /// Its repository.
-  final String url;
+  required final String url,
 
   /// Its licence, as an SPDX identifier where it has one.
-  final String license;
+  required final String license,
 
   /// The dartvel build target it drives, or what it is when it is not one.
-  final String? target;
+  final String? target,
 
   /// Dartvel's fork of it.
-  final String? fork;
+  final String? fork,
 
   /// What the fork changes, from its README banner and its history.
-  final String? forkAdds;
-
+  final String? forkAdds,
+}) {
   /// The licence in a sentence: "(BSD-3-Clause)", or what stands in for one.
   String get licenseNote =>
       license.isEmpty ? '(upstream declares no licence)' : '($license)';
