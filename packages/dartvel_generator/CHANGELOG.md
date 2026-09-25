@@ -1,3 +1,8 @@
+## 1.3.1
+
+- Accepts dartvel_core 0.6.0. No change to what it generates; the builders
+  are still retired and removed in 2.0.0.
+
 ## 1.3.0
 
 - **The `build_runner` builders are retired.** Generate with `dart run

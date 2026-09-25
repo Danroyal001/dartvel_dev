@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.0
 
 - **Studio image export shares the box modifier chain.** An exported image is
   emitted as `.backgroundImage(...)` inside the single `DVModifier` chain rather
