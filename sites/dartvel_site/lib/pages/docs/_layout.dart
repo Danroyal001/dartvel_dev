@@ -7,9 +7,8 @@ import '../../dartvel_client/dartvel_client.dart';
 /// A layout, so the sidebar is written once and each page returns only its
 /// own article. The current path comes from the router, the one place that
 /// already knows which page is open.
-class DocsLayout extends DartvelLayout {
-  const DocsLayout({super.key, required super.child});
-
+class const DocsLayout({super.key, required super.child})
+    extends DartvelLayout {
   @override
   Widget build(BuildContext context) => DocsFrame(
         current: GoRouterState.of(context).uri.path,
