@@ -77,19 +77,33 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
                 'and says how a write made offline is resolved when it '
                 'reaches the server.'),
             DocsCode('offline-model'),
-            DocsText('It then keeps a local copy and a log of every write '
-                'made on the device. When the connection comes back, replay '
-                'sends the log to the server in order.'),
+            DocsText('That is all you declare. The data model is then saved, '
+                'deleted and read like any other, with a network or without '
+                'one.'),
             DocsCode('offline-store'),
+            DocsText('A save returns as soon as the record is on the device. '
+                'The device keeps its own copy and a queue of every change, '
+                'in the order they were made: SQLite on phones, desktops '
+                'and TVs, IndexedDB in a browser. Reads come from that copy, '
+                'so they answer in a tunnel as they do on Wi-Fi.'),
+            DocsText('You never send the queue. It goes when the app starts, '
+                'after each save while the server can be reached, and again '
+                'as soon as the device can reach the server after losing '
+                'it. A send that fails is tried again later, on its own.'),
             Bullets(<String>[
-              'The store and the server side come from the table, the key '
-                  'and the columns the data model already declares, so '
-                  'neither can drift from the other.',
-              'Replay stops at a dropped connection and picks up there next '
-                  'time. Two replays at once share one run.',
-              'A write the server refuses for good moves to rejected(), so '
-                  'nothing is lost silently.',
-              'A full log refuses the next write. It never drops an old one.',
+              'The queue goes in order, and stops at a dropped connection, so '
+                  'a later change never reaches the server before an earlier '
+                  'one.',
+              'A change the server keeps differently comes back to the '
+                  'device, and watchers of the data model see it.',
+              'syncState on a record says where it stands: pending, syncing, '
+                  'synced, conflicted or rejected.',
+              'A change the server refuses for good is not sent again, and '
+                  'its record reads rejected, so nothing is lost silently.',
+              'A full queue refuses the next save. It never drops an old one.',
+              'Signing out sends what it can, then removes the device\'s '
+                  'copy and queue, so the next person to sign in on that '
+                  'device sees none of it.',
             ]),
             DocsSubheading('Show what the device can reach'),
             DocsText('Application code does not branch on connectivity: a '
@@ -113,30 +127,42 @@ Widget _docsSyncPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'offline-server',
-          title: 'Apply replayed writes on the server',
+          title: 'What the server does with a change made offline',
           children: <Widget>[
-            DocsCode('offline-server'),
+            DocsText('The generated backend takes each change a device sends '
+                'and applies it itself. There is no server code to write for '
+                'it: what decides is the data model\'s own declaration and '
+                'its policy.'),
             Bullets(<String>[
-              'Every replayed mutation is put to the data model\'s policy '
-                  'first: create, update or delete, the same question an '
-                  'online write asks. A policy that refuses, or that cannot '
-                  'answer, refuses the write.',
-              'A resent write is recognised by its mutation id and applied once.',
-              'A refusal is remembered with the mutation id, so a device '
-                  'resending one it was refused does not get a second answer.',
-              'Last write wins by the time the write was made on the device, '
-                  'corrected for clock drift. Arrival order does not decide.',
+              'Only a signed-in person\'s changes are taken, and only for '
+                  'data models that declared offline:.',
+              'Every change is put to the data model\'s policy first, as '
+                  'create, update or delete, the same question an online '
+                  'change asks. The policy is asked about the record, as the '
+                  'class your policy is written for. A policy that refuses, '
+                  'or cannot answer, refuses the change.',
+              'A change sent twice, because an answer was lost on the way '
+                  'back, is applied once.',
+              'A refusal is remembered, so a device sending a refused change '
+                  'again gets the same answer, even if the policy has changed '
+                  'since.',
+              'With lastWriteWins, the later change wins by the time it was '
+                  'made on its device, corrected for that device\'s clock '
+                  'drift. The order changes arrive in does not decide.',
               'DVConflict.ask is refused offline, because nobody is there to '
                   'answer. A data model that declares it stops the build, so '
                   'it cannot fail on somebody\'s phone instead.',
             ]),
             DocsStatus('Offline-First Models', missing: <String>[
-              'Model.save() does not write to the local store on its own. '
-                  'The store is the model\'s, and writing through it is '
-                  'still a separate call.',
-              'No IndexedDB store on web.',
-              'Signing out does not clear the store, and encrypt: true is not '
-                  'applied.',
+              'encrypt: true is not applied, and sensitive fields are not '
+                  'encrypted in the device\'s copy.',
+              'The device copy\'s shape does not come from the migration '
+                  'schema, and a changed data model does not rebuild it.',
+              'Replay is not carried by the job queue, and the queue bounds '
+                  'and clock tolerance are not read from pubspec.yaml.',
+              'Only the browser reports connectivity. Elsewhere a failed send '
+                  'is what says the server is gone, and the retry is what '
+                  'finds it again.',
             ]),
           ],
         ),
