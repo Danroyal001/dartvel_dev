@@ -50,10 +50,3 @@ Future<void> lock() async {
   if (sent == null) DV.log('Another server is sending the report.');
   // docs:end
 }
-
-Future<void> redis() async {
-  // docs:start cache-redis
-  final DVRedisClient client = await DVRedisClient.connect(host: 'cache.internal');
-  DV.Cache.configure(DVRedisCacheAdapter(client));
-  // docs:end
-}
