@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.0
 
 - **A compiled executable can serve.** `serve()` found the native library
   with `Isolate.resolvePackageUri`, which answers null in a program built by

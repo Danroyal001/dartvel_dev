@@ -1,0 +1,3 @@
+# A throwaway self-signed key for hooks.acme.test. Not a secret, but pub refuses to publish
+# anything shaped like a private key, and tests are not needed in the published package.
+test/http_pinned_connect_test.dart

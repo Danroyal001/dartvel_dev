@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person
   running it.** A random token, printed as a link: opening it sets an

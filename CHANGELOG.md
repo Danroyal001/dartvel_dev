@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.6.0 — 2026-09-25
+
+Studio grows from a record browser into the place a team runs its application
+from — records, published pages, flags, the content workflow and data models of
+mounted modules — and the application's own backend takes over sign-in, second
+factors and sessions. Underneath, records gained history, retention and
+erasure, so privacy requests are something `dartvel privacy` can answer rather
+than something a team writes by hand.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.6.0,
+dartvel_shelf to 0.7.0, dartvel_generator to 1.3.1 (it only accepts the new
+core). The package changelogs list every change; the ones below need action.
+
+### Breaking
+
+- **`dartvel publish` is removed.** Store submission is `dartvel deploy --store`.
+- **`dartvel build <target> --profile development|profile|release`** is the one
+  way to choose the build mode (`release` by default). `--release` and
+  `--no-release` are usage errors, and `dartvel build dev-client` is gone: a
+  development shell is `dartvel build android --profile development`.
+- **A generated model built by hand no longer replaces a stored row.** `save()`
+  on a model that was not read throws `DVConflictError` (`DV-HISTORY-001`)
+  instead of overwriting; replacing without reading is
+  `save(onConflict: DVConflict.lastWriteWins)`.
+- **Generated models persist through `DVRecordTable`**, so their tables carry
+  versions and can be erased and swept. Regenerate the client.
+- **`dartvel init` adds Dartvel to an existing project** and is no longer an
+  alias of `create`; `create` refuses to scaffold over a project it did not
+  create (`DV-ADOPT-005`).
+- **`LocalAuthProvider.signIn` no longer says whether an account exists.** An
+  unknown e-mail and a wrong password fail the same way.
+- **On Android and iOS the application key lives in the platform keyring**, never
+  in a file; a device without one refuses rather than falling back.
+- **`DVModelAdmin` checks the model's policy** before it offers New, Edit or
+  Delete, and again before it writes.
+- **`DV.Auth` signs in through the application's own backend**
+  (`/auth/sign-in`, `/auth/sign-up`, `/auth/second-factor`, `/auth/sign-out`).
+- **dartvel_shelf's committed library and bindings** no longer carry the HTTP
+  client symbols that moved to dartvel_core.
+
+### Binaries
+
+This release was cut while GitHub Actions was unavailable for the repository,
+so the self-contained binaries attached to it were built by hand: Linux only.
+macOS and Windows binaries are added by re-running the CLI release workflow for
+v0.6.0; until then `npm i -g dartvel_dev` works on Linux, and elsewhere
+`dart pub global activate dartvel_cli` is not an alternative (see
+`npm/dartvel_dev/index.js`), so use a Linux machine or wait for the workflow.
+
 ## 0.5.0 — 2026-09-11
 
 Everything that makes a page arrive before it is asked for: the page itself,

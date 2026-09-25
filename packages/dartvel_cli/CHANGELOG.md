@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.0
 
 - **`dartvel doctor` no longer warns about a directory a project does not
   need.** A project with no models printed `[!] lib/models missing` and then
