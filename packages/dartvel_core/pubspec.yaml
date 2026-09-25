@@ -1,7 +1,7 @@
 
 name: dartvel_core
 description: The pure-Dart runtime shared by Dartvel apps, servers and the CLI — records with history, auth, jobs, cache, notifications, privacy and webhooks.
-version: 0.6.0
+version: 0.6.1
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:
