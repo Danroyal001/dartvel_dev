@@ -7,6 +7,20 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// What `dartvel routes` generates as DVAsset, for this test.
+enum _Asset implements DVAssetRef {
+  trayIcon('assets/tray.png', DVAssetKind.image),
+  intro('assets/intro.mp4', DVAssetKind.video);
+
+  const _Asset(this.path, this.kind);
+
+  @override
+  final String path;
+
+  @override
+  final DVAssetKind kind;
+}
+
 void main() {
   final List<Map<Object?, Object?>> shown = <Map<Object?, Object?>>[];
 
@@ -27,7 +41,7 @@ void main() {
   test('a chosen item reaches the handler and the stream by id', () async {
     final List<String> chosen = <String>[];
     await const DVTray().show(
-      icon: 'app.ico',
+      icon: _Asset.trayIcon,
       tooltip: 'Dartvel',
       menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open'), DVTrayMenuItem(id: 'quit', label: 'Quit')],
       onSelected: chosen.add,
@@ -43,7 +57,7 @@ void main() {
 
   test('an id the menu does not have reaches nobody', () async {
     final List<String> chosen = <String>[];
-    await const DVTray().show(icon: 'app.ico', menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open')], onSelected: chosen.add);
+    await const DVTray().show(icon: _Asset.trayIcon, menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open')], onSelected: chosen.add);
 
     DVTray.dispatch('quit');
 
@@ -52,7 +66,7 @@ void main() {
 
   test('after hide, a late command reaches nobody', () async {
     final List<String> chosen = <String>[];
-    await const DVTray().show(icon: 'app.ico', menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open')], onSelected: chosen.add);
+    await const DVTray().show(icon: _Asset.trayIcon, menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open')], onSelected: chosen.add);
     await const DVTray().hide();
 
     DVTray.dispatch('open');
@@ -62,8 +76,23 @@ void main() {
 
   test('two items with one id are refused before the binding is asked', () async {
     await expectLater(
-      const DVTray().show(icon: 'app.ico', menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'a', label: 'A'), DVTrayMenuItem(id: 'a', label: 'B')]),
+      const DVTray().show(icon: _Asset.trayIcon, menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'a', label: 'A'), DVTrayMenuItem(id: 'a', label: 'B')]),
       throwsA(isA<ArgumentError>()),
+    );
+    expect(shown, isEmpty);
+  });
+
+  test('the icon is a generated asset, sent to the binding by its path',
+      () async {
+    await const DVTray().show(icon: _Asset.trayIcon);
+    expect(shown.single['icon'], 'assets/tray.png');
+  });
+
+  test('an asset that is not an image is refused, naming it', () async {
+    await expectLater(
+      const DVTray().show(icon: _Asset.intro),
+      throwsA(isA<ArgumentError>().having(
+          (ArgumentError e) => e.message, 'message', contains('video'))),
     );
     expect(shown, isEmpty);
   });

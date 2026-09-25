@@ -6744,9 +6744,9 @@ Desktop APIs live under `DV.Platform.*` and generated app services:
 await DV.Platform.Window.setTitle('Dartvel Admin');
 await DV.Platform.Window.persistState('main');
 await DV.Platform.Window.restoreState('main');
-await DV.Platform.Tray.show(icon: 'assets/tray.png');
+await DV.Platform.Tray.show(icon: DVAsset.tray); // a generated asset, never a path string
 await DV.Platform.Tray.show(
-  icon: 'assets/tray.png',
+  icon: DVAsset.tray,
   tooltip: 'Dartvel',
   menu: const <DVTrayMenuItem>[
     DVTrayMenuItem(id: 'open', label: 'Open'),

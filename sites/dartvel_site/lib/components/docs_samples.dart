@@ -405,7 +405,7 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '// build asks for them and a phone build answers that it has none.',
     'Future<void> installDesktopChrome() async {',
     '  await DV.Platform.Tray.show(',
-    '    icon: \'assets/tray.png\',',
+    '    icon: DVAsset.tray,',
     '    tooltip: \'Oakline\',',
     '    menu: const <DVTrayMenuItem>[',
     '      DVTrayMenuItem(id: \'cart\', label: \'Open the cart\'),',
