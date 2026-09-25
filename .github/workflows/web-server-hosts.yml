@@ -73,7 +73,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Not every image has rustup: the Windows arm64 one did not, the day
       # this was written.
@@ -99,7 +99,7 @@ jobs:
           rustc --version --verbose
 
       - name: Cache cargo and target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -124,7 +124,7 @@ jobs:
           ls -l "out/${{ matrix.host }}"
           file "out/${{ matrix.host }}/${{ matrix.lib }}" || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dartvel_shelf-${{ matrix.host }}
           path: out/
@@ -148,7 +148,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Before anything slow: the library a user of this host gets.
       - name: The committed library for this host

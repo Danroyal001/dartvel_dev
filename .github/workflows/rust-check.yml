@@ -51,7 +51,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the Rust toolchain
         run: |
@@ -65,7 +65,7 @@ jobs:
       # reuse the dependency build rather than discard it, which is most of
       # the time.
       - name: Cache cargo and target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
