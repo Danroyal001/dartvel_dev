@@ -1874,8 +1874,9 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
                       ],
                       if (tags.isEmpty)
                         DVStudioStyle.body('Nothing on this server is cached '
-                            'under a tag right now. DV.Cache.tag puts a key '
-                            'under one; revalidating the tag drops them all.')
+                            'under a tag right now. DV.Cache.set with tags: '
+                            'puts a key under one; revalidating the tag drops '
+                            'them all.')
                       else
                         _DVStudioTable(
                           headers: const <String>['Tag', 'Keys', 'Covers'],

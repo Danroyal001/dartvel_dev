@@ -607,26 +607,33 @@ dependency_overrides:
 
   test('a page reaches DV.Cache through the barrel, and not its machinery',
       () async {
-    // The store is dartvel.cache. A page that could construct a Redis
-    // adapter would be one reaching for a server it cannot open from a
-    // browser, and would teach the configuration-in-code this replaced.
-    // Outside lib/, so the analysis above is untouched by it.
+    // dartvel.cache sets the default store and DV.Cache.withAdapter switches
+    // store in code, so the adapters are the application's. The Redis
+    // client, the tag registry, the config reader and DVCacheRuntime are the
+    // framework's. Outside lib/, so the analysis above is untouched by it.
     write(p.join(project.path, 'probe', 'cache_surface.dart'), '''
 import 'package:generated_client_probe/dartvel_client/dartvel_client.dart';
 
 Future<void> control() async {
   await DV.Cache.set('k', 1, ttl: const Duration(minutes: 1));
+  final DVCacheView switched = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+  await switched.delete(all: true);
 }
 
-List<Type> get machinery => <Type>[
+List<Type> get adapters => <Type>[
+      DVCacheAdapter,
       DVMemoryCacheAdapter,
       DVDatabaseCacheAdapter,
       DVRedisCacheAdapter,
-      DVRedisClient,
       DVMemcachedCacheAdapter,
       DVDistributedCacheAdapter,
+    ];
+
+List<Type> get machinery => <Type>[
+      DVRedisClient,
       DVCacheTags,
       DVCacheConfig,
+      DVCacheRuntime,
     ];
 ''');
     final ProcessResult probe = await Process.run(
@@ -639,9 +646,9 @@ List<Type> get machinery => <Type>[
         .convert(output)
         .where((String l) => l.contains('undefined_identifier'))
         .toList();
-    expect(undefined, hasLength(8), reason: output);
-    // The control: DV.Cache itself resolves, so the eight are hidden rather
-    // than the probe failing to resolve at all.
+    expect(undefined, hasLength(4), reason: output);
+    // The control: DV.Cache and the adapters resolve, so the four are hidden
+    // rather than the probe failing to resolve at all.
     expect(output, isNot(contains("isn't defined for the type 'DV'")));
     expect(output, isNot(contains('uri_does_not_exist')));
   }, timeout: const Timeout(Duration(minutes: 3)));
