@@ -609,20 +609,18 @@ class ModelGenerator {
         // private schema input; application code uses this generated class.
         sb.writeln();
         sb.writeln('/// Generated public model for [$sourceClassName].');
-        sb.writeln('class $className {');
+        // A primary constructor: each field is declared once, in the header,
+        // the way the input is written. `class const` when the input's
+        // constructor is const.
+        sb.writeln(
+          'class $constructorPrefix$className(${fields.isEmpty ? '' : '{'}',
+        );
         for (final field in fields) {
           final type = field['type']!;
           final name = field['name']!;
-          sb.writeln('  final $type $name;');
+          sb.writeln('  required final $type $name,');
         }
-        sb.writeln();
-        sb.writeln('  $constructorPrefix$className({');
-        for (final field in fields) {
-          final name = field['name']!;
-          sb.writeln('    required this.$name,');
-        }
-        sb.writeln('  });');
-        sb.writeln();
+        sb.writeln('${fields.isEmpty ? '' : '}'}) {');
         sb.writeln(
           '  /// How generated pages for this model resolve their data, as',
         );
@@ -2094,7 +2092,16 @@ class ModelGenerator {
 
         sb.writeln();
         sb.writeln('/// Generated typed test factory for [$className].');
-        sb.writeln('class ${className}Factory {');
+        sb.writeln(
+          'class const ${className}Factory(${fields.isEmpty ? '' : '{'}',
+        );
+        for (final field in fields) {
+          final type = field['type']!;
+          final name = field['name']!;
+          final nullableType = type.endsWith('?') ? type : '$type?';
+          sb.writeln('  final $nullableType $name,');
+        }
+        sb.writeln('${fields.isEmpty ? '' : '}'}) {');
         sb.writeln('  /// Varies the identifying fields between calls.');
         sb.writeln('  ///');
         sb.writeln('  /// Without it every create() returned the same');
@@ -2112,20 +2119,6 @@ class ModelGenerator {
         sb.writeln('  static void resetSequence() {');
         sb.writeln('    _sequence = 0;');
         sb.writeln('  }');
-        sb.writeln();
-        for (final field in fields) {
-          final type = field['type']!;
-          final name = field['name']!;
-          final nullableType = type.endsWith('?') ? type : '$type?';
-          sb.writeln('  final $nullableType $name;');
-        }
-        sb.writeln();
-        sb.writeln('  const ${className}Factory({');
-        for (final field in fields) {
-          final name = field['name']!;
-          sb.writeln('    this.$name,');
-        }
-        sb.writeln('  });');
         sb.writeln();
         sb.writeln('  ${className}Factory copyWith({');
         for (final field in fields) {
@@ -2918,21 +2911,25 @@ class ModelGenerator {
                   )
                   .toList(growable: false);
           sb.writeln();
-          sb.writeln('/// The facets [$className] can be filtered by when searched.');
-          sb.writeln('class ${className}Facets {');
-          for (final field in effectiveSearchableFields) {
-            final type = field['type']!;
-            final name = field['name']!;
-            sb.writeln('  final List<$type>? $name;');
+          sb.writeln(
+            '/// The facets [$className] can be filtered by when searched.',
+          );
+          final List<String> facets = <String>[
+            for (final field in effectiveSearchableFields)
+              'final List<${field['type']!}>? ${field['name']!}',
+          ];
+          if (facets.length < 2) {
+            sb.writeln(
+              'class const ${className}Facets'
+              '(${facets.isEmpty ? '' : '{${facets.single}}'});',
+            );
+          } else {
+            sb.writeln('class const ${className}Facets({');
+            for (final String facet in facets) {
+              sb.writeln('  $facet,');
+            }
+            sb.writeln('});');
           }
-          sb.writeln();
-          sb.writeln('  const ${className}Facets({');
-          for (final field in effectiveSearchableFields) {
-            final name = field['name']!;
-            sb.writeln('    this.$name,');
-          }
-          sb.writeln('  });');
-          sb.writeln('}');
           sb.writeln();
         }
       }

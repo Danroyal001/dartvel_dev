@@ -3539,16 +3539,17 @@ void startDartvelKiosk() {
         .where((_WidgetParameter p) => !p.isBuildContext)
         .toList(growable: false);
 
+    // Declaring parameters of a primary constructor: each one is the field.
     final List<String> positional = <String>[
       for (final _WidgetParameter p in fields)
-        if (!p.isNamed) 'this.${p.name}',
+        if (!p.isNamed) 'final ${p.type} ${p.name}',
     ];
     final List<String> named = <String>[
       for (final _WidgetParameter p in fields)
         if (p.isNamed)
-          p.defaultValue == null
-              ? (p.isRequired ? 'required this.${p.name}' : 'this.${p.name}')
-              : 'this.${p.name} = ${p.defaultValue}',
+          '${p.isRequired && p.defaultValue == null ? 'required ' : ''}'
+              'final ${p.type} ${p.name}'
+              '${p.defaultValue == null ? '' : ' = ${p.defaultValue}'}',
       'super.key',
     ];
 
@@ -3570,17 +3571,11 @@ void startDartvelKiosk() {
     }
 
     final StringBuffer out = StringBuffer()
-      ..writeln('class ${entry.generatedName} extends StatelessWidget {')
       ..writeln(
-        '  const ${entry.generatedName}('
+        'class const ${entry.generatedName}('
         '${positional.join(', ')}${positional.isEmpty ? '' : ', '}'
-        '{${named.join(', ')}});',
-      );
-    for (final _WidgetParameter p in fields) {
-      out.writeln('  final ${p.type} ${p.name};');
-    }
-    out
-      ..writeln()
+        '{${named.join(', ')}}) extends StatelessWidget {',
+      )
       ..writeln('  @override')
       ..writeln('  Widget build(BuildContext context) {')
       ..write(_promotableLocals(fields, body == null ? null : rendered))

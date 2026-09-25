@@ -66,10 +66,14 @@ void main() {
       () async {
     final String content = await generated();
 
-    expect(content, contains('class ArticleFacets {'));
-    expect(content, isNot(contains('class ArticleSearchFacets {')));
+    final int facets = content.indexOf('class const ArticleFacets(');
+    expect(facets, isNonNegative);
+    expect(content, isNot(contains('ArticleSearchFacets')));
     // A facet is client-facing, so a sensitive field is not one.
-    expect(content, isNot(contains('authorEmail;\n\n  const ArticleFacets')));
+    final String declaration =
+        content.substring(facets, content.indexOf(');', facets));
+    expect(declaration, contains('title'));
+    expect(declaration, isNot(contains('authorEmail')));
   });
 }
 
