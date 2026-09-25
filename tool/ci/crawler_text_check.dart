@@ -28,6 +28,14 @@ String fallbackText(String html) {
       .trim();
 }
 
+/// The fallback's prose, without its code blocks.
+///
+/// Site copy marks a command with backticks and Prose draws it as code, so a
+/// backtick that reaches the prose is a string some widget drew as plain text.
+/// A code block may hold one on purpose.
+String proseText(String html) => fallbackText(
+    html.replaceAll(RegExp(r'<pre[\s\S]*?</pre>'), ' '));
+
 /// How many words [text] holds.
 int words(String text) =>
     text.isEmpty ? 0 : text.split(' ').where((String w) => w.isNotEmpty).length;
@@ -45,6 +53,7 @@ void main(List<String> args) {
   }
 
   final List<String> thin = <String>[];
+  final List<String> ticked = <String>[];
   int checked = 0;
   for (final FileSystemEntity entity in root.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('index.html')) continue;
@@ -56,17 +65,32 @@ void main(List<String> args) {
     if (entity.path.contains('/404/')) continue;
     if (entity.path.contains('/offline/')) continue;
     checked++;
-    final int count = words(fallbackText(entity.readAsStringSync()));
+    final String html = entity.readAsStringSync();
+    final String route =
+        entity.path.substring(root.path.length).replaceAll('index.html', '');
+    final int count = words(fallbackText(html));
     if (count < minimum) {
-      final String route =
-          entity.path.substring(root.path.length).replaceAll('index.html', '');
       thin.add('${route.isEmpty ? '/' : route} ($count words)');
+    }
+    final RegExpMatch? tick = RegExp(r'.{0,40}`.{0,40}').firstMatch(proseText(html));
+    if (tick != null) {
+      ticked.add('${route.isEmpty ? '/' : route}: "${tick.group(0)}"');
     }
   }
 
   if (checked == 0) {
     stderr.writeln('::error::no pages under ${root.path}');
     exit(1);
+  }
+
+  if (ticked.isNotEmpty) {
+    ticked.sort();
+    stderr.writeln(
+      '::error::${ticked.length} of $checked pages show a backtick as text. '
+      'Copy marks a command with backticks for Prose to set as code, and '
+      'these were drawn by a widget that does not: ${ticked.join(', ')}',
+    );
+    if (thin.isEmpty) exit(1);
   }
 
   if (thin.isEmpty) {
