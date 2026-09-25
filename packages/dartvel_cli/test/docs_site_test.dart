@@ -80,7 +80,7 @@ const Map<String, Object?> seedUser = <String, Object?>{
 import 'package:dartvel_core/dartvel.dart';
 
 /// A paid basket.
-@DVModel()
+@DVModel(generatePublicPages: false)
 class _Order {
   final String id;
 
@@ -282,8 +282,8 @@ void main() {
       expect(user, contains('User.Form'));
       expect(user, contains('User.Page'));
       expect(user, contains('/users/:id'));
-      // Every model gets the page component; only generatePublicPages gives
-      // it a public route. Claiming one for Order would be a link to a 404.
+      // Every model gets the page component; one that opted out of public
+      // pages has no route. Claiming one for Order would be a link to a 404.
       expect(_section(models, 'model-Order'), contains('Order.Page'));
       expect(_section(models, 'model-Order'), isNot(contains('/orders/:id')));
     });
