@@ -3,25 +3,26 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel cache: set, get, remember and revalidate by tag',
-  description: 'Five calls read and write DV.Cache. remember computes a value '
-      'once, tags drop a group of keys, and the store is one line in '
-      'pubspec.yaml.',
+  title: 'Dartvel cache: get, set, has and delete',
+  description: 'DV.Cache is four calls: get, set, has and delete. get '
+      'computes a missing value, set takes tags, delete drops a key, a tag or '
+      'everything, and the store is one line in pubspec.yaml.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
 Widget _docsCachePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docscache,
       lead: <String>[
-        'Five calls read and write DV.Cache, from a page or a backend '
-            'function.',
-        'remember computes a value once, and tags drop a group of keys when '
-            'the data behind them changes.',
+        'DV.Cache is four calls, get, set, has and delete, from a page or a '
+            'backend function.',
+        'Everything else is an option on those four: get computes a missing '
+            'value, set takes tags, and delete drops a key, a tag or '
+            'everything.',
       ],
       sections: <DocsSection>[
         DocsSection(
           id: 'basics',
-          title: 'Set, get, has, delete and clear',
+          title: 'Get, set, has and delete',
           children: <Widget>[
             DocsCode('cache-basics'),
             Bullets(<String>[
@@ -34,19 +35,30 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
-          id: 'remember',
-          title: 'Remember a value and revalidate it by tag',
+          id: 'compute',
+          title: 'Compute a value on a miss',
           children: <Widget>[
-            DocsCode('cache-remember'),
+            DocsCode('cache-compute'),
             Bullets(<String>[
               'The compute runs only on a miss. Callers that ask for the same '
                   'key at once share one compute.',
               'A compute that throws stores nothing.',
-              'revalidateTag deletes every key with that tag and returns their '
-                  'names.',
-              'DV.Cache.tag(key, tags) adds tags to an entry that already '
-                  'exists. set takes tags as well.',
-              'Tags are kept in each server\'s memory. revalidateTag drops the '
+              'ttl, tags and staleFor apply to what the compute stores. '
+                  'Passing one to get without a compute is an error.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'tags',
+          title: 'Drop a group of keys by tag',
+          children: <Widget>[
+            DocsCode('cache-tags'),
+            Bullets(<String>[
+              'set and get take tags. delete(tag:) removes every key with '
+                  'that tag.',
+              'delete takes exactly one of key:, tag: or all: true. None, or '
+                  'more than one, is an error, never a guess.',
+              'Tags are kept in each server\'s memory. delete(tag:) drops the '
                   'keys this server has tagged.',
             ]),
           ],
@@ -58,22 +70,7 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
             DocsCode('cache-stale'),
             DocsText('After ttl and for staleFor more, callers get the old '
                 'value at once while one compute refreshes it. After both, '
-                'they wait for a new value.'),
-          ],
-        ),
-        DocsSection(
-          id: 'lock',
-          title: 'Let one caller at a time do the work',
-          children: <Widget>[
-            DocsCode('cache-lock'),
-            Bullets(<String>[
-              'lock returns what the body returns, or null when another caller '
-                  'holds the lock.',
-              'The lock is released when the body returns or throws.',
-              'wait: keeps trying for that long. ttl: (30 seconds by default) '
-                  'frees a lock whose holder crashed.',
-              'Locks cover every server only on Redis or Memcached.',
-            ]),
+                'they wait for a new value. staleFor needs a ttl.'),
           ],
         ),
         DocsSection(
@@ -100,6 +97,30 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
               'On a device, DV.Cache keeps entries in memory.',
               'Keys are prefixed with the tenant unless it is the default one.',
             ]),
+            DocsText('pubspec.yaml sets the store DV.Cache uses by default. '
+                'DV.Cache.withAdapter switches to another store in code, with '
+                'the same four calls:'),
+            DocsCode('cache-switch'),
+            Bullets(<String>[
+              'Every call goes to the adapter you pass, never to the default '
+                  'store.',
+              'The adapters are DVMemoryCacheAdapter, DVDatabaseCacheAdapter, '
+                  'DVRedisCacheAdapter, DVMemcachedCacheAdapter and '
+                  'DVDistributedCacheAdapter.',
+              'Tags and the shared compute are kept per adapter, so '
+                  'delete(tag:) on one store leaves the others alone.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'once',
+          title: 'Run work once',
+          children: <Widget>[
+            DocsText('For work only one server should do, such as a monthly '
+                'report, declare a schedule. Each occurrence is claimed once '
+                'across cron processes, and a process does not start a '
+                'schedule again while its last run is still going. Unique jobs '
+                'are not built yet.'),
           ],
         ),
         DocsSection(
@@ -119,10 +140,11 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
             DocsStatus('Cache', missing: <String>[
               'No model query cache, and no caching a backend function by '
                   'annotation.',
-              'Model writes do not revalidate tags yet. Call revalidateTag '
+              'Model writes do not drop tags yet. Call delete(tag:) '
                   'yourself.',
-              'Several Redis or Memcached nodes are not a store you can name '
-                  'yet.',
+              'Several Redis or Memcached nodes are not a store pubspec.yaml '
+                  'can name yet. Pass a DVDistributedCacheAdapter to '
+                  'withAdapter instead.',
             ]),
           ],
         ),
