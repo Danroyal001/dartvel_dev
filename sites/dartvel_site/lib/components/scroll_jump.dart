@@ -15,11 +15,8 @@ import 'site.dart' show Palette;
 /// PrimaryScrollController on every platform, the web's desktop browsers
 /// included, where Flutter would otherwise leave it to mobile only. Scroll
 /// views that are not the page -- the docs sidebar -- say `primary: false`.
-class PageScroll extends StatefulWidget {
-  const PageScroll({super.key, required this.child});
-
-  final Widget child;
-
+class const PageScroll({super.key, required final Widget child})
+    extends StatefulWidget {
   @override
   State<PageScroll> createState() => _PageScrollState();
 }
@@ -98,12 +95,10 @@ class _PageScrollState extends State<PageScroll> {
   }
 }
 
-class _JumpButton extends StatelessWidget {
-  const _JumpButton({required this.toTop, required this.onTap});
-
-  final bool toTop;
-  final VoidCallback onTap;
-
+class const _JumpButton({
+  required final bool toTop,
+  required final VoidCallback onTap,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette palette = Palette.of(context);
