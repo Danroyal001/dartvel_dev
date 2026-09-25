@@ -2,12 +2,7 @@
 // lib/policies/order_policy.dart
 import 'package:dartvel_core/dartvel.dart';
 
-class Order {
-  const Order({required this.id, required this.ownerId});
-
-  final String id;
-  final String ownerId;
-}
+class const Order({required final String id, required final String ownerId});
 
 @DVPolicy(Order)
 class OrderPolicy {
