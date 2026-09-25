@@ -258,6 +258,32 @@ void main() {
     expect((await records.find('audit')).single['seq'], 7);
   });
 
+  // The same collection ensured again in the same process with a field it
+  // did not have: a destination that follows a model's schema grows this
+  // way. Remembering the collection alone skipped the second ensure, and the
+  // first write naming the new field failed.
+  test('ensure adds a field a shape gained since this process ensured it',
+      () async {
+    final SqliteDVDatabaseAdapter sqlite = SqliteDVDatabaseAdapter.memory();
+    addTearDown(sqlite.close);
+    final DVSqlRecordAdapter records = DVSqlRecordAdapter(sqlite);
+    await records.ensure(const DVRecordShape(
+      collection: 'copies',
+      fields: <String, DVFieldType>{'route': DVFieldType.text},
+    ));
+
+    await records.ensure(const DVRecordShape(
+      collection: 'copies',
+      fields: <String, DVFieldType>{
+        'route': DVFieldType.text,
+        'seq': DVFieldType.integer,
+      },
+    ));
+    await records.insert('copies', <String, Object?>{'route': '/a', 'seq': 7});
+
+    expect((await records.find('copies')).single['seq'], 7);
+  });
+
   test('over() answers an engine as itself and SQL through the SQL engine',
       () {
     final _Engine engine = _Engine();
