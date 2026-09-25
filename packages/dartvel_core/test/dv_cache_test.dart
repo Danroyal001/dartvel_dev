@@ -1,36 +1,36 @@
-// DV.Cache as an application uses it: five CRUD calls, then remember with
-// tags and a stale window, revalidation by tag, and a lock that runs a body.
+// DV.Cache as an application uses it: four calls, get, set, has and delete,
+// with everything else a named option on them. get with compute: is
+// read-through with one shared compute per key and an optional stale window;
+// set takes tags; delete drops a key, a tag or everything.
+//
+// The lock, the store and tag inspection are the framework's, reached through
+// DVCacheRuntime, and are tested here for the framework that uses them.
 // Driven through the real adapters, on the server's DV -- behaviour, not
 // shape.
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/dv.dart';
+import 'package:dartvel_core/framework.dart' show DVCacheRuntime;
 import 'package:test/test.dart';
 
 void main() {
   setUp(() {
-    const DVCache().configure(DVMemoryCacheAdapter());
+    DVCacheRuntime.configure(DVMemoryCacheAdapter());
     const DVTestHarness().resetCacheTags();
     DVTenants.reset();
   });
 
-  group('the five calls', () {
-    test('set, get, has, delete and clear', () async {
+  group('the four calls', () {
+    test('set, get, has and delete', () async {
       await DV.Cache.set('greeting', 'hello');
 
       expect(await DV.Cache.get<String>('greeting'), 'hello');
       expect(await DV.Cache.has('greeting'), isTrue);
 
-      await DV.Cache.delete('greeting');
+      await DV.Cache.delete(key: 'greeting');
       expect(await DV.Cache.get<String>('greeting'), isNull);
       expect(await DV.Cache.has('greeting'), isFalse);
-
-      await DV.Cache.set('a', 1);
-      await DV.Cache.set('b', 2);
-      await DV.Cache.clear();
-      expect(await DV.Cache.has('a'), isFalse);
-      expect(await DV.Cache.has('b'), isFalse);
     });
 
     test('a ttl is named, and an expired key is absent', () async {
@@ -48,50 +48,75 @@ void main() {
       expect(await DV.Cache.get<int>('count'), 3);
     });
 
-    test('set takes tags, and revalidating one drops the key', () async {
+    test('the server DV.Cache and DVCache are one cache', () async {
+      await DV.Cache.set('shared', 'one');
+      expect(await const DVCache().get<String>('shared'), 'one');
+    });
+  });
+
+  group('delete', () {
+    // Dart cannot mix an optional positional parameter with named ones, so
+    // the key is named too: delete(key: k), delete(tag: t), delete(all: true).
+    test('delete(tag:) drops every key tagged, and only those', () async {
       await DV.Cache.set(
         'products:names',
         <String>['kit'],
         tags: <String>['products'],
       );
+      await DV.Cache.set('products:count', 1, tags: <String>['products']);
       await DV.Cache.set('orders:open', 4, tags: <String>['orders']);
 
-      final Set<String> dropped = await DV.Cache.revalidateTag('products');
+      await DV.Cache.delete(tag: 'products');
 
-      expect(dropped, <String>{'products:names'});
       expect(await DV.Cache.has('products:names'), isFalse);
+      expect(await DV.Cache.has('products:count'), isFalse);
       expect(await DV.Cache.get<int>('orders:open'), 4);
     });
 
-    test('tag adds tags to an entry that already exists', () async {
-      await DV.Cache.set('users:list', 'everyone');
-      DV.Cache.tag('users:list', <String>['users']);
+    test('delete(all: true) drops every key and every tag', () async {
+      await DV.Cache.set('a', 1, tags: <String>['letters']);
+      await DV.Cache.set('b', 2);
 
-      await DV.Cache.revalidateTag('users');
-      expect(await DV.Cache.has('users:list'), isFalse);
+      await DV.Cache.delete(all: true);
+
+      expect(await DV.Cache.has('a'), isFalse);
+      expect(await DV.Cache.has('b'), isFalse);
+      expect(DVCacheRuntime.tags, isEmpty);
     });
 
-    test('the server DV.Cache and DVCache are one cache', () async {
-      await DV.Cache.set('shared', 'one');
-      expect(await const DVCache().get<String>('shared'), 'one');
-    });
+    // Each of these is a call that would otherwise do something plausible and
+    // wrong: drop one key when the caller meant a tag, or nothing at all.
+    final Map<String, Future<void> Function()> ambiguous =
+        <String, Future<void> Function()>{
+          'nothing': () => DV.Cache.delete(),
+          'all: false alone': () => DV.Cache.delete(all: false),
+          'a key and a tag': () => DV.Cache.delete(key: 'k', tag: 't'),
+          'a key and all': () => DV.Cache.delete(key: 'k', all: true),
+          'a tag and all': () => DV.Cache.delete(tag: 't', all: true),
+          'all three': () => DV.Cache.delete(key: 'k', tag: 't', all: true),
+        };
+    for (final MapEntry<String, Future<void> Function()> call
+        in ambiguous.entries) {
+      test('delete with ${call.key} is an ArgumentError', () async {
+        await DV.Cache.set('k', 'kept', tags: <String>['t']);
 
-    test('configure swaps the store behind every call', () async {
-      final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
-      const DVCache().configure(store);
-
-      await DV.Cache.set('k', 'v');
-      expect(await store.read('k'), 'v');
-    });
+        await expectLater(call.value, throwsArgumentError);
+        expect(
+          await DV.Cache.get<String>('k'),
+          'kept',
+          reason: 'a refused delete removes nothing',
+        );
+      });
+    }
   });
 
-  group('remember', () {
+  group('get with compute:', () {
     test('computes on a miss and serves the stored value after', () async {
       int computes = 0;
       Future<String> compute() async => 'v${++computes}';
 
-      expect(await DV.Cache.remember<String>('k', compute), 'v1');
-      expect(await DV.Cache.remember<String>('k', compute), 'v1');
+      expect(await DV.Cache.get<String>('k', compute: compute), 'v1');
+      expect(await DV.Cache.get<String>('k', compute: compute), 'v1');
       expect(computes, 1);
       expect(await DV.Cache.get<String>('k'), 'v1');
     });
@@ -100,17 +125,17 @@ void main() {
       int computes = 0;
       Future<String> compute() async => 'v${++computes}';
 
-      await DV.Cache.remember<String>(
+      await DV.Cache.get<String>(
         'k',
-        compute,
+        compute: compute,
         ttl: const Duration(milliseconds: 20),
       );
       await Future<void>.delayed(const Duration(milliseconds: 40));
 
       expect(
-        await DV.Cache.remember<String>(
+        await DV.Cache.get<String>(
           'k',
-          compute,
+          compute: compute,
           ttl: const Duration(milliseconds: 20),
         ),
         'v2',
@@ -118,20 +143,20 @@ void main() {
     });
 
     test(
-      'tags are a parameter: revalidating one makes it compute again',
+      'tags are an option: deleting the tag makes it compute again',
       () async {
         int computes = 0;
         Future<List<String>> compute() async => <String>['kit ${++computes}'];
 
-        await DV.Cache.remember<List<String>>(
+        await DV.Cache.get<List<String>>(
           'products:names',
-          compute,
+          compute: compute,
           tags: <String>['products'],
         );
-        await DV.Cache.revalidateTag('products');
-        final List<String> again = await DV.Cache.remember<List<String>>(
+        await DV.Cache.delete(tag: 'products');
+        final List<String>? again = await DV.Cache.get<List<String>>(
           'products:names',
-          compute,
+          compute: compute,
           tags: <String>['products'],
         );
 
@@ -148,10 +173,10 @@ void main() {
         return 'value';
       }
 
-      final List<String> results = await Future.wait(<Future<String>>[
-        DV.Cache.remember('expensive', compute),
-        DV.Cache.remember('expensive', compute),
-        DV.Cache.remember('expensive', compute),
+      final List<String?> results = await Future.wait(<Future<String?>>[
+        DV.Cache.get<String>('expensive', compute: compute),
+        DV.Cache.get<String>('expensive', compute: compute),
+        DV.Cache.get<String>('expensive', compute: compute),
       ]);
 
       expect(results, everyElement('value'));
@@ -162,10 +187,13 @@ void main() {
       await DV.Cache.set('warm', 'cached');
       bool computed = false;
 
-      final String result = await DV.Cache.remember<String>('warm', () async {
-        computed = true;
-        return 'fresh';
-      });
+      final String? result = await DV.Cache.get<String>(
+        'warm',
+        compute: () async {
+          computed = true;
+          return 'fresh';
+        },
+      );
 
       expect(result, 'cached');
       expect(computed, isFalse);
@@ -175,10 +203,16 @@ void main() {
       'a throwing compute is not cached and does not wedge the key',
       () async {
         await expectLater(
-          DV.Cache.remember<String>('bad', () async => throw StateError('x')),
+          DV.Cache.get<String>(
+            'bad',
+            compute: () async => throw StateError('x'),
+          ),
           throwsStateError,
         );
-        expect(await DV.Cache.remember<String>('bad', () async => 'ok'), 'ok');
+        expect(
+          await DV.Cache.get<String>('bad', compute: () async => 'ok'),
+          'ok',
+        );
       },
     );
 
@@ -186,10 +220,10 @@ void main() {
       'a list read back from a JSON store is a hit, not a recompute',
       () async {
         // A database, Redis or Memcached store hands back List<dynamic>. Read
-        // as List<String> that used to be a type miss, so remember computed
-        // on every call against any store but memory -- a cache that never
-        // caches, and nothing says so.
-        const DVCache().configure(
+        // as List<String> that used to be a type miss, so a read-through get
+        // computed on every call against any store but memory -- a cache that
+        // never caches, and nothing says so.
+        DVCacheRuntime.configure(
           DVDatabaseCacheAdapter(MemoryDVDatabaseAdapter()),
         );
         int computes = 0;
@@ -198,10 +232,10 @@ void main() {
           return <String>['kit'];
         }
 
-        await DV.Cache.remember<List<String>>('names', compute);
-        final List<String> second = await DV.Cache.remember<List<String>>(
+        await DV.Cache.get<List<String>>('names', compute: compute);
+        final List<String>? second = await DV.Cache.get<List<String>>(
           'names',
-          compute,
+          compute: compute,
         );
 
         expect(second, <String>['kit']);
@@ -209,9 +243,40 @@ void main() {
         expect(await DV.Cache.get<List<String>>('names'), <String>['kit']);
       },
     );
+
+    // Options that only mean something to a compute would otherwise be
+    // dropped without a word: a ttl that never applies, a tag that never
+    // lands, a stale window that is never served.
+    final Map<String, Future<Object?> Function()> orphaned =
+        <String, Future<Object?> Function()>{
+          'ttl:': () =>
+              DV.Cache.get<String>('k', ttl: const Duration(minutes: 1)),
+          'tags:': () => DV.Cache.get<String>('k', tags: <String>['t']),
+          'staleFor:': () =>
+              DV.Cache.get<String>('k', staleFor: const Duration(minutes: 1)),
+        };
+    for (final MapEntry<String, Future<Object?> Function()> call
+        in orphaned.entries) {
+      test('${call.key} without compute: is an ArgumentError', () async {
+        await expectLater(call.value, throwsArgumentError);
+      });
+    }
+
+    test('staleFor: without ttl: is an ArgumentError', () async {
+      // Without a ttl there is no point at which a value turns stale, so the
+      // window could never be served.
+      await expectLater(
+        () => DV.Cache.get<String>(
+          'k',
+          compute: () async => 'v',
+          staleFor: const Duration(minutes: 1),
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 
-  group('remember with staleFor', () {
+  group('get with staleFor:', () {
     test(
       'serves the stale value at once and refreshes it once behind',
       () async {
@@ -219,9 +284,9 @@ void main() {
         Future<String> compute() async => 'v${++computes}';
 
         expect(
-          await DV.Cache.remember<String>(
+          await DV.Cache.get<String>(
             'feed',
-            compute,
+            compute: compute,
             ttl: const Duration(milliseconds: 10),
             staleFor: const Duration(minutes: 1),
           ),
@@ -229,16 +294,16 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        final List<String> stale = await Future.wait(<Future<String>>[
-          DV.Cache.remember<String>(
+        final List<String?> stale = await Future.wait(<Future<String?>>[
+          DV.Cache.get<String>(
             'feed',
-            compute,
+            compute: compute,
             ttl: const Duration(minutes: 1),
             staleFor: const Duration(minutes: 1),
           ),
-          DV.Cache.remember<String>(
+          DV.Cache.get<String>(
             'feed',
-            compute,
+            compute: compute,
             ttl: const Duration(minutes: 1),
             staleFor: const Duration(minutes: 1),
           ),
@@ -247,9 +312,9 @@ void main() {
 
         await Future<void>.delayed(const Duration(milliseconds: 20));
         expect(
-          await DV.Cache.remember<String>(
+          await DV.Cache.get<String>(
             'feed',
-            compute,
+            compute: compute,
             ttl: const Duration(minutes: 1),
             staleFor: const Duration(minutes: 1),
           ),
@@ -263,18 +328,18 @@ void main() {
       int computes = 0;
       Future<String> compute() async => 'v${++computes}';
 
-      await DV.Cache.remember<String>(
+      await DV.Cache.get<String>(
         'gone',
-        compute,
+        compute: compute,
         ttl: const Duration(milliseconds: 5),
         staleFor: const Duration(milliseconds: 5),
       );
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       expect(
-        await DV.Cache.remember<String>(
+        await DV.Cache.get<String>(
           'gone',
-          compute,
+          compute: compute,
           ttl: const Duration(minutes: 1),
           staleFor: const Duration(minutes: 1),
         ),
@@ -282,50 +347,224 @@ void main() {
       );
     });
 
-    test('the key holds the plain value, so get reads it', () async {
-      await DV.Cache.remember<String>(
+    test('the key holds the plain value, so a plain get reads it', () async {
+      await DV.Cache.get<String>(
         'feed',
-        () async => 'value',
+        compute: () async => 'value',
         ttl: const Duration(minutes: 1),
         staleFor: const Duration(minutes: 1),
       );
 
       expect(await DV.Cache.get<String>('feed'), 'value');
     });
+  });
 
-    test('staleWhileRevalidate, the old name, still works', () async {
-      // ignore: deprecated_member_use_from_same_package
-      final String value = await DV.Cache.staleWhileRevalidate<String>(
-        'old',
-        ttl: const Duration(minutes: 1),
-        compute: () async => 'value',
+  group('withAdapter', () {
+    // dartvel.cache sets the store DV.Cache uses; withAdapter switches store
+    // in code, with the same four calls and options.
+    test(
+      'every call goes to the given adapter and never to the default',
+      () async {
+        final DVMemoryCacheAdapter fallback = DVMemoryCacheAdapter();
+        DVCacheRuntime.configure(fallback);
+        final DVMemoryCacheAdapter other = DVMemoryCacheAdapter();
+        final DVCacheView cache = DV.Cache.withAdapter(other);
+
+        await cache.set('k', 'v', ttl: const Duration(minutes: 1));
+        expect(await other.read('k'), 'v');
+        expect(await fallback.read('k'), isNull);
+        expect(await DV.Cache.has('k'), isFalse);
+        expect(await cache.has('k'), isTrue);
+        expect(await cache.get<String>('k'), 'v');
+
+        expect(
+          await cache.get<String>('computed', compute: () async => 'c'),
+          'c',
+        );
+        expect(await other.read('computed'), 'c');
+        expect(await fallback.read('computed'), isNull);
+
+        await DV.Cache.set('k', 'default');
+        await cache.delete(key: 'k');
+        expect(await other.read('k'), isNull);
+        expect(await DV.Cache.get<String>('k'), 'default');
+
+        await cache.set('x', 1);
+        await cache.delete(all: true);
+        expect(await other.read('x'), isNull);
+        expect(await DV.Cache.get<String>('k'), 'default');
+      },
+    );
+
+    test('tags stay separate per adapter', () async {
+      final DVCacheView a = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+      final DVCacheView b = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+      await DV.Cache.set('k', 'default', tags: <String>['t']);
+      await a.set('k', 'a', tags: <String>['t']);
+      await b.set('k', 'b', tags: <String>['t']);
+
+      await a.delete(tag: 't');
+
+      expect(await a.has('k'), isFalse);
+      expect(await b.get<String>('k'), 'b');
+      expect(await DV.Cache.get<String>('k'), 'default');
+      expect(DVCacheRuntime.keysForTag('t'), <String>{'k'});
+
+      await DV.Cache.delete(tag: 't');
+      expect(await b.get<String>('k'), 'b');
+    });
+
+    test('two views of one adapter are one cache, tags included', () async {
+      final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
+      await DV.Cache.withAdapter(store).set('k', 'v', tags: <String>['t']);
+
+      await DV.Cache.withAdapter(store).delete(tag: 't');
+
+      expect(await store.read('k'), isNull);
+    });
+
+    test(
+      'concurrent computes are shared per adapter, not across them',
+      () async {
+        int computes = 0;
+        Future<String> compute() async {
+          computes++;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return 'value';
+        }
+
+        final DVCacheView a = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+        final DVCacheView b = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+        await Future.wait(<Future<String?>>[
+          a.get<String>('k', compute: compute),
+          a.get<String>('k', compute: compute),
+          b.get<String>('k', compute: compute),
+          b.get<String>('k', compute: compute),
+        ]);
+
+        expect(computes, 2, reason: 'one compute per adapter');
+        expect(await DV.Cache.has('k'), isFalse);
+      },
+    );
+
+    test('the stale window works on a switched adapter', () async {
+      final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
+      final DVCacheView cache = DV.Cache.withAdapter(store);
+      int computes = 0;
+      Future<String> compute() async => 'v${++computes}';
+
+      await cache.get<String>(
+        'feed',
+        compute: compute,
+        ttl: const Duration(milliseconds: 10),
+        staleFor: const Duration(minutes: 1),
       );
-      expect(value, 'value');
-      expect(await DV.Cache.get<String>('old'), 'value');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(
+        await cache.get<String>(
+          'feed',
+          compute: compute,
+          ttl: const Duration(minutes: 1),
+          staleFor: const Duration(minutes: 1),
+        ),
+        'v1',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(await store.read('feed'), 'v2');
+    });
+
+    test('delete on a switched adapter still takes exactly one target', () {
+      final DVCacheView cache = DV.Cache.withAdapter(DVMemoryCacheAdapter());
+      expect(() => cache.delete(), throwsArgumentError);
+    });
+  });
+
+  group('the framework\'s runtime', () {
+    test('configure swaps the store behind every call', () async {
+      final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
+      DVCacheRuntime.configure(store);
+
+      await DV.Cache.set('k', 'v');
+      expect(await store.read('k'), 'v');
+      expect(DVCacheRuntime.adapter, same(store));
+    });
+
+    test('keysForTag and tags name what delete(tag:) would drop', () async {
+      await DV.Cache.set('users:list', 'everyone', tags: <String>['users']);
+
+      expect(DVCacheRuntime.tags, contains('users'));
+      expect(DVCacheRuntime.keysForTag('users'), <String>{'users:list'});
+
+      await DV.Cache.delete(tag: 'users');
+      expect(DVCacheRuntime.keysForTag('users'), isEmpty);
+    });
+
+    test('the global cache is refused until one is configured', () async {
+      DVCacheRuntime.configureGlobal(null);
+      await expectLater(
+        DVCacheRuntime.global.get<String>('k'),
+        throwsStateError,
+      );
+    });
+
+    test('the global cache keeps its entries apart from DV.Cache', () async {
+      final DVMemoryCacheAdapter shared = DVMemoryCacheAdapter();
+      DVCacheRuntime.configureGlobal(shared);
+      addTearDown(() => DVCacheRuntime.configureGlobal(null));
+
+      await DVCacheRuntime.global.set(
+        'k',
+        'everyone',
+        tags: <String>['broadcast'],
+      );
+      expect(await shared.read('k'), 'everyone');
+      expect(await DV.Cache.has('k'), isFalse);
+
+      await DVCacheRuntime.global.delete(tag: 'broadcast');
+      expect(await DVCacheRuntime.global.has('k'), isFalse);
+    });
+
+    test('purgeExpired reclaims what has expired', () async {
+      await DV.Cache.set('short', 'v', ttl: const Duration(milliseconds: 5));
+      await DV.Cache.set('long', 'v');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(await DVCacheRuntime.purgeExpired(), 1);
+      expect(await DV.Cache.has('long'), isTrue);
     });
   });
 
   group('lock', () {
     test('runs the body under the lock and returns what it returns', () async {
-      final int? result = await DV.Cache.lock<int>('report', () async => 42);
+      final int? result = await DVCacheRuntime.lock<int>(
+        'report',
+        () async => 42,
+      );
       expect(result, 42);
     });
 
     test('a second caller is refused while the body runs', () async {
       final Completer<void> inside = Completer<void>();
       final Completer<void> finish = Completer<void>();
-      final Future<String?> first = DV.Cache.lock<String>('report', () async {
-        inside.complete();
-        await finish.future;
-        return 'first';
-      });
+      final Future<String?> first = DVCacheRuntime.lock<String>(
+        'report',
+        () async {
+          inside.complete();
+          await finish.future;
+          return 'first';
+        },
+      );
       await inside.future;
 
       bool ran = false;
-      final String? second = await DV.Cache.lock<String>('report', () async {
-        ran = true;
-        return 'second';
-      });
+      final String? second = await DVCacheRuntime.lock<String>(
+        'report',
+        () async {
+          ran = true;
+          return 'second';
+        },
+      );
 
       expect(second, isNull);
       expect(ran, isFalse);
@@ -336,9 +575,9 @@ void main() {
     test(
       'the lock is released after the body, so the next caller runs',
       () async {
-        await DV.Cache.lock<void>('report', () async {});
+        await DVCacheRuntime.lock<void>('report', () async {});
         expect(
-          await DV.Cache.lock<String>('report', () async => 'next'),
+          await DVCacheRuntime.lock<String>('report', () async => 'next'),
           'next',
         );
       },
@@ -346,24 +585,27 @@ void main() {
 
     test('a body that throws still releases the lock', () async {
       await expectLater(
-        DV.Cache.lock<void>('report', () async => throw StateError('boom')),
+        DVCacheRuntime.lock<void>(
+          'report',
+          () async => throw StateError('boom'),
+        ),
         throwsStateError,
       );
       expect(
-        await DV.Cache.lock<String>('report', () async => 'again'),
+        await DVCacheRuntime.lock<String>('report', () async => 'again'),
         'again',
       );
     });
 
     test('wait: waits for the holder to finish, then runs', () async {
       final Completer<void> inside = Completer<void>();
-      final Future<void> holder = DV.Cache.lock<void>('report', () async {
+      final Future<void> holder = DVCacheRuntime.lock<void>('report', () async {
         inside.complete();
         await Future<void>.delayed(const Duration(milliseconds: 40));
       });
       await inside.future;
 
-      final String? waited = await DV.Cache.lock<String>(
+      final String? waited = await DVCacheRuntime.lock<String>(
         'report',
         () async => 'after',
         wait: const Duration(seconds: 2),
@@ -376,13 +618,13 @@ void main() {
     test('wait: gives up with null when the holder outlasts it', () async {
       final Completer<void> inside = Completer<void>();
       final Completer<void> finish = Completer<void>();
-      final Future<void> holder = DV.Cache.lock<void>('report', () async {
+      final Future<void> holder = DVCacheRuntime.lock<void>('report', () async {
         inside.complete();
         await finish.future;
       });
       await inside.future;
 
-      final String? gaveUp = await DV.Cache.lock<String>(
+      final String? gaveUp = await DVCacheRuntime.lock<String>(
         'report',
         () async => 'never',
         wait: const Duration(milliseconds: 40),
@@ -398,7 +640,7 @@ void main() {
       // bounds how long it can wedge the lock.
       final Completer<void> never = Completer<void>();
       unawaited(
-        DV.Cache.lock<void>(
+        DVCacheRuntime.lock<void>(
           'report',
           () => never.future,
           ttl: const Duration(milliseconds: 20),
@@ -406,12 +648,18 @@ void main() {
       );
       await Future<void>.delayed(const Duration(milliseconds: 40));
 
-      expect(await DV.Cache.lock<String>('report', () async => 'free'), 'free');
+      expect(
+        await DVCacheRuntime.lock<String>('report', () async => 'free'),
+        'free',
+      );
     });
 
     test('a lock does not use up the key of the same name', () async {
       await DV.Cache.set('report', 'cached');
-      expect(await DV.Cache.lock<String>('report', () async => 'ran'), 'ran');
+      expect(
+        await DVCacheRuntime.lock<String>('report', () async => 'ran'),
+        'ran',
+      );
       expect(await DV.Cache.get<String>('report'), 'cached');
     });
   });
@@ -433,33 +681,24 @@ void main() {
       expect(await DV.Cache.get<String>('k'), isNull);
     });
 
-    test(
-      'revalidating a tag removes only the tagging tenant\'s keys',
-      () async {
-        const DVTenants tenants = DVTenants();
-        await tenants.withTenant(
-          'acme',
-          () => DV.Cache.set('users', 'acme', tags: <String>['users']),
-        );
-        await tenants.withTenant(
-          'globex',
-          () => DV.Cache.set('users', 'globex'),
-        );
+    test('deleting a tag removes only the tagging tenant\'s keys', () async {
+      const DVTenants tenants = DVTenants();
+      await tenants.withTenant(
+        'acme',
+        () => DV.Cache.set('users', 'acme', tags: <String>['users']),
+      );
+      await tenants.withTenant('globex', () => DV.Cache.set('users', 'globex'));
 
-        await DV.Cache.revalidateTag('users');
+      await DV.Cache.delete(tag: 'users');
 
-        expect(
-          await tenants.withTenant('acme', () => DV.Cache.has('users')),
-          isFalse,
-        );
-        expect(
-          await tenants.withTenant(
-            'globex',
-            () => DV.Cache.get<String>('users'),
-          ),
-          'globex',
-        );
-      },
-    );
+      expect(
+        await tenants.withTenant('acme', () => DV.Cache.has('users')),
+        isFalse,
+      );
+      expect(
+        await tenants.withTenant('globex', () => DV.Cache.get<String>('users')),
+        'globex',
+      );
+    });
   });
 }

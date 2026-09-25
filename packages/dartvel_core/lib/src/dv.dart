@@ -95,9 +95,10 @@ abstract final class DV {
   static const DVObservabilityAndLogging ObservabilityAndLogging =
       DVObservabilityAndLogging();
 
-  /// The cache: `set`, `get`, `has`, `delete`, `clear`, and `remember`,
-  /// tags and `lock` on top. The same cache a page's `DV.Cache` reaches, in
-  /// the store `dartvel.cache` names.
+  /// The cache: `get`, `set`, `has` and `delete`, with read-through, tags
+  /// and bulk deletes as options on them. The same cache a page's `DV.Cache`
+  /// reaches, in the store `dartvel.cache` names; `withAdapter` switches
+  /// store in code.
   // ignore: non_constant_identifier_names -- the specification's spelling.
   static const DVCache Cache = DVCache();
 
