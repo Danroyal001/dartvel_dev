@@ -19,8 +19,11 @@ export 'src/data/offline_sync.dart';
 // application does not name. See the note in dartvel.dart.
 export 'src/data/record_history.dart'
     show DVRecordTable, DVRecord, DVWriteResult, DVRecordScope;
-export 'src/data/offline_store.dart'
-    show DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
+// The offline runtime: the store and its log, the remotes, the mutations
+// and the replay. A data model that declares offline: uses them; an
+// application saves the model.
+export 'src/data/offline_store.dart';
+export 'src/privacy/privacy.dart' show DVOfflineStorePrivacyAdapter;
 export 'src/search/semantic_search.dart' show DVSemanticIndex;
 export 'src/sync/model_sync.dart' show DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' show DVPresenceTransport;
