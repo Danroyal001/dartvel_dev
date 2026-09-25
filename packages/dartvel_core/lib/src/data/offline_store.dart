@@ -396,8 +396,28 @@ class DVRecordTableRemote implements DVOfflineRemote {
     );
   }
 
+  /// The tables each database has had [ensureSchema] run for, in this
+  /// process.
+  static final Expando<Set<String>> _ensured =
+      Expando<Set<String>>('offline remote schema');
+
+  /// Runs [ensureSchema] the first time this process applies to this table.
+  ///
+  /// The generated route builds its remotes per request and applies
+  /// straight away; nothing on that path prepared the tables of applied ids
+  /// and clocks, so the first replay against a real database failed on a
+  /// missing table and was answered as a server error, which a device reads
+  /// as transient and retries for ever.
+  Future<void> _ensureOnce() async {
+    final Set<String> done = _ensured[_database] ??= <String>{};
+    if (done.contains(table.table)) return;
+    await ensureSchema();
+    done.add(table.table);
+  }
+
   @override
   Future<DVRemoteOutcome> apply(DVMutation mutation) async {
+    await _ensureOnce();
     final List<Map<String, Object?>> seen = await _database.query(
       'SELECT outcome FROM $appliedTable WHERE mutation_id = ?',
       <Object?>[mutation.mutationId],
