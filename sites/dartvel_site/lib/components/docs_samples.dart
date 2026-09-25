@@ -713,10 +713,6 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '// Split a large file into jobs of 500 rows on the imports queue.',
     'await Article.importResumableCsv(csv, queue: \'imports\', chunkSize: 500);',
   ],
-  'jobs-adapter': <String>[
-    '// Jobs survive a restart and are shared by every worker on this database.',
-    'DV.Jobs.useAdapter(DVDatabaseQueueAdapter(DV.Database.adapter));',
-  ],
   'jobs-cron': <String>[
     '// A cron function is public. Every other generation input is private.',
     '\u0040DVBackendCron(\'0 3 * * *\', catchUp: true)',
