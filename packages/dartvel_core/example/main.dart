@@ -100,11 +100,7 @@ Future<void> accounts() async {
 
 /// A typed payload. In an application this is generated from a private
 /// `@DVJob` class, and carries its own `dispatch()`.
-class WelcomeEmail {
-  const WelcomeEmail(this.userId);
-
-  final String userId;
-}
+class const WelcomeEmail(final String userId);
 
 /// Queues: dispatch a typed payload, and let a worker drain it.
 Future<void> jobs() async {
@@ -124,18 +120,9 @@ Future<void> jobs() async {
   );
 }
 
-class Member {
-  const Member(this.id);
+class const Member(final String id);
 
-  final String id;
-}
-
-class Order {
-  const Order({required this.id, required this.ownerId});
-
-  final String id;
-  final String ownerId;
-}
+class const Order({required final String id, required final String ownerId});
 
 /// Authorization is default-deny: an action nobody registered is refused.
 Future<void> authorization() async {
