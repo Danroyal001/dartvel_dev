@@ -5,8 +5,8 @@ import '../dartvel_client/dartvel_client.dart';
 @DVPage(
   title: 'Flutter without a Mac',
   description: 'Flutter without a Mac: what you can build, run and ship from '
-      'a Windows or Linux machine today, and the three honest routes to an '
-      'iOS build when you do not own one.',
+      'a Windows or Linux machine today, what still needs Xcode, and three '
+      'routes to an iOS build when you do not own a Mac.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.9,
@@ -28,22 +28,24 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
             ),
             Body('Apple requires its own tools to compile and sign an iOS or '
                 'macOS application, and those tools run on macOS. That is the '
-                'whole of the restriction, and it is narrower than it sounds: '
-                'everything else needs no Apple hardware at all. Writing the '
-                'app, running it on a real iPhone, the website, Android, '
-                'desktop, TVs, the backend, the database and the admin are '
-                'all the same on Windows and Linux.'),
+                'whole of the restriction, and it covers running on an iPhone '
+                'as well as building for one. Everything else needs no Apple '
+                'hardware: writing the app, the website, Android, the Windows '
+                'or Linux desktop, Samsung TVs, the backend, the database and '
+                'the admin.'),
             Bullets(<String>[
-              'On Windows or Linux today: dartvel dev, dartvel build web, '
-                  'web-server, android, linux, windows, tizen, webos, '
-                  'sony-elinux and vscode.',
-              'The Mac is needed for exactly two commands: dartvel build ios '
-                  'and dartvel build macos (and tvos, which is an Apple '
-                  'target too).',
-              'You can still test on an iPhone without one. See below.',
+              'On Windows or Linux: dartvel dev, and dartvel build web, '
+                  'web-server, android, tizen and vscode. Flutter does not '
+                  'cross-compile desktops, so windows builds on Windows, and '
+                  'linux and sony-elinux build on Linux.',
+              'The Mac is needed for dartvel build ios, macos and tvos, and '
+                  'for running a development build on an iPhone or the iOS '
+                  'simulator.',
+              'Testing on a phone without a Mac means an Android phone. See '
+                  'below.',
             ]),
             UpstreamCredits(ids: <String>[
-              'tizen', 'webos', 'elinux', 'vscode', 'tvos',
+              'tizen', 'elinux', 'vscode',
             ]),
           ],
         ),
@@ -56,10 +58,12 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               columns: <String>['Task', 'Needs a Mac?'],
               rows: <List<String>>[
                 <String>['Write the app, hot reload, dartvel dev', 'No'],
-                <String>['Run it on a real iPhone over the pairing QR code', 'No'],
+                <String>['Pair an Android phone over the QR code', 'No'],
+                <String>['Pair an iPhone or the iOS simulator', 'Yes, Xcode starts the development build'],
                 <String>['dartvel build web and web-server', 'No'],
                 <String>['dartvel build android, and ship to Google Play', 'No'],
-                <String>['dartvel build windows, linux, and the TV targets', 'No'],
+                <String>['dartvel build windows or linux', 'No Mac, and each on its own operating system'],
+                <String>['dartvel build tizen, sony-elinux, vscode', 'No'],
                 <String>['Backend, database, auth, queues, Studio', 'No'],
                 <String>['dartvel build ios, macos, tvos', 'Yes, Xcode'],
                 <String>['Signing an IPA, and App Store submission', 'Yes, Xcode'],
@@ -69,15 +73,18 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
         ),
         Section(
           children: <Widget>[
-            Eyebrow('TEST ON AN IPHONE'),
-            Heading('dartvel dev pairs a phone, and that includes an iPhone.'),
-            Body('dartvel dev serves your app and prints a QR code. Scanning '
-                'it from an iPhone opens the app the development server is '
-                'running. No Apple developer account, no signing, no '
-                'provisioning profile, and no Mac. It is not a store build, '
-                'so it is not how you ship; it is how you see your work on '
-                'the device while you build it.'),
+            Eyebrow('TEST ON A PHONE'),
+            Heading('dartvel dev pairs a phone. Without a Mac, that phone runs Android.'),
+            Body('dartvel dev prints a QR code that pairs a development build '
+                'of your app, and every save hot reloads it. On Android the '
+                'development build installs like any APK and needs nothing '
+                'from Apple. On an iPhone it is a debug build that has to be '
+                'started from Xcode or flutter run, and in CI the iOS '
+                'pairing is proven on the simulator, which also needs a Mac. '
+                'Expo users are used to scanning a code with Expo Go on an '
+                'iPhone and no Mac; Dartvel has no equivalent of Expo Go.'),
             CodeBlock(<String>[
+              'dartvel build android --profile development',
               'dartvel dev',
               '# scan the QR code from the phone',
             ]),
@@ -116,9 +123,12 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
             Eyebrow('HONESTLY'),
             Heading('What this page is not claiming.'),
             Bullets(<String>[
-              'Dartvel does not compile iOS on Linux. Nothing does, legally '
-                  'or reliably, and a framework that claimed otherwise would '
-                  'be lying to you.',
+              'Flutter builds and runs iOS apps through Xcode, and Xcode '
+                  'runs only on macOS, so Dartvel does not compile iOS on '
+                  'Linux or Windows.',
+              'Coming from Expo, this is a place Expo is ahead: Expo Go runs '
+                  'a project on an iPhone with no Mac, and EAS Build makes '
+                  'iOS builds on its own machines today.',
               'Dartvel Cloud is not open. Until it is, the macOS step is a '
                   'runner you configure or a Mac you rent.',
               'An App Store submission needs an Apple Developer account '
@@ -128,9 +138,10 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'So why is this better than plain Flutter?',
               'Plain Flutter has the same Apple restriction and none of the '
                   'rest: no pairing QR code, no backend, no admin, no store '
-                  'submission command, no over-the-air patches, and no TV or '
-                  'embedded targets. The Mac question is the same; everything '
-                  'around it is not.',
+                  'submission command, no over-the-air patches, and no build '
+                  'command for Samsung TVs, Apple TV or Sony embedded Linux. '
+                  'The Mac question is the same; everything around it is '
+                  'not.',
             ),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('Start an app', '/docs'),
