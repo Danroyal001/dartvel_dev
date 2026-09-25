@@ -15,6 +15,16 @@ environment:
   # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
   sdk: ">=3.12.0 <4.0.0"
 
+# Declared, because pub.dev infers platforms from imports and follows
+# ones that only run on their own platform.
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
 dependencies:
   flutter:
     sdk: flutter

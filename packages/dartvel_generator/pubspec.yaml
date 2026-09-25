@@ -14,6 +14,12 @@ environment:
   sdk: ">=3.12.0 <4.0.0"
 
 # Add regular dependencies here.
+# A development tool: it runs where a developer builds.
+platforms:
+  linux:
+  macos:
+  windows:
+
 dependencies:
   build: ^4.0.0
   source_gen: ^4.1.1
