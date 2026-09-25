@@ -15,6 +15,13 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 # Add regular dependencies here.
+# A development tool: it runs where a developer builds. See
+# tool/pubspec_platforms_check.dart.
+platforms:
+  linux:
+  macos:
+  windows:
+
 dependencies:
   build: ^4.0.0
   source_gen: ^4.1.1
