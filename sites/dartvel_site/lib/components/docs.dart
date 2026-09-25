@@ -157,7 +157,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Backend': 'Shipped',
   'Background and Durable Work': 'Shipped',
   'Billing': 'Partial',
-  'Cache': 'Shipped',
+  'Cache': 'Partial',
   'Change Data Capture and Warehouse Sync': 'Partial',
   'CLI': 'Partial',
   'Commerce: Tax, Promotions, Disputes and Payouts': 'Partial',

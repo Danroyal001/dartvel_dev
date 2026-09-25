@@ -360,10 +360,6 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '});',
     'if (sent == null) DV.log(\'Another server is sending the report.\');',
   ],
-  'cache-redis': <String>[
-    'final DVRedisClient client = await DVRedisClient.connect(host: \'cache.internal\');',
-    'DV.Cache.configure(DVRedisCacheAdapter(client));',
-  ],
   'cache-remember': <String>[
     'Future<List<String>> productNames() => DV.Cache.remember<List<String>>(',
     '      \'products:names\',',
@@ -1839,6 +1835,12 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '    delete: false',
     '    signIn: /sign-in',
     '  deletionGraceDays: 14',
+  ],
+  'yaml-cache': <String>[
+    'cache:',
+    '  store: redis        # memory (default), database, redis or memcached',
+    '  url: \${REDIS_URL}   # read from the environment when the server starts',
+    '  prefix: "shop:"',
   ],
   'yaml-cors': <String>[
     'server:',
