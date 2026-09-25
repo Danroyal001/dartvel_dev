@@ -1486,6 +1486,10 @@ class DVCaptureConsumer {
   /// keeps whichever of the copy and the stream is newer. A tenant consumer
   /// needs [tenantColumn]: a row with no tenant on it cannot be shown to
   /// belong to that tenant.
+  ///
+  /// A consumer that already has a position within retention is first
+  /// brought to the head by delivery, so moving its checkpoint skips nothing
+  /// another model's copy was relying on the stream for.
   Future<DVCaptureBackfillProgress> backfill(
     DVRecordTable table, {
     int chunkSize = 500,
@@ -1548,7 +1552,20 @@ class DVCaptureConsumer {
           where: _backfillOf(model),
         );
       }
-      if (await checkpoint() < through) await _saveCheckpoint(through);
+      final int? at = await position();
+      if (at != null &&
+          at < through &&
+          at >= (await capture._state()).pruned) {
+        // Changes before [through] that this consumer has not delivered yet
+        // are delivered first, where the log still holds them: they may be
+        // another model's, whose copy finished earlier and relies on the
+        // stream for everything after it. Behind retention nothing is left
+        // to deliver, and a backfill is the only way forward.
+        while ((await _deliverOnce()).read >= batchSize) {}
+      }
+      if (await checkpoint() < through || await position() == null) {
+        await _saveCheckpoint(math.max(await checkpoint(), through));
+      }
       final DVCaptureSchemaChange shape = DVCaptureSchemaChange(
         sequence: through,
         model: model,
