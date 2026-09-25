@@ -85,6 +85,11 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
                 'without dv_tenant is refused. An operator report says so '
                 'out loud:'),
             DocsCode('tenancy-across'),
+            DocsNote('Being replaced by data model queries',
+                'This report is a SQL string, which is leaving the '
+                'application surface. A cross-tenant read will be a data '
+                'model query inside DV.Database.acrossTenants once model '
+                'queries exist.'),
             DocsText('Group the people inside a tenant into an organization '
                 'with roles and invitations. See Organizations.'),
           ],
@@ -97,6 +102,8 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
               'schema-per-tenant and database-per-tenant do not create the '
                   'schemas or databases.',
               'Hosted search engines are not scoped by tenant.',
+              'database-per-tenant is opened by code you write, not chosen '
+                  'from configuration.',
             ]),
           ],
         ),
