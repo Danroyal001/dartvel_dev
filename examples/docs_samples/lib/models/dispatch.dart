@@ -6,15 +6,9 @@ import 'package:dartvel_core/dartvel.dart';
 // is declared: the device keeps its own copy and a queue, and the server
 // applies what the device sends, both from this declaration.
 @DVModel(offline: DVConflict.lastWriteWins)
-class _Dispatch {
-  final String id;
-  final String reference;
-  final int quantity;
-
-  const _Dispatch({
-    required this.id,
-    required this.reference,
-    required this.quantity,
-  });
-}
+class const _Dispatch({
+  required final String id,
+  required final String reference,
+  required final int quantity,
+});
 // docs:end

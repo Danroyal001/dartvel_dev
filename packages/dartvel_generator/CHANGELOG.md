@@ -1,3 +1,18 @@
+## Unreleased
+
+- **The retired builders read Dart 3.13.** `analyzer` is `^14.4.0`, which
+  parses primary constructors; on the 10.x it required, any library
+  written with one failed the build with "This requires the
+  'primary-constructors' language feature to be enabled".
+
+- **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
+  is the first release with primary constructors
+  (`class Point(final int x, final int y);`), which the `dartvel create`
+  scaffold, the samples and generated data models are written with; on Dart
+  3.12 they are a compile error. Flutter 3.47.0 is the first stable release
+  that ships Dart 3.13.0. Raise `environment: sdk:` to `">=3.13.0 <4.0.0"`
+  and upgrade Flutter before taking this release.
+
 ## 1.3.1
 
 - Accepts dartvel_core 0.6.0. No change to what it generates; the builders

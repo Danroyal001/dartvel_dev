@@ -14,7 +14,7 @@ const String _pubspec = '''
 name: tabs_probe
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   prodBackendHost: https://example.com
 ''';

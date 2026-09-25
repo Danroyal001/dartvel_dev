@@ -1,11 +1,7 @@
 // The coffees someone wants to remember.
 import '../dartvel_client/dartvel_client.dart';
 
-class SavedCoffees {
-  const SavedCoffees([this.slugs = const <String>{}]);
-
-  final Set<String> slugs;
-
+class const SavedCoffees([final Set<String> slugs = const <String>{}]) {
   bool contains(String slug) => slugs.contains(slug);
 
   SavedCoffees toggle(String slug) => SavedCoffees(

@@ -5,7 +5,7 @@ version: 0.0.1
 
 environment:
   # One floor for every Dartvel package; see the root pubspec.
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:

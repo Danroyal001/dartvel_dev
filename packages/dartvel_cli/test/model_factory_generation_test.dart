@@ -56,7 +56,7 @@ Future<String> generate() async {
 
 /// Just the factory class.
 String factoryOf(String generated) {
-  final int start = generated.indexOf('class UserFactory {');
+  final int start = generated.indexOf('class const UserFactory(');
   final int end = generated.indexOf('\nclass ', start + 1);
   return generated.substring(start, end < 0 ? generated.length : end);
 }

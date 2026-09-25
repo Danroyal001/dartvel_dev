@@ -302,7 +302,7 @@ void main() {
 name: account_factors_probe
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dependencies:
   dartvel_core:
     path: ${p.join(packages, 'dartvel_core')}

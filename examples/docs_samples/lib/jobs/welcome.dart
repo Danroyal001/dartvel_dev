@@ -5,11 +5,7 @@ import '../dartvel_client/jobs.g.dart';
 import 'package:dartvel_core/dartvel.dart';
 
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class _SendWelcomeEmail {
-  final String userId;
-
-  const _SendWelcomeEmail({required this.userId});
-}
+class const _SendWelcomeEmail({required final String userId});
 
 @DVJob.handler()
 Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) =>

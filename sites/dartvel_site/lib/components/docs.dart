@@ -251,13 +251,15 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
 /// Held in a State, one set per page. A link preview builds a second live
 /// copy of a page while the first is still up, and keys shared across the
 /// program would leave one copy without its sections.
-class DocsAnchors extends StatefulWidget {
-  const DocsAnchors({super.key, required this.ids, required this.builder});
-
-  final List<String> ids;
-  final Widget Function(BuildContext context, Map<String, GlobalKey> keys)
-      builder;
-
+class const DocsAnchors({
+  super.key,
+  required final List<String> ids,
+  required final Widget Function(
+    BuildContext context,
+    Map<String, GlobalKey> keys,
+  )
+  builder,
+}) extends StatefulWidget {
   /// The keys of the page [context] is in, or null outside one.
   static Map<String, GlobalKey>? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_DocsAnchorKeys>()?.keys;
@@ -283,11 +285,10 @@ class _DocsAnchorsState extends State<DocsAnchors> {
   }
 }
 
-class _DocsAnchorKeys extends InheritedWidget {
-  const _DocsAnchorKeys({required this.keys, required super.child});
-
-  final Map<String, GlobalKey> keys;
-
+class const _DocsAnchorKeys({
+  required final Map<String, GlobalKey> keys,
+  required super.child,
+}) extends InheritedWidget {
   @override
   bool updateShouldNotify(_DocsAnchorKeys oldWidget) => keys != oldWidget.keys;
 }
@@ -315,11 +316,8 @@ void dvDocsGoTo(BuildContext context, String id) {
 /// is found by its key in the enclosing [DocsAnchors]. Frames are retried a
 /// few times, because a page that loads deferred code builds its sections a
 /// frame or two after this is first built.
-class ScrollToFragment extends StatefulWidget {
-  const ScrollToFragment({super.key, required this.child});
-
-  final Widget child;
-
+class const ScrollToFragment({super.key, required final Widget child})
+    extends StatefulWidget {
   @override
   State<ScrollToFragment> createState() => _ScrollToFragmentState();
 }

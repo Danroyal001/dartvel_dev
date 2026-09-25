@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../utils/helpers.dart';
+import '../generators/primary_constructors.dart';
 
 class DartvelConfig {
   final String packageName;
@@ -209,7 +210,7 @@ class DartvelDartConfigReference {
         file.path,
       );
     }
-    final content = file.readAsStringSync();
+    final content = dvDesugarPrimaryConstructors(file.readAsStringSync());
     final match = RegExp(
       r'class\s+([A-Z][A-Za-z0-9_]*)\s+extends\s+DartvelConfig\b',
     ).firstMatch(content);

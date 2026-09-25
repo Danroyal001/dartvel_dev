@@ -43,14 +43,12 @@ Widget _blogIdPage(BuildContext context) => (() {
   );
 })();
 
-class BrewGuide {
-  const BrewGuide(this.title, this.intro, this.facts, this.steps);
-
-  final String title;
-  final String intro;
-  final Map<String, String> facts;
-  final List<String> steps;
-}
+class const BrewGuide(
+  final String title,
+  final String intro,
+  final Map<String, String> facts,
+  final List<String> steps,
+);
 
 const Map<String, BrewGuide> brewGuides = <String, BrewGuide>{
   'pour-over': BrewGuide(

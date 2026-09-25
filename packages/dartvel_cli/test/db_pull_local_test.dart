@@ -89,14 +89,17 @@ void main() {
       final String suggestion = dvModelSuggestion(table('Todos'));
 
       expect(suggestion, contains('@DVModel()'));
-      expect(suggestion, contains('class _Todo {'),
-          reason: 'drift names the row class by dropping the trailing s');
-      expect(suggestion, contains('final int id;'));
-      expect(suggestion, contains('final String title;'));
-      expect(suggestion, contains('final String? note;'));
-      expect(suggestion, contains('final bool done;'));
-      expect(suggestion, contains('final DateTime? dueAt;'));
-      expect(suggestion, contains('final double estimate;'));
+      expect(
+        suggestion,
+        contains('class const _Todo({'),
+        reason: 'drift names the row class by dropping the trailing s',
+      );
+      expect(suggestion, contains('required final int id,'));
+      expect(suggestion, contains('required final String title,'));
+      expect(suggestion, contains('final String? note,'));
+      expect(suggestion, contains('required final bool done,'));
+      expect(suggestion, contains('final DateTime? dueAt,'));
+      expect(suggestion, contains('required final double estimate,'));
     });
 
     test('a column with no model type is named, not dropped', () {
@@ -104,14 +107,17 @@ void main() {
 
       final DVLocalTable todos = table('Todos');
 
-      expect(dvModelSuggestion(todos), isNot(contains('attachment;')));
+      expect(dvModelSuggestion(todos), isNot(contains('attachment')));
       expect(todos.unmapped.single, contains('attachment'));
     });
 
     test('@DataClassName names the model', () {
       write('lib/db/tables.dart', _drift);
 
-      expect(dvModelSuggestion(table('People')), contains('class _Person {'));
+      expect(
+        dvModelSuggestion(table('People')),
+        contains('class const _Person({'),
+      );
     });
 
     test('a commented-out table is not a table', () {
@@ -132,9 +138,9 @@ void main() {
     final String suggestion = dvModelSuggestion(contact);
 
     expect(contact.kind, 'isar');
-    expect(suggestion, contains('final int id;'));
-    expect(suggestion, contains('final String name;'));
-    expect(suggestion, contains('final String? email;'));
+    expect(suggestion, contains('required final int id,'));
+    expect(suggestion, contains('required final String name,'));
+    expect(suggestion, contains('final String? email,'));
     expect(suggestion, isNot(contains('cached')));
     expect(suggestion, isNot(contains('initials')));
     expect(contact.unmapped.single, contains('tags'));
@@ -147,12 +153,15 @@ void main() {
     final String suggestion = dvModelSuggestion(items);
 
     expect(items.kind, 'sqflite');
-    expect(suggestion, contains('class _TodoItem {'));
-    expect(suggestion, contains('final int id;'),
-        reason: 'a primary key is not null');
-    expect(suggestion, contains('final String title;'));
-    expect(suggestion, contains('final String? note;'));
-    expect(suggestion, contains('final bool done;'));
+    expect(suggestion, contains('class const _TodoItem({'));
+    expect(
+      suggestion,
+      contains('required final int id,'),
+      reason: 'a primary key is not null',
+    );
+    expect(suggestion, contains('required final String title,'));
+    expect(suggestion, contains('final String? note,'));
+    expect(suggestion, contains('required final bool done,'));
     expect(suggestion, isNot(contains('FOREIGN')));
     expect(items.unmapped.single, contains('photo'));
   });
@@ -192,8 +201,8 @@ void main() {
 
       final String out = await run(<String>['pull', '--local']);
 
-      expect(out, contains('class _Todo {'));
-      expect(out, contains('class _TodoItem {'));
+      expect(out, contains('class const _Todo({'));
+      expect(out, contains('class const _TodoItem({'));
       expect(out, contains('lib/db/tables.dart:3'));
       expect(out.toLowerCase(), contains('nothing was written'));
       expect(out, contains('sensitive'),

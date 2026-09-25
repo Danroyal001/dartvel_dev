@@ -102,7 +102,7 @@ class _Post {
     expect(body.indexOf('model.author'), lessThan(body.indexOf('model.id')));
     // @DVModel.hideFromPage() keeps the field off the page but on the model.
     expect(body, isNot(contains('internalReference')));
-    expect(generated, contains('final String internalReference;'));
+    expect(generated, contains('required final String internalReference,'));
   });
 
   test('composition is inferred when nothing is annotated', () async {

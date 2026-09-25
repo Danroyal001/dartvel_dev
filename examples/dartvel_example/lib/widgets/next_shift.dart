@@ -17,9 +17,7 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
 @DVHomeWidget(title: 'Next shift')
-class NextShiftWidget extends StatelessWidget {
-  const NextShiftWidget({super.key});
-
+class const NextShiftWidget({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const DVBox.list(<Widget>[
     DVText('Tomorrow, 07:00'),

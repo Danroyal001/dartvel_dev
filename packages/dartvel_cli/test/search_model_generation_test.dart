@@ -52,8 +52,8 @@ class _User {
           content,
           isNot(contains("export 'package:search_app/models/user.dart'")),
         );
-        expect(content, contains('class User {'));
-        expect(content, contains('const User({'));
+        expect(content, contains('class const User({'));
+        expect(content, contains('  required final String name,'));
         // Form creates on the class and edits on the instance, and neither
         // takes a callback.
         expect(content, contains('static Widget Form() =>'));
@@ -79,8 +79,8 @@ class _User {
         expect(content, isNot(contains('Widget UserList(')));
         expect(content, isNot(contains('Widget UserTable(')));
         expect(content, isNot(contains('Widget UserPage(')));
-        expect(content, contains('class UserFacets'));
-        expect(content, contains('final List<String>? name;'));
+        expect(content, contains('class const UserFacets'));
+        expect(content, contains('final List<String>? name'));
         // Search is the model's: no companion class to learn.
         expect(content, isNot(contains('class UserSearch {')));
         expect(content, contains('static void useSearchProvider('));
@@ -131,7 +131,7 @@ class _User {
         p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
       ).readAsStringSync();
 
-      expect(content, contains('final List<String>? name;'));
+      expect(content, contains('final List<String>? name'));
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -182,8 +182,8 @@ class _User {
       ).readAsStringSync();
 
       final facets = content.substring(
-        content.indexOf('class UserFacets'),
-        content.indexOf('}', content.indexOf('class UserFacets')),
+        content.indexOf('class const UserFacets'),
+        content.indexOf('}', content.indexOf('class const UserFacets')),
       );
       expect(facets, contains('name'));
       expect(facets, isNot(contains('passwordHash')));
@@ -232,8 +232,8 @@ class _User {
       ).readAsStringSync();
 
       final facets = content.substring(
-        content.indexOf('class UserFacets'),
-        content.indexOf('}', content.indexOf('class UserFacets')),
+        content.indexOf('class const UserFacets'),
+        content.indexOf('}', content.indexOf('class const UserFacets')),
       );
       expect(facets, contains('name'));
       expect(facets, isNot(contains('ssn')));

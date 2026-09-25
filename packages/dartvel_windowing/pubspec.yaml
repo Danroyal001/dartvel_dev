@@ -6,7 +6,7 @@ homepage: https://dartvel.dev
 publish_to: none
 environment:
   # One floor for every Dartvel package, deliberately.
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:

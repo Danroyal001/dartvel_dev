@@ -17,19 +17,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// One string the site can render, and where it starts.
-class Literal {
-  const Literal(this.file, this.line, this.text);
-  final String file;
-  final int line;
-  final String text;
-}
+class const Literal(final String file, final int line, final String text);
 
 /// A pattern the copy must not contain, and what to call it in a failure.
-class Banned {
-  const Banned(this.name, this.pattern);
-  final String name;
-  final RegExp pattern;
-}
+class const Banned(final String name, final RegExp pattern);
 
 final List<Banned> banned = <Banned>[
   Banned('em dash', RegExp('\u2014')),

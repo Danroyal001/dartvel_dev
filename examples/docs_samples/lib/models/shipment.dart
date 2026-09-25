@@ -7,18 +7,10 @@ import 'package:dartvel_core/dartvel.dart';
 // and never carried in it. The subject is whose shipment it is, so an
 // erasure reaches the row and every copy made from it.
 @DVModel(subject: DVSubject.self, capture: true)
-class _Shipment {
-  final String id;
-  final String reference;
-  final int total;
-  @DVModel.sensitiveField()
-  final String customerEmail;
-
-  const _Shipment({
-    required this.id,
-    required this.reference,
-    required this.total,
-    required this.customerEmail,
-  });
-}
+class const _Shipment({
+  required final String id,
+  required final String reference,
+  required final int total,
+  @DVModel.sensitiveField() required final String customerEmail,
+});
 // docs:end

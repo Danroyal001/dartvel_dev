@@ -103,6 +103,27 @@ erased records out of every copy.
   tables, builds the class your server-side policy takes from the record, and
   answers with its time so a device can correct its clock.
 
+### Breaking
+
+- **The SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
+  is the first release with primary constructors
+  (`class Point(final int x, final int y);`), which the `dartvel create`
+  scaffold, the samples and generated data models are written with; on Dart
+  3.12 they are a compile error. Flutter 3.47.0 is the first stable release
+  that ships Dart 3.13.0. Raise `environment: sdk:` to `">=3.13.0 <4.0.0"`
+  and upgrade Flutter before taking this release.
+
+### Changed
+
+- **Primary constructors everywhere an application sees Dart.** The
+  examples, the docs samples, the READMEs, the site, the model `dartvel db
+  pull --local` suggests and the generated models, jobs and functional
+  widgets declare their classes as
+  `class const _Order({required final String id});`, and a `dartvel create`
+  project is on Dart 3.13 so its own classes can be too. The
+  generator reads inputs written either way, and old-style inputs generate
+  exactly what they did.
+
 ## 0.6.0 — 2026-09-25
 
 Studio grows from a record browser into the place a team runs its application

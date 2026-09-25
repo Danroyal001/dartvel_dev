@@ -96,8 +96,8 @@ be broken by a value, and a string can.
 
 ## SD-8 — A dependency is a decision
 
-Every Dartvel package declares the same floor — Dart >= 3.12.0, Flutter >=
-3.44.0 — and `dart tool/check_constraints.dart` fails when a sibling
+Every Dartvel package declares the same floor — Dart >= 3.13.0, Flutter >=
+3.47.0 — and `dart tool/check_constraints.dart` fails when a sibling
 constraint excludes the version published beside it. Adding a dependency means
 saying in the commit message what it does and why the standard library does
 not. Vendored or forked code carries the upstream name and version in its

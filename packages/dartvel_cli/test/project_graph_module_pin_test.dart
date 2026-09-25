@@ -24,7 +24,7 @@ String _project(String lock) {
   File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
 name: pin_app
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   modules:
     scanner:
@@ -35,7 +35,7 @@ dartvel:
       .writeAsStringSync('''
 name: scanner
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   module:
     id: scanner

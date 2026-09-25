@@ -9,10 +9,8 @@ import 'package:dartvel_core/dartvel.dart';
 /// as its own application, is this file unchanged.
 @DVModel()
 @pragma('vm:entry-point')
-class _Memo {
-  final String id;
-  final String title;
-  final String body;
-
-  const _Memo({required this.id, required this.title, required this.body});
-}
+class const _Memo({
+  required final String id,
+  required final String title,
+  required final String body,
+});

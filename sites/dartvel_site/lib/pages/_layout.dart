@@ -15,9 +15,7 @@ import '../dartvel_client/dartvel_client.dart';
 /// A column rather than a stack: the header takes its height and the page gets
 /// the rest, so each page's own scroll view is the only scrollable on screen
 /// and the header stays where it is above it.
-class Layout extends DartvelLayout {
-  const Layout({super.key, required super.child});
-
+class const Layout({super.key, required super.child}) extends DartvelLayout {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(

@@ -76,7 +76,7 @@ flutter pub add dartvel_flutter
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 ```
 
-Every Dartvel package declares the same floor: Dart 3.12 and Flutter 3.44.
+Every Dartvel package declares the same floor: Dart 3.13 and Flutter 3.47.
 `dartvel init` adds Dartvel to an existing Flutter project instead of making
 a new one, and `dartvel init --dry-run` shows what it would change first.
 
@@ -341,17 +341,11 @@ this package:
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class _Article {
-  final String slug;
-  final String title;
-  final bool published;
-
-  const _Article({
-    required this.slug,
-    required this.title,
-    required this.published,
-  });
-}
+class const _Article({
+  required final String slug,
+  required final String title,
+  required final bool published,
+});
 ```
 
 ```dart

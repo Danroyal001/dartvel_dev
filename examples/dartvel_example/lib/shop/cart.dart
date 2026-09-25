@@ -9,12 +9,10 @@ import '../dartvel_client/dartvel_client.dart';
 const int freeShippingFromCents = 3000;
 const int shippingCents = 450;
 
-class Cart {
-  const Cart([this.lines = const <String, int>{}]);
-
+class const Cart([
   /// Quantity by coffee slug, in the order they were added.
-  final Map<String, int> lines;
-
+  final Map<String, int> lines = const <String, int>{},
+]) {
   bool get isEmpty => lines.isEmpty;
 
   /// How many bags.
@@ -67,12 +65,7 @@ class Cart {
   ).map((CartLine l) => '${l.quantity} × ${l.coffee.name}').join(', ');
 }
 
-class CartLine {
-  const CartLine(this.coffee, this.quantity);
-
-  final Product coffee;
-  final int quantity;
-
+class const CartLine(final Product coffee, final int quantity) {
   int get totalCents => coffee.priceCents * quantity;
 }
 

@@ -35,7 +35,7 @@ publish_to: "none"
 version: 0.0.1
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -328,8 +328,8 @@ A new Dartvel project.
 
 ### Prerequisites
 
-- Flutter SDK \u003e= 3.44.0
-- Dart SDK \u003e= 3.12.0
+- Flutter SDK \u003e= 3.47.0
+- Dart SDK \u003e= 3.13.0
 
 ### Installation
 

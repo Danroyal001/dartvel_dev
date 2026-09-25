@@ -43,7 +43,7 @@ jobs:
 
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.12.2
+          sdk: 3.13.4
 
       # Sony's embedder renders through Wayland, X11, GBM/DRM or EGLStream, and
       # links each backend separately. The headers decide which of the four

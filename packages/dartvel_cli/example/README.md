@@ -5,7 +5,7 @@ create it, add a page and a data model, run it with `dartvel dev`, and build
 it for the web. Every command below was run against `dartvel` 0.6.0 on Linux
 with Flutter 3.47. Output is trimmed to the lines that matter.
 
-You need Flutter 3.44 or newer to build and run the application. `dartvel`
+You need Flutter 3.47 or newer to build and run the application. `dartvel`
 itself is a self-contained binary; see the
 [package README](../README.md#install) for how to install it.
 
@@ -87,12 +87,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
 @pragma('vm:entry-point')
-class _Note {
-  final String id;
-  final String name;
-
-  const _Note({required this.id, required this.name});
-}
+class const _Note({required final String id, required final String name});
 ```
 
 Your code uses the generated public `Note`, never `_Note`. Replace the starter

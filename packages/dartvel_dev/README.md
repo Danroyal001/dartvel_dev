@@ -114,11 +114,11 @@ dev_dependencies:
 directly, so declare `dartvel_cli` if you run the CLI that way rather than
 from an installed binary.
 
-Every Dartvel package needs Dart 3.12 and Flutter 3.44 or newer.
+Every Dartvel package needs Dart 3.13 and Flutter 3.47 or newer.
 
 [example/README.md](example/README.md) shows a project on the umbrella.
 
-Every Dartvel package needs Dart 3.12 and Flutter 3.44 or newer.
+Every Dartvel package needs Dart 3.13 and Flutter 3.47 or newer.
 
 [example/README.md](example/README.md) shows a project on the umbrella.
 

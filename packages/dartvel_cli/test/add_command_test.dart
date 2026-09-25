@@ -24,7 +24,7 @@ String _project({String modules = ''}) {
   File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('''
 name: shop
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   app:
     name: Shop$modules
@@ -35,7 +35,7 @@ dartvel:
   File(p.join(store.path, 'pubspec.yaml')).writeAsStringSync('''
 name: store
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   module:
     id: store
@@ -129,7 +129,7 @@ void main() {
     Directory(p.join(root, 'packages', 'billing')).createSync(recursive: true);
     File(p.join(root, 'packages', 'billing', 'pubspec.yaml'))
         .writeAsStringSync('name: billing\n'
-            'environment:\n  sdk: ^3.12.0\n'
+            'environment:\n  sdk: ^3.13.0\n'
             'dartvel:\n  module:\n    id: billing\n');
 
     expect(await _run(root, <String>['packages/store']), 0);
@@ -184,7 +184,7 @@ void main() {
     final String root = _project();
     Directory(p.join(root, 'not_dartvel')).createSync();
     File(p.join(root, 'not_dartvel', 'pubspec.yaml'))
-        .writeAsStringSync('name: plain\nenvironment:\n  sdk: ^3.12.0\n');
+        .writeAsStringSync('name: plain\nenvironment:\n  sdk: ^3.13.0\n');
     final String before = _pubspec(root);
 
     expect(await _run(root, <String>['not_dartvel']), 1);

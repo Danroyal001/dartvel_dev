@@ -11,12 +11,11 @@ import '../shop/orders.dart';
 import '../theme/palette.dart';
 
 /// A config route's page: a bar with a way back, and the shop's body.
-class ShopScreen extends StatelessWidget {
-  const ShopScreen({super.key, required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
+class const ShopScreen({
+  super.key,
+  required final String title,
+  required final List<Widget> children,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -33,11 +32,8 @@ class ShopScreen extends StatelessWidget {
   );
 }
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, this.tab});
-
-  final String? tab;
-
+class const SettingsScreen({super.key, final String? tab})
+    extends StatelessWidget {
   static const List<String> tabs = <String>[
     'general',
     'delivery',
@@ -126,9 +122,7 @@ class SettingsScreen extends StatelessWidget {
 }
 
 /// The people behind the shop.
-class TeamScreen extends StatelessWidget {
-  const TeamScreen({super.key});
-
+class const TeamScreen({super.key}) extends StatelessWidget {
   static const Map<String, (String, String)> members =
       <String, (String, String)>{
         'amara': ('Amara Nwosu', 'Head roaster'),
@@ -165,11 +159,8 @@ class TeamScreen extends StatelessWidget {
   }
 }
 
-class TeamMemberScreen extends StatelessWidget {
-  const TeamMemberScreen({super.key, required this.member});
-
-  final String member;
-
+class const TeamMemberScreen({super.key, required final String member})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -211,9 +202,7 @@ class TeamMemberScreen extends StatelessWidget {
 }
 
 /// Where a signed-in person pays.
-class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
-
+class const CheckoutScreen({super.key}) extends StatefulWidget {
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
 }
@@ -300,9 +289,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
 /// Staff only: the catalogue and the orders, from the generated admin and
 /// table.
-class ReportsScreen extends StatelessWidget {
-  const ReportsScreen({super.key});
-
+class const ReportsScreen({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -351,11 +338,8 @@ class ReportsScreen extends StatelessWidget {
 }
 
 /// The frame around the routes that need a sign-in: nothing but the page.
-class SignedInFrame extends StatelessWidget {
-  const SignedInFrame({super.key, required this.child});
-
-  final Widget child;
-
+class const SignedInFrame({super.key, required final Widget child})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) => child;
 }

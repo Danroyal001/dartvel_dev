@@ -10,13 +10,13 @@ what that means before building anything you have to keep.
 
 ## Prerequisites
 
-- **Flutter 3.44.5 or newer, with Dart ≥ 3.12.** One floor, declared by every
+- **Flutter 3.47 or newer, with Dart ≥ 3.13.** One floor, declared by every
   Dartvel package and by `dartvel_mix`, Dartvel's fork of `mix`.
 
   Parts of Dartvel would resolve on an older Dart — the backend packages only
   need 3.9, which is what `code_assets` requires — but declaring that
   separately is how a target gets measured against the wrong number, so
-  Dartvel declares one. If your Dart is below 3.12, `pub get` says so directly
+  Dartvel declares one. If your Dart is below 3.13, `pub get` says so directly
   instead of failing later on a transitive package you did not choose.
 - **Rust and `cbindgen`** if you want the native backend runtime. Without them
   the native asset build skips with a message and the rest still works.
@@ -234,17 +234,11 @@ Dynamic segments come from the filename: `lib/pages/users/[id].dart` becomes
 
 ```dart
 @DVModel()
-class _User {
-  final String slug;
-  final String name;
-  final bool published;
-
-  const _User({
-    required this.slug,
-    required this.name,
-    required this.published,
-  });
-}
+class const _User({
+  required final String slug,
+  required final String name,
+  required final bool published,
+});
 ```
 
 Private again, and for the same reason: `_User` generates the public `User`,
@@ -320,7 +314,7 @@ none:
   an inspected artifact proves the build compiles and links, not that the
   application starts.
 - **`dartvel build webos` skips.** LG's `flutter-webos` bundles Dart 3.10.9,
-  below the 3.12 floor, so it cannot resolve a Dartvel project. CI assembles a
+  below the 3.13 floor, so it cannot resolve a Dartvel project. CI assembles a
   webOS package from stock Flutter and LG's ARM engine instead, and it renders
   on ARM under emulation and in a Wayland window. It has not been run on a
   television.

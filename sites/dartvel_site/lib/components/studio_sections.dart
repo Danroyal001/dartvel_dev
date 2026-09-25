@@ -10,26 +10,19 @@ import 'site.dart';
 /// Every picture here was taken by `dartvel capture studio` against a running
 /// web-server binary, which is also what keeps them from going stale: a
 /// section added today is photographed today.
-class StudioSection {
-  const StudioSection({
-    required this.label,
-    required this.asset,
-    required this.summary,
-    required this.alt,
-  });
-
+class const StudioSection({
   /// What the rail calls it.
-  final String label;
+  required final String label,
 
   /// The picture, under assets/studio/sections.
-  final String asset;
+  required final String asset,
 
   /// One line about what it is for.
-  final String summary;
+  required final String summary,
 
   /// What a screen reader says in place of the picture.
-  final String alt;
-}
+  required final String alt,
+});
 
 /// Every section the free Studio in a web-server binary shows, in rail order.
 const List<StudioSection> kStudioSections = <StudioSection>[

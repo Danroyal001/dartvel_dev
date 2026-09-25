@@ -234,8 +234,8 @@ Widget _featureCard(String title) => DVText(title);
         // A widget class, not a function. This asserted the function form
         // until a function turned out to be the wrong shape: no element, so no
         // const, no state, and a BuildContext every caller had to thread.
-        expect(widgets, contains('class FeatureCard extends StatelessWidget'));
-        expect(widgets, contains('const FeatureCard(this.title'));
+        expect(widgets, contains('class const FeatureCard(final String title'));
+        expect(widgets, contains('extends StatelessWidget'));
         expect(widgets, contains('return DVText(title);'));
         expect(widgets, isNot(contains('w0._featureCard')));
       } finally {

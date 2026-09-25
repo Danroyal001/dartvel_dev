@@ -47,7 +47,7 @@ jobs:
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Enable KVM
         run: |
@@ -169,13 +169,13 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 75
     env:
-      SHOREBIRD_FLUTTER_BRANCH: flutter_release/3.44.5
+      SHOREBIRD_FLUTTER_BRANCH: flutter_release/3.47.5
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
