@@ -26,10 +26,10 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
             ),
             Body('Laravel decided that a web framework should come with the '
                 'boring parts already written: an ORM, migrations, queues, '
-                'mail, scheduling, auth, policies, an admin. Dartvel is that '
-                'decision applied to Flutter. Because both ends are Dart, the '
-                'client that calls your backend is generated from the '
-                'backend instead of written twice.'),
+                'mail, scheduling, auth, policies and realtime broadcasting. '
+                'Dartvel is that decision applied to Flutter. Because both '
+                'ends are Dart, the client that calls your backend is '
+                'generated from the backend instead of written twice.'),
             CodeBlock(<String>[
               '@DVModel()',
               'class _Invoice {',
@@ -59,17 +59,18 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
             DocsTable(
               columns: <String>['', 'Laravel', 'Dartvel'],
               rows: <List<String>>[
-                <String>['Data models', 'Eloquent', '@DVModel, offline-first and realtime by default'],
-                <String>['Migrations', 'php artisan migrate', 'Generated from the model, run on start'],
+                <String>['Data models', 'Eloquent', '@DVModel: table, typed client, form and admin from one class'],
+                <String>['Migrations', 'php artisan make:migration, written by hand, then migrate', 'Generated from the model, run on start'],
                 <String>['CLI', 'artisan', 'dartvel'],
-                <String>['Queues and jobs', 'Queue, Horizon', 'DV.Jobs, DV.Queues, @DVJob'],
+                <String>['Queues and jobs', 'Queues with delays, retries, backoff, unique jobs and batches; Horizon', 'DV.Jobs, DV.Queues, @DVJob. No delayed jobs, backoff or unique jobs yet'],
                 <String>['Scheduling', 'Task scheduling', '@DVSchedule'],
                 <String>['Mail', 'Mail, Mailable', 'DV.Notifications.mail'],
-                <String>['Auth', 'Breeze, Fortify, Sanctum', 'Sessions, passkeys, SAML, LDAP, second factors'],
-                <String>['Policies', 'Gate, Policy', 'DV.Auth.authorization; a policy nobody registered answers no'],
-                <String>['Admin', 'Nova, Filament', 'Studio, in your own binary, free'],
-                <String>['Views', 'Blade', 'Flutter pages: the same code on the web and on a phone'],
-                <String>['Deployment', 'Forge, Vapor', 'One file from dartvel build web-server'],
+                <String>['Realtime', 'Event broadcasting over Reverb, its WebSocket server', 'Model change streams inside one process. Delivery to devices is not built yet'],
+                <String>['Auth', 'Starter kits, Fortify with two-factor and passkeys, Sanctum, Passport; WorkOS AuthKit for SSO', 'Sessions, passkeys, SAML, LDAP, second factors'],
+                <String>['Policies', 'Gates and policies', 'DV.Auth.authorization, in Dart'],
+                <String>['Admin', 'Nova (paid) or Filament', 'Studio, in your own binary, free'],
+                <String>['Views', 'Blade, Livewire, or Inertia with React, Vue or Svelte', 'Flutter pages: the same code on the web and on a phone'],
+                <String>['Deployment', 'Forge, Vapor, Laravel Cloud', 'One file from dartvel build web-server'],
               ],
             ),
           ],
@@ -78,10 +79,12 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
           children: <Widget>[
             Eyebrow('ONE LANGUAGE'),
             Heading('The API client is generated, and nobody maintains it.'),
-            Body('A Laravel API and a Flutter app are two repositories, two '
-                'languages and a hand-written client between them. Renaming a '
-                'field is a deploy, a release and a week of both being true. '
-                'Here the function and the call to it are compiled together.'),
+            Body('A Laravel API and a Flutter app are two codebases in two '
+                'languages, with an API client between them that somebody '
+                'writes by hand or generates from an OpenAPI description they '
+                'keep up to date. Renaming a field is a deploy, a release and '
+                'a week of both being true. Here the function and the call to '
+                'it are compiled together.'),
             CodeBlock(<String>[
               '@DVBackendFunction()',
               'Future<List<Invoice>> _unpaid(DVContext context) async => <Invoice>[',
@@ -98,8 +101,10 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                   'at compile time.',
               'The same page renders on the web, Android, iOS, desktop and a '
                   'TV.',
-              'The backend is not tied to SQL: there is a records layer under '
-                  'the adapters, and MongoDB is the next one.',
+              'Data models run on SQLite, Postgres and MySQL today. A '
+                  'storage-neutral records layer is under way, and MongoDB is '
+                  'planned. Laravel reaches MongoDB today through the '
+                  'mongodb/laravel-mongodb package, which MongoDB maintains.',
             ]),
           ],
         ),
@@ -111,8 +116,12 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
             Bullets(<String>[
               'Laravel is fifteen years old, with a package for everything '
                   'and a book for everything else.',
-              'Forge, Vapor and Cloud are running services you can pay for '
-                  'this afternoon. Dartvel Cloud is not open yet.',
+              'Forge, Vapor and Laravel Cloud are running services you can '
+                  'pay for this afternoon. Dartvel Cloud is not open yet.',
+              "Laravel's queues delay, back off and deduplicate jobs, and "
+                  'Reverb broadcasts events to browsers and apps today. '
+                  "Dartvel's queues do none of those three yet, and its model "
+                  'changes do not leave the process they happen in.',
               'If your product is a website with forms, Blade and Livewire '
                   'are less machinery than shipping a Flutter application.',
             ]),
@@ -126,6 +135,8 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
               GhostLink('Data models', '/docs/models'),
               GhostLink('Backend functions', '/docs/backend-functions'),
             ], spacing: 12),
+            VersusChecked('Laravel', 'https://laravel.com/docs/13.x',
+                '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/laravel')]),
