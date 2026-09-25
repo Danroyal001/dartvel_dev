@@ -194,7 +194,7 @@ class DVMemcachedCacheAdapter implements DVCacheAdapter, DVAtomicCacheAdapter {
   }
 
   @override
-  Future<void> remove(String key) async {
+  Future<void> delete(String key) async {
     await _command(utf8.encode('delete ${_k(key)}\r\n'));
   }
 

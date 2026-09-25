@@ -45,10 +45,18 @@ void main() {
       test('removes a single key', () async {
         await cache.write('a', 1, null);
         await cache.write('b', 2, null);
-        await cache.remove('a');
+        await cache.delete('a');
 
         expect(await cache.read('a'), isNull);
         expect(await cache.read('b'), 2);
+      });
+
+      test('remove, the old name, still deletes the key', () async {
+        await cache.write('a', 1, null);
+        // ignore: deprecated_member_use_from_same_package
+        await cache.remove('a');
+
+        expect(await cache.read('a'), isNull);
       });
 
       test('clears everything', () async {
