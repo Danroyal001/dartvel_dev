@@ -774,9 +774,19 @@ class JobGenerator {
 
   static void _renderJob(StringBuffer sb, DiscoveredJob job) {
     final constPrefix = job.hasConstConstructor ? 'const ' : '';
+    // The payload's fields are declared once, in a primary constructor.
+    final List<String> fields = <String>[
+      for (final field in job.fields)
+        'required final ${field['type']} ${field['name']}',
+    ];
+    final String parameters = fields.isEmpty
+        ? '()'
+        : fields.length == 1
+        ? '({${fields.single}})'
+        : '({\n${fields.map((String f) => '  $f,\n').join()}})';
     sb
       ..writeln('/// Generated job payload for [_${job.name}].')
-      ..writeln('class ${job.name} {')
+      ..writeln('class $constPrefix${job.name}$parameters {')
       ..writeln('  /// The queue this job is dispatched to by default.')
       ..writeln("  static const String queue = '${job.queue}';")
       ..writeln('  /// Dispatch priority declared by @DVJob(priority:).')
@@ -784,21 +794,10 @@ class JobGenerator {
       ..writeln('  /// Attempts before the job is treated as failed.')
       ..writeln('  static const int maxAttempts = ${job.maxAttempts};')
       ..writeln('  /// Backoff between attempts.')
-      ..writeln('  static const Duration backoff = '
-          'Duration(seconds: ${job.backoffSeconds});')
-      ..writeln();
-
-    for (final field in job.fields) {
-      sb.writeln('  final ${field['type']} ${field['name']};');
-    }
-    sb
-      ..writeln()
-      ..writeln('  $constPrefix${job.name}({');
-    for (final field in job.fields) {
-      sb.writeln('    required this.${field['name']},');
-    }
-    sb
-      ..writeln('  });')
+      ..writeln(
+        '  static const Duration backoff = '
+        'Duration(seconds: ${job.backoffSeconds});',
+      )
       ..writeln()
       ..writeln('  /// Reads a payload back from a durable queue.')
       ..writeln('  static ${job.name} fromJson(Map<String, Object?> json) {')
