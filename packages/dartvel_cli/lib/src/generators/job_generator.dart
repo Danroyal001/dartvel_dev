@@ -6,6 +6,7 @@ import 'symbol_qualifier.dart';
 import 'function_body.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
+import 'primary_constructors.dart';
 
 /// A discovered `@DVJob(...)` payload class.
 class DiscoveredJob {
@@ -146,7 +147,7 @@ class JobGenerator {
           .relative(file.path, from: root)
           .replaceAll('\\', '/')
           .replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      _collectJobs(source, file.path, root, jobs);
+      _collectJobs(dvDesugarPrimaryConstructors(source), file.path, root, jobs);
       _collectHandlers(source, file.path, root, importPath, handlers);
     }
 
@@ -773,9 +774,19 @@ class JobGenerator {
 
   static void _renderJob(StringBuffer sb, DiscoveredJob job) {
     final constPrefix = job.hasConstConstructor ? 'const ' : '';
+    // The payload's fields are declared once, in a primary constructor.
+    final List<String> fields = <String>[
+      for (final field in job.fields)
+        'required final ${field['type']} ${field['name']}',
+    ];
+    final String parameters = fields.isEmpty
+        ? '()'
+        : fields.length == 1
+        ? '({${fields.single}})'
+        : '({\n${fields.map((String f) => '  $f,\n').join()}})';
     sb
       ..writeln('/// Generated job payload for [_${job.name}].')
-      ..writeln('class ${job.name} {')
+      ..writeln('class $constPrefix${job.name}$parameters {')
       ..writeln('  /// The queue this job is dispatched to by default.')
       ..writeln("  static const String queue = '${job.queue}';")
       ..writeln('  /// Dispatch priority declared by @DVJob(priority:).')
@@ -783,21 +794,10 @@ class JobGenerator {
       ..writeln('  /// Attempts before the job is treated as failed.')
       ..writeln('  static const int maxAttempts = ${job.maxAttempts};')
       ..writeln('  /// Backoff between attempts.')
-      ..writeln('  static const Duration backoff = '
-          'Duration(seconds: ${job.backoffSeconds});')
-      ..writeln();
-
-    for (final field in job.fields) {
-      sb.writeln('  final ${field['type']} ${field['name']};');
-    }
-    sb
-      ..writeln()
-      ..writeln('  $constPrefix${job.name}({');
-    for (final field in job.fields) {
-      sb.writeln('    required this.${field['name']},');
-    }
-    sb
-      ..writeln('  });')
+      ..writeln(
+        '  static const Duration backoff = '
+        'Duration(seconds: ${job.backoffSeconds});',
+      )
       ..writeln()
       ..writeln('  /// Reads a payload back from a durable queue.')
       ..writeln('  static ${job.name} fromJson(Map<String, Object?> json) {')
@@ -877,7 +877,12 @@ class JobGenerator {
         r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
         multiLine: true,
       ),
-      RegExp(r'^class\s+([A-Za-z][A-Za-z0-9_]*)', multiLine: true),
+      // `class const Name(...)`: the name, never the keyword -- not even
+      // when the name is private and so not a symbol at all.
+      RegExp(
+        r'^class\s+(?:const\s+)?(?!const\b)([A-Za-z][A-Za-z0-9_]*)',
+        multiLine: true,
+      ),
     ]) {
       for (final match in pattern.allMatches(source)) {
         symbols.add(match.group(1)!);

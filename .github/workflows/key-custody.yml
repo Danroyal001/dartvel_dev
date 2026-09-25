@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
       # An unsigned `dart test` process: the login keychain, round-trip,
       # replace in place, the item's attributes read back from the Keychain,
       # and the custody rules that are the same on every host.
@@ -61,7 +61,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -114,7 +114,7 @@ jobs:
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       # Without the udev rule the emulator falls back to software rendering
       # and times out rather than failing outright.

@@ -20,7 +20,7 @@ const Map<String, String> _project = <String, String>{
   'pubspec.yaml': '''
 name: halfway
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
   pagesDir: lib/pages
 ''',

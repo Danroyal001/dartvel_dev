@@ -67,7 +67,7 @@ jobs:
       # not.
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.12.2
+          sdk: 3.13.4
 
       # The Rust runtime is compiled by dartvel_shelf's build hook during
       # `dart build`, so the toolchain has to be here before it runs.

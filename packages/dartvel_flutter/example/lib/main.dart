@@ -12,12 +12,7 @@ import 'package:flutter/material.dart';
 ///
 /// Registered once with DV.global and read anywhere. There is no separate
 /// service container to set up.
-class Shop {
-  const Shop({required this.name, required this.currency});
-
-  final String name;
-  final String currency;
-
+class const Shop({required final String name, required final String currency}) {
   String price(num cents) => '$currency ${(cents / 100).toStringAsFixed(2)}';
 }
 
@@ -26,9 +21,7 @@ void main() {
   runApp(const ExampleApp());
 }
 
-class ExampleApp extends StatelessWidget {
-  const ExampleApp({super.key});
-
+class const ExampleApp({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const MaterialApp(
         title: 'dartvel_flutter example',
@@ -41,9 +34,7 @@ class ExampleApp extends StatelessWidget {
 /// In a generated app this would be a private `@DVPage` function in
 /// lib/pages/. Here it is a plain widget: `context.signal` works in any
 /// build method.
-class OrderPanel extends StatelessWidget {
-  const OrderPanel({super.key});
-
+class const OrderPanel({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Shop shop = context.global<Shop>();

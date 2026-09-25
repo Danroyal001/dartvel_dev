@@ -770,9 +770,8 @@ answer. Both sources reach it:
 ```dart
 // lib/pages/(tabs)/_layout.dart -- (tabs) is a route group, so it adds nothing
 // to the paths below it.
-class LibraryTabs extends DartvelTabsLayout {
-  const LibraryTabs({super.key, required super.shell});
-
+class const LibraryTabs({super.key, required super.shell})
+    extends DartvelTabsLayout {
   static const List<DVRouteTarget> tabs = <DVRouteTarget>[
     DVRoutes.library,
     DVRoutes.saved,
@@ -993,12 +992,7 @@ Stability: `Contract` · Status: `Shipped`
 
 ```dart
 @DVModel()
-class _User {
-  final String name;
-  final String email;
-
-  const _User({required this.name, required this.email});
-}
+class const _User({required final String name, required final String email});
 ```
 
 Annotated models are private schema inputs by validation: `@DVModel() class
@@ -5475,11 +5469,8 @@ decision.
 ## Events are types
 
 ```dart
-class CheckoutCompleted extends DVAnalyticsEvent {
-  const CheckoutCompleted(this.order, {this.coupon});
-  final Order order;
-  final String? coupon;
-}
+class const CheckoutCompleted(final Order order, {final String? coupon})
+    extends DVAnalyticsEvent;
 
 DV.Analytics.track(CheckoutCompleted(order));
 ```

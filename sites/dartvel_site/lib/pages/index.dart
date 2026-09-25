@@ -253,16 +253,11 @@ Widget _proof(BuildContext context) => const Section(
     Heading('Write one class. Get its form, table, admin and typed client.'),
     CodeBlock(<String>[
       '@DVModel(generatePublicPages: true)',
-      'class _Post {',
-      '  @DVModel.pageTitle()',
-      '  late String title;',
-      '',
-      '  @DVModel.mainContent()',
-      '  late String body;',
-      '',
-      '  @DVModel.sensitiveField()',
-      '  late String authorEmail;',
-      '}',
+      'class const _Post({',
+      '  @DVModel.pageTitle() required final String title,',
+      '  @DVModel.mainContent() required final String body,',
+      '  @DVModel.sensitiveField() required final String authorEmail,',
+      '});',
     ]),
     Bullets(<String>[
       'dartvel dev regenerates the form, table, admin and typed client '

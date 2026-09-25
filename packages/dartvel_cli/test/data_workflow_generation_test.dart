@@ -39,10 +39,12 @@ class _Order {
         p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
       );
       final content = models.readAsStringSync();
-      expect(content,
-          isNot(contains("export 'package:workflow_app/models/order.dart'")));
-      expect(content, contains('class Order {'));
-      expect(content, contains('const Order({'));
+      expect(
+        content,
+        isNot(contains("export 'package:workflow_app/models/order.dart'")),
+      );
+      expect(content, contains('class const Order({'));
+      expect(content, isNot(contains('required this.')));
       // The form on the class creates, the form on an instance edits, and
       // neither takes a callback: saving is what a form does.
       expect(content, contains('static Widget Form() =>'));
@@ -66,7 +68,7 @@ class _Order {
       expect(content, contains('static DVImportResult<Order> importCsv('));
       expect(content, contains('class _OrderImport'));
       expect(content, isNot(contains('class OrderImport')));
-      expect(content, contains('class OrderFactory'));
+      expect(content, contains('class const OrderFactory'));
       expect(content, contains('Map<String, Object?> toJson()'));
       expect(
         content,
@@ -75,10 +77,12 @@ class _Order {
       expect(content, contains('final row = <String, Object?>{};'));
       expect(content, isNot(contains('dynamic')));
       expect(content, isNot(contains('var ')));
-      expect(content, contains('final String? id;'));
-      expect(content, contains('final String? status;'));
-      expect(content,
-          contains('bool get statusIsValid => status.trim().isNotEmpty;'));
+      expect(content, contains('  final String? id,'));
+      expect(content, contains('  final String? status,'));
+      expect(
+        content,
+        contains('bool get statusIsValid => status.trim().isNotEmpty;'),
+      );
       expect(content, isNot(contains('statusIsValid => true')));
       expect(content, contains('OrderFactory admin()'));
       expect(content, contains('Order create()'));

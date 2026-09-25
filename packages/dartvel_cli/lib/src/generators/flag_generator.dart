@@ -54,7 +54,7 @@ class FlagGenerator {
   // class from `Flags` without a word.
   static final RegExp _classRegex = RegExp(
     r'@DVFlags\s*\(\s*\)\s*(?:(?:///[^\n]*\n|@pragma\([^)]*\))\s*)*'
-    r'(?:abstract\s+)?(?:final\s+)?class\s+([A-Za-z0-9_]+)[^{]*\{',
+    r'(?:abstract\s+)?(?:final\s+)?class\s+(?:const\s+)?([A-Za-z0-9_]+)[^{]*\{',
   );
 
   // The field straight after its annotation, with any pragmas between them.

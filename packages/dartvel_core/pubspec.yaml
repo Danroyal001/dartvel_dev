@@ -9,8 +9,9 @@ environment:
   # Two floors that disagreed is what recorded webOS as merely
   # unproven when its Dart could not resolve dependencies at all:
   # the lower number was the one that got reasoned from.
-  # 3.12 is what dartvel_mix pins; 3.9 is only what code_assets needs.
-  sdk: ">=3.12.0 <4.0.0"
+  # 3.13 is the first Dart with primary constructors, which every
+  # scaffold, sample and generated data model is written with.
+  sdk: ">=3.13.0 <4.0.0"
 dependencies:
   path: ^1.9.0
   # For @visibleForTesting on DVFieldCipher.

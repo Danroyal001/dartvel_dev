@@ -8,31 +8,23 @@
 import '../dartvel_client/dartvel_client.dart';
 
 /// One built spec section and the place on the site that covers it.
-class SpecCoverage {
-  const SpecCoverage(
-    this.section,
-    this.group,
-    this.target,
-    this.heading, {
-    this.anchor,
-  });
-
+class const SpecCoverage(
   /// The section title exactly as docs/spec-status.json has it.
-  final String section;
+  final String section,
 
   /// The docs group it is listed under, one of kDocsGroupOrder.
-  final String group;
+  final String group,
 
   /// The page that covers it.
-  final DVRouteTarget target;
+  final DVRouteTarget target,
 
   /// A heading written in that page's source: a DocsSection title, a
   /// Heading or a card title.
-  final String heading;
+  final String heading, {
 
   /// The DocsSection id of [heading], so a link can land on it.
-  final String? anchor;
-
+  final String? anchor,
+}) {
   /// Where a link to this section goes.
   String get href => anchor == null ? target.path : '${target.path}#$anchor';
 }

@@ -26,7 +26,7 @@ description: An application that existed before Dartvel did.
 version: 2.4.0
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   flutter:

@@ -78,4 +78,17 @@ class NextShiftWidget {}
     expect(dvHomeWidgetDeclaredName(match), 'NextShiftWidget');
     expect(dvHomeWidgetIsClass(match), isTrue);
   });
+
+  test('a widget class with a primary constructor is named, not const', () {
+    // `class const NextShiftWidget({super.key}) extends StatelessWidget` is
+    // how the samples write a widget, and a pattern reading the word after
+    // `class` named it `const`.
+    final RegExpMatch match = _match('''
+@DVHomeWidget()
+class const NextShiftWidget({super.key}) extends StatelessWidget {}
+''');
+
+    expect(dvHomeWidgetDeclaredName(match), 'NextShiftWidget');
+    expect(dvHomeWidgetIsClass(match), isTrue);
+  });
 }

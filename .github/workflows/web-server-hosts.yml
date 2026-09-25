@@ -52,7 +52,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: 3.44.5
+  FLUTTER_VERSION: 3.47.5
 
 jobs:
   native:
@@ -163,7 +163,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         if: matrix.flutter == 'action'
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       # Flutter publishes no SDK archive for Linux or Windows on arm64, so
       # flutter-action cannot install one. A checkout of the release tag

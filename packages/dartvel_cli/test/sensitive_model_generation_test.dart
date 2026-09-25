@@ -50,7 +50,7 @@ class _User {
 
       // The field is still a real field: constructor, DB, and internal
       // toJson keep it.
-      expect(content, contains('final String nationalId;'));
+      expect(content, contains('required final String nationalId,'));
 
       // toJson (internal/persistence) keeps the field; toPublicJson drops it.
       // The pair "'nationalId': nationalId," therefore appears exactly once.

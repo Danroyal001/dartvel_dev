@@ -143,7 +143,7 @@ name: patch_source_probe
 version: 1.0.0+1
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dependencies:
   crypto: ^3.0.7
   dartvel_core:

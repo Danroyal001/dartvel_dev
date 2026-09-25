@@ -5,9 +5,8 @@ import 'package:flutter/widgets.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
-class BlogLayout extends DartvelLayout {
-  const BlogLayout({super.key, required super.child});
-
+class const BlogLayout({super.key, required super.child})
+    extends DartvelLayout {
   @override
   Widget build(BuildContext context) => DVBox.row(<Widget>[
         const DVText('Blog'),

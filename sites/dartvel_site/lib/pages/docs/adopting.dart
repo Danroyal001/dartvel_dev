@@ -28,7 +28,7 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'It adds dartvel_core, plus dartvel_flutter for a Flutter app, and '
                   'a dartvel: block. Every other line and comment stays.',
-              'It reports first: your SDK constraint against Dart 3.12, and each '
+              'It reports first: your SDK constraint against Dart 3.13, and each '
                   'package you share with Dartvel against its constraint.',
               'When lib/pages or lib/backend already hold your files, it picks '
                   'other directories so nothing of yours is claimed.',

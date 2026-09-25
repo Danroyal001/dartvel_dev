@@ -40,7 +40,7 @@ the shelf middleware ecosystem, or a platform without a shipped library.
 
 ## Requirements
 
-- **Dart SDK 3.12 or later.**
+- **Dart SDK 3.13 or later.**
 - **No Rust toolchain.** The package ships a prebuilt library for each
   supported platform under `lib/native/`, and `serve()` loads it from there.
   The package has a native-assets build hook, but it does nothing unless an

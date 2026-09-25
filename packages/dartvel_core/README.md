@@ -45,7 +45,7 @@ spelling is the one a pure-Dart file uses today.
 dart pub add dartvel_core
 ```
 
-Dart 3.12 or later, the floor every Dartvel package declares.
+Dart 3.13 or later, the floor every Dartvel package declares.
 
 ```dart
 import 'package:dartvel_core/dartvel.dart';
@@ -99,21 +99,12 @@ run first; application code names only the generated class.
   subject: DVSubject.field('authorId'),
   retain: DVRetention.indefinite,
 )
-class _Article {
-  final String slug;
-  final String title;
-  final String authorId;
-
-  @DVModel.sensitiveField()
-  final String editorNotes;
-
-  const _Article({
-    required this.slug,
-    required this.title,
-    required this.authorId,
-    required this.editorNotes,
-  });
-}
+class const _Article({
+  required final String slug,
+  required final String title,
+  required final String authorId,
+  @DVModel.sensitiveField() required final String editorNotes,
+});
 ```
 
 ```dart
@@ -138,10 +129,7 @@ values.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class _SendWelcomeEmail {
-  final String userId;
-  const _SendWelcomeEmail({required this.userId});
-}
+class const _SendWelcomeEmail({required final String userId});
 
 @DVJob.handler()
 Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) =>

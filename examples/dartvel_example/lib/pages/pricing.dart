@@ -73,20 +73,13 @@ Widget _pricingPage(BuildContext context) => (() {
   );
 })();
 
-class PlanCard extends StatelessWidget {
-  const PlanCard({
-    super.key,
-    required this.name,
-    required this.price,
-    required this.points,
-    required this.featured,
-  });
-
-  final String name;
-  final String price;
-  final List<String> points;
-  final bool featured;
-
+class const PlanCard({
+  super.key,
+  required final String name,
+  required final String price,
+  required final List<String> points,
+  required final bool featured,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
