@@ -7,6 +7,15 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- **Primary constructors everywhere an application sees Dart.** The
+  examples, the docs samples, the READMEs, the site, the model `dartvel db
+  pull --local` suggests and the generated models, jobs and functional
+  widgets declare their classes as
+  `class const _Order({required final String id});`, and a `dartvel create`
+  project is on Dart 3.13 so its own classes can be too. The
+  generator reads inputs written either way, and old-style inputs generate
+  exactly what they did.
+
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
   is the first release with primary constructors
   (`class Point(final int x, final int y);`), which the `dartvel create`
