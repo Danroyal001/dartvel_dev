@@ -21,7 +21,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           id: 'install',
           title: 'Install the CLI',
           children: <Widget>[
-            DocsText('You need Flutter 3.44 or newer, which ships Dart 3.12. '
+            DocsText('You need Flutter 3.47 or newer, which ships Dart 3.13. '
                 'Pick one install method.'),
             DocsShell(<String>[
               '# npm: downloads the prebuilt binary, no Dart SDK needed',
