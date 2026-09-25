@@ -57,6 +57,20 @@ void main() {
     expect(const DVModel.sensitiveField().softDelete, isFalse);
   });
 
+  test('a model generates public pages unless it opts out', () {
+    expect(const DVModel().generatePublicPages, isTrue);
+    expect(const DVModel(generatePublicPages: false).generatePublicPages,
+        isFalse);
+    // A field annotation mirrors the model's default rather than stating a
+    // second, contradicting one.
+    expect(const DVModel.sensitiveField().generatePublicPages, isTrue);
+    expect(const DVModel.searchableField().generatePublicPages, isTrue);
+    expect(const DVModel.pageTitle().generatePublicPages, isTrue);
+    expect(const DVModel.model3dField().generatePublicPages, isTrue);
+    expect(const DVModel.retain(years: 7, because: 'tax law')
+        .generatePublicPages, isTrue);
+  });
+
   test('a model annotation carries no field-scoped metadata', () {
     const model = DVModel();
 
