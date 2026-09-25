@@ -529,11 +529,13 @@
         ".github/workflows/object-stores.yml",
         "packages/dartvel_core/lib/src/storage/azure_blob.dart",
         "packages/dartvel_core/lib/src/storage/gcs.dart",
+        "packages/dartvel_core/lib/src/storage/local_io.dart",
         "packages/dartvel_core/test/azure_blob_live_test.dart",
         "packages/dartvel_core/test/file_storage_test.dart",
-        "packages/dartvel_core/test/gcs_live_test.dart"
+        "packages/dartvel_core/test/gcs_live_test.dart",
+        "packages/dartvel_core/test/local_file_storage_test.dart"
       ],
-      "absent": "Built: DV.FileStorage put, get, delete and exists over DVFileStorageAdapter, with the local filesystem, in-memory, S3 (also R2 and MinIO), Azure Blob and GCS adapters. The local adapter is the disk the process is standing on -- a server's filesystem, or the directory an application owns on a device -- and refuses a key that climbs out of its root; on the web it exists and answers 501 rather than being absent, so code that names it compiles for every target. Azure and GCS run against Azurite and fake-gcs-server in CI. Absent: a local disk adapter, and DV.FileStorage.putStream and getStream, which the section shows and nothing defines."
+      "absent": "Built: DV.FileStorage put, get, delete and exists over DVFileStorageAdapter, with the local filesystem, in-memory, S3 (also R2 and MinIO), Azure Blob and GCS adapters. The local adapter is the disk the process is standing on -- a server's filesystem, or the directory an application owns on a device -- and refuses a key that climbs out of its root; on the web it exists and answers 501 rather than being absent, so code that names it compiles for every target. Azure and GCS run against Azurite and fake-gcs-server in CI. Absent: DV.FileStorage.putStream and getStream, which the section shows and nothing defines."
     },
     {
       "section": "Media Pipeline",
@@ -748,7 +750,7 @@
         "packages/dartvel_cli/test/observability_commands_test.dart",
         "packages/dartvel_flutter/test/telemetry_admin_test.dart"
       ],
-      "absent": "Logs, profiling, performance analysis, error reporting, structured diagnostics with fix-recommendations, structured AI-readable logs, and the DV.log / DV.ObservabilityAndLogging.event API the spec names are all unbuilt -- there is no log sink anywhere in the runtime, so nothing an application logs goes anywhere. What is real: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing. Spans are captured into an in-process ring buffer, served at /_dartvel/traces when diagnostics endpoints are on and nowhere else: there is no OTLP exporter, so no span reaches a collector. Distributed Tracing has the full account. dartvel logs, dartvel traces and dartvel metrics used to paper over this with hardcoded sample output; dartvel metrics now fetches the real GET /metrics endpoint and reports plainly when no server answers or nothing has been recorded, and dartvel logs / dartvel traces now say outright that they have nothing to read instead of inventing a trace id or a log line"
+      "absent": "Logs, profiling, performance analysis, error reporting, structured diagnostics with fix-recommendations, structured AI-readable logs, and the DV.log / DV.ObservabilityAndLogging.event API the spec names are all unbuilt -- the only log sink installed is the generated backend's web process writing JSON lines to stdout (dvConfigureRuntimeLogging, called from dartvel_shelf's serve); worker and cron processes and the Flutter client install none, so what they log goes nowhere. What is real: DVMetrics renders Prometheus text exposition and GET /metrics serves it, DVHealth backs GET /health with real checks on a deadline, and tracing carries W3C Trace Context across the request boundary with sampling decided from the trace id alone -- a per-process decision samples a four-service request with probability p^4, which reads as tracing being on and finding nothing. Spans are captured into an in-process ring buffer, served at /_dartvel/traces when diagnostics endpoints are on and nowhere else: there is no OTLP exporter, so no span reaches a collector. Distributed Tracing has the full account. dartvel logs, dartvel traces and dartvel metrics used to paper over this with hardcoded sample output; dartvel metrics now fetches the real GET /metrics endpoint and reports plainly when no server answers or nothing has been recorded, and dartvel logs / dartvel traces now say outright that they have nothing to read instead of inventing a trace id or a log line"
     },
     {
       "section": "Distributed Tracing",
