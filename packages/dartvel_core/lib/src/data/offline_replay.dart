@@ -65,9 +65,16 @@ class DVOfflineReplay {
   /// models.g.dart -- that file imports Flutter -- so a remote is resolved
   /// from the spec's table, key, columns, sensitive fields, tenancy,
   /// versioning and soft delete rather than from the model class.
+  ///
+  /// [resources] builds, per model name, the type the model's server-side
+  /// policy is written against from a record's values. The generated
+  /// backend supplies it from the application's own policy files; a model
+  /// with none is asked about with the values, which a typed policy refuses.
   factory DVOfflineReplay.forSpecs(
     List<DVStudioModelSpec> specs, {
     required DVDatabaseAdapter database,
+    Map<String, Object? Function(Map<String, Object?> values)> resources =
+        const <String, Object? Function(Map<String, Object?>)>{},
   }) {
     final Map<String, DVOfflineRemote> remotes = <String, DVOfflineRemote>{};
     for (final DVStudioModelSpec spec in specs) {
@@ -123,7 +130,8 @@ class DVOfflineReplay {
           database: store,
         ),
         strategy: strategy,
-        authorize: (DVMutation mutation) => _authorized(spec, mutation, store),
+        authorize: (DVMutation mutation) =>
+            _authorized(spec, mutation, store, resources[spec.model]),
       );
     }
     return DVOfflineReplay(remotes);
@@ -140,6 +148,7 @@ class DVOfflineReplay {
     DVStudioModelSpec spec,
     DVMutation mutation,
     DVDatabaseAdapter database,
+    Object? Function(Map<String, Object?> values)? resource,
   ) async {
     try {
       final DVRecord? stored = await DVRecordTable(
@@ -165,7 +174,12 @@ class DVOfflineReplay {
       return await const DVAuthAuthorization().canAction(
         DVBackendPolicy.callerFor(action),
         action,
-        resource: stored?.values ?? mutation.values,
+        // The policy's own type where the backend knows how to build it:
+        // a policy is written against the model, and handed a map it
+        // refuses. A value it cannot be built from throws, which refuses.
+        resource: resource == null
+            ? stored?.values ?? mutation.values
+            : resource(stored?.values ?? mutation.values),
       );
     } catch (error) {
       // Default deny. A policy that could not be reached, or a read that
