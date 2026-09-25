@@ -678,7 +678,8 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTarge
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -783,6 +784,21 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   );
   DVSessionClient.install(dartvelSessions);
   DVAuth.installDefaultProvider(DVSessionAuthProvider(dartvelSessions));
+  // Offline data models: every write is queued on this device, and this is
+  // what sends the queue -- now, for whatever the last session left, and
+  // again whenever DV.Platform.network says the server can be reached. It
+  // posts as the signed-in person, with the headers every generated call
+  // carries. The store is the platform's: a SQLite file on a device,
+  // IndexedDB in a browser. Opened only when an offline model is used.
+  DVOfflineSync.install(
+    database: () => dvLocalOfflineDatabase('$pkgName', androidStateDirectory: DVDeviceRuntime.stateDirectory),
+    send: dvOfflineSendOverHttp(
+      endpoint: () => DartvelRuntime.api(DVOfflineReplay.path),
+      headers: () => DartvelClient.defaultHeaders,
+    ),
+    reachability: DV.Platform.network.changes.map((DVNetworkStatus status) => status != DVNetworkStatus.offline),
+    canReachTheServer: () => DV.Platform.network.canReachTheServer,
+  );
   // A generated call refused for a missing second factor presents the
   // challenge over the current screen and is sent again once it is presented.
   DVAuth.installStepUp();
