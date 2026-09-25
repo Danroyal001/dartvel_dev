@@ -240,15 +240,22 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
       ? const DVDatabase().execute(sql, params)
       : _database.execute(sql, params);
 
-  /// The collections ensured on each database, so a store that ensures its
-  /// collection before every operation pays for it once per process.
+  /// The shapes ensured on each database, so a store that ensures its
+  /// collection before every operation pays for it once per process. Keyed by
+  /// the collection and its fields: a shape that has grown a field since --
+  /// a destination following a model's schema -- is ensured again, and
+  /// the field added.
   static final Expando<Set<String>> _ensured = Expando<Set<String>>();
+
+  static String _shapeKey(DVRecordShape shape) =>
+      '${shape.collection}(${(shape.fields.keys.toList()..sort()).join(',')})';
 
   @override
   Future<void> ensure(DVRecordShape shape) async {
     final DVDatabaseAdapter database = _database ?? const DVDatabase().adapter;
     final Set<String> done = _ensured[database] ??= <String>{};
-    if (done.contains(shape.collection)) return;
+    final String ensured = _shapeKey(shape);
+    if (done.contains(ensured)) return;
     final String table = _collection(shape.collection);
     final String columns = <String>[
       for (final MapEntry<String, DVFieldType> field in shape.fields.entries)
@@ -280,7 +287,7 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
         );
       }
     }
-    done.add(shape.collection);
+    done.add(ensured);
   }
 
   @override
