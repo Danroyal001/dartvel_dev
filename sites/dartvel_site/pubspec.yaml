@@ -87,10 +87,11 @@ dartvel:
     curve: easeInOut
 
   seo:
-    title: "Dartvel: a Flutter app and its backend in one Dart project"
+    title: "Dartvel: the AI-native, full-stack platform for Flutter"
     description: >-
-      Annotate a class and a function. Dartvel generates the routes, forms,
-      typed client and API server for your Flutter app.
+      Pages, data models and backend functions in one Dart project. Dartvel
+      generates the rest, with AI, sign-in, a database, jobs and an admin
+      built in, and builds for phones, desktops, the web and TVs.
     siteUrl: https://dartvel.dev
     siteName: Dartvel
 
@@ -112,7 +113,7 @@ dartvel:
     enabled: true
     name: Dartvel
     shortName: Dartvel
-    description: A Flutter app and its backend in one Dart project.
+    description: The AI-native, full-stack platform for Flutter.
     themeColor: "#2F6BFF"
     backgroundColor: "#FFFFFF"
 

@@ -3,11 +3,11 @@ import '../dartvel_client/dartvel_client.dart';
 import '../components/site.dart';
 
 @DVPage(
-  title: 'Dartvel: the full-stack platform for Flutter in one Dart project',
-  description: 'Dartvel is the full-stack platform for Flutter: pages, data '
-      'models and backend functions in one Dart project, with sign-in, a '
-      'database, jobs and an admin, built for phones, desktops, the web and '
-      'TVs.',
+  title: 'Dartvel: the AI-native, full-stack platform for Flutter',
+  description: 'Dartvel is the AI-native, full-stack platform for Flutter: '
+      'pages, data models and backend functions in one Dart project, with AI, '
+      'sign-in, a database, jobs and an admin, built for phones, desktops, the '
+      'web and TVs.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
@@ -75,7 +75,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
   // hero, which is the hierarchy a skimming reader is looking for.
   DVBox.list(<Widget>[
     const Eyebrow('FLUTTER\'S LARAVEL'),
-    const DVText('The full-stack platform for Flutter, in one Dart project.')
+    const DVText('The AI-native, full-stack platform for Flutter.')
         .modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 30, desktop: 50))
@@ -100,6 +100,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
   ], spacing: 14),
   // Each one Shipped in docs/spec-status.json, and each a link to its docs.
   const DVBox.wrapLine(<Widget>[
+    HeroCapability('AI built in', DVRoutes.docsai),
     HeroCapability('Sign-in and permissions', DVRoutes.docsauth),
     HeroCapability('Database and search', DVRoutes.docsdatabase),
     HeroCapability('Background jobs', DVRoutes.docsqueues),
