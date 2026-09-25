@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'annotation_args.dart';
 import 'primary_constructors.dart';
+import 'public_pages.dart';
 import 'package:path/path.dart' as p;
 
 /// A discovered source of static paths for a parameterized model route.
@@ -18,7 +19,7 @@ class StaticPathsProvider {
 
   /// Whether the model asked Dartvel to generate the page itself.
   ///
-  /// `generatePublicPages: true` means "make the pages for me", so the router
+  /// A data model has its pages made for it unless it opts out, so the router
   /// has to serve them. `publicPathsResolver:` means "here are the paths for
   /// the page I wrote", and generating a second route would shadow it.
   final bool generatesPage;
@@ -46,9 +47,9 @@ class StaticPathsProvider {
 /// generator can enumerate.
 ///
 /// Static routes are always generated; a parameterized route cannot be unless
-/// something enumerates the values to generate for it. Either
-/// `generatePublicPages: true` (the model's published records) or
-/// `publicPathsResolver:` (an explicit function) says what those values are,
+/// something enumerates the values to generate for it. A data model's
+/// published records do, for every model that did not opt out of pages, and
+/// `publicPathsResolver:` (an explicit function) says what they are instead,
 /// and this turns them into a typed list rather than leaving static generation
 /// to guess.
 class StaticPathsGenerator {
@@ -68,9 +69,14 @@ class StaticPathsGenerator {
   );
 
   /// Scans [root]'s `lib/` for providers.
+  ///
+  /// Every data model under `lib/models/` has a page unless it opts out or
+  /// [DVPublicPages] skips it; [takenRoutes] are the routes the application's
+  /// own pages serve, which a default page yields to.
   static List<StaticPathsProvider> discover({
     required String root,
     required String pkgName,
+    Set<String> takenRoutes = const <String>{},
   }) {
     final libDir = Directory(p.join(root, 'lib'));
     if (!libDir.existsSync()) return const <StaticPathsProvider>[];
@@ -95,71 +101,83 @@ class StaticPathsGenerator {
       final importPath =
           relative.replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
 
-      if (content.contains('@DVModel') &&
-          (content.contains('generatePublicPages') ||
-              content.contains('publicPathsResolver'))) {
+      if (!content.contains('@DVModel')) continue;
+      // Only a model the model generator reads gets a page by default: it is
+      // the generated class that serves one. A model elsewhere in lib/ still
+      // gets what it asks for by name.
+      final bool isModelsFile = relative.startsWith('lib/models/');
       // Blanked annotation arguments: `[^)]*` stops at the first close
       // parenthesis and a string argument can contain one. The model
       // generator masks the same way, and the two disagreeing is a model
       // whose static paths are silently not generated.
-        final masked = dvMaskAnnotationArgs(content, 'DVModel');
-        for (final match in _modelRegex.allMatches(masked)) {
-          // Out of the original, not the masked copy: the copy is only
-          // there so the pattern can step over the annotation, and its
-          // arguments are spaces. Offsets are the same in both.
-          final args =
-              dvAnnotationArgs(content.substring(match.start), 'DVModel') ??
-                  '';
-          final resolver = _resolverArgRegex.firstMatch(args)?.group(1);
-          final generates =
-              RegExp(r'\bgeneratePublicPages\s*:\s*true\b').hasMatch(args);
-          // A resolver is enough on its own: naming one is the statement that
-          // this model's parameterized route should be generated.
-          if (!generates && resolver == null) {
-            continue;
-          }
-          final sourceClassName = match.group(2)!;
-          final className = sourceClassName.startsWith('_')
-              ? sourceClassName.substring(1)
-              : sourceClassName;
-          if (!sourceClassName.startsWith('_')) {
-            throw StateError(
-              'Dartvel model generation inputs must be private. Rename '
-              '$sourceClassName to _$sourceClassName and reference the '
-              'generated $className type from '
-              'dartvel_client/dartvel_client.dart.',
-            );
-          }
-          final fields = _fieldRegex
-              .allMatches(content)
-              .map(
-                (field) => _ModelField(
-                  type: field.group(1)!,
-                  name: field.group(2)!,
-                ),
-              )
-              .toList(growable: false);
-          final publicPathField = _publicPathField(className, fields);
-          // The route is the model's own either way, so it is never written
-          // out as a string. A route repeated in an annotation drifts the
-          // moment the page file moves, which is what file-based routing
-          // exists to prevent.
-          providers.add(
-            StaticPathsProvider(
-              functionName: '${className}PublicStaticPaths',
-              // A resolver lives in the model's own file; the default
-              // enumeration lives on the generated model.
-              importPath: resolver != null
-                  ? importPath
-                  : 'package:$pkgName/dartvel_client/dartvel_client.dart',
-              resolveExpression: resolver ?? '$className.publicStaticPaths',
-              route: '/${_pluralRouteSegment(className)}/:$publicPathField',
-              generatesPage: resolver == null,
-              className: className,
-              param: publicPathField,
-            ),
+      final masked = dvMaskAnnotationArgs(content, 'DVModel');
+      final Set<String> sensitive = dvSensitiveFieldNames(content);
+      for (final match in _modelRegex.allMatches(masked)) {
+        // Out of the original, not the masked copy: the copy is only
+        // there so the pattern can step over the annotation, and its
+        // arguments are spaces. Offsets are the same in both.
+        final args =
+            dvAnnotationArgs(content.substring(match.start), 'DVModel') ?? '';
+        final resolver = _resolverArgRegex.firstMatch(args)?.group(1);
+        final sourceClassName = match.group(2)!;
+        final className = sourceClassName.startsWith('_')
+            ? sourceClassName.substring(1)
+            : sourceClassName;
+        final fields = _fieldRegex
+            .allMatches(content)
+            .map(
+              (field) => (
+                type: field.group(1)!,
+                name: field.group(2)!,
+              ),
+            )
+            .toList(growable: false);
+        final DVPublicPages pages = DVPublicPages.of(
+          className: className,
+          modelArgs: args,
+          fields: fields,
+          sensitive: sensitive,
+          takenRoutes: takenRoutes,
+        );
+        final bool generates =
+            pages.generates && (isModelsFile || pages.explicit);
+        // A resolver is enough on its own: naming one is the statement that
+        // this model's parameterized route should be generated.
+        if (!generates && resolver == null) continue;
+        if (!sourceClassName.startsWith('_')) {
+          throw StateError(
+            'Dartvel model generation inputs must be private. Rename '
+            '$sourceClassName to _$sourceClassName and reference the '
+            'generated $className type from '
+            'dartvel_client/dartvel_client.dart.',
           );
         }
+        final String keyField = pages.keyField ??
+            dvModelKeyField(fields) ??
+            (throw StateError(
+              '@DVModel(publicPathsResolver:) on _$className requires a '
+              'String slug, id, or other String field so Dartvel can '
+              'generate a parameterized public page route.',
+            ));
+        // The route is the model's own either way, so it is never written
+        // out as a string. A route repeated in an annotation drifts the
+        // moment the page file moves, which is what file-based routing
+        // exists to prevent.
+        providers.add(
+          StaticPathsProvider(
+            functionName: '${className}PublicStaticPaths',
+            // A resolver lives in the model's own file; the default
+            // enumeration lives on the generated model.
+            importPath: resolver != null
+                ? importPath
+                : 'package:$pkgName/dartvel_client/dartvel_client.dart',
+            resolveExpression: resolver ?? '$className.publicStaticPaths',
+            route: '/${dvPluralRouteSegment(className)}/:$keyField',
+            generatesPage: resolver == null,
+            className: className,
+            param: keyField,
+          ),
+        );
       }
     }
 
@@ -258,8 +276,10 @@ class StaticPathsGenerator {
     /// Accepted and not written anywhere. A build id in generated files
     /// rewrote every file on every build.
     String? buildId,
+    Set<String> takenRoutes = const <String>{},
   }) async {
-    final providers = discover(root: root, pkgName: pkgName);
+    final providers =
+        discover(root: root, pkgName: pkgName, takenRoutes: takenRoutes);
 
     final outputDir = Directory(p.join(root, 'lib', 'dartvel_client'));
     if (!outputDir.existsSync()) outputDir.createSync(recursive: true);
@@ -271,45 +291,4 @@ class StaticPathsGenerator {
 
     return providers;
   }
-
-  static String _publicPathField(String className, List<_ModelField> fields) {
-    final stringFields = fields
-        .where((field) => field.type == 'String')
-        .map((field) => field.name)
-        .toList(growable: false);
-    if (stringFields.contains('slug')) return 'slug';
-    if (stringFields.contains('id')) return 'id';
-    if (stringFields.isNotEmpty) return stringFields.first;
-    throw StateError(
-      '@DVModel(generatePublicPages: true) on _$className requires a String '
-      'slug, id, or other String field so Dartvel can generate a '
-      'parameterized public page route.',
-    );
-  }
-
-  static String _pluralRouteSegment(String className) {
-    final buffer = StringBuffer();
-    for (var index = 0; index < className.length; index += 1) {
-      final char = className[index];
-      final lower = char.toLowerCase();
-      if (index > 0 && char != lower) buffer.write('-');
-      buffer.write(lower);
-    }
-    final singular = buffer.toString();
-    if (singular.endsWith('s')) return singular;
-    if (singular.endsWith('y')) {
-      return '${singular.substring(0, singular.length - 1)}ies';
-    }
-    return '${singular}s';
-  }
-}
-
-class _ModelField {
-  const _ModelField({
-    required this.type,
-    required this.name,
-  });
-
-  final String type;
-  final String name;
 }

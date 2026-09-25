@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **Breaking: `@DVModel(generatePublicPages:)` defaults to `true`.** Add
+  `generatePublicPages: false` to a model that must have no public pages.
+- **`DVPolicyAction.viewSensitive`**: the policy a generated model page asks
+  before it shows a record's protected fields. Nothing registered refuses.
+- **`DVModelPageSpec` carries `protectedFields`, `personal` and `viewPolicy`.**
+  `dvModelPageData` never reads a protected field, and a personal or
+  unpublished row answers exactly as a missing one (`dvModelPageNotFound`).
+  `dvModelPageResolver` asks the model's `view` policy as nobody and answers a
+  refusal as a missing record. `DVModelPageAccess`, in
+  `package:dartvel_core/framework.dart`, asks both questions.
+
 - **The browser's own find searches the page-text block.** `dvApplyPageHtml`
   and `dvApplyPageText` write each paragraph inside
   `<section hidden="until-found" data-dv-anchor="N">`, via the new

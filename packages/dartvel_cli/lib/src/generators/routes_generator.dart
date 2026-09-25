@@ -158,17 +158,6 @@ Future<void> generate({
   final webPrerender = config.webPrerender;
   final ota = config.ota;
 
-  // Generate Router (Client)
-  // Discovered before the client is generated, because the router has to
-  // serve the pages these describe. `generatePublicPages: true` produced a
-  // list of paths and no route, so every one of them led to the application's
-  // own not-found page. Discovery only reads; the manifest is still written
-  // further down.
-  final publicPageModels = StaticPathsGenerator.discover(
-    root: root,
-    pkgName: pkgName,
-  ).where((p) => p.route != null && p.generatesPage).toList();
-
   // The routes file, read before anything is written: a route it declares
   // that the build cannot read (DV-ROUTE-003) would otherwise run with no
   // typed target and no check against the pages.
@@ -176,6 +165,27 @@ Future<void> generate({
   if (configRoutes.errors.isNotEmpty) {
     throw StateError(configRoutes.errors.join('\n'));
   }
+
+  // The routes the application's own pages serve. Every data model has a
+  // page unless it opts out, and one whose route a page file or the routes
+  // file already has yields to it: the page somebody wrote is the one they
+  // meant, and two routes of one shape is a page nobody can reach.
+  final Set<String> takenRoutes = <String>{
+    for (final (String path, String _) in dvGeneratedPageRoutes(root, pagesDir))
+      path,
+    for (final DVConfigRoute route in configRoutes.routes) route.path,
+  };
+
+  // Generate Router (Client)
+  // Discovered before the client is generated, because the router has to
+  // serve the pages these describe. Pages used to be a list of paths and no
+  // route, so every one of them led to the application's own not-found
+  // page. Discovery only reads; the manifest is still written further down.
+  final publicPageModels = StaticPathsGenerator.discover(
+    root: root,
+    pkgName: pkgName,
+    takenRoutes: takenRoutes,
+  ).where((p) => p.route != null && p.generatesPage).toList();
 
   // Adoption's build errors, before anything is written: a route both the
   // host router and a page define (DV-ADOPT-002), and a model that already
@@ -314,6 +324,7 @@ Future<void> generate({
   final Set<String> captured = await ModelGenerator.generate(
     root: root,
     pkgName: pkgName,
+    takenRoutes: takenRoutes,
   );
   // dartvel.capture against the data models that are captured: a
   // destination naming one that is not (DV-CDC-008) would be delivered
@@ -353,6 +364,7 @@ Future<void> generate({
   await StaticPathsGenerator.generate(
     root: root,
     pkgName: pkgName,
+    takenRoutes: takenRoutes,
   );
 
   // Generate Backend

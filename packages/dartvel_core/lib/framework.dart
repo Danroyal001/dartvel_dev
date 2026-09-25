@@ -38,3 +38,8 @@ export 'src/sync/presence.dart' show DVPresenceTransport;
 export 'src/data/change_capture.dart' hide DVCaptureWriteError;
 export 'src/data/capture_config.dart';
 export 'src/data/capture_runtime.dart';
+// The policy questions a generated model page asks: whether a viewer may
+// have a record's page, and whether it may show them the protected fields.
+// An application answers them by writing the model's view and viewSensitive
+// policies.
+export 'src/web/model_page_access.dart' show DVModelPageAccess;
