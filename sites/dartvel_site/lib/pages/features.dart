@@ -299,9 +299,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Offline-First Models',
-    'DVOfflineStore',
-    'Present: a local store with an ordered mutation log that replays on '
-        'reconnect. Absent: @DVModel(offline:) and an IndexedDB store on web.',
+    '@DVModel(offline:)',
+    'Present: save, delete and reads work offline, and the queue syncs '
+        'itself on reconnect, on the web too. Absent: encrypt: true.',
   ),
   (
     'Mail and Notifications',
