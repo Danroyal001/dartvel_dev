@@ -1,3 +1,22 @@
+## Unreleased
+
+- **`DV.Cache` lives here, and is CRUD first.** `DVCache` moved from
+  dartvel_flutter: `set(key, value, {ttl, tags})`, `get`, `has`, `delete`,
+  `clear`; `remember(key, compute, {ttl, tags, staleFor})`, with
+  `staleWhileRevalidate` kept as a deprecated spelling; `tag`,
+  `revalidateTag`; and `lock(key, body, {ttl, wait})`, which runs the body
+  under the lock and always releases it. Backend code reaches it as
+  `DV.Cache` from `package:dartvel_core/dv.dart`. Breaking: `ttl` is named,
+  `remember` takes the compute second, and `lock` takes a body.
+- **`DVCacheConfig` reads `dartvel.cache`** for the build and installs the
+  store at startup: host, port, `AUTH` and `SELECT` from a `redis://` url held
+  in an environment variable, a database table on the shared database, or
+  Memcached. `DV-CACHE-001` to `005` are registered.
+- **`DVCacheAdapter.remove` is `delete`.** Adapters implement `delete`;
+  `remove` stays as a deprecated extension for callers.
+- A list or map read back from a JSON store is returned as the type asked
+  for, so `remember` hits rather than recomputing on every call.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person
