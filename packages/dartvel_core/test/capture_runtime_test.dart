@@ -8,10 +8,11 @@
 // made. The destination is DVMemoryRecordEngine, which runs no SQL, so
 // nothing here depends on a destination speaking it.
 import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_core/src/observability/observability.dart';
 // The runtime and the record layer, which an application does not name and
 // the framework's tests do.
 import 'package:dartvel_core/framework.dart';
+// The metrics registry, to read the lag gauges back.
+import 'package:dartvel_core/src/observability/observability.dart';
 import 'package:test/test.dart';
 
 const DVStudioModelSpec _orderSpec = DVStudioModelSpec(
