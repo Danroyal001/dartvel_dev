@@ -12,8 +12,9 @@
   block (`DV-CACHE-001` to `003`), and the generated server opens the store in
   every role before it serves, works or ticks anything, refusing to start with
   `DV-CACHE-004` or `005` when it cannot.
-- The generated client barrel hides the cache adapters, the Redis and
-  Memcached clients, `DVCacheTags` and the config reader.
+- The generated client barrel hides the Redis and Memcached clients,
+  `DVCacheTags` and the config reader, and exports the cache adapters, which
+  `DV.Cache.withAdapter` switches to in code.
 
 - **The generated server runs change capture from `dartvel.capture`.** Web,
   worker and cron processes configure it over the application database before
