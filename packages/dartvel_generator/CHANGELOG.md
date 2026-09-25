@@ -1,3 +1,9 @@
+## 0.6.1
+
+- Declares the platforms it supports in pubspec.yaml, so pub.dev lists
+  them instead of inferring them from platform-specific imports. No code
+  changes.
+
 ## 1.3.1
 
 - Accepts dartvel_core 0.6.0. No change to what it generates; the builders

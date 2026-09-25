@@ -1,3 +1,9 @@
+## 0.7.1
+
+- Declares the platforms it supports in pubspec.yaml, so pub.dev lists
+  them instead of inferring them from platform-specific imports. No code
+  changes.
+
 ## 0.7.0
 
 - **A compiled executable can serve.** `serve()` found the native library
