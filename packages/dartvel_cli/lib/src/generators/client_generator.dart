@@ -3819,7 +3819,7 @@ void startDartvelKiosk() {
     // nothing in the generated file.
     final types = RegExp(
       r'^(?:abstract\s+|sealed\s+|final\s+|base\s+|interface\s+)*'
-      r'(?:class|enum|mixin|extension type)\s+(?:const\s+)?([A-Za-z][A-Za-z0-9_]*)\b',
+      r'(?:class|enum|mixin|extension type)\s+(?:const\s+)?(?!const\b)([A-Za-z][A-Za-z0-9_]*)\b',
       multiLine: true,
     );
     for (final match in types.allMatches(source)) {
