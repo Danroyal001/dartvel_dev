@@ -3146,6 +3146,7 @@ void startDartvelKiosk() {
       'extendBody',
       'resizeToAvoidBottomInset',
       'selectable',
+      'findable',
     ]) {
       final value = _namedBoolArg(args, name);
       if (value != null) fields.add('$name: $value');

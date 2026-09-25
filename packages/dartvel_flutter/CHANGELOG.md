@@ -1,3 +1,22 @@
+## Unreleased
+
+- **The browser's own find reaches a page on the web.** Ctrl+F, and "Find
+  in page" on a phone, find text on a `DVPageShell` page and scroll the
+  Flutter page to it. The shell keeps the page-text block in the document
+  up to date with what the page on top has drawn. On the route the build
+  wrote the block for, it is kept and topped up; after a navigation it is
+  rewritten. Each paragraph is a `hidden="until-found"` section, and the
+  block is `aria-hidden` once the app runs. When the browser fires
+  `beforematch` on a section, the page scrolls to the paragraph it mirrors
+  with `Scrollable.ensureVisible`, highlights it for a moment, and hides the
+  section again on the next task. A section the browser revealed before the
+  app loaded, from a `#:~:text=` link, is scrolled to once the page settles.
+  Nothing for an application to add. `DVPageScaffoldSpec(findable: false)`
+  opts a page out.
+- **Printing after a navigation prints the page on screen.** The block now
+  follows the reader instead of being removed after the first navigation,
+  so print no longer falls back to the canvas.
+
 ## 0.6.0
 
 - **Studio image export shares the box modifier chain.** An exported image is

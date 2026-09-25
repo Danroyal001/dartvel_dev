@@ -1,9 +1,44 @@
 # Find in Page — Proposal
 
-**Status: Draft 2026-09-25, not yet reviewed.** On approval this becomes a
-section of NEW_SPEC.md beside SEO and PWA, with `Stability: Draft` and
-`Status: Planned` in `docs/spec-status.json` until the files that prove it
-exist.
+**Status: Draft 2026-09-25, not yet reviewed. Section 1 is built; sections
+2 and 3 are planned.** On approval this becomes a section of NEW_SPEC.md
+beside SEO and PWA, with `Stability: Draft` in `docs/spec-status.json`
+and a status the files that prove it support.
+
+Section 1 shipped with:
+
+- `dvFindableHtml` in `packages/dartvel_core/lib/src/web/find_in_page.dart`.
+  It puts each paragraph of the page-text block in a
+  `hidden="until-found"` section with `data-dv-anchor`. On screen the block
+  is a clipped 1px box, no longer `display:none`. Print and `<noscript>`
+  still show all of it.
+- `dvFindMatch`, in the same file, maps a matched section to a rendered
+  paragraph by its text. A runtime anchor's index breaks ties.
+- `packages/dartvel_flutter/lib/src/find/`. Every `DVPageShell` registers
+  its page. On the web the runtime rewrites the block from the page's
+  `RenderParagraph`s after each navigation and once the page stops drawing.
+  On the route the build wrote the block for, it keeps the build's copy and
+  adds only what that copy lacks. On `beforematch` it scrolls with
+  `Scrollable.ensureVisible`, highlights the paragraph in the root overlay,
+  and sets `hidden="until-found"` again on the next task. `_dropStaleFallback`
+  now applies only until a page shell is up.
+- `@DVPage(findable: false)` / `DVPageScaffoldSpec.findable`.
+
+What the prototype established, in Chrome 154:
+
+- `window.find()` finds text inside `hidden="until-found"` sections in the
+  clipped block. It does not reveal them and does not fire `beforematch`.
+  So `window.find()` shows that the text is searchable, and cannot show the
+  scroll.
+- A text-fragment navigation (`#:~:text=`) goes through the same
+  reveal-and-`beforematch` path as the find bar. It fires on page load,
+  before the app is listening. The runtime handles that case: once the page
+  settles, it scrolls to any section the browser revealed early. A
+  same-document fragment change fires nothing, even with a user gesture.
+- The highlight is drawn over the paragraph. It is not a `SelectionArea`
+  selection, which would take the reader's selection away from them.
+
+Still open: Safari support has not been checked.
 
 Pressing Ctrl+F (Cmd+F) on a Dartvel web page finds nothing. The browser's
 find bar searches the document, and a Flutter page is a canvas: the words a
