@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **`dartvel_database.dart` exports the cache adapters again.** It showed
+  `DVCacheAdapter`, `DVMemoryCacheAdapter` and `DVDatabaseCacheAdapter` from
+  dartvel_flutter, which had stopped exporting two of them, so publishing
+  warned `undefined_shown_name` and an import of this entrypoint could not
+  reach them. dartvel_flutter exports every adapter now, for
+  `DV.Cache.withAdapter`, and this entrypoint shows `DVCache`, `DVCacheView`
+  and all five adapters.
+
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
   is the first release with primary constructors
   (`class Point(final int x, final int y);`), which the `dartvel create`

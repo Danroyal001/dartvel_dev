@@ -1,4 +1,5 @@
-/// Database: the `DV.Database` facade and its adapters.
+/// Database: the `DV.Database` facade and its adapters, and `DV.Cache` with
+/// the cache adapters `DV.Cache.withAdapter` switches to.
 library dartvel_database;
 
 export 'package:dartvel_flutter/dartvel_flutter.dart'
@@ -8,6 +9,11 @@ export 'package:dartvel_flutter/dartvel_flutter.dart'
         DVDatabaseAdapter,
         MemoryDVDatabaseAdapter,
         SqliteDVDatabaseAdapter,
+        DVCache,
+        DVCacheView,
         DVCacheAdapter,
         DVMemoryCacheAdapter,
-        DVDatabaseCacheAdapter;
+        DVDatabaseCacheAdapter,
+        DVRedisCacheAdapter,
+        DVMemcachedCacheAdapter,
+        DVDistributedCacheAdapter;
