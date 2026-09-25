@@ -8,9 +8,7 @@ import '../theme/palette.dart';
 /// On Apple platforms a page's shell is Cupertino, whose text style does not
 /// follow the Material theme into dark mode; setting it here is what keeps a
 /// DVText with no colour of its own readable in both.
-class Layout extends DartvelLayout {
-  const Layout({super.key, required super.child});
-
+class const Layout({super.key, required super.child}) extends DartvelLayout {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);

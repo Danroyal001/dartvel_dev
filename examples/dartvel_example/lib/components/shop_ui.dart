@@ -26,21 +26,15 @@ const double wideLayoutFrom = 600;
 ///
 /// The scroll view is the full width of the screen and the content is capped
 /// inside it, so a wheel or a trackpad scrolls from anywhere on a desktop.
-class ShopScroll extends StatelessWidget {
-  const ShopScroll({
-    super.key,
-    required this.children,
-    this.spacing = 28,
-    this.maxWidth = contentMaxWidth,
-  });
-
-  final List<Widget> children;
-  final double spacing;
+class const ShopScroll({
+  super.key,
+  required final List<Widget> children,
+  final double spacing = 28,
 
   /// A single column of rows reads badly at full width: an account, an
   /// order and a bag cap narrower than a grid does.
-  final double maxWidth;
-
+  final double maxWidth = contentMaxWidth,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double width = MediaQuery.sizeOf(context).width;
@@ -58,13 +52,12 @@ class ShopScroll extends StatelessWidget {
 }
 
 /// The page's name, as its level-1 heading, with an optional line under it.
-class PageHeading extends StatelessWidget {
-  const PageHeading(this.title, {super.key, this.subtitle, this.overline});
-
-  final String title;
-  final String? subtitle;
-  final String? overline;
-
+class const PageHeading(
+  final String title, {
+  super.key,
+  final String? subtitle,
+  final String? overline,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -79,12 +72,11 @@ class PageHeading extends StatelessWidget {
 }
 
 /// A section's name, with an action on the right.
-class SectionHeading extends StatelessWidget {
-  const SectionHeading(this.title, {super.key, this.action});
-
-  final String title;
-  final Widget? action;
-
+class const SectionHeading(
+  final String title, {
+  super.key,
+  final Widget? action,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -127,12 +119,8 @@ int roastLevel(String roast) => switch (roast) {
 };
 
 /// Three dots, filled to the roast.
-class RoastDots extends StatelessWidget {
-  const RoastDots(this.roast, {super.key, this.color});
-
-  final String roast;
-  final Color? color;
-
+class const RoastDots(final String roast, {super.key, final Color? color})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color ink = color ?? Palette.of(context).ink;
@@ -157,13 +145,12 @@ class RoastDots extends StatelessWidget {
 }
 
 /// A coffee drawn as its bag: the origin, the name, the roast.
-class BagArt extends StatelessWidget {
-  const BagArt(this.coffee, {super.key, this.height = 150, this.large = false});
-
-  final Product coffee;
-  final double height;
-  final bool large;
-
+class const BagArt(
+  final Product coffee, {
+  super.key,
+  final double height = 150,
+  final bool large = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Brightness brightness = Theme.of(context).brightness;
@@ -227,18 +214,12 @@ DVModifier cardStyle(Palette p, {double padding = 16}) => const DVModifier()
     .border(Border.all(color: p.line));
 
 /// A coffee in the grid.
-class CoffeeCard extends StatelessWidget {
-  const CoffeeCard(
-    this.coffee, {
-    super.key,
-    required this.onOpen,
-    required this.onAdd,
-  });
-
-  final Product coffee;
-  final VoidCallback onOpen;
-  final VoidCallback onAdd;
-
+class const CoffeeCard(
+  final Product coffee, {
+  super.key,
+  required final VoidCallback onOpen,
+  required final VoidCallback onAdd,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -280,20 +261,13 @@ class CoffeeCard extends StatelessWidget {
 }
 
 /// [children] in as many columns as fit, each at least [minTileWidth].
-class ResponsiveGrid extends StatelessWidget {
-  const ResponsiveGrid({
-    super.key,
-    required this.children,
-    this.minTileWidth = 170,
-    this.maxColumns = 4,
-    this.spacing = 16,
-  });
-
-  final List<Widget> children;
-  final double minTileWidth;
-  final int maxColumns;
-  final double spacing;
-
+class const ResponsiveGrid({
+  super.key,
+  required final List<Widget> children,
+  final double minTileWidth = 170,
+  final int maxColumns = 4,
+  final double spacing = 16,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (BuildContext context, BoxConstraints constraints) {
@@ -311,11 +285,8 @@ class ResponsiveGrid extends StatelessWidget {
 }
 
 /// Something is on its way: the shape of the content, without the content.
-class LoadingTiles extends StatelessWidget {
-  const LoadingTiles({super.key, this.count = 4});
-
-  final int count;
-
+class const LoadingTiles({super.key, final int count = 4})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -353,20 +324,13 @@ class LoadingTiles extends StatelessWidget {
 }
 
 /// Nothing here yet, said plainly, with the thing to do about it.
-class EmptyState extends StatelessWidget {
-  const EmptyState({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.action,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
-
+class const EmptyState({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  required final String message,
+  final Widget? action,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -391,20 +355,13 @@ class EmptyState extends StatelessWidget {
 }
 
 /// Minus, the number, plus.
-class QuantityStepper extends StatelessWidget {
-  const QuantityStepper({
-    super.key,
-    required this.value,
-    required this.onChanged,
-    this.min = 1,
-    this.label = 'Quantity',
-  });
-
-  final int value;
-  final int min;
-  final String label;
-  final ValueChanged<int> onChanged;
-
+class const QuantityStepper({
+  super.key,
+  required final int value,
+  required final ValueChanged<int> onChanged,
+  final int min = 1,
+  final String label = 'Quantity',
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -435,11 +392,8 @@ class QuantityStepper extends StatelessWidget {
 }
 
 /// Where an order is, as a row of steps with the current one marked.
-class StatusTracker extends StatelessWidget {
-  const StatusTracker(this.status, {super.key});
-
-  final String status;
-
+class const StatusTracker(final String status, {super.key})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -511,22 +465,14 @@ String shortDate(int millis) {
 }
 
 /// A row in a settings-style list.
-class ListRow extends StatelessWidget {
-  const ListRow({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.onTap,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback? onTap;
-  final Widget? trailing;
-
+class const ListRow({
+  super.key,
+  required final IconData icon,
+  required final String title,
+  final String? subtitle,
+  final VoidCallback? onTap,
+  final Widget? trailing,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -576,12 +522,12 @@ class ListRow extends StatelessWidget {
 /// happened: the roastery moving an order along, or the Manage screen
 /// editing a coffee. Null until the first read arrives, which is the loading
 /// state.
-class WatchModels<T> extends StatefulWidget {
-  const WatchModels({super.key, required this.watch, required this.builder});
-
-  final Future<DVModelWatch> Function(void Function(List<T>)) watch;
-  final Widget Function(BuildContext context, List<T>? records) builder;
-
+class const WatchModels<T>({
+  super.key,
+  required final Future<DVModelWatch> Function(void Function(List<T>)) watch,
+  required final Widget Function(BuildContext context, List<T>? records)
+  builder,
+}) extends StatefulWidget {
   @override
   State<WatchModels<T>> createState() => _WatchModelsState<T>();
 }
@@ -621,11 +567,8 @@ class _WatchModelsState<T> extends State<WatchModels<T>> {
 }
 
 /// The shop's name, set as a mark: a bean and the word.
-class Wordmark extends StatelessWidget {
-  const Wordmark({super.key, this.compact = false});
-
-  final bool compact;
-
+class const Wordmark({super.key, final bool compact = false})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -655,15 +598,14 @@ class Wordmark extends StatelessWidget {
 }
 
 /// The strip over the shop: the name, how this was built, and the bag.
-class ShopTopBar extends StatelessWidget {
-  const ShopTopBar({super.key, required this.bagCount, required this.heading});
-
-  final int bagCount;
+class const ShopTopBar({
+  super.key,
+  required final int bagCount,
 
   /// The page heading: under the bar on a phone, beside the actions on a
   /// wide screen, where the rail already carries the name.
-  final Widget heading;
-
+  required final Widget heading,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -720,9 +662,7 @@ class ShopTopBar extends StatelessWidget {
 }
 
 /// The subscription, in one line and a link.
-class CoffeeClubBanner extends StatelessWidget {
-  const CoffeeClubBanner({super.key});
-
+class const CoffeeClubBanner({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -771,12 +711,8 @@ class CoffeeClubBanner extends StatelessWidget {
 }
 
 /// A labelled fact about a coffee.
-class CoffeeFact extends StatelessWidget {
-  const CoffeeFact(this.label, this.value, {super.key});
-
-  final String label;
-  final String value;
-
+class const CoffeeFact(final String label, final String value, {super.key})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -798,20 +734,13 @@ class CoffeeFact extends StatelessWidget {
 }
 
 /// A label and an amount on one line, as a receipt has them.
-class SummaryLine extends StatelessWidget {
-  const SummaryLine(
-    this.label,
-    this.value, {
-    super.key,
-    this.note,
-    this.strong = false,
-  });
-
-  final String label;
-  final String value;
-  final String? note;
-  final bool strong;
-
+class const SummaryLine(
+  final String label,
+  final String value, {
+  super.key,
+  final String? note,
+  final bool strong = false,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -829,11 +758,8 @@ class SummaryLine extends StatelessWidget {
 }
 
 /// An order's status, small, coloured by how far along it is.
-class StatusPill extends StatelessWidget {
-  const StatusPill(this.status, {super.key});
-
-  final String status;
-
+class const StatusPill(final String status, {super.key})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -855,9 +781,7 @@ class StatusPill extends StatelessWidget {
 }
 
 /// A small pulsing dot and the word Live.
-class LiveDot extends StatelessWidget {
-  const LiveDot({super.key});
-
+class const LiveDot({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -879,9 +803,7 @@ class LiveDot extends StatelessWidget {
 }
 
 /// The way back to the shop from a page outside the tabs.
-class BackToShop extends StatelessWidget {
-  const BackToShop({super.key});
-
+class const BackToShop({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
@@ -903,12 +825,8 @@ class BackToShop extends StatelessWidget {
 }
 
 /// A coffee's colour and the first letter of its name, for a list row.
-class BagThumb extends StatelessWidget {
-  const BagThumb(this.coffee, {super.key, this.size = 56});
-
-  final Product coffee;
-  final double size;
-
+class const BagThumb(final Product coffee, {super.key, final double size = 56})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
     child:

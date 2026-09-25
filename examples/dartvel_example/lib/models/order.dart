@@ -13,28 +13,18 @@ import 'package:dartvel_core/dartvel.dart';
   retain: DVRetention.days(2555, from: 'placedAt', then: DVRetention.anonymize),
 )
 @pragma('vm:entry-point')
-class _Order {
-  final String id;
-  final String email;
+class const _Order({
+  required final String id,
+  required final String email,
 
   /// What was bought, as the receipt lists it: "2 × Huila, 1 × Nyeri".
-  final String summary;
-  final int itemCount;
-  final int totalCents;
+  required final String summary,
+  required final int itemCount,
+  required final int totalCents,
 
   /// placed, roasting, packed, shipped or delivered.
-  final String status;
+  required final String status,
 
   /// When it was placed, in milliseconds since the epoch.
-  final int placedAt;
-
-  const _Order({
-    required this.id,
-    required this.email,
-    required this.summary,
-    required this.itemCount,
-    required this.totalCents,
-    required this.status,
-    required this.placedAt,
-  });
-}
+  required final int placedAt,
+});

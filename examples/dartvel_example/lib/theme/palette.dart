@@ -8,43 +8,28 @@ import 'package:flutter/material.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 
-class Palette {
-  const Palette({
-    required this.brightness,
-    required this.canvas,
-    required this.surface,
-    required this.sunken,
-    required this.line,
-    required this.ink,
-    required this.inkMuted,
-    required this.inkFaint,
-    required this.accent,
-    required this.onAccent,
-    required this.accentSoft,
-    required this.success,
-  });
-
-  final Brightness brightness;
+class const Palette({
+  required final Brightness brightness,
 
   /// Behind everything.
-  final Color canvas;
+  required final Color canvas,
 
   /// Cards and sheets.
-  final Color surface;
+  required final Color surface,
 
   /// Wells inside a surface: a quantity stepper, a skeleton.
-  final Color sunken;
-  final Color line;
-  final Color ink;
-  final Color inkMuted;
-  final Color inkFaint;
-  final Color accent;
-  final Color onAccent;
+  required final Color sunken,
+  required final Color line,
+  required final Color ink,
+  required final Color inkMuted,
+  required final Color inkFaint,
+  required final Color accent,
+  required final Color onAccent,
 
   /// The accent at low strength, for a selected tab or a badge.
-  final Color accentSoft;
-  final Color success;
-
+  required final Color accentSoft,
+  required final Color success,
+}) {
   static const Palette light = Palette(
     brightness: Brightness.light,
     canvas: Color(0xFFF7F3EE),
