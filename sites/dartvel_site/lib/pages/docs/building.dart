@@ -123,6 +123,11 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
             DocsNote('sony-elinux-iso and sony-elinux-img',
                 'These names are accepted. Today they build the same bundle as '
                 'sony-elinux, with no disk image.'),
+            UpstreamCredits(
+              ids: <String>['tizen', 'elinux', 'webos', 'fuchsia', 'tvos'],
+              lead: 'Thanks to the embedders these targets are built on:',
+              link: false,
+            ),
           ],
         ),
         DocsSection(
@@ -140,6 +145,29 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               'build-targets.md records that terminal builds and native assets '
                   'do not yet compose.',
             ]),
+            UpstreamCredit('flt', lead: 'Terminal rendering is built on'),
+          ],
+        ),
+        DocsSection(
+          id: 'upstream',
+          title: 'Upstream embedders and credits',
+          children: <Widget>[
+            DocsText('Every TV, embedded, extension and terminal target runs on '
+                'an embedder somebody else wrote. Dartvel keeps a fork of each '
+                'so it can pin, patch and track it against the Flutter version '
+                'Dartvel ships. Each fork keeps upstream\'s licence and docs '
+                'untouched below a banner that says what changed.'),
+            UpstreamTable(),
+            DocsText('Thank you to the maintainers of these projects at '
+                'Samsung, Sony, LG, the Fuchsia team, FlutterTV, Bitwild, and '
+                'to SlowGen and Jia Hao. Dartvel\'s TV, embedded and terminal '
+                'targets exist because they did the hard part first.'),
+            DocsSubheading('Also built on'),
+            UpstreamCredit('flutter', lead: 'Every target is'),
+            UpstreamCredit('go_router', lead: 'The generated router is built on'),
+            UpstreamCredit('shorebird', lead: 'DV.Updates runs on the'),
+            UpstreamCredit('axum', lead: 'The Rust server is built on'),
+            UpstreamCredit('tokio', lead: 'It runs on'),
           ],
         ),
       ],

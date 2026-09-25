@@ -204,6 +204,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                 built: false,
               ),
             ], spacing: 16),
+            UpstreamCredits(ids: <String>[
+              'tvos', 'tizen', 'elinux', 'flt', 'vscode',
+            ]),
           ],
         ),
         const Section(

@@ -211,6 +211,9 @@ Widget _siteFooter(BuildContext context) {
           ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
           ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
           ExternalLink('npm', 'https://www.npmjs.com/package/dartvel_dev'),
+          // The embedders and packages Dartvel forks, with their authors and
+          // licences, on every page.
+          AcknowledgementsLink(),
         ], spacing: 20),
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two

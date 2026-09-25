@@ -233,6 +233,7 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                 'under a prefix for your own GoRouter. DV.Navigation and '
                 'DVNavLink place Dartvel targets under it and leave your paths '
                 'alone.'),
+            UpstreamCredit('go_router', lead: 'The generated router is built on'),
             DocsSubheading('Deep links'),
             DocsText('List your domains under dartvel.deepLinks in '
                 'pubspec.yaml. dartvel build web writes assetlinks.json and '
