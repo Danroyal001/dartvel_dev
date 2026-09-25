@@ -4,7 +4,8 @@ import '../../components/versus.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel compared with Bubble, Expo, Laravel, Hasura, Rails and Qt',
+  title: 'Dartvel compared with Expo, Laravel, Hasura, Rails, Bubble, '
+      'PocketBase and Qt',
   description: 'How Dartvel compares with the tools people already use: Expo '
       'for Flutter, Laravel for Flutter, Hasura for Flutter, Ruby on Rails '
       'for Flutter, Bubble, PocketBase and Qt. Each page says where the '
@@ -30,7 +31,10 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
                 'Dartvel beside the thing you would otherwise reach for, in '
                 'the terms that tool uses about itself. Each one ends with '
                 'where the other one is still ahead, because a comparison '
-                'that never concedes anything is an advertisement.'),
+                'that never concedes anything is an advertisement. Each one '
+                'also says the date its claims were last checked against the '
+                "other project's own documentation, and links to it, so you "
+                'can see when a page has gone stale.'),
           ],
         ),
         Section(

@@ -24,9 +24,11 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
               'Build it visually, and still own the code underneath.',
               level: 1,
             ),
-            Body('Bubble is the most complete no-code platform there is: a '
+            Body('Bubble is one of the most complete no-code platforms: a '
                 'visual page builder, workflows, a database, auth, an API '
-                'connector, plugins, and now native mobile as well. Studio is '
+                'connector, plugins, an AI agent that generates and edits '
+                'apps, and native iOS and Android apps, whose editor is in '
+                'beta. Studio is '
                 'the same shape. The difference is what you are left holding: '
                 'a Bubble app runs on Bubble, and a Dartvel app is a Dart '
                 'project in your own repository that happens to have a '
@@ -52,13 +54,13 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
               rows: <List<String>>[
                 <String>['Page builder', 'Yes, and very good', 'Studio, free, served by your own binary'],
                 <String>['Logic', 'Workflows in the editor', 'Frontend and backend function builders, free'],
-                <String>['Escape hatch', 'Plugins, and JavaScript in places', 'Write Dart beside what the builder made'],
+                <String>['Escape hatch', 'Plugins, the API Connector, and JavaScript through plugins', 'Write Dart beside what the builder made'],
                 <String>['Backend', 'Built in', 'Built in, and it is yours'],
-                <String>['Database', "Bubble's", 'SQLite, Postgres or MySQL, wherever you run it'],
-                <String>['Hosting', 'Bubble only', 'One binary, on any Linux, macOS or Windows box'],
-                <String>['Targets', 'Web and native mobile', 'Web, Android, iOS, desktop, TVs, extensions, devices'],
-                <String>['Pricing', 'Per workload, on their plans', 'The framework is free; Cloud builds will be paid'],
-                <String>['Leaving', 'A rewrite', 'You already have the repository'],
+                <String>['Database', "Bubble's own, and external SQL databases through the SQL Database Connector", 'SQLite, Postgres or MySQL, wherever you run it'],
+                <String>['Hosting', "Bubble's servers, or a dedicated instance Bubble runs on AWS", 'One binary, on any Linux, macOS or Windows box'],
+                <String>['Targets', 'Web, and native iOS and Android in beta', 'Web, Android, iOS, desktop, TVs, browser and editor extensions'],
+                <String>['Pricing', 'Plans metered by workload units', 'The framework is free; Cloud builds will be paid'],
+                <String>['Leaving', 'A rewrite. Data exports; the app does not', 'You already have the repository'],
               ],
             ),
           ],
@@ -69,7 +71,8 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
             Heading('Every visual builder has one. This one has a door in it.'),
             Body('The moment that decides a no-code project is the one where '
                 'the thing you need is not in the editor. On Bubble that is a '
-                'plugin, a workaround, or a rebuild somewhere else. In Studio '
+                'plugin you find or write in JavaScript, a workaround, or a '
+                'rebuild somewhere else. In Studio '
                 'the builder generates a function in your project, and the '
                 'next one you write by hand sits beside it and is called the '
                 'same way.'),
@@ -94,7 +97,10 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
                   'ecosystem, an agency network and a marketplace. Studio has '
                   'no marketplace open yet.',
               'Its editor is deeper: responsive rules, reusable elements, '
-                  'workflow branching and a debugger built over years.',
+                  'workflow branching, a debugger, version control and '
+                  'collaborators, built over years.',
+              "Bubble's AI agent generates a first version of an app from a "
+                  'description and edits it on request, inside the editor.',
               'Bubble hosts your app. Dartvel gives you a binary, and running '
                   'it is your job until Cloud opens.',
               'You can build a working Bubble app knowing nothing about code. '
@@ -112,6 +118,8 @@ Widget _vsBubblePage(BuildContext context) => const SingleChildScrollView(
               PrimaryLink('See Studio', '/studio'),
               GhostLink('What ships today', '/features'),
             ], spacing: 12),
+            VersusChecked('Bubble', 'https://manual.bubble.io/llms.txt',
+                '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/bubble')]),

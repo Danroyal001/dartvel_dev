@@ -37,9 +37,8 @@ const List<VersusPage> kVersusPages = <VersusPage>[
     path: '/vs/expo',
     name: 'Expo',
     phrase: 'Expo for Flutter',
-    summary: 'Pairing and a QR code on dartvel dev, cloud builds, store '
-        'submissions and over-the-air patches, plus a backend Expo does '
-        'not have.',
+    summary: 'Development builds paired by a QR code, store uploads and '
+        'Android patches, set beside Expo, EAS and Expo Router API routes.',
   ),
   VersusPage(
     path: '/vs/laravel',
@@ -53,8 +52,8 @@ const List<VersusPage> kVersusPages = <VersusPage>[
     path: '/vs/hasura',
     name: 'Hasura',
     phrase: 'Hasura for Flutter',
-    summary: 'A typed client generated from your models instead of a GraphQL '
-        'string, realtime without subscribing, and no lock to one database.',
+    summary: 'A Dart client generated from your models, next to a GraphQL '
+        'API generated over the data sources you already have.',
   ),
   VersusPage(
     path: '/vs/rails',
@@ -97,6 +96,20 @@ Widget _versusMore(BuildContext context, {required String current}) =>
           if (page.path != current) GhostLink(page.phrase, page.path),
       ], spacing: 12),
     ], spacing: 22, crossAlign: DVCrossAlign.start);
+
+/// When the claims about the other project were last read against its own
+/// documentation, and where. Another project moves as fast as this one does:
+/// the Expo page once said Expo had no server, years after Expo Router shipped
+/// API routes. A date on the page makes a stale comparison visible to the
+/// reader and to whoever checks it next.
+@DVFunctionalWidget()
+Widget _versusChecked(
+  BuildContext context,
+  String docs,
+  String url,
+  String on,
+) =>
+    ExternalLink('Claims about $docs checked against its docs on $on', url);
 
 /// The line every comparison page opens with, so none of them reads as a
 /// sales sheet: what the other project is good at, in its own terms.

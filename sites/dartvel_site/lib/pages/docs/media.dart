@@ -36,7 +36,8 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
                   'configured width narrower than the image.',
               'DVBox.image asks for its laid-out width times the device '
                   'pixel ratio, rounded up to a configured width.',
-              'Leave out widths and you get the Next.js set, from 16 to 3840.',
+              'Leave out widths and you get 16, then the default image and '
+                  'device sizes of Next.js 16, from 32 to 3840.',
             ]),
           ],
         ),
