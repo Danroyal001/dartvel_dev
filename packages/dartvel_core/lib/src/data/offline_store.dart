@@ -620,6 +620,7 @@ class DVOfflineStore {
     required this.policy,
     DVOfflineClock? clock,
     bool? persistent,
+    this.onAdopted,
   })  : clock = clock ?? DVOfflineClock(),
         persistent = persistent ?? table.database is! MemoryDVDatabaseAdapter {
     if (!policy.strategy.allowedOffline) {
@@ -640,6 +641,12 @@ class DVOfflineStore {
   final DVRecordTable table;
   final DVOffline policy;
   final DVOfflineClock clock;
+
+  /// Called when replay replaces this device's copy of a record with the
+  /// server's, because the server kept something other than what the device
+  /// wrote. The generated model publishes it, so a watcher sees the value
+  /// that is now true rather than the one that was discarded.
+  final void Function(DVRecord record)? onAdopted;
 
   /// Whether the local store survives the application closing. A memory
   /// adapter does not, and says so (`DV-OFFLINE-001`).
@@ -831,6 +838,7 @@ class DVOfflineStore {
           final DVRecord? local = await table.read(record.key);
           await table.write(record.values,
               base: local, onConflict: DVConflict.lastWriteWins);
+          onAdopted?.call(record);
         }
       }
       if (differs) conflicted++;
