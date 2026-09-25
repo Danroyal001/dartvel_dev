@@ -14,9 +14,8 @@ import '../../theme/palette.dart';
 ///
 /// A phone gets them along the bottom, where a thumb is; anything wider gets
 /// a rail down the side, where a pointer is.
-class ShopTabs extends DartvelTabsLayout {
-  const ShopTabs({super.key, required super.shell});
-
+class const ShopTabs({super.key, required super.shell})
+    extends DartvelTabsLayout {
   static const List<DVRouteTarget> tabs = <DVRouteTarget>[
     DVRoutes.index,
     DVRoutes.orders,

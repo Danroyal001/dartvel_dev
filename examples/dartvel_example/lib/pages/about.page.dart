@@ -66,14 +66,12 @@ Widget _aboutPage(BuildContext context) => (() {
   );
 })();
 
-class HoodPiece {
-  const HoodPiece(this.title, this.body, this.file, this.icon);
-
-  final String title;
-  final String body;
-  final String file;
-  final IconData icon;
-}
+class const HoodPiece(
+  final String title,
+  final String body,
+  final String file,
+  final IconData icon,
+);
 
 const List<HoodPiece> hoodPieces = <HoodPiece>[
   HoodPiece(
@@ -134,11 +132,8 @@ const List<HoodPiece> hoodPieces = <HoodPiece>[
   ),
 ];
 
-class HoodCard extends StatelessWidget {
-  const HoodCard(this.piece, {super.key});
-
-  final HoodPiece piece;
-
+class const HoodCard(final HoodPiece piece, {super.key})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);

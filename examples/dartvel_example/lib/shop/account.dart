@@ -7,11 +7,7 @@ const String demoEmail = 'maya@oakline.coffee';
 const String demoPassword = 'flat-white-42';
 const String demoName = 'Maya Okafor';
 
-class Account {
-  const Account([this.user]);
-
-  final DVAuthUser? user;
-
+class const Account([final DVAuthUser? user]) {
   bool get signedIn => user != null;
 
   String get email => user?.email ?? '';
