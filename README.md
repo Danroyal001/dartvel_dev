@@ -95,7 +95,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Outbound Webhooks** | `DVWebhooks`: durable deliveries on queues, HMAC signing with key rotation, private-address refusal on every hop, dead letters. Subscriptions are not generated models yet | ⚠️ Partial |
 | **Database** | SQLite (file and in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines | ✅ Shipped |
 | **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker. No delayed jobs, backoff schedule or uniqueness keys yet | ⚠️ Partial |
-| **Cache** | Memory, database, Redis, Memcached and multi-node distributed adapters, with tags and revalidation | ✅ Shipped |
+| **Cache** | `DV.Cache.set/get/has/delete/clear`, `remember` with tags and a stale window, `revalidateTag` and `lock`, on a server and a device alike. The store is `dartvel.cache` in pubspec.yaml: memory, database, Redis or Memcached. No model query cache or invalidation generated from model writes yet | ⚠️ Partial |
 | **File Storage** | One surface on both sides: the filesystem this process is standing on (a server's disk, or the directory an app owns on a device), memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No streaming put and get yet | ⚠️ Partial |
 | **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
 | **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
@@ -721,42 +721,59 @@ are sync destinations, not operational databases.
 
 ## 🧊 Cache
 
-`DV.Cache` runs on a swappable adapter. It defaults to process-local memory;
-point it at the application's database to survive restarts:
+`DV.Cache` is five calls, the same from a page and from a backend function:
 
 ```dart
-DV.Cache.configure(DVDatabaseCacheAdapter(DV.Database.adapter));
-
-await DV.Cache.set('users:list', users, const Duration(minutes: 5));
-DV.Cache.tag('users:list', <String>['users']);
-await DV.Cache.revalidateTag('users');
-await DV.Cache.purgeExpired();
+await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
+final String? greeting = await DV.Cache.get<String>('greeting');
+final bool cached = await DV.Cache.has('greeting');
+await DV.Cache.delete('greeting');
+await DV.Cache.clear();
 ```
 
-Across several servers, keys are placed by rendezvous hashing rather than
-`hash % n`. That is not a detail: with a modulo, adding or removing one node
-remaps almost every key, so the cache misses on nearly everything at once, the
-database takes the full load, and nothing reports an error.
+`remember` computes on a miss, and callers asking for the same key at once
+share one compute. Tags are a parameter, and `revalidateTag` drops every key
+under one:
 
 ```dart
-DV.Cache.configure(DVDistributedCacheAdapter(
-  nodes: <String, DVCacheAdapter>{
-    'cache-a': DVRedisCacheAdapter(await DVRedisClient.connect(host: 'a')),
-    'cache-b': DVRedisCacheAdapter(await DVRedisClient.connect(host: 'b')),
-  },
-  replicas: 2,   // survive losing one node without losing its keys
-));
+final List<String> names = await DV.Cache.remember<List<String>>(
+  'products:names',
+  fetchProductNames,
+  ttl: const Duration(minutes: 10),
+  tags: <String>['products'],
+  staleFor: const Duration(minutes: 5), // optional: serve stale, refresh behind
+);
+await DV.Cache.revalidateTag('products');
+
+// One caller at a time. Null when another holds the lock; released however
+// the body ends.
+final bool? sent = await DV.Cache.lock('reports:monthly', () async {
+  await sendMonthlyReport();
+  return true;
+});
 ```
 
-A node that cannot be reached costs its own keys and no others: a read from it
-is a miss rather than an exception, because a cache outage should not become an
-application outage. Locks run on the primary alone, so two callers cannot each
-win on a different node.
+Where the entries live is configuration, not code:
 
-`DVMemcachedCacheAdapter` is available beside the Redis one. The database
-adapter stores values as JSON, so a value that cannot be encoded raises
-`ArgumentError`, and a `List<String>` comes back as `List<Object?>`.
-`DVMemoryCacheAdapter` keeps the Dart object and has neither restriction.
+```yaml
+dartvel:
+  cache:
+    store: redis        # memory (default), database, redis or memcached
+    url: ${REDIS_URL}   # read from the environment when the server starts
+    prefix: "shop:"
+```
+
+The build refuses a store or key it does not know and a password written into
+pubspec.yaml; the generated server opens the store before it serves anything
+and refuses to start when it cannot reach it, rather than giving each instance
+a cache of its own and locks that lock nothing. `database` keeps entries in
+the database `DATABASE_URL` names. On a device `DV.Cache` is in memory.
+
+Behind `redis` and `memcached` sit Dartvel's own clients, and a multi-node
+`DVDistributedCacheAdapter` that places keys by rendezvous hashing rather than
+`hash % n` -- with a modulo, adding or removing one node remaps almost every
+key, so the cache misses on nearly everything at once and nothing reports an
+error. It is not yet a `store:` of its own.
 
 ---
 

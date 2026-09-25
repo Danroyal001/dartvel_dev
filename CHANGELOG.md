@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+### Breaking
+
+- **`DV.Cache` takes its time to live by name.** `set(key, value, ttl: ...)`
+  and `remember(key, compute, ttl: ..., tags: ..., staleFor: ...)`: the
+  compute is the second argument and the tags are a parameter, so no separate
+  `tag` call follows a `remember`. `globalSet` takes `ttl:` too.
+- **`DV.Cache.lock(key, body)` runs the body under the lock** and always
+  releases it, returning the body's result or null when the lock is held
+  (`wait:` keeps trying). `DVCacheLock` and its `release()` are gone.
+- **The cache's store is configuration.** Name it in `dartvel.cache`
+  (`store: memory | database | redis | memcached`, `url: ${REDIS_URL}`,
+  `prefix:`) and the generated server opens it at startup; a page no longer
+  sees the cache adapters, `DVRedisClient` or `DVCacheTags` through the
+  generated barrel. `DV.Cache.configure(...)` remains for tests.
+- **A cache adapter implements `delete`**, as `DV.Cache` names it; `remove`
+  still works for callers, as a deprecated extension.
+
+### Added
+
+- `DV.Cache.has`, and `DV.Cache` in backend code through `DV` from
+  `package:dartvel_core/dv.dart` -- the same cache a page reaches.
+- `DV-CACHE-001` to `005`: the build refuses a `dartvel.cache` block it cannot
+  honour, and the server refuses to start on a store it cannot open rather than
+  giving each instance a cache of its own. A Redis store also carries the
+  shared rate limit.
+
+### Fixed
+
+- `remember<List<String>>` against a database, Redis or Memcached store is a
+  hit. The value came back as `List<dynamic>`, failed the type check, and was
+  recomputed on every call.
+
 ## 0.6.0 — 2026-09-25
 
 Studio grows from a record browser into the place a team runs its application

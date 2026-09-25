@@ -53,7 +53,7 @@ void main() async {
 
   test('remove deletes a key', () async {
     await adapter.write('a', 1, null);
-    await adapter.remove('a');
+    await adapter.delete('a');
 
     expect(await adapter.read('a'), isNull);
   });

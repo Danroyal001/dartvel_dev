@@ -17,6 +17,14 @@
   follows the reader instead of being removed after the first navigation,
   so print no longer falls back to the canvas.
 
+- **`DV.Cache` is dartvel_core's `DVCache`**, so a page and a backend function
+  share one cache and one API. `DVCacheLock` is gone: `DV.Cache.lock(key,
+  body)` runs the body and releases the lock itself. Breaking: `ttl` is named
+  on `set`, `remember` and `globalSet`.
+- `DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter` and `DVCacheTags` are no
+  longer re-exported; import them from dartvel_core in a test. The store is
+  `dartvel.cache`.
+
 ## 0.6.0
 
 - **Studio image export shares the box modifier chain.** An exported image is

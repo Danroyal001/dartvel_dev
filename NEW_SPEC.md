@@ -3788,22 +3788,65 @@ vendor's player integration has not been verified against, and until
 
 # Cache
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
-Unified cache layer.
-
-- In-Memory
-- Memcache
-- Redis (Or Valkey)
-- Distributed cache
-
-Cache invalidation and revalidation are first-class:
+Unified cache layer. `DV.Cache` is five calls an application reads and
+writes with, the same from a page and from a backend function:
 
 ```dart
-await DV.Cache.set('users:list', users, const Duration(minutes: 5));
-DV.Cache.tag('users:list', ['users']);
-DV.Cache.revalidateTag('users');
+await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
+final String? greeting = await DV.Cache.get<String>('greeting');
+final bool cached = await DV.Cache.has('greeting');
+await DV.Cache.delete('greeting');
+await DV.Cache.clear();
 ```
+
+The time to live is named everywhere. On top of the five:
+
+```dart
+// Compute on a miss; callers asking at once share one compute.
+final List<String> names = await DV.Cache.remember<List<String>>(
+  'products:names',
+  fetchProductNames,
+  ttl: const Duration(minutes: 10),
+  tags: ['products'],
+  staleFor: const Duration(minutes: 5), // optional: serve stale, refresh behind
+);
+await DV.Cache.revalidateTag('products'); // drops every key tagged products
+DV.Cache.tag('users:list', ['users']);    // tags an entry that already exists
+
+// Runs the body under the lock, always releases it, and returns the body's
+// result -- or null when another caller holds the lock.
+final bool? sent = await DV.Cache.lock('reports:monthly', () async {
+  await sendMonthlyReport();
+  return true;
+}, wait: const Duration(seconds: 5));
+```
+
+Where entries are kept is configuration, not code. An application never
+constructs an adapter or a Redis client:
+
+```yaml
+dartvel:
+  cache:
+    store: redis          # memory (default) | database | redis | memcached
+    url: ${REDIS_URL}     # redis and memcached; an environment variable
+    prefix: "shop:"       # redis and memcached; default "dartvel:"
+```
+
+- In-Memory
+- Database (the database the deployment shares, `DATABASE_URL`)
+- Memcache
+- Redis (Or Valkey)
+- Distributed cache (`DVDistributedCacheAdapter`, for the framework; not yet
+  a `store:`)
+
+The build reads the block and refuses one it cannot honour; the generated
+server opens the store before it serves, works or ticks anything, and refuses
+to start when it cannot rather than falling back to a cache of its own -- a
+process that believes it shares a cache while every instance keeps its own
+takes locks that lock nothing. A shared store that can count also carries the
+rate limit. On a device `DV.Cache` keeps its entries in memory.
 
 Caches are per client by default and automatically prefixed by Dartvel.
 Permissioned global helpers such as `DV.Cache.globalSet`,
@@ -3834,6 +3877,8 @@ Rules:
   functions.
 - Distributed providers must implement atomic compare-and-set or explicit
   lock APIs before Dartvel enables stampede protection.
+- A url carrying a password is read from the environment, never written into
+  pubspec.yaml.
 
 CLI:
 
@@ -3842,6 +3887,16 @@ dartvel cache clear
 dartvel cache revalidate users
 dartvel cache inspect users:list
 ```
+
+## Diagnostics
+
+| Code | Reason | Level |
+|---|---|---|
+| `DV-CACHE-001` | `dartvel.cache` names a store, or a key, the store does not have | build `error` |
+| `DV-CACHE-002` | `dartvel.cache.url` is missing, is not a url for the store, or asks for TLS the client does not have | build `error` |
+| `DV-CACHE-003` | `dartvel.cache.url` has a password written into pubspec.yaml rather than read from an environment variable | build `error` |
+| `DV-CACHE-004` | the cache store could not be opened at startup: its url variable is unset or unusable, or the server cannot be reached | `error` |
+| `DV-CACHE-005` | `store: database` in a process that shares no database | `error` |
 
 ---
 

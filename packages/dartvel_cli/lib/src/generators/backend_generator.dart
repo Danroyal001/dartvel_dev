@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVCacheConfig,
+        DVCacheConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
         DVPlatformApiConfig,
@@ -735,6 +737,9 @@ $openApiJson\'\'\';
     // server starts, which is the only place an application has that runs
     // before anything is served.
     final String tenancyConfiguration = _dvTenancyConfiguration(root);
+    // dartvel.cache: the store DV.Cache keeps its entries in, opened by
+    // every role before it serves, works or ticks anything.
+    final String cacheInstaller = _dvCacheInstaller(root);
     final String? csp = _dvContentSecurityPolicy(root);
     // shorebird.yaml: a base_url naming anything but Shorebird's service
     // says the patches come from this application's own server.
@@ -834,6 +839,7 @@ Future<void> _dartvelPrepareDatabase(core.DVProcessStores stores) async {
 }
 
 
+$cacheInstaller
 // Multipart structures and parser (bytes): collects text fields and files
 class DvMultipartFile {
   final String name;
@@ -1648,6 +1654,8 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // SQLite file, created here on its first run.
   final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
   await _dartvelPrepareDatabase(stores);
+  // The store dartvel.cache names, before anything reads or writes DV.Cache.
+  await _dartvelInstallCache(stores.database);
   if (processConfiguration.roleDeclared && !const core.DVQueues().adapterConfigured) {
     stderr.writeln('dartvel: DARTVEL_ROLE=web and DATABASE_URL is not set, so a job dispatched here goes on a queue inside this process and no DARTVEL_ROLE=worker process will run it.');
   }
@@ -1899,6 +1907,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       configureDartvelBackendAccounts();
       final core.DVProcessStores workerStores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(workerStores);
+      await _dartvelInstallCache(workerStores.database);
       // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
       // here -- the account erasure job included.
       await _dartvelStartBackendPrivacy(workerStores);
@@ -1934,6 +1943,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       configureDartvelBackendAccounts();
       final core.DVProcessStores stores = core.DVProcessStores.install(fallback: defaultDatabase);
       await _dartvelPrepareDatabase(stores);
+      await _dartvelInstallCache(stores.database);
       // Each occurrence claimed in the shared database, so a second cron
       // process fires nothing twice. With none shared this throws rather than
       // start, unless DARTVEL_SCHEDULE_LEASE=none says this one is alone.
@@ -4235,6 +4245,48 @@ void _refusePrivateCron(List<_CronEntry> entries, String annotation) {
       'public.',
     );
   }
+}
+
+/// The generated `_dartvelInstallCache`, from `dartvel.cache`.
+///
+/// Every role calls it once its shared database is ready, before it serves,
+/// works or ticks anything. With no block it does nothing and `DV.Cache`
+/// stays in memory. With one, the block is carried as the map it was written
+/// as and read again at startup by the reader that checked it here, so the
+/// build and the process cannot disagree about a key. A block the reader
+/// refuses (DV-CACHE-001 to 003) fails the build.
+String _dvCacheInstaller(String root) {
+  const String none = '''
+/// `dartvel.cache` names no store, so DV.Cache keeps its entries in this
+/// process's memory.
+Future<void> _dartvelInstallCache(core.DVDatabaseAdapter? database) async {}
+''';
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return none;
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  if (parsed is! YamlMap) return none;
+  final Object? dartvel = parsed['dartvel'];
+  if (dartvel is! YamlMap) return none;
+  final DVCacheConfig? cache;
+  try {
+    cache = DVCacheConfig.read(dartvel['cache']);
+  } on DVCacheConfigException catch (error) {
+    throw StateError('$error');
+  }
+  if (cache == null) return none;
+  final String entries = <String>[
+    for (final MapEntry<String, Object?> entry in cache.toMap().entries)
+      "'${esc(entry.key)}': '${esc('${entry.value}')}'",
+  ].join(', ');
+  return '''
+/// `dartvel.cache` from pubspec.yaml: the store DV.Cache keeps its entries in,
+/// opened before this process serves, works or ticks anything. Refuses to
+/// start (DV-CACHE-004, DV-CACHE-005) rather than fall back to a cache of
+/// this process's own, which would make every lock a lock on one instance.
+Future<void> _dartvelInstallCache(core.DVDatabaseAdapter? database) =>
+    core.DVCacheConfig.read(const <String, Object?>{$entries})!
+        .install(database: database);
+''';
 }
 
 /// `dartvel.security.csp` from pubspec.yaml, or null.
