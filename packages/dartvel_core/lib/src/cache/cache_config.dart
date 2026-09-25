@@ -356,30 +356,13 @@ final class DVCacheConfig {
             await adapter.read('dv:ping').timeout(const Duration(seconds: 10));
             return adapter;
           }
-          final DVRedisClient client = await DVRedisClient.connect(
-            host: host,
-            port: port,
+          // The same connect an application switching in code uses, so the
+          // configured store and a switched one authenticate alike.
+          return await DVRedisCacheAdapter.connect(
+            uri.toString(),
+            keyPrefix: keyPrefix,
             connector: redisConnector,
           ).timeout(const Duration(seconds: 10));
-          final String userInfo = uri.userInfo;
-          if (userInfo.isNotEmpty) {
-            final int colon = userInfo.indexOf(':');
-            final String user = colon == -1 ? '' : userInfo.substring(0, colon);
-            final String password = Uri.decodeComponent(
-              colon == -1 ? userInfo : userInfo.substring(colon + 1),
-            );
-            await client.command(<String>[
-              'AUTH',
-              if (user.isNotEmpty) Uri.decodeComponent(user),
-              password,
-            ]);
-          }
-          final String db = uri.path.replaceFirst('/', '');
-          if (db.isNotEmpty && db != '0') {
-            await client.command(<String>['SELECT', db]);
-          }
-          await client.command(<String>['PING']);
-          return DVRedisCacheAdapter(client, keyPrefix: keyPrefix);
         } on Object catch (error) {
           throw DVProcessConfigurationError(
             'DV-CACHE-004: dartvel.cache could not open ${store.name} at '

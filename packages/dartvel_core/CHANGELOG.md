@@ -32,6 +32,8 @@
   sets the store `DV.Cache` uses; `withAdapter` returns a `DVCacheView` with
   the same four calls on another adapter. Every call goes to that adapter,
   and tags and the shared compute are kept per adapter.
+  `DVRedisCacheAdapter.connect(url)` opens Redis from a `redis://` url,
+  with `AUTH` and `SELECT`, and is what the configured store uses too.
 - **Breaking: the rest of `DVCache` is gone or internal.** Rewrite
   `remember(key, compute, ...)` and `staleWhileRevalidate(...)` as
   `get(key, compute: compute, ...)`, `tag(key, tags)` as
