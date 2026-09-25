@@ -199,9 +199,9 @@ enum DVModelPageDataMode {
 ///     Product.public().select((product) => product.slug);
 /// ```
 ///
-/// `@DVModel(generatePublicPages: true)` supplies these automatically from a
-/// model's published records, which covers the common case without a resolver
-/// at all. See [DVModel.publicPathsResolver].
+/// A model generates public pages by default, and they supply these
+/// automatically from its published records, which covers the common case
+/// without a resolver at all. See [DVModel.publicPathsResolver].
 typedef DVPublicPathsResolver = Future<List<String>> Function();
 
 /// The part a field plays in a generated model page, set by the field-scoped
@@ -245,6 +245,24 @@ class DVModel {
 
   /// Whether the generator emits public pages, and static paths for them
   /// during static generation, from this model's published records.
+  ///
+  /// On by default: every model gets a page per record at
+  /// `/<plural-kebab-model>/:<key>` unless it says `generatePublicPages:
+  /// false`. What a page shows is decided by the model's other
+  /// declarations, not by this flag. A `@DVModel.sensitiveField()`, and the
+  /// fields that identify a model's privacy `subject:`, are never on a page,
+  /// in its head or structured data, in static output or in the sitemap,
+  /// except for a viewer the model's `viewSensitive` policy admits. A record
+  /// the model's `view` policy refuses has no page: it answers 404, exactly
+  /// as a record that does not exist.
+  ///
+  /// Models that stand for accounts and credentials -- a `User`, a
+  /// `Session`, an `ApiToken`, an `AuditLog`, a row that is its own privacy
+  /// subject -- and tenant-scoped models get no page unless they ask for one
+  /// with `generatePublicPages: true`.
+  ///
+  /// The field-scoped constructors carry the same default so no annotation
+  /// states a second one; a field's value is never read.
   final bool generatePublicPages;
 
   /// Supplies the path values static generation should render for this
@@ -408,7 +426,7 @@ class DVModel {
     this.billable = false,
     this.nativePrice,
     this.pageDataMode = DVModelPageDataMode.auto,
-    this.generatePublicPages = false,
+    this.generatePublicPages = true,
     this.publicPathsResolver,
     this.schemaType,
     this.favicon,
@@ -471,7 +489,7 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false,
+        generatePublicPages = true,
         publicPathsResolver = null,
         pageRole = null,
         pageOrderIndex = null,
@@ -501,7 +519,7 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false,
+        generatePublicPages = true,
         publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
@@ -584,7 +602,7 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false,
+        generatePublicPages = true,
         publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
@@ -618,7 +636,7 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false,
+        generatePublicPages = true,
         publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
@@ -649,7 +667,7 @@ class DVModel {
         billable = false,
         nativePrice = null,
         pageDataMode = DVModelPageDataMode.auto,
-        generatePublicPages = false,
+        generatePublicPages = true,
         publicPathsResolver = null,
         encrypted = false,
         showInForms = false,
