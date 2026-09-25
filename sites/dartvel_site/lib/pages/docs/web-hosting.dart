@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../components/docs_cli_reference.dart';
+import '../../components/site.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
@@ -104,6 +105,41 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               'dartvel deploy --target web --provider netlify runs the provider\'s '
                   'own CLI. firebase-hosting, vercel and cloudflare work the same way.',
             ]),
+          ],
+        ),
+        DocsSection(
+          id: 'find-in-page',
+          title: 'Find in page is planned',
+          children: <Widget>[
+            DocsNote('Planned',
+                'Nothing in this section is built yet. It is a draft proposal from '
+                '2026-09-25 that has not been reviewed.'),
+            DocsText('Today, Ctrl+F (Cmd+F on a Mac) finds nothing on a '
+                'Dartvel web page. The browser searches the document, and '
+                'Flutter draws the page\'s words on a canvas, so they are not '
+                'in the document. Find in page from a phone browser\'s menu '
+                'fails the same way.'),
+            DocsText('The proposal has three parts:'),
+            Bullets(<String>[
+              'The browser\'s own find reaches the page. Each route\'s '
+                  'prerendered HTML already carries the page\'s text for '
+                  'crawlers, no-script readers and printers, hidden with '
+                  'display:none. It would be marked hidden="until-found" '
+                  'instead, which the browser can search. When a match lands '
+                  'there, the browser fires beforematch, and Dartvel scrolls '
+                  'the Flutter page to that paragraph and highlights it.',
+              'An in-app find bar in the page shell, for native builds and '
+                  'for browsers without until-found. Every page would have it '
+                  'with nothing to add, as it has keyboard scrolling today.',
+              'Generated record tables would register the rows they have not '
+                  'built yet, so a match in a row scrolled off screen is found too.',
+            ]),
+            DocsText('A browser match names the paragraph and not the word, so '
+                'the first part scrolls to the paragraph. Browser support, '
+                'Safari in particular, is checked in the prototype before '
+                'anything is promised.'),
+            ExternalLink('Read the find in page proposal',
+                kFindInPageProposalUrl),
           ],
         ),
       ],

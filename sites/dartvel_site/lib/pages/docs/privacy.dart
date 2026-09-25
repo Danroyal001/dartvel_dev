@@ -83,6 +83,18 @@ Widget _docsPrivacyPage(BuildContext context) => const DocsArticle(
                   'closed"',
               'dartvel privacy retention --plan',
             ]),
+            Bullets(<String>[
+              'The commands read DATABASE_URL, or the SQLite file '
+                  'dartvel.database names. Erasing also needs '
+                  'DARTVEL_PRIVACY_KEY.',
+              'erase asks you to type yes at a terminal. In CI, or anywhere '
+                  'nobody can answer, pass --yes. It refuses before deleting '
+                  'anything when a table it reaches is missing.',
+              'export will not replace a file already at --out unless you pass '
+                  '--force.',
+              'retention only runs with --plan, which changes nothing. The '
+                  'sweep itself runs as a job.',
+            ]),
           ],
         ),
         DocsSection(
