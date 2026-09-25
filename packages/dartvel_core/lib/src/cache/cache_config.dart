@@ -307,7 +307,7 @@ final class DVCacheConfig {
       redisConnector: redisConnector,
       memcachedConnector: memcachedConnector,
     );
-    const DVCache().configure(adapter);
+    DVCacheRuntime.configure(adapter);
     if (store != DVCacheStore.memory && adapter is DVCountingCacheAdapter) {
       DVMiddlewareSettings.rateLimitStore ??= adapter;
     }

@@ -51,7 +51,7 @@ class DVStudioContent {
          requireApproval: requireApproval,
          missedAfter: missedAfter,
          clock: clock,
-         revalidateTag: (String tag) => DV.Cache.revalidateTag(tag),
+         revalidateTag: (String tag) => DV.Cache.delete(tag: tag),
          // After commit: the router serves the store, so a version reaches
          // readers only once its publish has committed.
          onPublished: (DVContentVersion<DVPageDocument> version) =>

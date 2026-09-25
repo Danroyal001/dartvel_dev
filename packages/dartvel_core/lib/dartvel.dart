@@ -98,7 +98,9 @@ export 'src/auth/webauthn.dart';
 export 'src/cache/adapters.dart';
 export 'src/cache/cache_config.dart';
 export 'src/cache/distributed.dart';
-export 'src/cache/dv_cache.dart';
+// DVCacheRuntime, the store, the lock and tag inspection, is the
+// framework's and is exported from framework.dart.
+export 'src/cache/dv_cache.dart' show DVCache, DVCacheView;
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/content/content_workflow.dart';

@@ -32,8 +32,8 @@ extension DVCacheAdapterRemove on DVCacheAdapter {
 }
 
 /// Atomic write-if-absent, the compare-and-set the spec requires from a
-/// distributed provider before its locks count. `DV.Cache.lock` uses this
-/// when the adapter offers it; single-process adapters get by without.
+/// distributed provider before its locks count. `DVCacheRuntime.lock` uses
+/// this when the adapter offers it; single-process adapters get by without.
 abstract class DVAtomicCacheAdapter {
   /// Writes only when [key] is absent. Returns whether the write happened.
   Future<bool> writeIfAbsent(String key, Object? value, Duration? ttl);

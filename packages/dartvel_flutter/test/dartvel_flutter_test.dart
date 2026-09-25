@@ -644,7 +644,7 @@ void main() {
     await DV.Cache.set('answer', 42);
     expect(await DV.Cache.get<int>('answer'), 42);
 
-    await DV.Cache.delete('answer');
+    await DV.Cache.delete(key: 'answer');
     expect(await DV.Cache.get<int>('answer'), isNull);
 
     DV.Theme.setMode(ThemeMode.dark);
@@ -830,8 +830,9 @@ void main() {
       'production',
     );
 
-    DV.Cache.tag('users:list', <String>['users']);
-    expect(await DV.Cache.revalidateTag('users'), contains('users:list'));
+    await DV.Cache.set('users:list', 'everyone', tags: <String>['users']);
+    await DV.Cache.delete(tag: 'users');
+    expect(await DV.Cache.has('users:list'), isFalse);
   });
 
   test('DV.Test provides explicit fake auth users and scoped login', () async {

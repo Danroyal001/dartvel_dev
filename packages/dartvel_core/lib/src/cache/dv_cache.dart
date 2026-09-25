@@ -1,14 +1,20 @@
 /// `DV.Cache`: the cache an application reads and writes.
 ///
-/// Five calls cover it -- [DVCache.set], [DVCache.get], [DVCache.has],
-/// [DVCache.delete] and [DVCache.clear] -- with [DVCache.remember] for
-/// compute-on-miss, tags for dropping a group of keys at once, and
-/// [DVCache.lock] for work only one caller at a time may do.
+/// Four calls cover it -- [DVCacheView.get], [DVCacheView.set],
+/// [DVCacheView.has] and [DVCacheView.delete] -- and everything else is a
+/// named option on them: `get` with `compute:` reads through, sharing one
+/// compute per key and serving a stale value inside `staleFor:`; `set` takes
+/// `tags:`; `delete` drops a key, every key under a tag, or everything.
 ///
 /// It lives here rather than in the Flutter layer so a backend function, a
-/// job and a page all reach the same cache through the same spelling. Where
-/// entries are kept is configuration (`dartvel.cache` in pubspec.yaml), not
-/// something application code chooses.
+/// job and a page all reach the same cache through the same spelling. The
+/// store `DV.Cache` uses is configuration (`dartvel.cache` in pubspec.yaml);
+/// [DVCache.withAdapter] switches to another store in code, with the same
+/// four calls.
+///
+/// The machinery -- installing the configured store, the lock, housekeeping
+/// and tag inspection -- is [DVCacheRuntime], which the framework imports
+/// from `package:dartvel_core/framework.dart` and an application never names.
 library dartvel_core.cache.dv_cache;
 
 import 'dart:async';
@@ -17,50 +23,73 @@ import 'dart:math' as math;
 import '../../dartvel.dart' show DVCacheTags, DVTenants;
 import 'adapters.dart';
 
-/// The cache behind `DV.Cache`.
-class DVCache {
-  const DVCache();
+/// Which keys each tag covers, for one store.
+abstract interface class _DVTagRegistry {
+  void tag(String key, Iterable<String> tags);
 
-  static DVCacheAdapter _adapter = DVMemoryCacheAdapter();
-  static DVCacheAdapter? _globalAdapter;
+  /// Removes [tag] and returns the keys it covered.
+  Set<String> revalidateTag(String tag);
+
+  void clear();
+}
+
+/// The configured store's tags: [DVCacheTags], which the CLI, the Studio and
+/// the test harness read too.
+final class _DVDefaultTags implements _DVTagRegistry {
+  const _DVDefaultTags();
+
   static const DVCacheTags _tags = DVCacheTags();
-  static const DVCacheTags _globalTags = DVCacheTags();
 
-  /// In-flight computations, so concurrent callers of the same key share one
-  /// compute instead of stampeding it.
-  static final Map<String, Future<Object?>> _inFlight =
-      <String, Future<Object?>>{};
+  @override
+  void tag(String key, Iterable<String> tags) => _tags.tag(key, tags);
+
+  @override
+  Set<String> revalidateTag(String tag) => _tags.revalidateTag(tag);
+
+  @override
+  void clear() => _tags.clear();
+}
+
+/// The tags of a store switched to in code, kept apart from every other
+/// store's: dropping a tag on one store must not forget keys on another.
+final class _DVStoreTags implements _DVTagRegistry {
+  final Map<String, Set<String>> _tags = <String, Set<String>>{};
+
+  @override
+  void tag(String key, Iterable<String> tags) {
+    for (final String tag in tags) {
+      (_tags[tag] ??= <String>{}).add(key);
+    }
+  }
+
+  @override
+  Set<String> revalidateTag(String tag) =>
+      Set<String>.unmodifiable(_tags.remove(tag) ?? const <String>{});
+
+  @override
+  void clear() => _tags.clear();
+}
+
+/// Per store rather than per view, so two views of one adapter are one cache.
+final Expando<_DVStoreTags> _storeTags = Expando<_DVStoreTags>();
+
+/// In-flight computations per store, so concurrent callers of the same key
+/// share one compute instead of stampeding it -- and callers on two stores
+/// each get their own.
+final Expando<Map<String, Future<Object?>>> _inFlight =
+    Expando<Map<String, Future<Object?>>>();
+
+/// The four calls, on one store: `DV.Cache`, or the store
+/// [DVCache.withAdapter] switched to.
+class DVCacheView {
+  const DVCacheView._();
+
+  DVCacheAdapter get _store => DVCache._adapter;
+
+  _DVTagRegistry get _tags => const _DVDefaultTags();
 
   static final math.Random _random = math.Random();
   static int _lockSerial = 0;
-
-  /// Swaps the store behind the cache.
-  ///
-  /// For the framework and for tests. An application names its store in
-  /// `dartvel.cache` and the generated server configures it at startup.
-  void configure(DVCacheAdapter adapter) {
-    _adapter = adapter;
-  }
-
-  /// Configures the backend/global cache used by the `global*` helpers.
-  void configureGlobal(DVCacheAdapter adapter) {
-    _globalAdapter = adapter;
-  }
-
-  /// The store currently behind the cache.
-  DVCacheAdapter get adapter => _adapter;
-
-  static DVCacheAdapter get _global {
-    final DVCacheAdapter? adapter = _globalAdapter;
-    if (adapter == null) {
-      throw StateError(
-        'No global cache is configured. Call DV.Cache.configureGlobal(...) '
-        'with the backend/shared cache adapter before using the global '
-        'helpers.',
-      );
-    }
-    return adapter;
-  }
 
   /// Scopes [key] to the current tenant, so tenants cannot read each other's
   /// entries through a shared store. The default tenant stays unprefixed:
@@ -74,10 +103,10 @@ class DVCache {
   ///
   /// A store that keeps JSON -- a database, Redis, Memcached -- hands a list
   /// back as `List<dynamic>` and a map as `Map<String, dynamic>`, which a
-  /// plain `is List<String>` rejects. Treated as a miss, that made
-  /// [remember] compute on every call against every store but memory: a
-  /// cache that never caches, with nothing to say so. Lists of the JSON
-  /// scalars and maps with string keys are converted when every element
+  /// plain `is List<String>` rejects. Treated as a miss, that made a
+  /// read-through [get] compute on every call against every store but
+  /// memory: a cache that never caches, with nothing to say so. Lists of the
+  /// JSON scalars and maps with string keys are converted when every element
   /// fits; anything else is still a miss rather than a wrong value.
   static T? _typed<T>(Object? value) {
     if (value is T) return value;
@@ -109,75 +138,73 @@ class DVCache {
     return null;
   }
 
-  // --- the five calls --------------------------------------------------------
-
-  /// Stores [value] under [key].
-  ///
-  /// With a [ttl] the entry expires after it; without one it stays until it
-  /// is deleted or evicted. [tags] name groups [revalidateTag] can drop.
-  Future<void> set(
-    String key,
-    Object? value, {
-    Duration? ttl,
-    List<String> tags = const <String>[],
-  }) async {
-    final String scoped = _scoped(key);
-    await _adapter.write(scoped, value, ttl);
-    if (tags.isNotEmpty) _tags.tag(scoped, tags);
-  }
+  // --- the four calls --------------------------------------------------------
 
   /// The value under [key], or null when there is none, it expired, or it is
   /// not a [T].
-  Future<T?> get<T>(String key) async =>
-      _typed<T>(await _adapter.read(_scoped(key)));
-
-  /// Whether [key] holds a value that has not expired.
-  Future<bool> has(String key) async =>
-      await _adapter.read(_scoped(key)) != null;
-
-  /// Removes [key].
-  Future<void> delete(String key) => _adapter.delete(_scoped(key));
-
-  /// Drops every entry. Tag associations are cleared with it.
-  Future<void> clear() async {
-    await _adapter.clear();
-    _tags.clear();
-  }
-
-  // --- remember --------------------------------------------------------------
-
-  /// The value under [key], computing and storing it on a miss.
   ///
-  /// Concurrent callers of the same key share one [compute] -- the stampede
-  /// a cold cache otherwise sends at an expensive query. A compute that
-  /// throws stores nothing.
-  ///
+  /// With [compute] the read goes through: a miss runs [compute], stores what
+  /// it returns for [ttl] under [tags], and returns it. Concurrent callers of
+  /// the same key share one [compute] -- the stampede a cold cache otherwise
+  /// sends at an expensive query -- and a compute that throws stores nothing.
   /// [tags] are applied on every call, so a key keeps its tags after the
   /// process that set them restarted.
   ///
   /// With [staleFor], a value older than [ttl] but inside the stale window
   /// is returned at once while one background [compute] refreshes it; past
   /// both, the caller waits for a real value. The key still holds the plain
-  /// value, so [get] reads it.
-  Future<T> remember<T>(
-    String key,
-    Future<T> Function() compute, {
+  /// value, so a `get` without [compute] reads it.
+  ///
+  /// [ttl], [tags] and [staleFor] only mean something to a [compute], and
+  /// [staleFor] only after a [ttl]; given without them they are an
+  /// [ArgumentError] rather than silently ignored.
+  Future<T?> get<T>(
+    String key, {
+    FutureOr<T> Function()? compute,
     Duration? ttl,
-    List<String> tags = const <String>[],
+    List<String>? tags,
     Duration? staleFor,
   }) async {
-    final String scoped = _scoped(key);
-    if (tags.isNotEmpty) _tags.tag(scoped, tags);
+    if (compute == null) {
+      final String? orphan = ttl != null
+          ? 'ttl'
+          : tags != null
+          ? 'tags'
+          : staleFor != null
+          ? 'staleFor'
+          : null;
+      if (orphan != null) {
+        throw ArgumentError.value(
+          orphan,
+          orphan,
+          '$orphan: applies to what compute: stores, and no compute: was '
+          'given. Store a value with set(key, value, $orphan: ...).',
+        );
+      }
+      return _typed<T>(await _store.read(_scoped(key)));
+    }
+    if (staleFor != null && ttl == null) {
+      throw ArgumentError.value(
+        staleFor,
+        'staleFor',
+        'staleFor: needs a ttl:, the age after which a value is stale.',
+      );
+    }
 
-    final Object? raw = await _adapter.read(scoped);
+    final DVCacheAdapter store = _store;
+    final String scoped = _scoped(key);
+    if (tags != null && tags.isNotEmpty) _tags.tag(scoped, tags);
+
+    final Object? raw = await store.read(scoped);
     final T? cached = raw == null ? null : _typed<T>(raw);
     if (cached != null) {
       if (staleFor != null && ttl != null) {
-        final Object? fresh = await _adapter.read(_freshKey(scoped));
+        final Object? fresh = await store.read(_freshKey(scoped));
         if (fresh == null) {
           // Serve the stale value now; exactly one refresh runs behind it.
           unawaited(
             _compute<T>(
+              store,
               scoped,
               compute,
               ttl,
@@ -188,18 +215,72 @@ class DVCache {
       }
       return cached;
     }
-    return _compute<T>(scoped, compute, ttl, staleFor);
+    return _compute<T>(store, scoped, compute, ttl, staleFor);
   }
+
+  /// Stores [value] under [key].
+  ///
+  /// With a [ttl] the entry expires after it; without one it stays until it
+  /// is deleted or evicted. [tags] name groups `delete(tag: ...)` drops.
+  Future<void> set(
+    String key,
+    Object? value, {
+    Duration? ttl,
+    List<String> tags = const <String>[],
+  }) async {
+    final String scoped = _scoped(key);
+    await _store.write(scoped, value, ttl);
+    if (tags.isNotEmpty) _tags.tag(scoped, tags);
+  }
+
+  /// Whether [key] holds a value that has not expired.
+  Future<bool> has(String key) async => await _store.read(_scoped(key)) != null;
+
+  /// Removes exactly one of: the entry under [key], every entry tagged [tag],
+  /// or, with [all], every entry and every tag.
+  ///
+  /// The key is named rather than positional because Dart cannot mix an
+  /// optional positional parameter with named ones. Naming none of the three,
+  /// or more than one, is an [ArgumentError]: `delete(key: k, all: true)`
+  /// could mean either, and guessing drops the wrong thing.
+  Future<void> delete({String? key, String? tag, bool all = false}) async {
+    final int named =
+        (key != null ? 1 : 0) + (tag != null ? 1 : 0) + (all ? 1 : 0);
+    if (named != 1) {
+      throw ArgumentError(
+        'delete takes exactly one of key:, tag: or all: true; '
+        '${named == 0 ? 'none was' : '$named were'} given.',
+      );
+    }
+    final DVCacheAdapter store = _store;
+    if (key != null) {
+      await store.delete(_scoped(key));
+    } else if (tag != null) {
+      // Tags record the scoped key: this removes exactly the entries the
+      // tenant that tagged them can see.
+      for (final String scoped in _tags.revalidateTag(tag)) {
+        await store.delete(scoped);
+      }
+    } else {
+      await store.clear();
+      _tags.clear();
+    }
+  }
+
+  // --- read-through ------------------------------------------------------------
 
   static String _freshKey(String scoped) => 'dv:fresh:$scoped';
 
   Future<T> _compute<T>(
+    DVCacheAdapter store,
     String scoped,
-    Future<T> Function() compute,
+    FutureOr<T> Function() compute,
     Duration? ttl,
     Duration? staleFor,
   ) async {
-    final Future<Object?>? pending = _inFlight[scoped];
+    final Map<String, Future<Object?>> inFlight = _inFlight[store] ??=
+        <String, Future<Object?>>{};
+    final Future<Object?>? pending = inFlight[scoped];
     if (pending != null) return await pending as T;
 
     final Future<Object?> future = () async {
@@ -209,75 +290,27 @@ class DVCache {
           // The value outlives its freshness by the stale window; a marker
           // that expires at the ttl says whether it is still fresh, since a
           // store treats expiry as absence and cannot say "old but here".
-          await _adapter.write(scoped, value, ttl + staleFor);
-          await _adapter.write(_freshKey(scoped), true, ttl);
+          await store.write(scoped, value, ttl + staleFor);
+          await store.write(_freshKey(scoped), true, ttl);
         } else {
-          await _adapter.write(scoped, value, ttl);
+          await store.write(scoped, value, ttl);
         }
         return value as Object?;
       } finally {
         // The removed value is this very future; nothing awaits it here.
-        _inFlight.remove(scoped)?.ignore();
+        inFlight.remove(scoped)?.ignore();
       }
     }();
-    _inFlight[scoped] = future;
+    inFlight[scoped] = future;
     return await future as T;
   }
 
-  /// The earlier spelling of `remember(key, compute, ttl:, staleFor:)`.
-  @Deprecated('Use remember(key, compute, ttl: ..., staleFor: ...).')
-  Future<T> staleWhileRevalidate<T>(
-    String key, {
-    required Duration ttl,
-    Duration staleFor = const Duration(minutes: 5),
-    required Future<T> Function() compute,
-  }) => remember<T>(key, compute, ttl: ttl, staleFor: staleFor);
+  // --- lock, for DVCacheRuntime ------------------------------------------------
 
-  // --- tags ------------------------------------------------------------------
-
-  /// Adds [tags] to the entry already under [key].
-  void tag(String key, Iterable<String> tags) {
-    // Tags record the scoped key: revalidation removes exactly the entries
-    // the tenant that tagged them can see.
-    _tags.tag(_scoped(key), tags);
-  }
-
-  /// Removes every key tagged [tag] and returns their names.
-  Future<Set<String>> revalidateTag(String tag) async {
-    final Set<String> keys = _tags.revalidateTag(tag);
-    for (final String key in keys) {
-      await _adapter.delete(key);
-    }
-    return keys;
-  }
-
-  /// The keys currently tagged [tag].
-  Set<String> keysForTag(String tag) => _tags.keysForTag(tag);
-
-  /// Every tag that currently has keys under it.
-  Set<String> get tags => _tags.tags;
-
-  /// Removes entries whose TTL has elapsed, reclaiming storage. Reads already
-  /// ignore expired entries, so this is housekeeping rather than correctness.
-  Future<int> purgeExpired() => _adapter.purgeExpired();
-
-  // --- lock ------------------------------------------------------------------
-
-  /// Runs [body] while holding the lock named [key], and releases it
-  /// afterwards whether [body] returns or throws.
-  ///
-  /// Returns what [body] returns, or null when another holder has the lock.
-  /// With [wait], a caller that finds the lock held keeps trying for that
-  /// long before giving up with null.
-  ///
-  /// [ttl] bounds how long a holder that died can wedge the lock; a body
-  /// that runs longer than it can find a second holder beside it. Across
-  /// processes the lock is only as atomic as the store: Redis and Memcached
-  /// take it with a compare-and-set, memory and a database serve one process.
-  Future<T?> lock<T>(
+  Future<T?> _lock<T>(
     String key,
     FutureOr<T> Function() body, {
-    Duration ttl = const Duration(seconds: 30),
+    required Duration ttl,
     Duration? wait,
   }) async {
     final String lockKey = _scoped('dv:lock:$key');
@@ -291,7 +324,7 @@ class DVCache {
       await Future<void>.delayed(left < backoff ? left : backoff);
       if (backoff < const Duration(milliseconds: 250)) backoff *= 2;
     }
-    final DVCacheAdapter adapter = _adapter;
+    final DVCacheAdapter adapter = _store;
     try {
       return await body();
     } finally {
@@ -305,7 +338,7 @@ class DVCache {
     final String token =
         '${DateTime.now().microsecondsSinceEpoch}-'
         '${_lockSerial++}-${_random.nextInt(0x7fffffff)}';
-    final DVCacheAdapter adapter = _adapter;
+    final DVCacheAdapter adapter = _store;
     if (adapter is DVAtomicCacheAdapter) {
       // The store offers real compare-and-set (Redis SET NX); use it.
       final bool acquired = await (adapter as DVAtomicCacheAdapter)
@@ -318,26 +351,128 @@ class DVCache {
     // second write and only its owner proceeds.
     return await adapter.read(lockKey) == token ? token : null;
   }
+}
 
-  // --- global (backend/shared) cache -----------------------------------------
+/// The cache behind `DV.Cache`, on the store `dartvel.cache` names.
+class DVCache extends DVCacheView {
+  const DVCache() : super._();
 
-  Future<T?> globalGet<T>(String key) async =>
-      _typed<T>(await _global.read(_scoped(key)));
+  static DVCacheAdapter _adapter = DVMemoryCacheAdapter();
+  static DVCacheAdapter? _globalAdapter;
 
-  Future<void> globalSet(String key, Object? value, {Duration? ttl}) =>
-      _global.write(_scoped(key), value, ttl);
+  /// The same four calls on [adapter] instead of the configured store.
+  ///
+  /// `dartvel.cache` sets the store `DV.Cache` uses; this switches store in
+  /// code, for one part of an application that needs another:
+  ///
+  /// ```dart
+  /// final DVCacheView sessions = DV.Cache.withAdapter(
+  ///   DVMemcachedCacheAdapter(host: 'cache.internal'),
+  /// );
+  /// await sessions.set('k', 'v', ttl: const Duration(minutes: 5));
+  /// ```
+  ///
+  /// Every call goes to [adapter] and never to the configured store. Tags
+  /// and the shared compute are kept per adapter, so `delete(tag: ...)` on
+  /// one store leaves another's entries alone, and two views of one adapter
+  /// are one cache.
+  DVCacheView withAdapter(DVCacheAdapter adapter) => _DVAdapterCache(adapter);
+}
 
-  Future<void> globalDelete(String key) => _global.delete(_scoped(key));
+/// [DVCache.withAdapter]'s view.
+final class _DVAdapterCache extends DVCacheView {
+  const _DVAdapterCache(this._adapter) : super._();
 
-  void globalTag(String key, Iterable<String> tags) {
-    _globalTags.tag(_scoped(key), tags);
-  }
+  final DVCacheAdapter _adapter;
 
-  Future<Set<String>> globalRevalidateTag(String tag) async {
-    final Set<String> keys = _globalTags.revalidateTag(tag);
-    for (final String key in keys) {
-      await _global.delete(key);
+  @override
+  DVCacheAdapter get _store => _adapter;
+
+  @override
+  _DVTagRegistry get _tags => _tagsOf(_adapter);
+}
+
+/// The tags of [store]: the configured store keeps [DVCacheTags], which the
+/// CLI and the Studio read, and any other store keeps its own.
+_DVTagRegistry _tagsOf(DVCacheAdapter store) =>
+    identical(store, DVCache._adapter)
+    ? const _DVDefaultTags()
+    : _storeTags[store] ??= _DVStoreTags();
+
+/// [DVCacheRuntime.global]'s view: the store resolved on every call, so it
+/// follows [DVCacheRuntime.configureGlobal].
+final class _DVGlobalCache extends DVCacheView {
+  const _DVGlobalCache() : super._();
+
+  @override
+  DVCacheAdapter get _store {
+    final DVCacheAdapter? adapter = DVCache._globalAdapter;
+    if (adapter == null) {
+      throw StateError(
+        'No global cache is configured. The framework configures it through '
+        'DVCacheRuntime.configureGlobal before anything uses it.',
+      );
     }
-    return keys;
+    return adapter;
   }
+
+  @override
+  _DVTagRegistry get _tags => _tagsOf(_store);
+}
+
+/// The cache's machinery, for the framework and its tests.
+///
+/// Exported from `package:dartvel_core/framework.dart` and not from the
+/// barrel an application imports. An application reads and writes
+/// `DV.Cache`, names its store in `dartvel.cache` and switches store with
+/// [DVCache.withAdapter]; the generated server calls [configure], the
+/// scheduler and the CLI reach the store, and the Studio's cache explorer
+/// reads [tags] and [keysForTag].
+abstract final class DVCacheRuntime {
+  /// Swaps the store behind `DV.Cache`. The generated server calls this at
+  /// startup with the store `dartvel.cache` names.
+  static void configure(DVCacheAdapter adapter) {
+    DVCache._adapter = adapter;
+  }
+
+  /// The store currently behind `DV.Cache`.
+  static DVCacheAdapter get adapter => DVCache._adapter;
+
+  /// Sets, or with null removes, the backend/shared cache [global] uses.
+  static void configureGlobal(DVCacheAdapter? adapter) {
+    DVCache._globalAdapter = adapter;
+  }
+
+  /// The backend/shared cache, with the same four calls as `DV.Cache`. Each
+  /// call throws a [StateError] until [configureGlobal] has given it a store.
+  static DVCacheView get global => const _DVGlobalCache();
+
+  /// Runs [body] while holding the lock named [key], and releases it
+  /// afterwards whether [body] returns or throws.
+  ///
+  /// Returns what [body] returns, or null when another holder has the lock.
+  /// With [wait], a caller that finds the lock held keeps trying for that
+  /// long before giving up with null.
+  ///
+  /// [ttl] bounds how long a holder that died can wedge the lock; a body
+  /// that runs longer than it can find a second holder beside it. Across
+  /// processes the lock is only as atomic as the store: Redis and Memcached
+  /// take it with a compare-and-set, memory and a database serve one process.
+  static Future<T?> lock<T>(
+    String key,
+    FutureOr<T> Function() body, {
+    Duration ttl = const Duration(seconds: 30),
+    Duration? wait,
+  }) => const DVCache()._lock<T>(key, body, ttl: ttl, wait: wait);
+
+  /// Removes entries whose TTL has elapsed, reclaiming storage. Reads already
+  /// ignore expired entries, so this is housekeeping rather than correctness.
+  static Future<int> purgeExpired() => DVCache._adapter.purgeExpired();
+
+  /// The keys currently tagged [tag], as stored: tenant-scoped.
+  static Set<String> keysForTag(String tag) =>
+      const DVCacheTags().keysForTag(tag);
+
+  /// Every tag that currently has keys under it.
+  static Set<String> get tags => const DVCacheTags().tags;
 }

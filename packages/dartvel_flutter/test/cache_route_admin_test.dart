@@ -55,11 +55,8 @@ void main() {
 
     testWidgets('tags list the keys they cover', (WidgetTester tester) async {
       const cache = DVCache();
-      await cache.set('posts:1', 'a');
-      await cache.set('posts:2', 'b');
-      cache.tag('posts:1', <String>['posts']);
-      cache.tag('posts:2', <String>['posts']);
-      cache.tag('posts:1', <String>['home']);
+      await cache.set('posts:1', 'a', tags: <String>['posts', 'home']);
+      await cache.set('posts:2', 'b', tags: <String>['posts']);
 
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
@@ -74,8 +71,7 @@ void main() {
     testWidgets('revalidating a tag drops its entries',
         (WidgetTester tester) async {
       const cache = DVCache();
-      await cache.set('posts:1', 'a');
-      cache.tag('posts:1', <String>['posts']);
+      await cache.set('posts:1', 'a', tags: <String>['posts']);
 
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
