@@ -321,6 +321,34 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-CACHE-001',
+      reason: '`dartvel.cache` names a store, or a key, the store does not have',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CACHE-002',
+      reason: '`dartvel.cache.url` is missing, is not a url for the store, or '
+          'asks for TLS the client does not have',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CACHE-003',
+      reason: '`dartvel.cache.url` has a password written into pubspec.yaml '
+          'rather than read from an environment variable',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CACHE-004',
+      reason: 'the cache store could not be opened at startup: its url '
+          'variable is unset or unusable, or the server cannot be reached',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CACHE-005',
+      reason: '`store: database` in a process that shares no database',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-SESSION-001',
       reason: 'multi-factor required by policy and not yet satisfied',
       level: 'info',
