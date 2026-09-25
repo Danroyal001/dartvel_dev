@@ -77,7 +77,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               <String>['@DVModel.pageTitle()', 'The title on its public page'],
               <String>['@DVModel.mainContent()', 'The body of its public page'],
               <String>['@DVModel.featuredImage()', 'The image for the page and '
-                  'link previews'],
+                  'link previews on pages generated from models'],
               <String>['@DVModel.pageOrder(n)', 'Where the field sits on the '
                   'page'],
               <String>['@DVModel.hideFromPage()', 'Leaves the field off the '
@@ -138,9 +138,13 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           id: 'model-pages',
           title: 'Serve a public page per record',
           children: <Widget>[
-            DocsText('With generatePublicPages: true, each record gets a page '
-                'at the plural kebab-case path of the model, and `dartvel build` '
-                'web renders published ones statically.'),
+            DocsText('With generatePublicPages: true, Dartvel generates the '
+                'route for you. Each record gets a page at the model\'s name '
+                'in plural kebab-case, followed by the record\'s slug, or its '
+                'id when the model has no slug: an Article is served at '
+                '/articles/hello-world, and a BlogPost at /blog-posts/42.'),
+            DocsText('`dartvel build web` renders the published records\' '
+                'pages statically.'),
             DocsCode('models-page-from-id'),
             DocsSubheading('List the static paths yourself'),
             DocsCode('models-paths-resolver'),
