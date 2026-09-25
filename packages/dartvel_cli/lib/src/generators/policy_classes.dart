@@ -21,6 +21,7 @@ import 'primary_constructors.dart';
 const List<String> dvPolicyActions = <String>[
   'viewAny',
   'view',
+  'viewSensitive',
   'create',
   'update',
   'delete',

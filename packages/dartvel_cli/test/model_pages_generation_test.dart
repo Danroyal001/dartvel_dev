@@ -40,7 +40,7 @@ class _User {
   File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
 import 'package:dartvel_core/dartvel.dart';
 
-@DVModel()
+@DVModel(generatePublicPages: false)
 @pragma('vm:entry-point')
 class _Note {
   final String id;
@@ -76,7 +76,7 @@ void main() {
     expect(pages, contains("schemaType: 'Person'"));
     // The page specs only: Studio's specs below them name every model.
     final String pageSpecs = pages.substring(0, pages.indexOf('dartvelStudioModels'));
-    expect(pageSpecs, isNot(contains("model: 'Note'")), reason: 'a model with no public pages has no page to resolve');
+    expect(pageSpecs, isNot(contains("model: 'Note'")), reason: 'a model that opted out of public pages has no page to resolve');
   });
 
   test('the backend starts its server with the resolver, over the built site', () async {
