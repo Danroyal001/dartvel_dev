@@ -95,7 +95,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Outbound Webhooks** | `DVWebhooks`: durable deliveries on queues, HMAC signing with key rotation, private-address refusal on every hop, dead letters. Subscriptions are not generated models yet | ⚠️ Partial |
 | **Database** | SQLite (file and in-memory, WAL), PostgreSQL and MySQL, each on its own wire protocol, with TLS on both network engines | ✅ Shipped |
 | **Queues & Jobs** | `@DVJob` with typed dispatch and handlers on seven adapters: in-memory, database, Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The four hosted ones are tested in CI against a real broker. No delayed jobs, backoff schedule or uniqueness keys yet | ⚠️ Partial |
-| **Cache** | `DV.Cache.set/get/has/delete/clear`, `remember` with tags and a stale window, `revalidateTag` and `lock`, on a server and a device alike. The store is `dartvel.cache` in pubspec.yaml: memory, database, Redis or Memcached. No model query cache or invalidation generated from model writes yet | ⚠️ Partial |
+| **Cache** | `DV.Cache.get/set/has/delete`, with read-through (`compute:`), tags and a stale window as options, on a server and a device alike. The default store is `dartvel.cache` in pubspec.yaml: memory, database, Redis or Memcached; `DV.Cache.withAdapter` switches store in code. No model query cache or invalidation generated from model writes yet | ⚠️ Partial |
 | **File Storage** | One surface on both sides: the filesystem this process is standing on (a server's disk, or the directory an app owns on a device), memory, S3 and S3-compatible stores (R2, MinIO), Azure Blob and Google Cloud Storage. No streaming put and get yet | ⚠️ Partial |
 | **Notifications** | SMTP and HTTP mail (Resend, SendGrid, Postmark, Mailgun, SES), FCM, APNS over HTTP/2, Web Push (RFC 8291/8292) and Twilio SMS. No bounce webhooks, attachments or durable inbox yet | ⚠️ Partial |
 | **Search** | SQLite FTS5, PostgreSQL full-text, Meilisearch, Algolia and OpenSearch/Elasticsearch behind one provider contract | ✅ Shipped |
@@ -715,39 +715,33 @@ are sync destinations, not operational databases.
 
 ## 🧊 Cache
 
-`DV.Cache` is five calls, the same from a page and from a backend function:
+`DV.Cache` is four calls, `get`, `set`, `has` and `delete`, the same from a
+page and from a backend function:
 
 ```dart
 await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
 final String? greeting = await DV.Cache.get<String>('greeting');
 final bool cached = await DV.Cache.has('greeting');
-await DV.Cache.delete('greeting');
-await DV.Cache.clear();
+await DV.Cache.delete(key: 'greeting');
 ```
 
-`remember` computes on a miss, and callers asking for the same key at once
-share one compute. Tags are a parameter, and `revalidateTag` drops every key
-under one:
+Everything else is an option on those four. `get` with `compute:` computes on
+a miss, and callers asking for the same key at once share one compute. Tags
+are an option, and `delete(tag:)` drops every key under one:
 
 ```dart
-final List<String> names = await DV.Cache.remember<List<String>>(
+final List<String>? names = await DV.Cache.get<List<String>>(
   'products:names',
-  fetchProductNames,
+  compute: fetchProductNames,
   ttl: const Duration(minutes: 10),
   tags: <String>['products'],
   staleFor: const Duration(minutes: 5), // optional: serve stale, refresh behind
 );
-await DV.Cache.revalidateTag('products');
-
-// One caller at a time. Null when another holds the lock; released however
-// the body ends.
-final bool? sent = await DV.Cache.lock('reports:monthly', () async {
-  await sendMonthlyReport();
-  return true;
-});
+await DV.Cache.delete(tag: 'products');
+await DV.Cache.delete(all: true); // every key
 ```
 
-Where the entries live is configuration, not code:
+Where the entries live by default is configuration:
 
 ```yaml
 dartvel:
@@ -768,6 +762,16 @@ Behind `redis` and `memcached` sit Dartvel's own clients, and a multi-node
 `hash % n` -- with a modulo, adding or removing one node remaps almost every
 key, so the cache misses on nearly everything at once and nothing reports an
 error. It is not yet a `store:` of its own.
+
+`DV.Cache.withAdapter(adapter)` switches store in code, with the same four
+calls. Every call goes to that adapter, and its tags are its own:
+
+```dart
+final DVCacheView sessions = DV.Cache.withAdapter(
+  await DVRedisCacheAdapter.connect(DV.Secrets.get('SESSIONS_REDIS_URL')),
+);
+await sessions.set('visitor:42', 'signed in', ttl: const Duration(hours: 8));
+```
 
 ---
 

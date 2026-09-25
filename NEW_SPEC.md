@@ -3789,41 +3789,43 @@ vendor's player integration has not been verified against, and until
 
 Stability: `Contract` · Status: `Partial`
 
-Unified cache layer. `DV.Cache` is five calls an application reads and
-writes with, the same from a page and from a backend function:
+Unified cache layer. `DV.Cache` is four calls an application reads and
+writes with, `get`, `set`, `has` and `delete`, the same from a page and from a
+backend function. Everything else is a named option on those four:
 
 ```dart
-await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
+await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1), tags: ['home']);
 final String? greeting = await DV.Cache.get<String>('greeting');
 final bool cached = await DV.Cache.has('greeting');
-await DV.Cache.delete('greeting');
-await DV.Cache.clear();
-```
 
-The time to live is named everywhere. On top of the five:
-
-```dart
 // Compute on a miss; callers asking at once share one compute.
-final List<String> names = await DV.Cache.remember<List<String>>(
+final List<String>? names = await DV.Cache.get<List<String>>(
   'products:names',
-  fetchProductNames,
+  compute: fetchProductNames,
   ttl: const Duration(minutes: 10),
   tags: ['products'],
-  staleFor: const Duration(minutes: 5), // optional: serve stale, refresh behind
+  staleFor: const Duration(minutes: 10), // optional: serve stale, refresh behind
 );
-await DV.Cache.revalidateTag('products'); // drops every key tagged products
-DV.Cache.tag('users:list', ['users']);    // tags an entry that already exists
 
-// Runs the body under the lock, always releases it, and returns the body's
-// result -- or null when another caller holds the lock.
-final bool? sent = await DV.Cache.lock('reports:monthly', () async {
-  await sendMonthlyReport();
-  return true;
-}, wait: const Duration(seconds: 5));
+await DV.Cache.delete(key: 'greeting');
+await DV.Cache.delete(tag: 'products'); // every key tagged products
+await DV.Cache.delete(all: true);       // every key
 ```
 
-Where entries are kept is configuration, not code. An application never
-constructs an adapter or a Redis client:
+The time to live is named everywhere. `delete` takes exactly one of `key:`,
+`tag:` or `all: true`, and none or more than one is an `ArgumentError`; the key
+is named because Dart cannot mix an optional positional parameter with named
+ones. `ttl:`, `tags:` and `staleFor:` on a `get` apply to what `compute:`
+stores, and without a `compute:` they are an `ArgumentError` rather than
+ignored.
+
+The lock, housekeeping, tag inspection and installing the configured store
+are the framework's (`DVCacheRuntime`, not in the application barrel). Work
+only one process may do is a schedule, whose occurrences are claimed once
+across cron processes; unique jobs are designed and not built.
+
+The store `DV.Cache` uses is configuration. An application never constructs
+a Redis client, and names its default store in pubspec.yaml:
 
 ```yaml
 dartvel:
@@ -3837,8 +3839,20 @@ dartvel:
 - Database (the database the deployment shares, `DATABASE_URL`)
 - Memcache
 - Redis (Or Valkey)
-- Distributed cache (`DVDistributedCacheAdapter`, for the framework; not yet
-  a `store:`)
+- Distributed cache (`DVDistributedCacheAdapter`, through `withAdapter`; not
+  yet a `store:`)
+
+The configured store is the default. `DV.Cache.withAdapter(adapter)` switches
+store in code, returning a `DVCacheView` with the same four calls and options.
+Every call goes to that adapter, never to the default store, and tags and the
+shared compute are kept per adapter:
+
+```dart
+final DVCacheView sessions = DV.Cache.withAdapter(
+  await DVRedisCacheAdapter.connect(DV.Secrets.get('SESSIONS_REDIS_URL')),
+);
+await sessions.set('visitor:42', 'signed in', ttl: const Duration(hours: 8));
+```
 
 The build reads the block and refuses one it cannot honour; the generated
 server opens the store before it serves, works or ticks anything, and refuses
@@ -3847,10 +3861,11 @@ process that believes it shares a cache while every instance keeps its own
 takes locks that lock nothing. A shared store that can count also carries the
 rate limit. On a device `DV.Cache` keeps its entries in memory.
 
-Caches are per client by default and automatically prefixed by Dartvel.
-Permissioned global helpers such as `DV.Cache.globalSet`,
-`DV.Cache.globalGet`, `DV.Cache.globalTag`, and
-`DV.Cache.globalRevalidateTag` use the backend/global cache when configured.
+Caches are per client by default and automatically prefixed by Dartvel. A
+backend/global cache shared across clients is the framework's
+(`DVCacheRuntime.global`) and not an application call: nothing configures one
+yet, and on a server `DV.Cache` already is the shared store `dartvel.cache`
+names.
 
 Supports:
 - model query cache
@@ -4794,7 +4809,7 @@ the resolved input, with the tags the Cache section already defines:
 ```
 
 The prompt version is part of the key, so shipping version 5 does not serve
-version 4's answers, and `DV.Cache.revalidateTag('ticket:42')` drops what a
+version 4's answers, and `DV.Cache.delete(tag: 'ticket:42')` drops what a
 changed ticket made stale. There is no AI-specific cache.
 
 ## What a feature is allowed to see
@@ -13240,7 +13255,7 @@ data, applied to the document.
 **On demand.** A write that invalidates a page rebuilds it:
 
 ```dart
-await DV.Cache.revalidateTag('product:${product.id}');
+await DV.Cache.delete(tag: 'product:${product.id}');
 ```
 
 The tag is the one the page already declares, so nothing new is named and a
