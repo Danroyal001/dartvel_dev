@@ -55,6 +55,15 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               'Xcode, Visual Studio, the Android SDK and Tizen Studio are never '
                   'installed for you.',
             ]),
+            DocsText('Inside a project, doctor also checks the directories you '
+                'configured as pagesDir, backendDir and modelsDir. A project '
+                'that does not use one gets a [-] line, which is information '
+                'and needs no fix. [!] is kept for something you have to fix.'),
+            DocsShell(<String>[
+              '[+] lib/pages exists',
+              '[-] lib/backend/functions not present (no backend functions)',
+              '[-] lib/models not present (no models)',
+            ]),
           ],
         ),
         DocsSection(

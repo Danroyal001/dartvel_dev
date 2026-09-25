@@ -24,21 +24,37 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             DocsText('You need Flutter 3.44 or newer, which ships Dart 3.12. '
                 'Pick one install method.'),
             DocsShell(<String>[
-              '# Homebrew: a prebuilt binary, no Dart SDK needed',
-              'brew install Danroyal001/dartvel_dev/dartvel_dev',
-              '',
-              '# npm: downloads the same binary',
+              '# npm: downloads the prebuilt binary, no Dart SDK needed',
               'npm install -g dartvel_dev',
               '',
-              '# pub: when you already have Dart',
-              'dart pub global activate dartvel_cli',
+              '# Homebrew: the same binary',
+              'brew install Danroyal001/dartvel_dev/dartvel_dev',
+              '',
+              '# In a project, from its dev_dependencies',
+              'dart run dartvel_cli:dartvel --help',
             ]),
             Bullets(<String>[
               'The command is dartvel, whichever way you install it.',
-              'dartvel ensure-path adds it to your PATH if your shell cannot '
-                  'find it.',
+              'You can also download the binary from the GitHub releases '
+                  'page. dartvel ensure-path adds it to your PATH if your shell '
+                  'cannot find it.',
+              'The Homebrew tap is updated after each release, so it can be a '
+                  'version behind npm.',
+              'dart pub global activate is not a supported install. Activating '
+                  'dartvel_dev succeeds and every run then fails, because the '
+                  'package depends on Flutter and pub will not run a global '
+                  'command from a package that does.',
+              'dart run works in a project that already lists dartvel_cli in '
+                  'dev_dependencies, which dartvel create writes. The first '
+                  'run compiles the CLI, so it is slower than the binary.',
               'dartvel update installs the latest release later.',
             ]),
+            DocsNote('0.6.0 binaries are Linux only for now',
+                'As of 2026-09-25, the 0.6.0 release has Linux binaries only, '
+                'so npm install works on Linux. The macOS and Windows binaries '
+                'follow when the release workflow can run again. Until then, '
+                'install on a Linux machine or wait for those binaries.'),
+            ExternalLink('Download a release', kReleasesUrl),
           ],
         ),
         DocsSection(
@@ -237,7 +253,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           title: 'Check what is built before you depend on it',
           children: <Widget>[
             Bullets(<String>[
-              'Dartvel is at 0.5. Some features are complete and some are '
+              'Dartvel is at 0.6. Some features are complete and some are '
                   'partial.',
               'Twenty-four sections are a frozen public contract with unfinished code '
                   'behind them.',

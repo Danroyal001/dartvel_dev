@@ -5,7 +5,7 @@ import '../../dartvel_client/dartvel_client.dart';
 @DVPage(
   title: 'Add Dartvel to an existing Flutter app',
   description: 'Add Dartvel to the Flutter app you already have, one screen at '
-      'a time. dartvel init changes two lines in pubspec.yaml and '
+      'a time. dartvel init changes two things in pubspec.yaml and '
       'moves none of your files.',
   showAppBar: false,
 )
@@ -34,8 +34,9 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
                   'other directories so nothing of yours is claimed.',
             ]),
             DocsNote('Add the CLI yourself',
-                'init adds the runtime only. Run the generator from a globally '
-                'activated dartvel, or add dartvel_cli as a dev dependency.'),
+                'init adds the runtime only. Run the generator from the dartvel '
+                'binary you installed, or add dartvel_cli as a dev dependency '
+                'and use dart run dartvel_cli:dartvel.'),
           ],
         ),
         DocsSection(
