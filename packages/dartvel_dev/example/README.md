@@ -48,12 +48,7 @@ import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
 @pragma('vm:entry-point')
-class _Note {
-  final String id;
-  final String name;
-
-  const _Note({required this.id, required this.name});
-}
+class const _Note({required final String id, required final String name});
 ```
 
 The class is private because it is the generator's input. The application
