@@ -4,9 +4,10 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Expo for Flutter',
-  description: 'Expo for Flutter: dartvel dev pairs a phone with a QR code, '
-      'dartvel build ships to the stores, and over-the-air patches land '
-      'without a review. Plus the backend Expo leaves to you.',
+  description: 'Expo for Flutter: dartvel dev pairs a development build by '
+      'QR code, dartvel deploy --store uploads to the stores, and Android apps '
+      'take over-the-air patches. How that compares with Expo, EAS and Expo '
+      'Router API routes.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.9,
@@ -21,31 +22,37 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
           children: <Widget>[
             Eyebrow('EXPO FOR FLUTTER'),
             Heading(
-              'Expo for Flutter, with the backend included.',
+              'Expo for Flutter, and a backend framework beside it.',
               level: 1,
             ),
             Body('Expo is the reason React Native is pleasant to work in: one '
-                'command to run the app on a real phone, builds on somebody '
-                "else's machines, store submission, and updates that reach "
-                'users without a review. Flutter has none of that in the box. '
-                'Dartvel is that layer, and it goes further, because an Expo '
-                'app still needs a server somebody else writes.'),
+                "command to start, builds on somebody else's machines, store "
+                'submission, updates that reach users without a review, and, '
+                'through Expo Router, API routes and server functions that '
+                'deploy to EAS Hosting. Flutter gives you flutter run and '
+                "each platform's own release tooling, and stops there. "
+                'Dartvel is that missing layer for Flutter, with a backend '
+                'framework in the same language: data models, auth, queues, '
+                'mail and an admin.'),
             Bullets(<String>[
-              'dartvel dev serves your app and prints a QR code. Scan it and '
-                  'the phone is paired. No flag, no second command.',
-              'dartvel build android, ios, macos, windows, linux, tizen, '
-                  'webos, tvos, vscode. Add --cloud and it runs on our '
-                  'machines instead of yours.',
-              'dartvel deploy --store play, testflight, app-store, '
-                  'firebase-app-distribution.',
-              'dartvel updates patch serves a fix over the air, from Cloud or '
-                  'from your own web-server binary.',
+              'Install a development build of your app once. After that, '
+                  'dartvel dev prints a QR code; scan it and the app pairs and '
+                  'hot reloads over your network.',
+              'dartvel build android, ios, macos, windows, linux, tvos, '
+                  'tizen, sony-elinux, vscode and more. --cloud sends the '
+                  'build to Dartvel Cloud, which is not open yet.',
+              'dartvel deploy --store play, appstore, testflight or '
+                  'firebase-app-distribution hands the upload to that '
+                  "store's own tool.",
+              'dartvel updates patch sends a Dart fix to Android apps over '
+                  'the air, from your own web-server binary. iOS is not '
+                  'supported yet.',
             ]),
             CodeBlock(<String>[
+              'dartvel build android --profile development',
               'dartvel dev            # QR code, pair, hot reload',
-              'dartvel build android  # or ios, tizen, webos, vscode',
               'dartvel deploy --store play',
-              'dartvel updates patch  # no store review',
+              'dartvel updates patch --platform android',
             ]),
           ],
         ),
@@ -57,34 +64,43 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
             DocsTable(
               columns: <String>['', 'Expo', 'Dartvel'],
               rows: <List<String>>[
-                <String>['Language', 'TypeScript', 'Dart, front and back'],
-                <String>['Run on a device', 'expo start, Expo Go', 'dartvel dev, QR code, pairing always on'],
-                <String>['Cloud builds', 'EAS Build', 'dartvel build --cloud (Cloud is not open yet)'],
-                <String>['Store submission', 'EAS Submit', 'dartvel deploy --store'],
-                <String>['Over the air', 'EAS Update', 'dartvel updates patch, from Cloud or your own binary'],
-                <String>['Backend', 'None. Bring your own', '@DVBackendFunction, data models, auth, queues, mail'],
-                <String>['Database', 'None', 'SQLite locally, Postgres and MySQL adapters'],
-                <String>['Admin', 'None', 'Studio, served by your own binary'],
-                <String>['TVs and embedded', 'No', 'Tizen, webOS, tvOS, Android TV, embedded Linux'],
+                <String>['Language', 'TypeScript or JavaScript, with React', 'Dart, front and back'],
+                <String>['Run on a device', 'npx expo start, with Expo Go or a development build', 'A development build, paired by dartvel dev over a QR code'],
+                <String>['Cloud builds', 'EAS Build, with a free tier and paid plans', 'dartvel build --cloud. Cloud is not open yet'],
+                <String>['Local builds', 'npx expo run, or eas build --local', 'dartvel build <target>'],
+                <String>['Store submission', 'EAS Submit', "dartvel deploy --store, through each store's own tool"],
+                <String>['Over the air', 'EAS Update, on Android and iOS', 'dartvel updates, Android only, from Shorebird or your own binary'],
+                <String>['Server code', 'Expo Router API routes (+api.ts), server middleware, and React Server Functions in beta', '@DVBackendFunction, with a typed client generated from it'],
+                <String>['Hosting the server', 'EAS Hosting, or most other hosts', 'One binary from dartvel build web-server, on a machine you run'],
+                <String>['Database', 'expo-sqlite on the device. For a server database the docs point to Convex, Supabase or Firebase', 'Data models on SQLite, Postgres or MySQL, with migrations'],
+                <String>['Auth', 'Guides for OAuth providers and auth SDKs, and redirects in Expo Router', 'Sessions, passkeys, SAML, LDAP and second factors, built in'],
+                <String>['Admin', 'None built in', 'Studio, served by your own binary'],
+                <String>['TVs', 'Android TV and Apple TV, through react-native-tvos', 'Android TV, Apple TV, Samsung Tizen'],
+                <String>['Desktop and embedded', 'Not covered by the Expo docs', 'macOS, Windows, Linux, Sony embedded Linux'],
               ],
             ),
             UpstreamCredits(ids: <String>[
-              'tizen', 'webos', 'tvos', 'elinux', 'vscode',
+              'tizen', 'tvos', 'elinux', 'vscode',
             ]),
           ],
         ),
         Section(
           children: <Widget>[
-            Eyebrow('THE DIFFERENCE'),
-            Heading('An Expo app still needs a server. A Dartvel app is one.'),
-            Body('This is the part that is not a feature comparison. Expo '
-                'builds and ships a client; what that client talks to is your '
-                'problem, and the usual answer is a second repository in a '
-                'second language with a second deployment and a hand-written '
-                'API client in between. In Dartvel a backend function is a '
-                'Dart function, and the client that calls it is generated from '
-                'it, so renaming an argument breaks the build instead of '
-                'production.'),
+            Eyebrow('THE BACKEND'),
+            Heading('Both reach a server. They stop in different places.'),
+            Body('An Expo Router API route is a file such as app/hello+api.ts '
+                'that exports GET or POST handlers, and a React Server '
+                'Function is called from a component like a typed function. '
+                'Both deploy to EAS Hosting or another host, and a native '
+                'build finds them through the origin set in the Expo Router '
+                'config plugin, which Expo marks as alpha. What Expo leaves to '
+                'you is what sits behind the handler: its database guide sends '
+                'you to Convex, Supabase or Firebase, and sign-in comes from an '
+                "auth SDK. Dartvel's backend is a framework of its own. A "
+                'backend function is Dart, the client that calls it is '
+                'generated from it, so renaming an argument breaks the build, '
+                'and the models, auth, policies, queues and mail it uses come '
+                'with it.'),
             CodeBlock(<String>[
               '@DVBackendFunction()',
               'Future<Invoice> _issue(String orderId) async { ... }',
@@ -93,10 +109,12 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               'final Invoice invoice = await issue(orderId: order.id);',
             ]),
             Bullets(<String>[
-              'Data models are offline-first and realtime by default, so a '
-                  'list updates itself and survives a tunnel.',
-              'Auth, sessions, second factors, policies and an admin come '
-                  'with the framework instead of from four packages.',
+              'A data model generates its table, its migration, a typed '
+                  'client, a form and an admin screen.',
+              'Model change streams and an offline store are built. Carrying '
+                  'a change from the server to a phone is not built yet, so a '
+                  'list on one device does not update when another device '
+                  'writes.',
               'One binary from dartvel build web-server runs the site, the '
                   'API and Studio, with SQLite created beside it.',
             ]),
@@ -108,25 +126,38 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('HONESTLY'),
             Heading('Where Expo is ahead today.'),
             Bullets(<String>[
-              'EAS is a running service with paid plans. Dartvel Cloud is '
-                  'built and not open: --cloud needs a token nobody can buy '
-                  'yet. Local builds, store uploads and patches from your own '
-                  'binary are free and work now.',
+              'EAS is running today, with a free tier and paid plans: Build, '
+                  'Submit, Update, Hosting and Workflows. Dartvel Cloud is '
+                  'built and not open, so --cloud needs a token nobody can buy '
+                  'yet. Local builds, store uploads and Android patches from '
+                  'your own binary are free and work now.',
+              "EAS Update reaches iOS and Android. Dartvel's over-the-air "
+                  'patches reach Android only.',
+              'Expo Go runs a project on a phone with no build of your own. '
+                  'Dartvel always needs a development build, and a physical '
+                  'iPhone pairs only when the app is started from Xcode or '
+                  'flutter run.',
+              'eas deploy puts API routes on a hosted server in one command. '
+                  "Dartvel's web-server binary runs on a machine you provide.",
               "Expo's ecosystem of config plugins and prebuilt modules is "
-                  'years old and very large.',
-              'React Native has more people to hire and more answers already '
-                  'written down.',
+                  'years old and very large, and React Native has more people '
+                  'to hire and more answers already written down.',
             ]),
             VersusFair('Expo is very good at what it does, and Dartvel copies '
-                'the shape of it on purpose. The claim here is not that Expo '
-                'is worse. It is that a Flutter developer has had nothing of '
-                'the kind, and that a mobile toolchain without a backend '
-                'leaves half the application to you.'),
+                'the shape of it on purpose. Both reach the server now: Expo '
+                'through API routes and server functions, Dartvel through a '
+                'backend framework in the language the app is written in. If '
+                'you want React and a hosted pipeline that works today, choose '
+                'Expo. If you want Flutter, targets past the phone, and data '
+                'models, auth and an admin in the same repository, that is '
+                'what Dartvel is for.'),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('Start an app', '/docs'),
               GhostLink('What ships today', '/features'),
               GhostLink('Build without a Mac', '/flutter-without-a-mac'),
             ], spacing: 12),
+            VersusChecked('Expo', 'https://docs.expo.dev/llms.txt',
+                '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/expo')]),
