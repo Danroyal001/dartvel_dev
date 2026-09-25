@@ -21,7 +21,8 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           id: 'sqlite',
           title: 'Use SQLite locally',
           children: <Widget>[
-            DocsText('The database is configuration, not code. Put '
+            DocsText('You set the database in configuration and write no code '
+                'for it. Put '
                 'DATABASE_URL in .env and the generated backend opens it for '
                 'your data models, jobs and schedules.'),
             DocsShell(<String>[
@@ -134,8 +135,8 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           title: 'Store records without writing SQL',
           children: <Widget>[
             DocsNote('Being replaced by data model queries',
-                'Records are the framework\'s contract with its engines, not '
-                'a way for an application to write data. They are leaving the '
+                'Records are the framework\'s contract with its engines. An '
+                'application does not write data through them. They are leaving the '
                 'application surface, and this section will be rewritten '
                 'around model queries. Write through a data model instead.'),
             DocsText('A page, a saved report, an audit entry: data that is '
