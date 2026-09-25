@@ -1,0 +1,9 @@
+# Local development only, as in ../pubspec_overrides.yaml: the Dartvel
+# packages depend on each other by hosted version so they can be published,
+# and these put the working tree back. An override applies only to the package
+# being resolved as root, so the example needs its own.
+dependency_overrides:
+  dartvel_core:
+    path: ../../dartvel_core
+  dartvel_shelf:
+    path: ../../dartvel_shelf
