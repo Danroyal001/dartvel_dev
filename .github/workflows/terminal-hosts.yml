@@ -53,14 +53,14 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '${{ env.FLUTTER_VERSION }}', channel: stable, cache: true }
 
       # The example's Rust runtime hook runs cbindgen during the bundle build.
       - name: Cache cbindgen
         id: cbindgen-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/cbindgen
@@ -149,7 +149,7 @@ jobs:
           if [ "$ESC" -lt 50 ]; then echo "::error::too few escape sequences; nothing was drawn"; exit 1; fi
           if [ "$RGB" -lt 100 ]; then echo "::error::no true-colour frame in the capture"; exit 1; fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: terminal-${{ matrix.target }}-${{ matrix.arch }}

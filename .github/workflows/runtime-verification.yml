@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -196,7 +196,7 @@ jobs:
             "/tmp/diag/linux-gui.png" --label "linux" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-linux-gui, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -215,7 +215,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -427,7 +427,7 @@ jobs:
             "/tmp/diag/elinux-release.png" --label "sony-elinux release" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: screenshot-elinux
@@ -445,7 +445,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -582,7 +582,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: capture-terminal, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -595,7 +595,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -707,7 +707,7 @@ jobs:
           fi
           echo "the module's asset is bundled under its package path"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-web, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -721,8 +721,8 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
@@ -833,7 +833,7 @@ jobs:
             "/tmp/diag/android.png" --label "android" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-android, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -847,7 +847,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -930,7 +930,7 @@ jobs:
             "/tmp/diag/ios.png" --label "ios" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-apple, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -939,7 +939,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -997,7 +997,7 @@ jobs:
             C:\diag\windows.png --label windows --min-width 320 --min-height 240
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-windows, path: C:\diag\, if-no-files-found: warn }
 
@@ -1012,7 +1012,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # A standard SDK for the Dartvel CLI. The tvOS embedder carries its own
       # Flutter and uses it for the build, but `dart run dartvel_cli:dartvel`
       # needs a dart on PATH — without this the job dies on "dart: command not
@@ -1078,7 +1078,7 @@ jobs:
             "/tmp/diag/tvos.png" --label "tvos" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-tvos, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -1092,7 +1092,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -1283,7 +1283,7 @@ jobs:
             "/tmp/diag/extension-page.png" --label "chrome-extension page" \
             --min-width 320 --min-height 240
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: screenshot-extension, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -1304,7 +1304,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
@@ -1429,7 +1429,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: firefox-extension, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -1440,7 +1440,7 @@ jobs:
     steps:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
 
@@ -1476,7 +1476,7 @@ jobs:
           echo "failures: $failures"
           exit $failures
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: refusals, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -1491,7 +1491,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - run: mkdir -p /tmp/diag
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
@@ -1650,7 +1650,7 @@ jobs:
             fi
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with: { name: web-server-pages, path: /tmp/diag/, if-no-files-found: warn }
 
@@ -1662,7 +1662,7 @@ jobs:
       - name: Open the diagnostics directory
         run: mkdir -p /tmp/diag
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -1952,14 +1952,14 @@ jobs:
 
           cp frame.png frame.ppm /tmp/diag/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: webos-arm-frame
           path: /tmp/diag/frame.png
           if-no-files-found: warn
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: webos-package
           path: examples/dartvel_example/build/webos
@@ -1974,7 +1974,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with: { flutter-version: '3.44.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true

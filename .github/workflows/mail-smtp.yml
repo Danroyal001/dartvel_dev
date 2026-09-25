@@ -57,7 +57,7 @@ jobs:
           MP_SMTP_AUTH_ALLOW_INSECURE: '1'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
         with: { sdk: stable }
 
