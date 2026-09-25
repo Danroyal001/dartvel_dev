@@ -13,6 +13,8 @@ library;
 
 import 'dart:convert';
 
+import 'find_in_page.dart';
+
 /// Every string literal in the source.
 ///
 /// Not "the first argument of DVText or Text": matching framework widget
@@ -88,23 +90,28 @@ List<String> dvPageText(String source) {
 /// application: a `max-width` on `body` would break every Dartvel app's own
 /// layout, and nothing here sets one.
 ///
-/// The block is hidden from the screen and shown again in two places. A
-/// reader with scripting off gets it from the `<noscript>` override below,
-/// which is the one thing noscript is still needed for. A printer gets it
-/// from the `@media print` rules, which also take away what Flutter paints
-/// into: a canvas prints as one bitmap the width of the window -- clipped, at
-/// screen resolution, with no text to select and no page break anywhere
-/// sensible. The page's own HTML is already here; printing it is a
-/// stylesheet, not a feature.
+/// On the screen the block is a clipped box one pixel square: laid out, so
+/// the browser's find searches it, and painting nothing, so the application
+/// keeps the screen. It used to be `display:none`, which is the one kind of
+/// hidden find skips, and is why Ctrl+F on a Dartvel page found nothing.
+/// Each paragraph inside is `hidden="until-found"` besides (see
+/// [dvFindableHtml]), which is what makes the browser say which one it
+/// matched.
+///
+/// It is shown again in two places. A reader with scripting off gets it from
+/// the `<noscript>` override, which is the one thing noscript is still needed
+/// for. A printer gets it from the `@media print` rules, which also take away
+/// what Flutter paints into: a canvas prints as one bitmap the width of the
+/// window -- clipped, at screen resolution, with no text to select and no
+/// page break anywhere sensible. Both turn the until-found paragraphs on as
+/// well, and by `[data-dv-anchor]` rather than by the attribute's value: a
+/// browser that does not know until-found reads it as plain `hidden`, and a
+/// page that opted out of find keeps its paragraphs plainly hidden.
 ///
 /// A reading column, a system font, and the reader's colour scheme. Nothing
 /// decorative: this is the page someone sees when the app cannot run, and it
 /// should look like a document rather than like a broken site.
-const String dvFallbackStyle = '<style class="dv-fallback-style">'
-    // In the document, off the screen. The application is what the reader
-    // came for; this is what the crawler, the printer and a browser with no
-    // scripting get instead.
-    '.dv-fallback{display:none}'
+const String dvFallbackCss =
     '.dv-fallback{max-width:44rem;margin:0 auto;padding:2rem 1.25rem;'
     'font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;'
     'color:#0b1020;background:#fff}'
@@ -119,13 +126,24 @@ const String dvFallbackStyle = '<style class="dv-fallback-style">'
     '@media (prefers-color-scheme:dark){'
     '.dv-fallback{color:#f2f5fa;background:#0a0d13}'
     '.dv-fallback a{color:#7ba2ff}}'
+    // In the document, off the screen. The application is what the reader
+    // came for; this is what the crawler, the printer, the browser's find
+    // and a browser with no scripting get instead. Fixed, so a find that
+    // scrolls to it moves nothing the reader can see.
+    '@media screen{.dv-fallback{position:fixed;top:0;left:0;width:1px;'
+    'height:1px;max-width:none;margin:0;padding:0;border:0;overflow:hidden;'
+    'clip-path:inset(50%);white-space:normal;pointer-events:none}}'
     // What the printer is given. Flutter's own host elements go first: they
     // are what the page looks like and not what it says.
     '@media print{'
     'flutter-view,flt-glass-pane,flt-scene-host,flt-semantics-host,canvas'
     '{display:none!important}'
-    '.dv-fallback{display:block!important;max-width:none;margin:0;padding:0;'
+    '.dv-fallback{display:block!important;position:static!important;'
+    'width:auto!important;height:auto!important;overflow:visible!important;'
+    'clip-path:none!important;max-width:none;margin:0;padding:0;'
     'color:#000;background:#fff;font-size:11pt}'
+    '.dv-fallback [data-dv-anchor]{display:block!important;'
+    'content-visibility:visible!important}'
     '.dv-fallback a{color:#000;text-decoration:underline}'
     // Nobody clicks a printed link, so it has to say where it went.
     '.dv-fallback a[href]::after{content:" (" attr(href) ")";font-size:.85em}'
@@ -133,13 +151,25 @@ const String dvFallbackStyle = '<style class="dv-fallback-style">'
     'white-space:pre-wrap}'
     '.dv-fallback h1,.dv-fallback h2,.dv-fallback h3{break-after:avoid}'
     '@page{margin:18mm}'
-    '}'
-    '</style>'
+    '}';
+
+/// What turns the block back on for a reader whose browser will never run the
+/// app: the reading column instead of the clipped box, and every paragraph
+/// shown.
+const String dvFallbackNoscriptCss =
+    '.dv-fallback{position:static;width:auto;height:auto;max-width:44rem;'
+    'margin:0 auto;padding:2rem 1.25rem;overflow:visible;clip-path:none;'
+    'pointer-events:auto}'
+    '.dv-fallback [data-dv-anchor]{display:block;content-visibility:visible}';
+
+/// Both style elements the block is written with.
+const String dvFallbackStyle =
+    '<style class="dv-fallback-style">$dvFallbackCss</style>'
     // The reader whose browser will never run the app. A style element here
     // rather than the content itself: the content is in the document now, and
     // this only turns it back on.
     '<noscript class="dv-fallback-style">'
-    '<style>.dv-fallback{display:block}</style></noscript>';
+    '<style>$dvFallbackNoscriptCss</style></noscript>';
 
 /// Whether the block a page was served with is no longer the page on screen.
 ///
@@ -191,17 +221,19 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
   if (at < 0) return cleaned;
 
   const escape = HtmlEscape(HtmlEscapeMode.element);
+  // The first line is the page's own heading; a document with no h1 reads as
+  // a fragment to a crawler.
+  final StringBuffer content = StringBuffer()
+    ..writeln('<h1>${escape.convert(lines.first)}</h1>');
+  for (final String line in lines.skip(1)) {
+    content.writeln('<p>${escape.convert(line)}</p>');
+  }
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
-    ..writeln(_openFallback(path));
-  // The first line is the page's own heading; a document with no h1 reads as
-  // a fragment to a crawler.
-  buffer.writeln('<h1>${escape.convert(lines.first)}</h1>');
-  for (final String line in lines.skip(1)) {
-    buffer.writeln('<p>${escape.convert(line)}</p>');
-  }
-  buffer
+    ..writeln(_openFallback(path))
+    // Each paragraph in a section the browser's find searches.
+    ..write(dvFindableHtml(content.toString()))
     ..writeln('</div>')
     ..writeln(_close);
 
@@ -232,7 +264,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
     ..writeln(_openFallback(path))
-    ..writeln(content.trim())
+    ..writeln(dvFindableHtml(content.trim()))
     ..writeln('</div>')
     ..writeln(_close);
   return cleaned.substring(0, at) + buffer.toString() + cleaned.substring(at);

@@ -1,6 +1,7 @@
 import 'package:dartvel_core/dartvel.dart' show dvFallbackIsStale;
 import 'package:web/web.dart' as web;
 import '../dartvel_flutter.dart';
+import 'find/find_platform_web.dart' show dvFindOwnsFallback;
 
 /// Where the reader is, as the served page's block would have written it.
 ///
@@ -26,7 +27,13 @@ String _currentPath() {
 /// Dartvel. That is the safe direction, and it is also where this lands if
 /// the comparison is ever wrong: the worst a mistake here can do is print the
 /// page the way Flutter does.
+///
+/// Only until a page shell is up. From then the find runtime keeps the block
+/// current instead -- rewriting it for the page on screen after each
+/// navigation, so find and print both follow the reader -- and drops it itself
+/// where no findable page is there to rewrite it for.
 void _dropStaleFallback() {
+  if (dvFindOwnsFallback) return;
   final web.Element? block = web.document.querySelector('.dv-fallback');
   if (block == null) return;
   if (!dvFallbackIsStale(block.getAttribute('data-dv-path'), _currentPath())) {

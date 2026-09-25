@@ -1,3 +1,22 @@
+## Unreleased
+
+- **The browser's own find searches the page-text block.** `dvApplyPageHtml`
+  and `dvApplyPageText` write each paragraph inside
+  `<section hidden="until-found" data-dv-anchor="N">`, via the new
+  `dvFindableHtml`. On screen the block is now a clipped 1px box
+  instead of `display:none`, which the browser's find skips. Print and the
+  `<noscript>` override still show the whole block, until-found sections
+  included. `dvFallbackStyle` is now built from `dvFallbackCss` and
+  `dvFallbackNoscriptCss`.
+
+- **`@DVPage(findable: false)`** opts a page out of the browser's find.
+  The default is true, next to `selectable`. With it set, the web runtime
+  writes none of the page's text into the document, and the sections the
+  build wrote for crawlers and printers are no longer searched.
+- **`dvFindMatch`, `dvFindMirrorBlocks`, `dvFindMissing`** are the plain-Dart
+  half of find in page: which rendered paragraph a browser match means, and
+  what the runtime mirror is written from.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person

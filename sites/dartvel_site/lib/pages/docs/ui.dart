@@ -28,10 +28,11 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
                   'readers and search engines.',
               'maxLines(2) cuts long text with an ellipsis.',
             ]),
-            DocsNote('Ctrl+F does not find text on the web yet',
-                'Flutter draws text on a canvas, so the browser\'s find bar '
-                'cannot see it. A fix is planned and not built. Static web '
-                'hosting describes the proposal.'),
+            DocsNote('Ctrl+F finds text on the web',
+                'Flutter draws text on a canvas, so each page also keeps a '
+                'hidden copy of its text for the browser\'s find bar. A match '
+                'scrolls the page to that paragraph. Static web hosting '
+                'explains how, and which browsers support it.'),
           ],
         ),
         DocsSection(
