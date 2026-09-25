@@ -215,6 +215,17 @@ void main() {
     expect(widgets, isNot(contains('$alias.const')));
   });
 
+  test('a private primary-constructor class beside a widget is not `const`',
+      () async {
+    final String widgets = await widgetsFor('$_imports'
+        'class const _Unused(final int x);\n'
+        '@DVFunctionalWidget()\n'
+        "Widget _plain(String text) => const DVText('plain');\n");
+
+    expect(widgets, contains("const DVText('plain')"));
+    expect(widgets, isNot(contains('.const ')));
+  });
+
   test('the generated library imports each URI once', () async {
     // Two annotated widgets in files that share an import used to emit that
     // import twice. It compiles, but only because duplicate_import is a lint
