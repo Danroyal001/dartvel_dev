@@ -191,6 +191,30 @@ void main() {
     expect(widgets, contains('const $alias.Palette palette = $alias.Palette();'));
   });
 
+  test('a helper declared with a primary constructor still resolves', () async {
+    // `class const Palette(...)` read as a class named `const`: the helper
+    // was left unqualified and the keyword was qualified instead, so the
+    // lowered body did not compile.
+    final String widgets = await widgetsFor(
+      '$_imports'
+      'class const Palette([final int ink = 0xFF000000]);\n'
+      '@DVFunctionalWidget()\n'
+      'Widget _inked(String text) {\n'
+      '  const Palette palette = Palette();\n'
+      '  return DVText(text + palette.ink.toString());\n'
+      '}\n',
+    );
+
+    final String alias = RegExp(
+      r"import 'package:fw_app/widgets\.dart' as (w\d+);",
+    ).firstMatch(widgets)!.group(1)!;
+    expect(
+      widgets,
+      contains('const $alias.Palette palette = $alias.Palette();'),
+    );
+    expect(widgets, isNot(contains('$alias.const')));
+  });
+
   test('the generated library imports each URI once', () async {
     // Two annotated widgets in files that share an import used to emit that
     // import twice. It compiles, but only because duplicate_import is a lint
