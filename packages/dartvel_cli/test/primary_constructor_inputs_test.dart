@@ -195,6 +195,24 @@ class const _SendReceipt({required final String orderId, required final int atte
     expect(after, before);
   });
 
+  test('a handler beside a primary-constructor payload keeps its const',
+      () async {
+    // `class const _SendReceipt(` was read as a class named `const`, and the
+    // lowered handler body came out as `j0.const Receipt(...)`.
+    final String jobs = await _jobs('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVJob(queue: 'mail')
+class const _SendReceipt({required final String orderId});
+
+@DVJob.handler()
+Future<void> _handleSendReceipt(SendReceipt job) async =>
+    print(const Duration(seconds: 1));
+''');
+    expect(jobs, contains('print(const Duration(seconds: 1))'));
+    expect(jobs, isNot(contains('.const ')));
+  });
+
   test('a policy with a primary constructor is still found', () {
     final List<DVPolicyClass> found = dvPolicyClassesIn('''
 @DVPolicy(Order)

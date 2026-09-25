@@ -877,7 +877,12 @@ class JobGenerator {
         r'^(?:[A-Za-z_][A-Za-z0-9_<>, ?]*\s+)+([A-Za-z][A-Za-z0-9_]*)\s*\(',
         multiLine: true,
       ),
-      RegExp(r'^class\s+(?:const\s+)?([A-Za-z][A-Za-z0-9_]*)', multiLine: true),
+      // `class const Name(...)`: the name, never the keyword -- not even
+      // when the name is private and so not a symbol at all.
+      RegExp(
+        r'^class\s+(?:const\s+)?(?!const\b)([A-Za-z][A-Za-z0-9_]*)',
+        multiLine: true,
+      ),
     ]) {
       for (final match in pattern.allMatches(source)) {
         symbols.add(match.group(1)!);
