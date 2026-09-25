@@ -81,21 +81,17 @@ List<DVLocalTable> dvLocalSchemas(String root) {
 
 /// The `@DVModel` input [table] suggests.
 String dvModelSuggestion(DVLocalTable table) {
+  // Written with a primary constructor, as a model is written by hand.
   final StringBuffer out = StringBuffer()
     ..writeln('@DVModel()')
-    ..writeln('class _${table.model} {');
+    ..writeln('class const _${table.model}({');
   for (final DVLocalField field in table.fields) {
-    out.writeln('  final ${field.type}${field.nullable ? '?' : ''} ${field.name};');
+    out.writeln(
+      '  ${field.nullable ? '' : 'required '}final '
+      '${field.type}${field.nullable ? '?' : ''} ${field.name},',
+    );
   }
-  out
-    ..writeln('')
-    ..writeln('  const _${table.model}({')
-    ..writeAll(<String>[
-      for (final DVLocalField field in table.fields)
-        '    ${field.nullable ? '' : 'required '}this.${field.name},\n',
-    ])
-    ..writeln('  });')
-    ..writeln('}');
+  out.writeln('});');
   return out.toString();
 }
 
