@@ -1,3 +1,9 @@
+## 0.6.1
+
+- Declares the platforms it supports in pubspec.yaml, so pub.dev lists
+  them instead of inferring them from platform-specific imports. No code
+  changes.
+
 ## 0.6.0
 
 - Tracks dartvel_core, dartvel_flutter and dartvel_cli 0.6.0 and
