@@ -12,11 +12,23 @@ import '../database/framework_tables.dart';
 abstract class DVCacheAdapter {
   Future<Object?> read(String key);
   Future<void> write(String key, Object? value, Duration? ttl);
-  Future<void> remove(String key);
+
+  /// Removes [key]. Named as `DV.Cache.delete` is, so the adapter and the
+  /// call an application makes say the same thing.
+  Future<void> delete(String key);
+
   Future<void> clear();
 
   /// Removes expired entries. Reads already ignore them; this reclaims space.
   Future<int> purgeExpired();
+}
+
+/// The earlier name of [DVCacheAdapter.delete], kept so a caller written
+/// against it still works. An extension rather than a member, because every
+/// adapter `implements` the interface and would otherwise have to write both.
+extension DVCacheAdapterRemove on DVCacheAdapter {
+  @Deprecated('Use delete. remove will be removed in the next major release.')
+  Future<void> remove(String key) => delete(key);
 }
 
 /// Atomic write-if-absent, the compare-and-set the spec requires from a
@@ -84,7 +96,7 @@ class DVMemoryCacheAdapter implements DVCacheAdapter, DVCountingCacheAdapter {
   }
 
   @override
-  Future<void> remove(String key) async => _entries.remove(key);
+  Future<void> delete(String key) async => _entries.remove(key);
 
   @override
   Future<void> clear() async => _entries.clear();
@@ -164,7 +176,7 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
     final expiresAt = row['expires_at'];
     if (expiresAt is int &&
         DateTime.now().millisecondsSinceEpoch >= expiresAt) {
-      await remove(key);
+      await delete(key);
       return null;
     }
 
@@ -195,7 +207,7 @@ class DVDatabaseCacheAdapter implements DVCacheAdapter {
   }
 
   @override
-  Future<void> remove(String key) async {
+  Future<void> delete(String key) async {
     await initialize();
     await database.execute(
       'DELETE FROM $tableName WHERE cache_key = ?',

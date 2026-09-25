@@ -42,7 +42,7 @@ class _SharedCache implements DVCacheAdapter, DVCountingCacheAdapter {
   Future<void> write(String key, Object? value, Duration? ttl) async =>
       values[key] = value;
   @override
-  Future<void> remove(String key) async => values.remove(key);
+  Future<void> delete(String key) async => values.remove(key);
   @override
   Future<void> clear() async => values.clear();
   @override
@@ -56,7 +56,7 @@ class _PlainCache implements DVCacheAdapter {
   @override
   Future<void> write(String key, Object? value, Duration? ttl) async {}
   @override
-  Future<void> remove(String key) async {}
+  Future<void> delete(String key) async {}
   @override
   Future<void> clear() async {}
   @override

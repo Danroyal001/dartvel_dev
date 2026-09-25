@@ -791,7 +791,7 @@ class DVAIFeatures {
       // Revalidating a tag forgets its keys; an entry one of whose tags no
       // longer holds it is stale however it got past the delete.
       if (!tags.keysForTag('$tag').contains(key)) {
-        await cache!.remove(key);
+        await cache!.delete(key);
         return null;
       }
     }
