@@ -66,10 +66,21 @@ void main() {
     db.DV.Database.configure(adapter);
     expect(await db.DV.Database.query('select 1'), isNotEmpty);
 
-    expect(
+    // dartvel.cache sets DV.Cache's default store; the adapters switch store
+    // in code, so this entrypoint has to reach every one of them.
+    final List<db.DVCacheAdapter> stores = <db.DVCacheAdapter>[
+      db.DVMemoryCacheAdapter(),
       db.DVDatabaseCacheAdapter(adapter),
-      isA<db.DVCacheAdapter>(),
-    );
+      db.DVMemcachedCacheAdapter(host: '127.0.0.1'),
+      db.DVDistributedCacheAdapter(
+        nodes: <String, db.DVCacheAdapter>{'a': db.DVMemoryCacheAdapter()},
+      ),
+    ];
+    expect(db.DVRedisCacheAdapter.connect, isNotNull);
+    final db.DVCacheView switched = db.DV.Cache.withAdapter(stores.first);
+    await switched.set('k', 'v');
+    expect(await switched.get<String>('k'), 'v');
+    expect(await db.DV.Cache.has('k'), isFalse);
     expect(db.SqliteDVDatabaseAdapter, isNotNull);
   });
 
