@@ -30,9 +30,11 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 'auth, file storage and realtime. Dartvel arrives at the same '
                 'place from the other direction: dartvel build web-server '
                 'produces one executable that creates its SQLite database '
-                'beside itself on first run. The difference is that your '
-                'application is in that file too, instead of a separate '
-                'frontend talking to it.'),
+                'beside itself on first run. PocketBase can serve a built '
+                'frontend from its pb_public folder, and that frontend is '
+                'still a separate project talking to its API. In Dartvel the '
+                'app and its backend are one project, compiled into one '
+                'file.'),
             CodeBlock(<String>[
               'dartvel build web-server',
               'scp build/server user@host:/srv/app',
@@ -52,12 +54,13 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 <String>['Deployment', 'One Go binary', 'One binary from dartvel build web-server'],
                 <String>['Database', 'SQLite, embedded', 'SQLite beside the binary; Postgres and MySQL adapters'],
                 <String>['Admin', 'Built in', 'Studio, built in, and it edits your pages too'],
-                <String>['Auth', 'Built in, with OAuth providers', 'Sessions, passkeys, SAML, LDAP, second factors, OAuth'],
-                <String>['Realtime', 'Subscriptions over SSE', 'On by default on models. Turn it off at the model'],
-                <String>['Offline', 'Your problem', 'On by default. Writes sync when the network returns'],
+                <String>['Auth', 'Built in: password, one-time codes, OAuth2 and MFA', 'Sessions, passkeys, SAML, LDAP, second factors, OAuth'],
+                <String>['Realtime', 'Subscriptions over SSE, in both SDKs', 'Model change streams in one process. Delivery to devices is not built yet'],
+                <String>['Offline', 'Left to the client', 'An offline store with a replay log. Saving through it is still a separate call'],
                 <String>['Custom logic', 'Go hooks, or JavaScript', '@DVBackendFunction, in Dart, in the same repository'],
-                <String>['The client app', 'A JS SDK you wire up yourself', 'Generated and typed, and it is the same project'],
+                <String>['The client app', 'Official JavaScript and Dart SDKs, in a project you build separately', 'Generated and typed, and it is the same project'],
                 <String>['Other targets', 'None. It is a backend', 'Android, iOS, desktop, TVs, browser extensions'],
+                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.6. Most spec sections are Partial, each with what is missing'],
               ],
             ),
           ],
@@ -67,7 +70,8 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('THE DIFFERENCE'),
             Heading('PocketBase is a backend. Dartvel is the application.'),
             Body('With PocketBase you still choose a frontend framework, wire '
-                'up the SDK, write the screens, and ship that separately. '
+                'up its JavaScript or Dart SDK, write the screens, and ship '
+                'that separately. '
                 'That is a real choice and sometimes the right one. In '
                 'Dartvel the page and the function it calls are compiled '
                 'together, so a renamed field is a build failure instead of a '
@@ -93,17 +97,23 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('HONESTLY'),
             Heading('Where PocketBase is ahead today.'),
             Bullets(<String>[
-              'It is a smaller, older, more finished thing. Download, run, '
-                  'done, with no build step at all.',
+              'It is smaller and more focused. Download, run, done, with no '
+                  'build step at all.',
               'Its admin has been used in anger by far more people than '
                   'Studio has.',
-              'If you want a backend for a React or Svelte app you already '
-                  'have, PocketBase is the answer and Dartvel is not.',
+              'Its realtime subscriptions reach browsers and phones today, '
+                  "through the SDKs. Dartvel's model changes do not reach a "
+                  'device yet.',
+              'If you want a backend for a React, Svelte or Flutter app you '
+                  'already have, PocketBase and its Dart SDK are the answer '
+                  'and Dartvel is not.',
             ]),
             VersusFair('PocketBase is excellent and the overlap is real: one '
                 'file, SQLite, an admin, realtime. The honest split is that '
                 'PocketBase serves an app you build elsewhere, and Dartvel '
                 'builds the app.'),
+            VersusChecked('PocketBase', 'https://pocketbase.io/docs/',
+                '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/pocketbase')]),

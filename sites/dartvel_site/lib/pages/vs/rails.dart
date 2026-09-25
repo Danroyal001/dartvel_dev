@@ -50,14 +50,15 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
               rows: <List<String>>[
                 <String>['Routing', 'config/routes.rb', 'The file path. Moving a page breaks every link to it'],
                 <String>['Data models', 'Active Record', '@DVModel: schema, client, form and admin from one class'],
-                <String>['Migrations', 'rails db:migrate', 'Generated from the model'],
-                <String>['Generators', 'rails generate', 'dartvel dev regenerates on save'],
-                <String>['Background jobs', 'Active Job, Sidekiq', 'DV.Jobs, DV.Queues, @DVJob'],
+                <String>['Migrations', 'Written by rails generate model, applied by rails db:migrate', 'Generated from the model class'],
+                <String>['Generators', 'rails generate, including scaffold: model, migration, controller, views and forms', 'dartvel dev regenerates on save'],
+                <String>['Background jobs', 'Active Job on Solid Queue, the default since Rails 8', 'DV.Jobs, DV.Queues, @DVJob'],
                 <String>['Mail', 'Action Mailer', 'DV.Notifications.mail'],
-                <String>['Auth', 'Devise', 'Sessions, passkeys, SAML, LDAP, second factors'],
-                <String>['Admin', 'ActiveAdmin, Avo', 'Studio, in your own binary, free'],
-                <String>['Views', 'ERB, Hotwire', 'Flutter pages: web, phone, desktop and TV'],
-                <String>['Strong parameters', 'Controller filters', 'Typed function arguments, checked by the compiler'],
+                <String>['Auth', 'bin/rails generate authentication, built in since Rails 8', 'Sessions, passkeys, SAML, LDAP, second factors'],
+                <String>['Admin', 'None built in; ActiveAdmin or Avo', 'Studio, in your own binary, free'],
+                <String>['Views', 'ERB and Hotwire', 'Flutter pages: web, phone, desktop and TV'],
+                <String>['Strong parameters', 'params.expect and permit in the controller', 'Typed function arguments, checked by the compiler'],
+                <String>['Deployment', 'Kamal, set up by rails new, to any server with Docker', 'One binary from dartvel build web-server'],
               ],
             ),
           ],
@@ -69,7 +70,10 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
             Body('A model declares fields. From that come the table, the '
                 'typed client, a form with validation and error messages, a '
                 'table widget, an admin screen and, if you ask for them, '
-                'public pages with their own sitemap entries.'),
+                'public pages with their own sitemap entries. rails generate '
+                'scaffold writes much of the same once, as files you then '
+                'own and edit; here they are regenerated from the class '
+                'whenever it changes.'),
             CodeBlock(<String>[
               '@DVModel(generatePublicPages: true)',
               'class _Article {',
@@ -91,8 +95,9 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
             Bullets(<String>[
               'The generated page is Article.Page(...), with .async, .signal '
                   'and .fromId variants.',
-              'Records are offline-first and realtime by default, so a list '
-                  'updates itself and survives a tunnel.',
+              'Models publish change streams to watchers in the same '
+                  'process. Carrying a change to another server or a phone '
+                  'is not built yet.',
               'Forms come from the fields: DVForm<Article> is the inputs, the '
                   'validation and the messages.',
             ]),
@@ -104,11 +109,17 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('HONESTLY'),
             Heading('Where Rails is ahead today.'),
             Bullets(<String>[
-              'Twenty years of gems, and a hiring pool to match.',
+              'Over twenty years of gems, and a hiring pool to match.',
+              'A new Rails 8 app comes with authentication, Solid Queue, '
+                  'Solid Cache, Solid Cable and Kamal, so jobs, caching, '
+                  'WebSockets and deployment need no extra service.',
               'For a server-rendered website, ERB and Hotwire are far less '
                   'machinery than compiling a Flutter application.',
-              'Rails runs on every host on earth. A Dartvel deployment is one '
-                  'binary, which is simple but newer.',
+              'Rails runs on every host on earth, and Kamal deploys it to '
+                  'any server with Docker. A Dartvel deployment is one '
+                  'binary, which is simple and newer.',
+              'Rails reaches phones too, through Hotwire Native, which wraps '
+                  'the web app in native iOS and Android shells.',
               'Dartvel Cloud is not open yet; local builds and your own '
                   'server are free and work now.',
             ]),
@@ -122,6 +133,8 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
               GhostLink('Routing', '/docs/routing'),
               GhostLink('Forms', '/docs/forms'),
             ], spacing: 12),
+            VersusChecked('Rails', 'https://guides.rubyonrails.org/',
+                '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/rails')]),
