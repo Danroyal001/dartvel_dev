@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **A `@DVHomeWidget` class with a primary constructor is named correctly.**
+  `class const NextShiftWidget({super.key}) extends StatelessWidget` was read
+  as a widget named `const`.
+
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
   is the first release with primary constructors
   (`class Point(final int x, final int y);`), which the `dartvel create`
