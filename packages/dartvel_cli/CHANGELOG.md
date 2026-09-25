@@ -8,6 +8,13 @@
 - **`@DVPage(findable: false)` reaches the page shell.** The generator
   writes it into the page's `DVPageScaffoldSpec`, like `selectable`.
 
+- **`dartvel.cache` is read and wired.** `DartvelConfig.cache` checks the
+  block (`DV-CACHE-001` to `003`), and the generated server opens the store in
+  every role before it serves, works or ticks anything, refusing to start with
+  `DV-CACHE-004` or `005` when it cannot.
+- The generated client barrel hides the cache adapters, the Redis and
+  Memcached clients, `DVCacheTags` and the config reader.
+
 ## 0.6.0
 
 - **`dartvel doctor` no longer warns about a directory a project does not

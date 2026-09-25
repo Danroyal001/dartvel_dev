@@ -67,7 +67,7 @@ void main() async {
     // A neighbour's key outside the prefix must survive clear().
     await client.command(<String>['SET', 'other_app:key', 'keep']);
 
-    await adapter.remove('a');
+    await adapter.delete('a');
     expect(await adapter.read('a'), isNull);
 
     await adapter.clear();

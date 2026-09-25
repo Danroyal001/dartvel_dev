@@ -604,4 +604,45 @@ dependency_overrides:
       ]),
     );
   });
+
+  test('a page reaches DV.Cache through the barrel, and not its machinery',
+      () async {
+    // The store is dartvel.cache. A page that could construct a Redis
+    // adapter would be one reaching for a server it cannot open from a
+    // browser, and would teach the configuration-in-code this replaced.
+    // Outside lib/, so the analysis above is untouched by it.
+    write(p.join(project.path, 'probe', 'cache_surface.dart'), '''
+import 'package:generated_client_probe/dartvel_client/dartvel_client.dart';
+
+Future<void> control() async {
+  await DV.Cache.set('k', 1, ttl: const Duration(minutes: 1));
+}
+
+List<Type> get machinery => <Type>[
+      DVMemoryCacheAdapter,
+      DVDatabaseCacheAdapter,
+      DVRedisCacheAdapter,
+      DVRedisClient,
+      DVMemcachedCacheAdapter,
+      DVDistributedCacheAdapter,
+      DVCacheTags,
+      DVCacheConfig,
+    ];
+''');
+    final ProcessResult probe = await Process.run(
+      'flutter',
+      <String>['analyze', '--no-fatal-infos', 'probe/cache_surface.dart'],
+      workingDirectory: project.path,
+    );
+    final String output = '${probe.stdout}${probe.stderr}';
+    final List<String> undefined = const LineSplitter()
+        .convert(output)
+        .where((String l) => l.contains('undefined_identifier'))
+        .toList();
+    expect(undefined, hasLength(8), reason: output);
+    // The control: DV.Cache itself resolves, so the eight are hidden rather
+    // than the probe failing to resolve at all.
+    expect(output, isNot(contains("isn't defined for the type 'DV'")));
+    expect(output, isNot(contains('uri_does_not_exist')));
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

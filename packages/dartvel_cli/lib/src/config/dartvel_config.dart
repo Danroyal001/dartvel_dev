@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dartvel_core/dartvel.dart' show DVCacheConfig;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -29,6 +30,10 @@ class DartvelConfig {
   final YamlMap raw;
   final DartvelDartConfigReference? dartConfigReference;
 
+  /// `dartvel.cache`: where the generated server keeps `DV.Cache` entries.
+  /// Null when the project names no store, which leaves them in memory.
+  final DVCacheConfig? cache;
+
   const DartvelConfig({
     required this.packageName,
     required this.pagesDir,
@@ -52,6 +57,7 @@ class DartvelConfig {
     required this.ota,
     required this.raw,
     this.dartConfigReference,
+    this.cache,
   });
 
   static Future<DartvelConfig> load(Directory root) async {
@@ -120,6 +126,10 @@ class DartvelConfig {
       ota: asBool(raw['ota'], false),
       raw: raw,
       dartConfigReference: dartConfigReference,
+      // Through the reader the server opens the store with, so a block the
+      // build accepts is one the server can honour. Throws
+      // DVCacheConfigException, DV-CACHE-001 to 003, for one it cannot.
+      cache: DVCacheConfig.read(raw['cache']),
     );
   }
 

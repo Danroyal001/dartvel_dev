@@ -37,7 +37,7 @@ class FlakyNode implements DVCacheAdapter, DVAtomicCacheAdapter {
   }
 
   @override
-  Future<void> remove(String key) async {
+  Future<void> delete(String key) async {
     _check();
     entries.remove(key);
   }
@@ -204,7 +204,7 @@ void main() {
 
     test('delete removes it', () async {
       await cache.write('k', 'v', null);
-      await cache.remove('k');
+      await cache.delete('k');
 
       expect(await cache.read('k'), isNull);
     });
