@@ -145,7 +145,12 @@ export 'src/compute/worker_types.dart'
     hide DVWorkerCall, DVWorkerExecution, DVWorkerRunner, DVWorkerSink,
         dvCheckedProgress;
 export 'src/compute/workers.dart';
-export 'src/data/change_capture.dart';
+// Change capture is @DVModel(capture: true) and dartvel.capture in the
+// pubspec, and the log, its consumers, the destinations and their jobs are
+// how the framework delivers it: they are in framework.dart. A save whose
+// change could not be logged is undone and throws DVCaptureWriteError, which
+// an application may catch.
+export 'src/data/change_capture.dart' show DVCaptureWriteError;
 export 'src/data/import_chunking.dart';
 // DVRecordTableRemote is what Model.offlineRemote builds, and the two
 // outcome codecs are how replay crosses the wire. An application asks the

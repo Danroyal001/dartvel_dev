@@ -161,6 +161,45 @@ Type get conflict => DVConflictError;
     expect(output, isNot(contains(' error ')));
   });
 
+  // Change capture is @DVModel(capture: true) and dartvel.capture in the
+  // pubspec. The log, its consumers, the destinations, the jobs and the
+  // runtime are how the framework delivers that, so none of them is a name
+  // an application could reach for instead.
+  for (final String name in <String>[
+    'DVCapture',
+    'DVCaptureConsumer',
+    'DVCaptureSink',
+    'DVWarehouseSink',
+    'DVCapturePrivacyAdapter',
+    'DVCaptureDeliveryJob',
+    'DVCaptureBackfillJob',
+    'DVCaptureBatch',
+    'DVCapturedChange',
+    'DVCaptureRuntime',
+    'DVCaptureConfig',
+  ]) {
+    test('an application cannot name $name', () async {
+      final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get machinery => $name;
+''');
+      expect(output, contains('undefined_identifier'), reason: output);
+    });
+  }
+
+  test('the one capture name an application meets is the write error',
+      () async {
+    // A save of a captured model whose change could not be logged is undone
+    // and throws this, so an application that catches it has to name it.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+bool undone(Object error) => error is DVCaptureWriteError;
+''');
+    expect(output, isNot(contains(' error ')));
+  });
+
   test('the framework itself has all of them', () async {
     final String output = await analyzed('''
 import 'package:dartvel_core/framework.dart';
@@ -177,6 +216,11 @@ Type get table => DVRecordTable;
 Type get record => DVRecord;
 Type get write => DVWriteResult;
 Type get scope => DVRecordScope;
+Type get log => DVCapture;
+Type get consumer => DVCaptureConsumer;
+Type get sink => DVWarehouseSink;
+Type get runtime => DVCaptureRuntime;
+Type get config => DVCaptureConfig;
 ''');
     expect(output, isNot(contains(' error ')));
   });

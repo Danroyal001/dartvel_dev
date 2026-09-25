@@ -16,6 +16,9 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../../dartvel.dart';
+// The capture log, which the public barrel hides too: an erasure purges it
+// and the copies it feeds.
+import '../data/change_capture.dart' show DVCapture, DVCapturePrivacyAdapter;
 // The record layer directly: the public barrel hides it, because a model is
 // the surface and the table under one is not. Erasure walks the table,
 // because a subject's rows have to go whether or not the model is loadable.
