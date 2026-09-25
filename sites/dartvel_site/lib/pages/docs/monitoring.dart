@@ -157,7 +157,12 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Monitoring and Observability', missing: <String>[
-              'There is no log sink, so what an app logs goes nowhere yet.',
+              'Only the web process writes logs anywhere. It writes JSON '
+                  'lines to stdout, at the level DARTVEL_LOG_LEVEL sets.',
+              'Worker and cron processes have no sink, so what they log stays '
+                  'in a buffer in the process.',
+              'The Flutter app prints to the debug console and nothing more. '
+                  'Its logs never leave the device.',
               'dartvel logs and dartvel traces say so when they have nothing '
                   'to read.',
             ]),
