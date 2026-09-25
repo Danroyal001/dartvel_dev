@@ -378,17 +378,11 @@ The annotated function is private. Dartvel generates the public route from it.
 import 'package:dartvel_core/dartvel.dart';
 
 @DVModel()
-class _Article {
-  final String slug;
-  final String title;
-  final bool published;
-
-  const _Article({
-    required this.slug,
-    required this.title,
-    required this.published,
-  });
-}
+class const _Article({
+  required final String slug,
+  required final String title,
+  required final bool published,
+});
 ```
 
 `_Article` generates the public `Article`, with its table, CRUD, validation,
