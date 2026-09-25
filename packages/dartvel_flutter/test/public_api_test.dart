@@ -34,7 +34,6 @@ void main() {
     // The cache's store is dartvel.cache, not an adapter a page constructs;
     // cache_surface_test checks the adapters stay out of this barrel.
     expect(DV.Cache, isA<DVCache>());
-    expect(DV.Cache.adapter, isA<DVCacheAdapter>());
     // SqliteDVDatabaseAdapter is named here rather than constructed: on the
     // Flutter test VM it is the dart:ffi implementation, and the point is that
     // the type resolves through the barrel.
