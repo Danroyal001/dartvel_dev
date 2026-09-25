@@ -14,7 +14,7 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsdatabase,
       lead: <String>[
         'Start on a SQLite file and move to Postgres or MySQL with one line.',
-        'Your models create their tables through dartvel db migrate.',
+        'Your models create their tables through `dartvel db migrate`.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -31,9 +31,9 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'SQLite turns on WAL mode and foreign keys.',
-              'A web-server binary from dartvel build needs no DATABASE_URL. '
+              'A web-server binary from `dartvel build` needs no DATABASE_URL. '
                   'It creates a SQLite file beside itself on its first run.',
-              'dartvel db migrate reads dartvel.database in pubspec.yaml, '
+              '`dartvel db migrate` reads dartvel.database in pubspec.yaml, '
                   'shown under the migrate section below.',
             ]),
           ],
@@ -44,7 +44,7 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsText('Moving is one line. Set DATABASE_URL where the backend '
                 'runs, and set the same engine as dartvel.database.provider so '
-                'dartvel db migrate writes statements for it.'),
+                '`dartvel db migrate` writes statements for it.'),
             DocsShell(<String>[
               'DATABASE_URL=postgres://shop:secret@db.internal/shop?sslmode=require',
             ]),
@@ -84,7 +84,7 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'migrate',
-          title: 'Create tables with dartvel db migrate',
+          title: 'Create tables with `dartvel db migrate`',
           children: <Widget>[
             DocsShell(<String>[
               'dartvel db migrate            # apply to the SQLite file',
@@ -189,7 +189,7 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Database', missing: <String>[
-              'dartvel db migrate applies changes to SQLite only.',
+              '`dartvel db migrate` applies changes to SQLite only.',
             ]),
           ],
         ),

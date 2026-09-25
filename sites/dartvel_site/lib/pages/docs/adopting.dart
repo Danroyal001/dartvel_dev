@@ -14,12 +14,12 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsadopting,
       lead: <String>[
         'Add Dartvel to the Flutter app you already have, one screen at a time.',
-        'dartvel init changes two things in pubspec.yaml and moves no files.',
+        '`dartvel init` changes two things in pubspec.yaml and moves no files.',
       ],
       sections: <DocsSection>[
         DocsSection(
           id: 'init',
-          title: 'Run dartvel init',
+          title: 'Run `dartvel init`',
           children: <Widget>[
             DocsShell(<String>[
               'dartvel init --dry-run   # the report and the changes, nothing written',
@@ -36,7 +36,7 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
             DocsNote('Add the CLI yourself',
                 'init adds the runtime only. Run the generator from the dartvel '
                 'binary you installed, or add dartvel_cli as a dev dependency '
-                'and use dart run dartvel_cli:dartvel.'),
+                'and use `dart run dartvel_cli:dartvel`.'),
           ],
         ),
         DocsSection(
@@ -54,7 +54,7 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
                   'your own router.',
               'DVGoRoutes goes the other way and puts your GoRoute list inside '
                   'the generated router.',
-              'A GoRoute path that matches a generated page stops dartvel routes '
+              'A GoRoute path that matches a generated page stops `dartvel routes` '
                   'with DV-ADOPT-002 before it writes anything.',
             ]),
           ],
@@ -92,8 +92,8 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
                   'generated page'],
               <String>['DV-ADOPT-003', 'A @DVModel class also uses freezed, '
                   'json_serializable or dart_mappable'],
-              <String>['DV-ADOPT-005', 'dartvel create was pointed at a pubspec it '
-                  'did not write. Use dartvel init'],
+              <String>['DV-ADOPT-005', '`dartvel create` was pointed at a pubspec it '
+                  'did not write. Use `dartvel init`'],
             ]),
             DocsShell(<String>['dartvel explain DV-ADOPT-003']),
           ],

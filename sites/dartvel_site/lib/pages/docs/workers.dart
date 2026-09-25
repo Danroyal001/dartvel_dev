@@ -83,9 +83,9 @@ Widget _docsWorkersPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'A device profile beats its target, which beats the top level. A '
                   'target or profile budget is a ceiling.',
-              'dartvel doctor fails when a profile\'s budget is larger than its '
+              '`dartvel doctor` fails when a profile\'s budget is larger than its '
                   'RAM.',
-              'Pick the profile when you build: dartvel build tizen '
+              'Pick the profile when you build: `dartvel build tizen` '
                   '--device-profile lobby-screen',
             ]),
             DocsStatus('Platform Memory', missing: <String>[

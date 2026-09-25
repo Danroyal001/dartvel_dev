@@ -54,7 +54,7 @@ Widget _docsIndexRow(
   String? href,
 }) {
   final Palette palette = Palette.of(context);
-  final Widget name = DVText(section).modifier(const DVModifier()
+  final Widget name = Prose(section, const DVModifier()
       .fontSize(15)
       .fontWeight(FontWeight.w500)
       .color(href == null ? palette.ink : palette.accent));

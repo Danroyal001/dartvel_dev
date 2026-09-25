@@ -102,7 +102,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'updates, and model.destroy() deletes.',
               'copyWith keeps the version you read, so save() can spot a newer '
                   'write.',
-              'Run dartvel db migrate after adding or changing a model. See '
+              'Run `dartvel db migrate` after adding or changing a model. See '
                   'Database.',
             ]),
           ],
@@ -129,7 +129,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               'Article.Admin() lists, creates, edits and deletes records.',
               'It checks the Article.create, Article.update and Article.delete '
                   'policies.',
-              'dartvel admin generate writes admin pages to '
+              '`dartvel admin generate` writes admin pages to '
                   'lib/pages/_dartvel_admin.',
             ]),
           ],
@@ -139,7 +139,7 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           title: 'Serve a public page per record',
           children: <Widget>[
             DocsText('With generatePublicPages: true, each record gets a page '
-                'at the plural kebab-case path of the model, and dartvel build '
+                'at the plural kebab-case path of the model, and `dartvel build` '
                 'web renders published ones statically.'),
             DocsCode('models-page-from-id'),
             DocsSubheading('List the static paths yourself'),

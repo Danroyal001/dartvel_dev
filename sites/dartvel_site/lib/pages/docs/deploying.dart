@@ -15,15 +15,15 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
       lead: <String>[
         'Run the generated backend as a web server, a job worker or a cron '
             'process.',
-        'Deploy it with dartvel deploy, or provision your own servers with '
-            'dartvel infra.',
+        'Deploy it with `dartvel deploy`, or provision your own servers with '
+            '`dartvel infra`.',
       ],
       sections: <DocsSection>[
         DocsSection(
           id: 'web-server',
-          title: 'Build one file with dartvel build web-server',
+          title: 'Build one file with `dartvel build web-server`',
           children: <Widget>[
-            DocsText('dartvel build web-server writes build/server: one '
+            DocsText('`dartvel build web-server` writes build/server: one '
                 'executable with your backend, the native server, the web app '
                 'and the admin dashboard inside it.'),
             DocsShell(<String>[
@@ -123,7 +123,7 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'deploy',
-          title: 'Deploy with dartvel deploy',
+          title: 'Deploy with `dartvel deploy`',
           children: <Widget>[
             DocsShell(<String>[
               'dartvel deploy --target web --provider vercel',
@@ -135,8 +135,8 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               '--provider',
               'Runs',
             ], rows: <List<String>>[
-              <String>['firebase-hosting', 'firebase deploy, from the firebase CLI'],
-              <String>['vercel', 'vercel --prod'],
+              <String>['firebase-hosting', '`firebase deploy`, from the firebase CLI'],
+              <String>['vercel', '`vercel --prod`'],
               <String>['netlify', 'netlify deploy --prod --dir=build/web'],
               <String>['cloudflare', 'wrangler pages publish build/web'],
               <String>['custom', 'Nothing. It builds, and you ship build/ yourself'],
@@ -151,18 +151,18 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'railway or bare-metal.',
             ]),
             DocsText('Uploads to Google Play, the App Store, TestFlight and '
-                'Firebase App Distribution use dartvel deploy --store. See App '
+                'Firebase App Distribution use `dartvel deploy --store`. See App '
                 'stores.'),
             DocsStatus('Deployment', missing: <String>[
-              'dartvel deploy calls each host\'s own CLI. It holds no cloud '
+              '`dartvel deploy` calls each host\'s own CLI. It holds no cloud '
                   'credentials itself.',
-              'There is no plan or rollback step for dartvel deploy yet.',
+              'There is no plan or rollback step for `dartvel deploy` yet.',
             ]),
           ],
         ),
         DocsSection(
           id: 'infra',
-          title: 'Provision servers with dartvel infra',
+          title: 'Provision servers with `dartvel infra`',
           children: <Widget>[
             DocsYaml('yaml-infra'),
             DocsShell(<String>[

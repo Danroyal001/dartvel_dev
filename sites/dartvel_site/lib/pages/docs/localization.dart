@@ -13,7 +13,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _docsLocalizationPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docslocalization,
       lead: <String>[
-        'Declare each string once as a typed key, and dartvel i18n tells you '
+        'Declare each string once as a typed key, and `dartvel i18n` tells you '
             'which languages are missing it.',
         'Plurals follow the CLDR rules of each language.',
       ],
@@ -74,7 +74,7 @@ Widget _docsLocalizationPage(BuildContext context) => const DocsArticle(
               '    locales: [en, fr]',
               '    defaultLocale: en',
             ]),
-            DocsText('With two or more locales, dartvel build web writes '
+            DocsText('With two or more locales, `dartvel build web` writes '
                 'hreflang links on every page: /about for the default and '
                 '/fr/about for French, plus x-default.'),
           ],

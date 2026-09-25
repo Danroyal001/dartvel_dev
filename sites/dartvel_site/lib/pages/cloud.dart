@@ -25,7 +25,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               level: 1,
             ),
             Bullets(<String>[
-              'Add --cloud to dartvel build. The build runs on our machines and its '
+              'Add --cloud to `dartvel build`. The build runs on our machines and its '
                   'log streams to your terminal.',
               'The output downloads into build/cloud and is checked against its '
                   'SHA-256 before it is kept.',
@@ -158,7 +158,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             DVBox.wrapLine(<Widget>[
               SiteCard(
                 'The --cloud options',
-                'dartvel build, deploy and key cloud pack your app, follow the '
+                '`dartvel build`, deploy and key cloud pack your app, follow the '
                     'log and download the result.',
                 built: true,
               ),

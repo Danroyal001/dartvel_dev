@@ -60,7 +60,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'Samsung',
     url: 'https://github.com/flutter-tizen/flutter-tizen',
     license: 'BSD-3-Clause',
-    target: 'dartvel build tizen (alias tpk)',
+    target: '`dartvel build tizen` (alias tpk)',
     fork: 'https://github.com/Danroyal001/dartvel_tizen',
     forkAdds: 'Tracks upstream\'s pin of Flutter 3.44.4, the minor Dartvel '
         'ships. One patch: it stages the Flutter engine and assets into a '
@@ -72,10 +72,10 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'Sony',
     url: 'https://github.com/sony/flutter-elinux',
     license: 'BSD-3-Clause',
-    target: 'dartvel build sony-elinux',
+    target: '`dartvel build sony-elinux`',
     fork: 'https://github.com/Danroyal001/dartvel_elinux',
     forkAdds: 'Records the pin at Flutter 3.29.3, the newest engine Sony '
-        'publishes. dartvel build sony-elinux assembles its bundle from '
+        'publishes. `dartvel build sony-elinux` assembles its bundle from '
         'Sony\'s embedder artifacts.',
   ),
   Upstream(
@@ -84,10 +84,10 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'LG',
     url: 'https://github.com/lg-flutter-webos/flutter-webos',
     license: 'BSD-3-Clause',
-    target: 'dartvel build webos',
+    target: '`dartvel build webos`',
     fork: 'https://github.com/Danroyal001/dartvel_webos',
     forkAdds: 'Records the pin at Flutter 3.38.10. Its Dart 3.10.9 is below '
-        'Dartvel\'s floor, so dartvel build webos skips; CI assembles a '
+        'Dartvel\'s floor, so `dartvel build webos` skips; CI assembles a '
         'package from LG\'s engine instead.',
   ),
   Upstream(
@@ -96,7 +96,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'the Fuchsia authors',
     url: 'https://fuchsia.googlesource.com/flutter-embedder/',
     license: 'BSD-2-Clause',
-    target: 'dartvel build fuchsia',
+    target: '`dartvel build fuchsia`',
     fork: 'https://github.com/Danroyal001/dartvel_fuchsia',
     forkAdds: 'Adds a Bazel rule and a script that package any Flutter app, '
         'and a build-only bootstrap. Blocked today: the Flutter it bundles '
@@ -108,10 +108,10 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'SlowGen',
     url: 'https://github.com/SlowGen/flutter_vscode',
     license: '',
-    target: 'dartvel build vscode',
+    target: '`dartvel build vscode`',
     fork: 'https://github.com/Danroyal001/dartvel_vscode',
     forkAdds: 'Points the generated extension at the file tsc writes. '
-        'dartvel build vscode runs upstream\'s own scaffold and build steps.',
+        '`dartvel build vscode` runs upstream\'s own scaffold and build steps.',
   ),
   Upstream(
     id: 'tvos',
@@ -119,7 +119,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'the FlutterTV authors',
     url: 'https://github.com/fluttertv/flutter-tvos',
     license: 'BSD-3-Clause',
-    target: 'dartvel build tvos',
+    target: '`dartvel build tvos`',
     fork: 'https://github.com/Danroyal001/dartvel_tvos',
     forkAdds: 'No source changes. Upstream pins Flutter 3.44.8, three patch '
         'releases ahead of the 3.44.5 Dartvel ships.',
@@ -130,7 +130,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     vendor: 'Jia Hao (jiahaog)',
     url: 'https://github.com/jiahaog/flt',
     license: 'BSD-3-Clause',
-    target: 'dartvel build linux-cli (alias linux-tui)',
+    target: '`dartvel build linux-cli` (alias linux-tui)',
     fork: 'https://github.com/Danroyal001/dartvel_cli_flt',
     forkAdds: 'Re-pins to Flutter 3.44.5 and adds dartvel-cli-flt, which '
         'bundles an app so it can leave the machine. Upstream is a research '
@@ -211,7 +211,7 @@ Widget _upstreamCredit(
   final Color text = onDark ? Palette.deepMuted : palette.muted;
   final DVModifier small = const DVModifier().fontSize(14).color(text);
   return DVBox.wrapLine(<Widget>[
-    DVText(lead).modifier(small),
+    Prose(lead, small),
     ExternalLink(upstream.project, upstream.url, onDark: onDark),
     DVText('by ${upstream.vendor} ${upstream.licenseNote}.').modifier(small),
   ], spacing: 2, crossAlign: DVCrossAlign.center);
@@ -234,7 +234,7 @@ Widget _upstreamCredits(
   // The building page holds the table itself, so there it links nowhere.
   final bool linked = link;
   return DVBox.list(<Widget>[
-    DVText(lead).modifier(small),
+    Prose(lead, small),
     DVBox.wrapLine(<Widget>[
       for (final String id in named)
         DVBox.row(<Widget>[
@@ -257,7 +257,7 @@ Widget _acknowledgementsLink(
 }) =>
     DVNavLink(
       to: const DVRouteTarget(kAcknowledgementsHref),
-      child: DVText(label).modifier(const DVModifier()
+      child: Prose(label, const DVModifier()
           .fontSize(14)
           .fontWeight(FontWeight.w600)
           .color(onDark ? Palette.deepAccent : Palette.of(context).accent)),
@@ -284,13 +284,13 @@ Widget _upstreamTable(BuildContext context) {
                 .fontFamily('JetBrainsMono')
                 .color(palette.accent)),
           ),
-          DVText('Target: ${upstream.target ?? ''}').modifier(line),
+          Prose('Target: ${upstream.target ?? ''}', line),
           DVText('By: ${upstream.vendor}').modifier(line),
           DVText('Licence: ${upstream.license.isEmpty ? 'none declared; '
                   'the upstream LICENSE file is a placeholder' : upstream.license}')
               .modifier(line),
-          DVText('What the fork adds: ${upstream.forkAdds ?? ''}')
-              .modifier(line),
+          Prose('What the fork adds: ${upstream.forkAdds ?? ''}',
+              line),
           ExternalLink('Dartvel\'s fork', upstream.fork ?? upstream.url),
         ], spacing: 4, crossAlign: DVCrossAlign.start),
         const DVModifier()

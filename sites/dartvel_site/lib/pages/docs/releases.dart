@@ -88,7 +88,7 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
                   'with the evidence it overrode.',
             ]),
             DocsStatus('Backend Release Management', missing: <String>[
-              'dartvel deploy does not run these gates yet, and there is no '
+              '`dartvel deploy` does not run these gates yet, and there is no '
                   'rollback command.',
               'No hosting adapters for Cloud Run, Lambda, Fly.io or '
                   'Kubernetes, and no source of per-release traffic numbers.',

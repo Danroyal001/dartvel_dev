@@ -29,22 +29,22 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                 "command to start, builds on somebody else's machines, store "
                 'submission, updates that reach users without a review, and, '
                 'through Expo Router, API routes and server functions that '
-                'deploy to EAS Hosting. Flutter gives you flutter run and '
+                'deploy to EAS Hosting. Flutter gives you `flutter run` and '
                 "each platform's own release tooling, and stops there. "
                 'Dartvel is that missing layer for Flutter, with a backend '
                 'framework in the same language: data models, auth, queues, '
                 'mail and an admin.'),
             Bullets(<String>[
               'Install a development build of your app once. After that, '
-                  'dartvel dev prints a QR code; scan it and the app pairs and '
+                  '`dartvel dev` prints a QR code; scan it and the app pairs and '
                   'hot reloads over your network.',
-              'dartvel build android, ios, macos, windows, linux, tvos, '
+              '`dartvel build android`, ios, macos, windows, linux, tvos, '
                   'tizen, sony-elinux, vscode and more. --cloud sends the '
                   'build to Dartvel Cloud, which is not open yet.',
-              'dartvel deploy --store play, appstore, testflight or '
+              '`dartvel deploy --store play`, appstore, testflight or '
                   'firebase-app-distribution hands the upload to that '
                   "store's own tool.",
-              'dartvel updates patch sends a Dart fix to Android apps over '
+              '`dartvel updates patch` sends a Dart fix to Android apps over '
                   'the air, from your own web-server binary. iOS is not '
                   'supported yet.',
             ]),
@@ -65,13 +65,13 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               columns: <String>['', 'Expo', 'Dartvel'],
               rows: <List<String>>[
                 <String>['Language', 'TypeScript or JavaScript, with React', 'Dart, front and back'],
-                <String>['Run on a device', 'npx expo start, with Expo Go or a development build', 'A development build, paired by dartvel dev over a QR code'],
-                <String>['Cloud builds', 'EAS Build, with a free tier and paid plans', 'dartvel build --cloud. Cloud is not open yet'],
-                <String>['Local builds', 'npx expo run, or eas build --local', 'dartvel build android, ios, linux and the rest'],
-                <String>['Store submission', 'EAS Submit', "dartvel deploy --store, through each store's own tool"],
-                <String>['Over the air', 'EAS Update, on Android and iOS', 'dartvel updates, Android only, from Shorebird or your own binary'],
+                <String>['Run on a device', '`npx expo start`, with Expo Go or a development build', 'A development build, paired by `dartvel dev` over a QR code'],
+                <String>['Cloud builds', 'EAS Build, with a free tier and paid plans', '`dartvel build --cloud`. Cloud is not open yet'],
+                <String>['Local builds', '`npx expo run`, or eas build --local', '`dartvel build android`, ios, linux and the rest'],
+                <String>['Store submission', 'EAS Submit', "`dartvel deploy --store`, through each store's own tool"],
+                <String>['Over the air', 'EAS Update, on Android and iOS', '`dartvel updates`, Android only, from Shorebird or your own binary'],
                 <String>['Server code', 'Expo Router API routes (+api.ts), server middleware, and React Server Functions in beta', '@DVBackendFunction, with a typed client generated from it'],
-                <String>['Hosting the server', 'EAS Hosting, or most other hosts', 'One binary from dartvel build web-server, on a machine you run'],
+                <String>['Hosting the server', 'EAS Hosting, or most other hosts', 'One binary from `dartvel build web-server`, on a machine you run'],
                 <String>['Database', 'expo-sqlite on the device. For a server database the docs point to Convex, Supabase or Firebase', 'Data models on SQLite, Postgres or MySQL, with migrations'],
                 <String>['Auth', 'Guides for OAuth providers and auth SDKs, and redirects in Expo Router', 'Sessions, passkeys, SAML, LDAP and second factors, built in'],
                 <String>['Admin', 'None built in', 'Studio, served by your own binary'],
@@ -115,7 +115,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                   'a change from the server to a phone is not built yet, so a '
                   'list on one device does not update when another device '
                   'writes.',
-              'One binary from dartvel build web-server runs the site, the '
+              'One binary from `dartvel build web-server` runs the site, the '
                   'API and Studio, with SQLite created beside it.',
             ]),
           ],
@@ -136,7 +136,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               'Expo Go runs a project on a phone with no build of your own. '
                   'Dartvel always needs a development build, and a physical '
                   'iPhone pairs only when the app is started from Xcode or '
-                  'flutter run.',
+                  '`flutter run`.',
               'eas deploy puts API routes on a hosted server in one command. '
                   "Dartvel's web-server binary runs on a machine you provide.",
               "Expo's ecosystem of config plugins and prebuilt modules is "

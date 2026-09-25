@@ -45,7 +45,7 @@ Widget _studioShot(
       ]),
     ),
     if (note != null)
-      DVText(note).modifier(const DVModifier()
+      Prose(note, const DVModifier()
           .fontSize(13)
           .color(palette.faint)
           .lineHeight(1.5)),

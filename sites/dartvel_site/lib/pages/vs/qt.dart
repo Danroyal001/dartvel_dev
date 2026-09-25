@@ -71,7 +71,7 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
                 <String>['Web', 'Qt for WebAssembly', 'A first-class target, with prerendered HTML and a sitemap'],
                 <String>['Backend', 'Qt HTTP Server for trusted networks, Qt gRPC and Qt SQL as clients; no server framework', 'Functions, models, auth, queues, mail, an admin'],
                 <String>['Tooling', 'Qt Creator, Qt Design Studio, CMake', 'One dartvel command: dev, build, deploy, test'],
-                <String>['Terminal', 'No terminal renderer', 'dartvel build linux-cli renders in a terminal'],
+                <String>['Terminal', 'No terminal renderer', '`dartvel build linux-cli` renders in a terminal'],
               ],
             ),
           ],

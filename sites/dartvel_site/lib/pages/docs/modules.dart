@@ -39,7 +39,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'The module\'s own /view/:id is served at /notes/view/:id. Its '
                   'backend functions, schedules and AI tools join the '
-                  'parent\'s, and dartvel db migrate creates its tables.',
+                  'parent\'s, and `dartvel db migrate` creates its tables.',
               'The parent reaches it as DV.Modules.notes, with paths resolved '
                   'against wherever it is mounted, so the module never names '
                   'its own mount point.',
@@ -90,7 +90,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'add reads the directory and says what it found. A pubspec with '
-                  'a dartvel key is a Dartvel project; a Package.swift, a '
+                  'a `dartvel key` is a Dartvel project; a Package.swift, a '
                   'Cargo.toml, a build.gradle, a package.json or an '
                   'openapi.yaml each name a source the spec covers. A '
                   'directory matching none of them is refused with a list of '

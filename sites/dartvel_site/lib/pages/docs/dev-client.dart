@@ -40,21 +40,21 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'pair',
-          title: 'Pair it with dartvel dev',
+          title: 'Pair it with `dartvel dev`',
           children: <Widget>[
             DocsShell(<String>[
               'dartvel dev',
               'dartvel dev --pairing-port 8787',
             ]),
             Bullets(<String>[
-              'dartvel dev always serves pairing and prints a QR code. There is '
+              '`dartvel dev` always serves pairing and prints a QR code. There is '
                   'no flag to turn it on.',
               'Scan the code with the phone, or pass the printed link as a '
                   'launch argument on a desktop or simulator.',
               'Pairing hot restarts the app onto your current code. After that, '
                   'each save is a hot reload.',
             ]),
-            DocsText('With no device plugged in, dartvel dev keeps running and '
+            DocsText('With no device plugged in, `dartvel dev` keeps running and '
                 'waits for paired devices.'),
           ],
         ),
@@ -74,7 +74,7 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
           id: 'stores',
           title: 'Keep development builds out of the stores',
           children: <Widget>[
-            DocsText('dartvel deploy --store recognises a development build '
+            DocsText('`dartvel deploy --store` recognises a development build '
                 'and refuses it for Play alpha, beta and production and for the '
                 'App Store, with DV-DEVCLIENT-003.'),
             DocsText('Play internal testing, TestFlight and Firebase App '
@@ -88,7 +88,7 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
             DocsStatus('Dev Client', missing: <String>[
               'CI pairs Android, iOS simulator, macOS, Linux and Windows builds. '
                   'A physical iPhone pairs when you start the app from Xcode or '
-                  'flutter run.',
+                  '`flutter run`.',
               'TV and embedded targets have no development build.',
               'A development build cannot connect to a preview environment.',
             ]),

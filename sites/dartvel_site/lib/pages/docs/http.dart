@@ -49,8 +49,8 @@ Widget _docsHttpPage(BuildContext context) => const DocsArticle(
           id: 'undeclared',
           title: 'Undeclared hosts are refused',
           children: <Widget>[
-            DocsText('A literal URL no declared host covers stops dartvel '
-                'routes with DV-HTTP-001. A URL built at run time is refused '
+            DocsText('A literal URL no declared host covers stops '
+                '`dartvel routes` with DV-HTTP-001. A URL built at run time is refused '
                 'when the call runs.'),
             DocsCode('http-undeclared'),
           ],

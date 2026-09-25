@@ -106,7 +106,7 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Usage Metering and Quotas', missing: <String>[
               'No @DVMeter annotations, so meters are not generated or counted '
                   'for you.',
-              'No dartvel meters commands, no Studio view, and no scheduled '
+              'No `dartvel meters` commands, no Studio view, and no scheduled '
                   'period close.',
             ]),
           ],

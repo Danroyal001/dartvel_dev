@@ -37,7 +37,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'scraper can read it.',
               'GET /health runs real checks with a deadline and answers with '
                   'each result.',
-              'dartvel metrics fetches the running server\'s /metrics and says '
+              '`dartvel metrics` fetches the running server\'s /metrics and says '
                   'plainly when no server answers.',
             ]),
             DocsCode('monitoring-server-metrics'),
@@ -163,7 +163,7 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'in a buffer in the process.',
               'The Flutter app prints to the debug console and nothing more. '
                   'Its logs never leave the device.',
-              'dartvel logs and dartvel traces say so when they have nothing '
+              '`dartvel logs` and `dartvel traces` say so when they have nothing '
                   'to read.',
             ]),
           ],

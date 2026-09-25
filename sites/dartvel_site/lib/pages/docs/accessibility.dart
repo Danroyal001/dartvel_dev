@@ -13,7 +13,7 @@ import '../../dartvel_client/dartvel_client.dart';
 Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsaccessibility,
       lead: <String>[
-        'dartvel build web fails when a screen reader would meet an unnamed '
+        '`dartvel build web` fails when a screen reader would meet an unnamed '
             'button or a broken heading order.',
         'Switch users and TV remotes can drive any page with nothing added.',
       ],
