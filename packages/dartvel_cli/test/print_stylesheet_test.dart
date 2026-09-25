@@ -46,19 +46,24 @@ void main() {
 
   test('the application keeps the screen to itself', () {
     // In the document and not on it: the reader sees the app, not the app
-    // with its own outline printed above it.
+    // with its own outline printed above it. A clipped box of one pixel
+    // rather than display:none, because display:none is the one kind of
+    // hidden the browser's find skips.
     final String out = dvApplyPageHtml(_page, '<h1>Invoice</h1>');
-    expect(out, contains('.dv-fallback{display:none}'));
+    expect(out, contains('@media screen{.dv-fallback{position:fixed;'));
+    expect(out, contains('clip-path:inset(50%)'));
   });
 
   test('a reader with no scripting is shown it', () {
     // The one thing noscript is still for: turning the block back on for the
-    // reader whose browser will never run the app.
+    // reader whose browser will never run the app -- the block, and every
+    // until-found paragraph in it.
     final String out = dvApplyPageHtml(_page, '<h1>Invoice</h1>');
     expect(
         out,
         contains('<noscript class="dv-fallback-style">'
-            '<style>.dv-fallback{display:block}</style></noscript>'));
+            '<style>.dv-fallback{position:static;'));
+    expect(out, contains('.dv-fallback [data-dv-anchor]{display:block;'));
   });
 
   test('print takes the reading column off and the ink down', () {
@@ -119,7 +124,7 @@ void main() {
 
     // Or the assertions below pass on a string nothing happened to.
     expect(small.length, lessThan(page.length));
-    expect(small, contains('.dv-fallback{display:none}'));
+    expect(small, contains('clip-path:inset(50%)'));
     expect(small, contains('@media print{'));
     expect(small, contains('content:" (" attr(href) ")"'));
     expect(small, contains('@page{margin:18mm}'));

@@ -72,6 +72,16 @@ class DVPage {
   /// Whether the page's text can be selected. True by default -- a page whose
   /// text cannot be copied is a defect rather than a style.
   final bool selectable;
+
+  /// Whether the browser's own find (Ctrl+F, "Find in page") reaches this
+  /// page on the web. True by default: the shell keeps a findable copy of
+  /// the page's rendered text in the document and scrolls to what the
+  /// browser matched, with nothing for the page to add.
+  ///
+  /// False keeps that copy out of the document at runtime, for a page whose
+  /// text should never be anywhere but its canvas. What the build wrote for
+  /// crawlers and printers is left, and not searched.
+  final bool findable;
   final bool safeArea;
   final bool centerTitle;
   final bool extendBody;
@@ -102,6 +112,7 @@ class DVPage {
     this.scaffold = true,
     this.showAppBar = false,
     this.selectable = true,
+    this.findable = true,
     this.safeArea = true,
     this.centerTitle = false,
     this.extendBody = false,
