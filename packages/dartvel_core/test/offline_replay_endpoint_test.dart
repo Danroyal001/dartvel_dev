@@ -234,6 +234,55 @@ void main() {
       expect(remote.table.scope!.column, dvTenantColumn);
     });
 
+    // A device's offline write is a write to the data model. Replayed onto a
+    // table built with no capture log, it never reached a destination.
+    test('a replayed write to a captured model is captured', () async {
+      final DVCapture log = DVCapture(
+        database: database,
+        retention: const Duration(days: 7),
+      );
+      DVCapture.configure(log);
+      addTearDown(DVCapture.unconfigure);
+      final DVOfflineReplay replay = DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[
+          DVStudioModelSpec(
+            model: 'Order',
+            table: 'orders',
+            key: 'id',
+            offline: DVConflict.lastWriteWins,
+            capture: true,
+            fields: const <DVStudioFieldSpec>[
+              DVStudioFieldSpec(name: 'id', type: 'String'),
+              DVStudioFieldSpec(name: 'reference', type: 'String'),
+              DVStudioFieldSpec(
+                  name: 'cardNumber', type: 'String', sensitive: true),
+            ],
+          ),
+        ],
+        database: database,
+      );
+      final DVRecordTableRemote remote =
+          replay.remotes['Order']! as DVRecordTableRemote;
+      await remote.ensureSchema();
+      final DVOfflineReplayResult result = await DVOfflineReplay(
+        <String, DVOfflineRemote>{
+          'Order': DVRecordTableRemote(
+            remote.table,
+            strategy: DVConflict.lastWriteWins,
+            authorize: (DVMutation _) async => true,
+          ),
+        },
+      ).handle(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+      expect(result.status, 200);
+
+      final List<DVCapturedChange> changes = await log.changes();
+      expect(changes.single.key, 'o1');
+      expect(changes.single.values.containsKey('cardNumber'), isFalse);
+    });
+
     test('a policy that throws refuses, even asynchronously', () async {
       // The analyzer found this one: returning the future from inside the
       // try let it escape, so a policy that threw after the first await was

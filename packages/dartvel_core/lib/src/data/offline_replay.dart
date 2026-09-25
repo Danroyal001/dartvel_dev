@@ -19,6 +19,7 @@ import '../database/adapter.dart';
 import '../observability/observability.dart';
 import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
+import 'change_capture.dart' show DVCapture;
 import 'offline_store.dart';
 import 'record_history.dart';
 
@@ -114,6 +115,9 @@ class DVOfflineReplay {
           },
           versioned: spec.versioned,
           softDelete: spec.softDelete,
+          // A replayed write is a write to the data model; a captured one is
+          // recorded as the model's own saves are.
+          capture: spec.capture ? DVCapture.configured : null,
           // The same scope every other read and write on this table carries.
           // The whole registry is built inside the request, so the tenant
           // read here is the one that asked.
