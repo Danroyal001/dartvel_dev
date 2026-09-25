@@ -9,7 +9,6 @@
 // record can be another writer's values, so an outcome carrying the record
 // back verbatim would hand the device fields it never had and might not be
 // allowed to read. The table already knows which columns are sensitive.
-import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_core/framework.dart';
 import 'package:test/test.dart';
 
