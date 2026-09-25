@@ -145,7 +145,10 @@ DVText('A real sentence here.')
       final html = dvApplyPageText(shell, <String>['A heading', 'A sentence.']);
 
       expect(html, contains('<div class="dv-fallback">'));
-      expect(html, contains('.dv-fallback{display:none}'));
+      // Off the screen as a clipped box rather than display:none, which the
+      // browser's find skips; find_in_page_html_test holds the rest.
+      expect(html, contains('clip-path:inset(50%)'));
+      expect(html, isNot(contains('.dv-fallback{display:none}')));
       expect(html, contains('A heading'));
       expect(html, contains('A sentence.'));
     });
