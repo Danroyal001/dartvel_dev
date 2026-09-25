@@ -93,6 +93,70 @@ void main() {
     });
   });
 
+  // A record edited in Studio is a write to the data model like any other.
+  // Studio built its own table for the model and handed it no capture log,
+  // so an operator's correction never reached a warehouse, and the copy
+  // disagreed with the source from then on without anything saying so.
+  test('a captured data model edited in Studio is captured', () async {
+    final DVCapture log = DVCapture(
+      database: database,
+      retention: const Duration(days: 7),
+    );
+    DVCapture.configure(log);
+    addTearDown(DVCapture.unconfigure);
+    final DVAdminServer captured = DVAdminServer(
+      mount: _guarded,
+      root: root.path,
+      authenticated: (Request _) async => true,
+      models: const <DVStudioModelSpec>[
+        DVStudioModelSpec(
+          model: 'Order',
+          table: 'orders',
+          key: 'id',
+          capture: true,
+          fields: <DVStudioFieldSpec>[
+            DVStudioFieldSpec(name: 'id', type: 'String'),
+            DVStudioFieldSpec(name: 'total', type: 'int'),
+          ],
+        ),
+      ],
+      database: database,
+    );
+    await DVRecordTable(
+      table: 'orders',
+      key: 'id',
+      columns: const <String>['id', 'total'],
+      database: database,
+    ).ensureSchema();
+
+    final Response? created = await captured.respond(_request(
+      'POST',
+      '/__studio/api/models/Order/records',
+      json: <String, Object?>{
+        'values': <String, Object?>{'id': 'o1', 'total': 4200},
+      },
+    ));
+    expect(created?.status, 201);
+
+    final List<DVCapturedChange> changes = await log.changes();
+    expect(changes.single.model, 'orders');
+    expect(changes.single.key, 'o1');
+  });
+
+  test('a model spec says whether it is captured, through the manifest', () {
+    const DVStudioModelSpec spec = DVStudioModelSpec(
+      model: 'Order',
+      table: 'orders',
+      key: 'id',
+      capture: true,
+      fields: <DVStudioFieldSpec>[DVStudioFieldSpec(name: 'id', type: 'String')],
+    );
+    final DVStudioModelSpec read = DVStudioModelSpec.fromManifest(
+      jsonDecode(jsonEncode(spec.toManifest())) as Map<String, Object?>,
+    );
+    expect(read.capture, isTrue);
+  });
+
   test('a model spec survives the manifest a development server reads', () {
     const DVStudioModelSpec spec = DVStudioModelSpec(
       model: 'Order',

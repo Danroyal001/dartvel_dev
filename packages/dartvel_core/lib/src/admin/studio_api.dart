@@ -26,6 +26,7 @@ import '../auth/auth.dart'
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
 import '../auth/sessions.dart' show DVSessionCookie;
+import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../database/records.dart';
@@ -92,6 +93,7 @@ class DVStudioModelSpec {
     this.versioned = true,
     this.softDelete = false,
     this.offline,
+    this.capture = false,
     this.module,
     this.data,
   });
@@ -165,6 +167,12 @@ class DVStudioModelSpec {
   /// already carries everything else a remote needs to resolve the table.
   final DVConflict? offline;
 
+  /// Whether the data model declared `@DVModel(capture: true)`, so every
+  /// write the server makes to it -- through Studio, through a device's
+  /// replayed offline writes -- is recorded in the change capture log, as
+  /// the model's own saves are.
+  final bool capture;
+
   /// Everything a development server needs to serve this model's records
   /// without the generated code: [fromManifest] reads it back. The build
   /// writes the application's own models this way; a module's resolve their
@@ -180,6 +188,7 @@ class DVStudioModelSpec {
     'versioned': versioned,
     'softDelete': softDelete,
     if (offline != null) 'offline': offline!.name,
+    if (capture) 'capture': true,
   };
 
   /// A spec from [toManifest]'s output.
@@ -191,6 +200,7 @@ class DVStudioModelSpec {
         tenantScoped: json['tenantScoped'] == true,
         versioned: json['versioned'] != false,
         softDelete: json['softDelete'] == true,
+        capture: json['capture'] == true,
         offline: json['offline'] == null
             ? null
             : DVConflict.byName('${json['offline']}'),
@@ -509,6 +519,9 @@ class DVStudioApi {
     },
     versioned: spec.versioned,
     softDelete: spec.softDelete,
+    // An edit made here is a write to the data model, and a captured one is
+    // recorded as its own saves are.
+    capture: spec.capture ? DVCapture.configured : null,
     scope: spec.tenantScoped
         ? DVRecordScope(dvTenantColumn, const DVTenants().currentTenant)
         : null,

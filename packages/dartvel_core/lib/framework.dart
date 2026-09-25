@@ -22,3 +22,10 @@ export 'src/data/offline_store.dart'
 export 'src/search/semantic_search.dart' show DVSemanticIndex;
 export 'src/sync/model_sync.dart' show DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' show DVPresenceTransport;
+// Change capture: the log, its consumers, the store destination, the jobs,
+// dartvel.capture as the build and the generated server read it, and the
+// runtime that runs it all. An application writes @DVModel(capture: true)
+// and the pubspec, never these.
+export 'src/data/change_capture.dart' hide DVCaptureWriteError;
+export 'src/data/capture_config.dart';
+export 'src/data/capture_runtime.dart';

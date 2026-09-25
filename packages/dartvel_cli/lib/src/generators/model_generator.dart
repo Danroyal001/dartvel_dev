@@ -16,7 +16,10 @@ import '../utils/helpers.dart';
 const int _unorderedPageField = 1 << 30;
 
 class ModelGenerator {
-  static Future<void> generate({
+  /// Generates every data model, and answers the class names of those
+  /// declared `@DVModel(capture: true)`, which the build checks
+  /// `dartvel.capture` against (`DV-CDC-008`).
+  static Future<Set<String>> generate({
     required String root,
     required String pkgName,
     /// Accepted and not written anywhere. A build id in generated files
@@ -120,6 +123,7 @@ class ModelGenerator {
     }
 
     final classesGenerated = <String>[];
+    final Set<String> captured = <String>{};
 
     // What Studio needs to know about a field beyond its type: the values an
     // enum declared among the models can take, and which declared model a
@@ -282,6 +286,7 @@ class ModelGenerator {
         // and sensitive fields here, so the log is the only thing left to
         // hand it -- and handing it is what nobody could do before.
         final bool capture = flagArg('capture', false);
+        if (capture) captured.add(className);
 
         // Same reasoning for the semantic index. Building one by hand meant
         // restating the id, the fields, the loader, the sensitive set and the
@@ -1181,31 +1186,6 @@ class ModelGenerator {
           }
           sb.writeln('      );');
           sb.writeln();
-          if (capture) {
-            // The consumer needs every row that is already there before it
-            // can follow new changes, and it reads them through the table.
-            // The table is the framework's, so the model does the asking:
-            // an application names the model it is copying, never the
-            // machinery underneath it.
-            sb.writeln(
-                '  /// Copies every [$className] already stored to [consumer],');
-            sb.writeln('  /// then leaves it following new changes in order.');
-            sb.writeln('  ///');
-            sb.writeln('  /// Resumable: each chunk is one job, and a run that');
-            sb.writeln('  /// stops picks up where it left off.');
-            sb.writeln(
-                '  static Future<DVCaptureBackfillProgress> backfillTo(');
-            sb.writeln('    DVCaptureConsumer consumer, {');
-            sb.writeln('    int chunkSize = 500,');
-            sb.writeln('    int? maxChunks,');
-            sb.writeln('  }) =>');
-            sb.writeln('      consumer.backfill(');
-            sb.writeln('        _dvRecords(),');
-            sb.writeln('        chunkSize: chunkSize,');
-            sb.writeln('        maxChunks: maxChunks,');
-            sb.writeln('      );');
-            sb.writeln();
-          }
           sb.writeln('  /// The record each [$className] loaded from the database');
           sb.writeln('  /// was read at, so saving it is checked against that');
           sb.writeln('  /// version. Beside the model rather than a field on it,');
@@ -1995,6 +1975,7 @@ class ModelGenerator {
             tenantScoped: tenantScoped,
             versioned: versioned,
             softDelete: softDelete,
+            capture: capture,
             fields: <DVStudioFieldSpec>[
               for (final Map<String, String> f in fields)
                 DVStudioFieldSpec(
@@ -2024,6 +2005,10 @@ class ModelGenerator {
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
             '${softDelete ? '    softDelete: true,\n' : ''}'
+            // The server's own writes to a captured model -- Studio's, a
+            // device's replayed ones -- are recorded as its saves are, and
+            // the capture runtime backfills the tables named here.
+            '${capture ? '    capture: true,\n' : ''}'
             // Only the models that said so. The route that applies replayed
             // writes builds its registry from these, and a spec that
             // defaulted to a strategy would put every model in it.
@@ -3076,6 +3061,7 @@ class ModelGenerator {
       '${studioSpecs.join('\n')}${studioSpecs.isEmpty ? '' : '\n'}'
       '];\n',
     );
+    return captured;
   }
 
   /// The options or relation a field's Studio spec carries, as source.

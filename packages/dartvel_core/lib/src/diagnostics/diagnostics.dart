@@ -1745,6 +1745,28 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-CDC-006',
+      reason: '`dartvel.capture` declares something that cannot be honoured',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-007',
+      reason: "a destination's connection is written into the pubspec rather "
+          'than named by its secret',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-008',
+      reason: 'a destination takes a data model that is not captured',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-CDC-009',
+      reason: "a destination's connection secret is not set; its changes wait "
+          'in the log',
+      level: 'warning',
+    ),
+    DVDiagnostic(
       code: 'DV-WORKER-001',
       reason: 'a task ran inline because the target has no threads',
       level: 'info',
