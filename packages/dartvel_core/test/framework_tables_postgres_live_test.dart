@@ -575,8 +575,8 @@ void main() {
       final DVDatabaseAdapter inWarehouse = _InSchema(db, 'dv_w64_wh');
       final DVWarehouseSink sink = DVWarehouseSink(
         database: inWarehouse,
-        columnType: (String model, String column) =>
-            column == 'quantity' ? 'BIGINT' : 'TEXT',
+        fieldType: (String model, String field) =>
+            field == 'quantity' ? DVFieldType.integer : DVFieldType.text,
       );
       await orders.restore('o1');
       await capture.consumer('wh', sink: sink).deliverOnce();
