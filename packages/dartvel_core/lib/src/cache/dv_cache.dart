@@ -176,8 +176,14 @@ class DVCache {
         final Object? fresh = await _adapter.read(_freshKey(scoped));
         if (fresh == null) {
           // Serve the stale value now; exactly one refresh runs behind it.
-          unawaited(_compute<T>(scoped, compute, ttl, staleFor)
-              .then<void>((_) {}, onError: (Object _) {}));
+          unawaited(
+            _compute<T>(
+              scoped,
+              compute,
+              ttl,
+              staleFor,
+            ).then<void>((_) {}, onError: (Object _) {}),
+          );
         }
       }
       return cached;
@@ -225,8 +231,7 @@ class DVCache {
     required Duration ttl,
     Duration staleFor = const Duration(minutes: 5),
     required Future<T> Function() compute,
-  }) =>
-      remember<T>(key, compute, ttl: ttl, staleFor: staleFor);
+  }) => remember<T>(key, compute, ttl: ttl, staleFor: staleFor);
 
   // --- tags ------------------------------------------------------------------
 
@@ -297,7 +302,8 @@ class DVCache {
   }
 
   Future<String?> _acquire(String lockKey, Duration ttl) async {
-    final String token = '${DateTime.now().microsecondsSinceEpoch}-'
+    final String token =
+        '${DateTime.now().microsecondsSinceEpoch}-'
         '${_lockSerial++}-${_random.nextInt(0x7fffffff)}';
     final DVCacheAdapter adapter = _adapter;
     if (adapter is DVAtomicCacheAdapter) {
