@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+### Breaking
+
+- **An offline data model syncs by itself, and its machinery is no longer
+  public.** `Model.offlineStore(database)` and `Model.offlineRemote(database,
+  validate:)` are no longer generated, and `DVOfflineStore`, `DVOffline`,
+  `DVOfflineRemote`, `DVMutation`, `DVReplayResult`, `DVRemoteOutcome`,
+  `DVOfflineClock` and `DVOfflineStorePrivacyAdapter` are no longer exported
+  from `package:dartvel_core/dartvel.dart`. A data model declaring
+  `@DVModel(offline: ...)` is saved, deleted and read like any other: replace
+  a store write with `record.save()`, `pending()` with `record.syncState`, and
+  delete the replay call and the server-side remote -- the runtime sends the
+  queue and the generated backend applies it. `DVSyncState` and
+  `DVOfflineQueueFullError` stay public.
+
+### Added
+
+- **Offline data models work offline with nothing wired up.** `save()` and
+  `destroy()` write the device's copy at once and queue the change; reads come
+  from the device copy; the queue is sent when the app starts, after each
+  write, when `DV.Platform.network` says the server is reachable again, and
+  on a backoff after a failed send. The device store is a SQLite file on
+  phones, desktops and TVs and IndexedDB in a browser. Signing out sends what
+  it can and then empties the store.
+
+### Fixed
+
+- **The generated backend's replay route works against a real database and a
+  typed policy.** It created none of its own tables, so the first replay
+  failed with a server error; and it asked the model's policy with a map,
+  which every policy written against the model refused. It now prepares its
+  tables, builds the class your server-side policy takes from the record, and
+  answers with its time so a device can correct its clock.
+
 ## 0.6.0 — 2026-09-25
 
 Studio grows from a record browser into the place a team runs its application
