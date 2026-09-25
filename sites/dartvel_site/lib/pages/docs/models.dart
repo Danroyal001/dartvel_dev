@@ -49,8 +49,8 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               'Parameter',
               'What it does',
             ], rows: <List<String>>[
-              <String>['generatePublicPages: true', 'A public page per record, '
-                  'at /articles/:slug'],
+              <String>['generatePublicPages: false', 'No public page per '
+                  'record. Pages are on by default, at /articles/:slug'],
               <String>['publicPathsResolver: fn', 'Your function lists the '
                   'paths to render statically'],
               <String>['history: DVHistory(...)', 'Keeps each version, with '
@@ -138,13 +138,29 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           id: 'model-pages',
           title: 'Serve a public page per record',
           children: <Widget>[
-            DocsText('With generatePublicPages: true, Dartvel generates the '
-                'route for you. Each record gets a page at the model\'s name '
-                'in plural kebab-case, followed by the record\'s slug, or its '
-                'id when the model has no slug: an Article is served at '
+            DocsText('Dartvel generates a public page for every record by '
+                'default. To turn it off for a data model, set '
+                'generatePublicPages: false on it.'),
+            DocsText('The route comes from the model\'s name, in plural '
+                'kebab-case, followed by the record\'s slug, or its id when '
+                'the model has no slug: an Article is served at '
                 '/articles/hello-world, and a BlogPost at /blog-posts/42.'),
             DocsText('`dartvel build web` renders the published records\' '
-                'pages statically.'),
+                'pages statically and lists them in the sitemap.'),
+            Bullets(<String>[
+              'Sensitive fields, and the field that names the record\'s '
+                  'subject, stay hidden. Only a viewer your viewSensitive '
+                  'policy allows sees them on the page.',
+              'They never appear in page titles, descriptions, structured '
+                  'data, the static build or the sitemap.',
+              'A record your view policy refuses gets a 404, the same as '
+                  'one that does not exist.',
+              'Users, sessions, tokens, audit logs and tenant data get no '
+                  'page unless you set generatePublicPages: true.',
+            ]),
+            DocsSubheading('Decide who sees what'),
+            DocsCode('models-page-policy'),
+            DocsSubheading('Render a record in your own page'),
             DocsCode('models-page-from-id'),
             DocsSubheading('List the static paths yourself'),
             DocsCode('models-paths-resolver'),

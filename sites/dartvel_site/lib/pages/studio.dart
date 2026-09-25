@@ -193,8 +193,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           ),
           SiteCard(
             'Model pages',
-            '@DVModel(generatePublicPages: true) gives each record a public '
-                'page with head tags and structured data. A row\'s featured '
+            'Every data model gives each record a public page with head '
+                'tags and structured data, unless it opts out. A row\'s featured '
                 'image does not become its favicon yet.',
             section: 'Generated Model Pages',
           ),
