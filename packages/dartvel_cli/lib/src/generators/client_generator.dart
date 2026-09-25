@@ -25,6 +25,7 @@ import '../modules/described_api.dart' show dvClassName;
 import '../graph/module_mounts.dart';
 import 'route_blocks.dart';
 import 'page_names.dart';
+import 'primary_constructors.dart';
 import 'page_policy.dart';
 import 'symbol_qualifier.dart';
 import '../commands/build_command.dart' show dvTerminalOptInFrom;
@@ -242,9 +243,15 @@ class ClientGenerator {
       if (!hasPageAnnotation && !isLegacyPageFile) {
         continue;
       }
-      final m = RegExp(
-        r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
-      ).firstMatch(maskedSrc);
+      // Only the class name is read from this match, so it can run on the
+      // source with primary constructors spelled out: `class const
+      // TeamPage({super.key}) extends DartvelPage` is a page too.
+      final m =
+          RegExp(
+            r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
+          ).firstMatch(
+            dvMaskAnnotationArgs(dvDesugarPrimaryConstructors(src), 'DVPage'),
+          );
       String className;
       String publicName;
       bool isFunctional = false;
@@ -433,7 +440,9 @@ class ClientGenerator {
         RegExp(r'^lib/'),
         'package:$pkgName/',
       );
-      final src = await File(abs).readAsString();
+      // Primary constructors spelled out, so `class const Layout(...)
+      // extends DartvelLayout` is found like `class Layout extends ...`.
+      final src = dvDesugarPrimaryConstructors(await File(abs).readAsString());
       // A tabs layout is the shell its folder's pages render inside, not a
       // wrapper around each of them.
       final tabs = RegExp(
@@ -3810,7 +3819,7 @@ void startDartvelKiosk() {
     // nothing in the generated file.
     final types = RegExp(
       r'^(?:abstract\s+|sealed\s+|final\s+|base\s+|interface\s+)*'
-      r'(?:class|enum|mixin|extension type)\s+([A-Za-z][A-Za-z0-9_]*)\b',
+      r'(?:class|enum|mixin|extension type)\s+(?:const\s+)?([A-Za-z][A-Za-z0-9_]*)\b',
       multiLine: true,
     );
     for (final match in types.allMatches(source)) {

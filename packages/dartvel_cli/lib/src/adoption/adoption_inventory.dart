@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 
 import '../graph/project_graph.dart';
 import 'adoption_build_checks.dart';
+import '../generators/primary_constructors.dart';
 
 /// One thing counted.
 class DVAdoptionItem {
@@ -194,7 +195,7 @@ List<(String, String)> _handWrittenSources(String root) {
       if (_handWritten(p.relative(file.path, from: root).replaceAll(r'\', '/')))
         (
           p.relative(file.path, from: root).replaceAll(r'\', '/'),
-          file.readAsStringSync(),
+          dvDesugarPrimaryConstructors(file.readAsStringSync()),
         ),
   ];
 }
@@ -234,7 +235,7 @@ Iterable<DVAdoptionItem> _unmanagedModels(String rel, String masked) sync* {
 
 final RegExp _scaffold = RegExp(r'(?<![A-Za-z0-9_$.])Scaffold\s*\(');
 final RegExp _widgetClass = RegExp(
-  r'class\s+([A-Za-z_$][A-Za-z0-9_$]*)[^{]*?\bextends\s+'
+  r'class\s+(?:const\s+)?([A-Za-z_$][A-Za-z0-9_$]*)[^{]*?\bextends\s+'
   r'(?:StatelessWidget|StatefulWidget|ConsumerWidget|ConsumerStatefulWidget|HookWidget|HookConsumerWidget)\b',
 );
 

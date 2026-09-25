@@ -15,6 +15,8 @@
 // either way generates the same code, byte for byte.
 import 'dart:io';
 
+import 'package:dartvel_cli/src/config/dartvel_config.dart';
+import 'package:dartvel_cli/src/generators/page_names.dart';
 import 'package:dartvel_cli/src/docs/docs_site.dart';
 import 'package:dartvel_cli/src/generators/job_generator.dart';
 import 'package:dartvel_cli/src/generators/model_generator.dart';
@@ -232,6 +234,31 @@ class const _Customer(
     expect(models, contains('Someone who buys.'));
     expect(models, contains('Where receipts are sent.'));
     expect(models, contains('What they like to be called.'));
+  });
+
+  test('a class page written with a primary constructor is a page', () {
+    expect(
+      dvPageSymbol('''
+@DVPage(title: 'Team')
+class const TeamPage({super.key, final String? tab}) extends DartvelPage {
+  @override
+  Widget build(BuildContext context) => const Placeholder();
+}
+'''),
+      'TeamPage',
+    );
+  });
+
+  test('a Dart config written with a primary constructor is found', () async {
+    final Directory root = await _project(<String, String>{
+      'lib/config.dart': 'class const AppConfig() extends DartvelConfig {}\n',
+    });
+    final DartvelDartConfigReference found =
+        DartvelDartConfigReference.validate(
+          root: root,
+          relativePath: 'lib/config.dart',
+        );
+    expect(found.className, 'AppConfig');
   });
 
   group('dvDesugarPrimaryConstructors', () {
