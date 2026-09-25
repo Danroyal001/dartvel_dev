@@ -2,48 +2,53 @@ import '../dartvel_client/dartvel_client.dart';
 
 Future<List<String>> fetchProductNames() async => <String>['Starter kit'];
 
-// docs:start cache-remember
-Future<List<String>> productNames() async {
-  final List<String> names = await DV.Cache.remember<List<String>>(
-    'products:names',
-    const Duration(minutes: 10),
-    fetchProductNames, // runs only when the key is missing or expired
-  );
-  DV.Cache.tag('products:names', <String>['products']);
-  return names;
+Future<void> basics() async {
+  // docs:start cache-basics
+  await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
+  final String? greeting = await DV.Cache.get<String>('greeting');
+  final bool cached = await DV.Cache.has('greeting');
+  await DV.Cache.delete('greeting');
+  await DV.Cache.clear(); // every key
+  // docs:end
+  DV.log('$greeting $cached');
 }
 
+// docs:start cache-remember
+Future<List<String>> productNames() => DV.Cache.remember<List<String>>(
+      'products:names',
+      fetchProductNames, // runs only when the key is missing or expired
+      ttl: const Duration(minutes: 10),
+      tags: <String>['products'],
+    );
+
 Future<void> productChanged() async {
-  // Drops every key tagged "products".
+  // Drops every key tagged "products"; the next productNames() recomputes.
   await DV.Cache.revalidateTag('products');
 }
 // docs:end
 
-Future<void> basics() async {
-  // docs:start cache-basics
-  await DV.Cache.set('greeting', 'hello', const Duration(hours: 1));
-  final String? greeting = await DV.Cache.get<String>('greeting');
-  await DV.Cache.delete('greeting');
-  // docs:end
+Future<void> stale() async {
   // docs:start cache-stale
-  final List<String> names = await DV.Cache.staleWhileRevalidate<List<String>>(
+  final List<String> names = await DV.Cache.remember<List<String>>(
     'products:names',
+    fetchProductNames,
     ttl: const Duration(minutes: 1),
     staleFor: const Duration(minutes: 10),
-    compute: fetchProductNames,
   );
   // docs:end
+  DV.log('$names');
+}
+
+Future<void> sendMonthlyReport() async {}
+
+Future<void> lock() async {
   // docs:start cache-lock
-  final DVCacheLock? lock = await DV.Cache.lock('reports:monthly');
-  if (lock != null) {
-    try {
-      // Only one caller at a time gets here.
-    } finally {
-      await lock.release();
-    }
-  }
+  final bool? sent = await DV.Cache.lock('reports:monthly', () async {
+    await sendMonthlyReport(); // one caller at a time, across every server
+    return true;
+  });
+  if (sent == null) DV.log('Another server is sending the report.');
   // docs:end
-  DV.log('$greeting $names');
 }
 
 Future<void> redis() async {

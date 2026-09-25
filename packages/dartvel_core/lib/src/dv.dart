@@ -7,6 +7,7 @@
 /// `DVObservability.log`, which is neither.
 library dartvel_core.dv;
 
+import 'cache/dv_cache.dart';
 import 'observability/observability.dart';
 
 /// Logs, events, errors, metrics, health and traces, as the specification
@@ -93,6 +94,12 @@ abstract final class DV {
   // ignore: non_constant_identifier_names -- the specification's spelling.
   static const DVObservabilityAndLogging ObservabilityAndLogging =
       DVObservabilityAndLogging();
+
+  /// The cache: `set`, `get`, `has`, `delete`, `clear`, and `remember`,
+  /// tags and `lock` on top. The same cache a page's `DV.Cache` reaches, in
+  /// the store `dartvel.cache` names.
+  // ignore: non_constant_identifier_names -- the specification's spelling.
+  static const DVCache Cache = DVCache();
 
   /// The short spelling of `DV.ObservabilityAndLogging.log`.
   static void log(
