@@ -51,7 +51,8 @@ Widget _docsTestingPage(BuildContext context) => const DocsArticle(
               'DVHttpStub has json, text, status, timeout, error and sequence.',
               'A host with no stub fails the call, so a test never reaches the '
                   'network.',
-              'There is no cache fake. Configure DVMemoryCacheAdapter instead.',
+              'There is no cache fake: in a test DV.Cache is in memory. Call '
+                  'DV.Cache.clear() in setUp.',
             ]),
           ],
         ),
