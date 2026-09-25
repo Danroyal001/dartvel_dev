@@ -4,12 +4,8 @@ import '../dartvel_client/dartvel_client.dart';
 ///
 /// Two objects loaded from the same row answer as the same customer, which
 /// object identity does not give.
-class Workspace implements DVBillingCustomer {
-  const Workspace(this.id, this.stripeId);
-
-  final String id;
-  final String stripeId;
-
+class const Workspace(final String id, final String stripeId)
+    implements DVBillingCustomer {
   @override
   String get billingCustomerId => stripeId;
 }
