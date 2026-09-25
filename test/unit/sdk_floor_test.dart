@@ -141,6 +141,31 @@ void main() {
     );
   });
 
+  // The number the CLI enforces -- `dartvel upgrade --plan`, the embedder
+  // skip, the adoption report -- is dvDartFloor. A pubspec that says one
+  // thing while the CLI checks another is two floors again, just split
+  // across a Dart constant and a YAML file.
+  test('the declared floor is the one the CLI enforces', () {
+    final source = File('${_repoRoot.path}/packages/dartvel_cli/lib/src/'
+            'build/sdk_floor.dart')
+        .readAsStringSync();
+    final enforced = RegExp(r"const String dvDartFloor = '([^']+)';")
+        .firstMatch(source)
+        ?.group(1);
+    expect(enforced, isNotNull, reason: 'dvDartFloor not found');
+    for (final path in <String>[
+      'pubspec.yaml',
+      'packages/dartvel_core/pubspec.yaml',
+      'sites/dartvel_site/pubspec.yaml',
+    ]) {
+      expect(
+        _declaredFloor(File('${_repoRoot.path}/$path')).toString(),
+        enforced,
+        reason: '$path declares a floor other than dvDartFloor',
+      );
+    }
+  });
+
   for (final name in packageNames) {
     final packageDir = Directory('${_repoRoot.path}/packages/$name');
 

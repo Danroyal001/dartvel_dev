@@ -51,7 +51,7 @@ void main() {
       // 3.9.0 sorts after 3.12.0 as text. Reasoning from that is how a
       // target that cannot resolve at all was recorded as merely unproven.
       expect(dvMeetsDartFloor('3.9.0'), isFalse);
-      expect(dvMeetsDartFloor('3.12.0'), isTrue);
+      expect(dvMeetsDartFloor('3.13.4'), isTrue);
       expect(dvMeetsDartFloor('3.10.9'), isFalse);
       expect(dvMeetsDartFloor('3.7.2'), isFalse);
       expect(dvMeetsDartFloor('4.0.1'), isTrue);
@@ -60,8 +60,21 @@ void main() {
 
     test('a prerelease of the floor is below it', () {
       // Which is what pub does, and pub is the thing that will refuse.
-      expect(dvMeetsDartFloor('3.12.0-1.0.dev'), isFalse);
-      expect(dvMeetsDartFloor('3.13.0-1.0.dev'), isTrue);
+      expect(dvMeetsDartFloor('3.13.0-1.0.dev'), isFalse);
+      expect(dvMeetsDartFloor('3.14.0-1.0.dev'), isTrue);
+    });
+
+    test('the floor is the first Dart that reads primary constructors', () {
+      // Every sample, scaffold and generated model is written
+      // `class Point(final int x, final int y);`. Dart 3.12 rejects that
+      // declaration outright, so a 3.12 toolchain is below the floor rather
+      // than merely old.
+      expect(dvMeetsDartFloor('3.12.2'), isFalse);
+      expect(dvMeetsDartFloor('3.13.0'), isTrue);
+      expect(dvDartFloor, '3.13.0');
+      // Flutter 3.47.0 is the first stable release carrying Dart 3.13.0
+      // (releases_linux.json); 3.44.9, the last 3.44, carries 3.12.2.
+      expect(dvFlutterFloor, '3.47.0');
     });
 
     test('something unreadable is not treated as old', () {
@@ -81,7 +94,7 @@ void main() {
 
       expect(said, isNotNull);
       expect(said, contains('3.10.9'));
-      expect(said, contains('3.12.0'));
+      expect(said, contains('3.13.0'));
       // The distinction that matters: it is installed, and being installed
       // is not the problem. Without this somebody goes looking for a
       // toolchain that is already there.
@@ -94,7 +107,7 @@ void main() {
         dvEmbedderTooOld(
           target: 'tizen',
           executable: 'flutter-tizen',
-          versionOutput: _version(flutter: '3.44.5', dart: '3.12.2'),
+          versionOutput: _version(flutter: '3.47.5', dart: '3.13.4'),
         ),
         isNull,
       );
@@ -124,7 +137,7 @@ void main() {
 Warning: pubspec.yaml has overrides from pubspec_overrides.yaml
 The current Dart SDK version is 2.19.0-415.0.dev.
 
-Because dartvel_example requires SDK version >=3.12.0 <4.0.0, version solving failed.
+Because dartvel_example requires SDK version >=3.13.0 <4.0.0, version solving failed.
 pub get failed
 ''';
 
@@ -133,7 +146,7 @@ pub get failed
 
       expect(said, isNotNull);
       expect(said, contains('2.19.0-415.0.dev'));
-      expect(said, contains('3.12.0'));
+      expect(said, contains('3.13.0'));
       expect(said, contains('nothing to fix here'));
     });
 
@@ -145,7 +158,7 @@ pub get failed
       final String? said = dvSdkFloorRefusal(
         target: 'fuchsia',
         output: 'The current Dart SDK version is 2.19.0-415.0.dev.\n'
-            'Because app requires SDK version >=3.12.0 <4.0.0, '
+            'Because app requires SDK version >=3.13.0 <4.0.0, '
             'version solving failed.',
       );
 

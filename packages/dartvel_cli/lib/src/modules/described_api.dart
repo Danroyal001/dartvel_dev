@@ -67,7 +67,7 @@ publish_to: none
 version: 0.0.1
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
   dartvel_core: any

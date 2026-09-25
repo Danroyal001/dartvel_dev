@@ -232,7 +232,7 @@ name: crash_probe
 version: 2.3.4+5
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dependencies:
   flutter:
     sdk: flutter

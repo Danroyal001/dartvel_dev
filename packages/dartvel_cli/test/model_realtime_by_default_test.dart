@@ -36,7 +36,7 @@ class _Article {
 const String _pubspec = '''
 name: realtime_app
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 ''';
 
 Future<String> generated() async {

@@ -29,7 +29,7 @@ Directory project(String crashes) {
 name: crash_config_probe
 version: 1.0.0
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dartvel:
 $crashes
 ''');
