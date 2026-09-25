@@ -14,6 +14,7 @@ library;
 
 export 'src/data/offline_database.dart';
 export 'src/data/offline_replay.dart';
+export 'src/data/offline_sync.dart';
 // The record layer, which the generated models are built on and an
 // application does not name. See the note in dartvel.dart.
 export 'src/data/record_history.dart'
