@@ -126,6 +126,26 @@ void main() {
       });
     }
 
+    test('a record about a person with no published flag gets no page', () {
+      final DVPublicPages pages = decide('Order', 'subject: #customerEmail',
+          const <Field>[
+            (type: 'String', name: 'reference'),
+            (type: 'String', name: 'customerEmail'),
+            (type: 'int', name: 'total'),
+          ],
+          sensitive: <String>{'customerEmail'});
+      expect(pages.generates, isFalse);
+      expect(pages.skipped, contains('published'));
+      expect(pages.skipped, contains('generatePublicPages: true'));
+    });
+
+    test('a record about a person with a published flag gets its page', () {
+      final DVPublicPages pages =
+          decide('Article', 'subject: DVSubject.field(\'authorId\')', article);
+      expect(pages.generates, isTrue);
+      expect(pages.publishedField, 'published');
+    });
+
     test('a row that is its own privacy subject is a person: no page', () {
       final DVPublicPages pages = decide('Customer', 'subject: DVSubject.self',
           const <Field>[(type: 'String', name: 'id'), (type: 'String', name: 'name')]);
