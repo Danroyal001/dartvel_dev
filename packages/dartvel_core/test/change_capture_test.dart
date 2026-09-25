@@ -699,6 +699,41 @@ void main() {
               reason: 'the stream resumes from where the backfill began');
         });
 
+        // A new destination is backfilled model by model, and each model's
+        // copy moves the checkpoint to the head it began at. A change to a
+        // model whose copy had already finished, made before the next
+        // model's copy began, was skipped by that move: the stream was all
+        // the first copy had for it, and the destination never saw it.
+        test('a second model\'s backfill does not skip the first model\'s '
+            'later changes', () async {
+          final DVRecordTable notes = DVRecordTable(
+            table: 'notes',
+            key: 'id',
+            columns: const <String>['id', 'body'],
+            capture: capture,
+            database: database,
+          );
+          await notes.ensureSchema();
+          await orders.write(_order('o1'));
+          await notes.write(<String, Object?>{'id': 'n1', 'body': 'first'});
+
+          final _RecordingSink sink = _RecordingSink();
+          final DVCaptureConsumer consumer = capture.consumer('new', sink: sink);
+          expect((await consumer.backfill(orders)).done, isTrue);
+
+          // After the orders copy, before the notes copy begins.
+          await orders.write(_order('o2', quantity: 9));
+
+          expect((await consumer.backfill(notes)).done, isTrue);
+          await consumer.deliverAll();
+
+          expect(
+            sink.changes.map((DVCapturedChange c) => c.key),
+            contains('o2'),
+            reason: 'the write to orders after its copy has to arrive',
+          );
+        });
+
         test('a tenant destination cannot backfill a table with no tenant '
             'column', () async {
           await orders.write(_order('o1'), tenant: 'acme');
