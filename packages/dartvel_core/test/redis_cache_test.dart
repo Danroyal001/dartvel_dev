@@ -20,6 +20,35 @@ Future<bool> _redisReachable() async {
 }
 
 void main() async {
+  // DVRedisCacheAdapter.connect is how an application switches DV.Cache to
+  // Redis in code. A url it cannot use is refused before any connection, and
+  // the refusal never repeats the url, which may carry a password.
+  group('DVRedisCacheAdapter.connect refuses', () {
+    for (final String url in <String>[
+      'http://127.0.0.1:6379',
+      'redis://',
+      'rediss://:s3cret@cache.example.com',
+      'redis://:s3cret@cache.example.com/not-a-number',
+    ]) {
+      test(url, () async {
+        await expectLater(
+          DVRedisCacheAdapter.connect(
+            url,
+            connector: (String host, int port) =>
+                throw StateError('connected to $host:$port'),
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (ArgumentError e) => '$e',
+              'message',
+              isNot(contains('s3cret')),
+            ),
+          ),
+        );
+      });
+    }
+  });
+
   if (!await _redisReachable()) {
     test(
       'redis cache adapter (skipped: no Redis at localhost:6379)',
@@ -133,5 +162,19 @@ void main() async {
     );
     // And the connection keeps working afterwards.
     expect(await client.command(<String>['PING']), 'PONG');
+  });
+
+  test('connect(url) opens a store DV.Cache.withAdapter switches to',
+      () async {
+    final DVRedisCacheAdapter viaUrl = await DVRedisCacheAdapter.connect(
+      'redis://127.0.0.1:6379/0',
+      keyPrefix: 'dartvel_test:',
+    );
+    addTearDown(viaUrl.client.close);
+
+    await const DVCache().withAdapter(viaUrl).set('switched', 'in code');
+
+    // Read through the suite's own connection: the value is in Redis.
+    expect(await adapter.read('switched'), 'in code');
   });
 }
