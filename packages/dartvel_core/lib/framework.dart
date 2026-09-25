@@ -25,3 +25,4 @@ export 'src/sync/presence.dart' show DVPresenceTransport;
 // dartvel.capture as the build and the generated server read it. An
 // application writes the pubspec, never this.
 export 'src/data/capture_config.dart';
+export 'src/data/capture_runtime.dart';
