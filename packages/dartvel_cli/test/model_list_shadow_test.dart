@@ -97,12 +97,14 @@ Future<String> generated() async {
       .readAsStringSync();
 }
 
-/// The source of `class <name> {` up to its closing brace.
+/// The source of `class <name>`, its primary constructor included, up to its
+/// closing brace.
 String classBody(String source, String name) {
-  final int start = source.indexOf('class $name {');
+  final int start = source.indexOf(RegExp('class (const )?$name\\b'));
   expect(start, isNonNegative, reason: 'no class $name in the generated file');
   int depth = 0;
-  for (int i = source.indexOf('{', start); i < source.length; i++) {
+  // The body's brace follows the header's parameters: `}) {`.
+  for (int i = source.indexOf(') {', start) + 2; i < source.length; i++) {
     if (source[i] == '{') depth++;
     if (source[i] == '}') {
       depth--;

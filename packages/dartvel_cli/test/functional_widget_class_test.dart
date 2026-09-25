@@ -72,7 +72,12 @@ void main() {
         '@DVFunctionalWidget()\n'
         "Widget _badge(String label) => DVText(label);\n");
 
-    expect(widgets, contains('class Badge extends StatelessWidget'));
+    expect(
+      widgets,
+      contains(
+        'class const Badge(final String label, {super.key}) extends StatelessWidget',
+      ),
+    );
     expect(widgets, isNot(contains('Widget Badge(String label) {')));
   });
 
@@ -92,9 +97,12 @@ void main() {
         '@DVFunctionalWidget()\n'
         'Widget _card(String title, String body) => DVText(title + body);\n');
 
-    expect(widgets, contains('final String title;'));
-    expect(widgets, contains('final String body;'));
-    expect(widgets, contains('const Card(this.title, this.body'));
+    expect(
+      widgets,
+      contains(
+        'class const Card(final String title, final String body, {super.key})',
+      ),
+    );
   });
 
   test('named parameters with defaults survive', () async {
@@ -102,8 +110,7 @@ void main() {
         '@DVFunctionalWidget()\n'
         'Widget _chip(String text, {bool onDark = false}) => DVText(text);\n');
 
-    expect(widgets, contains('final bool onDark;'));
-    expect(widgets, contains('this.onDark = false'));
+    expect(widgets, contains('{final bool onDark = false, super.key}'));
   });
 
   test('a BuildContext parameter is supplied by build, not by the caller',
@@ -116,11 +123,15 @@ void main() {
         'Widget _tinted(BuildContext context, String text) =>\n'
         '    DVText(text);\n');
 
-    expect(widgets, contains('class Tinted extends StatelessWidget'));
+    // The caller passes only the real arguments.
+    expect(
+      widgets,
+      contains(
+        'class const Tinted(final String text, {super.key}) extends StatelessWidget',
+      ),
+    );
     expect(widgets, isNot(contains('final BuildContext context;')));
     expect(widgets, contains('Widget build(BuildContext context)'));
-    // And the caller passes only the real arguments.
-    expect(widgets, contains('const Tinted(this.text'));
   });
 
   test('a key is accepted, because every widget takes one', () async {
@@ -165,7 +176,12 @@ void main() {
         '  return DVText(text + palette.ink.toString());\n'
         '}\n');
 
-    expect(widgets, contains('class Inked extends StatelessWidget'));
+    expect(
+      widgets,
+      contains(
+        'class const Inked(final String text, {super.key}) extends StatelessWidget',
+      ),
+    );
     // The symbol has to be qualified through the alias the generator gave the
     // source file, or it resolves to nothing in the generated library.
     expect(widgets, matches(RegExp(r"import 'package:fw_app/widgets\.dart' as (w\d+);")));
