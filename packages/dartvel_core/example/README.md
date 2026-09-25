@@ -102,7 +102,7 @@ Future<void> retitle(String slug, String title) async {
     // Someone saved a newer version after this one was read.
     return;
   }
-  await DV.Cache.revalidateTag('articles');
+  await DV.Cache.delete(tag: 'articles');
 }
 
 Future<void> welcome(String userId) async {

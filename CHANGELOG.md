@@ -9,18 +9,25 @@ changes are called out explicitly below.
 
 ### Breaking
 
-- **`DV.Cache` takes its time to live by name.** `set(key, value, ttl: ...)`
-  and `remember(key, compute, ttl: ..., tags: ..., staleFor: ...)`: the
-  compute is the second argument and the tags are a parameter, so no separate
-  `tag` call follows a `remember`. `globalSet` takes `ttl:` too.
-- **`DV.Cache.lock(key, body)` runs the body under the lock** and always
-  releases it, returning the body's result or null when the lock is held
-  (`wait:` keeps trying). `DVCacheLock` and its `release()` are gone.
-- **The cache's store is configuration.** Name it in `dartvel.cache`
-  (`store: memory | database | redis | memcached`, `url: ${REDIS_URL}`,
-  `prefix:`) and the generated server opens it at startup; a page no longer
-  sees the cache adapters, `DVRedisClient` or `DVCacheTags` through the
-  generated barrel. `DV.Cache.configure(...)` remains for tests.
+- **`DV.Cache` is four calls: `get`, `set`, `has` and `delete`.** Everything
+  else is a named option on them. Rewrite `remember(key, compute, ...)` and
+  `staleWhileRevalidate(...)` as `get(key, compute: compute, ttl: ...,
+  tags: ..., staleFor: ...)`; `tag(key, tags)` as `set(key, value,
+  tags: tags)`; `revalidateTag(tag)` as `delete(tag: tag)`; `clear()` as
+  `delete(all: true)`; and `delete(key)` as `delete(key: key)`. `delete`
+  takes exactly one of the three and throws an `ArgumentError` otherwise.
+- **The cache's machinery left `DV.Cache`.** `lock`, `purgeExpired`,
+  `keysForTag`, `tags`, `configure`, `adapter` and the `global*` helpers are
+  the framework's `DVCacheRuntime`, exported from
+  `package:dartvel_core/framework.dart`. Work only one process may do is a
+  schedule, whose occurrences are claimed once across cron processes.
+  `DVCacheLock` and its `release()` are gone.
+- **The cache's default store is configuration.** Name it in
+  `dartvel.cache` (`store: memory | database | redis | memcached`,
+  `url: ${REDIS_URL}`, `prefix:`) and the generated server opens it at
+  startup. `DV.Cache.withAdapter(adapter)` switches store in code, and the
+  adapters are exported for it; `DVRedisClient` and `DVCacheTags` stay out of
+  the generated barrel.
 - **A cache adapter implements `delete`**, as `DV.Cache` names it; `remove`
   still works for callers, as a deprecated extension.
 
@@ -35,9 +42,9 @@ changes are called out explicitly below.
 
 ### Fixed
 
-- `remember<List<String>>` against a database, Redis or Memcached store is a
-  hit. The value came back as `List<dynamic>`, failed the type check, and was
-  recomputed on every call.
+- A read-through `get<List<String>>` against a database, Redis or Memcached
+  store is a hit. The value came back as `List<dynamic>`, failed the type
+  check, and was recomputed on every call.
 
 Change data capture is declared, not wired. `@DVModel(capture: true)` on a data
 model and destinations under `dartvel.capture` in `pubspec.yaml` are all an

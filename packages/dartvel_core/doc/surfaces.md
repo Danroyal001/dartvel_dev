@@ -261,32 +261,33 @@ In an application, and in a backend function through `DV` from
 await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
 final String? greeting = await DV.Cache.get<String>('greeting');
 final bool cached = await DV.Cache.has('greeting');
-await DV.Cache.delete('greeting');
-await DV.Cache.clear();
+await DV.Cache.delete(key: 'greeting');
 
-final List<String> names = await DV.Cache.remember<List<String>>(
+final List<String>? names = await DV.Cache.get<List<String>>(
   'products:names',
-  fetchProductNames, // runs only when the key is missing or expired
+  compute: fetchProductNames, // runs only when the key is missing or expired
   ttl: const Duration(minutes: 10),
   tags: <String>['products'],
 );
 
 // A product changed: every key tagged "products" goes.
-await DV.Cache.revalidateTag('products');
+await DV.Cache.delete(tag: 'products');
+await DV.Cache.delete(all: true); // every key
 
-// Runs the body under the lock and releases it; null when the lock is held.
-final bool? done = await DV.Cache.lock('reports:monthly', () async => true);
+// Another store, the same four calls.
+final DVCacheView other = DV.Cache.withAdapter(DVMemoryCacheAdapter());
 ```
 
-`remember` takes `staleFor:` to serve a stale value while one compute
-refreshes it. Where entries live is `dartvel.cache` in pubspec.yaml -- `store:
-memory | database | redis | memcached`, `url: ${REDIS_URL}`, `prefix:` -- read
-by `DVCacheConfig`, which the generated server installs at startup. The
-adapters behind it (`DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter`,
-`DVRedisCacheAdapter`, `DVMemcachedCacheAdapter`, `DVDistributedCacheAdapter`)
-are for the framework and tests: a pure-Dart file uses an adapter's `read`,
-`write`, `delete` and `clear` directly, and `DV.Cache.configure(...)` swaps
-one in a test.
+`get` takes `staleFor:` with `compute:` to serve a stale value while one
+compute refreshes it. The default store is `dartvel.cache` in pubspec.yaml --
+`store: memory | database | redis | memcached`, `url: ${REDIS_URL}`,
+`prefix:` -- read by `DVCacheConfig`, which the generated server installs at
+startup. `DV.Cache.withAdapter` switches to one of the adapters
+(`DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter`,
+`DVRedisCacheAdapter.connect(url)`, `DVMemcachedCacheAdapter`,
+`DVDistributedCacheAdapter`) in code. The lock, housekeeping, tag inspection
+and swapping the default store in a test are `DVCacheRuntime`, exported from
+`package:dartvel_core/framework.dart`.
 
 ## Jobs and queues
 
