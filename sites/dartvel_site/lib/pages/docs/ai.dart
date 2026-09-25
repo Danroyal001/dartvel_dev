@@ -64,7 +64,7 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('ai-tool'),
             Bullets(<String>[
-              'dartvel routes writes a JSON Schema and a handler for each public '
+              '`dartvel routes` writes a JSON Schema and a handler for each public '
                   '@DVAITool function under lib/backend.',
               'The generated backend registers every tool before it serves.',
               'An argument of the wrong type is refused by name, so a tool '
@@ -73,7 +73,7 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
             DocsNote('Serve your tools over MCP',
                 'DVMcpServer answers tools/list and tools/call for the '
                 'registered tools, and DVMcpClient adopts the tools of another '
-                'MCP server. dartvel mcp is a different server: it lets a '
+                'MCP server. `dartvel mcp` is a different server: it lets a '
                 'coding agent read your project\'s routes, models and jobs.'),
           ],
         ),
@@ -95,7 +95,7 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
             DocsStatus('AI Operations', missing: <String>[
               'Prompts and features are registered in code. No generator reads '
                   '@DVPrompt or @DVAIFeature, and nothing is wired into DV.AI.',
-              'The prompt store is in memory, and there is no dartvel ai eval '
+              'The prompt store is in memory, and there is no `dartvel ai eval` '
                   'command.',
               'Tokens are estimated at 4 characters each, since adapters report '
                   'no usage.',

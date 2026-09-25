@@ -103,7 +103,7 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
                   'content. A sensitive field is never embedded.',
               'Saving a record queues an embedding job and destroying one '
                   'removes it. Nothing is embedded during the save.',
-              'A worker does the embedding: dartvel queue work --queue '
+              'A worker does the embedding: `dartvel queue work --queue` '
                   'semantic. Queries never wait on it.',
               'mode is semantic (the default), keyword or hybrid. keyword and '
                   'hybrid also read the search provider.',

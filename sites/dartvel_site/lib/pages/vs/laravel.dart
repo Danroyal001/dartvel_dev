@@ -63,7 +63,7 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                 <String>['Policies', 'Gates and policies', 'DV.Auth.authorization, in Dart'],
                 <String>['Admin', 'Nova (paid) or Filament', 'Studio, in your own binary, free'],
                 <String>['Views', 'Blade, Livewire, or Inertia with React, Vue or Svelte', 'Flutter pages: the same code on the web and on a phone'],
-                <String>['Deployment', 'Forge, Vapor, Laravel Cloud', 'One file from dartvel build web-server'],
+                <String>['Deployment', 'Forge, Vapor, Laravel Cloud', 'One file from `dartvel build web-server`'],
               ],
             ),
           ],

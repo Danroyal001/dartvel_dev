@@ -141,7 +141,12 @@ void main() {
             .toList();
         expect(sections, isNotEmpty);
         for (final DocsSection section in sections) {
-          expect(find.text(section.title, skipOffstage: false), findsWidgets,
+          // As drawn: a command in a title is backticked in the source and
+          // set as code, without the backticks, on the page.
+          expect(
+              find.text(section.title.replaceAll('`', ''),
+                  findRichText: true, skipOffstage: false),
+              findsWidgets,
               reason: section.id);
         }
         expect(find.byType(DocsOnThisPage, skipOffstage: false), findsOneWidget);

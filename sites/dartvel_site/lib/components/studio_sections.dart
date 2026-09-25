@@ -123,11 +123,11 @@ Widget _studioSectionShot(
 ) =>
     DVBox.list(<Widget>[
       StudioShot(asset, alt),
-      DVText(label).modifier(const DVModifier()
+      Prose(label, const DVModifier()
           .fontSize(17)
           .fontWeight(FontWeight.w700)
           .color(Palette.of(context).ink)),
-      DVText(summary).modifier(const DVModifier()
+      Prose(summary, const DVModifier()
           .fontSize(14)
           .color(Palette.of(context).muted)
           .lineHeight(1.55)),

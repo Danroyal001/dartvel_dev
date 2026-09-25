@@ -22,7 +22,7 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docsadopting, 'Existing Flutter apps',
       'Add Dartvel to an app you already have', 'Getting started'),
   DocsPageInfo(DVRoutes.docsdevclient, 'Run on your phone',
-      'Pair a development build with dartvel dev', 'Getting started'),
+      'Pair a development build with `dartvel dev`', 'Getting started'),
   DocsPageInfo(DVRoutes.docsui, 'UI and styling',
       'DVBox, DVText, modifiers and layouts', 'App'),
   DocsPageInfo(DVRoutes.docsrouting, 'Routing',
@@ -96,9 +96,9 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docsreleases, 'Releases',
       'Flags, branch previews, rollouts and old clients', 'Operations'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
-      'dartvel build for every platform, with its status', 'Shipping'),
+      '`dartvel build` for every platform, with its status', 'Shipping'),
   DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',
-      'dartvel build web on Apache or LiteSpeed', 'Shipping'),
+      '`dartvel build web` on Apache or LiteSpeed', 'Shipping'),
   DocsPageInfo(DVRoutes.docsdeploying, 'Servers and deploying',
       'Run the backend, deploy and provision hosts', 'Shipping'),
   DocsPageInfo(DVRoutes.docstesting, 'Testing',
@@ -375,7 +375,7 @@ Widget _docsArticle(
           DVBox.list(<Widget>[
             DVBox.list(<Widget>[
               Eyebrow((info?.group ?? 'Docs').toUpperCase()),
-              DVText(info?.title ?? '').modifier(const DVModifier()
+              Prose(info?.title ?? '', const DVModifier()
                   .fontSize(context.screen.value<double>(mobile: 30, desktop: 38))
                   .fontWeight(FontWeight.w700)
                   .color(palette.ink)
@@ -409,7 +409,7 @@ Widget _docsOnThisPage(BuildContext context,
     DVBox.list(<Widget>[
       const Eyebrow('ON THIS PAGE'),
       for (final DocsSection section in parts)
-        DVText(section.title).modifier(const DVModifier()
+        Prose(section.title, const DVModifier()
             .fontSize(15)
             .fontWeight(FontWeight.w600)
             .color(palette.accent)
@@ -435,7 +435,7 @@ Widget _docsSection(
 }) {
   final Palette palette = Palette.of(context);
   return DVBox.list(<Widget>[
-    DVText(title).modifier(const DVModifier()
+    Prose(title, const DVModifier()
         .fontSize(context.screen.value<double>(mobile: 20, desktop: 24))
         .fontWeight(FontWeight.w700)
         .color(palette.ink)
@@ -448,7 +448,7 @@ Widget _docsSection(
 /// A smaller heading inside a section.
 @DVFunctionalWidget()
 Widget _docsSubheading(BuildContext context, String text) =>
-    DVText(text).modifier(const DVModifier()
+    Prose(text, const DVModifier()
         .fontSize(17)
         .fontWeight(FontWeight.w700)
         .color(Palette.of(context).ink)
@@ -457,7 +457,7 @@ Widget _docsSubheading(BuildContext context, String text) =>
 /// A short paragraph.
 @DVFunctionalWidget()
 Widget _docsText(BuildContext context, String text) =>
-    DVText(text).modifier(const DVModifier()
+    Prose(text, const DVModifier()
         .fontSize(17)
         .color(Palette.of(context).muted)
         .lineHeight(1.6)
@@ -489,11 +489,11 @@ Widget _docsNote(BuildContext context, String title, String text) {
   final Palette palette = Palette.of(context);
   return DVBox(
     DVBox.list(<Widget>[
-      DVText(title).modifier(const DVModifier()
+      Prose(title, const DVModifier()
           .fontSize(15)
           .fontWeight(FontWeight.w700)
           .color(palette.ink)),
-      DVText(text).modifier(const DVModifier()
+      Prose(text, const DVModifier()
           .fontSize(15)
           .color(palette.muted)
           .lineHeight(1.55)),
@@ -572,13 +572,13 @@ Widget _docsTable(
     for (final List<String> row in rows)
       DVBox(
         DVBox.list(<Widget>[
-          DVText(row.first).modifier(const DVModifier()
+          Prose(row.first, const DVModifier()
               .fontSize(15)
               .fontWeight(FontWeight.w700)
               .fontFamily('JetBrainsMono')
               .color(palette.ink)),
           for (int i = 1; i < row.length && i < heads.length; i++)
-            DVText('${heads[i]}: ${row[i]}').modifier(const DVModifier()
+            Prose('${heads[i]}: ${row[i]}', const DVModifier()
                 .fontSize(14)
                 .color(palette.muted)
                 .lineHeight(1.5)),
@@ -623,11 +623,11 @@ Widget _docsPagerLink(
             .fontWeight(FontWeight.w700)
             .letterSpacing(1.2)
             .color(palette.faint)),
-        DVText(page.title).modifier(const DVModifier()
+        Prose(page.title, const DVModifier()
             .fontSize(17)
             .fontWeight(FontWeight.w700)
             .color(palette.accent)),
-        DVText(page.summary).modifier(
+        Prose(page.summary, 
             const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.4)),
       ], spacing: 4),
       const DVModifier()
@@ -723,7 +723,7 @@ Widget _docsNavLink(
   return DVNavLink(
     to: page.target,
     padding: const EdgeInsets.symmetric(vertical: 5),
-    child: DVText(page.title).modifier(const DVModifier()
+    child: Prose(page.title, const DVModifier()
         .fontSize(15)
         .fontWeight(active ? FontWeight.w700 : FontWeight.w500)
         .color(active ? palette.accent : palette.muted)),
@@ -768,7 +768,7 @@ Widget _docsFrame(
             .fontWeight(FontWeight.w700)
             .color(palette.accent)),
         Flexible(
-          child: DVText(here?.title ?? '').modifier(const DVModifier()
+          child: Prose(here?.title ?? '', const DVModifier()
               .fontSize(14)
               .color(palette.muted)
               .maxLines(1)),

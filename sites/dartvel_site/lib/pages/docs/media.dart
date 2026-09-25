@@ -24,7 +24,7 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
           title: 'Serve each image at the width it needs',
           children: <Widget>[
             DocsYaml('yaml-images'),
-            DocsText('Name the file through DVAsset, which dartvel routes '
+            DocsText('Name the file through DVAsset, which `dartvel routes` '
                 'generates from what your pubspec bundles. A renamed file '
                 'then stops the build. With a path in a string it shows an '
                 'empty box on somebody\'s phone.'),
@@ -32,7 +32,7 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
             DocsText('The same asset behind a box, as a background:'),
             DocsCode('media-background'),
             Bullets(<String>[
-              'dartvel build web writes each declared raster asset at every '
+              '`dartvel build web` writes each declared raster asset at every '
                   'configured width narrower than the image.',
               'DVBox.image asks for its laid-out width times the device '
                   'pixel ratio, rounded up to a configured width.',

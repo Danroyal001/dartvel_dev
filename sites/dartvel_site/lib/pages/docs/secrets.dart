@@ -27,8 +27,8 @@ Widget _docsSecretsPage(BuildContext context) => const DocsArticle(
               'A secret is backend-only unless it says scope: client, and a '
                   'client secret must start with PUBLIC_. A name that breaks '
                   'either rule stops the build.',
-              'required lists the environments it must be set in. dartvel '
-                  'deploy --environment production refuses to start without '
+              'required lists the environments it must be set in. '
+                  '`dartvel deploy --environment production` refuses to start without '
                   'them.',
             ]),
           ],

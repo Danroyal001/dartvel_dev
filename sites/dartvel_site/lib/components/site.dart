@@ -306,7 +306,7 @@ Widget _heading(
   int level = 2,
   bool onDark = false,
 }) =>
-    DVText(text).modifier(
+    Prose(text, 
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 24, desktop: 30))
           .fontWeight(FontWeight.w700)
@@ -324,7 +324,7 @@ Widget _heading(
 /// wide as the gutter allows, and 640 would paint off the side of the screen.
 @DVFunctionalWidget()
 Widget _body(BuildContext context, String text, {double width = 640}) =>
-    DVText(text).modifier(
+    Prose(text, 
       const DVModifier()
           .fontSize(17)
           .color(Palette.of(context).muted)
@@ -380,7 +380,7 @@ Widget _siteCard(
   final Widget card = DVBox(
     DVBox.list(<Widget>[
       DVBox.wrapLine(<Widget>[
-        DVText(title).modifier(const DVModifier()
+        Prose(title, const DVModifier()
             .fontSize(17)
             .fontWeight(FontWeight.w700)
             .color(palette.ink)),
@@ -400,7 +400,7 @@ Widget _siteCard(
                       : palette.rule.withValues(alpha: 0.45)))
               .rounded(999)),
       ], spacing: 8),
-      DVText(body).modifier(
+      Prose(body, 
           const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.55)),
     ], spacing: 8),
     const DVModifier()
@@ -430,9 +430,13 @@ Widget _siteCard(
 Widget _siteChip(BuildContext context, String text, {bool onDark = false}) {
   final Palette palette = Palette.of(context);
   return DVBox(
-    DVText(text).modifier(const DVModifier()
-        .fontSize(13)
-        .color(onDark ? const Color(0xFFD3DCF3) : palette.ink)),
+    Prose(
+      text,
+      const DVModifier()
+          .fontSize(13)
+          .color(onDark ? const Color(0xFFD3DCF3) : palette.ink),
+      onDark: onDark,
+    ),
     const DVModifier()
         .paddingSymmetric(horizontal: 12, vertical: 7)
         // On an ink band the page's surface and rule colours disappear.
@@ -646,13 +650,13 @@ Widget _siteRecord(BuildContext context, {required String body}) {
     children.add(const SiteRecordLabel(text: 'Built', tone: 'accent'));
   }
   for (final String paragraph in parts.present) {
-    children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
+    children.add(Prose(paragraph, prose.color(palette.muted)));
   }
 
   if (labelled) {
     children.add(const SiteRecordLabel(text: 'Not yet', tone: 'muted'));
     for (final String paragraph in parts.absent) {
-      children.add(DVText(paragraph).modifier(prose.color(palette.muted)));
+      children.add(Prose(paragraph, prose.color(palette.muted)));
     }
   }
 
@@ -720,12 +724,12 @@ Widget _objection(
 }) {
   final Palette palette = Palette.of(context);
   return DVBox.list(<Widget>[
-    DVText(question).modifier(const DVModifier()
+    Prose(question, const DVModifier()
         .fontSize(17)
         .fontWeight(FontWeight.w700)
         .color(onDark ? Palette.deepInk : palette.ink)
         .lineHeight(1.4)),
-    DVText(answer).modifier(const DVModifier()
+    Prose(answer, const DVModifier()
         .fontSize(17)
         .color(onDark ? const Color(0xFF9AA6C4) : palette.muted)
         .lineHeight(1.55)
@@ -755,7 +759,7 @@ Widget _bullets(BuildContext context, List<String> items, {bool onDark = false})
             ),
           ),
           Flexible(
-            child: DVText(item).modifier(const DVModifier()
+            child: Prose(item, const DVModifier()
                 .fontSize(17)
                 .color(text)
                 .lineHeight(1.5)

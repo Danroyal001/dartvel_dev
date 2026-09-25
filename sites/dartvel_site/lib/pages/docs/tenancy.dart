@@ -41,7 +41,7 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
               'The table gets a dv_tenant column, and every read and write '
                   'filters on it.',
               'A tenant-scoped model cannot have public pages.',
-              'For a table with rows, run dartvel db migrate --tenant <id>.',
+              'For a table with rows, run `dartvel db migrate --tenant <id>`.',
             ]),
           ],
         ),

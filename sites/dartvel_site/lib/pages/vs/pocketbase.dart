@@ -28,7 +28,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
             Body('PocketBase is the nicest answer in its category: download '
                 'one file, run it, and you have a database, an admin panel, '
                 'auth, file storage and realtime. Dartvel arrives at the same '
-                'place from the other direction: dartvel build web-server '
+                'place from the other direction: `dartvel build web-server` '
                 'produces one executable that creates its SQLite database '
                 'beside itself on first run. PocketBase can serve a built '
                 'frontend from its pb_public folder, and that frontend is '
@@ -51,7 +51,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
             DocsTable(
               columns: <String>['', 'PocketBase', 'Dartvel'],
               rows: <List<String>>[
-                <String>['Deployment', 'One Go binary', 'One binary from dartvel build web-server'],
+                <String>['Deployment', 'One Go binary', 'One binary from `dartvel build web-server`'],
                 <String>['Database', 'SQLite, embedded', 'SQLite beside the binary; Postgres and MySQL adapters'],
                 <String>['Admin', 'Built in', 'Studio, built in, and it edits your pages too'],
                 <String>['Auth', 'Built in: password, one-time codes, OAuth2 and MFA', 'Sessions, passkeys, SAML, LDAP, second factors, OAuth'],

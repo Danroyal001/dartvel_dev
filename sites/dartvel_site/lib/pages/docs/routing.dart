@@ -51,7 +51,7 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                 'in one place.'),
             DocsCode('routing-config'),
             Bullets(<String>[
-              'dartvel routes reads the file, so each route gets a typed '
+              '`dartvel routes` reads the file, so each route gets a typed '
                   'DVRoutes target beside the pages\' own. One router, one '
                   'DVRoutes, whichever way a route was declared.',
               'DVRoute nests through routes:. A nested path joins its '
@@ -201,7 +201,7 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'For a page of your own, put one at the route you redirect to.',
-              'On a static host, dartvel build web also writes 404/index.html '
+              'On a static host, `dartvel build web` also writes 404/index.html '
                   'for paths the app never loads.',
               'See Static web hosting for the Apache rules.',
             ]),
@@ -236,9 +236,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             UpstreamCredit('go_router', lead: 'The generated router is built on'),
             DocsSubheading('Deep links'),
             DocsText('List your domains under dartvel.deepLinks in '
-                'pubspec.yaml. dartvel build web writes assetlinks.json and '
-                'apple-app-site-association, and dartvel doctor --target '
-                'android,ios checks the deployed files.'),
+                'pubspec.yaml. `dartvel build web` writes assetlinks.json and '
+                'apple-app-site-association, and '
+                '`dartvel doctor --target android,ios` checks the deployed files.'),
           ],
         ),
         DocsSection(

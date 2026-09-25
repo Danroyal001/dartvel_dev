@@ -154,7 +154,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           SiteCard(
             'Team',
             'Lists who may open Studio. Grant and revoke run on the server '
-                'with dartvel admin.',
+                'with `dartvel admin`.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
@@ -179,14 +179,14 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Heading('Docs and public pages come from what Studio reads.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
-            'dartvel inspect and dartvel mcp',
+            '`dartvel inspect` and `dartvel mcp`',
             'Print the models, routes, functions and jobs Studio shows, or '
                 'hand them to a coding agent.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
             'Project docs',
-            'dartvel docs writes a static site of your models, functions, '
+            '`dartvel docs` writes a static site of your models, functions, '
                 'routes, jobs and policies. It is not served inside your app '
                 'yet.',
             section: 'Documentation Generation',
@@ -332,7 +332,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('EVERY SECTION'),
         Heading('All ten sections, photographed from a Studio that was run.'),
-        Body('Each picture below was taken by dartvel capture studio against a '
+        Body('Each picture below was taken by `dartvel capture studio` against a '
             'web-server binary built from this repository: it signs in, clicks '
             'each item on the rail and photographs what is on screen. A job '
             'takes them again whenever Studio changes, so a section added this '

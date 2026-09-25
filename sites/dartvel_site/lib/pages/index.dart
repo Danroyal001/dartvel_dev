@@ -110,7 +110,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
   ], spacing: 8),
   const Objection(
     'Do I have to leave Flutter?',
-    'No. Your pages are Flutter widgets, and dartvel build runs the Flutter '
+    'No. Your pages are Flutter widgets, and `dartvel build` runs the Flutter '
         'SDK you already have.',
   ),
   const DVBox.wrapLine(<Widget>[
@@ -260,7 +260,7 @@ Widget _proof(BuildContext context) => const Section(
       '});',
     ]),
     Bullets(<String>[
-      'dartvel dev regenerates the form, table, admin and typed client '
+      '`dartvel dev` regenerates the form, table, admin and typed client '
           'each time you save the class.',
       'Post.Form(...) validates input against the fields you declared.',
       'authorEmail stays out of logs, search and the admin until a policy '
@@ -334,7 +334,7 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'Why not use PocketBase?',
       'PocketBase is also one file with its admin inside, and you extend it '
           'in Go or JavaScript. This binary carries its admin too: turn on '
-          'dartvel.admin.enabled, grant yourself access with dartvel admin '
+          'dartvel.admin.enabled, grant yourself access with `dartvel admin` '
           'grant, and open it at /__studio. '
           'Your backend stays in Dart beside your Flutter app, with a typed '
           'client generated for it.',
@@ -399,8 +399,8 @@ Widget _phoneLoop(BuildContext context) => const Section(
       'Does it work on an iPhone?',
       'Yes, with one limit. CI pairs an iOS simulator, an Android emulator '
           'and a Linux desktop, edits a file and checks the change runs. On a '
-          'physical iPhone a debug build only starts from Xcode or flutter '
-          'run, so launch it from there and it pairs.',
+          'physical iPhone a debug build only starts from Xcode or '
+          '`flutter run`, so launch it from there and it pairs.',
     ),
   ],
 );
@@ -536,12 +536,12 @@ Widget _expoComparison(BuildContext context) => const Section(
     DVBox.wrapLine(<Widget>[
       SiteCard(
         'Development builds',
-        'dartvel build <target> --profile development, paired with dartvel '
-            'dev by a QR code. CI pairs Android, the iOS simulator and Linux.',
+        '`dartvel build <target> --profile development`, paired with '
+            '`dartvel dev` by a QR code. CI pairs Android, the iOS simulator and Linux.',
       ),
       SiteCard(
         'Over-the-air updates',
-        'dartvel updates patch --patch-source publishes into your own '
+        '`dartvel updates patch --patch-source` publishes into your own '
             'web-server binary. Proven on an Android emulator in CI; iOS is '
             'not supported yet, where EAS Update covers both.',
       ),

@@ -49,7 +49,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Annotate a widget with @DVHomeWidget and the build adds it to '
                   'the home screen, with a route that opens the app at it.',
-              'Android and iOS widgets are packaged by dartvel build. A target '
+              'Android and iOS widgets are packaged by `dartvel build`. A target '
                   'with nowhere to put one leaves it out and tells you.',
             ]),
             DocsCode('devices-home-widget'),
@@ -62,7 +62,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             Bullets(<String>[
               'A kiosk policy sets the exit PIN, the idle timeout and what is '
-                  'cleared between visitors. dartvel doctor refuses a policy '
+                  'cleared between visitors. `dartvel doctor` refuses a policy '
                   'the target cannot honour.',
               'After the idle warning the session resets: what the policy names '
                   'is cleared, and the app goes home.',
