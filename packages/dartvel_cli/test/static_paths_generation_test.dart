@@ -483,8 +483,8 @@ class _Product {
           contains("DV.Database.query('select * from "
               "\${dvTenantTable('products')}')"),
         );
-        expect(content, contains('.where((model) => model.published)'));
-        expect(content, contains('.map((model) => model.slug)'));
+        expect(content, contains('if (!model.published) continue;'));
+        expect(content, contains('paths.add(model.slug);'));
         expect(
           content,
           contains("static const String publicPageRoute = '/products/:slug';"),
@@ -494,7 +494,7 @@ class _Product {
       }
     });
 
-    test('defaults to auto and no public pages when unspecified', () async {
+    test('defaults to auto, and to public pages, when unspecified', () async {
       final root = await Directory.systemTemp.createTemp('dartvel_page_def_');
       try {
         Directory(
@@ -526,7 +526,7 @@ class _Note {
         ).readAsStringSync();
 
         expect(content, contains('pageDataMode = DVModelPageDataMode.auto;'));
-        expect(content, contains('generatePublicPages = false;'));
+        expect(content, contains('generatePublicPages = true;'));
       } finally {
         root.deleteSync(recursive: true);
       }
