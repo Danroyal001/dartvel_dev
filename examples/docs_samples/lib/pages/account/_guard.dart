@@ -8,7 +8,7 @@ import '../../dartvel_client/dartvel_client.dart';
 
 FutureOr<String?> guard(BuildContext context, GoRouterState state) {
   // Return a path to redirect there, or null to let the page open.
-  if (DV.Auth.currentUser == null) return '/';
+  if (DV.Auth.currentUser == null) return DVRoutes.index.path;
   return null;
 }
 // docs:end
