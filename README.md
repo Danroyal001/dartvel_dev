@@ -291,13 +291,19 @@ brew install Danroyal001/dartvel_dev/dartvel_dev
 # npm — downloads the same binary
 npx dartvel_dev --help
 
-# pub — if you already have the Dart SDK
-dart pub global activate dartvel_cli
+# pub — inside a project that has dartvel_cli as a dev_dependency
+dart run dartvel_cli:dartvel --help
 ```
+
+`dart pub global activate` is not a supported install: the CLI's packages carry
+native build hooks and depend on the Flutter SDK, which global executables
+cannot.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
-and Windows on x64, Linux and macOS on arm64. Then put it on your PATH:
+and Windows on x64, Linux and macOS on arm64. (0.6.0, released 2026-09-25,
+ships Linux binaries first; macOS and Windows follow when the release workflow
+runs.) Then put it on your PATH:
 
 ```bash
 dartvel ensure-path
@@ -314,7 +320,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.5.0
+  dartvel_dev: ^0.6.0
 ```
 
 Or the pieces directly, where you want only some of them:
