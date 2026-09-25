@@ -5740,7 +5740,7 @@ Generated behavior:
 
 ```dart
 @DVModel(searchable: true)
-class _User (@DVModel.searchableField() String name);
+class const _User({@DVModel.searchableField() required final String name});
 
 final page = await User.search(
   'ada',
