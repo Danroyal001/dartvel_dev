@@ -79,7 +79,7 @@ class DVHomeWidgetSpec {
 /// grows another one.
 final RegExp dvHomeWidgetDeclaration = RegExp(
   r'@DVHomeWidget\(([^)]*)\)\s*(?:@[A-Za-z_][\w.]*\([^)]*\)\s*)*'
-  r'(?:class\s+(?<widgetClass>[A-Za-z_][A-Za-z0-9_]*)\b'
+  r'(?:class\s+(?:const\s+)?(?<widgetClass>[A-Za-z_][A-Za-z0-9_]*)\b'
   r'|(?:Widget|[A-Za-z_][\w<>, ?]*)\s+(?<widgetFunction>[A-Za-z_][A-Za-z0-9_]*)\s*\()',
 );
 

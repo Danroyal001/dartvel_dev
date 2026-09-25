@@ -288,7 +288,7 @@ const Set<String> _serializerAnnotations = <String>{
 };
 
 final RegExp dvClassDeclaration = RegExp(
-  r'(?<![A-Za-z0-9_$])(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*class\s+([A-Za-z_$][A-Za-z0-9_$]*)',
+  r'(?<![A-Za-z0-9_$])(?:(?:abstract|base|final|interface|sealed|mixin)\s+)*class\s+(?:const\s+)?([A-Za-z_$][A-Za-z0-9_$]*)',
 );
 
 Iterable<String> _serializerConflictsIn(

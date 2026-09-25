@@ -265,7 +265,9 @@ class _Builder {
       final String rel = _rel(file.path);
       final String source = file.readAsStringSync();
       for (final DVPolicyClass c in dvPolicyClassesIn(source, rel)) {
-        final int at = source.indexOf(RegExp('class\\s+${c.className}\\b'));
+        final int at = source.indexOf(
+          RegExp('class\\s+(?:const\\s+)?${c.className}\\b'),
+        );
         policies.add(_Policy(c, '$rel:${_lineOf(source, at < 0 ? 0 : at)}'));
       }
     }

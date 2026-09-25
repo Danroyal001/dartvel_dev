@@ -254,6 +254,71 @@ void nestedLayoutOrderTests() {
         root.deleteSync(recursive: true);
       }
     });
+
+    // `class const DocsLayout({super.key, required super.child}) extends
+    // DartvelLayout` is how the scaffold and the samples write a layout, and
+    // the pattern that finds one looked for `class DocsLayout extends`. The
+    // layout was skipped with a warning and every page under it rendered
+    // bare.
+    test(
+      'a layout written with a primary constructor wraps its pages',
+      () async {
+        final root = await _project({
+          'lib/pages/docs/intro.dart':
+              "import 'package:dartvel_core/dartvel.dart';\n"
+              '@DVPage()\nWidget _intro() => const Placeholder();\n',
+          'lib/pages/_layout.dart':
+              'class const RootLayout({super.key, '
+              'required super.child}) extends DartvelLayout {}\n',
+          'lib/pages/docs/_layout.dart':
+              'class const DocsLayout({\n'
+              '  super.key,\n  required super.child,\n'
+              '}) extends DartvelLayout {}\n',
+        });
+        try {
+          Directory('${root.path}/lib/dartvel_client')
+              .createSync(recursive: true);
+          await ClientGenerator.generate(
+            root: root.path,
+            pagesDir: 'lib/pages',
+            pkgName: 'shop',
+            buildId: 'b',
+            modules: const <DVModuleMount>[],
+            backendHost: '127.0.0.1',
+            backendPort: 3000,
+            devBackendHost: 'http://localhost:3000',
+            prodBackendHost: 'https://example.com',
+            apiBasePath: '/api',
+            envFiles: const <String>[],
+            seoSiteName: 'app',
+            seoTitle: 'app',
+            seoDesc: 'app',
+            seoImage: '',
+            seoTwitter: '',
+            defaultTransition: 'none',
+            durationMs: 200,
+            curve: 'linear',
+            normalizeTrailing: true,
+            notFoundRedirect: '/',
+            plugins: const <String>[],
+            webPrerender: false,
+            ota: false,
+            dv: YamlMap(),
+          );
+
+          final String router = File(
+            '${root.path}/lib/dartvel_client/router.g.dart',
+          ).readAsStringSync();
+          final String wrapped = RegExp(r'final layoutWrapped = ([^;]+);')
+              .firstMatch(router)!
+              .group(1)!;
+          expect(wrapped, contains('.RootLayout(child: '));
+          expect(wrapped, contains('.DocsLayout(child: seoWrapped)'));
+        } finally {
+          root.deleteSync(recursive: true);
+        }
+      },
+    );
   });
 }
 

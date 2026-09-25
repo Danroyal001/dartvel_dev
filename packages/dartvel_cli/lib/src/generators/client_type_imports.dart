@@ -63,12 +63,14 @@ List<String> dvClientTypeImports({
     final File declared = File(file);
     if (!declared.existsSync()) continue;
     final String text = declared.readAsStringSync();
-    final bool declares = wanted.any((String name) => RegExp(
-          r'^(?:(?:abstract|sealed|final|base|interface|mixin)\s+)*'
-          '(?:class|enum|mixin|typedef|extension\\s+type)\\s+'
-          '${RegExp.escape(name)}\\b',
-          multiLine: true,
-        ).hasMatch(text));
+    final bool declares = wanted.any(
+      (String name) => RegExp(
+        r'^(?:(?:abstract|sealed|final|base|interface|mixin)\s+)*'
+        '(?:class|enum|mixin|typedef|extension\\s+type)\\s+(?:const\\s+)?'
+        '${RegExp.escape(name)}\\b',
+        multiLine: true,
+      ).hasMatch(text),
+    );
     if (!declares) continue;
     found.add('package:$packageName/'
         '${p.split(p.relative(file, from: lib)).join('/')}');
