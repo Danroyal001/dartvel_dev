@@ -131,10 +131,10 @@ class DVDistributedCacheAdapter
   }
 
   @override
-  Future<void> remove(String key) async {
+  Future<void> delete(String key) async {
     for (final String name in nodesFor(key)) {
       try {
-        await nodes[name]!.remove(key);
+        await nodes[name]!.delete(key);
       } on Object {
         continue;
       }
