@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install the tools the capture needs
         run: |
