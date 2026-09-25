@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dartvel_core/framework.dart' show DVCacheRuntime;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -32,13 +33,14 @@ class _DVCacheAdminState extends State<DVCacheAdmin> {
 
   void _load() {
     setState(() {
-      _tags = _cache.tags.toList(growable: false)..sort();
+      _tags = DVCacheRuntime.tags.toList(growable: false)..sort();
     });
   }
 
   Future<void> _revalidate(String tag) async {
     try {
-      final dropped = await _cache.revalidateTag(tag);
+      final Set<String> dropped = DVCacheRuntime.keysForTag(tag);
+      await _cache.delete(tag: tag);
       if (!mounted) return;
       // The count is the point: revalidating a tag that covered nothing looks
       // identical to revalidating one that cleared a hundred entries.
@@ -68,7 +70,8 @@ class _DVCacheAdminState extends State<DVCacheAdmin> {
   }
 
   Widget _tagSection(String tag) {
-    final keys = _cache.keysForTag(tag).toList(growable: false)..sort();
+    final keys = DVCacheRuntime.keysForTag(tag).toList(growable: false)
+      ..sort();
     return DVBox.list(<Widget>[
       DVText(tag)
           .modifier(const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),

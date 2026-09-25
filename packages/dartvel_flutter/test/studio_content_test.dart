@@ -127,8 +127,8 @@ void main() {
 
   test('publishing writes the page store and revalidates the cache entries '
       'tagged for the page', () async {
-    await DV.Cache.set('rendered:/p', 'old page');
-    DV.Cache.tag('rendered:/p', <String>[content.workflow.documentTag('/p')]);
+    await DV.Cache.set('rendered:/p', 'old page',
+        tags: <String>[content.workflow.documentTag('/p')]);
 
     await publishedPage('/p', 'live');
 
