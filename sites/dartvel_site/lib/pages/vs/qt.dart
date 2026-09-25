@@ -27,27 +27,30 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
                 'desktop, a television, a car dashboard and a machine on a '
                 'factory floor. It has earned that: thirty years, C++, and a '
                 'reach nothing else has matched. The costs are the ones '
-                'everybody knows: C++, QML as a second language, a '
-                'licensing conversation before a commercial product ships, '
-                'and no answer at all for the backend.'),
+                'everybody knows: C++ (or Python, through Qt for Python), QML '
+                'as a second language, a licensing conversation before a '
+                'commercial product ships, and a backend written somewhere '
+                'else. Qt HTTP Server embeds REST endpoints in an app, for '
+                'trusted networks only by its own docs.'),
             Bullets(<String>[
               'One Dart codebase for Android, iOS, macOS, Windows, Linux, '
-                  'the web, Samsung TVs, LG webOS, Apple TV, Android TV, '
-                  'embedded Linux and a terminal.',
-              'Each embedded and TV target is driven by that vendor\'s own '
-                  'Flutter embedder, pinned in a fork so it tracks the '
-                  'Flutter version Dartvel ships with.',
+                  'the web, Samsung TVs, Apple TV, Android TV, Sony embedded '
+                  'Linux and a Linux terminal. LG webOS is in progress.',
+              'Each embedded and TV target is driven by a dedicated Flutter '
+                  'embedder, the vendor\'s own for Samsung and Sony and a '
+                  'community one for Apple TV, pinned in a fork so it tracks '
+                  'the Flutter version Dartvel ships with.',
               'The backend comes with the framework instead of arriving as a '
                   'separate product.',
             ]),
             CodeBlock(<String>[
               'dartvel build linux        # and -cli for a terminal build',
               'dartvel build tizen        # Samsung TVs',
-              'dartvel build webos        # LG',
+              'dartvel build tvos         # Apple TV',
               'dartvel build sony-elinux  # embedded Linux',
             ]),
             UpstreamCredits(ids: <String>[
-              'tizen', 'webos', 'elinux', 'tvos', 'flt',
+              'tizen', 'elinux', 'tvos', 'flt',
             ]),
           ],
         ),
@@ -60,13 +63,15 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
               columns: <String>['', 'Qt', 'Dartvel'],
               rows: <List<String>>[
                 <String>['Language', 'C++, and QML for the UI', 'Dart, front and back'],
-                <String>['Licence', 'LGPL or commercial, per developer', 'Functional Source License, MIT after the term'],
+                <String>['Licence', 'GPL or LGPLv3, or a yearly commercial subscription; devices can also need distribution licences', 'Functional Source License; each release becomes MIT two years after it ships'],
                 <String>['Desktop', 'Mature, native look', 'Flutter on Windows, macOS and Linux'],
-                <String>['Embedded and TV', 'Its strongest ground', 'Vendor embedders, forked and pinned. See the status table'],
+                <String>['Mobile', 'Android and iOS', 'Android and iOS'],
+                <String>['Embedded and TV', 'Its strongest ground, with Boot to Qt for embedded Linux', 'Dedicated embedders, forked and pinned. See the status table'],
+                <String>['Microcontrollers', 'Qt for MCUs', 'None'],
                 <String>['Web', 'Qt for WebAssembly', 'A first-class target, with prerendered HTML and a sitemap'],
-                <String>['Backend', 'Not its job', 'Functions, models, auth, queues, mail, an admin'],
-                <String>['Tooling', 'Qt Creator, qmake or CMake', 'One dartvel command: dev, build, deploy, test'],
-                <String>['Terminal', 'No', 'dartvel build linux-cli renders in a terminal'],
+                <String>['Backend', 'Qt HTTP Server for trusted networks, Qt gRPC and Qt SQL as clients; no server framework', 'Functions, models, auth, queues, mail, an admin'],
+                <String>['Tooling', 'Qt Creator, Qt Design Studio, CMake', 'One dartvel command: dev, build, deploy, test'],
+                <String>['Terminal', 'No terminal renderer', 'dartvel build linux-cli renders in a terminal'],
               ],
             ),
           ],
@@ -96,7 +101,8 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
               'Thirty years of embedded deployments, certifications and '
                   'vendor relationships Dartvel does not have.',
               'C++ where you need C++: real-time constraints, tiny memory '
-                  'budgets, and hardware with no Flutter embedder at all.',
+                  'budgets, and hardware with no Flutter embedder at all. Qt '
+                  'for MCUs reaches microcontrollers Flutter cannot run on.',
               'Qt Creator, Qt Design Studio and the commercial support that '
                   'comes with a licence.',
               'Several of the embedded and TV targets here are honestly '
@@ -107,6 +113,7 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
                 'that wants one codebase across phones, desktops, the web and '
                 'a screen on a wall, in a language a web developer already '
                 'reads, with the server in the same repository.'),
+            VersusChecked('Qt', 'https://doc.qt.io/llms.txt', '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/qt')]),
