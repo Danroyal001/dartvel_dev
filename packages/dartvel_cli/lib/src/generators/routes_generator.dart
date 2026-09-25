@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../adoption/adoption_build_checks.dart';
 import 'package:dartvel_core/dartvel.dart' show DVPersistedQueryMode;
+import 'package:dartvel_core/framework.dart' show DVCaptureConfigError;
 
 import '../build/graphql_options.dart';
 import '../build/render_backends.dart';
@@ -310,10 +311,18 @@ Future<void> generate({
   PlatformApiGenerator.generate(root: root, dv: dv);
 
   // Generate Models
-  await ModelGenerator.generate(
+  final Set<String> captured = await ModelGenerator.generate(
     root: root,
     pkgName: pkgName,
   );
+  // dartvel.capture against the data models that are captured: a
+  // destination naming one that is not (DV-CDC-008) would be delivered
+  // nothing, which looks exactly like a quiet day.
+  try {
+    config.capture?.checkModels(captured);
+  } on DVCaptureConfigError catch (error) {
+    throw StateError('pubspec.yaml: $error');
+  }
 
   // Generate job payloads, queue constants and handler registration.
   // @DVJob was an annotation nothing read before this pass. A handler only a
