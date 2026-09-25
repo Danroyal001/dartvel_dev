@@ -4,10 +4,10 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Expo for Flutter',
-  description: 'Expo for Flutter: dartvel dev pairs a development build by '
-      'QR code, dartvel deploy --store uploads to the stores, and Android apps '
-      'take over-the-air patches. How that compares with Expo, EAS and Expo '
-      'Router API routes.',
+  description: 'Expo for Flutter: development builds paired by QR code, '
+      'store uploads with dartvel deploy --store, and over-the-air patches '
+      'for Android. How that compares with Expo, EAS and Expo Router API '
+      'routes.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.9,
@@ -67,7 +67,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                 <String>['Language', 'TypeScript or JavaScript, with React', 'Dart, front and back'],
                 <String>['Run on a device', 'npx expo start, with Expo Go or a development build', 'A development build, paired by dartvel dev over a QR code'],
                 <String>['Cloud builds', 'EAS Build, with a free tier and paid plans', 'dartvel build --cloud. Cloud is not open yet'],
-                <String>['Local builds', 'npx expo run, or eas build --local', 'dartvel build <target>'],
+                <String>['Local builds', 'npx expo run, or eas build --local', 'dartvel build android, ios, linux and the rest'],
                 <String>['Store submission', 'EAS Submit', "dartvel deploy --store, through each store's own tool"],
                 <String>['Over the air', 'EAS Update, on Android and iOS', 'dartvel updates, Android only, from Shorebird or your own binary'],
                 <String>['Server code', 'Expo Router API routes (+api.ts), server middleware, and React Server Functions in beta', '@DVBackendFunction, with a typed client generated from it'],
