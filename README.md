@@ -754,26 +754,16 @@ adapter stores values as JSON, so a value that cannot be encoded raises
 
 ## 📬 Durable queues
 
-`DV.Queues` defaults to an in-memory adapter, so dispatched jobs are lost on
-restart. Point it at a database to make them durable:
+With `DATABASE_URL` set, jobs are durable with no setup: the generated backend
+keeps them in that database, shared by every web, worker and cron process of
+the deployment. Generation writes how each `@DVJob` is encoded, so there is no
+codec to register. A job whose encoding is missing from the running process
+throws rather than being silently dropped. Without `DATABASE_URL`, jobs stay in
+the memory of the process that dispatched them and are lost on restart.
 
-```dart
-const DVJobPayloadCodecs().register(
-  DVJobPayloadCodec<SendWelcomeEmail>(
-    name: 'send_welcome_email',                       // stable across releases
-    encode: (job) => <String, Object?>{'userId': job.userId},
-    decode: (json) => SendWelcomeEmail(json['userId']! as String),
-  ),
-);
-DV.Queues.useAdapter(DVDatabaseQueueAdapter(db));
-```
-
-A durable queue has to write bytes, so every persisted payload type needs a
-codec. Dispatching a type with no codec throws, and so does draining a job
-whose codec is missing from the running process — neither silently drops work.
-The in-memory adapter keeps the Dart object and needs no codec.
-
-All five network adapters ship: Redis, SQS, RabbitMQ, Pub/Sub and Kafka. The
+Adapters for five network brokers ship: Redis, SQS, RabbitMQ, Pub/Sub and
+Kafka. Nothing in `pubspec.yaml` selects one yet -- the database is the only
+broker chosen from configuration. The
 four that talk to a hosted service are verified in CI against the real thing --
 ElasticMQ, RabbitMQ's own image, Google's emulator and Apache Kafka -- rather
 than against a fake, which is how nine bugs were found that every unit test
