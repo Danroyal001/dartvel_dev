@@ -302,6 +302,10 @@ class ModelGenerator {
           r'\boffline\s*:\s*DVConflict\.([A-Za-z0-9_]+)',
         ).firstMatch(modelArgs);
         final String? offlineStrategy = offlineMatch?.group(1);
+        // The name the replay route knows the model by: the spec's id, which
+        // carries the module a module's model belongs to.
+        final String offlineId =
+            ownModuleId == null ? className : '$ownModuleId.$className';
         if (offlineStrategy == 'ask') {
           // There is nobody to ask on a device with no network, so this
           // could only fail where it is hardest to see. Stop the build.
@@ -1156,6 +1160,20 @@ class ModelGenerator {
           sb.writeln('  /// Every write is conditional on the version it read, so');
           sb.writeln('  /// the erasure, the retention sweep, change capture and');
           sb.writeln('  /// history agree with this model about when a row moved.');
+          if (offlineStrategy != null) {
+            // An offline data model's rows are this device's copy, in the
+            // store the runtime opens for the platform, and every write to
+            // them is queued for the server. Reads and history go to the
+            // same copy, so a record written in a tunnel reads back there.
+            sb.writeln(
+              '  static DVRecordTable _dvRecords() => _dvOfflineTable(DVOfflineSync.database);',
+            );
+            sb.writeln();
+            sb.writeln('  /// This device\'s copy of [$className] and its queue.');
+            sb.writeln(
+              "  static Future<DVOfflineStore> _dvOffline() => DVOfflineSync.store('$offlineId');",
+            );
+          } else {
           sb.writeln('  static DVRecordTable _dvRecords() => DVRecordTable(');
           sb.writeln(
             "        table: ${ownModuleId == null ? "dvTenantTable('$tableName')" : "_dvModule.table('$tableName')"},",
@@ -1185,6 +1203,7 @@ class ModelGenerator {
             sb.writeln('        database: _dvModule.database,');
           }
           sb.writeln('      );');
+          }
           sb.writeln();
           sb.writeln('  /// The record each [$className] loaded from the database');
           sb.writeln('  /// was read at, so saving it is checked against that');
@@ -1200,6 +1219,17 @@ class ModelGenerator {
           sb.writeln('    return model;');
           sb.writeln('  }');
           sb.writeln();
+          if (offlineStrategy != null) {
+            _writeOfflinePersistence(
+              sb,
+              className: className,
+              keyField: keyField,
+              offlineId: offlineId,
+              fields: fields,
+              toParam: toParam,
+              semantic: semantic,
+            );
+          } else {
           sb.writeln('  /// Every stored [$className].');
           sb.writeln('  static Future<core.List<$className>> all() async {');
           sb.writeln('    final records = await _dvRecords().all();');
@@ -1272,6 +1302,7 @@ class ModelGenerator {
             );
           }
           sb.writeln('  }');
+          }
           if (softDelete) {
             for (final String member in <String>['restore', 'withDeleted']) {
               if (fields.any((Map<String, String> f) => f['name'] == member)) {
@@ -1487,78 +1518,27 @@ class ModelGenerator {
         sb.writeln('  }');
 
         if (offlineStrategy != null) {
-          // The local store and the server side of replay, each built from
-          // the table, key and columns declared once, above.
+          // The device's copy, built from the table, key and columns
+          // declared once, above. The server side of replay is the generated
+          // backend's, built from the same declaration through the model's
+          // spec; neither is a member an application names.
           final String offlineColumns = <String>[
             if (tenantScoped) tenantColumn,
             ...fields.map((Map<String, String> f) => f['name']!),
           ].map((String c) => "'$c'").join(', ');
           sb.writeln();
-          sb.writeln('  /// This device\'s local copy of [$className]: a write');
-          sb.writeln('  /// lands at once and waits in an ordered log until');
-          sb.writeln('  /// [DVOfflineStore.replay] reaches the server.');
-          sb.writeln('  ///');
-          sb.writeln('  /// [database] is the device\'s own, such as');
-          sb.writeln('  /// SqliteDVDatabaseAdapter.file(\'device.db\').');
-          sb.writeln('  static DVOfflineStore offlineStore(');
-          sb.writeln('    DVDatabaseAdapter database, {');
-          sb.writeln('    DVOffline? policy,');
-          sb.writeln('  }) =>');
-          sb.writeln('      DVOfflineStore(');
-          sb.writeln('        table: _dvOfflineTable(database),');
-          sb.writeln('        policy: policy ??');
-          sb.writeln(
-            '            const DVOffline(strategy: DVConflict.$offlineStrategy),',
-          );
-          sb.writeln('      );');
+          sb.writeln('  /// Where this record stands relative to the server:');
+          sb.writeln('  /// pending while it waits, syncing, synced, conflicted');
+          sb.writeln('  /// when the server kept something else, or rejected');
+          sb.writeln('  /// when the server refused it. The current state first,');
+          sb.writeln('  /// then each change.');
+          sb.writeln('  Stream<DVSyncState> get syncState async* {');
+          sb.writeln('    final store = await $className._dvOffline();');
+          sb.writeln('    yield store.syncStateOf($keyField);');
+          sb.writeln('    yield* store.watchSyncState($keyField);');
+          sb.writeln('  }');
           sb.writeln();
-          sb.writeln('  /// The server side of that replay: it deduplicates by');
-          sb.writeln('  /// mutation id and resolves by the declared strategy.');
-          sb.writeln('  static DVOfflineRemote offlineRemote(');
-          sb.writeln('    DVDatabaseAdapter database, {');
-          sb.writeln(
-            '    bool Function(Map<String, Object?> values)? validate,',
-          );
-          sb.writeln('  }) =>');
-          sb.writeln('      DVRecordTableRemote(');
-          sb.writeln('        _dvOfflineTable(database),');
-          sb.writeln('        strategy: DVConflict.$offlineStrategy,');
-          // The same question an online write asks, asked per mutation.
-          // Replay is handed a change nothing on the server decided to
-          // make: made on a device, possibly days ago, possibly by somebody
-          // whose access has since been withdrawn, and naming its own key.
-          sb.writeln('        authorize: (DVMutation mutation) async {');
-          sb.writeln(
-            "          final $className? stored = await find('\${mutation.key}');",
-          );
-          sb.writeln('          final String action = mutation.isDelete');
-          sb.writeln("              ? '$className.delete'");
-          sb.writeln('              : stored == null');
-          sb.writeln("                  ? '$className.create'");
-          sb.writeln("                  : '$className.update';");
-          sb.writeln('          try {');
-          sb.writeln('            await DVGraphQL.authorizeModel(');
-          sb.writeln('              action,');
-          // The stored record for a delete or an update; for a create there
-          // is nothing stored, so the policy is asked about the candidate.
-          sb.writeln('              resource: stored ??');
-          sb.writeln('                  (mutation.isDelete');
-          sb.writeln('                      ? null');
-          sb.writeln('                      : _fromRow(mutation.values)),');
-          sb.writeln('              user: const DVAuth().currentUser,');
-          sb.writeln('            );');
-          sb.writeln('            return true;');
-          sb.writeln('          } catch (_) {');
-          // A refusal is a refusal. Letting DVGraphQLForbidden escape would
-          // stop replay as a transient failure and resend for ever.
-          sb.writeln('            return false;');
-          sb.writeln('          }');
-          sb.writeln('        },');
-          sb.writeln('        validate: validate,');
-          sb.writeln('      );');
-          sb.writeln();
-          sb.writeln('  /// One shape for both sides, from what the model');
-          sb.writeln('  /// declares, so neither can drift from the other.');
+          sb.writeln('  /// The device copy\'s shape, from what the model declares.');
           sb.writeln(
             '  static DVRecordTable _dvOfflineTable(DVDatabaseAdapter database) =>',
           );
@@ -2243,6 +2223,23 @@ class ModelGenerator {
         sb.writeln('    encode: ($className model) => model.toJson(),');
         sb.writeln('    decode: ${className}Parser.fromJson,');
         sb.writeln('  );');
+        if (offlineStrategy != null && keyField != null) {
+          // Registered with the runtime as the application starts, so the
+          // queue a previous session left is sent without anything touching
+          // this model. A copy the server replaced is published like any
+          // other change, so a watcher shows what is now true.
+          sb.writeln("  DVOfflineSync.register('$offlineId', (DVDatabaseAdapter database) => DVOfflineStore(");
+          sb.writeln('    table: $className._dvOfflineTable(database),');
+          sb.writeln(
+            '    policy: const DVOffline(strategy: DVConflict.$offlineStrategy),',
+          );
+          sb.writeln('    onAdopted: (DVRecord record) {');
+          sb.writeln(
+            '      unawaited(DVModelSync.publish<$className>($className._dvLoaded(record), kind: DVModelChangeKind.updated));',
+          );
+          sb.writeln('    },');
+          sb.writeln('  ));');
+        }
         if (keyField != null) {
           // A form rebuilds the model it returns from JSON; the edit inherits
           // the read of the model it edits, or it saves as unread.
@@ -3267,6 +3264,85 @@ class ModelGenerator {
   /// the parent's data mode cannot be written into them -- they carry the id
   /// and ask at run time instead. Null for an ordinary application, which is
   /// nobody's module and reads its own tables.
+  /// `all`, `find`, `save` and `destroy` for a data model that declared
+  /// `offline:`.
+  ///
+  /// The same members any model has, read and written the same way. What
+  /// differs is underneath: they go to this device's copy, a write is queued
+  /// as well as written, and the runtime sends the queue when the server can
+  /// be reached -- so a save in a tunnel returns at once and reaches the
+  /// server later, and nothing in the application says when.
+  ///
+  /// A save is not checked against the version it read here: the device's
+  /// copy has one writer. The check that matters is the server's, which
+  /// resolves the replayed write by the strategy the model declared.
+  static void _writeOfflinePersistence(
+    StringBuffer sb, {
+    required String className,
+    required String? keyField,
+    required String offlineId,
+    required List<Map<String, String>> fields,
+    required String Function(Map<String, String>) toParam,
+    required bool semantic,
+  }) {
+    sb.writeln('  /// Every [$className] on this device, including writes not');
+    sb.writeln('  /// yet sent.');
+    sb.writeln('  static Future<core.List<$className>> all() async {');
+    sb.writeln('    final records = await (await _dvOffline()).all();');
+    sb.writeln('    return records.map(_dvLoaded).toList(growable: false);');
+    sb.writeln('  }');
+    sb.writeln();
+    sb.writeln('  /// The [$className] on this device whose $keyField matches,');
+    sb.writeln('  /// or null. Answered with no network.');
+    sb.writeln('  static Future<$className?> find(String $keyField) async {');
+    sb.writeln('    final record = await (await _dvOffline()).read($keyField);');
+    sb.writeln('    return record == null ? null : _dvLoaded(record);');
+    sb.writeln('  }');
+    sb.writeln();
+    sb.writeln('  /// Stores [model] on this device at once and publishes the');
+    sb.writeln('  /// change; it reaches the server when the server can be');
+    sb.writeln('  /// reached. A write the server resolves differently comes');
+    sb.writeln('  /// back as a change, and [syncState] says where it stands.');
+    sb.writeln('  ///');
+    sb.writeln('  /// [onConflict] is not asked: the model declared how a');
+    sb.writeln('  /// replayed write is resolved, and the server applies that.');
+    sb.writeln(
+      '  static Future<$className> save($className model, {DVConflict onConflict = DVConflict.ask}) async {',
+    );
+    sb.writeln('    final store = await _dvOffline();');
+    sb.writeln('    final existed = await store.read(model.$keyField) != null;');
+    sb.writeln('    final written = await store.write(<String, Object?>{');
+    for (final Map<String, String> f in fields) {
+      sb.writeln("      '${f['name']}': ${toParam(f)},");
+    }
+    sb.writeln('    });');
+    sb.writeln('    _dvRead[model] = written;');
+    sb.writeln("    DVOfflineSync.written('$offlineId');");
+    sb.writeln('    await DVModelSync.publish<$className>(');
+    sb.writeln('      model,');
+    sb.writeln(
+      '      kind: existed ? DVModelChangeKind.updated : DVModelChangeKind.created,',
+    );
+    sb.writeln('    );');
+    if (semantic) sb.writeln('    await _dvSemanticIndex?.indexed(model);');
+    sb.writeln('    return model;');
+    sb.writeln('  }');
+    sb.writeln();
+    sb.writeln('  /// Removes [model] from this device at once and publishes');
+    sb.writeln('  /// the deletion; the server is told when it can be reached.');
+    sb.writeln('  static Future<void> destroy($className model) async {');
+    sb.writeln('    await (await _dvOffline()).delete(model.$keyField);');
+    sb.writeln('    _dvRead[model] = null;');
+    sb.writeln("    DVOfflineSync.written('$offlineId');");
+    sb.writeln(
+      '    await DVModelSync.publish<$className>(model, kind: DVModelChangeKind.deleted);',
+    );
+    if (semantic) {
+      sb.writeln('    await _dvSemanticIndex?.removed(model.$keyField);');
+    }
+    sb.writeln('  }');
+  }
+
   static String? _ownModuleId(String root) {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
     if (!pubspec.existsSync()) return null;

@@ -396,8 +396,28 @@ class DVRecordTableRemote implements DVOfflineRemote {
     );
   }
 
+  /// The tables each database has had [ensureSchema] run for, in this
+  /// process.
+  static final Expando<Set<String>> _ensured =
+      Expando<Set<String>>('offline remote schema');
+
+  /// Runs [ensureSchema] the first time this process applies to this table.
+  ///
+  /// The generated route builds its remotes per request and applies
+  /// straight away; nothing on that path prepared the tables of applied ids
+  /// and clocks, so the first replay against a real database failed on a
+  /// missing table and was answered as a server error, which a device reads
+  /// as transient and retries for ever.
+  Future<void> _ensureOnce() async {
+    final Set<String> done = _ensured[_database] ??= <String>{};
+    if (done.contains(table.table)) return;
+    await ensureSchema();
+    done.add(table.table);
+  }
+
   @override
   Future<DVRemoteOutcome> apply(DVMutation mutation) async {
+    await _ensureOnce();
     final List<Map<String, Object?>> seen = await _database.query(
       'SELECT outcome FROM $appliedTable WHERE mutation_id = ?',
       <Object?>[mutation.mutationId],
@@ -600,6 +620,7 @@ class DVOfflineStore {
     required this.policy,
     DVOfflineClock? clock,
     bool? persistent,
+    this.onAdopted,
   })  : clock = clock ?? DVOfflineClock(),
         persistent = persistent ?? table.database is! MemoryDVDatabaseAdapter {
     if (!policy.strategy.allowedOffline) {
@@ -620,6 +641,12 @@ class DVOfflineStore {
   final DVRecordTable table;
   final DVOffline policy;
   final DVOfflineClock clock;
+
+  /// Called when replay replaces this device's copy of a record with the
+  /// server's, because the server kept something other than what the device
+  /// wrote. The generated model publishes it, so a watcher sees the value
+  /// that is now true rather than the one that was discarded.
+  final void Function(DVRecord record)? onAdopted;
 
   /// Whether the local store survives the application closing. A memory
   /// adapter does not, and says so (`DV-OFFLINE-001`).
@@ -811,6 +838,7 @@ class DVOfflineStore {
           final DVRecord? local = await table.read(record.key);
           await table.write(record.values,
               base: local, onConflict: DVConflict.lastWriteWins);
+          onAdopted?.call(record);
         }
       }
       if (differs) conflicted++;

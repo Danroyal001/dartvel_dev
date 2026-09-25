@@ -19,6 +19,11 @@ String? dvAnalyticsDirectoryFor({
   required String os,
   required Map<String, String> environment,
   String? androidStateDirectory,
+  // Another device-local store kept beside this one -- the offline data
+  // models' -- names its own folder and override here, and gets the same
+  // per-platform rules.
+  String leaf = 'dartvel-analytics',
+  String variable = 'DARTVEL_ANALYTICS_DIR',
 }) {
   String? usable(String? value) {
     if (value == null) return null;
@@ -31,10 +36,8 @@ String? dvAnalyticsDirectoryFor({
     return trimmed;
   }
 
-  final String? declared = usable(environment['DARTVEL_ANALYTICS_DIR']);
+  final String? declared = usable(environment[variable]);
   if (declared != null) return declared;
-
-  const String leaf = 'dartvel-analytics';
   switch (os) {
     case 'android':
       final String? state = usable(androidStateDirectory);

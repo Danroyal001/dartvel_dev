@@ -25,6 +25,11 @@
   longer re-exported; import them from dartvel_core in a test. The store is
   `dartvel.cache`.
 
+- **Signing out empties the device's offline data.** `DV.Auth.signOut()` sends
+  whatever queued offline writes can reach the server, then empties every
+  offline data model's copy and queue, so the next person to sign in on the
+  device sees none of it.
+
 ## 0.6.0
 
 - **Studio image export shares the box modifier chain.** An exported image is

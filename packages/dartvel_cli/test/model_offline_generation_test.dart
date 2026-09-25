@@ -1,10 +1,10 @@
 // A data model that works offline says so, and the rest is the model's.
 //
 // The sample built a DVOfflineStore by hand: a DVRecordTable restating the
-// table name, the key and every column the model declares a few lines above
-// its own annotation, and then a DVRecordTableRemote on the server restating
-// all of it again. Two hand-written copies of one model's shape, which drift
-// the first time a field is added.
+// table name, the key and every column the model declares, a remote on the
+// server restating all of it again, and a replay the application had to call
+// on a reconnect it had to notice. Now the model's own save, destroy and
+// reads are the whole surface, and the runtime does the rest.
 import 'dart:io';
 
 import 'package:dartvel_cli/src/generators/model_generator.dart';
@@ -46,37 +46,90 @@ class _Order {
 }
 
 void main() {
-  test('the store and the remote come from the model', () async {
+  /// The generated member starting at [signature], up to the next member.
+  String member(String content, String signature) {
+    final int start = content.indexOf(signature);
+    expect(start, isNonNegative, reason: 'no $signature generated');
+    final int end = content.indexOf(RegExp(r'\n  (static |///)|\n}'), start);
+    return content.substring(start, end < 0 ? content.length : end);
+  }
+
+  test('saving writes on the device at once and queues it', () async {
+    // The runtime was built and the model did not use it: Order.save wrote
+    // to whatever database the process had, so a write made offline was a
+    // row the server never heard of, and syncing was a store an application
+    // had to construct and a replay it had to call.
     final String content = await generated(
       '@DVModel(offline: DVConflict.lastWriteWins)',
     );
 
-    expect(content, contains('static DVOfflineStore offlineStore('));
-    expect(content, contains('static DVOfflineRemote offlineRemote('));
+    expect(content,
+        contains("_dvOffline() => DVOfflineSync.store('Order')"));
+    final String save = member(content, 'static Future<Order> save(');
+    expect(save, contains('_dvOffline()'));
+    expect(save, contains('.write('));
+    expect(save, contains("DVOfflineSync.written('Order')"));
+    expect(save, isNot(contains('_dvRecords().write(')));
+
+    final String destroy = member(content, 'static Future<void> destroy(');
+    expect(destroy, contains('.delete('));
+    expect(destroy, contains("DVOfflineSync.written('Order')"));
+    expect(destroy, isNot(contains('_dvRecords().delete(')));
+  });
+
+  test('reads come from the device copy, so they work with no network',
+      () async {
+    final String content = await generated(
+      '@DVModel(offline: DVConflict.lastWriteWins)',
+    );
+
+    expect(member(content, 'static Future<Order?> find('),
+        contains('_dvOffline()'));
+    expect(member(content, 'static Future<core.List<Order>> all('),
+        contains('_dvOffline()'));
     // The columns are the model's stored columns, written once.
     expect(
       content,
       contains("columns: const <String>['id', 'reference', 'quantity']"),
     );
-    expect(content, contains('DVConflict.lastWriteWins'));
   });
 
-  test('the server side asks the model\'s policy, per mutation', () async {
-    // Replay is the one write path where the server is handed a change that
-    // nothing on the server decided to make. Before this, Model.offlineRemote
-    // applied a device's queued writes with at most a synchronous look at
-    // the values -- and a queued delete was not even given that.
+  test('the model is registered, so last session\'s queue is sent', () async {
+    // The runtime replays every registered queue at start. A model whose
+    // store was made only when it was first used would leave yesterday's
+    // writes on the device until somebody opened a screen that read it.
     final String content = await generated(
       '@DVModel(offline: DVConflict.lastWriteWins)',
     );
 
-    expect(content, contains('authorize: (DVMutation mutation) async {'));
-    // The same three actions an online write asks about, chosen the same way.
-    expect(content, contains("'Order.delete'"));
-    expect(content, contains("'Order.update'"));
-    expect(content, contains("'Order.create'"));
-    // And a refusal is a refusal, not an exception that escapes replay.
-    expect(content, contains('return false;'));
+    expect(member(content, 'void _registerOrder()'),
+        contains("DVOfflineSync.register('Order'"));
+  });
+
+  test('a record says where it stands, and nothing else is to be named',
+      () async {
+    final String content = await generated(
+      '@DVModel(offline: DVConflict.lastWriteWins)',
+    );
+
+    expect(content, contains('Stream<DVSyncState> get syncState'));
+    // The machinery is the framework's. A generated member returning a
+    // store or a remote put it in the application's hands, and a validate:
+    // taking a map of column names put a record shape there.
+    expect(content, isNot(contains('offlineStore(')));
+    expect(content, isNot(contains('offlineRemote(')));
+    expect(content, isNot(contains('Map<String, Object?> values)? validate')));
+  });
+
+  test('a copy the server replaced is published, so a watcher sees it',
+      () async {
+    final String content = await generated(
+      '@DVModel(offline: DVConflict.lastWriteWins)',
+    );
+
+    final String register = member(content, 'void _registerOrder()');
+    expect(register, contains('onAdopted:'));
+    expect(register, contains('DVModelChangeKind.updated'));
   });
 
   test('a tenant-scoped model carries its tenant into replay', () async {
@@ -182,11 +235,11 @@ class _Ledger {
     expect(ledgerSpec, isNot(contains('offline:')));
   });
 
-  test('a model that did not ask for it has neither', () async {
+  test('a model that did not ask for it is not queued', () async {
     final String content = await generated('@DVModel()');
 
-    expect(content, isNot(contains('offlineStore(')));
-    expect(content, isNot(contains('offlineRemote(')));
+    expect(content, isNot(contains('DVOfflineSync')));
+    expect(content, isNot(contains('syncState')));
   });
 
   test('a strategy that cannot work offline is refused at the build', () async {

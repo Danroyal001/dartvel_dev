@@ -2171,8 +2171,8 @@ Revocation is immediate rather than eventual. A revoked session fails its next
 request, and on a device holding an offline-first cache it also clears the
 models that session's policies gated — a signed-out device that still renders
 the last screen is a data leak with a plausible explanation. The server half is
-built. Nothing yet clears a device's `DVOfflineStore` when its session is
-revoked.
+built, and signing out on the device empties every offline data model's copy
+and queue. A revocation made elsewhere does not yet reach the device's copy.
 
 ## Multi-factor as a policy
 
@@ -3084,15 +3084,19 @@ Application code does not branch on connectivity. `Order.find`, `order.save`
 and `Order.watch` read and write the same way in a tunnel as on Wi-Fi; what
 changes is where the answer comes from and when the write reaches the server.
 
-The declaration is generated, and half of what it promises is built.
-`Order.offlineStore(database)` is this device's local copy and
-`Order.offlineRemote(database)` is the server side of replay, each built from
-the table, key, columns, sensitive set, versioning and soft-delete flag the
-model states once, so neither can drift from the other or from the model;
-`DVRecordTableRemote` is the framework's and is not in the barrel an
-application imports. `DVConflict.ask` stops the build, because a write made
-with no network has nobody to ask and would otherwise fail only on somebody's
-phone.
+The declaration is generated, and it is the whole of what an application
+writes. `order.save()` and `order.destroy()` write this device's copy at once
+and queue the change; `Order.find` and `Order.all` read the device copy; and
+`order.syncState` says where the record stands. The runtime sends the queue
+by itself -- when the application starts, after each write, when
+`DV.Platform.network` says the server can be reached again, and on a backoff
+after a failed send -- to the generated backend, which applies it. The device
+copy and the server side are each built from the table, key, columns,
+sensitive set, versioning and soft-delete flag the model states once, so
+neither can drift from the other or from the model, and the store, the queue
+and the replay are the framework's and not in the barrel an application
+imports. `DVConflict.ask` stops the build, because a write made with no
+network has nobody to ask and would otherwise fail only on somebody's phone.
 
 Every replayed mutation is put to the model's policy before anything is
 written. Replay is the one write path where the server is handed a change
@@ -3104,9 +3108,10 @@ having no authorization on the route that carries it. The action is `create`,
 write asks, and a policy that refuses or that cannot answer refuses the
 write. The refusal is recorded against the mutation id, so a device resending
 one it was refused does not get a second answer from a policy that has since
-changed. What is not built is the sentence above it: `order.save` does not
-route through the local store on its own, so writing offline is still a call
-on the store, and `encrypt:` is not applied.
+changed. The policy is asked about the record as the class a server-side
+policy is written against, which the generated backend builds from the
+record's values by the constructor the application wrote. What is not built
+is `encrypt:`.
 
 ## The local store
 

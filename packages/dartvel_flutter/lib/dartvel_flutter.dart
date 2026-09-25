@@ -6,6 +6,9 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:dartvel_core/dartvel.dart';
+// The offline queue, which signing out empties. The framework's own, and
+// not re-exported to applications.
+import 'package:dartvel_core/framework.dart' show DVOfflineSync;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6289,6 +6292,10 @@ class DVAuth {
   }
 
   Future<void> signOut() async {
+    // A device holds only what its session may read, so the offline data
+    // models' copies and queues go with it. First, while the session can
+    // still send them, whatever writes can reach the server are sent.
+    await DVOfflineSync.signedOut();
     await _configuredProvider.signOut();
     _currentUser = null;
   }

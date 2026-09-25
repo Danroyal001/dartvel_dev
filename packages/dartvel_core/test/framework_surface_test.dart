@@ -145,6 +145,47 @@ Type get it => $name;
     }
   });
 
+  test('an application cannot name the offline machinery', () async {
+    // An offline data model is saved, deleted and read like any other, and
+    // the runtime sends its queue. A store, a remote, a mutation, a replay
+    // result or the runtime itself in the barrel is a second way to do what
+    // the model already does -- and the way the samples used to teach.
+    const List<String> names = <String>[
+      'DVOfflineStore',
+      'DVOfflineRemote',
+      'DVMutation',
+      'DVReplayResult',
+      'DVRemoteOutcome',
+      'DVOfflineClock',
+      'DVOffline',
+      'DVOfflineSync',
+      'DVOfflineStorePrivacyAdapter',
+      'DVSnapshotDatabaseAdapter',
+    ];
+    // One probe for all of them: an analyzer run per name is slower than
+    // the test's timeout.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+${names.map((String name) => 'Type get the$name => $name;').join('\n')}
+''');
+    for (final String name in names) {
+      expect(output, contains("Undefined name '$name'"), reason: name);
+    }
+  });
+
+  test('what an offline model hands back is still nameable', () async {
+    // record.syncState streams these, and a full queue refuses a save with
+    // the error, so an application has to be able to write both down.
+    final String output = await analyzed('''
+import 'package:dartvel_core/dartvel.dart';
+
+Type get state => DVSyncState;
+Type get full => DVOfflineQueueFullError;
+''');
+    expect(output, isNot(contains(' error ')));
+  });
+
   test('what a model hands back is still nameable', () async {
     // The line is not "nothing from that library". A model's history()
     // returns entries and revert() returns a result, so an application has
@@ -221,6 +262,9 @@ Type get consumer => DVCaptureConsumer;
 Type get sink => DVWarehouseSink;
 Type get runtime => DVCaptureRuntime;
 Type get config => DVCaptureConfig;
+Type get store => DVOfflineStore;
+Type get sync => DVOfflineSync;
+Type get privacy => DVOfflineStorePrivacyAdapter;
 ''');
     expect(output, isNot(contains(' error ')));
   });

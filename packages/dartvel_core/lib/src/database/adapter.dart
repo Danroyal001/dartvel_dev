@@ -100,6 +100,45 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
     caseSensitive: false,
   );
 
+  /// [table]'s rows, their rowids and the next rowid, as data a store that
+  /// persists this database somewhere else can keep -- or null when there is
+  /// no such table. [importTable] reads it back.
+  Map<String, Object?>? exportTable(String table) {
+    final _MemoryTable? held = _tables[table];
+    if (held == null) return null;
+    return <String, Object?>{
+      'next': held._nextRowid,
+      'rows': <Object?>[
+        for (final _MemoryRow row in held.rows)
+          <String, Object?>{
+            'rowid': row.rowid,
+            'values': Map<String, Object?>.of(row.values),
+          },
+      ],
+    };
+  }
+
+  /// Puts back a table [exportTable] gave, replacing any of that name.
+  void importTable(String table, Map<String, Object?> exported) {
+    final _MemoryTable held = _MemoryTable();
+    for (final Object? entry in exported['rows'] as List<Object?>? ?? const []) {
+      final Map<Object?, Object?> row = entry! as Map<Object?, Object?>;
+      held.add(
+        <String, Object?>{
+          for (final MapEntry<Object?, Object?> value
+              in (row['values']! as Map<Object?, Object?>).entries)
+            '${value.key}': value.value,
+        },
+        rowid: (row['rowid']! as num).toInt(),
+      );
+    }
+    final Object? next = exported['next'];
+    if (next is num && next.toInt() > held._nextRowid) {
+      held._nextRowid = next.toInt();
+    }
+    _tables[table] = held;
+  }
+
   @override
   Future<List<Map<String, Object?>>> query(
     String sql, [

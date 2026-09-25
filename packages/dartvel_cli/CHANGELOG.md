@@ -35,6 +35,17 @@
   `privacy.g.dart` registration names the capture log, and `dartvel privacy
   erase` gives it one over the database it walks.
 
+- **Breaking: an offline data model no longer generates `offlineStore()` or
+  `offlineRemote()`.** Its `save()`, `destroy()`, `find()` and `all()` go
+  through the device's copy and queue, it gains `syncState`, and it registers
+  with the offline runtime as the application starts.
+- **The generated runtime sends the offline queue**: `configureDartvelRuntime`
+  installs it with the platform's device store, this backend's replay route
+  and `DV.Platform.network`.
+- **The generated backend asks a policy about its own class.**
+  `backend_policies.g.dart` gains `dartvelOfflineResources`, built from each
+  server-side policy's resource constructor, and the replay route passes it.
+
 ## 0.6.0
 
 - **`dartvel doctor` no longer warns about a directory a project does not
