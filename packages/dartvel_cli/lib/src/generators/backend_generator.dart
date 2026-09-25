@@ -611,6 +611,7 @@ class BackendGenerator {
         library: 'dartvel_client_backend_policies',
         function: 'dartvelRegisterBackendPolicies',
         registration: 'registerDeclared',
+        withResources: true,
         policies: <_DVFoundPolicy>[
           for (final _DVFoundPolicy found in policies)
             if (found.clientOnlyBecause == null) found,
@@ -786,7 +787,7 @@ import 'package:$pkgName/dartvel_client/http.g.dart' show configureDartvelHttp;
 import 'package:$pkgName/dartvel_client/account.g.dart' show configureDartvelBackendAccounts, dartvelStartAccountDeletionSweep;
 import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBackendPrivacy;
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
-import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies;
+import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies, dartvelOfflineResources;
 ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -1459,6 +1460,9 @@ $routeClose''';
     final result = await framework.DVOfflineReplay.forSpecs(
       dartvelStudioModels,
       database: database,
+      // The class each server-side policy takes, built from the record,
+      // so a policy written against the model is asked about the model.
+      resources: dartvelOfflineResources,
     ).handle(decoded);
     return dv.Response(result.status,
         headers: dv.Headers({'content-type': 'application/json; charset=utf-8'}),
@@ -2885,6 +2889,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       for (final DVPolicyClass policy in classes) {
         found.add(_DVFoundPolicy(
           importUri: importUri,
+          resourceShape: dvResourceShapeIn(source, policy.resource),
           shownPath: p.relative(file.path, from: root).replaceAll('\\', '/'),
           policy: policy,
           clientOnlyBecause: reached,
@@ -2956,6 +2961,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String function,
     required List<_DVFoundPolicy> policies,
     required String registration,
+    bool withResources = false,
   }) {
     final Map<String, String> aliasByImport = <String, String>{};
     for (final _DVFoundPolicy found in policies) {
@@ -2967,7 +2973,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     final StringBuffer sb = StringBuffer()
       ..writeln('// GENERATED – do not edit.')
-      ..writeln('// ignore_for_file: unused_import, directives_ordering')
+      ..writeln('// ignore_for_file: unused_import, unused_element, directives_ordering')
       ..writeln('library $library;')
       ..writeln()
       ..writeln("import 'package:dartvel_core/dartvel.dart';");
@@ -3009,7 +3015,76 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       }
     }
     sb.writeln('}');
+    if (withResources) _writeOfflineResources(sb, policies, aliasByImport);
     return sb.toString();
+  }
+
+  /// `dartvelOfflineResources`: for each resource a server-side policy is
+  /// written against, how the replay route builds it from a record's values.
+  ///
+  /// The route is handed values and the policy takes the application's own
+  /// class; asked with a map, a typed policy refuses, and every replayed
+  /// write with it. Built by the constructor the application wrote, one
+  /// field per parameter. A value that cannot become the field's type
+  /// throws, and the route refuses the write.
+  static void _writeOfflineResources(
+    StringBuffer sb,
+    List<_DVFoundPolicy> policies,
+    Map<String, String> aliasByImport,
+  ) {
+    final Map<String, String> builders = <String, String>{};
+    for (final _DVFoundPolicy found in policies) {
+      final DVResourceShape? shape = found.resourceShape;
+      if (shape == null) continue;
+      final String alias = aliasByImport[found.importUri]!;
+      final String arguments = shape.parameters.map((DVResourceParameter p) {
+        final String read = _dvResourceRead(p);
+        return p.named ? '${p.name}: $read' : read;
+      }).join(', ');
+      builders.putIfAbsent(
+        found.policy.resource,
+        () => '$alias.${found.policy.resource}($arguments)',
+      );
+    }
+    sb
+      ..writeln()
+      ..writeln('/// How the offline replay route builds the class each')
+      ..writeln('/// server-side policy takes from a record\'s values, so the')
+      ..writeln('/// policy is asked about the model rather than a map.')
+      ..writeln('final Map<String, Object? Function(Map<String, Object?>)>')
+      ..writeln('    dartvelOfflineResources =')
+      ..writeln('    <String, Object? Function(Map<String, Object?>)>{');
+    for (final MapEntry<String, String> builder in builders.entries) {
+      sb.writeln("  '${esc(builder.key)}': (Map<String, Object?> values) =>");
+      sb.writeln('      ${builder.value},');
+    }
+    sb
+      ..writeln('};')
+      ..writeln()
+      ..writeln(r"String _dvString(Object? v) => v is String ? v : v == null ? throw ArgumentError.notNull('value') : '$v';")
+      ..writeln(r"int _dvInt(Object? v) => v is int ? v : v is num ? v.toInt() : int.parse('$v');")
+      ..writeln(r"double _dvDouble(Object? v) => v is num ? v.toDouble() : double.parse('$v');")
+      ..writeln("bool _dvBool(Object? v) => v == true || v == 1 || v == '1' || v == 'true';")
+      ..writeln(r"DateTime _dvDateTime(Object? v) => v is DateTime ? v : DateTime.parse('$v');");
+  }
+
+  static String _dvResourceRead(DVResourceParameter parameter) {
+    final bool nullable = parameter.type.endsWith('?');
+    final String base = parameter.type.replaceFirst(RegExp(r'\?$'), '');
+    final String value = "values['${parameter.name}']";
+    final String? convert = switch (base) {
+      'String' => '_dvString',
+      'int' => '_dvInt',
+      'double' => '_dvDouble',
+      'num' => '_dvDouble',
+      'bool' => '_dvBool',
+      'DateTime' => '_dvDateTime',
+      _ => null,
+    };
+    final String read =
+        convert == null ? '$value as ${parameter.type}' : '$convert($value)';
+    if (convert == null || !nullable) return read;
+    return '$value == null ? null : $read';
   }
 
   static Future<String> _generateSchedules({
@@ -4095,6 +4170,7 @@ String dvProjectBackendDir(String projectRoot) {
 class _DVFoundPolicy {
   const _DVFoundPolicy({
     required this.importUri,
+    this.resourceShape,
     required this.shownPath,
     required this.policy,
     required this.clientOnlyBecause,
@@ -4110,6 +4186,10 @@ class _DVFoundPolicy {
   /// The import through which its file reaches Flutter, or null when the
   /// generated server can load it.
   final String? clientOnlyBecause;
+
+  /// How the replay route builds the resource class from a record's
+  /// values, or null when its constructor does more than set fields.
+  final DVResourceShape? resourceShape;
 }
 
 /// A project whose `lib` this application's generated schedule, AI tools and
