@@ -587,7 +587,30 @@ library dartvel_client;
 
 // Core's own DV, for the server side, is in package:dartvel_core/dv.dart
 // and not in this barrel: a page's DV is the application's.
-export 'package:dartvel_core/dartvel.dart';
+//
+// The cache's machinery stays out: a page reads and writes DV.Cache, and the
+// store is dartvel.cache in pubspec.yaml, opened by the generated server.
+export 'package:dartvel_core/dartvel.dart'
+    hide
+        DVAtomicCacheAdapter,
+        DVCacheAdapterRemove,
+        DVCacheConfig,
+        DVCacheConfigException,
+        DVCacheStore,
+        DVCacheTags,
+        DVCountingCacheAdapter,
+        DVDatabaseCacheAdapter,
+        DVDistributedCacheAdapter,
+        DVMemcachedCacheAdapter,
+        DVMemcachedConnect,
+        DVMemcachedConnection,
+        DVMemcachedException,
+        DVMemoryCacheAdapter,
+        DVRedisCacheAdapter,
+        DVRedisClient,
+        DVRedisConnect,
+        DVRedisConnection,
+        DVRedisException;
 export 'package:dartvel_flutter/dartvel_flutter.dart';
 export 'account.g.dart';
 export 'assets.g.dart';
