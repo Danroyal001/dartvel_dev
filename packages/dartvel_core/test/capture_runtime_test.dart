@@ -234,6 +234,34 @@ void main() {
         reason: 'the refused batch is delivered once the destination is back');
   });
 
+  // A destination down for longer than the log keeps changes cannot be
+  // caught up by delivery: what it missed has been pruned. Left alone it
+  // was refused with DV-CDC-002 on every pass, for ever.
+  test('a destination left behind the retention window is backfilled',
+      () async {
+    configure(_config(<String, Object?>{
+      'warehouse': <String, Object?>{
+        'type': 'database',
+        'connection': 'WAREHOUSE_URL',
+      },
+    }, retention: '1d'));
+    await DVCaptureRuntime.start(queues: queues);
+    await tick();
+    warehouse.down = true;
+    await _modelTable(_refundSpec)
+        .write(<String, Object?>{'id': 'r1', 'amount': 5});
+    await tick();
+    now = now.add(const Duration(days: 2));
+    await DVCapture.configured!.prune();
+    warehouse.down = false;
+
+    await tick();
+    await tick();
+
+    expect(await copies('refunds'), hasLength(1),
+        reason: 'the row the pruned change carried arrives by backfill');
+  });
+
   test('lag is a metric, and past the threshold it is DV-CDC-003', () async {
     configure(_config(<String, Object?>{
       'warehouse': <String, Object?>{
