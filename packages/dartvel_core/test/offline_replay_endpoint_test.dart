@@ -423,6 +423,118 @@ void main() {
       expect(remote.table.types!.keys, containsAll(remote.table.columns));
     });
 
+    test('applies a write on a database nobody prepared by hand', () async {
+      // The generated route builds its registry per request and calls
+      // handle(); nothing on that path created the table of applied mutation
+      // ids or the clock table, so the first replay against a real backend
+      // failed on a missing table and was answered as a server error -- and
+      // the device, reading that as transient, retried for ever.
+      // SQLite rather than the development database, which makes a table on
+      // first insert and reads a missing one as empty -- and so hid this.
+      final SqliteDVDatabaseAdapter fresh = SqliteDVDatabaseAdapter.memory();
+      const DVAuthAuthorization().registerAction(
+          'Order.create', (Object? caller, Object? resource) => true);
+      addTearDown(DVAuthAuthorization.reset);
+
+      final DVOfflineReplayResult result = await DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+        database: fresh,
+      ).handle(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      expect(result.status, 200);
+      final Map<String, Object?> outcome =
+          (result.body['outcomes']! as List<Object?>).single!
+              as Map<String, Object?>;
+      expect(outcome['rejection'], isNull);
+      final List<Map<String, Object?>> rows =
+          await fresh.query('SELECT reference FROM orders');
+      expect(rows.single['reference'], 'R-1');
+    });
+
+    test('the policy is asked about the model, not about a map', () async {
+      // A policy is written against the model's type. Replay handed it the
+      // replayed values as a map, which a typed policy does not accept, so
+      // it refused -- every replayed write, on every generated backend, for
+      // every application that wrote its policy the way policies are
+      // written. The backend now builds the policy's own type from the
+      // values, and the policy decides on the record it was written for.
+      const DVAuthAuthorization().register<Object?, Order>(
+        'create',
+        (Object? caller, Order order) => order.reference == 'mine',
+      );
+      addTearDown(DVAuthAuthorization.reset);
+
+      Future<Map<String, Object?>> outcomeFor(String id, String reference) async {
+        final DVOfflineReplayResult result = await DVOfflineReplay.forSpecs(
+          <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+          database: database,
+          resources: <String, Object? Function(Map<String, Object?>)>{
+            'Order': (Map<String, Object?> values) =>
+                Order('${values['reference']}'),
+          },
+        ).handle(<String, Object?>{
+          'model': 'Order',
+          'mutations': <Object?>[
+            <String, Object?>{
+              ..._mutation(id: id, key: id),
+              'values': <String, Object?>{'id': id, 'reference': reference},
+            },
+          ],
+        });
+        return (result.body['outcomes']! as List<Object?>).single!
+            as Map<String, Object?>;
+      }
+
+      expect((await outcomeFor('o1', 'mine'))['rejection'], isNull);
+      expect((await outcomeFor('o2', 'theirs'))['rejection'],
+          'refused by authorization');
+    });
+
+    test('a resource that cannot be built refuses', () async {
+      // Default deny: a value the policy's type cannot be made from is not
+      // a reason to ask the policy something else.
+      const DVAuthAuthorization().registerAction(
+          'Order.create', (Object? caller, Object? resource) => true);
+      addTearDown(DVAuthAuthorization.reset);
+
+      final DVOfflineReplayResult result = await DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+        database: database,
+        resources: <String, Object? Function(Map<String, Object?>)>{
+          'Order': (Map<String, Object?> values) =>
+              throw const FormatException('not an Order'),
+        },
+      ).handle(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      expect(
+        ((result.body['outcomes']! as List<Object?>).single!
+            as Map<String, Object?>)['rejection'],
+        'refused by authorization',
+      );
+    });
+
+    test('answers with its own time, so a device can correct its clock',
+        () async {
+      // Last-write-wins compares device stamps corrected by the offset the
+      // device last observed. Nothing a device received carried the server's
+      // time, so the offset stayed zero and a phone whose owner changed the
+      // date won every conflict.
+      final DateTime before = DateTime.now().toUtc();
+      final DVOfflineReplayResult result = await replay(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      final DateTime at = DateTime.parse('${result.body['serverTime']}');
+      expect(at.isBefore(before.subtract(const Duration(seconds: 1))), isFalse);
+    });
+
     test('nothing offline means an empty registry, not an open door', () {
       final DVOfflineReplay replay =
           DVOfflineReplay.forSpecs(<DVStudioModelSpec>[], database: database);
@@ -451,4 +563,12 @@ void main() {
         reason: 'the one before the bad entry must not have landed either');
     expect(await table.read('o3'), isNull);
   });
+}
+
+/// The type a server-side policy is written against: named for the model,
+/// because the registry is keyed by the resource type's name.
+class Order {
+  const Order(this.reference);
+
+  final String reference;
 }

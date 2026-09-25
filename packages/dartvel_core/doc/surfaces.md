@@ -446,30 +446,26 @@ class _Dispatch {
 }
 ```
 
-The generated model builds both sides from the same declaration, so the
-device's store and the server's replay cannot drift apart:
+Then it is saved, deleted and read like any other data model:
 
 ```dart
-// On the device.
-final DVOfflineStore dispatches =
-    Dispatch.offlineStore(SqliteDVDatabaseAdapter.file('device.db'));
-await dispatches.ensureSchema();
-await dispatches.write(<String, Object?>{'id': 'd1', 'reference': 'R-1', 'quantity': 2});
-
-// On reconnect, against the server side of the same data model.
-final DVReplayResult result =
-    await dispatches.replay(Dispatch.offlineRemote(serverDatabase));
+const Dispatch dispatch = Dispatch(id: 'd1', reference: 'R-1', quantity: 2);
+await dispatch.save();                       // on the device at once
+final Dispatch? again = await Dispatch.find('d1'); // answered with no network
+dispatch.syncState.listen((DVSyncState state) => DV.log(state.name));
 ```
 
-Every replayed write is put to the model's policy before anything is written,
-and a permanent refusal is dead-lettered rather than retried forever.
+The device keeps a copy and a queue -- a SQLite file on phones, desktops and
+TVs, IndexedDB in a browser -- and the runtime sends the queue in order when
+the application starts, after each save, when the server can be reached
+again and on a backoff after a failed send. The generated backend applies
+each change: it puts it to the data model's policy, applies a resent change
+once, remembers a refusal, and resolves last-write-wins by the device's
+corrected clock. Signing out sends what it can and empties the device's copy.
 
-**Not built yet** (Offline-First Models is Partial), and this is the larger
-part: `Dispatch.find`, `save` and `watch` do not go through the local store,
-so writing offline is still a call on the store rather than an ordinary save;
-nothing carries replay over the network yet, so there is no endpoint and no
-client remote; there is no IndexedDB store on web; signing out does not clear
-the store; a reconnect does not trigger replay.
+**Not built yet** (Offline-First Models is Partial): `encrypt: true`; the
+device copy's schema from the migration diff; replay through the job queue;
+queue bounds and clock tolerance read from `pubspec.yaml`.
 
 ## Logs, metrics, health and traces
 

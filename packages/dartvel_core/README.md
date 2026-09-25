@@ -78,7 +78,7 @@ yet exist.
 | Mail and notifications | `DV.Notifications`, `DV.Notifications.mail` | Partial |
 | Privacy: subject paths, retention, erasure, export | `DV.Privacy` | Partial |
 | Outbound webhooks | `DV.Webhooks` | Partial |
-| Offline store and replay | `Model.offlineStore(...)` | Partial |
+| Offline data models | `@DVModel(offline: ...)`, then `save()` | Partial |
 | Logs, metrics, health, traces | `DV.log`, `DV.ObservabilityAndLogging` | Partial |
 
 The full list of what `dartvel.dart` exports is in the
