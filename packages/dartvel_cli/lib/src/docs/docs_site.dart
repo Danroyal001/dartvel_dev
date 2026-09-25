@@ -1288,15 +1288,32 @@ class _Builder {
     for (int i = 0; i < mapping.line - 1; i++) {
       offset += mapping.lines[i].length + 1;
     }
-    final int open = text.indexOf('{', offset);
+    // From the class keyword rather than the body's brace: a primary
+    // constructor declares its fields in the header, `class _User(
+    // /// Where receipts are sent.
+    // final String email)`, and its first brace may be the named
+    // parameters' rather than the body's.
+    final int classAt = text.indexOf(RegExp(r'\bclass\b'), offset);
+    final int open = classAt < 0 ? text.indexOf('{', offset) : classAt;
     if (open < 0) return const <String, String>{};
-    final int close = _matching(text, open, '{', '}');
+    int end = open;
+    final int paren = text.indexOf('(', open);
+    final int brace = text.indexOf('{', open);
+    if (classAt >= 0 && paren >= 0 && (brace < 0 || paren < brace)) {
+      end = _matching(text, paren, '(', ')');
+    }
+    final int bodyOpen = text.indexOf('{', end);
+    final int semicolon = text.indexOf(';', end);
+    final int close = bodyOpen < 0 || (semicolon >= 0 && semicolon < bodyOpen)
+        ? semicolon
+        : _matching(text, bodyOpen, '{', '}');
+    if (close < 0) return const <String, String>{};
     final String body = text.substring(open, close);
     final int bodyLine = _lineOf(text, open);
     final Map<String, String> docs = <String, String>{};
     for (final DVGraphField f in model.fields) {
       final RegExpMatch? m = RegExp(
-        'final\\s+[^;]*?\\b${RegExp.escape(f.name)}\\s*;',
+        '(?:final|var)\\s+[^;,(){}]*?\\b${RegExp.escape(f.name)}\\s*[;,)}=]',
       ).firstMatch(body);
       if (m == null) continue;
       final int line = bodyLine + _lineOf(body, m.start) - 1;

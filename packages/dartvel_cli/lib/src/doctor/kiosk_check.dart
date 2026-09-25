@@ -10,6 +10,7 @@
 library dartvel_cli.doctor.kiosk_check;
 
 import '../generators/annotation_args.dart';
+import '../generators/primary_constructors.dart';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart';
@@ -120,7 +121,7 @@ class DVKioskCheck {
     final Set<String> models = <String>{};
     for (final FileSystemEntity e in lib.listSync(recursive: true)) {
       if (e is! File || !e.path.endsWith('.dart')) continue;
-      final String src = e.readAsStringSync();
+      final String src = dvDesugarPrimaryConstructors(e.readAsStringSync());
       if (!sensitive.hasMatch(src)) continue;
       // Blanked annotation arguments: `[^)]*` stops at the first close
       // parenthesis and a string argument can contain one, and a model

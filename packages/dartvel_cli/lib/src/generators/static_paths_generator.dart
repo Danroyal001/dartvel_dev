@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'annotation_args.dart';
+import 'primary_constructors.dart';
 import 'package:path/path.dart' as p;
 
 /// A discovered source of static paths for a parameterized model route.
@@ -88,7 +89,7 @@ class StaticPathsGenerator {
       ..sort((a, b) => a.path.compareTo(b.path));
 
     for (final file in files) {
-      final content = file.readAsStringSync();
+      final content = dvDesugarPrimaryConstructors(file.readAsStringSync());
 
       final relative = p.relative(file.path, from: root).replaceAll(r'\', '/');
       final importPath =
