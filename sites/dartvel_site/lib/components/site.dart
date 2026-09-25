@@ -74,6 +74,15 @@ const String kSpecStatusUrl =
 const String kBuildTargetsUrl =
     'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/build-targets.md';
 
+/// Designs that are not built yet, linked where a docs page says what is
+/// planned so the reader can see the whole proposal and its open questions.
+const String kFindInPageProposalUrl =
+    'https://github.com/Danroyal001/dartvel_dev/blob/main/docs/proposals/2026-09-find-in-page.md';
+
+/// Where the self-contained dartvel binaries are published.
+const String kReleasesUrl =
+    'https://github.com/Danroyal001/dartvel_dev/releases';
+
 /// The sizes the site sets type at, and the only ones it may.
 ///
 /// Not a rule imposed from outside: these are the sizes the pages actually
