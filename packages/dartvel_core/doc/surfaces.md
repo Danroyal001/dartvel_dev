@@ -254,26 +254,39 @@ missing key answers without asking a policy.
 
 ## Cache
 
-In an application:
+In an application, and in a backend function through `DV` from
+`package:dartvel_core/dv.dart`:
 
 ```dart
+await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
+final String? greeting = await DV.Cache.get<String>('greeting');
+final bool cached = await DV.Cache.has('greeting');
+await DV.Cache.delete('greeting');
+await DV.Cache.clear();
+
 final List<String> names = await DV.Cache.remember<List<String>>(
   'products:names',
-  const Duration(minutes: 10),
   fetchProductNames, // runs only when the key is missing or expired
+  ttl: const Duration(minutes: 10),
+  tags: <String>['products'],
 );
-DV.Cache.tag('products:names', <String>['products']);
 
 // A product changed: every key tagged "products" goes.
 await DV.Cache.revalidateTag('products');
+
+// Runs the body under the lock and releases it; null when the lock is held.
+final bool? done = await DV.Cache.lock('reports:monthly', () async => true);
 ```
 
-`DV.Cache` also has `get`, `set`, `delete`, `staleWhileRevalidate` and `lock`,
-and `DV.Cache.configure(...)` takes an adapter from this package:
-`DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter`, `DVRedisCacheAdapter`,
-`DVMemcachedCacheAdapter` or `DVDistributedCacheAdapter`. A pure-Dart file
-uses an adapter's `read`, `write`, `remove` and `clear` directly, with
-`const DVCacheTags()` for the tag index.
+`remember` takes `staleFor:` to serve a stale value while one compute
+refreshes it. Where entries live is `dartvel.cache` in pubspec.yaml -- `store:
+memory | database | redis | memcached`, `url: ${REDIS_URL}`, `prefix:` -- read
+by `DVCacheConfig`, which the generated server installs at startup. The
+adapters behind it (`DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter`,
+`DVRedisCacheAdapter`, `DVMemcachedCacheAdapter`, `DVDistributedCacheAdapter`)
+are for the framework and tests: a pure-Dart file uses an adapter's `read`,
+`write`, `delete` and `clear` directly, and `DV.Cache.configure(...)` swaps
+one in a test.
 
 ## Jobs and queues
 

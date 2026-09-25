@@ -3788,7 +3788,7 @@ vendor's player integration has not been verified against, and until
 
 # Cache
 
-Stability: `Contract` · Status: `Shipped`
+Stability: `Contract` · Status: `Partial`
 
 Unified cache layer. `DV.Cache` is five calls an application reads and
 writes with, the same from a page and from a backend function:
