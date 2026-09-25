@@ -12,6 +12,17 @@ environment:
   # scaffold, sample and generated data model is written with.
   sdk: ">=3.13.0 <4.0.0"
 
+# Declared, because pub.dev infers platforms from imports and follows
+# ones that only run on their own platform (see
+# tool/pubspec_platforms_check.dart).
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
 dependencies:
   # The wire types live in dartvel_core, which is on both sides of the
   # wire. This package is the server half and depends on them.

@@ -12,6 +12,13 @@ environment:
   # 3.13 is the first Dart with primary constructors, which every
   # scaffold, sample and generated data model is written with.
   sdk: ">=3.13.0 <4.0.0"
+# A development tool: it runs where a developer builds. See
+# tool/pubspec_platforms_check.dart.
+platforms:
+  linux:
+  macos:
+  windows:
+
 dependencies:
   yaml: ^3.1.2
   path: ^1.9.0

@@ -78,6 +78,7 @@ jobs:
       # so it shows up as one target failing among twenty rather than as a
       # broken pubspec.
       - run: dart run tool/pubspec_paths_check.dart
+      - run: dart run tool/pubspec_platforms_check.dart
 
       # The site's feature page says of itself that it lists every section the
       # index records as Shipped and nothing else. It listed 29 of 40 under a
