@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dartvel_core/framework.dart' show DVCaptureConfig;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -29,6 +30,12 @@ class DartvelConfig {
   final YamlMap raw;
   final DartvelDartConfigReference? dartConfigReference;
 
+  /// `dartvel.capture`: where captured data models are delivered, or null
+  /// when the project declares none. Parsed here, so a declaration the
+  /// server could not honour stops every command that reads the project
+  /// (`DV-CDC-006`, `DV-CDC-007`) rather than generating it.
+  final DVCaptureConfig? capture;
+
   const DartvelConfig({
     required this.packageName,
     required this.pagesDir,
@@ -52,6 +59,7 @@ class DartvelConfig {
     required this.ota,
     required this.raw,
     this.dartConfigReference,
+    this.capture,
   });
 
   static Future<DartvelConfig> load(Directory root) async {
@@ -120,6 +128,7 @@ class DartvelConfig {
       ota: asBool(raw['ota'], false),
       raw: raw,
       dartConfigReference: dartConfigReference,
+      capture: DVCaptureConfig.parse(raw['capture']),
     );
   }
 
