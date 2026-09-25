@@ -109,35 +109,40 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'find-in-page',
-          title: 'Find in page is planned',
+          title: 'Find text with Ctrl+F',
           children: <Widget>[
-            DocsNote('Planned',
-                'Nothing in this section is built yet. It is a draft proposal from '
-                '2026-09-25 that has not been reviewed.'),
-            DocsText('Today, Ctrl+F (Cmd+F on a Mac) finds nothing on a '
-                'Dartvel web page. The browser searches the document, and '
-                'Flutter draws the page\'s words on a canvas, so they are not '
-                'in the document. Find in page from a phone browser\'s menu '
-                'fails the same way.'),
-            DocsText('The proposal has three parts:'),
+            DocsText('Ctrl+F (Cmd+F on a Mac), and Find in page from a phone '
+                'browser\'s menu, find text on a Dartvel web page. The page '
+                'scrolls to the paragraph that matched and highlights it.'),
+            DocsText('Flutter draws the page\'s words on a canvas, and the '
+                'browser searches the document. So every page keeps a copy of '
+                'its text in the document where the browser can search it:'),
             Bullets(<String>[
-              'The browser\'s own find reaches the page. Each route\'s '
-                  'prerendered HTML already carries the page\'s text for '
-                  'crawlers, no-script readers and printers, hidden with '
-                  'display:none. It would be marked hidden="until-found" '
-                  'instead, which the browser can search. When a match lands '
-                  'there, the browser fires beforematch, and Dartvel scrolls '
-                  'the Flutter page to that paragraph and highlights it.',
-              'An in-app find bar in the page shell, for native builds and '
-                  'for browsers without until-found. Every page would have it '
-                  'with nothing to add, as it has keyboard scrolling today.',
-              'Generated record tables would register the rows they have not '
-                  'built yet, so a match in a row scrolled off screen is found too.',
+              'The build writes each page\'s text into its HTML for crawlers, '
+                  'no-script readers and printers. Each paragraph is marked '
+                  'hidden="until-found", which the browser searches and does '
+                  'not draw.',
+              'When a match lands in a paragraph, the browser fires '
+                  'beforematch. Dartvel scrolls the Flutter page to that '
+                  'paragraph, highlights it, and hides the copy again.',
+              'After you navigate, or when the page\'s content changes, the '
+                  'copy is rewritten from what the page has drawn. Find and '
+                  'printing follow the page on screen.',
+              'There is nothing to add to a page. @DVPage(findable: false) '
+                  'keeps a page\'s text out of the document.',
             ]),
             DocsText('A browser match names the paragraph and not the word, so '
-                'the first part scrolls to the paragraph. Browser support, '
-                'Safari in particular, is checked in the prototype before '
-                'anything is promised.'),
+                'the page scrolls to the paragraph. It works in Chrome, Edge '
+                'and other Chromium browsers, and in Firefox 139 and later. '
+                'Safari has not been checked yet. A browser without '
+                'until-found finds nothing on the page, as before.'),
+            DocsText('A list builds only the rows near the screen, so text in '
+                'a row that has not been built yet is not found.'),
+            DocsNote('Planned',
+                'An in-app find bar in the page shell, for native builds and '
+                'for browsers without until-found. Generated record tables '
+                'that register the rows they have not built, so a match in a '
+                'row off screen is found too. Neither is built yet.'),
             ExternalLink('Read the find in page proposal',
                 kFindInPageProposalUrl),
           ],
