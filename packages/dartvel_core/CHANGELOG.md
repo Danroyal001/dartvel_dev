@@ -1,3 +1,54 @@
+## Unreleased
+
+- **Breaking: the change capture machinery left the application barrel.**
+  `DVCapture`, `DVCaptureConsumer`, `DVCaptureSink`, `DVWarehouseSink`,
+  `DVCapturePrivacyAdapter`, `DVCaptureDeliveryJob`, `DVCaptureBackfillJob`,
+  `DVCapturedChange` and `DVCaptureBatch` are exported from `framework.dart`
+  only. Destinations are declared in `dartvel.capture`. `DVCaptureWriteError`
+  is still exported from `dartvel.dart`.
+
+- **`DVCaptureRuntime` runs change capture from `dartvel.capture`.** The
+  generated server configures it: the log with the declared retention, a
+  destination per declared destination (its connection read by secret name;
+  `DV-CDC-009` and skipped when unset), delivery and backfill on each
+  destination's own queue with retries and a backoff, a backfill for a
+  destination or data model never copied and for one left behind retention,
+  `dv_capture_lag_seconds`/`dv_capture_lag_changes` gauges (scraped at
+  `/metrics` as `dartvel_dv_capture_lag_*`) with
+  `DV-CDC-003`, hourly pruning, and the erasure adapter installed into
+  `DV.Privacy`.
+
+- **`DVCaptureConfig` parses `dartvel.capture`**, refusing an unknown key, a
+  destination type no adapter implements or a malformed duration
+  (`DV-CDC-006`), a connection written out instead of named (`DV-CDC-007`),
+  and a destination naming a data model that is not captured (`DV-CDC-008`).
+
+- **The capture log and its destination are storage-neutral.** The log, its
+  checkpoints and backfill state, and `DVWarehouseSink` are written through
+  the `DVRecordAdapter` operations rather than SQL, so they run on a store that
+  speaks none. `DVWarehouseSink(fieldType:)` replaces `columnType:` and takes a
+  `DVFieldType`; without it a field is typed by its first value. A field the
+  source contracts is emptied at the destination rather than dropped. The
+  log's flag and version columns are BIGINT; a PostgreSQL or MySQL log from an
+  earlier release is widened on start, or refused with its plan when it has
+  rows.
+
+- **A captured data model records to its database's log wherever it is
+  saved.** `DVCapture.configured` falls back to a log over the configured
+  database, so a worker, a script or a desktop app sharing the database is
+  captured too.
+
+- **Studio edits and replayed offline writes to a captured model are
+  captured.** `DVStudioModelSpec.capture` says a model is captured, through
+  the manifest as well.
+
+- **A backfill no longer skips another model's later changes.** A consumer
+  with a position is delivered up to the head before a copy moves its
+  checkpoint.
+
+- **`DVSqlRecordAdapter.ensure` adds a field a shape gained** since it was
+  last ensured in the same process.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person

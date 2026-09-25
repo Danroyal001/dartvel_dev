@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+Change data capture is declared, not wired. `@DVModel(capture: true)` on a data
+model and destinations under `dartvel.capture` in `pubspec.yaml` are all an
+application writes; the generated server records every write, delivers it on
+the job queue with retries, backfills a new destination, reports lag and takes
+erased records out of every copy.
+
+### Breaking
+
+- **The change capture machinery is no longer in `package:dartvel_core/dartvel.dart`.**
+  `DVCapture`, `DVCaptureConsumer`, `DVCaptureSink`, `DVWarehouseSink`,
+  `DVCapturePrivacyAdapter`, the delivery and backfill jobs and the change and
+  batch types moved to `package:dartvel_core/framework.dart`. An application
+  that built a log, a consumer or a sink, or called `ensureSchema`,
+  `configure`, `consumer`, `deliverAll`, `registerJobs` or `dispatchDelivery`,
+  declares its destinations instead:
+
+  ```yaml
+  dartvel:
+    capture:
+      retention: 7d
+      destinations:
+        warehouse:
+          type: database
+          connection: WAREHOUSE_URL   # the secret's name, never its value
+          models: [Order]
+          lagThreshold: 10m
+  ```
+
+  `DVCaptureWriteError` stays in the application barrel.
+- **`Model.backfillTo(consumer)` is no longer generated.** A destination that
+  has never been copied to, or a data model newly added to one, is backfilled
+  by the server.
+
 ## 0.6.0 — 2026-09-25
 
 Studio grows from a record browser into the place a team runs its application
