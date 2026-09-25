@@ -13,6 +13,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/privacy_command.dart';
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which a test of the privacy walk names.
+import 'package:dartvel_core/framework.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
