@@ -234,17 +234,11 @@ Dynamic segments come from the filename: `lib/pages/users/[id].dart` becomes
 
 ```dart
 @DVModel()
-class _User {
-  final String slug;
-  final String name;
-  final bool published;
-
-  const _User({
-    required this.slug,
-    required this.name,
-    required this.published,
-  });
-}
+class const _User({
+  required final String slug,
+  required final String name,
+  required final bool published,
+});
 ```
 
 Private again, and for the same reason: `_User` generates the public `User`,

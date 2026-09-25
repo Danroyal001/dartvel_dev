@@ -283,10 +283,7 @@ settings the annotation declared.
 
 ```dart
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class _SendWelcomeEmail {
-  final String userId;
-  const _SendWelcomeEmail({required this.userId});
-}
+class const _SendWelcomeEmail({required final String userId});
 
 @DVJob.handler()
 Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) =>
@@ -425,12 +422,11 @@ made offline is resolved when it reaches the server:
 
 ```dart
 @DVModel(offline: DVConflict.lastWriteWins)
-class _Dispatch {
-  final String id;
-  final String reference;
-  final int quantity;
-  const _Dispatch({required this.id, required this.reference, required this.quantity});
-}
+class const _Dispatch({
+  required final String id,
+  required final String reference,
+  required final int quantity,
+});
 ```
 
 The generated model builds both sides from the same declaration, so the
