@@ -208,6 +208,47 @@ void main() {
         reason: 'the same mutation id sent twice: $server.received');
   });
 
+  test('when the server keeps another write, the device is told', () async {
+    // Somebody else's later write already landed. The device's copy follows
+    // the server's, and a watcher of the model has to hear about it: a list
+    // that keeps showing the device's own value after the server discarded
+    // it is showing something that is no longer true anywhere.
+    final DVRecordTableRemote other = DVRecordTableRemote(
+      DVRecordTable(
+        table: 'orders',
+        key: 'id',
+        columns: const <String>['id', 'reference'],
+        types: const <String, String>{'id': 'TEXT', 'reference': 'TEXT'},
+        database: server.database,
+      ),
+      strategy: DVConflict.lastWriteWins,
+    );
+    await other.ensureSchema();
+    await other.applyDirect(<String, Object?>{'id': 'o1', 'reference': 'THEIRS'},
+        at: DateTime.now().toUtc().add(const Duration(hours: 1)));
+
+    final List<Object?> adopted = <Object?>[];
+    await DVOfflineSync.resetForTesting();
+    DVOfflineSync.register(
+      'Order',
+      (DVDatabaseAdapter database) => DVOfflineStore(
+        table: _device(database).table,
+        policy: const DVOffline(strategy: DVConflict.lastWriteWins),
+        onAdopted: (DVRecord record) => adopted.add(record.values['reference']),
+      ),
+    );
+    install();
+
+    final DVOfflineStore store = await DVOfflineSync.store('Order');
+    await store.write(<String, Object?>{'id': 'o1', 'reference': 'MINE'});
+    DVOfflineSync.written('Order');
+    await pumpUntil(
+        () async => store.syncStateOf('o1') == DVSyncState.conflicted);
+
+    expect((await store.read('o1'))!.values['reference'], 'THEIRS');
+    expect(adopted, <Object?>['THEIRS']);
+  });
+
   test('the device learns the server clock from the answer', () async {
     install();
     final DVOfflineStore store = await DVOfflineSync.store('Order');
