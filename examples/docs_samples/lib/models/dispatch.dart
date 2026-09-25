@@ -6,15 +6,9 @@ import 'package:dartvel_core/dartvel.dart';
 // store and the server side both come from the table, key and columns
 // declared here.
 @DVModel(offline: DVConflict.lastWriteWins)
-class _Dispatch {
-  final String id;
-  final String reference;
-  final int quantity;
-
-  const _Dispatch({
-    required this.id,
-    required this.reference,
-    required this.quantity,
-  });
-}
+class const _Dispatch({
+  required final String id,
+  required final String reference,
+  required final int quantity,
+});
 // docs:end

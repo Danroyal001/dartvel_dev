@@ -10,33 +10,13 @@ import 'package:dartvel_core/dartvel.dart';
   subject: DVSubject.field('authorId'),
   retain: DVRetention.indefinite,
 )
-class _Article {
-  final String slug;
-
-  @DVModel.pageTitle()
-  final String title;
-
-  @DVModel.mainContent()
-  final String body;
-
-  @DVModel.searchableField()
-  final String tags;
-
-  final bool published;
-
-  final String authorId;
-
-  @DVModel.sensitiveField()
-  final String editorNotes;
-
-  const _Article({
-    required this.slug,
-    required this.title,
-    required this.body,
-    required this.tags,
-    required this.published,
-    required this.authorId,
-    required this.editorNotes,
-  });
-}
+class const _Article({
+  required final String slug,
+  @DVModel.pageTitle() required final String title,
+  @DVModel.mainContent() required final String body,
+  @DVModel.searchableField() required final String tags,
+  required final bool published,
+  required final String authorId,
+  @DVModel.sensitiveField() required final String editorNotes,
+});
 // docs:end

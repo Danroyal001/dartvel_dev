@@ -33,27 +33,19 @@ final List<DVRouteNode> routes = <DVRouteNode>[
 ];
 // docs:end
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, this.tab});
-
-  final String? tab;
-
+class const SettingsScreen({super.key, final String? tab})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DVText(tab ?? 'Settings');
 }
 
-class RoastersScreen extends StatelessWidget {
-  const RoastersScreen({super.key});
-
+class const RoastersScreen({super.key}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const DVText('The roasters');
 }
 
-class RoasterScreen extends StatelessWidget {
-  const RoasterScreen({super.key, required this.person});
-
-  final String person;
-
+class const RoasterScreen({super.key, required final String person})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DVText(person);
 }

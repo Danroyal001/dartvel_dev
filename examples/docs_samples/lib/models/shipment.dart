@@ -8,18 +8,10 @@ import 'package:dartvel_core/dartvel.dart';
 // The subject is whose shipment it is, so an erasure reaches the row and the
 // copies made from it: a captured model still answers a deletion request.
 @DVModel(subject: DVSubject.self, capture: true)
-class _Shipment {
-  final String id;
-  final String reference;
-  final int total;
-  @DVModel.sensitiveField()
-  final String customerEmail;
-
-  const _Shipment({
-    required this.id,
-    required this.reference,
-    required this.total,
-    required this.customerEmail,
-  });
-}
+class const _Shipment({
+  required final String id,
+  required final String reference,
+  required final int total,
+  @DVModel.sensitiveField() required final String customerEmail,
+});
 // docs:end
