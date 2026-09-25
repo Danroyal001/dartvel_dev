@@ -9,12 +9,12 @@ import '../theme/palette.dart';
 /// the app is the on-device demo. Served by its own server it signs in
 /// against the accounts that server keeps, where the demo account does not
 /// exist, so the form starts empty there.
-class SignInForm extends StatefulWidget {
-  const SignInForm({super.key, required this.from});
+class const SignInForm({
+  super.key,
 
   /// Where to go once signed in: a path in this app, never another site.
-  final String from;
-
+  required final String from,
+}) extends StatefulWidget {
   @override
   State<SignInForm> createState() => _SignInFormState();
 }

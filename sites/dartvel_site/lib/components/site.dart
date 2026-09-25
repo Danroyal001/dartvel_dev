@@ -20,9 +20,7 @@ import 'record.dart';
 ///
 /// A value class rather than a widget: it answers questions, it does not
 /// draw.
-class Palette {
-  const Palette._(this.dark);
-
+class const Palette._(final bool dark) {
   factory Palette.of(BuildContext context) =>
       Palette._(Theme.of(context).brightness == Brightness.dark);
 
@@ -30,8 +28,6 @@ class Palette {
   /// for anything that has to reason about both modes at once.
   factory Palette.forBrightness(Brightness brightness) =>
       Palette._(brightness == Brightness.dark);
-
-  final bool dark;
 
   Color get ink => dark ? const Color(0xFFF2F5FA) : const Color(0xFF0B1020);
   Color get muted => dark ? const Color(0xFF9AA7BD) : const Color(0xFF5A6478);
@@ -61,11 +57,7 @@ class Palette {
 /// parameter list is a comma inside parentheses, which is the one shape a
 /// signature parser has to be careful about, and a name reads better at the
 /// call site than `.$1`.
-class Figure {
-  const Figure(this.value, this.label);
-  final String value;
-  final String label;
-}
+class const Figure(final String value, final String label);
 
 /// Where the site's claims can be checked: what each spec section has built,
 /// and what each build target has been verified to produce.

@@ -40,8 +40,13 @@ class _SendWelcomeEmail {
 }
 ''');
 
-    expect(generated, contains('class SendWelcomeEmail {'));
-    expect(generated, contains('final String userId;'));
+    expect(
+      generated,
+      contains(
+        'class const SendWelcomeEmail({required final String userId}) {',
+      ),
+    );
+    expect(generated, isNot(contains('required this.userId')));
     // Settings declared on the annotation, which DV.Jobs.dispatch cannot know.
     expect(generated, contains("static const String queue = 'mail';"));
     expect(generated, contains('static const int maxAttempts = 5;'));
@@ -263,7 +268,12 @@ Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) async =>
       expect(server, isNot(contains('(handleSendWelcomeEmail);')));
       // The payload and its codec are the server's too: a backend function
       // dispatches it and the queue has to encode it.
-      expect(server, contains('class SendWelcomeEmail {'));
+      expect(
+        server,
+        contains(
+          'class const SendWelcomeEmail({required final String userId}) {',
+        ),
+      );
       expect(server, contains('codecs.register<SendWelcomeEmail>('));
       expect(server, contains('dartvelClientOnlyJobHandlers'));
       expect(server, contains("'SendWelcomeEmail': "));

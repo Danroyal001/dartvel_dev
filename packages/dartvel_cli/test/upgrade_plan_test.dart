@@ -60,7 +60,7 @@ String _currentApp({String core = '^$_target'}) =>
     '''
 name: shop
 environment:
-  sdk: ">=3.12.0 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
 dependencies:
   flutter:
     sdk: flutter
@@ -69,8 +69,8 @@ dependencies:
 ''';
 
 const DVToolchainVersions _modernToolchain = DVToolchainVersions(
-  dart: '3.12.2',
-  flutter: '3.44.5',
+  dart: '3.13.4',
+  flutter: '3.47.5',
 );
 
 void main() {
@@ -245,7 +245,7 @@ void main() {
       final DVUpgradeItem flutter = item(
         await plan(
           toolchain: const DVToolchainVersions(
-            dart: '3.12.0',
+            dart: '3.13.0',
             flutter: '3.40.0',
           ),
         ),

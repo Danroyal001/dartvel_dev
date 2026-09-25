@@ -93,12 +93,9 @@ Future<void> seedOrderHistory(String email) async {
 /// runs on the device so the demo moves without one. It only ever saves the
 /// order, and the save is what every watcher hears -- the orders screen does
 /// not know the roastery exists.
-class Roastery {
-  Roastery({this.step = const Duration(seconds: 8)});
-
+class Roastery({final Duration step = const Duration(seconds: 8)}) {
   static Roastery instance = Roastery();
 
-  final Duration step;
   final Map<String, Timer> _timers = <String, Timer>{};
 
   void follow(String orderId) {

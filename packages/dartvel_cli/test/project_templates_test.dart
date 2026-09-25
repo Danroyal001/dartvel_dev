@@ -83,7 +83,7 @@ void main() {
       // that fails later, in a dependency, rather than at once.
       final pubspec = ProjectTemplates.pubspecTemplate(name: 'probe', org: 'dev.dartvel');
 
-      expect(pubspec, contains('">=3.12.0 <4.0.0"'));
+      expect(pubspec, contains('">=3.13.0 <4.0.0"'));
       expect(pubspec, isNot(contains('3.4.0')));
     });
   });

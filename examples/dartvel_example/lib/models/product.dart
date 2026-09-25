@@ -20,37 +20,25 @@ import 'package:dartvel_core/dartvel.dart';
 /// plausible number nothing catches.
 @DVModel(publicPathsResolver: productPaths, billable: true, nativePrice: 2499)
 @pragma('vm:entry-point')
-class _Product {
-  final String slug;
-  final String name;
+class const _Product({
+  required final String slug,
+  required final String name,
 
   /// Where it was grown, as the bag says it: "Huila, Colombia".
-  final String origin;
+  required final String origin,
 
   /// light, medium or dark.
-  final String roast;
+  required final String roast,
 
   /// What it tastes like, comma separated.
-  final String notes;
-  final String description;
+  required final String notes,
+  required final String description,
 
   /// The price of one bag, in cents of the native currency.
-  final int priceCents;
-  final int weightGrams;
-  final bool published;
-
-  const _Product({
-    required this.slug,
-    required this.name,
-    required this.origin,
-    required this.roast,
-    required this.notes,
-    required this.description,
-    required this.priceCents,
-    required this.weightGrams,
-    required this.published,
-  });
-}
+  required final int priceCents,
+  required final int weightGrams,
+  required final bool published,
+});
 
 /// The slugs static generation should render: the coffees on the shelf this
 /// week, not every one the roastery has ever sold.

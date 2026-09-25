@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 
-class Appearance {
-  const Appearance([this.mode = ThemeMode.system]);
-
-  final ThemeMode mode;
-}
+class const Appearance([final ThemeMode mode = ThemeMode.system]);
 
 void setAppearance(ThemeMode mode) {
   DV.Theme.setMode(mode);

@@ -24,7 +24,7 @@ on:
       flutter_ref:
         description: Flutter tag or commit to build the engine from
         required: false
-        default: "3.44.5"
+        default: "3.47.5"
       mode:
         description: Runtime mode
         required: false
@@ -79,7 +79,7 @@ jobs:
 
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.12.2
+          sdk: 3.13.4
 
       - name: Install build dependencies
         run: |

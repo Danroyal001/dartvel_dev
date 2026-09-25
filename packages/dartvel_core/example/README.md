@@ -51,21 +51,12 @@ import 'package:dartvel_core/dartvel.dart';
   subject: DVSubject.field('authorId'),
   retain: DVRetention.indefinite,
 )
-class _Article {
-  final String slug;
-  final String title;
-  final String authorId;
-
-  @DVModel.sensitiveField()
-  final String editorNotes;
-
-  const _Article({
-    required this.slug,
-    required this.title,
-    required this.authorId,
-    required this.editorNotes,
-  });
-}
+class const _Article({
+  required final String slug,
+  required final String title,
+  required final String authorId,
+  @DVModel.sensitiveField() required final String editorNotes,
+});
 ```
 
 A job:
@@ -76,10 +67,7 @@ import '../dartvel_client/jobs.g.dart'; // the job types, without Flutter
 import 'package:dartvel_core/dartvel.dart';
 
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
-class _SendWelcomeEmail {
-  final String userId;
-  const _SendWelcomeEmail({required this.userId});
-}
+class const _SendWelcomeEmail({required final String userId});
 
 @DVJob.handler()
 Future<void> _handleSendWelcomeEmail(SendWelcomeEmail job) =>

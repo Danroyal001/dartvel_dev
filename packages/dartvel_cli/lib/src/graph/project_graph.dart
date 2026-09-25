@@ -7,6 +7,7 @@ import 'package:yaml/yaml.dart';
 import '../generators/account_generator.dart';
 import '../generators/annotation_args.dart';
 import '../generators/route_utils.dart';
+import '../generators/primary_constructors.dart';
 import 'module_mounts.dart';
 
 /// A versioned description of what an application is made of.
@@ -66,8 +67,8 @@ class DartvelProjectGraph {
       final String rel =
           p.relative(file.path, from: root).replaceAll('\\', '/');
 
-      models.addAll(_modelsIn(source, rel));
-      jobs.addAll(_jobsIn(source, rel));
+      models.addAll(_modelsIn(dvDesugarPrimaryConstructors(source), rel));
+      jobs.addAll(_jobsIn(dvDesugarPrimaryConstructors(source), rel));
       if (rel.contains('/backend/functions/')) {
         functions.addAll(_functionsIn(source, rel));
       } else {

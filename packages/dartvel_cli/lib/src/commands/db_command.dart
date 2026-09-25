@@ -32,6 +32,7 @@ import 'package:yaml/yaml.dart';
 import '../adoption/local_schema.dart';
 import '../generators/annotation_args.dart';
 import '../graph/module_mounts.dart';
+import '../generators/primary_constructors.dart';
 import '../utils/logger.dart';
 
 class DbCommand extends Command<void> {
@@ -518,7 +519,7 @@ List<DartvelDbTable> _tablesIn(
   )) {
     if (entity.basename.endsWith('.dart') == false) continue;
     final sourceFile = File(entity.path);
-    final content = sourceFile.readAsStringSync();
+    final content = dvDesugarPrimaryConstructors(sourceFile.readAsStringSync());
     final matches = RegExp(
       r'@DVModel\s*\([^)]*\)\s*(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z0-9_]+)',
       dotAll: true,

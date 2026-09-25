@@ -8,28 +8,21 @@ import '../dartvel_client/dartvel_client.dart';
 /// A record rather than six copies of the same three strings: a page that is
 /// renamed or dropped is renamed or dropped once, and the index cannot get
 /// out of step with the pages it lists.
-class VersusPage {
-  const VersusPage({
-    required this.path,
-    required this.name,
-    required this.phrase,
-    required this.summary,
-  });
-
+class const VersusPage({
   /// Where the page is.
-  final String path;
+  required final String path,
 
   /// What it is being compared with, as that project writes its own name.
-  final String name;
+  required final String name,
 
   /// The thing people actually search for. It is the page's heading, and the
   /// reason the page exists: somebody typing "laravel for flutter" is asking
   /// a real question and every answer they find is a forum thread.
-  final String phrase;
+  required final String phrase,
 
   /// One sentence, for the card.
-  final String summary;
-}
+  required final String summary,
+});
 
 /// Every comparison page, in the order the index lists them.
 const List<VersusPage> kVersusPages = <VersusPage>[

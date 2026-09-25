@@ -30,11 +30,7 @@ Widget _dartvelMark(BuildContext context, {double size = 22, Color? color}) =>
 /// Public because a @DVFunctionalWidget body is lowered into the generated
 /// widget file, where a class private to this one cannot be seen. The
 /// generator says so rather than emitting code that will not compile.
-class DartvelMarkPainter extends CustomPainter {
-  const DartvelMarkPainter(this.color);
-
-  final Color? color;
-
+class const DartvelMarkPainter(final Color? color) extends CustomPainter {
   /// The D, with the dart as its counter.
   ///
   /// The same numbers the SVGs in `assets/brand` carry, in the same 512-unit

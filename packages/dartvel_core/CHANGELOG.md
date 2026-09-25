@@ -108,6 +108,18 @@
 - `DVOfflineStore(onAdopted:)` is called when replay replaces the device's
   copy with the server's.
 
+- **A `@DVHomeWidget` class with a primary constructor is named correctly.**
+  `class const NextShiftWidget({super.key}) extends StatelessWidget` was read
+  as a widget named `const`.
+
+- **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
+  is the first release with primary constructors
+  (`class Point(final int x, final int y);`), which the `dartvel create`
+  scaffold, the samples and generated data models are written with; on Dart
+  3.12 they are a compile error. Flutter 3.47.0 is the first stable release
+  that ships Dart 3.13.0. Raise `environment: sdk:` to `">=3.13.0 <4.0.0"`
+  and upgrade Flutter before taking this release.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person

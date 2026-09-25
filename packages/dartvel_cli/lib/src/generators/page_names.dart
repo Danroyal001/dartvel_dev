@@ -6,6 +6,7 @@
 library;
 
 import 'annotation_args.dart';
+import 'primary_constructors.dart';
 
 /// The class name generated for the page whose entrypoint is [symbol].
 String dvGeneratedPageWidgetName(String symbol) {
@@ -31,7 +32,10 @@ String dvGeneratedPageWidgetName(String symbol) {
 /// annotation carried `sitemap: DVPageSitemap(...)` was not a page at all,
 /// and its route was missing from the router with nothing said.
 String? dvPageSymbol(String source) {
-  final String flat = dvMaskAnnotationArgs(source, 'DVPage');
+  final String flat = dvMaskAnnotationArgs(
+    dvDesugarPrimaryConstructors(source),
+    'DVPage',
+  );
 
   final RegExpMatch? asClass = RegExp(
     r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(?:DartvelPage|DVClassWidget)',
