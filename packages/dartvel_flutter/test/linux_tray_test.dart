@@ -91,7 +91,7 @@ void main() {
   }
 
   Future<void> showTray({void Function(String id)? onSelected}) => const DVTray().show(
-        icon: 'dartvel-tray',
+        icon: _TrayIcon.dartvelTray,
         tooltip: 'Dartvel',
         menu: const <DVTrayMenuItem>[
           DVTrayMenuItem(id: 'open', label: 'Open'),
@@ -191,7 +191,7 @@ void main() {
 
   test('showing again replaces the menu rather than adding to it', () async {
     await showTray();
-    await const DVTray().show(icon: 'x', menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'only', label: 'Only')]);
+    await const DVTray().show(icon: _TrayIcon.x, menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'only', label: 'Only')]);
     final String service = watcher.registered.last;
 
     final DBusMethodSuccessResponse layout = await client.callMethod(
@@ -205,4 +205,19 @@ void main() {
     final DBusStruct root = layout.values[1] as DBusStruct;
     expect((root.children.last as DBusArray).children, hasLength(1));
   });
+}
+
+/// Tray icons as the generated DVAsset enum would name them. The paths are
+/// what the binding is handed.
+enum _TrayIcon implements DVAssetRef {
+  dartvelTray('dartvel-tray', DVAssetKind.image),
+  x('x', DVAssetKind.image);
+
+  const _TrayIcon(this.path, this.kind);
+
+  @override
+  final String path;
+
+  @override
+  final DVAssetKind kind;
 }

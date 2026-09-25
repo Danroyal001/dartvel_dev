@@ -624,7 +624,7 @@ void main() {
       final List<String> chosen = <String>[];
       try {
         await const DVTray().show(
-          icon: 'no-such-icon.ico',
+          icon: _TrayIcon.missing,
           tooltip: 'Dartvel',
           menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open'), DVTrayMenuItem(id: 'quit', label: 'Quit')],
           onSelected: chosen.add,
@@ -904,4 +904,18 @@ void main() {
       throwsA(isA<Object>()),
     );
   });
+}
+
+/// Tray icons as the generated DVAsset enum would name them. The paths are
+/// what the binding is handed.
+enum _TrayIcon implements DVAssetRef {
+  missing('no-such-icon.ico', DVAssetKind.image);
+
+  const _TrayIcon(this.path, this.kind);
+
+  @override
+  final String path;
+
+  @override
+  final DVAssetKind kind;
 }
