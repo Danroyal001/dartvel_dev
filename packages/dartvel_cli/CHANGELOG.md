@@ -5,6 +5,8 @@
   paragraph, that the browser's find searches. Before, the block was
   `display:none`, which find skips. Printing and the no-script view are
   unchanged.
+- **`@DVPage(findable: false)` reaches the page shell.** The generator
+  writes it into the page's `DVPageScaffoldSpec`, like `selectable`.
 
 ## 0.6.0
 
