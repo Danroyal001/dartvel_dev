@@ -71,6 +71,13 @@ void main() {
         .generatePublicPages, isTrue);
   });
 
+  test('seeing a sensitive field is a policy action of its own', () {
+    // Distinct from view: a policy that lets anybody read an article must
+    // not, by that alone, let anybody read its sensitive fields.
+    expect(DVPolicyAction.viewSensitive, 'viewSensitive');
+    expect(DVPolicyAction.viewSensitive, isNot(DVPolicyAction.view));
+  });
+
   test('a model annotation carries no field-scoped metadata', () {
     const model = DVModel();
 

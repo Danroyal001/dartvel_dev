@@ -142,7 +142,7 @@ void main() {
       );
       expect(dvModelPageData(typed, <String, Object?>{'slug': 'lamp', 'name': 'Desk lamp'}).structuredData,
           containsPair('@type', 'Product'));
-      expect(dvModelPageData(spec, <String, Object?>{'slug': 'lamp', 'name': 'Desk lamp'}).structuredData,
+      expect(dvModelPageData(spec, <String, Object?>{'slug': 'lamp', 'name': 'Desk lamp', 'published': 1}).structuredData,
           containsPair('@type', 'Thing'));
     });
 

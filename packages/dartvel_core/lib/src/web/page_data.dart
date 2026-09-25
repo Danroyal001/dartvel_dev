@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import '../cache/adapters.dart';
 import '../tenancy/tenants.dart';
+import 'model_page_access.dart';
 import 'page_text.dart';
 import 'seo_head.dart';
 
@@ -875,7 +876,32 @@ class DVModelPageSpec {
     this.publishedField,
     this.schemaType,
     this.favicon,
+    this.protectedFields = const <String>{},
+    this.personal = false,
+    this.viewPolicy = false,
   });
+
+  /// The fields no page data is ever made from: the model's
+  /// `@DVModel.sensitiveField()`s and the fields naming its privacy subject.
+  ///
+  /// Page data is what the head, the structured data, the crawler text and
+  /// the static build are made from, and it is cached per path and served to
+  /// everyone. So these stay out of it even for a viewer the model's
+  /// `viewSensitive` policy admits: that viewer sees them on the rendered
+  /// page, never in a document the next reader is handed. Applied here as
+  /// well as by the generator, so a spec that names one as the title, the
+  /// content or the image still does not publish it.
+  final Set<String> protectedFields;
+
+  /// Whether a row is its own privacy subject (`subject: DVSubject.self`):
+  /// every field is the person's, so no page data is made from one at all.
+  final bool personal;
+
+  /// Whether the application declares a `view` policy for this model, found
+  /// by the generator in its `@DVPolicy` classes -- including those only the
+  /// client can load. A server that has not registered it refuses rather
+  /// than read the model as having no policy.
+  final bool viewPolicy;
 
   final String model;
   final String route;
@@ -915,21 +941,31 @@ DVPageData dvModelPageData(
   Map<String, Object?> row, {
   String? applicationFavicon,
 }) {
-  String? text(Object? value) {
+  // A person's row, or one that is not published, is answered exactly as a
+  // row that is not there: the same data, so nothing about the response says
+  // which of the three it was.
+  if (spec.personal) return dvModelPageNotFound(spec);
+  final Object? published = spec.publishedField == null ? true : row[spec.publishedField];
+  final bool visible = published == true || published == 1 || '$published'.toLowerCase() == 'true';
+  if (!visible) return dvModelPageNotFound(spec);
+
+  // Read through this rather than the row, so a protected field cannot be
+  // reached from any of the places below whatever the spec names.
+  String? text(String? field) {
+    if (field == null || spec.protectedFields.contains(field)) return null;
+    final Object? value = row[field];
     if (value == null) return null;
     final String s = '$value'.trim();
     return s.isEmpty ? null : s;
   }
 
-  final String title = text(spec.titleField == null ? null : row[spec.titleField]) ?? text(row[spec.keyField]) ?? spec.model;
+  final String title = text(spec.titleField) ?? text(spec.keyField) ?? spec.model;
   String? content;
   for (final String field in spec.contentFields) {
-    final String? candidate = text(row[field]);
+    final String? candidate = text(field);
     if (candidate != null && (content == null || candidate.length > content.length)) content = candidate;
   }
-  final String? image = text(spec.imageField == null ? null : row[spec.imageField]);
-  final Object? published = spec.publishedField == null ? true : row[spec.publishedField];
-  final bool visible = published == true || published == 1 || '$published'.toLowerCase() == 'true';
+  final String? image = text(spec.imageField);
   return DVPageData(
     title: title,
     description: content,
@@ -948,15 +984,29 @@ DVPageData dvModelPageData(
       if (content != null) 'description': content,
       if (image != null) 'image': image,
     },
-    visibility: visible ? DVPageVisibility.public : DVPageVisibility.hidden,
+    visibility: DVPageVisibility.public,
   );
 }
 
 typedef DVPageQuery = Future<List<Map<String, Object?>>> Function(String sql, List<Object?> params);
 
+/// What a model page answers for a record that is not there -- and, so
+/// nothing distinguishes them, for one that is refused, unpublished or a
+/// person's: a hidden page, which the servers send as a 404 with none of the
+/// data, never a 403.
+DVPageData dvModelPageNotFound(DVModelPageSpec spec) =>
+    DVPageData(title: spec.model, visibility: DVPageVisibility.hidden);
+
 /// A resolver over [specs]: the request's pattern names the model, the
 /// parameter names the row, [query] reads it. A row that is not there is a
 /// hidden page; a pattern no spec owns is nobody's, null.
+///
+/// The model's view policy is asked as nobody, whoever sent the request.
+/// What this resolves is the head, the structured data and the crawler text,
+/// and it is kept per path and handed to every reader after this one -- so
+/// resolving it as a signed-in reader would serve their view of the record
+/// to everybody. A reader the policy admits sees the record on the page the
+/// client renders; the server's document describes what anybody may see.
 DVPageDataResolver dvModelPageResolver(
   List<DVModelPageSpec> specs,
   DVPageQuery query, {
@@ -967,6 +1017,8 @@ DVPageDataResolver dvModelPageResolver(
       if (spec.route != request.pattern) continue;
       final String? key = request.params[spec.param];
       if (key == null) return null;
+      // Not even read: nothing of a person's row is ever page data.
+      if (spec.personal) return dvModelPageNotFound(spec);
       // Resolved here rather than stored in the spec. Under
       // schemaPerTenant the table name depends on which tenant is asking,
       // and the spec list is built once for the process -- so a resolved
@@ -976,10 +1028,20 @@ DVPageDataResolver dvModelPageResolver(
         'WHERE ${spec.keyField} = ?',
         <Object?>[key],
       );
-      if (rows.isEmpty) return DVPageData(title: spec.model, visibility: DVPageVisibility.hidden);
+      if (rows.isEmpty) return dvModelPageNotFound(spec);
+      final Map<String, Object?> row = rows.first;
+      if (!await const DVModelPageAccess().mayView(
+        spec.model,
+        null,
+        row,
+        personal: spec.personal,
+        declaredViewPolicy: spec.viewPolicy,
+      )) {
+        return dvModelPageNotFound(spec);
+      }
       return dvModelPageData(
         spec,
-        rows.first,
+        row,
         applicationFavicon: applicationFavicon,
       );
     }

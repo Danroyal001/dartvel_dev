@@ -854,6 +854,13 @@ class DVPolicy {
 class DVPolicyAction {
   static const viewAny = 'viewAny';
   static const view = 'view';
+
+  /// Whether the caller may see a record's `@DVModel.sensitiveField()`s, and
+  /// the fields naming its privacy subject, where they would otherwise be
+  /// left out -- on the record's generated page. Separate from [view]
+  /// because a policy that lets anybody read an article must not, by that
+  /// alone, let anybody read its editor's notes. Nothing registered refuses.
+  static const viewSensitive = 'viewSensitive';
   static const create = 'create';
   static const update = 'update';
   static const delete = 'delete';
