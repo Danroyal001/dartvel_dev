@@ -69,13 +69,13 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
             Heading('One class, and the boring files are already written.'),
             Body('A model declares fields. From that come the table, the '
                 'typed client, a form with validation and error messages, a '
-                'table widget, an admin screen and, if you ask for them, '
+                'table widget, an admin screen and, unless you opt out, '
                 'public pages with their own sitemap entries. rails generate '
                 'scaffold writes much of the same once, as files you then '
                 'own and edit; here they are regenerated from the class '
                 'whenever it changes.'),
             CodeBlock(<String>[
-              '@DVModel(generatePublicPages: true)',
+              '@DVModel()',
               'class const _Article({',
               '  required final String slug,',
               '  @DVModel.pageTitle() required final String title,',
