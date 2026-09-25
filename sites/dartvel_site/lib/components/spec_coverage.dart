@@ -113,7 +113,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Schema Evolution', 'Data', DVRoutes.docsdatabase,
       'Migrate production safely', anchor: 'production'),
   SpecCoverage('Cache', 'Data', DVRoutes.docscache,
-      'Remember a value and revalidate it by tag', anchor: 'remember'),
+      'Compute a value on a miss', anchor: 'compute'),
   SpecCoverage('File Storage', 'Data', DVRoutes.docsstorage,
       'Configure a storage adapter', anchor: 'configure'),
   SpecCoverage('Data Compliance and Lifecycle', 'Data', DVRoutes.docsprivacy,
