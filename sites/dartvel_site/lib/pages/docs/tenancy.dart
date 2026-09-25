@@ -102,8 +102,8 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
               'schema-per-tenant and database-per-tenant do not create the '
                   'schemas or databases.',
               'Hosted search engines are not scoped by tenant.',
-              'database-per-tenant is opened by code you write, not chosen '
-                  'from configuration.',
+              'database-per-tenant is opened by code you write. Configuration '
+                  'cannot select it yet.',
             ]),
           ],
         ),

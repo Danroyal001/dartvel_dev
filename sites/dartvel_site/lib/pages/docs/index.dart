@@ -182,7 +182,8 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             DocsCode('start-configure'),
             DocsText('These are the in-memory versions for development. Each '
                 'topic page shows the production adapters.'),
-            DocsText('The database is configuration, not code. The generated '
+            DocsText('You set the database in configuration and write no code '
+                'for it. The generated '
                 'backend opens DATABASE_URL for your data models and jobs.'),
             DocsShell(<String>[
               '# .env',
