@@ -7,7 +7,9 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'policy_classes.dart';
 import 'primary_constructors.dart';
+import 'public_pages.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
 import '../utils/helpers.dart';
@@ -26,8 +28,14 @@ class ModelGenerator {
     /// Accepted and not written anywhere. A build id in generated files
     /// rewrote every file on every build.
     String? buildId,
+    Set<String> takenRoutes = const <String>{},
   }) async {
     final String searchTuningSrc = _searchTuningSource(root);
+    // The models the application declares a view policy for, wherever the
+    // class is -- including one only the client can load. The server's page
+    // resolver is told, so it refuses rather than read a policy it cannot
+    // load as no policy at all.
+    final Set<String> viewPolicies = _viewPolicyResources(root);
     // Null for an ordinary application. Set only when this project is
     // itself a Dartvel module, in which case its models resolve their table
     // and their database through whatever mounted it.
@@ -183,9 +191,6 @@ class ModelGenerator {
           r'\bpageDataMode\s*:\s*DVModelPageDataMode\.([A-Za-z0-9_]+)',
         ).firstMatch(modelArgs);
         final pageDataMode = pageDataModeMatch?.group(1) ?? 'auto';
-        final generatesPublicPages = modelArgs.contains(
-          RegExp(r'\bgeneratePublicPages\s*:\s*true\b'),
-        );
         // The schema.org type the public page is, declared rather than
         // guessed from the model's name.
         final schemaType = RegExp(r'''\bschemaType\s*:\s*['"]([A-Za-z0-9_]+)['"]''')
@@ -451,6 +456,29 @@ class ModelGenerator {
           }
         }
 
+        // Whether this model gets a page per record, keyed by what, and which
+        // fields no page may show: every model does unless it opts out, and
+        // the router and the static-path manifest read the same decision.
+        final DVPublicPages publicPages = DVPublicPages.of(
+          className: className,
+          modelArgs: modelArgs,
+          fields: <DVPublicPagesField>[
+            for (final Map<String, String> f in fields)
+              (type: f['type']!, name: f['name']!),
+          ],
+          sensitive: sensitiveFieldNames,
+          takenRoutes: takenRoutes,
+        );
+        final bool generatesPublicPages = publicPages.generates;
+        if (publicPages.skipped case final String note) {
+          stderr.writeln('dartvel: $note');
+        }
+        // The page's protected fields: sensitive ones and those naming the
+        // privacy subject, every field for a row that is a person. Shown on
+        // the page to a viewer the viewSensitive policy admits, and nowhere
+        // else a page reaches.
+        final Set<String> protectedFields = publicPages.protectedFields;
+
         // Generated model pages compose fields semantically rather than
         // dumping them in declaration order. These field annotations override
         // what the composition would otherwise infer, and live under the
@@ -465,9 +493,16 @@ class ModelGenerator {
           return match?.group(1);
         }
 
-        final featuredImageField = singleAnnotatedField('featuredImage');
-        final pageTitleField = singleAnnotatedField('pageTitle');
-        final mainContentField = singleAnnotatedField('mainContent');
+        // A protected field is never the page's image, title or content,
+        // whatever it is annotated as: those are what the head, the
+        // structured data and the crawler text are made from.
+        String? unprotected(String? name) =>
+            name == null || protectedFields.contains(name) ? null : name;
+        final featuredImageField =
+            unprotected(singleAnnotatedField('featuredImage'));
+        final pageTitleField = unprotected(singleAnnotatedField('pageTitle'));
+        final mainContentField =
+            unprotected(singleAnnotatedField('mainContent'));
 
         final hiddenPageFields = <String>{};
         for (final m in RegExp(
@@ -545,7 +580,7 @@ class ModelGenerator {
         // spec picks the longest non-empty text, which is only known at render
         // time — so the generator emits the candidates and the page chooses.
         bool isPageVisible(String name) =>
-            !sensitiveFieldNames.contains(name) &&
+            !protectedFields.contains(name) &&
             !hiddenPageFields.contains(name);
 
         String baseType(String type) =>
@@ -781,12 +816,16 @@ class ModelGenerator {
           '  static const ${className}PageComponent Page = ${className}PageComponent._();',
         );
         if (generatesPublicPages) {
-          final publicPathField = _publicPathField(fields);
-          final publishedField = _publishedField(fields);
+          final publicPathField = publicPages.keyField!;
+          final publishedField = publicPages.publishedField;
+          final bool personal = publicPages.personal;
+          final bool viewPolicy = viewPolicies.contains(className);
+          final String protectedLiteral =
+              '<String>{${(protectedFields.toList()..sort()).map((String n) => "'$n'").join(', ')}}';
           pageSpecs.add(
             '  DVModelPageSpec(\n'
             "    model: '$className',\n"
-            "    route: '/${_pluralRouteSegment(className)}/:$publicPathField',\n"
+            "    route: '${publicPages.route}',\n"
             "    param: '$publicPathField',\n"
             '    table: $tableExpr,\n'
             "    keyField: '$publicPathField',\n"
@@ -796,8 +835,17 @@ class ModelGenerator {
             "    publishedField: ${publishedField == null ? 'null' : "'$publishedField'"},\n"
             "    schemaType: ${schemaType == null ? 'null' : "'$schemaType'"},\n"
             "    favicon: ${favicon == null ? 'null' : "'${esc(favicon)}'"},\n"
+            '    protectedFields: $protectedLiteral,\n'
+            '    personal: $personal,\n'
+            '    viewPolicy: $viewPolicy,\n'
             '  ),',
           );
+          // Who may have a record's page, asked the way the GraphQL
+          // resolvers ask: the request's caller where a server authenticated
+          // one, and DV.Auth.currentUser otherwise.
+          String mayView(String viewer, String record) =>
+              "const DVModelPageAccess().mayView('$className', $viewer, "
+              '$record, personal: $personal, declaredViewPolicy: $viewPolicy)';
           sb.writeln();
           sb.writeln(
             '  static FutureOr<Iterable<String>> Function()? _publicStaticPathsResolver;',
@@ -806,8 +854,7 @@ class ModelGenerator {
           sb.writeln(
             '  /// Registers the published-record path resolver used by static',
           );
-          sb.writeln(
-              '  /// generation for @DVModel(generatePublicPages: true).');
+          sb.writeln('  /// generation for this model\'s public pages.');
           sb.writeln(
             '  static void usePublicStaticPathsResolver(',
           );
@@ -821,6 +868,10 @@ class ModelGenerator {
           sb.writeln(
             '  /// Resolves public page path values for generated static paths.',
           );
+          sb.writeln('  ///');
+          sb.writeln('  /// Only records anybody may see: published, and admitted');
+          sb.writeln('  /// by the model\'s view policy asked as nobody, because a');
+          sb.writeln('  /// static page and the sitemap are handed to everyone.');
           sb.writeln(
               '  static Future<core.List<String>> publicStaticPaths() async {');
           sb.writeln('    final resolver = _publicStaticPathsResolver;');
@@ -831,26 +882,35 @@ class ModelGenerator {
           sb.writeln('    );');
           sb.writeln('    return values.toList(growable: false);');
           sb.writeln('    }');
-          sb.writeln(
-            // DV.Database for an application, unchanged: it is const
-            // DVDatabase() by another name, and this feature has no reason
-            // to rewrite output it does not change the meaning of.
-            "    final rows = await ${ownModuleId == null ? 'DV.Database' : '_dvModule.database'}.query('select * from $tableRef');",
-          );
-          sb.writeln('    return rows');
-          sb.writeln('        .map(${className}Parser.fromJson)');
-          if (publishedField != null) {
-            sb.writeln('        .where((model) => model.$publishedField)');
+          if (personal) {
+            // Every field of a person's row is theirs, the key included, and
+            // a static page or a sitemap entry is published to everybody.
+            sb.writeln('    return const <String>[];');
+          } else {
+            sb.writeln(
+              // DV.Database for an application, unchanged: it is const
+              // DVDatabase() by another name, and this feature has no reason
+              // to rewrite output it does not change the meaning of.
+              "    final rows = await ${ownModuleId == null ? 'DV.Database' : '_dvModule.database'}.query('select * from $tableRef');",
+            );
+            sb.writeln('    final paths = <String>[];');
+            sb.writeln('    for (final row in rows) {');
+            sb.writeln('      final model = ${className}Parser.fromJson(row);');
+            if (publishedField != null) {
+              sb.writeln('      if (!model.$publishedField) continue;');
+            }
+            sb.writeln('      if (!await ${mayView('null', 'model')}) continue;');
+            sb.writeln('      paths.add(model.$publicPathField);');
+            sb.writeln('    }');
+            sb.writeln('    return paths;');
           }
-          sb.writeln('        .map((model) => model.$publicPathField)');
-          sb.writeln('        .toList(growable: false);');
           sb.writeln('  }');
           sb.writeln();
           sb.writeln(
             '  /// Route generated for public [$className] pages.',
           );
           sb.writeln(
-            "  static const String publicPageRoute = '/${_pluralRouteSegment(className)}/:$publicPathField';",
+            "  static const String publicPageRoute = '${publicPages.route}';",
           );
           sb.writeln(
             "  /// The path parameter [publicPageRoute] carries.",
@@ -861,23 +921,58 @@ class ModelGenerator {
           sb.writeln();
           sb.writeln('  /// The page at [publicPageRoute], ready to route to.');
           sb.writeln('  ///');
-          sb.writeln('  /// generatePublicPages promised public pages and');
-          sb.writeln('  /// produced only a list of paths: nothing generated a');
-          sb.writeln('  /// route, so every one of those paths led to the');
-          sb.writeln("  /// application's own not-found page. This is what the");
-          sb.writeln('  /// generated router renders for them.');
+          sb.writeln('  /// A record that is not there, is not published, or that');
+          sb.writeln('  /// the model\'s view policy refuses this reader all render');
+          sb.writeln('  /// the same not-found page, so a page never says that a');
+          sb.writeln('  /// record exists. The protected fields are shown only to a');
+          sb.writeln('  /// reader the viewSensitive policy admits.');
           sb.writeln('  static Widget publicPage(String $publicPathField) {');
+          sb.writeln('    bool revealProtected = false;');
           sb.writeln('    return Page.fromId(');
           sb.writeln('      $publicPathField,');
           sb.writeln('      findById: (String value) async {');
           sb.writeln('        final found = await find(value);');
-          sb.writeln('        if (found == null) {');
+          sb.writeln(
+              "        final viewer = DVBackendPolicy.callerFor('$className.view') ??");
+          sb.writeln('            const DVAuth().currentUser;');
+          sb.writeln('        if (found == null ||');
+          if (publishedField != null) {
+            sb.writeln('            !found.$publishedField ||');
+          }
+          sb.writeln('            !await ${mayView('viewer', 'found')}) {');
           sb.writeln("          throw StateError('No $className for \"'");
           sb.writeln("              '\$value\".');");
           sb.writeln('        }');
+          sb.writeln('        revealProtected = await const DVModelPageAccess()');
+          sb.writeln("            .mayViewProtected('$className', viewer, found);");
           sb.writeln('        return found;');
           sb.writeln('      },');
+          sb.writeln('      builder: (model) => revealProtected');
+          sb.writeln('          ? DVBox.list([PageBody(model), _dvProtectedPageFields(model)])');
+          sb.writeln('          : PageBody(model),');
           sb.writeln('    );');
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// The protected fields a page shows a reader the');
+          sb.writeln('  /// viewSensitive policy admits, and nobody else.');
+          sb.writeln('  static Widget _dvProtectedPageFields($className model) {');
+          sb.writeln('    return DVBox.list([');
+          for (final Map<String, String> field in fields) {
+            final String name = field['name']!;
+            if (!protectedFields.contains(name) ||
+                hiddenPageFields.contains(name)) {
+              continue;
+            }
+            final String type = baseType(field['type']!);
+            if (type == 'DVImage') {
+              sb.writeln('      DVImageView(model.$name),');
+            } else if (type == 'DVSceneAsset') {
+              sb.writeln('      DVModel3DViewer(model.$name),');
+            } else {
+              sb.writeln('      DVText(model.$name.toString()),');
+            }
+          }
+          sb.writeln('    ]);');
           sb.writeln('  }');
         }
         sb.writeln();
@@ -3213,6 +3308,29 @@ class ModelGenerator {
     return null;
   }
 
+  /// The models an `@DVPolicy` class anywhere under [root]'s `lib/` answers
+  /// `view` for.
+  static Set<String> _viewPolicyResources(String root) {
+    final Directory lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return const <String>{};
+    final Set<String> resources = <String>{};
+    for (final FileSystemEntity entity
+        in lib.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final String rel =
+          p.relative(entity.path, from: root).replaceAll(r'\', '/');
+      if (rel.contains('dartvel_client/') || rel.endsWith('.g.dart')) continue;
+      final String source = entity.readAsStringSync();
+      if (!source.contains('@DVPolicy(')) continue;
+      for (final DVPolicyClass policy in dvPolicyClassesIn(source, rel)) {
+        if (policy.methods.any((DVPolicyMethod m) => m.action == 'view')) {
+          resources.add(policy.resource);
+        }
+      }
+    }
+    return resources;
+  }
+
   static String _publicPathField(List<Map<String, String>> fields) {
     final stringFields = fields
         .where((field) => field['type'] == 'String')
@@ -3228,31 +3346,6 @@ class ModelGenerator {
     );
   }
 
-  static String? _publishedField(List<Map<String, String>> fields) {
-    final boolFields = fields
-        .where((field) => field['type'] == 'bool')
-        .map((field) => field['name']!)
-        .toList(growable: false);
-    if (boolFields.contains('published')) return 'published';
-    if (boolFields.contains('isPublished')) return 'isPublished';
-    return null;
-  }
-
-  static String _pluralRouteSegment(String className) {
-    final buffer = StringBuffer();
-    for (var index = 0; index < className.length; index += 1) {
-      final char = className[index];
-      final lower = char.toLowerCase();
-      if (index > 0 && char != lower) buffer.write('-');
-      buffer.write(lower);
-    }
-    final singular = buffer.toString();
-    if (singular.endsWith('s')) return singular;
-    if (singular.endsWith('y')) {
-      return '${singular.substring(0, singular.length - 1)}ies';
-    }
-    return '${singular}s';
-  }
 
 
   /// This project's own module id, when the project is a Dartvel module.
