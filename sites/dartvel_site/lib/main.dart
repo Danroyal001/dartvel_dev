@@ -11,7 +11,7 @@ void main() {
 /// machine to dark has already answered the question, and handing them white
 /// is the site overriding an answer it was given.
 Widget createDartvelApp() => MaterialApp.router(
-      title: 'Dartvel: a Flutter app and its backend in one Dart project',
+      title: 'Dartvel: the full-stack platform for Flutter in one Dart project',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: dartvelSiteTheme(Brightness.light),

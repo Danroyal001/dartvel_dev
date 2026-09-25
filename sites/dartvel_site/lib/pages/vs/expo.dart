@@ -68,6 +68,9 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
                 <String>['TVs and embedded', 'No', 'Tizen, webOS, tvOS, Android TV, embedded Linux'],
               ],
             ),
+            UpstreamCredits(ids: <String>[
+              'tizen', 'webos', 'tvos', 'elinux', 'vscode',
+            ]),
           ],
         ),
         Section(

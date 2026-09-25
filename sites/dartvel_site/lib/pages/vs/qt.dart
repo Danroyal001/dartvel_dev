@@ -46,6 +46,9 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
               'dartvel build webos        # LG',
               'dartvel build sony-elinux  # embedded Linux',
             ]),
+            UpstreamCredits(ids: <String>[
+              'tizen', 'webos', 'elinux', 'tvos', 'flt',
+            ]),
           ],
         ),
         Section(

@@ -42,6 +42,9 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                   'target too).',
               'You can still test on an iPhone without one. See below.',
             ]),
+            UpstreamCredits(ids: <String>[
+              'tizen', 'webos', 'elinux', 'vscode', 'tvos',
+            ]),
           ],
         ),
         Section(

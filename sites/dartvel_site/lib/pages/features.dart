@@ -700,6 +700,22 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       tint: true,
       children: <Widget>[
+        Eyebrow('BUILT ON'),
+        Heading('The projects under the build targets and updates.', level: 2),
+        Body('The TV, embedded, extension and terminal targets run on '
+            'embedders other people wrote. Dartvel keeps a pinned fork of '
+            'each, and the building docs list what every fork changes.'),
+        UpstreamCredits(
+          ids: <String>[
+            'tizen', 'elinux', 'webos', 'fuchsia', 'vscode', 'tvos', 'flt',
+          ],
+        ),
+        UpstreamCredit('shorebird', lead: 'DV.Updates runs on the'),
+        UpstreamCredit('flutter', lead: 'Every target is built on'),
+      ],
+    ),
+    Section(
+      children: <Widget>[
         Eyebrow('START'),
         Heading('Try the shipped parts in a new app.'),
         Objection(
