@@ -219,8 +219,14 @@ class DVOfflineReplay {
         ...dvOutcomeToJson(outcome, sensitive: remote.sensitiveColumns),
       });
     }
-    return DVOfflineReplayResult(200, 'applied',
-        body: <String, Object?>{'outcomes': outcomes});
+    return DVOfflineReplayResult(200, 'applied', body: <String, Object?>{
+      'outcomes': outcomes,
+      // Read after the batch, so it is no earlier than any write it applied.
+      // The device takes its clock offset from this: nothing else it
+      // receives carries the server's time, and without it a phone whose
+      // owner moved the date forward would win every conflict.
+      'serverTime': DateTime.now().toUtc().toIso8601String(),
+    });
   }
 
   /// A mutation, or null when what arrived is not one.

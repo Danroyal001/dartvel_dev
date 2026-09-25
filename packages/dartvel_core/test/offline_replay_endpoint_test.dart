@@ -374,6 +374,53 @@ void main() {
       expect(remote.table.types!.keys, containsAll(remote.table.columns));
     });
 
+    test('applies a write on a database nobody prepared by hand', () async {
+      // The generated route builds its registry per request and calls
+      // handle(); nothing on that path created the table of applied mutation
+      // ids or the clock table, so the first replay against a real backend
+      // failed on a missing table and was answered as a server error -- and
+      // the device, reading that as transient, retried for ever.
+      // SQLite rather than the development database, which makes a table on
+      // first insert and reads a missing one as empty -- and so hid this.
+      final SqliteDVDatabaseAdapter fresh = SqliteDVDatabaseAdapter.memory();
+      const DVAuthAuthorization().registerAction(
+          'Order.create', (Object? caller, Object? resource) => true);
+      addTearDown(DVAuthAuthorization.reset);
+
+      final DVOfflineReplayResult result = await DVOfflineReplay.forSpecs(
+        <DVStudioModelSpec>[spec(offline: DVConflict.lastWriteWins)],
+        database: fresh,
+      ).handle(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      expect(result.status, 200);
+      final Map<String, Object?> outcome =
+          (result.body['outcomes']! as List<Object?>).single!
+              as Map<String, Object?>;
+      expect(outcome['rejection'], isNull);
+      final List<Map<String, Object?>> rows =
+          await fresh.query('SELECT reference FROM orders');
+      expect(rows.single['reference'], 'R-1');
+    });
+
+    test('answers with its own time, so a device can correct its clock',
+        () async {
+      // Last-write-wins compares device stamps corrected by the offset the
+      // device last observed. Nothing a device received carried the server's
+      // time, so the offset stayed zero and a phone whose owner changed the
+      // date won every conflict.
+      final DateTime before = DateTime.now().toUtc();
+      final DVOfflineReplayResult result = await replay(<String, Object?>{
+        'model': 'Order',
+        'mutations': <Object?>[_mutation()],
+      });
+
+      final DateTime at = DateTime.parse('${result.body['serverTime']}');
+      expect(at.isBefore(before.subtract(const Duration(seconds: 1))), isFalse);
+    });
+
     test('nothing offline means an empty registry, not an open door', () {
       final DVOfflineReplay replay =
           DVOfflineReplay.forSpecs(<DVStudioModelSpec>[], database: database);
