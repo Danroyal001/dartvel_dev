@@ -41,7 +41,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  FLUTTER_VERSION: 3.44.5
+  FLUTTER_VERSION: 3.47.5
   # inputs.* exists only on workflow_dispatch. On a push it is the empty
   # string, which turned the engine URL into a directory listing and 404'd the
   # eLinux job the moment this workflow started running on pushes. The default
@@ -61,7 +61,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install desktop and capture dependencies
         run: |
@@ -217,7 +217,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install the virtual device and build dependencies
         run: |
@@ -447,7 +447,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install dependencies
         run: |
@@ -597,7 +597,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install capture dependencies
         run: |
@@ -725,7 +725,7 @@ jobs:
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Enable KVM
         run: |
@@ -849,7 +849,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -941,7 +941,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Generate and build
         shell: pwsh
@@ -1018,7 +1018,7 @@ jobs:
       # needs a dart on PATH — without this the job dies on "dart: command not
       # found" after installing the whole embedder.
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install the tvOS embedder
         id: embedder
@@ -1094,7 +1094,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install capture dependencies
         run: |
@@ -1306,7 +1306,7 @@ jobs:
       - run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
 
       - name: Install Firefox and capture tools
@@ -1442,7 +1442,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -1493,7 +1493,7 @@ jobs:
       - run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
 
       - name: Build the site for a server
@@ -1667,7 +1667,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.44.5
+          flutter-version: 3.47.5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -1679,7 +1679,7 @@ jobs:
           set -euo pipefail
           mkdir -p engine
           curl -sSL -o engine.tar.gz \
-            https://github.com/Danroyal001/dartvel_webos/releases/download/engine-arm-3.44.5/engine-linux-arm-release-3.44.5.tar.gz
+            https://github.com/Danroyal001/dartvel_webos/releases/download/engine-arm-3.47.5/engine-linux-arm-release-3.47.5.tar.gz
           tar -xzf engine.tar.gz -C engine
           ls -la engine
 
@@ -1926,7 +1926,7 @@ jobs:
           # The engine's own header. A hand copy of FlutterRendererConfig is
           # how the first attempt got kInvalidArguments: it is a union with no
           # struct_size, and the copy was a struct with one.
-          curl -sSLO https://raw.githubusercontent.com/flutter/flutter/3.44.5/engine/src/flutter/shell/platform/embedder/embedder.h
+          curl -sSLO https://raw.githubusercontent.com/flutter/flutter/3.47.5/engine/src/flutter/shell/platform/embedder/embedder.h
           mv embedder.h flutter_embedder.h
 
           cp "$OUT/lib/"*.so .
@@ -1976,7 +1976,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.44.5', channel: stable, cache: true }
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
       - name: Build the site as a PWA
         run: |
