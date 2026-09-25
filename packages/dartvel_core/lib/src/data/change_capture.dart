@@ -22,9 +22,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import '../../dartvel.dart' show DVJobEnvelope, DVQueues;
+import '../../dartvel.dart'
+    show DVJobEnvelope, DVJobPayloadCodec, DVJobPayloadCodecs, DVQueues;
 import '../database/adapter.dart';
-import '../database/framework_tables.dart';
+import '../database/records.dart';
 import '../observability/observability.dart';
 import '../privacy/privacy.dart';
 import '../tenancy/tenants.dart';
@@ -312,6 +313,15 @@ class DVCaptureBackfillProgress {
 class DVCaptureDeliveryJob {
   const DVCaptureDeliveryJob(this.consumer);
   final String consumer;
+
+  /// What a queue shared between processes stores the job under.
+  static const String codecName = 'dartvel.capture.delivery';
+
+  static Map<String, Object?> encode(DVCaptureDeliveryJob job) =>
+      <String, Object?>{'consumer': job.consumer};
+
+  static DVCaptureDeliveryJob decode(Map<String, Object?> json) =>
+      DVCaptureDeliveryJob('${json['consumer']}');
 }
 
 /// The job that copies one chunk of a model's rows to a consumer, and queues
@@ -330,6 +340,27 @@ class DVCaptureBackfillJob {
   final int chunkSize;
   final String? tenantColumn;
   final String queue;
+
+  /// What a queue shared between processes stores the job under.
+  static const String codecName = 'dartvel.capture.backfill';
+
+  static Map<String, Object?> encode(DVCaptureBackfillJob job) =>
+      <String, Object?>{
+        'consumer': job.consumer,
+        'model': job.model,
+        'chunkSize': job.chunkSize,
+        'tenantColumn': job.tenantColumn,
+        'queue': job.queue,
+      };
+
+  static DVCaptureBackfillJob decode(Map<String, Object?> json) =>
+      DVCaptureBackfillJob(
+        consumer: '${json['consumer']}',
+        model: '${json['model']}',
+        chunkSize: (json['chunkSize'] as num?)?.toInt() ?? 500,
+        tenantColumn: json['tenantColumn'] as String?,
+        queue: '${json['queue'] ?? 'default'}',
+      );
 }
 
 final RegExp _identifier = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
@@ -341,27 +372,66 @@ String _checkIdentifier(String name) {
   return name;
 }
 
+/// The fields of the log, each change one record.
+const Map<String, DVFieldType> _logFields = <String, DVFieldType>{
+  // Sequences and the write order are 64 bits: the log outlives any 32-bit
+  // count, and the write order is microseconds times a thousand. Keys, rows
+  // and times are JSON or ISO-8601 text; flags are 0 or 1.
+  'change_id': DVFieldType.text,
+  'change_seq': DVFieldType.integer,
+  'model': DVFieldType.text,
+  'record_key': DVFieldType.text,
+  'operation': DVFieldType.text,
+  'record_version': DVFieldType.integer,
+  'tenant': DVFieldType.text,
+  'transaction_id': DVFieldType.text,
+  'occurred_at': DVFieldType.text,
+  'write_order': DVFieldType.integer,
+  'published_at': DVFieldType.text,
+  'row_values': DVFieldType.text,
+  'redacted': DVFieldType.text,
+  'erased': DVFieldType.integer,
+  'purged': DVFieldType.integer,
+};
+
 /// The capture log for one database.
+///
+/// Stored through the record operations every engine implements
+/// ([DVRecordAdapter]), never through SQL, so the log lives wherever the
+/// application's data does: a SQL table, or a document database's
+/// collection.
 class DVCapture {
   static DVCapture? _configured;
+  /// How long a published change is kept when nothing declared a retention.
+  static const Duration defaultRetention = Duration(days: 7);
 
-  /// The log a model declared `@DVModel(capture: true)` writes to, or null
-  /// when this process configured none.
+  static final Expando<DVCapture> _defaults = Expando<DVCapture>('capture');
+
+  /// The log a model declared `@DVModel(capture: true)` writes to.
+  ///
+  /// The one this process configured -- the generated server configures it
+  /// from `dartvel.capture` in pubspec.yaml -- or else a log in the database
+  /// this process has configured, so a captured data model saved from any
+  /// process that shares the database is still recorded, and the server
+  /// delivers it. Null only when the process has no database, where the
+  /// model could not be saved either.
   ///
   /// Configured once, the way the database is, because a model that says it
-  /// is captured should not also have to be handed the machinery. Before
-  /// this existed the only way to capture a generated model was to build a
-  /// second [DVRecordTable] by hand, listing the columns of a model that had
-  /// already declared them — two descriptions of one model's shape, and the
-  /// hand-written one drifts the moment a field is added.
-  static DVCapture? get configured => _configured;
+  /// is captured should not also have to be handed the machinery.
+  static DVCapture? get configured {
+    final DVCapture? log = _configured;
+    if (log != null) return log;
+    final DVDatabaseAdapter? database = const DVDatabase().configuredAdapter;
+    if (database == null) return null;
+    return _defaults[database] ??=
+        DVCapture(database: database, retention: defaultRetention);
+  }
 
   /// Records every captured model in this process to [log].
   static void configure(DVCapture log) => _configured = log;
 
-  /// Leaves the process with no log. A captured model then writes normally
-  /// and records nothing, rather than failing on the first save: a change
-  /// nobody is consuming is not a reason to refuse the write.
+  /// Forgets the configured log. A captured model then records to a log in
+  /// the configured database, as a process the server did not start does.
   static void unconfigure() => _configured = null;
 
   DVCapture({
@@ -399,6 +469,11 @@ class DVCapture {
   /// transaction that staged it as gone.
   final Duration strandedAfter;
 
+  /// Called after changes are published, with how many. The framework's
+  /// delivery runtime uses it to send them on without waiting for its next
+  /// tick; a failure in it never reaches the write that published.
+  void Function(int published)? onPublished;
+
   final DateTime Function() _clock;
 
   final Map<String, DVRecordTable> _tables = <String, DVRecordTable>{};
@@ -411,52 +486,88 @@ class DVCapture {
 
   Future<void> _publishing = Future<void>.value();
 
+  DVRecordAdapter get _records => DVRecordAdapter.over(database);
+
+  Future<void>? _ready;
+
+  /// The log's collections, made once per process before the first use.
+  Future<void> _ensureReady() => _ready ??= ensureSchema().catchError(
+        (Object error, StackTrace stack) {
+          _ready = null;
+          Error.throwWithStackTrace(error, stack);
+        },
+      );
+
   Future<void> ensureSchema() async {
-    // Sequences and the write order are 64 bits: the log outlives any 32-bit
-    // count, and the write order is microseconds times a thousand. Keys, rows
-    // and times are JSON or ISO-8601 text; flags are 0 or 1.
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS $logTable (change_id TEXT, '
-      'change_seq BIGINT, model TEXT, record_key TEXT, operation TEXT, '
-      'record_version INTEGER, tenant TEXT, transaction_id TEXT, '
-      'occurred_at TEXT, write_order BIGINT, published_at TEXT, '
-      'row_values TEXT, redacted TEXT, erased INTEGER, purged INTEGER)',
-    );
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS $stateTable (id TEXT, '
-      'allocated_through BIGINT, published_through BIGINT, '
-      'pruned_through BIGINT, lease_until TEXT)',
-    );
-    await database.execute(
-      'CREATE TABLE IF NOT EXISTS $schemaTable (model TEXT, columns TEXT)',
-    );
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS $checkpointTable (consumer TEXT, '
-      'change_seq BIGINT, updated_at TEXT)',
-    );
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS $backfillTable (consumer TEXT, model TEXT, '
-      'through_seq BIGINT, after_key TEXT, rows_done BIGINT, done INTEGER)',
-    );
-    final List<Map<String, Object?>> state = await database.query(
-      'SELECT id FROM $stateTable WHERE id = ?',
-      <Object?>[_stateId],
+    final DVRecordAdapter records = _records;
+    await records.ensure(const DVRecordShape(
+      collection: logTable,
+      fields: _logFields,
+    ));
+    await records.ensure(const DVRecordShape(
+      collection: stateTable,
+      fields: <String, DVFieldType>{
+        'id': DVFieldType.text,
+        'allocated_through': DVFieldType.integer,
+        'published_through': DVFieldType.integer,
+        'pruned_through': DVFieldType.integer,
+        'lease_until': DVFieldType.text,
+      },
+    ));
+    await records.ensure(const DVRecordShape(
+      collection: schemaTable,
+      fields: <String, DVFieldType>{
+        'model': DVFieldType.text,
+        'columns': DVFieldType.text,
+      },
+    ));
+    await records.ensure(const DVRecordShape(
+      collection: checkpointTable,
+      fields: <String, DVFieldType>{
+        'consumer': DVFieldType.text,
+        'change_seq': DVFieldType.integer,
+        'updated_at': DVFieldType.text,
+      },
+    ));
+    await records.ensure(const DVRecordShape(
+      collection: backfillTable,
+      fields: <String, DVFieldType>{
+        'consumer': DVFieldType.text,
+        'model': DVFieldType.text,
+        'through_seq': DVFieldType.integer,
+        'after_key': DVFieldType.text,
+        'rows_done': DVFieldType.integer,
+        'done': DVFieldType.integer,
+      },
+    ));
+    final List<Map<String, Object?>> state = await records.find(
+      stateTable,
+      where: DVFilter.equals('id', _stateId),
+      fields: const <String>['id'],
     );
     if (state.isEmpty) {
-      await database.execute(
-        'INSERT INTO $stateTable (id, allocated_through, published_through, '
-        'pruned_through, lease_until) VALUES (?, ?, ?, ?, ?)',
-        <Object?>[_stateId, 0, 0, 0, _stamp(DateTime.utc(1970))],
-      );
+      await records.insert(stateTable, <String, Object?>{
+        'id': _stateId,
+        'allocated_through': 0,
+        'published_through': 0,
+        'pruned_through': 0,
+        'lease_until': _stamp(DateTime.utc(1970)),
+      });
     }
+    _ready ??= Future<void>.value();
   }
 
-  /// Makes [table] known to backfill jobs. [DVRecordTable] calls it.
+  /// Makes [table] known to backfill jobs. [DVRecordTable] calls it, and so
+  /// does the framework for every captured model it starts with.
   void track(DVRecordTable table) => _tables[table.table] = table;
+
+  /// The captured tables this log knows, by name.
+  Map<String, DVRecordTable> get tracked =>
+      Map<String, DVRecordTable>.unmodifiable(_tables);
+
+  /// The consumers registered here, by name.
+  Map<String, DVCaptureConsumer> get consumers =>
+      Map<String, DVCaptureConsumer>.unmodifiable(_consumers);
 
   /// A consumer: one destination's position in the log.
   ///
@@ -507,6 +618,7 @@ class DVCapture {
     String? tenant,
     bool erased = false,
   }) async {
+    await _ensureReady();
     track(table);
     final DVContext? transaction = DVTransactionRunner.activeContext;
     final String id = _newId('chg');
@@ -525,29 +637,23 @@ class DVCapture {
     final String? resolvedTenant = tenant ??
         (DVTenants.hasScope ? const DVTenants().currentTenant : null);
     final DateTime now = _clock();
-    await database.execute(
-      'INSERT INTO $logTable (change_id, change_seq, model, record_key, '
-      'operation, record_version, tenant, transaction_id, occurred_at, '
-      'write_order, published_at, row_values, redacted, erased, purged) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      <Object?>[
-        id,
-        null,
-        table.table,
-        jsonEncode(_jsonSafe(key)),
-        operation.name,
-        version,
-        resolvedTenant,
-        transaction?.transactionId,
-        _stamp(now),
-        _writeOrder(now),
-        null,
-        row == null ? null : jsonEncode(row),
-        jsonEncode(table.sensitive.toList()..sort()),
-        erased ? 1 : 0,
-        0,
-      ],
-    );
+    await _records.insert(logTable, <String, Object?>{
+      'change_id': id,
+      'change_seq': null,
+      'model': table.table,
+      'record_key': jsonEncode(_jsonSafe(key)),
+      'operation': operation.name,
+      'record_version': version,
+      'tenant': resolvedTenant,
+      'transaction_id': transaction?.transactionId,
+      'occurred_at': _stamp(now),
+      'write_order': _writeOrder(now),
+      'published_at': null,
+      'row_values': row == null ? null : jsonEncode(row),
+      'redacted': jsonEncode(table.sensitive.toList()..sort()),
+      'erased': erased ? 1 : 0,
+      'purged': 0,
+    });
 
     if (transaction == null) {
       await _publishQuietly(<String>[id]);
@@ -569,9 +675,12 @@ class DVCapture {
       final List<String>? open = _staged[transactionId];
       open?.remove(id);
       if (open != null && open.isEmpty) _staged.remove(transactionId);
-      await database.execute(
-        'DELETE FROM $logTable WHERE change_id = ? AND change_seq IS NULL',
-        <Object?>[id],
+      await _records.delete(
+        logTable,
+        where: DVFilter.all(<DVFilter>[
+          DVFilter.equals('change_id', id),
+          const DVFilter.isNull('change_seq'),
+        ]),
       );
     });
     return id;
@@ -584,11 +693,16 @@ class DVCapture {
   /// so the honest thing is to publish what the store holds. Changes of a
   /// transaction still open in this process are left alone.
   Future<int> publishStranded() async {
+    await _ensureReady();
     final String cutoff = _stamp(_clock().subtract(strandedAfter));
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT change_id, transaction_id, write_order FROM $logTable '
-      'WHERE change_seq IS NULL AND occurred_at < ? ORDER BY write_order ASC',
-      <Object?>[cutoff],
+    final List<Map<String, Object?>> rows = await _records.find(
+      logTable,
+      where: DVFilter.all(<DVFilter>[
+        const DVFilter.isNull('change_seq'),
+        DVFilter.compare('occurred_at', DVCompare.less, cutoff),
+      ]),
+      orderBy: const <DVSort>[DVSort('write_order')],
+      fields: const <String>['change_id', 'transaction_id', 'write_order'],
     );
     final List<String> ids = <String>[
       for (final Map<String, Object?> row in rows)
@@ -620,15 +734,28 @@ class DVCapture {
   Future<int> _publish(List<String> ids) {
     final Future<int> run = _publishing.then((_) => _publishSerially(ids));
     _publishing = run.then((_) {}, onError: (Object _) {});
-    return run;
+    return run.then((int published) {
+      if (published > 0) {
+        try {
+          onPublished?.call(published);
+        } on Object {
+          // Sending on is delivery's business; the changes are published.
+        }
+      }
+      return published;
+    });
   }
 
   Future<int> _publishSerially(List<String> ids) async {
+    final DVRecordAdapter records = _records;
     final List<Map<String, Object?>> rows = <Map<String, Object?>>[];
     for (final String id in ids) {
-      final List<Map<String, Object?>> found = await database.query(
-        'SELECT * FROM $logTable WHERE change_id = ? AND change_seq IS NULL',
-        <Object?>[id],
+      final List<Map<String, Object?>> found = await records.find(
+        logTable,
+        where: DVFilter.all(<DVFilter>[
+          DVFilter.equals('change_id', id),
+          const DVFilter.isNull('change_seq'),
+        ]),
       );
       rows.addAll(found);
     }
@@ -640,7 +767,7 @@ class DVCapture {
     for (final Map<String, Object?> row in rows) {
       final String model = '${row['model']}';
       final Object? raw = row['row_values'];
-      if (raw is String && row['purged'] != 1) {
+      if (raw is String && _asInt(row['purged']) != 1) {
         final List<String> columns =
             (jsonDecode(raw) as Map<String, Object?>).keys.toList();
         if (!schemas.containsKey(model)) {
@@ -675,49 +802,49 @@ class DVCapture {
       final Object entry = plan[i];
       final int sequence = first + i;
       if (entry is (String, DVCaptureSchemaPhase, List<String>)) {
-        await database.execute(
-          'INSERT INTO $logTable (change_id, change_seq, model, record_key, '
-          'operation, record_version, tenant, transaction_id, occurred_at, '
-          'write_order, published_at, row_values, redacted, erased, purged) '
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          <Object?>[
-            _newId('sch'),
-            sequence,
-            entry.$1,
-            null,
-            entry.$2.name,
-            0,
-            null,
-            null,
-            published,
-            _writeOrder(_clock()),
-            published,
-            jsonEncode(<String, Object?>{'columns': entry.$3}),
-            '[]',
-            0,
-            0,
-          ],
-        );
+        await records.insert(logTable, <String, Object?>{
+          'change_id': _newId('sch'),
+          'change_seq': sequence,
+          'model': entry.$1,
+          'record_key': null,
+          'operation': entry.$2.name,
+          'record_version': 0,
+          'tenant': null,
+          'transaction_id': null,
+          'occurred_at': published,
+          'write_order': _writeOrder(_clock()),
+          'published_at': published,
+          'row_values': jsonEncode(<String, Object?>{'columns': entry.$3}),
+          'redacted': '[]',
+          'erased': 0,
+          'purged': 0,
+        });
       } else {
-        await database.execute(
-          'UPDATE $logTable SET change_seq = ?, published_at = ? '
-          'WHERE change_id = ? AND change_seq IS NULL',
-          <Object?>[
-            sequence,
-            published,
-            (entry as Map<String, Object?>)['change_id'],
-          ],
+        await records.update(
+          logTable,
+          <String, Object?>{'change_seq': sequence, 'published_at': published},
+          where: DVFilter.all(<DVFilter>[
+            DVFilter.equals(
+              'change_id',
+              (entry as Map<String, Object?>)['change_id'],
+            ),
+            const DVFilter.isNull('change_seq'),
+          ]),
         );
       }
     }
     for (final String model in changedModels) {
       await _saveSchema(model, schemas[model]!);
     }
-    await database.execute(
-      'UPDATE $stateTable SET published_through = ? WHERE id = ? '
-      'AND allocated_through = ? AND published_through = ?',
-      <Object?>[first + plan.length - 1, _stateId, first + plan.length - 1,
-          first - 1],
+    final int last = first + plan.length - 1;
+    await records.update(
+      stateTable,
+      <String, Object?>{'published_through': last},
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.equals('id', _stateId),
+        DVFilter.equals('allocated_through', last),
+        DVFilter.equals('published_through', first - 1),
+      ]),
     );
     return rows.length;
   }
@@ -733,23 +860,28 @@ class DVCapture {
     for (int attempt = 0;; attempt++) {
       final _State state = await _state();
       if (state.allocated == state.published) {
-        final int taken = await database.execute(
-          'UPDATE $stateTable SET allocated_through = ?, lease_until = ? '
-          'WHERE id = ? AND allocated_through = ? AND published_through = ?',
-          <Object?>[
-            state.allocated + count,
-            _stamp(_clock().add(lease)),
-            _stateId,
-            state.allocated,
-            state.published,
-          ],
+        final int taken = await _records.update(
+          stateTable,
+          <String, Object?>{
+            'allocated_through': state.allocated + count,
+            'lease_until': _stamp(_clock().add(lease)),
+          },
+          where: DVFilter.all(<DVFilter>[
+            DVFilter.equals('id', _stateId),
+            DVFilter.equals('allocated_through', state.allocated),
+            DVFilter.equals('published_through', state.published),
+          ]),
         );
         if (taken == 1) return state.allocated + 1;
       } else if (state.leaseUntil.isBefore(_clock())) {
-        await database.execute(
-          'UPDATE $stateTable SET published_through = ? WHERE id = ? '
-          'AND allocated_through = ? AND published_through = ?',
-          <Object?>[state.allocated, _stateId, state.allocated, state.published],
+        await _records.update(
+          stateTable,
+          <String, Object?>{'published_through': state.allocated},
+          where: DVFilter.all(<DVFilter>[
+            DVFilter.equals('id', _stateId),
+            DVFilter.equals('allocated_through', state.allocated),
+            DVFilter.equals('published_through', state.published),
+          ]),
         );
         continue;
       }
@@ -764,9 +896,10 @@ class DVCapture {
   }
 
   Future<_State> _state() async {
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $stateTable WHERE id = ?',
-      <Object?>[_stateId],
+    await _ensureReady();
+    final List<Map<String, Object?>> rows = await _records.find(
+      stateTable,
+      where: DVFilter.equals('id', _stateId),
     );
     if (rows.isEmpty) {
       throw StateError('The capture log has no state; run ensureSchema first.');
@@ -781,9 +914,10 @@ class DVCapture {
   }
 
   Future<List<String>?> _loadSchema(String model) async {
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT columns FROM $schemaTable WHERE model = ?',
-      <Object?>[model],
+    final List<Map<String, Object?>> rows = await _records.find(
+      schemaTable,
+      where: DVFilter.equals('model', model),
+      fields: const <String>['columns'],
     );
     if (rows.isEmpty) return null;
     return (jsonDecode('${rows.first['columns']}') as List<Object?>)
@@ -792,17 +926,40 @@ class DVCapture {
   }
 
   Future<void> _saveSchema(String model, List<String> columns) async {
-    final int updated = await database.execute(
-      'UPDATE $schemaTable SET columns = ? WHERE model = ?',
-      <Object?>[jsonEncode(columns), model],
+    final int updated = await _records.update(
+      schemaTable,
+      <String, Object?>{'columns': jsonEncode(columns)},
+      where: DVFilter.equals('model', model),
     );
     if (updated == 0) {
-      await database.execute(
-        'INSERT INTO $schemaTable (model, columns) VALUES (?, ?)',
-        <Object?>[model, jsonEncode(columns)],
-      );
+      await _records.insert(schemaTable, <String, Object?>{
+        'model': model,
+        'columns': jsonEncode(columns),
+      });
     }
   }
+
+  /// Published entries after [after] and through [through], oldest first,
+  /// at most [limit]. With [recordsOnly], schema entries are left out.
+  Future<List<Map<String, Object?>>> _published({
+    required int after,
+    required int through,
+    int? limit,
+    bool recordsOnly = false,
+    List<String>? fields,
+  }) =>
+      _records.find(
+        logTable,
+        where: DVFilter.all(<DVFilter>[
+          DVFilter.isNotNull('change_seq'),
+          DVFilter.compare('change_seq', DVCompare.greater, after),
+          DVFilter.compare('change_seq', DVCompare.lessOrEqual, through),
+          if (recordsOnly) DVFilter.isNotNull('record_key'),
+        ]),
+        orderBy: const <DVSort>[DVSort('change_seq')],
+        limit: limit == null ? null : math.max(0, limit),
+        fields: fields,
+      );
 
   // --- reading --------------------------------------------------------------
 
@@ -813,11 +970,11 @@ class DVCapture {
   /// not included; changes an erasure purged are.
   Future<List<DVCapturedChange>> changes({int after = 0, int? limit}) async {
     final _State state = await _state();
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $logTable WHERE change_seq IS NOT NULL '
-      'AND change_seq > ? AND change_seq <= ? AND record_key IS NOT NULL '
-      'ORDER BY change_seq ASC${limit == null ? '' : ' LIMIT ${math.max(0, limit)}'}',
-      <Object?>[after, state.published],
+    final List<Map<String, Object?>> rows = await _published(
+      after: after,
+      through: state.published,
+      limit: limit,
+      recordsOnly: true,
     );
     return rows.map(_changeFromRow).toList(growable: false);
   }
@@ -830,22 +987,34 @@ class DVCapture {
   /// consumer reading while this runs is refused rather than silently reading
   /// past the rows that vanished under it.
   Future<int> prune() async {
+    await _ensureReady();
     final String cutoff = _stamp(_clock().subtract(retention));
-    final List<Map<String, Object?>> newest = await database.query(
-      'SELECT change_seq FROM $logTable WHERE change_seq IS NOT NULL '
-      'AND published_at < ? ORDER BY change_seq DESC LIMIT 1',
-      <Object?>[cutoff],
+    final List<Map<String, Object?>> newest = await _records.find(
+      logTable,
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.isNotNull('change_seq'),
+        DVFilter.compare('published_at', DVCompare.less, cutoff),
+      ]),
+      orderBy: const <DVSort>[DVSort('change_seq', descending: true)],
+      limit: 1,
+      fields: const <String>['change_seq'],
     );
     if (newest.isEmpty) return 0;
     final int through = _asInt(newest.first['change_seq']);
-    await database.execute(
-      'UPDATE $stateTable SET pruned_through = ? WHERE id = ? '
-      'AND pruned_through < ?',
-      <Object?>[through, _stateId, through],
+    await _records.update(
+      stateTable,
+      <String, Object?>{'pruned_through': through},
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.equals('id', _stateId),
+        DVFilter.compare('pruned_through', DVCompare.less, through),
+      ]),
     );
-    return database.execute(
-      'DELETE FROM $logTable WHERE change_seq IS NOT NULL AND change_seq <= ?',
-      <Object?>[through],
+    return _records.delete(
+      logTable,
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.isNotNull('change_seq'),
+        DVFilter.compare('change_seq', DVCompare.lessOrEqual, through),
+      ]),
     );
   }
 
@@ -856,9 +1025,12 @@ class DVCapture {
   /// when a retention kept it. Returns that change, published.
   Future<DVCapturedChange> eraseRecord(DVRecordTable table, Object key) async {
     final String id = await recordErasure(table, key);
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT * FROM $logTable WHERE change_id = ? AND change_seq IS NOT NULL',
-      <Object?>[id],
+    final List<Map<String, Object?>> rows = await _records.find(
+      logTable,
+      where: DVFilter.all(<DVFilter>[
+        DVFilter.equals('change_id', id),
+        DVFilter.isNotNull('change_seq'),
+      ]),
     );
     if (rows.isEmpty) {
       throw StateError(
@@ -884,16 +1056,23 @@ class DVCapture {
     Object key, {
     int? version,
   }) async {
+    await _ensureReady();
     final String recordKey = jsonEncode(_jsonSafe(key));
-    final List<Map<String, Object?>> newest = await database.query(
-      'SELECT record_version FROM $logTable WHERE model = ? AND record_key = ? '
-      'ORDER BY record_version DESC LIMIT 1',
-      <Object?>[table.table, recordKey],
+    final DVFilter thisRecord = DVFilter.all(<DVFilter>[
+      DVFilter.equals('model', table.table),
+      DVFilter.equals('record_key', recordKey),
+    ]);
+    final List<Map<String, Object?>> newest = await _records.find(
+      logTable,
+      where: thisRecord,
+      orderBy: const <DVSort>[DVSort('record_version', descending: true)],
+      limit: 1,
+      fields: const <String>['record_version'],
     );
-    await database.execute(
-      'UPDATE $logTable SET row_values = ?, purged = ? '
-      'WHERE model = ? AND record_key = ?',
-      <Object?>[null, 1, table.table, recordKey],
+    await _records.update(
+      logTable,
+      <String, Object?>{'row_values': null, 'purged': 1},
+      where: thisRecord,
     );
     final DVRecord? current = await table.read(key, withDeleted: true);
     final bool live = current != null && current.deletedAt == null;
@@ -913,9 +1092,25 @@ class DVCapture {
 
   // --- jobs -----------------------------------------------------------------
 
-  /// Registers delivery and backfill on the durable job layer. A refused
+  /// Registers delivery and backfill on the durable job layer, with the
+  /// codecs a queue shared between processes stores them under. A refused
   /// batch throws, so the queue retries it with its backoff.
   void registerJobs(DVQueues queues) {
+    const DVJobPayloadCodecs()
+      ..register<DVCaptureDeliveryJob>(
+        const DVJobPayloadCodec<DVCaptureDeliveryJob>(
+          name: DVCaptureDeliveryJob.codecName,
+          encode: DVCaptureDeliveryJob.encode,
+          decode: DVCaptureDeliveryJob.decode,
+        ),
+      )
+      ..register<DVCaptureBackfillJob>(
+        const DVJobPayloadCodec<DVCaptureBackfillJob>(
+          name: DVCaptureBackfillJob.codecName,
+          encode: DVCaptureBackfillJob.encode,
+          decode: DVCaptureBackfillJob.decode,
+        ),
+      );
     queues
       ..register<DVCaptureDeliveryJob>((DVCaptureDeliveryJob job) async {
         await _consumer(job.consumer).deliverAll();
@@ -976,7 +1171,7 @@ class DVCapture {
       operation: DVCaptureOp.values.byName('${row['operation']}'),
       version: _asInt(row['record_version']),
       occurredAt: DateTime.parse('${row['occurred_at']}'),
-      values: raw is String && row['purged'] != 1
+      values: raw is String && _asInt(row['purged']) != 1
           ? (jsonDecode(raw) as Map<String, Object?>)
           : const <String, Object?>{},
       redacted: redacted is String
@@ -987,7 +1182,7 @@ class DVCapture {
           : const <String>{},
       tenant: row['tenant'] as String?,
       transactionId: row['transaction_id'] as String?,
-      erased: row['erased'] == 1,
+      erased: _asInt(row['erased']) == 1,
     );
   }
 
@@ -1038,30 +1233,47 @@ class DVCaptureConsumer {
   bool _toldAtLeastOnce = false;
   Future<void> _running = Future<void>.value();
 
-  DVDatabaseAdapter get _db => capture.database;
+  DVRecordAdapter get _records => capture._records;
+
+  DVFilter get _mine => DVFilter.equals('consumer', name);
 
   /// The last sequence this consumer has delivered, or 0.
-  Future<int> checkpoint() async {
-    final List<Map<String, Object?>> rows = await _db.query(
-      'SELECT change_seq FROM ${DVCapture.checkpointTable} WHERE consumer = ?',
-      <Object?>[name],
+  Future<int> checkpoint() async => (await position()) ?? 0;
+
+  /// The last sequence this consumer has delivered, or null when it has
+  /// never delivered anything: a destination with no position yet, which
+  /// has none of the history and needs a backfill.
+  Future<int?> position() async {
+    await capture._ensureReady();
+    final List<Map<String, Object?>> rows = await _records.find(
+      DVCapture.checkpointTable,
+      where: _mine,
+      fields: const <String>['change_seq'],
     );
-    return rows.isEmpty ? 0 : _asInt(rows.first['change_seq']);
+    return rows.isEmpty ? null : _asInt(rows.first['change_seq']);
+  }
+
+  /// Whether this consumer stands before what the log has pruned, so
+  /// delivery cannot reach what it missed and only a backfill can
+  /// (`DV-CDC-002`).
+  Future<bool> behindRetention() async {
+    final int? at = await position();
+    return at != null && at < (await capture._state()).pruned;
   }
 
   Future<void> _saveCheckpoint(int sequence) async {
     final String now = _stamp(capture._clock());
-    final int updated = await _db.execute(
-      'UPDATE ${DVCapture.checkpointTable} SET change_seq = ?, updated_at = ? '
-      'WHERE consumer = ?',
-      <Object?>[sequence, now, name],
+    final int updated = await _records.update(
+      DVCapture.checkpointTable,
+      <String, Object?>{'change_seq': sequence, 'updated_at': now},
+      where: _mine,
     );
     if (updated == 0) {
-      await _db.execute(
-        'INSERT INTO ${DVCapture.checkpointTable} (consumer, change_seq, '
-        'updated_at) VALUES (?, ?, ?)',
-        <Object?>[name, sequence, now],
-      );
+      await _records.insert(DVCapture.checkpointTable, <String, Object?>{
+        'consumer': name,
+        'change_seq': sequence,
+        'updated_at': now,
+      });
     }
   }
 
@@ -1108,11 +1320,10 @@ class DVCaptureConsumer {
     final int start = await checkpoint();
     final _State state = await capture._state();
     _checkRetention(start, state);
-    final List<Map<String, Object?>> rows = await _db.query(
-      'SELECT * FROM ${DVCapture.logTable} WHERE change_seq IS NOT NULL '
-      'AND change_seq > ? AND change_seq <= ? ORDER BY change_seq ASC '
-      'LIMIT $batchSize',
-      <Object?>[start, state.published],
+    final List<Map<String, Object?>> rows = await capture._published(
+      after: start,
+      through: state.published,
+      limit: batchSize,
     );
     // Pruning may have run between the check and the read; the rows it
     // removed would otherwise be skipped without a word.
@@ -1186,7 +1397,7 @@ class DVCaptureConsumer {
         last = sequence;
         continue;
       }
-      if (row['purged'] != 1 &&
+      if (_asInt(row['purged']) != 1 &&
           _wants(model) &&
           (tenant == null || row['tenant'] == tenant)) {
         batch.add(capture._changeFromRow(row));
@@ -1231,11 +1442,11 @@ class DVCaptureConsumer {
   Future<DVCaptureLag> lag() async {
     final int at = await checkpoint();
     final int head = await capture.head();
-    final List<Map<String, Object?>> pending = await _db.query(
-      'SELECT occurred_at FROM ${DVCapture.logTable} WHERE change_seq IS NOT NULL '
-      'AND change_seq > ? AND change_seq <= ? AND record_key IS NOT NULL '
-      'ORDER BY change_seq ASC',
-      <Object?>[at, head],
+    final List<Map<String, Object?>> pending = await capture._published(
+      after: at,
+      through: head,
+      recordsOnly: true,
+      fields: const <String>['occurred_at'],
     );
     final Duration age = pending.isEmpty
         ? Duration.zero
@@ -1266,6 +1477,27 @@ class DVCaptureConsumer {
     return DVCaptureLag(changes: pending.length, age: measured, codes: codes);
   }
 
+  /// Where the backfill of [model] stands, or null when none has started.
+  Future<DVCaptureBackfillProgress?> backfillProgress(String model) async {
+    await capture._ensureReady();
+    final List<Map<String, Object?>> rows = await _records.find(
+      DVCapture.backfillTable,
+      where: _backfillOf(model),
+    );
+    if (rows.isEmpty) return null;
+    return DVCaptureBackfillProgress(
+      model: model,
+      throughSequence: _asInt(rows.first['through_seq']),
+      rows: _asInt(rows.first['rows_done']),
+      done: _asInt(rows.first['done']) == 1,
+    );
+  }
+
+  DVFilter _backfillOf(String model) => DVFilter.all(<DVFilter>[
+        _mine,
+        DVFilter.equals('model', model),
+      ]);
+
   /// Copies [table]'s live rows to the destination, [chunkSize] at a time,
   /// resuming where an earlier run stopped.
   ///
@@ -1276,6 +1508,10 @@ class DVCaptureConsumer {
   /// keeps whichever of the copy and the stream is newer. A tenant consumer
   /// needs [tenantColumn]: a row with no tenant on it cannot be shown to
   /// belong to that tenant.
+  ///
+  /// A consumer that already has a position within retention is first
+  /// brought to the head by delivery, so moving its checkpoint skips nothing
+  /// another model's copy was relying on the stream for.
   Future<DVCaptureBackfillProgress> backfill(
     DVRecordTable table, {
     int chunkSize = 500,
@@ -1311,26 +1547,52 @@ class DVCaptureConsumer {
     }
 
     final String model = table.table;
-    List<Map<String, Object?>> state = await _db.query(
-      'SELECT * FROM ${DVCapture.backfillTable} WHERE consumer = ? AND model = ?',
-      <Object?>[name, model],
+    List<Map<String, Object?>> state = await _records.find(
+      DVCapture.backfillTable,
+      where: _backfillOf(model),
     );
-    if (state.isEmpty || state.first['done'] == 1) {
+    // Started over when the last copy finished, and when this consumer has
+    // fallen behind retention since: a copy as of a position the log no
+    // longer reaches cannot be continued into the stream.
+    if (state.isEmpty ||
+        _asInt(state.first['done']) == 1 ||
+        await behindRetention()) {
       final int through = await capture.head();
       if (state.isEmpty) {
-        await _db.execute(
-          'INSERT INTO ${DVCapture.backfillTable} (consumer, model, '
-          'through_seq, after_key, rows_done, done) VALUES (?, ?, ?, ?, ?, ?)',
-          <Object?>[name, model, through, null, 0, 0],
-        );
+        await _records.insert(DVCapture.backfillTable, <String, Object?>{
+          'consumer': name,
+          'model': model,
+          'through_seq': through,
+          'after_key': null,
+          'rows_done': 0,
+          'done': 0,
+        });
       } else {
-        await _db.execute(
-          'UPDATE ${DVCapture.backfillTable} SET through_seq = ?, '
-          'after_key = ?, rows_done = ?, done = ? WHERE consumer = ? AND model = ?',
-          <Object?>[through, null, 0, 0, name, model],
+        await _records.update(
+          DVCapture.backfillTable,
+          <String, Object?>{
+            'through_seq': through,
+            'after_key': null,
+            'rows_done': 0,
+            'done': 0,
+          },
+          where: _backfillOf(model),
         );
       }
-      if (await checkpoint() < through) await _saveCheckpoint(through);
+      final int? at = await position();
+      if (at != null &&
+          at < through &&
+          at >= (await capture._state()).pruned) {
+        // Changes before [through] that this consumer has not delivered yet
+        // are delivered first, where the log still holds them: they may be
+        // another model's, whose copy finished earlier and relies on the
+        // stream for everything after it. Behind retention nothing is left
+        // to deliver, and a backfill is the only way forward.
+        while ((await _deliverOnce()).read >= batchSize) {}
+      }
+      if (await checkpoint() < through || await position() == null) {
+        await _saveCheckpoint(math.max(await checkpoint(), through));
+      }
       final DVCaptureSchemaChange shape = DVCaptureSchemaChange(
         sequence: through,
         model: model,
@@ -1349,9 +1611,9 @@ class DVCaptureConsumer {
             level: DVLogLevel.error, code: error.code);
         throw error;
       }
-      state = await _db.query(
-        'SELECT * FROM ${DVCapture.backfillTable} WHERE consumer = ? AND model = ?',
-        <Object?>[name, model],
+      state = await _records.find(
+        DVCapture.backfillTable,
+        where: _backfillOf(model),
       );
     }
 
@@ -1360,17 +1622,20 @@ class DVCaptureConsumer {
         ? null
         : jsonDecode('${state.first['after_key']}');
     int rowsDone = _asInt(state.first['rows_done']);
-    final DVDatabaseAdapter source = table.database;
+    // The model's own rows, read through the record operations its engine
+    // implements.
+    final DVRecordAdapter source = DVRecordAdapter.over(table.database);
     int chunks = 0;
 
     while (true) {
-      final List<Map<String, Object?>> rows = after == null
-          ? await source.query(
-              'SELECT * FROM $model ORDER BY ${table.key} ASC LIMIT $chunkSize')
-          : await source.query(
-              'SELECT * FROM $model WHERE ${table.key} > ? '
-              'ORDER BY ${table.key} ASC LIMIT $chunkSize',
-              <Object?>[after]);
+      final List<Map<String, Object?>> rows = await source.find(
+        model,
+        where: after == null
+            ? null
+            : DVFilter.compare(table.key, DVCompare.greater, after),
+        orderBy: <DVSort>[DVSort(table.key)],
+        limit: chunkSize,
+      );
       final List<DVCapturedChange> changes = <DVCapturedChange>[];
       for (final Map<String, Object?> row in rows) {
         if (row[DVRecordTable.deletedColumn] != null) continue;
@@ -1414,16 +1679,14 @@ class DVCaptureConsumer {
       if (done) {
         await sink.backfillComplete(model, through, tenant: tenant);
       }
-      await _db.execute(
-        'UPDATE ${DVCapture.backfillTable} SET after_key = ?, rows_done = ?, '
-        'done = ? WHERE consumer = ? AND model = ?',
-        <Object?>[
-          after == null ? null : jsonEncode(_jsonSafe(after)),
-          rowsDone,
-          done ? 1 : 0,
-          name,
-          model,
-        ],
+      await _records.update(
+        DVCapture.backfillTable,
+        <String, Object?>{
+          'after_key': after == null ? null : jsonEncode(_jsonSafe(after)),
+          'rows_done': rowsDone,
+          'done': done ? 1 : 0,
+        },
+        where: _backfillOf(model),
       );
       chunks++;
       if (done || (maxChunks != null && chunks >= maxChunks)) {
@@ -1438,8 +1701,13 @@ class DVCaptureConsumer {
   }
 }
 
-/// The reference warehouse sink: one table per model in any SQL database
-/// that can add and drop a column, holding each record's newest state.
+/// The reference store destination: one collection per model in any
+/// database Dartvel runs on -- a SQL table or a document collection --
+/// holding each record's newest state.
+///
+/// Written through the record operations every engine implements, never
+/// SQL, so a destination is another store the application could have used,
+/// configured by where it is rather than by what language it speaks.
 ///
 /// What it demonstrates is the contract a real warehouse adapter has to keep,
 /// not a storage engine: changes applied by record version so out-of-order
@@ -1448,37 +1716,36 @@ class DVCaptureConsumer {
 /// undo, and idempotent schema evolution. Rows land as they were written;
 /// there is no transformation.
 ///
-/// A capture carries column names, not types, so the type a destination
-/// column is added with comes from [columnType]. Without it columns are added
-/// with none, which SQLite and the in-memory adapter accept and PostgreSQL
-/// and MySQL refuse.
+/// A capture carries field names, not types. A field is stored as
+/// [fieldType] says, or else as its first value is: a whole number, a
+/// fraction, a flag, or text.
 class DVWarehouseSink implements DVCaptureSink {
   DVWarehouseSink({
     required this.database,
     this.name = 'warehouse',
-    this.columnType,
+    this.fieldType,
   });
 
   static const String tombstoneTable = 'dv_warehouse_tombstones';
 
-  /// The sink's own columns. Sequences and incarnations are 64 bits, as in
+  /// The sink's own fields. Sequences and incarnations are 64 bits, as in
   /// the log they come from.
-  static const List<String> _meta = <String>[
-    '_dv_key TEXT',
-    '_dv_version INTEGER',
-    '_dv_seq BIGINT',
-    '_dv_incarnation BIGINT',
-    '_dv_change_id TEXT',
-    '_dv_tenant TEXT',
-    '_dv_transaction_id TEXT',
-    '_dv_occurred_at TEXT',
-    '_dv_backfilled BIGINT',
-  ];
+  static const Map<String, DVFieldType> _meta = <String, DVFieldType>{
+    '_dv_key': DVFieldType.text,
+    '_dv_version': DVFieldType.integer,
+    '_dv_seq': DVFieldType.integer,
+    '_dv_incarnation': DVFieldType.integer,
+    '_dv_change_id': DVFieldType.text,
+    '_dv_tenant': DVFieldType.text,
+    '_dv_transaction_id': DVFieldType.text,
+    '_dv_occurred_at': DVFieldType.text,
+    '_dv_backfilled': DVFieldType.integer,
+  };
 
   final DVDatabaseAdapter database;
 
-  /// The SQL type [column] of [model] is added with, e.g. `TEXT` or `BIGINT`.
-  final String Function(String model, String column)? columnType;
+  /// How [field] of [model] is stored; inferred from its values when null.
+  final DVFieldType Function(String model, String field)? fieldType;
 
   @override
   final String name;
@@ -1487,49 +1754,117 @@ class DVWarehouseSink implements DVCaptureSink {
   @override
   bool get deduplicates => true;
 
-  Future<void> _ensureTables(String model) async {
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS $tombstoneTable (model TEXT, '
-      'record_key TEXT, record_version INTEGER, change_seq BIGINT, '
-      'incarnation BIGINT, erased INTEGER)',
-    );
-    await dvEnsureFrameworkTable(
-      database,
-      'CREATE TABLE IF NOT EXISTS ${_checkIdentifier(model)} '
-      '(${_meta.join(', ')})',
-    );
+  DVRecordAdapter get _records => DVRecordAdapter.over(database);
+
+  /// The data fields each model's collection has been given in this
+  /// process, with how they are stored.
+  final Map<String, Map<String, DVFieldType>> _fields =
+      <String, Map<String, DVFieldType>>{};
+
+  Future<void> _ensureTombstones() => _records.ensure(const DVRecordShape(
+        collection: tombstoneTable,
+        fields: <String, DVFieldType>{
+          'model': DVFieldType.text,
+          'record_key': DVFieldType.text,
+          'record_version': DVFieldType.integer,
+          'change_seq': DVFieldType.integer,
+          'incarnation': DVFieldType.integer,
+          'erased': DVFieldType.integer,
+        },
+      ));
+
+  /// The model's collection, with its bookkeeping and every data field
+  /// known here plus [add].
+  Future<void> _ensureModel(
+    String model, [
+    Map<String, DVFieldType> add = const <String, DVFieldType>{},
+  ]) async {
+    _checkIdentifier(model);
+    await _ensureTombstones();
+    final Map<String, DVFieldType> known =
+        _fields.putIfAbsent(model, () => <String, DVFieldType>{});
+    for (final MapEntry<String, DVFieldType> field in add.entries) {
+      known.putIfAbsent(field.key, () => field.value);
+    }
+    await _records.ensure(DVRecordShape(
+      collection: model,
+      key: '_dv_key',
+      fields: <String, DVFieldType>{..._meta, ...known},
+    ));
   }
 
-  Future<bool> _hasColumn(String model, String column) async {
-    try {
-      await database.query('SELECT $column FROM $model LIMIT 1');
-      return true;
-    } on Object {
-      return false;
+  /// Ensures what [values] names that the collection may not have yet, typed
+  /// by [fieldType] or by the value, and answers the fields left unset: one
+  /// whose type is unknown and whose value is null waits for a value to
+  /// decide it, and a record written without it holds nothing there either.
+  Future<Set<String>> _ensureFields(
+    String model,
+    Map<String, Object?> values,
+  ) async {
+    final Map<String, DVFieldType> known =
+        _fields.putIfAbsent(model, () => <String, DVFieldType>{});
+    final Map<String, DVFieldType> add = <String, DVFieldType>{};
+    final Set<String> unset = <String>{};
+    for (final MapEntry<String, Object?> e in values.entries) {
+      _checkField(e.key);
+      if (known.containsKey(e.key)) continue;
+      final DVFieldType? type =
+          fieldType?.call(model, e.key) ?? _inferred(e.value);
+      if (type == null) {
+        unset.add(e.key);
+      } else {
+        add[e.key] = type;
+      }
+    }
+    await _ensureModel(model, add);
+    return unset;
+  }
+
+  static DVFieldType? _inferred(Object? value) => switch (value) {
+        null => null,
+        bool() => DVFieldType.boolean,
+        int() => DVFieldType.integer,
+        double() => DVFieldType.real,
+        _ => DVFieldType.text,
+      };
+
+  static void _checkField(String field) {
+    _checkIdentifier(field);
+    if (field.startsWith('_dv_')) {
+      throw ArgumentError.value(field, 'field', 'is reserved');
     }
   }
 
   @override
   Future<void> evolve(DVCaptureSchemaChange change) async {
-    await _ensureTables(change.model);
-    for (final String column in change.columns) {
-      _checkIdentifier(column);
-      if (column.startsWith('_dv_')) {
-        throw ArgumentError.value(column, 'column', 'is reserved');
-      }
-      final bool exists = await _hasColumn(change.model, column);
-      if (change.phase == DVCaptureSchemaPhase.expand && !exists) {
-        final String? type = columnType?.call(change.model, column);
-        if (type != null && !dvIsSqlType(type)) {
-          throw ArgumentError.value(type, 'columnType', 'is not a SQL type');
-        }
-        await database.execute('ALTER TABLE ${change.model} ADD COLUMN '
-            '$column${type == null ? '' : ' $type'}');
-      } else if (change.phase == DVCaptureSchemaPhase.contract && exists) {
-        await database.execute(
-            'ALTER TABLE ${change.model} DROP COLUMN $column');
-      }
+    for (final String field in change.columns) {
+      _checkField(field);
+    }
+    if (change.phase == DVCaptureSchemaPhase.expand) {
+      // Added now when the type is declared; otherwise the first value
+      // decides, and the field is added with it.
+      await _ensureModel(change.model, <String, DVFieldType>{
+        if (fieldType != null)
+          for (final String field in change.columns)
+            field: fieldType!(change.model, field),
+      });
+      return;
+    }
+    // A store has no column to drop, so what the source no longer declares
+    // is removed from every copy instead: its values, which is what a
+    // dropped column took with it. A field that became sensitive leaves the
+    // destination this way too.
+    await _ensureModel(change.model, <String, DVFieldType>{
+      for (final String field in change.columns)
+        if (!(_fields[change.model]?.containsKey(field) ?? false))
+          field: DVFieldType.text,
+    });
+    for (final String field in change.columns) {
+      await _records.update(
+        change.model,
+        <String, Object?>{field: null},
+        where: DVFilter.isNotNull(field),
+      );
     }
   }
 
@@ -1543,7 +1878,6 @@ class DVWarehouseSink implements DVCaptureSink {
   @override
   Future<void> erase(List<DVCapturedChange> changes) async {
     for (final DVCapturedChange change in changes) {
-      await _ensureTables(change.model);
       await _apply(change, force: true);
     }
   }
@@ -1554,28 +1888,49 @@ class DVWarehouseSink implements DVCaptureSink {
     int throughSequence, {
     String? tenant,
   }) async {
-    _checkIdentifier(model);
-    final String scope = tenant == null ? '' : ' AND _dv_tenant = ?';
-    await database.execute(
-      'DELETE FROM $model WHERE _dv_seq <= ? AND _dv_backfilled IS NULL$scope',
-      <Object?>[throughSequence, if (tenant != null) tenant],
+    await _ensureModel(model);
+    final List<DVFilter> scope = <DVFilter>[
+      DVFilter.compare('_dv_seq', DVCompare.lessOrEqual, throughSequence),
+      if (tenant != null) DVFilter.equals('_dv_tenant', tenant),
+    ];
+    await _records.delete(
+      model,
+      where: DVFilter.all(<DVFilter>[
+        ...scope,
+        const DVFilter.isNull('_dv_backfilled'),
+      ]),
     );
-    await database.execute(
-      'DELETE FROM $model WHERE _dv_seq <= ? AND _dv_backfilled < ?$scope',
-      <Object?>[throughSequence, throughSequence, if (tenant != null) tenant],
+    await _records.delete(
+      model,
+      where: DVFilter.all(<DVFilter>[
+        ...scope,
+        DVFilter.compare('_dv_backfilled', DVCompare.less, throughSequence),
+      ]),
     );
   }
 
+  DVFilter _tombstoneOf(String model, Object? key) => DVFilter.all(<DVFilter>[
+        DVFilter.equals('model', model),
+        DVFilter.equals('record_key', jsonEncode(_jsonSafe(key))),
+      ]);
+
   Future<void> _apply(DVCapturedChange x, {required bool force}) async {
     final String model = _checkIdentifier(x.model);
-    final List<Map<String, Object?>> rows = await database.query(
-      'SELECT _dv_version, _dv_seq, _dv_incarnation FROM $model '
-      'WHERE _dv_key = ?',
-      <Object?>[x.key],
+    final Map<String, Object?> carried = <String, Object?>{
+      for (final MapEntry<String, Object?> e in x.values.entries)
+        if (!x.redacted.contains(e.key)) e.key: e.value,
+    };
+    final Set<String> unset = await _ensureFields(model, carried);
+    carried.removeWhere((String field, Object? _) => unset.contains(field));
+    final String key = '${x.key}';
+    final List<Map<String, Object?>> rows = await _records.find(
+      model,
+      where: DVFilter.equals('_dv_key', key),
+      fields: const <String>['_dv_version', '_dv_seq', '_dv_incarnation'],
     );
-    final List<Map<String, Object?>> tombs = await database.query(
-      'SELECT * FROM $tombstoneTable WHERE model = ? AND record_key = ?',
-      <Object?>[model, jsonEncode(_jsonSafe(x.key))],
+    final List<Map<String, Object?>> tombs = await _records.find(
+      tombstoneTable,
+      where: _tombstoneOf(model, x.key),
     );
     final Map<String, Object?>? row = rows.isEmpty ? null : rows.first;
     final Map<String, Object?>? tomb = tombs.isEmpty ? null : tombs.first;
@@ -1583,7 +1938,7 @@ class DVWarehouseSink implements DVCaptureSink {
     // Nothing written before an erasure may land after it.
     if (!force &&
         tomb != null &&
-        tomb['erased'] == 1 &&
+        _asInt(tomb['erased']) == 1 &&
         x.sequence <= _asInt(tomb['change_seq'])) {
       return;
     }
@@ -1600,11 +1955,13 @@ class DVWarehouseSink implements DVCaptureSink {
         // The source still holds the record: mark it so the sweep keeps it,
         // and take the copy's values only when they are not older.
         if (x.version >= version) {
-          await _upsert(x, exists: true, incarnation: since, backfilled: true);
+          await _upsert(x, carried,
+              exists: true, incarnation: since, backfilled: true);
         } else {
-          await database.execute(
-            'UPDATE $model SET _dv_backfilled = ? WHERE _dv_key = ?',
-            <Object?>[x.sequence, x.key],
+          await _records.update(
+            model,
+            <String, Object?>{'_dv_backfilled': x.sequence},
+            where: DVFilter.equals('_dv_key', key),
           );
         }
         return;
@@ -1631,67 +1988,44 @@ class DVWarehouseSink implements DVCaptureSink {
       incarnation = x.operation == DVCaptureOp.insert ? x.sequence : 0;
     }
 
+    Future<void> entomb({required bool erased}) async {
+      await _records.delete(tombstoneTable, where: _tombstoneOf(model, x.key));
+      await _records.insert(tombstoneTable, <String, Object?>{
+        'model': model,
+        'record_key': jsonEncode(_jsonSafe(x.key)),
+        'record_version': x.version,
+        'change_seq': x.sequence,
+        'incarnation': incarnation,
+        'erased': erased ? 1 : 0,
+      });
+    }
+
     if (x.operation == DVCaptureOp.delete) {
-      await database.execute('DELETE FROM $model WHERE _dv_key = ?',
-          <Object?>[x.key]);
-      await database.execute(
-        'DELETE FROM $tombstoneTable WHERE model = ? AND record_key = ?',
-        <Object?>[model, jsonEncode(_jsonSafe(x.key))],
-      );
-      await database.execute(
-        'INSERT INTO $tombstoneTable (model, record_key, record_version, '
-        'change_seq, incarnation, erased) VALUES (?, ?, ?, ?, ?, ?)',
-        <Object?>[
-          model,
-          jsonEncode(_jsonSafe(x.key)),
-          x.version,
-          x.sequence,
-          incarnation,
-          x.erased || tomb?['erased'] == 1 ? 1 : 0,
-        ],
-      );
+      await _records.delete(model, where: DVFilter.equals('_dv_key', key));
+      await entomb(erased: x.erased || _asInt(tomb?['erased']) == 1);
       return;
     }
 
-    if (tomb != null && tomb['erased'] != 1) {
-      await database.execute(
-        'DELETE FROM $tombstoneTable WHERE model = ? AND record_key = ?',
-        <Object?>[model, jsonEncode(_jsonSafe(x.key))],
-      );
+    if (tomb != null && _asInt(tomb['erased']) != 1) {
+      await _records.delete(tombstoneTable, where: _tombstoneOf(model, x.key));
     }
-    if (force && x.erased) {
-      await database.execute(
-        'DELETE FROM $tombstoneTable WHERE model = ? AND record_key = ?',
-        <Object?>[model, jsonEncode(_jsonSafe(x.key))],
-      );
-      await database.execute(
-        'INSERT INTO $tombstoneTable (model, record_key, record_version, '
-        'change_seq, incarnation, erased) VALUES (?, ?, ?, ?, ?, ?)',
-        <Object?>[
-          model,
-          jsonEncode(_jsonSafe(x.key)),
-          x.version,
-          x.sequence,
-          incarnation,
-          1,
-        ],
-      );
-    }
-    await _upsert(x,
+    if (force && x.erased) await entomb(erased: true);
+    await _upsert(x, carried,
         exists: row != null,
         incarnation: incarnation,
         backfilled: x.operation == DVCaptureOp.snapshot);
   }
 
   Future<void> _upsert(
-    DVCapturedChange x, {
+    DVCapturedChange x,
+    Map<String, Object?> carried, {
     required bool exists,
     required int incarnation,
     required bool backfilled,
   }) async {
+    final String key = '${x.key}';
     final Map<String, Object?> values = <String, Object?>{
-      for (final MapEntry<String, Object?> e in x.values.entries)
-        if (!x.redacted.contains(e.key)) _checkIdentifier(e.key): e.value,
+      ...carried,
       '_dv_version': x.version,
       '_dv_seq': x.sequence,
       '_dv_incarnation': incarnation,
@@ -1701,19 +2035,17 @@ class DVWarehouseSink implements DVCaptureSink {
       '_dv_occurred_at': x.occurredAt.toUtc().toIso8601String(),
       if (backfilled) '_dv_backfilled': x.sequence,
     };
-    final List<String> columns = values.keys.toList();
     if (exists) {
-      await database.execute(
-        'UPDATE ${x.model} SET '
-        '${columns.map((String c) => '$c = ?').join(', ')} WHERE _dv_key = ?',
-        <Object?>[for (final String c in columns) values[c], x.key],
+      await _records.update(
+        x.model,
+        values,
+        where: DVFilter.equals('_dv_key', key),
       );
     } else {
-      await database.execute(
-        'INSERT INTO ${x.model} (_dv_key, ${columns.join(', ')}) '
-        'VALUES (?, ${List<String>.filled(columns.length, '?').join(', ')})',
-        <Object?>[x.key, for (final String c in columns) values[c]],
-      );
+      await _records.insert(x.model, <String, Object?>{
+        '_dv_key': key,
+        ...values,
+      });
     }
   }
 }
@@ -1726,9 +2058,9 @@ class DVWarehouseSink implements DVCaptureSink {
 /// the earlier values, and applies the same changes to each destination
 /// directly. Without it [DVPrivacy] still purges the log and captures the
 /// removal for every captured model, so delivery reaches every destination;
-/// what this adds is reaching [sinks] now, and knowing when one was not. A destination that cannot be reached makes the erasure
-/// incomplete (`DV-PRIVACY-009`) rather than waiting on delivery that may
-/// never run.
+/// what this adds is reaching [sinks] now, and knowing when one was not. A
+/// destination that cannot be reached makes the erasure incomplete
+/// (`DV-PRIVACY-009`) rather than waiting on delivery that may never run.
 class DVCapturePrivacyAdapter implements DVPrivacyRecordAdapter {
   DVCapturePrivacyAdapter({
     required this.capture,
@@ -1790,6 +2122,7 @@ Object? _jsonSafe(Object? value) =>
 int _asInt(Object? value) {
   if (value is int) return value;
   if (value is num) return value.toInt();
+  if (value is bool) return value ? 1 : 0;
   return int.tryParse('$value') ?? 0;
 }
 

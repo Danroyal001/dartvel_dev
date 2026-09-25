@@ -9713,6 +9713,35 @@ the thing it is reading:
   silently keeps deleted rows for ever, and every count computed from it is
   wrong in a direction nobody checks.
 
+## Declared, not wired
+
+The annotation and the destinations in `pubspec.yaml` are all an application
+writes:
+
+```yaml
+dartvel:
+  capture:
+    retention: 7d
+    destinations:
+      warehouse:
+        type: database
+        connection: WAREHOUSE_URL   # the secret's name, never its value
+        models: [Order]
+        lagThreshold: 10m
+```
+
+The server creates the log, delivers each destination on its own queue with
+retries, backfills a destination or data model it has never copied, reports
+lag and prunes the log. The log, the consumers, the destinations and their
+jobs are the framework's and not in the surface an application imports, for
+the reason every capability of a model is: an application that has to wire
+the machinery is carrying a second description of what the pubspec already
+says. A connection written into the pubspec is refused (`DV-CDC-007`),
+because the pubspec is committed and shipped.
+
+The log and a destination are written through the record operations of
+Storage-Neutral Records, so neither assumes the store it is in speaks SQL.
+
 ## Destinations are adapters, and they are not databases
 
 ClickHouse, BigQuery, Snowflake-class warehouses and Parquet in object storage
@@ -9788,6 +9817,10 @@ always surfaces as a number somebody cannot reconcile.
 | `DV-CDC-003` | capture lag exceeded the declared threshold | `warning` |
 | `DV-CDC-004` | the destination cannot deduplicate; delivery is at-least-once | `info` |
 | `DV-CDC-005` | a destination's schema could not be evolved to match the source | `error` |
+| `DV-CDC-006` | `dartvel.capture` declares something that cannot be honoured | `error` |
+| `DV-CDC-007` | a destination's connection is written into the pubspec rather than named by its secret | `error` |
+| `DV-CDC-008` | a destination takes a data model that is not captured | `error` |
+| `DV-CDC-009` | a destination's connection secret is not set; its changes wait in the log | `warning` |
 
 ---
 

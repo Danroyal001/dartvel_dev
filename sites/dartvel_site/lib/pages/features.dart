@@ -482,9 +482,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Change Data Capture and Warehouse Sync',
-    'DVCapture',
-    'Present: an ordered change log with checkpoints for consumers. Absent: '
-        '@DVModel(capture: true).',
+    '@DVModel(capture: true)',
+    'Present: captured data models delivered in order, with backfill. '
+        'Absent: ClickHouse, BigQuery, Snowflake and Parquet destinations.',
   ),
   (
     'Secrets and Environments',

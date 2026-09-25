@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dartvel_cli/src/config/dartvel_config.dart';
 import 'package:dartvel_core/dartvel.dart'
     show DVCacheConfig, DVCacheConfigException, DVCacheStore;
+import 'package:dartvel_core/framework.dart' show DVCaptureConfigError;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -69,8 +70,7 @@ dartvel:
       expect((await DartvelConfig.load(temp)).cache, isNull);
     });
 
-    test('reads dartvel.cache: store, env-referenced url and prefix',
-        () async {
+    test('reads dartvel.cache: store, env-referenced url and prefix', () async {
       File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync(r'''
 name: cached_app
 dartvel:
@@ -87,21 +87,27 @@ dartvel:
       expect(cache.prefix, 'shop:');
     });
 
-    test('a cache store Dartvel does not have stops the load with its code',
-        () async {
-      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+    test(
+      'a cache store Dartvel does not have stops the load with its code',
+      () async {
+        File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
 name: cached_app
 dartvel:
   cache:
     store: reddis
 ''');
-      await expectLater(
-        DartvelConfig.load(temp),
-        throwsA(isA<DVCacheConfigException>()
-            .having((DVCacheConfigException e) => '$e', 'text',
-                allOf(contains('DV-CACHE-001'), contains('reddis')))),
-      );
-    });
+        await expectLater(
+          DartvelConfig.load(temp),
+          throwsA(
+            isA<DVCacheConfigException>().having(
+              (DVCacheConfigException e) => '$e',
+              'text',
+              allOf(contains('DV-CACHE-001'), contains('reddis')),
+            ),
+          ),
+        );
+      },
+    );
 
     test('a password written into dartvel.cache.url stops the load', () async {
       File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
@@ -113,8 +119,13 @@ dartvel:
 ''');
       await expectLater(
         DartvelConfig.load(temp),
-        throwsA(isA<DVCacheConfigException>().having(
-            (DVCacheConfigException e) => e.code, 'code', 'DV-CACHE-003')),
+        throwsA(
+          isA<DVCacheConfigException>().having(
+            (DVCacheConfigException e) => e.code,
+            'code',
+            'DV-CACHE-003',
+          ),
+        ),
       );
     });
 
@@ -149,6 +160,86 @@ class _AppConfig extends DartvelConfig {}
       await expectLater(
         () => DartvelConfig.load(temp),
         throwsA(isA<FormatException>()),
+      );
+    });
+
+    // dartvel.capture is one of the two things an application writes for
+    // change capture. Read with the project's configuration, so every
+    // command that loads it refuses a declaration the server could not
+    // honour instead of generating one.
+    test('reads dartvel.capture', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: capture_app
+dartvel:
+  capture:
+    retention: 14d
+    destinations:
+      warehouse:
+        type: database
+        connection: WAREHOUSE_URL
+        models: [Order]
+        lagThreshold: 10m
+''');
+
+      final config = await DartvelConfig.load(temp);
+
+      expect(config.capture?.retention, const Duration(days: 14));
+      expect(config.capture?.destinations.single.connection, 'WAREHOUSE_URL');
+      expect(config.capture?.destinations.single.models, <String>{'Order'});
+    });
+
+    test('a project that declares no capture has none', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: plain_app
+dartvel:
+  backendPort: 3000
+''');
+
+      expect((await DartvelConfig.load(temp)).capture, isNull);
+    });
+
+    test('a connection written into the pubspec is DV-CDC-007', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: leaky_app
+dartvel:
+  capture:
+    destinations:
+      warehouse:
+        type: database
+        connection: postgres://etl:hunter2@db.internal/warehouse
+''');
+
+      await expectLater(
+        () => DartvelConfig.load(temp),
+        throwsA(
+          isA<DVCaptureConfigError>()
+              .having((DVCaptureConfigError e) => e.code, 'code', 'DV-CDC-007')
+              .having(
+                (DVCaptureConfigError e) => '$e',
+                'message',
+                isNot(contains('hunter2')),
+              ),
+        ),
+      );
+    });
+
+    test('a misspelt capture setting is DV-CDC-006', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: typo_app
+dartvel:
+  capture:
+    retension: 7d
+''');
+
+      await expectLater(
+        () => DartvelConfig.load(temp),
+        throwsA(
+          isA<DVCaptureConfigError>().having(
+            (DVCaptureConfigError e) => e.code,
+            'code',
+            'DV-CDC-006',
+          ),
+        ),
       );
     });
   });

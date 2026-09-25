@@ -15,6 +15,26 @@
 - The generated client barrel hides the cache adapters, the Redis and
   Memcached clients, `DVCacheTags` and the config reader.
 
+- **The generated server runs change capture from `dartvel.capture`.** Web,
+  worker and cron processes configure it over the application database before
+  `DV.Privacy`; the process that ticks the schedules runs the capture pass, a
+  process given no role runs the delivery and backfill jobs itself, and a
+  worker works each destination's queue beside its own.
+
+- **`dartvel.capture` is read with the project's configuration**
+  (`DartvelConfig.capture`), so a declaration the server could not honour
+  stops `routes`, `build` and `dev` (`DV-CDC-006`, `DV-CDC-007`), and the
+  build checks each destination's data models are captured (`DV-CDC-008`).
+
+- **Breaking: `@DVModel(capture: true)` no longer generates
+  `Model.backfillTo(consumer)`.** The server backfills a destination that has
+  never been copied to. The model's server spec carries `capture: true`
+  instead, and `ModelGenerator.generate` answers the captured class names.
+
+- **An erasure reaches a captured data model's log and copies.** Its
+  `privacy.g.dart` registration names the capture log, and `dartvel privacy
+  erase` gives it one over the database it walks.
+
 ## 0.6.0
 
 - **`dartvel doctor` no longer warns about a directory a project does not
