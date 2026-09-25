@@ -113,6 +113,17 @@ dartvel:
       persistedQueries: prefer
   # docs:end
 
+  # docs:start capture-config
+  capture:
+    retention: 7d
+    destinations:
+      warehouse:
+        type: database
+        connection: WAREHOUSE_URL
+        models: [Shipment]
+        lagThreshold: 10m
+  # docs:end
+
   # docs:start yaml-platform-api
   platformApi:
     scopes:
