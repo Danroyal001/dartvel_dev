@@ -116,6 +116,50 @@ class _Product {
 }
 ''';
 
+/// A model with a page by default, fields it protects -- a sensitive one and
+/// the id of its privacy subject -- and a view policy written against the
+/// generated client, so the page's policy questions compile against the
+/// types an application actually has.
+const String _article = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(subject: DVSubject.field('authorId'), retain: DVRetention.indefinite)
+class const _Article({
+  required final String slug,
+  @DVModel.pageTitle() required final String title,
+  @DVModel.mainContent() required final String body,
+  required final bool published,
+  required final String authorId,
+  @DVModel.sensitiveField() required final String editorNotes,
+});
+''';
+
+/// A person's record whose pages were asked for by name.
+const String _member = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(
+  generatePublicPages: true,
+  subject: DVSubject.self,
+  retain: DVRetention.indefinite,
+)
+class const _Member({required final String id, required final String name});
+''';
+
+const String _articlePolicy = '''
+import 'package:dartvel_core/dartvel.dart';
+
+import '../dartvel_client/dartvel_client.dart';
+
+@DVPolicy(Article)
+class ArticlePolicy {
+  bool view(DVSessionPrincipal? user, Article article) => article.published;
+
+  bool viewSensitive(DVSessionPrincipal? user, Article article) =>
+      user != null && user.userId == article.authorId;
+}
+''';
+
 const String _indexLoading = '''
 import 'package:flutter/widgets.dart';
 
@@ -322,6 +366,10 @@ void main() {
         ProjectTemplates.analysisOptionsTemplate);
     write(p.join(project.path, 'lib', 'models', 'account.dart'), _model);
     write(p.join(project.path, 'lib', 'models', 'product.dart'), _product3d);
+    write(p.join(project.path, 'lib', 'models', 'article.dart'), _article);
+    write(p.join(project.path, 'lib', 'models', 'member.dart'), _member);
+    write(p.join(project.path, 'lib', 'policies', 'article_policy.dart'),
+        _articlePolicy);
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
     write(p.join(project.path, 'lib', 'pages', 'index.loading.dart'),
         _indexLoading);
@@ -439,6 +487,8 @@ dependency_overrides:
       // are the rule working, not a defect.
       .where((String line) => !line.contains('lib/models/account.dart'))
       .where((String line) => !line.contains('lib/models/product.dart'))
+      .where((String line) => !line.contains('lib/models/article.dart'))
+      .where((String line) => !line.contains('lib/models/member.dart'))
       .where((String line) => !line.contains('lib/backend/'))
       .where((String line) => !line.contains('.page.dart'))
       .toList(growable: false);
@@ -582,6 +632,22 @@ dependency_overrides:
     ).readAsStringSync();
     expect(models, contains('Widget viewer3D() => DVModel3DViewer(asset);'));
     expect(models, contains('DVModel3DViewer(model.asset)'));
+  });
+
+  test('a default model page and its policy questions are in the analyzed '
+      'client', () {
+    final String models = File(p.join(
+            project.path, 'lib', 'dartvel_client', 'models.g.dart'))
+        .readAsStringSync();
+    expect(models, contains('static Widget publicPage(String slug)'));
+    expect(models, contains("mayViewProtected('Article', viewer, found)"));
+    expect(models, contains('static Widget _dvProtectedPageFields(Article'));
+    expect(models, contains('static Widget publicPage(String id)'));
+    final String router = File(p.join(
+            project.path, 'lib', 'dartvel_client', 'router.g.dart'))
+        .readAsStringSync();
+    expect(router, contains("path: '/articles/:slug'"));
+    expect(router, contains("path: '/members/:id'"));
   });
 
   test('the admin pages were generated and analyzed too', () {

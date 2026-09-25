@@ -73,6 +73,21 @@ void main() {
     expect(RegExp(r'(?<!io\.)\bPlatform\.').hasMatch(source), isFalse);
   });
 
+  test('the resolver entry registers the policies before resolving', () {
+    // publicStaticPaths asks each model's view policy which records anybody
+    // may see. With nothing registered in this process, a model whose policy
+    // refuses drafts would have every draft enumerated into the static site
+    // and the sitemap.
+    final String source = dvStaticPathsEntrySource('shop');
+    expect(
+        source,
+        contains("import 'package:shop/dartvel_client/policies.g.dart' "
+            'show dartvelRegisterPolicies;'));
+    final int register = source.indexOf('dartvelRegisterPolicies();');
+    expect(register, greaterThan(-1));
+    expect(register, lessThan(source.indexOf('resolveDartvelStaticPaths(')));
+  });
+
   group('what the build says about providers that did not resolve', () {
     const String stdout = '''
 00:00 +0: resolve static paths

@@ -1,14 +1,11 @@
 import 'package:dartvel_core/dartvel.dart';
 
-// The favicon these pages wear. Points at a file the example actually
-// ships, because a page wearing an icon that 404s looks exactly like a
-// page wearing none.
 // Each user is the person their row belongs to, and an account is kept for
 // as long as it exists -- deliberately, which is the declaration
-// DV-PRIVACY-002 asks for rather than a retention nobody decided.
+// DV-PRIVACY-002 asks for rather than a retention nobody decided. A user is
+// an account, so it has no public page.
 @DVModel(
-  generatePublicPages: true,
-  favicon: '/favicon.png',
+  generatePublicPages: false,
   subject: DVSubject.self,
   retain: DVRetention.indefinite,
 )

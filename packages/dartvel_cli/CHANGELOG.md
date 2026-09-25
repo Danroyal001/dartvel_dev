@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Breaking: every data model under `lib/models/` gets public pages unless it
+  says `generatePublicPages: false`.** Models that stand for accounts,
+  sessions, credentials or audit records, rows that are their own privacy
+  subject, tenant-scoped models, models with a protected or no `String` key and
+  models whose route an application page already serves are skipped with a note
+  in the build log. The generated page, static paths and page spec keep
+  sensitive and subject fields out, ask the model's `view` and `viewSensitive`
+  policies, and the static-path resolver registers the `@DVPolicy` classes
+  before it runs.
+
 - **Ctrl+F finds text on a built web page.** Every page `dartvel build web`
   writes carries its text in `hidden="until-found"` sections, one per
   paragraph, that the browser's find searches. Before, the block was

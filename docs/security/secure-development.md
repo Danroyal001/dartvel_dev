@@ -154,6 +154,14 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
 - **Releases are checksummed, not signed.** `.github/workflows/cli-release.yml`
   publishes a `SHA256SUMS` file, which detects a corrupted download and not a
   substituted one. No signature, no provenance attestation.
+- **A model page only sees the view policies it can find.** Every data model
+  has a public page by default, and its `view` policy decides who gets one.
+  The build finds `@DVPolicy` classes, so a policy the application registers
+  only in code, with `DV.Auth.authorization.register`, on a device and not on
+  the server, is invisible to the server's page data and to static
+  generation: both treat that model as having no view policy and publish its
+  non-protected fields. Protected fields stay out regardless. Declare the
+  policy as a class, or say `generatePublicPages: false`.
 - **No threat model document.** The rules above are the distilled version; the
   reasoning behind them is spread across commit messages.
 

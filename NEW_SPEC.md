@@ -12640,6 +12640,90 @@ fields in this order:
   declaration order, schema type, display priority, and actual non-empty length.
 - Sensitive and hidden fields are excluded (see Sensitive Model Fields).
 
+## Public pages by default
+
+Every data model is also served at a route of its own, one page per record,
+unless it opts out:
+
+```dart
+@DVModel()                            // /articles/hello-world
+class _Article(final String slug, ...);
+
+@DVModel()                            // /blog-posts/42
+class _BlogPost(final String id, ...);
+
+@DVModel(generatePublicPages: false)  // no page
+class _Invoice(...);
+```
+
+The route is the model's name, plural and kebab-case, then the record's
+`slug`, else its `id`, else its first `String` field. It is derived, never
+written out.
+
+**Protected fields.** A `@DVModel.sensitiveField()`, and the field naming the
+model's privacy `subject:` (`#authorId`, `DVSubject.field('authorId')`, the
+column of `DVSubject.through`), are never on a generated page, and never in its
+page data, head, Open Graph or structured data, crawler fallback text, the
+static build or the sitemap. The one exception is the rendered page shown to a
+viewer the model's `viewSensitive` policy admits:
+
+```dart
+@DVPolicy(Article)
+class ArticlePolicy {
+  bool view(DVSessionPrincipal? user, Article article) => article.published;
+  bool viewSensitive(DVSessionPrincipal? user, Article article) =>
+      user?.userId == article.authorId;
+}
+```
+
+`viewSensitive` is separate from `view` on purpose: letting anybody read an
+article is not letting anybody read its editor's notes. With no
+`viewSensitive` policy nobody sees them. A field that is protected is never the
+page's title, main content or featured image, whatever it is annotated as.
+
+**Records a viewer may not read.** Before a record's page renders, the model's
+`view` policy is asked about it. A refusal, a record whose `published` field is
+false, and a record that does not exist all answer the same way -- 404, never
+403 -- so a page cannot be used to learn that a record exists. With no `view`
+policy a model's records are public, because a model that did not opt out has
+said so. A policy that throws, or cannot be asked with the viewer and the
+record, refuses.
+
+**Nobody is the viewer of anything shared.** The server's page data -- the
+head, the structured data and the crawler text -- is cached per path and handed
+to every reader, and the static build and the sitemap have no viewer at all. So
+they are made as nobody: the `view` policy is asked with no caller, and
+protected fields are never in them for anyone. A server that has not loaded a
+`view` policy the application declares -- one written against the generated
+client, which the server cannot import -- refuses rather than reading the model
+as having none.
+
+**Models that get no page unless they ask** with `generatePublicPages: true`:
+
+- accounts and their access, sessions, credentials and audit records, read
+  from the model's name (`User`, `Account`, `Role`, `Permission`, `Session`,
+  `*Token`, `ApiKey`, `Credential`, `Password*`, `Passkey`, `*Secret`,
+  `AuditLog`, `OneTimeCode`, `RecoveryCode`, and a `DV` prefix);
+- a row that is its own privacy subject (`subject: DVSubject.self`). Asked for,
+  its every field is protected, its records are never in the static build or
+  the sitemap, and the server never resolves page data for one;
+- a record about a person, whose privacy subject is one of its fields (an
+  order keyed to a customer's email), unless it has a `published` or
+  `isPublished` flag to say which records are meant to be public. Hiding the
+  field that names the person would still publish the rest of the record;
+- a `tenantScoped` model, since a public page has no request to take a tenant
+  from (asking for both stops the build);
+- a model whose key would be a protected field, since a key is in every URL;
+- a model with no `String` field to key a route by;
+- a model whose route an application page or the routes file already serves,
+  which keeps its route.
+
+Each of these that did not say `generatePublicPages: false` is named in the
+build log with what to write. A page that was asked for and cannot be made --
+no key, or a protected one -- stops the build instead. The framework's own
+accounts, sessions, tokens, audit log and consent records are `dv_*` tables,
+not data models, and have no pages at all.
+
 Explicit overrides:
 
 ```dart
@@ -12922,7 +13006,9 @@ the field generated lookups use, since a randomized ciphertext never matches a
 plaintext in a `WHERE` clause.
 
 Explicit policy authorization is required before sensitive fields are sent to
-clients. This extends the existing security scope (authentication,
+clients. On a generated model page that authorization is the model's
+`viewSensitive` policy (see [Public pages by default](#public-pages-by-default));
+with none registered, nobody sees them. This extends the existing security scope (authentication,
 authorization, CSRF, CORS, origin validation, XSS/injection/SSRF protection,
 secure file handling, rate limiting, secrets, encryption, audit logging,
 dependency validation, tenant isolation, security headers, CSP, webhook
@@ -13178,15 +13264,18 @@ true image, so neither is a placeholder nobody checks.
 ## Dynamic routes during SSG
 
 Static routes are always generated. Parameterized routes require a known list of
-values:
+values, and a data model supplies its own: every model has a page per record
+unless it says `generatePublicPages: false`, so
 
 ```dart
-@DVModel(generatePublicPages: true)
+@DVModel()
 class _Product(...)
 ```
 
-That renders one page per published record, which is the common case and needs
-nothing else. When the set to generate is a subset, a particular order, or
+renders one page per published record that anybody may see -- a record whose
+`published` (or `isPublished`) field is false, or that the model's `view`
+policy refuses when asked as nobody, is not generated and not in the sitemap.
+That is the common case and needs nothing else. When the set to generate is a subset, a particular order, or
 drawn from somewhere the model does not know about, name a resolver instead:
 
 ```dart

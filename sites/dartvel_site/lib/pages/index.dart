@@ -252,7 +252,7 @@ Widget _proof(BuildContext context) => const Section(
     Eyebrow('DATA MODELS'),
     Heading('Write one class. Get its form, table, admin and typed client.'),
     CodeBlock(<String>[
-      '@DVModel(generatePublicPages: true)',
+      '@DVModel()',
       'class const _Post({',
       '  @DVModel.pageTitle() required final String title,',
       '  @DVModel.mainContent() required final String body,',
