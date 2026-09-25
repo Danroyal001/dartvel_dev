@@ -18,7 +18,9 @@ environment:
 dependencies:
   build: ^4.0.0
   source_gen: ^4.1.1
-  analyzer: ^10.0.1
+  # 14.4 reads Dart 3.13, the floor. On 10.x a primary constructor
+  # anywhere in a project this runs in is a parse error.
+  analyzer: ^14.4.0
   code_builder: ^4.10.0
   dart_style: ^3.1.1
   glob: ^2.1.2
