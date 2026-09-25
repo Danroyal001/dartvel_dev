@@ -379,8 +379,8 @@ gone too: build `--profile development` for the platform instead.
 `dartvel init` to add Dartvel to that project.
 
 **`flutter pub get failed` during `create`.** The scaffold is still written.
-Fix what pub reports (usually network or an SDK older than Dart 3.12 /
-Flutter 3.44) and run `flutter pub get` in the project.
+Fix what pub reports (usually network or an SDK older than Dart 3.13 /
+Flutter 3.47) and run `flutter pub get` in the project.
 
 **`dartvel build web` exits 1 with an accessibility finding.** A web build reads
 each page's semantics tree and fails on a page a screen reader cannot use,

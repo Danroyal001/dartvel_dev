@@ -76,7 +76,7 @@ flutter pub add dartvel_flutter
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 ```
 
-Every Dartvel package declares the same floor: Dart 3.12 and Flutter 3.44.
+Every Dartvel package declares the same floor: Dart 3.13 and Flutter 3.47.
 `dartvel init` adds Dartvel to an existing Flutter project instead of making
 a new one, and `dartvel init --dry-run` shows what it would change first.
 

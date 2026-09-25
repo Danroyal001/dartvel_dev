@@ -45,7 +45,7 @@ spelling is the one a pure-Dart file uses today.
 dart pub add dartvel_core
 ```
 
-Dart 3.12 or later, the floor every Dartvel package declares.
+Dart 3.13 or later, the floor every Dartvel package declares.
 
 ```dart
 import 'package:dartvel_core/dartvel.dart';

@@ -270,8 +270,8 @@ Embedded, TV and terminal targets run through a dedicated Flutter embedder, neve
 Vendor embedders download a prebuilt Flutter engine per version, so a target
 can lag behind Dartvel's Flutter, and bumping a version pin cannot fix that.
 The webOS and eLinux release engines are built from source for this reason. An
-embedder's Flutter can also be too old for Dartvel's floor of Dart 3.12 and
-Flutter 3.44. Details are in [docs/build-targets.md](docs/build-targets.md).
+embedder's Flutter can also be too old for Dartvel's floor of Dart 3.13 and
+Flutter 3.47. Details are in [docs/build-targets.md](docs/build-targets.md).
 
 ---
 
@@ -330,7 +330,7 @@ cache, queues, auth, notifications, AI),
 signals, native platform APIs),
 [`dartvel_shelf`](https://pub.dev/packages/dartvel_shelf) (the Rust runtime),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
-dev server, deploy). Every package needs Dart 3.12 and Flutter 3.44 or newer.
+dev server, deploy). Every package needs Dart 3.13 and Flutter 3.47 or newer.
 
 To add Dartvel to a Flutter project you already have, run `dartvel init`. It
 adds the dependency and the `dartvel:` key and nothing else.
