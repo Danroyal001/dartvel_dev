@@ -5,8 +5,8 @@ import '../../dartvel_client/dartvel_client.dart';
 @DVPage(
   title: 'Hasura for Flutter',
   description: 'Hasura for Flutter: a typed Dart client generated from your '
-      'models instead of GraphQL strings, realtime without writing a '
-      'subscription, and authorization that answers no by default.',
+      'data models, set beside the GraphQL API Hasura DDN generates over your '
+      'data sources, with where each one fits.',
   showAppBar: false,
   sitemap: DVPageSitemap(
     priority: 0.9,
@@ -24,19 +24,20 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
               'Hasura for Flutter, without the query language in the middle.',
               level: 1,
             ),
-            Body('Hasura gives you an instant API over a database, live '
-                'queries and row-level permissions, and that is a genuinely '
-                'good trade. What it hands your Flutter app is a GraphQL '
-                'string: untyped until a code generator looks at it, and '
-                'wrong at runtime instead of at compile time when the schema '
-                'moves. Dartvel generates the client from the model instead, '
-                'so there is no query language between your app and your '
-                'data.'),
+            Body('Hasura DDN generates a GraphQL API over the data sources you '
+                'already have, with subscriptions, row and column permissions '
+                'and custom logic in TypeScript, Python or Go, and that is a '
+                'genuinely good trade. What it hands your Flutter app is a '
+                'GraphQL document: typed once a code generator reads it '
+                'against the schema, and a runtime error when the schema moves '
+                'and nobody regenerated. Dartvel generates the client from the '
+                'data model instead, so there is no query language between '
+                'your app and your data.'),
             CodeBlock(<String>[
-              '// Hasura: a string, checked by a generator, if you run one',
+              '// Hasura: a GraphQL document, typed by a code generator',
               'query { articles(where: {published: {_eq: true}}) { id title } }',
               '',
-              '// Dartvel: the model generates the client',
+              '// Dartvel: the data model generates the client',
               'final List<Article> all = await Article.all();',
               'final Article? one = await Article.find(slug);',
             ]),
@@ -48,15 +49,15 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('SIDE BY SIDE'),
             Heading('The same jobs, done differently.'),
             DocsTable(
-              columns: <String>['', 'Hasura', 'Dartvel'],
+              columns: <String>['', 'Hasura DDN', 'Dartvel'],
               rows: <List<String>>[
-                <String>['API', 'GraphQL, generated from the schema', 'A typed Dart client, generated from the model'],
-                <String>['Type safety', 'A codegen step over your documents', 'The compiler. A renamed field fails the build'],
-                <String>['Realtime', 'GraphQL subscriptions you write', 'On by default. Turn it off at the model'],
-                <String>['Offline', 'Your problem', 'On by default. Writes sync when the network returns'],
-                <String>['Permissions', 'Row and column rules in the console', 'DV.Auth.authorization in Dart, default deny'],
-                <String>['Custom logic', 'Actions, calling a service you wrote', '@DVBackendFunction, in the same repository'],
-                <String>['Database', 'Postgres, and its other connectors', 'SQLite, Postgres, MySQL, through a records layer'],
+                <String>['API', 'GraphQL, generated from your data sources', 'A typed Dart client generated from the model, plus GraphQL and OpenAPI endpoints'],
+                <String>['Type safety', 'A codegen step over your GraphQL documents', 'The compiler. A renamed field fails the build'],
+                <String>['Realtime', 'GraphQL subscriptions, generated for each model, in beta', 'Model change streams, also served as GraphQL subscriptions over SSE. Models do not sync to devices on their own yet'],
+                <String>['Offline', 'Left to the client', 'An offline store with a replay log. Saving through it is still a separate call'],
+                <String>['Permissions', 'ModelPermissions in metadata files, in your repository', 'DV.Auth.authorization in Dart, default deny'],
+                <String>['Custom logic', 'Lambda connectors in TypeScript, Python or Go', '@DVBackendFunction, in the same repository as the app'],
+                <String>['Data sources', 'Postgres, MySQL, SQL Server, Oracle, MongoDB, ClickHouse, Snowflake, BigQuery and more', 'SQLite, Postgres, MySQL'],
                 <String>['The app', 'Not its job', 'Pages, forms, admin, and builds for every target'],
               ],
             ),
@@ -65,12 +66,14 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
         Section(
           children: <Widget>[
             Eyebrow('PERMISSIONS'),
-            Heading('Rules in code, reviewed like code.'),
-            Body("Hasura's permissions live in its metadata and are edited in "
-                'a console. That is fast, and it puts the rule that decides '
-                'who reads a row somewhere your pull request does not. A '
-                'Dartvel policy is Dart: it is diffed, reviewed, tested, and '
-                'it answers no for anything nobody registered.'),
+            Heading('Both keep the rules in the repository.'),
+            Body('In Hasura DDN a permission is a ModelPermissions object in '
+                'an .hml metadata file: a filter over rows for each role, '
+                'versioned with the project and built by the ddn CLI. Only '
+                'the admin role gets access by default. A Dartvel policy is '
+                'Dart beside the model it guards, so it is type-checked with '
+                'the model, can call any function the backend can, and '
+                'answers no for anything nobody registered.'),
             CodeBlock(<String>[
               'DV.Auth.authorization.register<DVAuthUser, Article>(',
               "    'Article.publish',",
@@ -81,12 +84,11 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
               '// a policy nobody registered answers no',
             ]),
             Bullets(<String>[
-              'Sensitive fields are marked on the model and are kept out of '
-                  'logs, traces, analytics, AI context, search and the admin '
-                  'by default.',
-              'The records layer under the adapters is not SQL strings, which '
-                  'is what makes MongoDB the next adapter instead of a '
-                  'rewrite.',
+              'A field marked @DVModel.sensitiveField() is kept out of logs '
+                  'and search, and encrypted: true seals it at rest.',
+              'The records layer under the adapters is built so a document '
+                  'database can sit behind the same data models. MongoDB is '
+                  'planned and not built.',
             ]),
           ],
         ),
@@ -96,26 +98,34 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('HONESTLY'),
             Heading('Where Hasura is ahead today.'),
             Bullets(<String>[
-              'Hasura points at a database you already have and gives you an '
-                  'API in minutes, including one nobody wants to rewrite.',
-              'GraphQL is a standard with a large ecosystem; a generated Dart '
-                  'client is Dart only.',
-              'Hasura Cloud is a running product. Dartvel Cloud is not open '
-                  'yet.',
-              'Federating several databases and services behind one graph is '
-                  "Hasura's job and not Dartvel's.",
+              'Hasura points at databases and APIs you already have, many of '
+                  'them Dartvel has no adapter for, and gives you one API over '
+                  'all of them, including ones nobody wants to rewrite.',
+              'Its subscriptions are a documented client path today. '
+                  "Dartvel's generated data models do not yet sync changes "
+                  'to devices on their own.',
+              'GraphQL is a standard with a large ecosystem of clients in '
+                  "every language. Dartvel's generated client is Dart only, "
+                  'and its GraphQL endpoint covers data models and not '
+                  'federation.',
+              'Hasura DDN is a running hosted product. Dartvel Cloud is not '
+                  'open yet.',
+              'Federating several databases and services behind one '
+                  "supergraph is Hasura's job and not Dartvel's.",
             ]),
             VersusFair('These are not the same kind of tool. Hasura is an API '
                 'layer over data you already have; Dartvel is the whole '
                 'application. The comparison is worth making because a '
-                'Flutter team choosing Hasura is usually choosing it for the '
-                'realtime, typed data access. That is a thing they can have '
-                'without a query language.'),
+                'Flutter team choosing Hasura is often choosing it for typed '
+                'data access from the app, and that is a thing Dartvel gives '
+                'them without a query language.'),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('Data models', '/docs/models'),
               GhostLink('Authorization', '/docs/authorization'),
               GhostLink('Sync and realtime', '/docs/sync'),
             ], spacing: 12),
+            VersusChecked('Hasura DDN',
+                'https://hasura.io/docs/3.0/llms-full.txt', '2026-09-25'),
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/hasura')]),
