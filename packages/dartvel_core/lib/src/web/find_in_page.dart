@@ -121,3 +121,178 @@ String dvFindableHtml(String content) {
   if (leaf != null) out.write('</section>');
   return out.toString();
 }
+
+/// One paragraph of a rendered page: its text, and its heading level if the
+/// page marked it as a heading.
+class DVFindBlock {
+  const DVFindBlock(this.text, {this.headingLevel});
+
+  final String text;
+
+  /// 1 to 6 for a heading, null for everything else.
+  final int? headingLevel;
+
+  /// The element the mirror writes it as.
+  String get tag {
+    final int? level = headingLevel;
+    return level != null && level >= 1 && level <= 6 ? 'h$level' : 'p';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is DVFindBlock &&
+      other.text == text &&
+      other.headingLevel == headingLevel;
+
+  @override
+  int get hashCode => Object.hash(text, headingLevel);
+
+  @override
+  String toString() => 'DVFindBlock($tag: $text)';
+}
+
+/// [text] as find compares it: whitespace collapsed, case folded.
+///
+/// A paragraph Flutter wrapped over three lines is one run of words to the
+/// reader, and the browser's find is case-insensitive by default.
+String dvFindNormalize(String text) =>
+    text.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+
+/// The most text the mirror holds for one page.
+///
+/// A mirror is a copy of what the page drew. A page that draws a novel should
+/// not have the DOM carry a second one: past this the mirror stops, and what
+/// is past it is not findable -- which is where section 2's own find bar, not
+/// a bigger DOM, is the answer.
+const int dvFindMirrorMaxChars = 200000;
+
+/// The paragraphs a mirror is written from, cleaned.
+///
+/// Whitespace collapsed as the reader sees it, empty paragraphs dropped, and
+/// the total held to [maxChars]. Repeats are kept: the same words twice on a
+/// page are two places find can land.
+List<DVFindBlock> dvFindMirrorBlocks(
+  Iterable<DVFindBlock> rendered, {
+  int maxChars = dvFindMirrorMaxChars,
+}) {
+  final List<DVFindBlock> blocks = <DVFindBlock>[];
+  int total = 0;
+  for (final DVFindBlock block in rendered) {
+    final String text = block.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) continue;
+    if (total + text.length > maxChars) break;
+    total += text.length;
+    blocks.add(DVFindBlock(text, headingLevel: block.headingLevel));
+  }
+  return blocks;
+}
+
+/// The paragraphs of [blocks] whose words are not already in [existing].
+///
+/// On the route a build wrote the block for, that block is kept: it carries
+/// the links and the landmarks the semantics tree gave it, which a crawler
+/// that runs scripts reads and a mirror rebuilt from painted paragraphs
+/// would throw away. What the page has drawn since -- rows a list built on
+/// scrolling, text that arrived with its data -- is added beside it.
+List<DVFindBlock> dvFindMissing(String existing, List<DVFindBlock> blocks) {
+  final String have = dvFindNormalize(existing);
+  return <DVFindBlock>[
+    for (final DVFindBlock block in blocks)
+      if (!have.contains(dvFindNormalize(block.text))) block,
+  ];
+}
+
+/// Which of the page's rendered paragraphs [section] mirrors.
+///
+/// `beforematch` names the element the browser matched in, not the words or
+/// the offset, so the paragraph is the finest this can be. [candidates] are
+/// the page's paragraphs as they are rendered now, in order; [hint] is the
+/// index the mirror was written with, which is exact while the page has not
+/// changed and breaks ties when it has.
+///
+/// In order of confidence: the same text; a paragraph the section is part of
+/// (the build wrote one sentence of a longer rendered paragraph); a run of
+/// paragraphs that makes up most of the section (the build wrote a whole
+/// list, the page drew an item at a time); a long paragraph inside the
+/// section; and, last, the paragraph sharing most of its words, for
+/// text that changed a little since the mirror was written. Null when nothing
+/// is close, because scrolling somewhere wrong is worse than not scrolling.
+int? dvFindMatch(String section, List<String> candidates, {int? hint}) {
+  final String target = dvFindNormalize(section);
+  if (target.isEmpty || candidates.isEmpty) return null;
+  final List<String> normalized = candidates.map(dvFindNormalize).toList();
+
+  int? nearest(Iterable<int> indexes) {
+    int? best;
+    for (final int i in indexes) {
+      if (best == null) {
+        best = i;
+        continue;
+      }
+      if (hint == null) continue;
+      if ((i - hint).abs() < (best - hint).abs()) best = i;
+    }
+    return best;
+  }
+
+  final Iterable<int> all = Iterable<int>.generate(normalized.length);
+
+  final int? exact = nearest(all.where((int i) => normalized[i] == target));
+  if (exact != null) return exact;
+
+  final int? within = nearest(all.where(
+      (int i) => normalized[i].isNotEmpty && normalized[i].contains(target)));
+  if (within != null) return within;
+
+  // A run of paragraphs that is most of the section: a list the build wrote
+  // whole, drawn one short item at a time. Most of it, because a one-word
+  // label at the start of a long section is not what the section says.
+  bool opensRun(int i) {
+    if (normalized[i].isEmpty || !target.startsWith(normalized[i])) {
+      return false;
+    }
+    String joined = normalized[i];
+    for (int j = i + 1; j < normalized.length; j++) {
+      final String next = '$joined ${normalized[j]}';
+      if (!target.startsWith(next)) break;
+      joined = next;
+    }
+    return joined.length >= target.length * 0.6;
+  }
+
+  final int? run = nearest(all.where(opensRun));
+  if (run != null) return run;
+
+  // A paragraph inside the section. Short ones are left out: a one-word
+  // label is inside every section that mentions it.
+  final int? inside = nearest(all.where((int i) =>
+      normalized[i].length >= 12 && target.contains(normalized[i])));
+  if (inside != null) return inside;
+
+  final Set<String> words = target.split(' ').toSet();
+  double bestScore = 0;
+  int? best;
+  for (final int i in all) {
+    final Set<String> theirs = normalized[i].split(' ').toSet();
+    if (theirs.isEmpty) continue;
+    final int shared = words.intersection(theirs).length;
+    final double score = shared / words.union(theirs).length;
+    final bool closer = best != null &&
+        hint != null &&
+        score == bestScore &&
+        (i - hint).abs() < (best - hint).abs();
+    if (score > bestScore || closer) {
+      bestScore = score;
+      best = i;
+    }
+  }
+  return bestScore >= 0.5 ? best : null;
+}
+
+/// The index a runtime mirror wrote into [anchor], or null for one the build
+/// wrote -- whose numbering counts the semantics tree's elements, not the
+/// paragraphs the page renders, and so is no hint at all.
+int? dvFindRuntimeAnchor(String? anchor) {
+  if (anchor == null || !anchor.startsWith('r')) return null;
+  return int.tryParse(anchor.substring(1));
+}
