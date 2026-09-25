@@ -147,12 +147,13 @@ export 'src/compute/worker_types.dart'
 export 'src/compute/workers.dart';
 export 'src/data/change_capture.dart';
 export 'src/data/import_chunking.dart';
-// DVRecordTableRemote is what Model.offlineRemote builds, and the two
-// outcome codecs are how replay crosses the wire. An application asks the
-// model and never constructs or encodes either, so they stay in the library
-// for the framework and out of the surface.
+// An offline data model is saved, deleted and read like any other, and the
+// runtime sends its queue. What an application sees of it is what a record
+// says about where it stands and the refusal a full queue gives a save; the
+// store, the remote, the mutations, the replay and its codecs are how the
+// framework delivers, and live in framework.dart.
 export 'src/data/offline_store.dart'
-    hide DVRecordTableRemote, dvOutcomeFromJson, dvOutcomeToJson;
+    show DVSyncState, DVOfflineQueueFullError, DVOfflineStrategyError;
 // A model is the surface, and the record layer is how it is delivered.
 // DVRecordTable is the table under a model, DVRecord a raw row, DVWriteResult
 // a write's outcome and DVRecordScope the tenant filter. An application that
@@ -216,7 +217,9 @@ export 'src/platform/android_capture.dart';
 export 'src/platform_config.dart';
 export 'src/preview/preview.dart';
 export 'src/privacy/opt_out.dart';
-export 'src/privacy/privacy.dart';
+// DVOfflineStorePrivacyAdapter takes an offline store, which is the
+// framework's; it is exported from framework.dart with the store.
+export 'src/privacy/privacy.dart' hide DVOfflineStorePrivacyAdapter;
 export 'src/process/process_configuration.dart';
 export 'src/process/process_health.dart';
 export 'src/process/process_stores.dart';
