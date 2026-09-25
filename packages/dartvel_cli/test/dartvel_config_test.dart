@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/config/dartvel_config.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVCacheConfig, DVCacheConfigException, DVCacheStore;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -56,6 +58,64 @@ dartvel:
       expect(config.plugins, <String>['auth']);
       expect(config.webPrerender, isTrue);
       expect(config.ota, isTrue);
+    });
+
+    test('no cache block leaves the cache in memory', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: plain_app
+dartvel:
+  pagesDir: lib/pages
+''');
+      expect((await DartvelConfig.load(temp)).cache, isNull);
+    });
+
+    test('reads dartvel.cache: store, env-referenced url and prefix',
+        () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync(r'''
+name: cached_app
+dartvel:
+  cache:
+    store: redis
+    url: ${REDIS_URL}
+    prefix: "shop:"
+''');
+
+      final DVCacheConfig cache = (await DartvelConfig.load(temp)).cache!;
+
+      expect(cache.store, DVCacheStore.redis);
+      expect(cache.urlVariable, 'REDIS_URL');
+      expect(cache.prefix, 'shop:');
+    });
+
+    test('a cache store Dartvel does not have stops the load with its code',
+        () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: cached_app
+dartvel:
+  cache:
+    store: reddis
+''');
+      await expectLater(
+        DartvelConfig.load(temp),
+        throwsA(isA<DVCacheConfigException>()
+            .having((DVCacheConfigException e) => '$e', 'text',
+                allOf(contains('DV-CACHE-001'), contains('reddis')))),
+      );
+    });
+
+    test('a password written into dartvel.cache.url stops the load', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: cached_app
+dartvel:
+  cache:
+    store: redis
+    url: redis://:hunter2@cache.internal:6379
+''');
+      await expectLater(
+        DartvelConfig.load(temp),
+        throwsA(isA<DVCacheConfigException>().having(
+            (DVCacheConfigException e) => e.code, 'code', 'DV-CACHE-003')),
+      );
     });
 
     test('validates dart config file reference', () async {
