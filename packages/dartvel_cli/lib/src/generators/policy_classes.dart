@@ -212,7 +212,10 @@ class DVResourceShape {
 /// one thing the generator can do without inventing an argument; a
 /// constructor that computes something is the application's code, and is
 /// left alone, so the policy is asked with the values and refuses.
-DVResourceShape? dvResourceShapeIn(String source, String className) {
+DVResourceShape? dvResourceShapeIn(String written, String className) {
+  // `class const Note({required final String id});` is read as the class
+  // with fields and a constructor it is equivalent to.
+  final String source = dvDesugarPrimaryConstructors(written);
   final RegExpMatch? declaration = RegExp(
     r'class\s+' + RegExp.escape(className) + r'\b[^{;]*\{',
   ).firstMatch(source);

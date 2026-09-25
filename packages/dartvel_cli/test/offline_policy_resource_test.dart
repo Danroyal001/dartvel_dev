@@ -64,6 +64,32 @@ class Note {
           <bool>[false, false]);
     });
 
+    test('a class declared with a primary constructor', () {
+      // Application-facing Dart is written this way; read as a class with no
+      // constructor, the policy would be asked with the values and refuse.
+      final DVResourceShape? shape = dvResourceShapeIn('''
+class const Note({
+  required final String id,
+  required final String ownerId,
+  final bool pinned = false,
+  final int? count,
+});
+
+@DVPolicy(Note)
+class NotePolicy {
+  bool create(DVSessionPrincipal? user, Note? note) => true;
+}
+''', 'Note');
+
+      expect(shape, isNotNull);
+      expect(
+        shape!.parameters.map((DVResourceParameter p) => '${p.name}:${p.type}'),
+        <String>['id:String', 'ownerId:String', 'pinned:bool', 'count:int?'],
+      );
+      expect(shape.parameters.every((DVResourceParameter p) => p.named),
+          isTrue);
+    });
+
     test('a constructor that takes something that is not a field is not '
         'guessed at', () {
       // Whatever it does with the argument is the application's code, and
