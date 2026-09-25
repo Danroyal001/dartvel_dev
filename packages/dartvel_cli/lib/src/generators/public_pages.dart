@@ -98,15 +98,17 @@ class DVPublicPages {
     }
     final bool explicit = declared == 'true';
 
-    final String? subject =
-        named['subject']?.replaceFirst(RegExp(r'^const\s+'), '').trim();
+    final String? subject = named['subject']
+        ?.replaceFirst(RegExp(r'^const\s+'), '')
+        .trim();
     final bool personal = subject == 'DVSubject.self';
     final String? subjectField = subject == null
         ? null
         : (RegExp(r'^#([A-Za-z_][A-Za-z0-9_]*)$').firstMatch(subject) ??
-                RegExp(r'''^DVSubject\.(?:field|through)\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]''')
-                    .firstMatch(subject))
-            ?.group(1);
+                  RegExp(
+                    r'''^DVSubject\.(?:field|through)\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]''',
+                  ).firstMatch(subject))
+              ?.group(1);
     final Set<String> protectedFields = <String>{
       ...sensitive,
       if (subjectField != null) subjectField,
@@ -117,14 +119,14 @@ class DVPublicPages {
     final String? publishedField = _publishedField(fields);
 
     DVPublicPages none({String? skipped}) => DVPublicPages._(
-          className: className,
-          generates: false,
-          explicit: explicit,
-          protectedFields: protectedFields,
-          personal: personal,
-          publishedField: publishedField,
-          skipped: skipped,
-        );
+      className: className,
+      generates: false,
+      explicit: explicit,
+      protectedFields: protectedFields,
+      personal: personal,
+      publishedField: publishedField,
+      skipped: skipped,
+    );
 
     if (declared == 'false') return none();
     // A resolver names the paths for a page the application writes, so the
@@ -137,7 +139,8 @@ class DVPublicPages {
           'generatePublicPages: false to say so and silence this.';
       if (named['tenantScoped'] == 'true') {
         return none(
-          skipped: '$className has no public pages: its rows belong to a '
+          skipped:
+              '$className has no public pages: its rows belong to a '
               'tenant, and a public page is rendered with no request to take '
               'a tenant from. Say generatePublicPages: false to silence this.',
         );
@@ -145,13 +148,15 @@ class DVPublicPages {
       final String? account = _accountWord(className);
       if (account != null) {
         return none(
-          skipped: '$className has no public pages: $account, and records '
+          skipped:
+              '$className has no public pages: $account, and records '
               'like these are not published by default. $optIn',
         );
       }
       if (personal) {
         return none(
-          skipped: '$className has no public pages: each row is its own '
+          skipped:
+              '$className has no public pages: each row is its own '
               'privacy subject (subject: DVSubject.self), a person, and a '
               'person\'s record is not published by default. $optIn',
         );
@@ -167,7 +172,8 @@ class DVPublicPages {
         );
       }
       return none(
-        skipped: '$className has no public pages: it has no String field for '
+        skipped:
+            '$className has no public pages: it has no String field for '
             'a page\'s route to carry. Add a String slug or id to give it '
             'one, or say generatePublicPages: false to silence this.',
       );
@@ -185,10 +191,28 @@ class DVPublicPages {
         );
       }
       return none(
-        skipped: '$className has no public pages: its key, $why, and a key '
+        skipped:
+            '$className has no public pages: its key, $why, and a key '
             'is in every URL. Add a String slug or id to give it pages, or '
             'say generatePublicPages: false to silence this.',
       );
+    }
+
+    if (!explicit) {
+      // A record about a person (an order, a booking, a message) is theirs.
+      // Hiding the field that names them still publishes the rest of it, so
+      // such a model is public only when each record says so: an article
+      // has an author and a published flag, an order has neither.
+      if (subjectField != null && publishedField == null) {
+        return none(
+          skipped:
+              '$className has no public pages: each record is about a '
+              'person (subject: $subject) and has no published or '
+              'isPublished flag to say which records they meant to publish. '
+              'Add generatePublicPages: true to give it one, or '
+              'generatePublicPages: false to say so and silence this.',
+        );
+      }
     }
 
     final String route = '/${dvPluralRouteSegment(className)}/:$keyField';
@@ -197,7 +221,8 @@ class DVPublicPages {
       for (final String taken in takenRoutes) {
         if (dvRouteShape(taken) != shape) continue;
         return none(
-          skipped: '$className has no generated pages: $route is served by '
+          skipped:
+              '$className has no generated pages: $route is served by '
               'the application\'s own page at $taken. Say '
               'generatePublicPages: false to silence this.',
         );
@@ -223,25 +248,45 @@ class DVPublicPages {
   /// matched loses a default page and says so in the build log; one wrongly
   /// missed publishes a table of sessions.
   static String? _accountWord(String className) {
-    final List<String> words = RegExp(r'[A-Z]+(?=[A-Z][a-z0-9])|[A-Z]?[a-z0-9]+|[A-Z]+')
-        .allMatches(className)
-        .map((Match m) => m.group(0)!)
-        .toList();
+    final List<String> words = RegExp(
+      r'[A-Z]+(?=[A-Z][a-z0-9])|[A-Z]?[a-z0-9]+|[A-Z]+',
+    ).allMatches(className).map((Match m) => m.group(0)!).toList();
     if (words.isEmpty) return null;
     if (words.first == 'DV' && words.length > 1) {
       return 'the DV prefix is the framework\'s own';
     }
     if (words.length == 1 &&
         const <String>{
-          'User', 'Users', 'Account', 'Accounts', 'Audit', 'Audits',
-          'Role', 'Roles', 'Permission', 'Permissions',
+          'User',
+          'Users',
+          'Account',
+          'Accounts',
+          'Audit',
+          'Audits',
+          'Role',
+          'Roles',
+          'Permission',
+          'Permissions',
         }.contains(words.single)) {
       return 'it is an account or its access';
     }
     const Set<String> credentialWords = <String>{
-      'Session', 'Sessions', 'Token', 'Tokens', 'Credential', 'Credentials',
-      'Password', 'Passwords', 'Passkey', 'Passkeys', 'Secret', 'Secrets',
-      'Otp', 'OTP', 'Totp', 'TOTP',
+      'Session',
+      'Sessions',
+      'Token',
+      'Tokens',
+      'Credential',
+      'Credentials',
+      'Password',
+      'Passwords',
+      'Passkey',
+      'Passkeys',
+      'Secret',
+      'Secrets',
+      'Otp',
+      'OTP',
+      'Totp',
+      'TOTP',
     };
     if (words.any(credentialWords.contains)) {
       return 'it is a session or a credential';
@@ -249,14 +294,27 @@ class DVPublicPages {
     final String tail = words.length < 2
         ? ''
         : '${words[words.length - 2]}${words.last}';
-    if (const <String>{'ApiKey', 'APIKey', 'TimeCode', 'RecoveryCode'}
-        .contains(tail)) {
+    if (const <String>{
+      'ApiKey',
+      'APIKey',
+      'TimeCode',
+      'RecoveryCode',
+    }.contains(tail)) {
       return 'it is a session or a credential';
     }
     if (words.length >= 2 &&
         words[words.length - 2] == 'Audit' &&
-        const <String>{'Log', 'Logs', 'Entry', 'Entries', 'Event', 'Events',
-          'Trail', 'Record', 'Records'}.contains(words.last)) {
+        const <String>{
+          'Log',
+          'Logs',
+          'Entry',
+          'Entries',
+          'Event',
+          'Events',
+          'Trail',
+          'Record',
+          'Records',
+        }.contains(words.last)) {
       return 'it is an audit record';
     }
     return null;
@@ -315,11 +373,11 @@ String dvPluralRouteSegment(String className) {
 /// the deprecated `@DVSensitiveModelField(...)`, however many other
 /// annotations stand between it and the declaration.
 Set<String> dvSensitiveFieldNames(String source) => <String>{
-      for (final RegExpMatch m in RegExp(
-        r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\([^)]*\)\s*'
-        r'(?:@[A-Za-z0-9_.]+\s*\([^)]*\)\s*)*'
-        r'final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
-        dotAll: true,
-      ).allMatches(source))
-        m.group(1)!,
-    };
+  for (final RegExpMatch m in RegExp(
+    r'@(?:DVModel\.sensitiveField|DVSensitiveModelField)\s*\([^)]*\)\s*'
+    r'(?:@[A-Za-z0-9_.]+\s*\([^)]*\)\s*)*'
+    r'final\s+.+?\s+([A-Za-z0-9_]+)\s*;',
+    dotAll: true,
+  ).allMatches(source))
+    m.group(1)!,
+};
