@@ -171,3 +171,100 @@ void _refuseConstructorArguments({
     'constructor, or make its arguments optional.',
   );
 }
+
+/// One constructor parameter of the class a policy takes.
+class DVResourceParameter {
+  const DVResourceParameter({
+    required this.name,
+    required this.type,
+    required this.named,
+  });
+
+  /// The field it initialises, which is also the record value it reads.
+  final String name;
+
+  /// The field's declared type, `?` included.
+  final String type;
+
+  final bool named;
+}
+
+/// How the generated backend can build a policy's resource class from a
+/// record's values: its constructor, when every parameter initialises a
+/// field of the same name.
+class DVResourceShape {
+  const DVResourceShape(this.parameters);
+
+  final List<DVResourceParameter> parameters;
+}
+
+/// The shape of `class [className]` declared in [source], or null when it is
+/// not declared there or its constructor does anything but initialise
+/// fields.
+///
+/// The replay route is handed a record's values and a policy written against
+/// the application's own class for the model. Building that class by the
+/// constructor the application wrote -- `this.id`, `this.ownerId` -- is the
+/// one thing the generator can do without inventing an argument; a
+/// constructor that computes something is the application's code, and is
+/// left alone, so the policy is asked with the values and refuses.
+DVResourceShape? dvResourceShapeIn(String source, String className) {
+  final RegExpMatch? declaration = RegExp(
+    r'class\s+' + RegExp.escape(className) + r'\b[^{;]*\{',
+  ).firstMatch(source);
+  if (declaration == null) return null;
+  final String body = _bodyFrom(source, declaration.end - 1);
+
+  final Map<String, String> fields = <String, String>{
+    for (final RegExpMatch field in RegExp(
+      r'final\s+([A-Za-z_][A-Za-z0-9_<>?, ]*?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*;',
+    ).allMatches(body))
+      field.group(2)!: field.group(1)!.trim(),
+  };
+
+  final RegExpMatch? constructor = RegExp(
+    r'(?:const\s+)?' + RegExp.escape(className) + r'\s*\(',
+  ).firstMatch(body);
+  if (constructor == null) return null;
+  int depth = 0;
+  int close = -1;
+  for (int i = constructor.end - 1; i < body.length; i++) {
+    if (body[i] == '(') depth++;
+    if (body[i] == ')') {
+      depth--;
+      if (depth == 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  if (close < 0) return null;
+  // An initializer list or a body computes something from the arguments.
+  if (!body.substring(close + 1).trimLeft().startsWith(';')) return null;
+
+  final String parameters = body.substring(constructor.end, close);
+  final int brace = parameters.indexOf(RegExp(r'[{\[]'));
+  final String positional =
+      brace < 0 ? parameters : parameters.substring(0, brace);
+  final String rest = brace < 0
+      ? ''
+      : parameters.substring(brace + 1).replaceFirst(RegExp(r'[}\]]\s*$'), '');
+  final bool named = brace >= 0 && parameters[brace] == '{';
+
+  final List<DVResourceParameter> shape = <DVResourceParameter>[];
+  for (final (String part, bool isNamed) in <(String, bool)>[
+    for (final String part in dvSplitArgs(positional)) (part, false),
+    for (final String part in dvSplitArgs(rest)) (part, named),
+  ]) {
+    final RegExpMatch? initialising = RegExp(
+      r'^(?:required\s+)?this\.([A-Za-z_][A-Za-z0-9_]*)\s*(?:=.*)?$',
+      dotAll: true,
+    ).firstMatch(part.trim());
+    if (initialising == null) return null;
+    final String name = initialising.group(1)!;
+    final String? type = fields[name];
+    if (type == null) return null;
+    shape.add(DVResourceParameter(name: name, type: type, named: isNamed));
+  }
+  return DVResourceShape(shape);
+}
