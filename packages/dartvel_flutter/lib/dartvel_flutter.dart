@@ -5027,12 +5027,23 @@ class DVTray {
 
   /// Shows the icon with [menu], and runs [onSelected] with the id of any
   /// item chosen from it.
+  ///
+  /// [icon] is a generated `DVAsset` value, so a renamed or unlisted file is
+  /// a compile error rather than an empty tray slot on a desktop. An asset
+  /// that is not an image is refused, naming it.
   Future<void> show({
-    required String icon,
+    required DVAssetRef icon,
     String? tooltip,
     List<DVTrayMenuItem> menu = const <DVTrayMenuItem>[],
     void Function(String id)? onSelected,
   }) async {
+    if (icon.kind != DVAssetKind.image) {
+      throw ArgumentError.value(
+        icon.path,
+        'icon',
+        'is a ${icon.kind.name}, and the tray shows an image',
+      );
+    }
     final Set<String> ids = <String>{};
     for (final DVTrayMenuItem item in menu) {
       if (!ids.add(item.id)) {
@@ -5040,7 +5051,7 @@ class DVTray {
       }
     }
     final handled = await DVNativeBridge.require<bool>('tray.show', {
-      'icon': icon,
+      'icon': icon.path,
       if (tooltip != null) 'tooltip': tooltip,
       'menu': menu.map((item) => item.toMap()).toList(growable: false),
     });

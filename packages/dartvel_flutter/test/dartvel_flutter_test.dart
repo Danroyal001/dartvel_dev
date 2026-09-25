@@ -374,7 +374,7 @@ void main() {
     await DV.Platform.Window.persistState('main');
     await DV.Platform.Window.restoreState('main');
     await DV.Platform.Tray.show(
-      icon: 'assets/tray.png',
+      icon: _TrayAsset.icon,
       tooltip: 'Dartvel',
       menu: const <DVTrayMenuItem>[
         DVTrayMenuItem(id: 'open', label: 'Open'),
@@ -969,4 +969,17 @@ void main() {
 
     expect(DV.Auth.currentUser!.provider, 'provider');
   });
+}
+
+/// A generated DVAsset value, for the tray.
+enum _TrayAsset implements DVAssetRef {
+  icon('assets/tray.png', DVAssetKind.image);
+
+  const _TrayAsset(this.path, this.kind);
+
+  @override
+  final String path;
+
+  @override
+  final DVAssetKind kind;
 }
