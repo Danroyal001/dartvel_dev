@@ -3,10 +3,11 @@ import '../dartvel_client/dartvel_client.dart';
 import '../components/site.dart';
 
 @DVPage(
-  title: 'Dartvel: a Flutter app and its backend in one Dart project',
-  description: 'Dartvel is Flutter\'s Laravel: pages, models, backend functions '
-      'and UI in one Dart project, with the client, the server and '
-      'every build target generated for you.',
+  title: 'Dartvel: the full-stack platform for Flutter in one Dart project',
+  description: 'Dartvel is the full-stack platform for Flutter: pages, data '
+      'models and backend functions in one Dart project, with sign-in, a '
+      'database, jobs and an admin, built for phones, desktops, the web and '
+      'TVs.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
@@ -60,13 +61,21 @@ Widget _heroSection(BuildContext context) {
   );
 }
 
+/// The banner, written for the reader who sees nothing else.
+///
+/// It used to sell one part: "Ship a Flutter app and its backend from one
+/// Dart project." That is true and it is a backend pitch, and most visitors
+/// read the banner and leave. So it names the whole platform, then what you
+/// write and what Dartvel does with it, then the parts that are Shipped in
+/// docs/spec-status.json as links, and only the targets docs/build-targets.md
+/// records as building.
 @DVFunctionalWidget()
 Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
   // The title block is tight and the gap after it is the largest in the
   // hero, which is the hierarchy a skimming reader is looking for.
   DVBox.list(<Widget>[
     const Eyebrow('FLUTTER\'S LARAVEL'),
-    const DVText('Ship a Flutter app and its backend from one Dart project.')
+    const DVText('The full-stack platform for Flutter, in one Dart project.')
         .modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 30, desktop: 50))
@@ -77,8 +86,9 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
           .semanticHeading(1),
     ),
     const DVText(
-      'Write a model and a function. Dartvel generates the routes, forms, typed '
-      'client and API server, then builds them into one file for your server.',
+      'You write pages, data models and backend functions. Dartvel generates '
+      'the routes, forms, typed client and API server, and builds the app for '
+      'phones, desktops, the web, TVs and browser extensions.',
     ).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
@@ -88,6 +98,15 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
           .maxWidth(580),
     ),
   ], spacing: 14),
+  // Each one Shipped in docs/spec-status.json, and each a link to its docs.
+  const DVBox.wrapLine(<Widget>[
+    HeroCapability('Sign-in and permissions', DVRoutes.docsauth),
+    HeroCapability('Database and search', DVRoutes.docsdatabase),
+    HeroCapability('Background jobs', DVRoutes.docsqueues),
+    HeroCapability('Studio admin', DVRoutes.studio),
+    HeroCapability('SEO and PWA', DVRoutes.docswebhosting),
+    HeroCapability('One-file server', DVRoutes.docsdeploying),
+  ], spacing: 8),
   const Objection(
     'Do I have to leave Flutter?',
     'No. Your pages are Flutter widgets, and dartvel build runs the Flutter '
@@ -104,6 +123,11 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
         .maxWidth(560),
   ),
 ], spacing: 26);
+
+/// One part of the platform, as a chip that opens its docs.
+@DVFunctionalWidget()
+Widget _heroCapability(BuildContext context, String label, DVRouteTarget to) =>
+    DVNavLink(to: to, padding: EdgeInsets.zero, child: SiteChip(label));
 
 /// A terminal beside the hero, so the promise sits next to what you type.
 ///
@@ -273,6 +297,10 @@ Widget _backendProof(BuildContext context) => const Section(
       'Return a Stream and the function is served as server-sent events.',
       'A Rust server built on Axum and Tokio calls your Dart through FFI.',
     ]),
+    UpstreamCredits(
+      ids: <String>['axum', 'tokio'],
+      lead: 'Thanks to the Rust projects the server is built on:',
+    ),
   ],
 );
 
@@ -406,6 +434,7 @@ Widget _otaUpdates(BuildContext context) => const Section(
       'Staged rollout, pinned versions and skipped versions are decided in '
           'one check.',
     ]),
+    UpstreamCredit('shorebird', lead: 'DV.Updates runs on the'),
     Objection(
       'Is it finished?',
       'On Android, yes: CI releases an app, patches it into a running '
@@ -485,6 +514,12 @@ Widget _targets(BuildContext context) => Section(
       'Terminal apps build for Linux. webOS, Fuchsia and terminal apps on macOS and '
           'Windows are in progress.',
     ]),
+    const UpstreamCredits(
+      onDark: true,
+      ids: <String>[
+        'tvos', 'tizen', 'elinux', 'vscode', 'webos', 'fuchsia', 'flt',
+      ],
+    ),
     const Stats(onDark: true, <Figure>[
       Figure('14', 'targets that build'),
       Figure('4', 'targets in progress'),
