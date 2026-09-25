@@ -1,3 +1,8 @@
+## 0.6.0
+
+- Tracks dartvel_core, dartvel_flutter and dartvel_cli 0.6.0 and
+  dartvel_shelf 0.7.0. See their changelogs; several changes are breaking.
+
 ## 0.5.0
 
 Ships the 0.5.0 CLI: link prefetch, per-page deferred bundles, image variants,

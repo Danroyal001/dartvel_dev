@@ -8,7 +8,7 @@
 ///
 /// A test asserts this admits the version each package declares, so the two
 /// cannot drift again without the suite saying so.
-const String dartvelPackageVersion = '0.5.0';
+const String dartvelPackageVersion = '0.6.0';
 
 /// The same, for dartvel_shelf, which is a minor ahead of the others.
 ///
@@ -17,7 +17,7 @@ const String dartvelPackageVersion = '0.5.0';
 /// because it was a literal, nothing bumped it and nothing checked it: the
 /// scaffold asked for a shelf from three releases back while the other three
 /// constraints tracked correctly.
-const String dartvelShelfVersion = '0.6.0';
+const String dartvelShelfVersion = '0.7.0';
 
 class ProjectTemplates {
   static String pubspecTemplate({
