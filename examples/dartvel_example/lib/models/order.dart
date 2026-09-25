@@ -7,8 +7,10 @@ import 'package:dartvel_core/dartvel.dart';
 /// screen hears it. Nothing polls.
 ///
 /// The customer is the person whose email the order carries, and an order is
-/// kept for seven years because that is what the accounts need.
+/// kept for seven years because that is what the accounts need. It has no
+/// public page: an order is somebody's purchase, not something to publish.
 @DVModel(
+  generatePublicPages: false,
   subject: DVSubject.field('email'),
   retain: DVRetention.days(2555, from: 'placedAt', then: DVRetention.anonymize),
 )
