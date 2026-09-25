@@ -547,7 +547,8 @@ Widget _expoComparison(BuildContext context) => const Section(
       SiteCard(
         'Over-the-air updates',
         'dartvel updates patch --patch-source publishes into your own '
-            'web-server binary. Proven on an Android emulator in CI.',
+            'web-server binary. Proven on an Android emulator in CI; iOS is '
+            'not supported yet, where EAS Update covers both.',
       ),
       SiteCard(
         'Cloud builds',
@@ -598,7 +599,9 @@ Widget _startNow(BuildContext context) => const Section(
       'Will I be locked in?',
       'Your pages are Flutter widgets, your backend is a file on your own '
           'server, and your patches can come from your own host. Dartvel is '
-          'MIT licensed, so you can fork it.',
+          'under the Functional Source License: you can fork it for anything '
+          'except a competing product, and each release becomes MIT two '
+          'years after it ships.',
     ),
     // In a row, as the other buttons are: directly in the section's column
     // it stretched to the full width of the page.
