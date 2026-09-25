@@ -306,13 +306,16 @@ abstract final class DVCaptureRuntime {
         .isNotEmpty) {
       return;
     }
+    // Down for longer than the log keeps changes: what it missed is gone
+    // from the log, so every table it takes is copied again.
+    final bool behind = await consumer.behindRetention();
     for (final DVRecordTable table
         in runtime.takes[consumer.name] ?? const <DVRecordTable>[]) {
       final DVCaptureBackfillProgress? progress =
           await consumer.backfillProgress(table.table);
       // Never copied -- a destination or a data model the destination has
       // not had before -- or a copy that stopped part of the way.
-      if (progress != null && progress.done) continue;
+      if (!behind && progress != null && progress.done) continue;
       await runtime.log.dispatchBackfill(
         DVCaptureBackfillJob(
           consumer: consumer.name,
