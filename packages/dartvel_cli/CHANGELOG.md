@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **Generation inputs may be written with primary constructors.**
+  `@DVModel() class const _Order({required final String id});` generates
+  what the same model written with fields and a constructor generates, byte
+  for byte, including `@DVModel.sensitiveField()` and the other field
+  annotations on a parameter. Jobs, policies, privacy, the project graph and
+  the docs site read the new shape too. Old-style inputs are unchanged.
+- **Generated models, test factories, facets, job payloads and functional
+  widgets are declared with primary constructors**, as is the model
+  `dartvel db pull --local` suggests. Their constructors take the same
+  arguments as before.
+
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
   is the first release with primary constructors
   (`class Point(final int x, final int y);`), which the `dartvel create`
