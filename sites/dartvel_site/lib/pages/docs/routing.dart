@@ -190,8 +190,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
           id: 'not-found',
           title: 'Handle unknown URLs',
           children: <Widget>[
-            DocsText('A path no route serves renders a 404 page in your '
-                'app\'s theme, with a link to the home page. You write '
+            DocsText('A path no route serves renders a 404 page by default, in '
+                'your app\'s theme, with a link to the home page. You write '
                 'nothing for that.'),
             DocsText('To send unknown paths somewhere instead, name where:'),
             DocsShell(<String>[
