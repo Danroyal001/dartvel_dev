@@ -178,11 +178,17 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           id: 'services',
           title: 'Choose your services at startup',
           children: <Widget>[
-            DocsText('Set up auth, the database and mail in main.dart, before '
-                'runApp.'),
+            DocsText('Set up auth and mail in main.dart, before runApp.'),
             DocsCode('start-configure'),
             DocsText('These are the in-memory versions for development. Each '
                 'topic page shows the production adapters.'),
+            DocsText('You set the database in configuration and write no code '
+                'for it. The generated '
+                'backend opens DATABASE_URL for your data models and jobs.'),
+            DocsShell(<String>[
+              '# .env',
+              'DATABASE_URL=sqlite:dartvel.db',
+            ]),
           ],
         ),
         DocsSection(

@@ -33,8 +33,9 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
             ], rows: <List<String>>[
               <String>['DVInMemorySearchProvider', 'A list in memory, for '
                   'tests and small apps'],
-              <String>['DVSqliteSearchProvider', 'SQLite FTS5'],
-              <String>['DVPostgresSearchProvider', 'Postgres full text'],
+              <String>['DVSqliteSearchProvider, DVPostgresSearchProvider',
+                  'Your own database, with no search service to run. Use the '
+                  'one that matches your database engine'],
               <String>['MeilisearchProvider', 'Meilisearch'],
               <String>['OpenSearchProvider', 'OpenSearch or Elasticsearch'],
               <String>['AlgoliaSearchProvider', 'Algolia'],
@@ -81,7 +82,7 @@ Widget _docsSearchPage(BuildContext context) => const DocsArticle(
               'A @DVModel.sensitiveField() is never indexed, even when it is '
                   'marked searchable.',
               'A tenant-scoped model searched through Postgres only returns '
-                  'the current tenant\'s rows.',
+                  'the current tenant\'s records.',
             ]),
           ],
         ),
