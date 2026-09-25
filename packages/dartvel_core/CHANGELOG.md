@@ -1,3 +1,14 @@
+## Unreleased
+
+- **The browser's own find searches the page-text block.** `dvApplyPageHtml`
+  and `dvApplyPageText` write each paragraph inside
+  `<section hidden="until-found" data-dv-anchor="N">`, via the new
+  `dvFindableHtml`. On screen the block is now a clipped 1px box
+  instead of `display:none`, which the browser's find skips. Print and the
+  `<noscript>` override still show the whole block, until-found sections
+  included. `dvFallbackStyle` is now built from `dvFallbackCss` and
+  `dvFallbackNoscriptCss`.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person

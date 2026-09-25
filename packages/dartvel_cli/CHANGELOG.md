@@ -1,3 +1,11 @@
+## Unreleased
+
+- **Ctrl+F finds text on a built web page.** Every page `dartvel build web`
+  writes carries its text in `hidden="until-found"` sections, one per
+  paragraph, that the browser's find searches. Before, the block was
+  `display:none`, which find skips. Printing and the no-script view are
+  unchanged.
+
 ## 0.6.0
 
 - **`dartvel doctor` no longer warns about a directory a project does not
