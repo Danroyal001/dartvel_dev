@@ -12,6 +12,9 @@ import 'package:dartvel_core/dartvel.dart'
         dvMiddlewareKeysUnbuiltReason,
         dvMiddlewareKeysWrapping,
         dvPageMiddlewareRefusal;
+// dartvel.capture, read with the parser the generated server reads it with.
+import 'package:dartvel_core/framework.dart'
+    show DVCaptureConfig, DVCaptureConfigError;
 import 'package:file/local.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
@@ -63,6 +66,21 @@ class BackendGenerator {
       throw StateError(
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
       );
+    }
+  }
+
+  /// `dartvel.capture`, with the runtime's own parser, or null when the
+  /// pubspec declares none. A declaration it cannot honour stops generation
+  /// (`DV-CDC-006`, `DV-CDC-007`).
+  static DVCaptureConfig? _dvCaptureConfig(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return null;
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    try {
+      return DVCaptureConfig.parse(dartvel is Map ? dartvel['capture'] : null);
+    } on DVCaptureConfigError catch (error) {
+      throw StateError('pubspec.yaml: $error');
     }
   }
 
@@ -716,6 +734,14 @@ $openApiJson\'\'\';
     // The release a server's crash report names: the pubspec version, as the
     // client's does, so one release's reports from both ends group together.
     final String crashRelease = _dvCrashRelease(root);
+    // dartvel.capture, carried into the server as the build checked it. The
+    // server configures capture where it declares destinations or a data
+    // model is captured, so a captured model's log is pruned to a retention
+    // even with no destination.
+    final DVCaptureConfig? capture = _dvCaptureConfig(root);
+    final String captureDeclaration = capture == null
+        ? 'null'
+        : jsonEncode(jsonEncode(capture.toJson())).replaceAll(r'$', r'\$');
     // dartvel.platformApi: whether every route authenticates API keys and
     // OAuth tokens, and whether this backend is an OAuth provider. Read with
     // the parser the registry is generated from.
@@ -796,6 +822,36 @@ $openApiJson\'\'\';
 // The generated models' tables: each statement and its columns.
 const String _dvSchemaTablesJson = r\'\'\'
 $schemaTablesJson\'\'\';
+
+/// dartvel.capture as the build checked it, or null where the pubspec
+/// declares none.
+const String? _dvCaptureDeclaration = $captureDeclaration;
+
+/// Change capture over [database], the application's own: the log every
+/// @DVModel(capture: true) data model records to, with the declared
+/// retention, and delivery to each destination dartvel.capture declares.
+/// Configured where the pubspec declares capture or a data model is
+/// captured, and before DV.Privacy, whose registration of a captured model
+/// names the log configured here.
+void _dartvelConfigureCapture(core.DVDatabaseAdapter? database) {
+  final List<core.DVStudioModelSpec> models = ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'};
+  final String? declared = _dvCaptureDeclaration;
+  if (declared == null && !models.any((core.DVStudioModelSpec m) => m.capture)) return;
+  if (database == null) {
+    stderr.writeln('dartvel: change capture is declared and this process has no database (DATABASE_URL is not set), so nothing is captured or delivered from it.');
+    return;
+  }
+  framework.DVCaptureRuntime.configure(
+    config: declared == null
+        ? const framework.DVCaptureConfig()
+        : framework.DVCaptureConfig.parse(conv.jsonDecode(declared))!,
+    database: database,
+    models: models,
+  );
+}
+
+/// The capture schedule this process started, so a stopped process stops it.
+Timer? _dartvelCaptureTimer;
 
 /// The database this process shares, made ready before anything uses it.
 ///
@@ -1663,6 +1719,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // walk; DV.Privacy is configured only where DARTVEL_PRIVACY_KEY is set.
   final core.DVDatabaseAdapter? dartvelDatabase = const core.DVDatabase().configuredAdapter ?? stores.database;
   if (dartvelDatabase != null) configureDartvelAnalytics(database: () => dartvelDatabase);
+  // Change capture from dartvel.capture: its log, its jobs and its
+  // destinations. Before DV.Privacy, whose registration of a captured data
+  // model names the log, and awaited, so no delivery is dispatched before
+  // its handler is registered.
+  _dartvelConfigureCapture(dartvelDatabase);
+  await framework.DVCaptureRuntime.start();
   configureDartvelBackendPrivacy(database: dartvelDatabase, environment: Platform.environment);
   // The walk's own tables, and its erasure and retention jobs on the queue.
   // Awaited before serving: a request for an erasure before its tables
@@ -1732,6 +1794,12 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     // DV.Privacy is not configured.
     _dartvelPrivacyTimer?.cancel();
     _dartvelPrivacyTimer = core.DVPrivacyRuntime.startSchedules(every: scheduleTick, clock: scheduleClock, lease: scheduleLease ?? stores.scheduleLeaseFor(processConfiguration), onFailure: core.DVServerCrashes.recordScheduled);
+    // Change capture's pass: backfill a destination never copied to,
+    // dispatch what is pending, measure lag, prune the log. A process given
+    // no role is the whole deployment and runs those jobs itself; with roles
+    // declared, the worker does. Null where capture is not configured.
+    _dartvelCaptureTimer?.cancel();
+    _dartvelCaptureTimer = framework.DVCaptureRuntime.startSchedules(every: scheduleTick, work: !processConfiguration.roleDeclared);
   } else if (dartvelBackendCronEntries.isNotEmpty) {
     stdout.writeln('dartvel: DARTVEL_ROLE=web, so this process does not tick the \${dartvelBackendCronEntries.length} backend schedule(s); the DARTVEL_ROLE=cron process runs them.');
   }
@@ -1880,6 +1948,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       _dartvelScheduleTimer?.cancel();
       _dartvelAccountSweepTimer?.cancel();
       _dartvelPrivacyTimer?.cancel();
+      _dartvelCaptureTimer?.cancel();
       await handle.stop();
     case core.DVProcessRole.worker:
       // The same start a web process makes, less what only serving needs: a
@@ -1901,6 +1970,10 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       await _dartvelPrepareDatabase(workerStores);
       // DV.Privacy, so an erasure or a retention sweep queued elsewhere runs
       // here -- the account erasure job included.
+      // Change capture, so the delivery and backfill jobs the schedule
+      // dispatches run here, on each destination's own queue.
+      _dartvelConfigureCapture(const core.DVDatabase().configuredAdapter ?? workerStores.database);
+      await framework.DVCaptureRuntime.start();
       await _dartvelStartBackendPrivacy(workerStores);
       if (!const core.DVQueues().adapterConfigured) {
         throw const core.DVProcessConfigurationError('DARTVEL_ROLE=worker has no queue adapter: DATABASE_URL is not set, so no queue is shared with the processes that dispatch jobs, and this worker would never receive one.');
@@ -1914,7 +1987,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       final core.DVProcessHealth? workerHealth = await _dartvelServeHealth(process);
       stdout.writeln('dartvel worker working \${process.queues.join(', ')}');
       try {
-        final int done = await core.DVQueueWorker(queues: process.queues).run(until: stopped, maxJobs: process.maxJobs);
+        final int done = await core.DVQueueWorker(queues: <String>[...process.queues, ...framework.DVCaptureRuntime.queues]).run(until: stopped, maxJobs: process.maxJobs);
         if (process.maxJobs != null) {
           stdout.writeln('Processed \$done job(s) from \${process.queues.join(', ')}.');
         }
@@ -1947,13 +2020,18 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       final Timer? timer = dartvelStartBackendSchedules(every: scheduleTick, clock: scheduleClock, lease: lease);
       final Timer? accountSweep = dartvelStartAccountDeletionSweep(every: scheduleTick);
       // Retention and erasure deadlines, claimed through the same lease.
+      _dartvelConfigureCapture(const core.DVDatabase().configuredAdapter ?? stores.database);
+      await framework.DVCaptureRuntime.start();
       await _dartvelStartBackendPrivacy(stores);
       final Timer? privacySchedules = core.DVPrivacyRuntime.startSchedules(every: scheduleTick, clock: scheduleClock, lease: lease, onFailure: core.DVServerCrashes.recordScheduled);
+      // Capture's pass, dispatching to the worker.
+      final Timer? captureSchedules = framework.DVCaptureRuntime.startSchedules(every: scheduleTick);
       stdout.writeln(timer == null ? 'dartvel cron: this application declares no backend schedule' : 'dartvel cron ticking \${dartvelBackendCronEntries.length} backend schedule(s)');
       await stopped;
       timer?.cancel();
       accountSweep?.cancel();
       privacySchedules?.cancel();
+      captureSchedules?.cancel();
       await cronHealth?.close();
   }
 }
