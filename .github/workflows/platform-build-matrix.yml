@@ -105,7 +105,7 @@ jobs:
             echo "::notice::skipping ${{ matrix.platform }} (selected: $selected)"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.gate.outputs.run == 'true'
 
       - uses: subosito/flutter-action@v2
@@ -135,7 +135,7 @@ jobs:
       - name: Cache cbindgen
         id: cbindgen-cache
         if: steps.gate.outputs.run == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cbindgen
           key: cbindgen-${{ runner.os }}-${{ runner.arch }}
@@ -152,7 +152,7 @@ jobs:
       # build of the same crate — a stale hit would be worse than no cache.
       - name: Cache the Rust runtime build
         if: steps.gate.outputs.run == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/dartvel_shelf/rust/target
@@ -379,7 +379,7 @@ jobs:
             ps aux | grep -Ei 'dart|flutter|xcodebuild|cargo' | grep -v grep || true
           } > "$RUNNER_TEMP/diagnostics/environment.txt" 2>&1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.gate.outputs.run == 'true' && always()
         with:
           name: diagnostics-${{ matrix.platform }}
@@ -389,7 +389,7 @@ jobs:
 
       # Only the verified artifact: uploading all of build/ ships gigabytes
       # of intermediates against a storage quota measured in megabytes.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.gate.outputs.run == 'true' && matrix.platform != 'tizen'
         with:
           name: dartvel-${{ matrix.platform }}
