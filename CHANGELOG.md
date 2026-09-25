@@ -9,6 +9,28 @@ changes are called out explicitly below.
 
 ### Breaking
 
+- **Every data model gets public pages unless it opts out.**
+  `@DVModel(generatePublicPages:)` now defaults to `true`: each record is served
+  at `/<plural-kebab-model>/:<slug|id|first String field>` (`Article` at
+  `/articles/hello-world`, `BlogPost` at `/blog-posts/42`), rendered statically
+  by `dartvel build web` and listed in the sitemap. **Migration:** add
+  `generatePublicPages: false` to every `@DVModel` whose records must not have a
+  page; the build log names each model that got one by default. What a page
+  shows is decided by the model:
+  - A `@DVModel.sensitiveField()`, and the field naming the privacy `subject:`,
+    are never on a page, in its head, structured data, crawler text, the static
+    build or the sitemap, except on the rendered page for a viewer the model's
+    new `viewSensitive` policy admits (`DVPolicyAction.viewSensitive`).
+  - A record the model's `view` policy refuses answers 404, exactly as a missing
+    or unpublished one, and is not enumerated. Server page data and static
+    paths are resolved as nobody.
+  - Accounts, sessions, credentials and audit records (read from the model's
+    name), rows that are their own privacy subject, tenant-scoped models,
+    models with a protected or no `String` key, and models whose route an
+    application page already serves get no page unless they say
+    `generatePublicPages: true`. An explicit `true` that cannot be honoured
+    stops the build.
+
 - **`DV.Cache` is four calls: `get`, `set`, `has` and `delete`.** Everything
   else is a named option on them. Rewrite `remember(key, compute, ...)` and
   `staleWhileRevalidate(...)` as `get(key, compute: compute, ttl: ...,
