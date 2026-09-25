@@ -113,7 +113,7 @@ Read from the code on 2026-09-25, not from the specification:
 1. **The model is the query surface.** Queries start from the generated class,
    `Order.where(...)`. There is no `DV.Query`, no query-builder object to
    construct, and no per-model companion class. The machinery (IR, planner,
-   engines, operators, the query role) is framework-internal and stays out of
+   engines, operators, the data platform) is framework-internal and stays out of
    the barrel.
 2. **Typed references, never strings.** A field is a member of a generated
    row proxy. A misspelt field, a wrong value type or a comparison the type
@@ -132,7 +132,7 @@ Read from the code on 2026-09-25, not from the specification:
    error that names the budget. A partial answer that looks complete is worse
    than an error.
 7. **Placement is the framework's job.** Whether a query runs in the web
-   process, on a query server, as one SQL statement or as eleven Firestore
+   process, on a data platform, as one SQL statement or as eleven Firestore
    reads and a hash join is not something application code says or sees.
 
 ---
@@ -331,7 +331,7 @@ await DV.transaction((DVContext context) async {
 ```
 
 Inside a transaction, a query uses the transaction's connection, and it is
-never forwarded to a query server (§6). On SQL engines the reads are in the
+never forwarded to a data platform (§6). On SQL engines the reads are in the
 transaction's snapshot. Document engines give weaker guarantees (§10).
 
 ### 1.6 Relations
@@ -979,70 +979,103 @@ device copy. Open question 8 asks whether an offline model also gets an
 explicit server read for totals. `watch` on an offline model is still "local
 first, then live", as Offline-First Models specifies.
 
-### 6.3 In a backend function: in-process, or on a query server
+### 6.3 In a backend function: in-process, or on the data platform
 
 In a backend function, a job or a schedule, a query runs in that process by
 default. It runs under the memory and time budgets of §7. That is the whole
 story for the default single-instance deployment, and nothing needs
 configuring for it.
 
-For heavy workloads a deployment can add a **query server**. This is a fourth
-role of the same binary, `DARTVEL_ROLE=query`. It serves one internal
-endpoint, runs plans handed to it, and has its own memory budget and spill
-disk. It is sized for the job: lots of memory and a fast local disk, while the
-web instances stay small and latency-sensitive.
+For heavy workloads a deployment can add a **data platform**: a fourth role of
+the same binary, `DARTVEL_ROLE=data-platform`, beside `web`, `worker` and
+`cron`. It is where the application's *data flow* runs, as distinct from its
+application logic. `web` answers requests, `worker` drains application jobs,
+`cron` fires schedules, and `data-platform` moves and processes data. It is
+sized for that: lots of memory and a fast local disk, while the web instances
+stay small and latency-sensitive.
+
+What a data platform serves is a list of **capabilities**, each with its own
+memory and concurrency budget, so one kind of work cannot starve another. A
+backfill does not consume the budget a page's query is waiting on.
+
+| Capability | What runs there |
+|---|---|
+| `queries` | heavy model queries forwarded from `web` (this proposal): backend execution, aggregation, spill |
+| `analytics` | analytics events and rollups, the model query cache's heavy refreshes |
+| `observability` | logs, metrics and traces ingestion and rollups; the lag and query gauges |
+| `capture` | Change Data Capture delivery and backfill to warehouse destinations |
+| `search` | search indexing and semantic embeddings |
+| `retention` | retention sweeps, privacy erasure and export fan-out |
 
 ```yaml
 dartvel:
+  roles:
+    data-platform:
+      serves: [queries, analytics, observability, capture, search, retention]  # the default: all
+      budgets:
+        queries: { memory: 16GB, concurrency: 32 }
+        capture: { memory: 4GB,  concurrency: 4 }
   query:
-    placement: auto            # local (default with no query role) | auto | query
-    server:
-      url: ${DARTVEL_QUERY_URL}     # internal address of the query role; from the environment
-      token: ${DARTVEL_QUERY_TOKEN} # shared secret, backend-scoped
-      heavyAbove: 50000             # estimated cost above which auto forwards
+    placement: auto            # local (default with no data platform) | auto | data-platform
+    heavyAbove: 50000          # estimated cost above which auto forwards
     memory:
       perQuery: 256MB
-      process: 1GB             # a query role raises this: e.g. 24GB
+      process: 1GB             # a data platform raises this through its budgets
     spill:
       dir: ${DARTVEL_DATA_DIR}/.query-spill
       limit: 20GB
   infra:
     production:
       services:
-        backend: { instances: 2 }
-        query:   { instances: 1, host: query-1.internal, disk: nvme }
-        workers: { queues: [default], instances: 2 }
-        cron:    { enabled: true }
+        backend:       { instances: 2 }
+        data-platform: { instances: 1, host: data-1.internal, disk: nvme }
+        workers:       { queues: [default], instances: 2 }
+        cron:          { enabled: true }
 ```
 
-How a web instance routes work to it, with nothing in application code:
+The address and the shared secret come from the environment,
+`DARTVEL_DATA_PLATFORM_URL` and `DARTVEL_DATA_PLATFORM_TOKEN`, never from the
+pubspec.
+
+**The default stays one instance.** With no data platform configured, every
+capability runs where it runs today: queries in the calling process, capture
+delivery and search indexing on the `worker` queue, observability in each
+process. Adding a data platform moves them there with no change to application
+code. A team that outgrows one data platform runs two
+`DARTVEL_ROLE=data-platform` instances with different `serves:` lists, for
+example one for `queries` and one for everything else, without a new role name.
+
+How a web instance routes a heavy query to it, with nothing in application
+code:
 
 1. The web process validates, scopes, authorises and plans the query. Those
    steps are cheap, and they are where the request's identity is.
-2. If `placement` is `auto`, a query role is configured, the estimate is above
-   `heavyAbove`, and the query is **not inside a transaction** (it needs the
-   transaction's connection), the web process forwards the **authorised plan**
-   to the query role. The plan is signed with `DARTVEL_QUERY_TOKEN` and
-   carries the tenant and the injected policy nodes. The query role runs only
-   signed plans. It trusts the signature and never a bare request, and it
-   never sees a session.
-3. The query role opens its own engine connections (the same `DATABASE_URL`),
-   executes, and streams batches back. The web process relays them to the
-   caller, so the client protocol does not change.
-4. If the query role is unreachable, the web process runs the query itself
+2. If `placement` is `auto`, a data platform serving `queries` is configured,
+   the estimate is above `heavyAbove`, and the query is **not inside a
+   transaction** (it needs the transaction's connection), the web process
+   forwards the **authorised plan** to the data platform. The plan is signed
+   with `DARTVEL_DATA_PLATFORM_TOKEN` and carries the tenant and the injected
+   policy nodes. The data platform runs only signed plans. It trusts the
+   signature and never a bare request, and it never sees a session.
+3. The data platform opens its own engine connections (the same
+   `DATABASE_URL`), executes, and streams batches back. The web process relays
+   them to the caller, so the client protocol does not change.
+4. If the data platform is unreachable, the web process runs the query itself
    under its own budget and reports `DV-QUERY-016` once a minute. Its budget is
    smaller, so a very heavy query may then be refused. That is visible and
    bounded, and preferable to taking the web tier down.
 
-The role is called `query` and not `worker`, although the owner's request
-calls it a worker. `DARTVEL_ROLE=worker` already means a queue drainer that
-serves no HTTP and refuses to start without job handlers, and `DV.Workers` is
-the in-process isolate pool. A third meaning for one word would be the worst
-of both. Open question 1 asks whether the two roles should merge instead.
+The role is not `worker`: `DARTVEL_ROLE=worker` already means a queue drainer
+for application jobs that serves no HTTP, and `DV.Workers` is the in-process
+isolate pool. `data-platform` names the job the instance does -- the data flow,
+not application logic -- and gives analytics, observability, capture and search
+a place to run that is not the web tier. Open question 1 asks whether capture
+delivery and search indexing should move to the data platform by default once
+one exists, or only when listed in `serves:`.
 
-Inside a query role, concurrent queries are spread over a pool of isolates
-sized from the host (`Platform.numberOfProcessors`, capped by
-`memory.process / perQuery`). Admission control queues queries past the pool
+Inside a data platform, concurrent queries are spread over a pool of isolates
+sized from the host (`Platform.numberOfProcessors`, capped by the `queries`
+budget divided by `perQuery`). Admission control queues queries past the pool
 and refuses them after the timeout with `DV-QUERY-007`. One query runs in one
 isolate. Parallelism inside a single query is not in scope (§10).
 
@@ -1144,7 +1177,7 @@ never as engine DDL for the application to paste.
 | `DV-QUERY-013` | `offset` above 10,000; use `page()` | `warning` |
 | `DV-QUERY-014` | a cursor from a different query shape | `error` |
 | `DV-QUERY-015` | IR version or node outside the protocol window | `error` |
-| `DV-QUERY-016` | query role unreachable; running locally | `warning`, once a minute |
+| `DV-QUERY-016` | data platform unreachable; running locally | `warning`, once a minute |
 | `DV-QUERY-017` | a model field collides with a generated query member | build `error` |
 | `DV-QUERY-018` | an ambiguous inverse relation name | build `error` |
 | `DV-QUERY-019` | a projection or aggregate lambda read differently in row mode than in plan mode | `error` |
@@ -1175,14 +1208,14 @@ exactly those models.
   surprised by the cost of a watched dashboard.
 - **Re-authorised on every emission.** Revoking `viewAny` closes the stream
   with `DVAuthorizationError`, and a narrowed `view` removes the rows.
-- A client's watch runs on the backend (or the query role) and sends
+- A client's watch runs on the backend (or the data platform) and sends
   **differences** keyed by model key over Server-Sent Events. The generated
   client applies them to the list it holds.
 
 **Honest dependency.** `DVModelSync` delivers inside one process today.
 Carrying a change between instances is not built. Until it is, a watch sees
 changes made through the process it runs in, and a web instance does not see
-a write made on another instance, or on the query role. Live queries are
+a write made on another instance, or on the data platform. Live queries are
 therefore correct only on a single instance until the sync carrier lands.
 Phase 8 cannot finish before that, and it says so in the docs status block.
 
@@ -1257,9 +1290,9 @@ and the tests assert results, not generated SQL text.
    silent failure is the one worth the test effort.
 6. **Roles.** In the style of `process_roles_backend_test.dart`: generate a
    real backend, start `web` and `query` processes, and assert on what
-   happened. The heavy query ran on the query role, measured by that process's
+   happened. The heavy query ran on the data platform, measured by that process's
    counter, not by generated text. The light one did not. A transaction's
-   query never left the web process. Killing the query role produced
+   query never left the web process. Killing the data platform produced
    `DV-QUERY-016` and a local answer.
 7. **Compile-time surface.** Analyzer tests (like the existing generator
    tests) prove that `o.totalCents > 'x'`, `o.name.isNull` on a non-nullable
@@ -1317,7 +1350,7 @@ and the tests assert results, not generated SQL text.
   `array-contains` per disjunction. Past them the backend does the work, at read cost.
 - **Live queries** are single-instance until the Model Sync carrier exists
   (§8.1).
-- **The query role adds a hop.** Rows cross the internal network twice (query
+- **The data platform adds a hop.** Rows cross the internal network twice (query
   role to web, web to client). For a heavy query that is noise. For a light
   one it is why `heavyAbove` exists.
 - **Offline aggregates are device-copy aggregates.** Correct for what the
@@ -1434,7 +1467,7 @@ before filtering
   since records are the framework's contract with its engines. The anchor
   `#records` redirects to `#queries`.
 - A short §heavy, "Heavy queries", links to Deployment: "One instance runs
-  everything. When reports start to hurt the web tier, add a query role."
+  everything. When reports start to hurt the web tier, add a data platform."
   It then gives the `services.query` block, with nothing about it in
   application code.
 
@@ -1495,7 +1528,7 @@ Each phase ships something usable, and each phase's tests are written first.
    aggregate, join and distinct, deadlines and cancellation, `.stream()`,
    index suggestions and `dartvel query indexes`, and the spill-invariance
    tests.
-7. **The query role.** `DARTVEL_ROLE=query`, plan signing, `placement: auto`,
+7. **The data platform.** `DARTVEL_ROLE=data-platform`, plan signing, `placement: auto`,
    the `services.query` infra unit and the doctor check, and the role tests.
 8. **Live queries and cache.** `watch`/`signal` (incremental and re-run),
    `.cached`, and generated tag invalidation on model writes. Cross-instance
@@ -1534,7 +1567,7 @@ reordered. Phases 6 and 7 can start after phase 1.
    executor.
 9. **Model Sync and Presence**: live queries as a consumer of change events;
    the `bulk` change kind.
-10. **Deployment and Server Provisioning**: `DARTVEL_ROLE=query`, and
+10. **Deployment and Server Provisioning**: `DARTVEL_ROLE=data-platform`, and
     `services.query`.
 11. **Semantic Search**: `similarTo` is an IR node. Its build error on
     non-vector stores stands as the one exception to backend fallback.
@@ -1543,10 +1576,12 @@ reordered. Phases 6 and 7 can start after phase 1.
 
 ## 15. Open questions
 
-1. **`query` role or `worker`?** A separate role keeps the queue drainer's
-   start-up refusals intact and sizes machines for one job. Merging them means
-   one fewer word, but a worker would have to serve HTTP and could be started
-   without job handlers. The proposal says separate.
+1. **What moves to the data platform by default.** Once a
+   `DARTVEL_ROLE=data-platform` instance exists, heavy queries move there
+   under `placement: auto`. Should capture delivery, search indexing,
+   observability ingestion and retention sweeps also move by default, or only
+   when listed in `serves:`? The proposal says by default (`serves:` defaults
+   to every capability), with `worker` kept as the application job drainer.
 2. **Policies in backend functions by default.** The proposal applies the
    caller's policy, as Authorization's contract says. That changes what
    `Order.all()` returns inside a backend function today. The alternative is
