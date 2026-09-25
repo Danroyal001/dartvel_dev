@@ -323,7 +323,7 @@ void main() {
     test('the item is shown with its menu, a chosen item reaches Dart by id, and hide removes it', () async {
       final List<String> chosen = <String>[];
       await const DVTray().show(
-        icon: 'no-such-image.png',
+        icon: _TrayIcon.missing,
         tooltip: 'Dartvel',
         menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'open', label: 'Open'), DVTrayMenuItem(id: 'quit', label: 'Quit')],
         onSelected: chosen.add,
@@ -582,4 +582,18 @@ void main() {
       expect(DVMacosAssociations.lastError, contains('bundle'));
     });
   });
+}
+
+/// Tray icons as the generated DVAsset enum would name them. The paths are
+/// what the binding is handed.
+enum _TrayIcon implements DVAssetRef {
+  missing('no-such-image.png', DVAssetKind.image);
+
+  const _TrayIcon(this.path, this.kind);
+
+  @override
+  final String path;
+
+  @override
+  final DVAssetKind kind;
 }
