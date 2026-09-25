@@ -6,6 +6,7 @@ import 'symbol_qualifier.dart';
 import 'function_body.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
+import 'primary_constructors.dart';
 
 /// A discovered `@DVJob(...)` payload class.
 class DiscoveredJob {
@@ -146,7 +147,7 @@ class JobGenerator {
           .relative(file.path, from: root)
           .replaceAll('\\', '/')
           .replaceFirst(RegExp(r'^lib/'), 'package:$pkgName/');
-      _collectJobs(source, file.path, root, jobs);
+      _collectJobs(dvDesugarPrimaryConstructors(source), file.path, root, jobs);
       _collectHandlers(source, file.path, root, importPath, handlers);
     }
 

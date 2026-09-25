@@ -10,6 +10,7 @@
 library;
 
 import 'annotation_args.dart';
+import 'primary_constructors.dart';
 
 /// The actions the runtime answers questions in.
 ///
@@ -54,7 +55,10 @@ class DVPolicyClass {
 /// [relativePath] is only used in refusals, and every refusal names it: a
 /// generated file cannot be edited, so the message has to point at the file
 /// that can.
-List<DVPolicyClass> dvPolicyClassesIn(String source, String relativePath) {
+List<DVPolicyClass> dvPolicyClassesIn(String written, String relativePath) {
+  // `class const _OrderPolicy() {` is a policy too; read it as the class
+  // body the pattern below expects.
+  final String source = dvDesugarPrimaryConstructors(written);
   final List<DVPolicyClass> classes = <DVPolicyClass>[];
   // `class` immediately after the annotation, rather than the annotation on
   // its own: `@DVPolicy(` inside a string literal is a real thing in this

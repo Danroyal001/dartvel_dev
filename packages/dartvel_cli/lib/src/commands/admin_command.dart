@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../generators/annotation_args.dart';
+import '../generators/primary_constructors.dart';
 import '../utils/logger.dart';
 import 'db_command.dart' show dvDatabaseSettings;
 import 'package:dartvel_core/dartvel.dart'
@@ -351,7 +352,7 @@ class DartvelAdminGenerator {
     // generator masks the same way, and a model this misses while the
     // generator finds it is a table in the database with no row here.
       for (final match in pattern.allMatches(
-        dvMaskAnnotationArgs(entity.readAsStringSync(), 'DVModel'),
+        dvMaskAnnotationArgs(dvDesugarPrimaryConstructors(entity.readAsStringSync()), 'DVModel'),
       )) {
         names.add(match.group(1)!);
       }
