@@ -1117,7 +1117,7 @@ void main() {
       expect((await rows()).single.containsKey('customer_email'), isFalse);
     });
 
-    test('schema follows the source: a column is added, then dropped',
+    test('schema follows the source: a field is added, then emptied',
         () async {
       await orders.write(_order('o1'));
       await consumer.deliverOnce();
@@ -1137,7 +1137,13 @@ void main() {
         'channel': 'app',
       });
       await consumer.deliverOnce();
-      expect((await rows()).first.containsKey('reference'), isFalse);
+      // The destination is written through the record operations, which a
+      // document store implements too and which have no column to drop: the
+      // contracted field's values leave every copy instead.
+      expect(
+        (await rows()).map((Map<String, Object?> r) => r['reference']),
+        everyElement(isNull),
+      );
 
       // Redelivering the schema changes after a crash must not wedge delivery.
       await capture.consumer('replay', sink: warehouse).deliverOnce();
