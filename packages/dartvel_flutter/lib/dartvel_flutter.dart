@@ -29,6 +29,10 @@ import 'src/crashes/crashes.dart';
 import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
+import 'src/find/find_in_page.dart';
+import 'src/find/find_platform_stub.dart'
+    if (dart.library.js_interop) 'src/find/find_platform_web.dart'
+    as find_platform;
 import 'src/kiosk/device_kiosk.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
@@ -9131,6 +9135,16 @@ class DVPageScaffoldSpec {
   /// which is why the escape hatch exists.
   final bool selectable;
 
+  /// Whether the browser's own find reaches the page on the web.
+  ///
+  /// True, for the same reason as [selectable]: a page Ctrl+F finds nothing
+  /// on reads as a broken page, and a page somebody has to remember to make
+  /// findable is unfindable on the days they forget. The shell keeps a
+  /// findable copy of the rendered text in the document and scrolls to what
+  /// the browser matched. False keeps the copy out, for text that should
+  /// never be anywhere but the canvas.
+  final bool findable;
+
   const DVPageScaffoldSpec({
     this.title,
     this.shell = DVPageShellMode.adaptive,
@@ -9143,6 +9157,7 @@ class DVPageScaffoldSpec {
     this.backgroundColor,
     this.appBarBackgroundColor,
     this.selectable = true,
+    this.findable = true,
   });
 }
 
@@ -9216,7 +9231,7 @@ class _DVInertSelectionRegistrar implements SelectionRegistrar {
   void remove(Selectable selectable) {}
 }
 
-class _DVPageShellState extends State<DVPageShell> {
+class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   /// The selection area's focus node, kept out of the tab order.
   final FocusNode _selectionFocusNode =
       FocusNode(skipTraversal: true, debugLabel: 'DVPageShell selection');
@@ -9231,11 +9246,29 @@ class _DVPageShellState extends State<DVPageShell> {
   DVPageScaffoldSpec get spec => widget.spec;
   Widget get child => widget.child;
 
+  /// Whether the page was on top of its navigator when last built.
+  bool _onTop = true;
+
+  // The browser's own find, which every page gets on the web without asking
+  // for it: a page Ctrl+F finds nothing on reads as broken, and a page
+  // somebody has to remember to make findable is unfindable on the days they
+  // forget. See find_in_page.dart.
+  @override
+  bool get findable => spec.findable;
+
+  @override
+  bool get findOnTop => _onTop;
+
+  @override
+  BuildContext? get findRoot => _contentKey.currentContext;
+
   @override
   void initState() {
     super.initState();
     // Flutter's menu on the web, where the browser's had nothing to offer.
     DVBrowserMenu.install();
+    DVFindInPage.register(this);
+    find_platform.dvFindInstall();
   }
 
   /// What is selected, kept as it changes so the menu can copy it.
@@ -9308,6 +9341,7 @@ class _DVPageShellState extends State<DVPageShell> {
 
   @override
   void dispose() {
+    DVFindInPage.unregister(this);
     _selectionFocusNode.dispose();
     super.dispose();
   }
@@ -9415,6 +9449,8 @@ class _DVPageShellState extends State<DVPageShell> {
     // page is on top again. The key keeps the page's state across the switch.
     final bool onTop = ModalRoute.of(context)?.isCurrent ?? true;
     if (onTop) _everOnTop = true;
+    // The page the browser's find reads is the one on top.
+    _onTop = onTop;
     final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
     // The arrow keys, Page Up, Page Down, Home, End and the space bar. Above
     // the page rather than inside it, so a focused control still gets its own
