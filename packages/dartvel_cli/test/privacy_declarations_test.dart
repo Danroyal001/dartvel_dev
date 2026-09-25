@@ -12,6 +12,9 @@ import 'dart:io';
 import 'package:dartvel_cli/src/generators/privacy_declarations.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
 import 'package:dartvel_core/dartvel.dart';
+// The record layer, which the registrations are built on and a test of them
+// names.
+import 'package:dartvel_core/framework.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -288,6 +291,40 @@ class _Note {
         contains("retention: DVRetention.days(30, from: 'createdAt', then: DVRetentionAction.anonymize)"));
     expect(generated, contains("retain: DVRetain(years: 7, because: 'tax law')"));
     expect(generated, contains("anonymizeOnErase: <String>{'nationalId'}"));
+  });
+
+  // A captured model's changes sit in the capture log and in every copy made
+  // from it. The erasure walks the registration, and the capture adapter
+  // only reaches a table that names the log -- so a registration without it
+  // deleted the row and left its values in the log and every destination,
+  // reporting the erasure complete.
+  test('a captured model is registered with the log, so an erasure reaches '
+      'the copies', () async {
+    const String order = '''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(subject: DVSubject.self, retain: DVRetention.indefinite, capture: true)
+class _Account {
+  final String id;
+  @DVModel.sensitiveField()
+  final String email;
+  const _Account({required this.id, required this.email});
+}
+''';
+    final Directory dir = project(<String, String>{'account': order});
+    final DVPrivacyDeclarations declared =
+        DVPrivacyDeclarations.discover(root: dir.path);
+
+    expect(declared.render(), contains('capture: DVCapture.configured'));
+  });
+
+  test('a model that is not captured is registered without the log', () {
+    final Directory dir = project(<String, String>{
+      'user': _user,
+      'order': _order,
+    });
+    expect(DVPrivacyDeclarations.discover(root: dir.path).render(),
+        isNot(contains('capture:')));
   });
 
   // A generated model that keeps history writes a change log beside its

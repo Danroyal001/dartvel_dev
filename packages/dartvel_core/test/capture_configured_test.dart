@@ -57,9 +57,14 @@ void main() {
     expect(changes.single.model, 'orders');
   });
 
-  test('nothing configured is a model that captures nothing', () async {
-    expect(DVCapture.configured, isNull);
-
+  // The server configures the log from pubspec.yaml, and a model is also
+  // saved from processes the server did not start: a worker, a script, a
+  // desktop app sharing the database. Each of those used to see no log and
+  // record nothing, so a change made there never reached a destination and
+  // nothing said so. A captured model now records to a log in the database
+  // it is written to, which the server delivers from.
+  test('with no log configured, a captured model records to its database',
+      () async {
     final DVRecordTable orders = DVRecordTable(
       table: 'orders',
       key: 'id',
@@ -68,9 +73,21 @@ void main() {
     );
     await orders.ensureSchema();
 
-    // No log, no throw: a model declared captured in a process that has not
-    // configured one writes normally rather than failing at the first save.
     await orders.write(<String, Object?>{'id': 'o1', 'total': 4200});
     expect(await orders.read('o1'), isNotNull);
+
+    // The server's own log over the same database reads what was recorded.
+    final DVCapture server = DVCapture(
+      database: database,
+      retention: const Duration(days: 30),
+    );
+    final List<DVCapturedChange> changes = await server.changes();
+    expect(changes.single.model, 'orders');
+    expect(changes.single.key, 'o1');
+  });
+
+  test('a process with no database has no log to record to', () {
+    const DVDatabase().unconfigure();
+    expect(DVCapture.configured, isNull);
   });
 }

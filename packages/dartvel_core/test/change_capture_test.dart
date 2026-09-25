@@ -699,6 +699,41 @@ void main() {
               reason: 'the stream resumes from where the backfill began');
         });
 
+        // A new destination is backfilled model by model, and each model's
+        // copy moves the checkpoint to the head it began at. A change to a
+        // model whose copy had already finished, made before the next
+        // model's copy began, was skipped by that move: the stream was all
+        // the first copy had for it, and the destination never saw it.
+        test('a second model\'s backfill does not skip the first model\'s '
+            'later changes', () async {
+          final DVRecordTable notes = DVRecordTable(
+            table: 'notes',
+            key: 'id',
+            columns: const <String>['id', 'body'],
+            capture: capture,
+            database: database,
+          );
+          await notes.ensureSchema();
+          await orders.write(_order('o1'));
+          await notes.write(<String, Object?>{'id': 'n1', 'body': 'first'});
+
+          final _RecordingSink sink = _RecordingSink();
+          final DVCaptureConsumer consumer = capture.consumer('new', sink: sink);
+          expect((await consumer.backfill(orders)).done, isTrue);
+
+          // After the orders copy, before the notes copy begins.
+          await orders.write(_order('o2', quantity: 9));
+
+          expect((await consumer.backfill(notes)).done, isTrue);
+          await consumer.deliverAll();
+
+          expect(
+            sink.changes.map((DVCapturedChange c) => c.key),
+            contains('o2'),
+            reason: 'the write to orders after its copy has to arrive',
+          );
+        });
+
         test('a tenant destination cannot backfill a table with no tenant '
             'column', () async {
           await orders.write(_order('o1'), tenant: 'acme');
@@ -1117,7 +1152,7 @@ void main() {
       expect((await rows()).single.containsKey('customer_email'), isFalse);
     });
 
-    test('schema follows the source: a column is added, then dropped',
+    test('schema follows the source: a field is added, then emptied',
         () async {
       await orders.write(_order('o1'));
       await consumer.deliverOnce();
@@ -1137,7 +1172,13 @@ void main() {
         'channel': 'app',
       });
       await consumer.deliverOnce();
-      expect((await rows()).first.containsKey('reference'), isFalse);
+      // The destination is written through the record operations, which a
+      // document store implements too and which have no column to drop: the
+      // contracted field's values leave every copy instead.
+      expect(
+        (await rows()).map((Map<String, Object?> r) => r['reference']),
+        everyElement(isNull),
+      );
 
       // Redelivering the schema changes after a crash must not wedge delivery.
       await capture.consumer('replay', sink: warehouse).deliverOnce();

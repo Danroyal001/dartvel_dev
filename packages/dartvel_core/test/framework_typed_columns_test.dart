@@ -186,9 +186,6 @@ const Map<String, String> _dynamicSites = <String, String>{
   'dartvel_core/lib/src/data/record_history.dart':
       'DVRecordTable writes its types; every framework record table passes '
       'them, checked below and run below.',
-  'dartvel_core/lib/src/data/change_capture.dart':
-      "The warehouse sink's own columns are a typed constant, and a data "
-      'column takes columnType; run below.',
   'dartvel_core/lib/src/metering/meters.dart':
       'The meter store interpolates one typed constant twice; run below.',
   'dartvel_core/lib/src/database/framework_tables.dart':
@@ -380,10 +377,14 @@ void main() {
     });
 
     test('by the reference warehouse sink', () async {
-      await DVWarehouseSink(
+      // The sink writes through the record operations, so its collection is
+      // created with the fields it knows and a later field is added to it:
+      // both statements have to carry types.
+      final DVWarehouseSink sink = DVWarehouseSink(
         database: ddl,
-        columnType: (String model, String column) => 'TEXT',
-      ).evolve(
+        fieldType: (String model, String field) => DVFieldType.text,
+      );
+      await sink.evolve(
         DVCaptureSchemaChange(
           sequence: 1,
           model: 'orders',
@@ -391,9 +392,17 @@ void main() {
           columns: const <String>['id', 'note'],
         ),
       );
+      await sink.evolve(
+        DVCaptureSchemaChange(
+          sequence: 2,
+          model: 'orders',
+          phase: DVCaptureSchemaPhase.expand,
+          columns: const <String>['channel'],
+        ),
+      );
       expect(
-        ddl.statements.where((String s) => s.contains('ADD COLUMN')),
-        hasLength(2),
+        ddl.statements.where((String s) => s.contains('ADD COLUMN channel')),
+        hasLength(1),
       );
     });
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart' show DVCacheConfig;
+import 'package:dartvel_core/framework.dart' show DVCaptureConfig;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -34,6 +35,12 @@ class DartvelConfig {
   /// Null when the project names no store, which leaves them in memory.
   final DVCacheConfig? cache;
 
+  /// `dartvel.capture`: where captured data models are delivered, or null
+  /// when the project declares none. Parsed here, so a declaration the
+  /// server could not honour stops every command that reads the project
+  /// (`DV-CDC-006`, `DV-CDC-007`) rather than generating it.
+  final DVCaptureConfig? capture;
+
   const DartvelConfig({
     required this.packageName,
     required this.pagesDir,
@@ -58,6 +65,7 @@ class DartvelConfig {
     required this.raw,
     this.dartConfigReference,
     this.cache,
+    this.capture,
   });
 
   static Future<DartvelConfig> load(Directory root) async {
@@ -97,8 +105,10 @@ class DartvelConfig {
       servicesDir: _string(raw['servicesDir'], 'lib/services'),
       backendHost: _string(raw['backendHost'], '0.0.0.0'),
       backendPort: backendPort,
-      devBackendHost:
-          _string(raw['devBackendHost'], 'http://localhost:$backendPort'),
+      devBackendHost: _string(
+        raw['devBackendHost'],
+        'http://localhost:$backendPort',
+      ),
       prodBackendHost: _string(raw['prodBackendHost'], ''),
       apiBasePath: _string(raw['apiBasePath'], '/api'),
       envFiles: _stringList(raw['envFiles'], const <String>[
@@ -108,8 +118,10 @@ class DartvelConfig {
       seo: DartvelSeoConfig(
         siteName: _string(seo?['siteName'], ''),
         title: _string(seo?['defaultTitle'] ?? seo?['title'], ''),
-        description:
-            _string(seo?['defaultDescription'] ?? seo?['description'], ''),
+        description: _string(
+          seo?['defaultDescription'] ?? seo?['description'],
+          '',
+        ),
         image: _string(seo?['defaultImage'] ?? seo?['image'], ''),
         twitterHandle: _string(seo?['twitterHandle'], ''),
       ),
@@ -118,8 +130,10 @@ class DartvelConfig {
         durationMs: asInt(transitions?['durationMs'], 220),
         curve: _string(transitions?['curve'], 'easeInOut'),
       ),
-      normalizeTrailingSlash:
-          asBool(raw['routingNormalizeTrailingSlash'], true),
+      normalizeTrailingSlash: asBool(
+        raw['routingNormalizeTrailingSlash'],
+        true,
+      ),
       notFoundRedirect: _string(raw['notFoundRedirect'], ''),
       plugins: _stringList(raw['plugins'], const <String>[]),
       webPrerender: asBool(raw['webPrerender'], false),
@@ -130,6 +144,7 @@ class DartvelConfig {
       // build accepts is one the server can honour. Throws
       // DVCacheConfigException, DV-CACHE-001 to 003, for one it cannot.
       cache: DVCacheConfig.read(raw['cache']),
+      capture: DVCaptureConfig.parse(raw['capture']),
     );
   }
 

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 // The record layer is the framework's, not an application's.
-import 'package:dartvel_core/framework.dart' show DVRecordTable;
+import 'package:dartvel_core/framework.dart' show DVCapture, DVRecordTable;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDatabaseAdapter,
@@ -36,6 +36,7 @@ class DVPrivacyModelDeclaration {
     required this.retain,
     required this.history,
     required this.historySource,
+    required this.capture,
   });
 
   /// The generated model's name: `Order` for `_Order`.
@@ -62,6 +63,11 @@ class DVPrivacyModelDeclaration {
 
   /// The Dart that constructs [history], as `privacy.g.dart` writes it.
   final String? historySource;
+
+  /// Whether the model is `@DVModel(capture: true)`: its changes are in
+  /// the capture log and every copy made from it, which an erasure has to
+  /// reach too.
+  final bool capture;
 
   /// How the rows reach their subject, as `dartvel privacy check` prints it.
   String? get subjectDescription {
@@ -347,6 +353,7 @@ class DVPrivacyDeclarations {
       retain: retain,
       history: history?.history,
       historySource: history?.source,
+      capture: d.args['capture']?.trim() == 'true',
     );
   }
 
@@ -374,6 +381,9 @@ class DVPrivacyDeclarations {
         columns: d.columns,
         sensitive: d.sensitive,
         history: d.history,
+        capture: d.capture
+            ? DVCapture(database: database, retention: DVCapture.defaultRetention)
+            : null,
         database: database,
       ),
       subject: d.subject,
@@ -419,6 +429,11 @@ class DVPrivacyDeclarations {
       }
       if (d.historySource != null) {
         sb.writeln('          history: ${d.historySource},');
+      }
+      if (d.capture) {
+        // The log the server delivers from, so an erasure purges it and
+        // takes the record out of every destination.
+        sb.writeln('          capture: DVCapture.configured,');
       }
       sb
         ..writeln('          database: database,')
