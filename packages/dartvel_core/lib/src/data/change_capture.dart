@@ -1253,6 +1253,14 @@ class DVCaptureConsumer {
     return rows.isEmpty ? null : _asInt(rows.first['change_seq']);
   }
 
+  /// Whether this consumer stands before what the log has pruned, so
+  /// delivery cannot reach what it missed and only a backfill can
+  /// (`DV-CDC-002`).
+  Future<bool> behindRetention() async {
+    final int? at = await position();
+    return at != null && at < (await capture._state()).pruned;
+  }
+
   Future<void> _saveCheckpoint(int sequence) async {
     final String now = _stamp(capture._clock());
     final int updated = await _records.update(
@@ -1543,7 +1551,12 @@ class DVCaptureConsumer {
       DVCapture.backfillTable,
       where: _backfillOf(model),
     );
-    if (state.isEmpty || _asInt(state.first['done']) == 1) {
+    // Started over when the last copy finished, and when this consumer has
+    // fallen behind retention since: a copy as of a position the log no
+    // longer reaches cannot be continued into the stream.
+    if (state.isEmpty ||
+        _asInt(state.first['done']) == 1 ||
+        await behindRetention()) {
       final int through = await capture.head();
       if (state.isEmpty) {
         await _records.insert(DVCapture.backfillTable, <String, Object?>{
