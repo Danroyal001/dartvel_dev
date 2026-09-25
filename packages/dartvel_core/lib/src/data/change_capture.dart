@@ -405,19 +405,33 @@ class DVCapture {
   /// How long a published change is kept when nothing declared a retention.
   static const Duration defaultRetention = Duration(days: 7);
 
-  /// The log a model declared `@DVModel(capture: true)` writes to, or null
-  /// when this process configured none.
+  static final Expando<DVCapture> _defaults = Expando<DVCapture>('capture');
+
+  /// The log a model declared `@DVModel(capture: true)` writes to.
+  ///
+  /// The one this process configured -- the generated server configures it
+  /// from `dartvel.capture` in pubspec.yaml -- or else a log in the database
+  /// this process has configured, so a captured data model saved from any
+  /// process that shares the database is still recorded, and the server
+  /// delivers it. Null only when the process has no database, where the
+  /// model could not be saved either.
   ///
   /// Configured once, the way the database is, because a model that says it
   /// is captured should not also have to be handed the machinery.
-  static DVCapture? get configured => _configured;
+  static DVCapture? get configured {
+    final DVCapture? log = _configured;
+    if (log != null) return log;
+    final DVDatabaseAdapter? database = const DVDatabase().configuredAdapter;
+    if (database == null) return null;
+    return _defaults[database] ??=
+        DVCapture(database: database, retention: defaultRetention);
+  }
 
   /// Records every captured model in this process to [log].
   static void configure(DVCapture log) => _configured = log;
 
-  /// Leaves the process with no log. A captured model then writes normally
-  /// and records nothing, rather than failing on the first save: a change
-  /// nobody is consuming is not a reason to refuse the write.
+  /// Forgets the configured log. A captured model then records to a log in
+  /// the configured database, as a process the server did not start does.
   static void unconfigure() => _configured = null;
 
   DVCapture({
