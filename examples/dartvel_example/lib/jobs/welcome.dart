@@ -2,11 +2,7 @@ import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 
 @DVJob(queue: 'mail', maxAttempts: 5, backoffSeconds: 60)
 @pragma('vm:entry-point')
-class _SendWelcomeEmail {
-  final String userId;
-
-  const _SendWelcomeEmail({required this.userId});
-}
+class const _SendWelcomeEmail({required final String userId});
 
 @DVJob.handler()
 @pragma('vm:entry-point')

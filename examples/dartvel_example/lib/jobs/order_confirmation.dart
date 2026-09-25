@@ -4,19 +4,12 @@ import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 /// that is down retries later instead of failing the checkout.
 @DVJob(queue: 'orders', maxAttempts: 5, backoffSeconds: 30)
 @pragma('vm:entry-point')
-class _SendOrderConfirmation {
-  final String orderId;
-  final String email;
-  final String summary;
-  final int totalCents;
-
-  const _SendOrderConfirmation({
-    required this.orderId,
-    required this.email,
-    required this.summary,
-    required this.totalCents,
-  });
-}
+class const _SendOrderConfirmation({
+  required final String orderId,
+  required final String email,
+  required final String summary,
+  required final int totalCents,
+});
 
 @DVJob.handler()
 @pragma('vm:entry-point')
