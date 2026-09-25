@@ -7,6 +7,7 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'primary_constructors.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
 import '../utils/helpers.dart';
@@ -128,7 +129,7 @@ class ModelGenerator {
     final Map<String, List<String>> studioEnums = <String, List<String>>{};
     final Set<String> studioModelNames = <String>{};
     for (final file in files) {
-      final String text = await file.readAsString();
+      final String text = dvDesugarPrimaryConstructors(await file.readAsString());
       studioEnums.addAll(dvStudioEnumValues(text));
       for (final RegExpMatch m in RegExp(
         r'@DVModel\b[\s\S]*?class\s+_([A-Za-z0-9_]+)\b',
@@ -138,7 +139,7 @@ class ModelGenerator {
     }
 
     for (final file in files) {
-      final content = await file.readAsString();
+      final content = dvDesugarPrimaryConstructors(await file.readAsString());
       // Scan for @DVModel(...) classes.
       //
       // Matched against a copy whose annotation arguments are blanked to

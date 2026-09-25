@@ -19,6 +19,7 @@ import 'package:path/path.dart' as p;
 
 import 'annotation_args.dart';
 import 'record_columns.dart';
+import 'primary_constructors.dart';
 import 'tenant_column.dart';
 
 /// One model's privacy declaration, as written on its `@DVModel`.
@@ -135,7 +136,7 @@ class DVPrivacyDeclarations {
   static DVPrivacyDeclarations discover({required String root}) {
     final List<_Draft> drafts = <_Draft>[];
     for (final File file in _dartFiles(root)) {
-      final String source = file.readAsStringSync();
+      final String source = dvDesugarPrimaryConstructors(file.readAsStringSync());
       if (!source.contains('@DVModel')) continue;
       final String rel = p.relative(file.path, from: root).replaceAll('\\', '/');
       final String masked = dvMaskAnnotationArgs(source, 'DVModel');
