@@ -250,7 +250,7 @@ class SharedStore implements DVCacheAdapter {
   Future<void> write(String key, Object? value, Duration? ttl) async => values[key] = value;
 
   @override
-  Future<void> remove(String key) async => values.remove(key);
+  Future<void> delete(String key) async => values.remove(key);
 
   @override
   Future<void> clear() async => values.clear();

@@ -8181,7 +8181,7 @@ class DVCacheLock {
     if (_released) return;
     _released = true;
     final current = await _adapter.read(_key);
-    if (current == _token) await _adapter.remove(_key);
+    if (current == _token) await _adapter.delete(_key);
   }
 }
 
@@ -8237,7 +8237,7 @@ class DVCache {
   Future<void> set(String key, Object? value, [Duration? ttl]) =>
       _adapter.write(_scoped(key), value, ttl);
 
-  Future<void> delete(String key) => _adapter.remove(_scoped(key));
+  Future<void> delete(String key) => _adapter.delete(_scoped(key));
 
   // --- global (backend/shared) cache ---------------------------------------
 
@@ -8249,7 +8249,7 @@ class DVCache {
   Future<void> globalSet(String key, Object? value, [Duration? ttl]) =>
       _global.write(_scoped(key), value, ttl);
 
-  Future<void> globalDelete(String key) => _global.remove(_scoped(key));
+  Future<void> globalDelete(String key) => _global.delete(_scoped(key));
 
   void globalTag(String key, Iterable<String> tags) {
     _globalTags.tag(_scoped(key), tags);
@@ -8258,7 +8258,7 @@ class DVCache {
   Future<Set<String>> globalRevalidateTag(String tag) async {
     final keys = _globalTags.revalidateTag(tag);
     for (final key in keys) {
-      await _global.remove(key);
+      await _global.delete(key);
     }
     return keys;
   }
@@ -8404,7 +8404,7 @@ class DVCache {
   Future<Set<String>> revalidateTag(String tag) async {
     final keys = _tags.revalidateTag(tag);
     for (final key in keys) {
-      await _adapter.remove(key);
+      await _adapter.delete(key);
     }
     return keys;
   }
