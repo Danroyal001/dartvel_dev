@@ -404,7 +404,7 @@ void main() {
 name: model_versions_probe
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dependencies:
   flutter:
     sdk: flutter

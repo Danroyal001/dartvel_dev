@@ -18,7 +18,7 @@ Directory project({List<String> dirs = const <String>[]}) {
   final Directory root = Directory.systemTemp.createTempSync('dv_testmode_');
   addTearDown(() => root.deleteSync(recursive: true));
   File('${root.path}/pubspec.yaml').writeAsStringSync(
-    'name: app\nenvironment:\n  sdk: ">=3.12.0 <4.0.0"\n',
+    'name: app\nenvironment:\n  sdk: ">=3.13.0 <4.0.0"\n',
   );
   for (final String dir in dirs) {
     Directory('${root.path}/$dir').createSync(recursive: true);

@@ -533,7 +533,7 @@ Future<Map<String, Object?>> _serve(String dartvel) async {
     write(
       'pubspec.yaml',
       'name: server_options_probe\npublish_to: none\n'
-          'environment:\n  sdk: ^3.12.0\n'
+          'environment:\n  sdk: ^3.13.0\n'
           'dependencies:\n$dependencies$dartvel',
     );
     write('pubspec_overrides.yaml', 'dependency_overrides:\n$dependencies');

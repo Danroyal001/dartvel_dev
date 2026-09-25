@@ -55,7 +55,7 @@ flutter:
 const String _dartServer = '''
 name: acme_api
 environment:
-  sdk: ^3.12.0
+  sdk: ^3.13.0
 dependencies:
   shelf: ^1.4.0
 ''';
@@ -155,7 +155,7 @@ void main() {
     });
 
     test('a project with no dependencies block gets one', () {
-      pubspec().writeAsStringSync('name: bare\nenvironment:\n  sdk: ^3.12.0\n');
+      pubspec().writeAsStringSync('name: bare\nenvironment:\n  sdk: ^3.13.0\n');
 
       final DVAdoptionPlan plan = dvPlanAdoption(root.path);
       final YamlMap parsed = loadYaml(plan.edited!) as YamlMap;
@@ -219,7 +219,7 @@ void main() {
 
     test('a flow-style dependencies map is refused rather than rewritten', () {
       const String flow =
-          'name: flow\nenvironment:\n  sdk: ^3.12.0\ndependencies: {http: ^1.0.0}\n';
+          'name: flow\nenvironment:\n  sdk: ^3.13.0\ndependencies: {http: ^1.0.0}\n';
       pubspec().writeAsStringSync(flow);
 
       final DVAdoptionPlan plan = dvPlanAdoption(root.path);
@@ -240,12 +240,12 @@ void main() {
   group('the compatibility report', () {
     test('an SDK constraint that excludes Dartvel\'s floor blocks', () {
       pubspec().writeAsStringSync(
-          _dartServer.replaceFirst('^3.12.0', '">=2.19.0 <3.10.0"'));
+          _dartServer.replaceFirst('^3.13.0', '">=2.19.0 <3.10.0"'));
 
       final DVAdoptionPlan plan = dvPlanAdoption(root.path);
 
       expect(plan.blocked, isTrue);
-      expect(plan.render(), contains('3.12.0'));
+      expect(plan.render(), contains('3.13.0'));
       final DVAdoptionApplyResult result = dvApplyAdoption(plan);
       expect(result.written, isFalse);
       expect(pubspec().readAsStringSync(), isNot(contains('dartvel')));
@@ -489,7 +489,7 @@ void main() {
 
     test('a blocked plan is not applied even with --yes', () async {
       pubspec().writeAsStringSync(
-          _dartServer.replaceFirst('^3.12.0', '">=2.19.0 <3.0.0"'));
+          _dartServer.replaceFirst('^3.13.0', '">=2.19.0 <3.0.0"'));
 
       final (int code, _) = await runInit(<String>['--yes']);
 
