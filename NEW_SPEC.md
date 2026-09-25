@@ -9733,6 +9733,10 @@ always surfaces as a number somebody cannot reconcile.
 | `DV-CDC-003` | capture lag exceeded the declared threshold | `warning` |
 | `DV-CDC-004` | the destination cannot deduplicate; delivery is at-least-once | `info` |
 | `DV-CDC-005` | a destination's schema could not be evolved to match the source | `error` |
+| `DV-CDC-006` | `dartvel.capture` declares something that cannot be honoured | `error` |
+| `DV-CDC-007` | a destination's connection is written into the pubspec rather than named by its secret | `error` |
+| `DV-CDC-008` | a destination takes a data model that is not captured | `error` |
+| `DV-CDC-009` | a destination's connection secret is not set; its changes wait in the log | `warning` |
 
 ---
 
