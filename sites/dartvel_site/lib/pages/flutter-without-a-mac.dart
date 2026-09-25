@@ -126,14 +126,17 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'Flutter builds and runs iOS apps through Xcode, and Xcode '
                   'runs only on macOS, so Dartvel does not compile iOS on '
                   'Linux or Windows.',
-              'Coming from Expo, this is a place Expo is ahead: Expo Go runs '
-                  'a project on an iPhone with no Mac, and EAS Build makes '
-                  'iOS builds on its own machines today.',
               'Dartvel Cloud is not open. Until it is, the macOS step is a '
                   'runner you configure or a Mac you rent.',
               'An App Store submission needs an Apple Developer account '
                   '(currently 99 USD a year), whoever owns the hardware.',
             ]),
+            Objection(
+              'Is Expo ahead here?',
+              'Yes. Expo Go runs a project on an iPhone with no Mac, and EAS '
+                  'Build makes iOS builds on its own machines today. Dartvel '
+                  'has no Expo Go, and its Cloud is not open.',
+            ),
             Objection(
               'So why is this better than plain Flutter?',
               'Plain Flutter has the same Apple restriction and none of the '
