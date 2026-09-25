@@ -7,31 +7,34 @@ Future<void> basics() async {
   await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
   final String? greeting = await DV.Cache.get<String>('greeting');
   final bool cached = await DV.Cache.has('greeting');
-  await DV.Cache.delete('greeting');
-  await DV.Cache.clear(); // every key
+  await DV.Cache.delete(key: 'greeting');
   // docs:end
   DV.log('$greeting $cached');
 }
 
-// docs:start cache-remember
-Future<List<String>> productNames() => DV.Cache.remember<List<String>>(
+// docs:start cache-compute
+Future<List<String>?> productNames() => DV.Cache.get<List<String>>(
       'products:names',
-      fetchProductNames, // runs only when the key is missing or expired
+      compute: fetchProductNames, // runs only when the key is missing or expired
       ttl: const Duration(minutes: 10),
       tags: <String>['products'],
     );
-
-Future<void> productChanged() async {
-  // Drops every key tagged "products"; the next productNames() recomputes.
-  await DV.Cache.revalidateTag('products');
-}
 // docs:end
+
+Future<void> tags() async {
+  // docs:start cache-tags
+  await DV.Cache.set('home:featured', <String>['Starter kit'],
+      tags: <String>['products', 'home']);
+  await DV.Cache.delete(tag: 'products'); // every key tagged products
+  await DV.Cache.delete(all: true); // every key
+  // docs:end
+}
 
 Future<void> stale() async {
   // docs:start cache-stale
-  final List<String> names = await DV.Cache.remember<List<String>>(
+  final List<String>? names = await DV.Cache.get<List<String>>(
     'products:names',
-    fetchProductNames,
+    compute: fetchProductNames,
     ttl: const Duration(minutes: 1),
     staleFor: const Duration(minutes: 10),
   );
@@ -39,14 +42,13 @@ Future<void> stale() async {
   DV.log('$names');
 }
 
-Future<void> sendMonthlyReport() async {}
-
-Future<void> lock() async {
-  // docs:start cache-lock
-  final bool? sent = await DV.Cache.lock('reports:monthly', () async {
-    await sendMonthlyReport(); // one caller at a time, across every server
-    return true;
-  });
-  if (sent == null) DV.log('Another server is sending the report.');
+Future<void> switchStore() async {
+  // docs:start cache-switch
+  final DVCacheView sessions = DV.Cache.withAdapter(
+    await DVRedisCacheAdapter.connect(DV.Secrets.get('SESSIONS_REDIS_URL')),
+  );
+  await sessions.set('visitor:42', 'signed in', ttl: const Duration(hours: 8));
+  final bool active = await sessions.has('visitor:42');
   // docs:end
+  DV.log('$active');
 }

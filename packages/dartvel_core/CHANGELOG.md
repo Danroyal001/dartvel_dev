@@ -17,14 +17,35 @@
   half of find in page: which rendered paragraph a browser match means, and
   what the runtime mirror is written from.
 
-- **`DV.Cache` lives here, and is CRUD first.** `DVCache` moved from
-  dartvel_flutter: `set(key, value, {ttl, tags})`, `get`, `has`, `delete`,
-  `clear`; `remember(key, compute, {ttl, tags, staleFor})`, with
-  `staleWhileRevalidate` kept as a deprecated spelling; `tag`,
-  `revalidateTag`; and `lock(key, body, {ttl, wait})`, which runs the body
-  under the lock and always releases it. Backend code reaches it as
-  `DV.Cache` from `package:dartvel_core/dv.dart`. Breaking: `ttl` is named,
-  `remember` takes the compute second, and `lock` takes a body.
+- **`DV.Cache` lives here, and is four calls: `get`, `set`, `has` and
+  `delete`.** `DVCache` moved from dartvel_flutter. Everything else is a
+  named option on the four: `set(key, value, {ttl, tags})`;
+  `get<T>(key, {compute, ttl, tags, staleFor})`, where `compute:` reads
+  through with one shared compute per key and `staleFor:` serves a stale
+  value while one refresh runs behind it; and `delete({key, tag, all})`,
+  which takes exactly one of the three and throws an `ArgumentError`
+  otherwise. `ttl:`, `tags:` or `staleFor:` on a `get` without `compute:`,
+  and `staleFor:` without `ttl:`, are an `ArgumentError` rather than
+  ignored. Backend code reaches it as `DV.Cache` from
+  `package:dartvel_core/dv.dart`.
+- **`DV.Cache.withAdapter(adapter)` switches store in code.** `dartvel.cache`
+  sets the store `DV.Cache` uses; `withAdapter` returns a `DVCacheView` with
+  the same four calls on another adapter. Every call goes to that adapter,
+  and tags and the shared compute are kept per adapter.
+  `DVRedisCacheAdapter.connect(url)` opens Redis from a `redis://` url,
+  with `AUTH` and `SELECT`, and is what the configured store uses too.
+- **Breaking: the rest of `DVCache` is gone or internal.** Rewrite
+  `remember(key, compute, ...)` and `staleWhileRevalidate(...)` as
+  `get(key, compute: compute, ...)`, `tag(key, tags)` as
+  `set(key, value, tags: tags)`, `revalidateTag(tag)` as
+  `delete(tag: tag)`, `clear()` as `delete(all: true)`, and `delete(key)`
+  as `delete(key: key)`. `lock`, `purgeExpired`, `keysForTag`, `tags`,
+  `configure`, `adapter` and the global cache (`configureGlobal`,
+  `globalGet`, `globalSet`, `globalDelete`, `globalTag`,
+  `globalRevalidateTag`) moved to `DVCacheRuntime`, exported from
+  `framework.dart` for the framework and its tests. `dartvel migrate-code`
+  does not rewrite these: its rules swap one name for another, and these
+  calls change shape.
 - **`DVCacheConfig` reads `dartvel.cache`** for the build and installs the
   store at startup: host, port, `AUTH` and `SELECT` from a `redis://` url held
   in an environment variable, a database table on the shared database, or
@@ -32,7 +53,7 @@
 - **`DVCacheAdapter.remove` is `delete`.** Adapters implement `delete`;
   `remove` stays as a deprecated extension for callers.
 - A list or map read back from a JSON store is returned as the type asked
-  for, so `remember` hits rather than recomputing on every call.
+  for, so a read-through `get` hits rather than recomputing on every call.
 
 - **Breaking: the change capture machinery left the application barrel.**
   `DVCapture`, `DVCaptureConsumer`, `DVCaptureSink`, `DVWarehouseSink`,

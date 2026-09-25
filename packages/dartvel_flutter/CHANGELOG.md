@@ -18,12 +18,18 @@
   so print no longer falls back to the canvas.
 
 - **`DV.Cache` is dartvel_core's `DVCache`**, so a page and a backend function
-  share one cache and one API. `DVCacheLock` is gone: `DV.Cache.lock(key,
-  body)` runs the body and releases the lock itself. Breaking: `ttl` is named
-  on `set`, `remember` and `globalSet`.
-- `DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter` and `DVCacheTags` are no
-  longer re-exported; import them from dartvel_core in a test. The store is
-  `dartvel.cache`.
+  share one cache and one API: `get`, `set`, `has` and `delete`, with
+  read-through (`compute:`, `staleFor:`), `tags:` and bulk deletes
+  (`tag:`, `all: true`) as options. Breaking: `remember`, `tag`,
+  `revalidateTag`, `clear`, `lock`, `configure`, `adapter` and the `global*`
+  helpers are gone from `DV.Cache`; see dartvel_core's changelog for the
+  rewrite of each. `DVCacheLock` is gone too.
+- **The cache adapters are exported**: `DVCacheAdapter`,
+  `DVMemoryCacheAdapter`, `DVDatabaseCacheAdapter`, `DVRedisCacheAdapter`,
+  `DVMemcachedCacheAdapter`, `DVDistributedCacheAdapter` and `DVCacheView`.
+  `dartvel.cache` sets the store `DV.Cache` uses, and
+  `DV.Cache.withAdapter(adapter)` switches store in code. `DVCacheTags`, the
+  Redis client and `DVCacheConfig` stay out.
 
 - **Signing out empties the device's offline data.** `DV.Auth.signOut()` sends
   whatever queued offline writes can reach the server, then empties every

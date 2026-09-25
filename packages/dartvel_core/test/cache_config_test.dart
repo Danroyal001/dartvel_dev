@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/framework.dart' show DVCacheRuntime;
 import 'package:test/test.dart';
 
 /// A Redis that answers every command, and remembers what it was sent.
@@ -69,7 +70,7 @@ TypeMatcher<DVProcessConfigurationError> _startup(String code) =>
 
 void main() {
   tearDown(() {
-    const DVCache().configure(DVMemoryCacheAdapter());
+    DVCacheRuntime.configure(DVMemoryCacheAdapter());
     DVMiddlewareSettings.rateLimitStore = null;
   });
 
@@ -253,7 +254,7 @@ void main() {
       await DVCacheConfig.read(<String, Object?>{
         'store': 'memory',
       })!.install(database: null, read: (_) => null);
-      expect(const DVCache().adapter, isA<DVMemoryCacheAdapter>());
+      expect(DVCacheRuntime.adapter, isA<DVMemoryCacheAdapter>());
     });
 
     test('database, on the database this process shares', () async {
@@ -376,7 +377,7 @@ void main() {
         read: (_) => null,
         memcachedConnector: (String host, int port) async => _FakeMemcached(),
       );
-      final DVCacheAdapter adapter = const DVCache().adapter;
+      final DVCacheAdapter adapter = DVCacheRuntime.adapter;
       expect(adapter, isA<DVMemcachedCacheAdapter>());
       adapter as DVMemcachedCacheAdapter;
       expect(adapter.host, 'cache.internal');
@@ -427,7 +428,7 @@ void main() {
           );
           expect(await const DVCache().get<String>('greeting'), 'hello');
         } finally {
-          await const DVCache().clear();
+          await const DVCache().delete(all: true);
           await raw.close();
         }
       },

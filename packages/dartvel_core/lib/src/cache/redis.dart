@@ -172,6 +172,73 @@ class DVRedisCacheAdapter
 
   DVRedisCacheAdapter(this.client, {this.keyPrefix = 'dartvel:'});
 
+  /// Connects to the Redis at [url],
+  /// `redis://[[user]:password@]host[:port][/database]`, authenticating and
+  /// selecting the database the url names.
+  ///
+  /// How an application switches `DV.Cache` to Redis in code:
+  /// `DV.Cache.withAdapter(await DVRedisCacheAdapter.connect(url))`. Read the
+  /// url from the environment rather than writing a password into source.
+  ///
+  /// A url it cannot use is an [ArgumentError] before anything connects, and
+  /// the error never repeats the url, which may carry a password. `rediss://`
+  /// is refused: this client has no TLS, and sending a password in the clear
+  /// to a server that expects TLS is worse than not connecting.
+  static Future<DVRedisCacheAdapter> connect(
+    String url, {
+    String keyPrefix = 'dartvel:',
+    DVRedisConnect? connector,
+  }) async {
+    final Uri? uri = Uri.tryParse(url);
+    if (uri != null && uri.scheme == 'rediss') {
+      throw ArgumentError(
+        'The url uses rediss://, and Dartvel\'s Redis client has no TLS. '
+        'Reach Redis over a private network or a TLS tunnel with redis://.',
+        'url',
+      );
+    }
+    if (uri == null || uri.scheme != 'redis' || uri.host.isEmpty) {
+      throw ArgumentError('The url is not a redis:// url with a host.', 'url');
+    }
+    final String database = uri.path.replaceFirst('/', '');
+    if (database.isNotEmpty && int.tryParse(database) == null) {
+      throw ArgumentError(
+        'The url names a database that is not a number; a Redis database is '
+        'a number.',
+        'url',
+      );
+    }
+
+    final DVRedisClient client = await DVRedisClient.connect(
+      host: uri.host,
+      port: uri.hasPort ? uri.port : 6379,
+      connector: connector,
+    );
+    try {
+      final String userInfo = uri.userInfo;
+      if (userInfo.isNotEmpty) {
+        final int colon = userInfo.indexOf(':');
+        final String user = colon == -1 ? '' : userInfo.substring(0, colon);
+        final String password = Uri.decodeComponent(
+          colon == -1 ? userInfo : userInfo.substring(colon + 1),
+        );
+        await client.command(<String>[
+          'AUTH',
+          if (user.isNotEmpty) Uri.decodeComponent(user),
+          password,
+        ]);
+      }
+      if (database.isNotEmpty && database != '0') {
+        await client.command(<String>['SELECT', database]);
+      }
+      await client.command(<String>['PING']);
+    } on Object {
+      await client.close();
+      rethrow;
+    }
+    return DVRedisCacheAdapter(client, keyPrefix: keyPrefix);
+  }
+
   String _k(String key) => '$keyPrefix$key';
 
   @override

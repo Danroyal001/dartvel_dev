@@ -102,7 +102,7 @@ Read from the code on 2026-09-25, not from the specification:
   `cron` instance counts.
 - **Pieces this design reuses:** the flat-buffer codec (`dvFlatEncode` and
   `dvFlatDecode`), Server-Sent Events streaming functions, `DVModelSync`
-  change events, `DV.Cache.remember` with tags, `DV.transaction`, the protocol
+  change events, `DV.Cache.get(compute:)` with tags, `DV.transaction`, the protocol
   version and its shape digest, and Edge Security's rule that a query over
   budget is "refused, not truncated".
 
@@ -1228,7 +1228,7 @@ final List<Product> featured = await Product.where((p) => p.featured.isTrue)
     .all();
 ```
 
-`.cached(...)` goes through `DV.Cache.remember`, so callers asking at the same
+`.cached(...)` goes through `DV.Cache.get(compute:)`, so callers asking at the same
 moment share one execution and get stampede protection. The **key** is the
 shape digest, the parameter values, the tenant, and the **digest of the
 injected policy nodes and their bound values**. Two customers never share an
@@ -1236,7 +1236,7 @@ entry, and two staff members, whose policy collapses to no predicate, do. The
 **tags** are the plan's read set: `dv:model:Product` for each model read.
 
 Every model write, whether a single `save` or a bulk `update`, calls
-`DV.Cache.revalidateTag('dv:model:<Model>')` (tenant-prefixed, as cache keys
+`DV.Cache.delete(tag: 'dv:model:<Model>')` (tenant-prefixed, as cache keys
 already are). That is the "generated invalidation from model writes" the Cache
 section lists as absent. Invalidation is **per model**, which is coarse: any
 product write drops every cached product query. That is correct and simple.
