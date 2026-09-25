@@ -12707,6 +12707,10 @@ as having none.
 - a row that is its own privacy subject (`subject: DVSubject.self`). Asked for,
   its every field is protected, its records are never in the static build or
   the sitemap, and the server never resolves page data for one;
+- a record about a person, whose privacy subject is one of its fields (an
+  order keyed to a customer's email), unless it has a `published` or
+  `isPublished` flag to say which records are meant to be public. Hiding the
+  field that names the person would still publish the rest of the record;
 - a `tenantScoped` model, since a public page has no request to take a tenant
   from (asking for both stops the build);
 - a model whose key would be a protected field, since a key is in every URL;
