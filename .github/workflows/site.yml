@@ -79,6 +79,22 @@ jobs:
       - name: Every page says something to a crawler
         run: dart "$GITHUB_WORKSPACE/tool/ci/crawler_text_check.dart" /tmp/stage
 
+      # Ctrl+F on a docs page: the phrase is in a hidden="until-found"
+      # section of the built HTML, window.find() finds it, and a beforematch
+      # on that section, or a #:~:text= link the browser matches itself,
+      # scrolls the Flutter page until the phrase is on screen. The phrase
+      # sits at the bottom of the page, so the check fails unless the page
+      # actually scrolled.
+      - name: The browser's find reaches a docs page
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          (cd /tmp/stage && dart "$GITHUB_WORKSPACE/tool/ci/serve.dart" 8090 --spa > /tmp/serve-find.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://localhost:8090/ > /dev/null && break; sleep 1; done
+          dart "$GITHUB_WORKSPACE/tool/ci/find_in_page_check.dart" \
+            http://localhost:8090 /docs/web-hosting \
+            'Safari has not been checked yet'
+
       - uses: actions/upload-artifact@v7
         with:
           name: dartvel-site
