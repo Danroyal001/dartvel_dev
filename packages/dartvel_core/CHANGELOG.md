@@ -1,3 +1,30 @@
+## Unreleased
+
+- **Breaking: the offline machinery leaves `dartvel.dart`.** `DVOfflineStore`,
+  `DVOffline`, `DVOfflineRemote`, `DVMutation`, `DVReplayResult`,
+  `DVRemoteOutcome`, `DVOfflineClock` and `DVOfflineStorePrivacyAdapter` are
+  exported from `framework.dart` only. An offline data model's own
+  `save()`, `destroy()`, reads and `syncState` replace them. `DVSyncState`
+  and `DVOfflineQueueFullError` stay public.
+- **`DVOfflineSync` runs every offline data model's queue** (framework-only):
+  replay at start, after a write, on reconnect and on a doubling backoff, one
+  mutation per request, the server's clock taken from each answer, and
+  `signedOut()` sending what it can before emptying every store.
+- **A device store per platform.** `dvLocalOfflineDatabase` opens a SQLite
+  file in the application's data directory, IndexedDB in a browser
+  (`DVSnapshotDatabaseAdapter` over `DVIndexedDbSnapshots`), or memory under
+  `flutter test`. `MemoryDVDatabaseAdapter` gains `exportTable` and
+  `importTable`.
+- **Fixed: the replay route prepared none of its tables**, so the first replay
+  against a real database was a server error a device retried for ever.
+  `DVRecordTableRemote` now ensures its schema on first use, and the route's
+  answer carries `serverTime`.
+- **Fixed: a replayed write was put to the policy as a map**, which a policy
+  written against the model refused. `DVOfflineReplay.forSpecs(resources:)`
+  builds the policy's own class; one that cannot be built refuses.
+- `DVOfflineStore(onAdopted:)` is called when replay replaces the device's
+  copy with the server's.
+
 ## 0.6.0
 
 - **`DVStudioDevGrant` opens Studio on a development server to the person
