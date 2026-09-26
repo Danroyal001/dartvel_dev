@@ -218,7 +218,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Where a module can come from', anchor: 'sources'),
 
   SpecCoverage('Native Binding Graph', 'Backend', DVRoutes.docsmodules,
-      'Where a module can come from', anchor: 'sources'),
+      'Put a Rust crate or an Android library behind a module',
+      anchor: 'native'),
 
   SpecCoverage('Web Server Rendering', 'Backend', DVRoutes.docsdeploying,
       'Serve each page with its data and head tags', anchor: 'rendering'),
