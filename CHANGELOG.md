@@ -57,6 +57,18 @@ changes are called out explicitly below.
 
 ### Added
 
+- **Webhook deliveries in CloudEvents or signed the Standard Webhooks way.**
+  `dartvel.webhooks.format: cloudevents` sends each delivery as a CloudEvents
+  1.0.2 event, structured (`application/cloudevents+json`) or with
+  `mode: binary` as `ce-` headers; `signature: standard` signs with
+  `webhook-id`, `webhook-timestamp` and `webhook-signature`, verifiable by the
+  official standardwebhooks libraries. Dartvel's envelope and signature stay
+  the default. `DVCloudEvent.fromHttp` reads either mode on the receiving side
+  and `DVStandardWebhookSignature.verify` checks the signature.
+- **An AsyncAPI 3.0 document for the webhook events an application sends**,
+  generated from its `DVWebhookEvent` declarations and served at
+  `/api/asyncapi.json` beside `openapi.json`.
+
 - `DV.Cache.has`, and `DV.Cache` in backend code through `DV` from
   `package:dartvel_core/dv.dart` -- the same cache a page reaches.
 - `DV-CACHE-001` to `005`: the build refuses a `dartvel.cache` block it cannot
