@@ -35,9 +35,11 @@ changes are called out explicitly below.
   else is a named option on them. Rewrite `remember(key, compute, ...)` and
   `staleWhileRevalidate(...)` as `get(key, compute: compute, ttl: ...,
   tags: ..., staleFor: ...)`; `tag(key, tags)` as `set(key, value,
-  tags: tags)`; `revalidateTag(tag)` as `delete(tag: tag)`; `clear()` as
-  `delete(all: true)`; and `delete(key)` as `delete(key: key)`. `delete`
-  takes exactly one of the three and throws an `ArgumentError` otherwise.
+  tags: tags)`; `revalidateTag(tag)` as `delete(DVCacheTag(tag))`; and
+  `clear()` as `delete(DVCache.all)`. `delete(key)` is unchanged: `delete`
+  takes one positional target, a `String` key, a `DVCacheTag` or
+  `DVCache.all`, as `get`, `set` and `has` take the key, and throws an
+  `ArgumentError` naming the type of anything else.
 - **The cache's machinery left `DV.Cache`.** `lock`, `purgeExpired`,
   `keysForTag`, `tags`, `configure`, `adapter` and the `global*` helpers are
   the framework's `DVCacheRuntime`, exported from
