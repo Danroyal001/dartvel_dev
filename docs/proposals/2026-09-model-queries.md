@@ -1236,7 +1236,7 @@ entry, and two staff members, whose policy collapses to no predicate, do. The
 **tags** are the plan's read set: `dv:model:Product` for each model read.
 
 Every model write, whether a single `save` or a bulk `update`, calls
-`DV.Cache.delete(tag: 'dv:model:<Model>')` (tenant-prefixed, as cache keys
+`DV.Cache.delete(DVCacheTag('dv:model:<Model>'))` (tenant-prefixed, as cache keys
 already are). That is the "generated invalidation from model writes" the Cache
 section lists as absent. Invalidation is **per model**, which is coarse: any
 product write drops every cached product query. That is correct and simple.

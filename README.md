@@ -722,12 +722,12 @@ page and from a backend function:
 await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
 final String? greeting = await DV.Cache.get<String>('greeting');
 final bool cached = await DV.Cache.has('greeting');
-await DV.Cache.delete(key: 'greeting');
+await DV.Cache.delete('greeting');
 ```
 
 Everything else is an option on those four. `get` with `compute:` computes on
 a miss, and callers asking for the same key at once share one compute. Tags
-are an option, and `delete(tag:)` drops every key under one:
+are an option, and `delete(DVCacheTag(...))` drops every key under one:
 
 ```dart
 final List<String>? names = await DV.Cache.get<List<String>>(
@@ -737,8 +737,8 @@ final List<String>? names = await DV.Cache.get<List<String>>(
   tags: <String>['products'],
   staleFor: const Duration(minutes: 5), // optional: serve stale, refresh behind
 );
-await DV.Cache.delete(tag: 'products');
-await DV.Cache.delete(all: true); // every key
+await DV.Cache.delete(const DVCacheTag('products'));
+await DV.Cache.delete(DVCache.all); // every key
 ```
 
 Where the entries live by default is configuration:
