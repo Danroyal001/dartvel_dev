@@ -59,7 +59,7 @@ error. Without the generator there are no targets to use.
 For a Dartvel application, install the CLI and let it write the project:
 
 ```sh
-dart pub global activate dartvel_dev
+dart pub global activate dartvel_cli
 dartvel create --name shop
 cd shop && dartvel dev
 ```
