@@ -1,3 +1,9 @@
+## 0.6.2
+
+- Documentation only: install the CLI with `dart pub global activate
+  dartvel_cli` first, then Homebrew, the release binaries, dev_dependencies
+  and npm.
+
 ## 0.6.1
 
 - Declares the platforms it supports in pubspec.yaml, so pub.dev lists
