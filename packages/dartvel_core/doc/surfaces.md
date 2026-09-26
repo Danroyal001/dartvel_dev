@@ -261,7 +261,7 @@ In an application, and in a backend function through `DV` from
 await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
 final String? greeting = await DV.Cache.get<String>('greeting');
 final bool cached = await DV.Cache.has('greeting');
-await DV.Cache.delete(key: 'greeting');
+await DV.Cache.delete('greeting');
 
 final List<String>? names = await DV.Cache.get<List<String>>(
   'products:names',
@@ -271,8 +271,8 @@ final List<String>? names = await DV.Cache.get<List<String>>(
 );
 
 // A product changed: every key tagged "products" goes.
-await DV.Cache.delete(tag: 'products');
-await DV.Cache.delete(all: true); // every key
+await DV.Cache.delete(const DVCacheTag('products'));
+await DV.Cache.delete(DVCache.all); // every key
 
 // Another store, the same four calls.
 final DVCacheView other = DV.Cache.withAdapter(DVMemoryCacheAdapter());
