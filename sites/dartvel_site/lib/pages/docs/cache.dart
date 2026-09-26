@@ -94,7 +94,10 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
               'prefix starts every key, so two applications can share one '
                   'server. The default is dartvel:.',
               'The server refuses to start when it cannot reach the store.',
-              'On a device, DV.Cache keeps entries in memory.',
+              'On a device, memory is the default store. The store in '
+                  'pubspec.yaml applies only to the server.',
+              'A device can switch store in code with withAdapter, below. '
+                  'Sharing a cache with the server is planned.',
               'Keys are prefixed with the tenant unless it is the default one.',
             ]),
             DocsText('pubspec.yaml sets the store DV.Cache uses by default. '
@@ -142,6 +145,9 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
                   'annotation.',
               'Model writes do not drop tags yet. Call '
                   'delete(DVCacheTag(...)) yourself.',
+              'A device cannot share the server\'s cache yet. The plan is an '
+                  'adapter that calls the server, with every call checked '
+                  'against a policy and scoped to the tenant.',
               'Several Redis or Memcached nodes are not a store pubspec.yaml '
                   'can name yet. Pass a DVDistributedCacheAdapter to '
                   'withAdapter instead.',

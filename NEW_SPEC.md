@@ -3859,7 +3859,15 @@ server opens the store before it serves, works or ticks anything, and refuses
 to start when it cannot rather than falling back to a cache of its own -- a
 process that believes it shares a cache while every instance keeps its own
 takes locks that lock nothing. A shared store that can count also carries the
-rate limit. On a device `DV.Cache` keeps its entries in memory.
+rate limit.
+
+On a device memory is the default store: `dartvel.cache` configures the
+server, and a device never opens it. A device switches store in code with
+`withAdapter`, to any adapter its platform can run. Sharing a cache with the
+server is planned and not built: a device adapter that calls a generated
+backend cache endpoint, every `get`, `set`, `has` and `delete` checked against
+a policy under `DV.Auth.authorization`, scoped to the tenant, and never caching
+a sensitive value across users.
 
 Caches are per client by default and automatically prefixed by Dartvel. A
 backend/global cache shared across clients is the framework's
