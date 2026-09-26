@@ -18,7 +18,7 @@ void main() {
     await DV.Cache.set('greeting', 'hello', ttl: const Duration(minutes: 1));
     expect(await server.DV.Cache.get<String>('greeting'), 'hello');
 
-    await server.DV.Cache.delete(key: 'greeting');
+    await server.DV.Cache.delete('greeting');
     expect(await DV.Cache.has('greeting'), isFalse);
   });
 
@@ -30,7 +30,7 @@ void main() {
         compute: compute,
         ttl: const Duration(minutes: 10),
         tags: <String>['products']);
-    await DV.Cache.delete(tag: 'products');
+    await DV.Cache.delete(const DVCacheTag('products'));
     final List<String>? names = await DV.Cache.get<List<String>>(
         'products:names',
         compute: compute,
@@ -40,11 +40,11 @@ void main() {
     expect(names, <String>['kit 2']);
   });
 
-  test('delete(all: true) empties the cache a page sees', () async {
+  test('delete(DVCache.all) empties the cache a page sees', () async {
     await DV.Cache.set('a', 1);
     await server.DV.Cache.set('b', 2);
 
-    await DV.Cache.delete(all: true);
+    await DV.Cache.delete(DVCache.all);
 
     expect(await DV.Cache.has('a'), isFalse);
     expect(await server.DV.Cache.has('b'), isFalse);

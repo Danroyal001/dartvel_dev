@@ -43,7 +43,7 @@ Future<void> dvClearKioskSession(
   String? namespace,
 }) async {
   if (what.contains(DVKioskClearable.clientCache)) {
-    await const DVCache().delete(all: true);
+    await const DVCache().delete(DVCache.all);
   }
   if (what.contains(DVKioskClearable.auth)) {
     // Display scope never reaches here: a policy listing auth in display

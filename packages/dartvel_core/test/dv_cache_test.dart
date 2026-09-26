@@ -28,7 +28,7 @@ void main() {
       expect(await DV.Cache.get<String>('greeting'), 'hello');
       expect(await DV.Cache.has('greeting'), isTrue);
 
-      await DV.Cache.delete(key: 'greeting');
+      await DV.Cache.delete('greeting');
       expect(await DV.Cache.get<String>('greeting'), isNull);
       expect(await DV.Cache.has('greeting'), isFalse);
     });
@@ -55,9 +55,29 @@ void main() {
   });
 
   group('delete', () {
-    // Dart cannot mix an optional positional parameter with named ones, so
-    // the key is named too: delete(key: k), delete(tag: t), delete(all: true).
-    test('delete(tag:) drops every key tagged, and only those', () async {
+    // delete takes one positional argument naming what to drop, as get, set
+    // and has take the key first: a String key, a DVCacheTag or DVCache.all.
+    test('delete(key) drops that key and leaves the rest', () async {
+      await DV.Cache.set('greeting', 'hello', tags: <String>['t']);
+      await DV.Cache.set('other', 'kept', tags: <String>['t']);
+
+      await DV.Cache.delete('greeting');
+
+      expect(await DV.Cache.has('greeting'), isFalse);
+      expect(await DV.Cache.get<String>('other'), 'kept');
+    });
+
+    test('a key spelled like a tag is still a key', () async {
+      await DV.Cache.set('products', 'the key', tags: <String>['x']);
+      await DV.Cache.set('tagged', 'kept', tags: <String>['products']);
+
+      await DV.Cache.delete('products');
+
+      expect(await DV.Cache.has('products'), isFalse);
+      expect(await DV.Cache.get<String>('tagged'), 'kept');
+    });
+
+    test('delete(DVCacheTag) drops every key tagged, and only those', () async {
       await DV.Cache.set(
         'products:names',
         <String>['kit'],
@@ -66,47 +86,71 @@ void main() {
       await DV.Cache.set('products:count', 1, tags: <String>['products']);
       await DV.Cache.set('orders:open', 4, tags: <String>['orders']);
 
-      await DV.Cache.delete(tag: 'products');
+      await DV.Cache.delete(const DVCacheTag('products'));
 
       expect(await DV.Cache.has('products:names'), isFalse);
       expect(await DV.Cache.has('products:count'), isFalse);
       expect(await DV.Cache.get<int>('orders:open'), 4);
     });
 
-    test('delete(all: true) drops every key and every tag', () async {
+    test('delete(DVCache.all) drops every key and every tag', () async {
       await DV.Cache.set('a', 1, tags: <String>['letters']);
       await DV.Cache.set('b', 2);
 
-      await DV.Cache.delete(all: true);
+      await DV.Cache.delete(DVCache.all);
 
       expect(await DV.Cache.has('a'), isFalse);
       expect(await DV.Cache.has('b'), isFalse);
       expect(DVCacheRuntime.tags, isEmpty);
     });
 
-    // Each of these is a call that would otherwise do something plausible and
-    // wrong: drop one key when the caller meant a tag, or nothing at all.
-    final Map<String, Future<void> Function()> ambiguous =
-        <String, Future<void> Function()>{
-          'nothing': () => DV.Cache.delete(),
-          'all: false alone': () => DV.Cache.delete(all: false),
-          'a key and a tag': () => DV.Cache.delete(key: 'k', tag: 't'),
-          'a key and all': () => DV.Cache.delete(key: 'k', all: true),
-          'a tag and all': () => DV.Cache.delete(tag: 't', all: true),
-          'all three': () => DV.Cache.delete(key: 'k', tag: 't', all: true),
-        };
-    for (final MapEntry<String, Future<void> Function()> call
-        in ambiguous.entries) {
-      test('delete with ${call.key} is an ArgumentError', () async {
-        await DV.Cache.set('k', 'kept', tags: <String>['t']);
+    test('DVCacheTag is a const value: equal by name', () {
+      expect(const DVCacheTag('a'), DVCacheTag('a'.toString()));
+      expect(
+        const DVCacheTag('a').hashCode,
+        DVCacheTag('a'.toString()).hashCode,
+      );
+      expect(const DVCacheTag('a'), isNot(const DVCacheTag('b')));
+      expect(const DVCacheTag('a').name, 'a');
+    });
 
-        await expectLater(call.value, throwsArgumentError);
-        expect(
-          await DV.Cache.get<String>('k'),
-          'kept',
-          reason: 'a refused delete removes nothing',
-        );
-      });
+    // The parameter is an Object because a String key cannot share a type
+    // with the tag and all targets. Anything else would otherwise do
+    // something plausible and wrong -- a toString() taken as a key drops
+    // nothing and says nothing -- so it is refused, naming the type.
+    final Map<String, Object> refused = <String, Object>{
+      'an int': 42,
+      'a bool': true,
+      'a list of keys': <String>['k'],
+      'a Symbol': #k,
+    };
+    for (final MapEntry<String, Object> call in refused.entries) {
+      test(
+        'delete of ${call.key} is an ArgumentError naming its type',
+        () async {
+          await DV.Cache.set('k', 'kept', tags: <String>['t']);
+
+          await expectLater(
+            () => DV.Cache.delete(call.value),
+            throwsA(
+              isA<ArgumentError>().having(
+                (ArgumentError e) => e.toString(),
+                'message',
+                allOf(
+                  contains(call.value.runtimeType.toString()),
+                  contains('DVCacheTag'),
+                  contains('DVCache.all'),
+                ),
+              ),
+            ),
+          );
+          expect(
+            await DV.Cache.get<String>('k'),
+            'kept',
+            reason: 'a refused delete removes nothing',
+          );
+        },
+      );
     }
   });
 
@@ -153,7 +197,7 @@ void main() {
           compute: compute,
           tags: <String>['products'],
         );
-        await DV.Cache.delete(tag: 'products');
+        await DV.Cache.delete(const DVCacheTag('products'));
         final List<String>? again = await DV.Cache.get<List<String>>(
           'products:names',
           compute: compute,
@@ -385,12 +429,12 @@ void main() {
         expect(await fallback.read('computed'), isNull);
 
         await DV.Cache.set('k', 'default');
-        await cache.delete(key: 'k');
+        await cache.delete('k');
         expect(await other.read('k'), isNull);
         expect(await DV.Cache.get<String>('k'), 'default');
 
         await cache.set('x', 1);
-        await cache.delete(all: true);
+        await cache.delete(DVCache.all);
         expect(await other.read('x'), isNull);
         expect(await DV.Cache.get<String>('k'), 'default');
       },
@@ -403,14 +447,14 @@ void main() {
       await a.set('k', 'a', tags: <String>['t']);
       await b.set('k', 'b', tags: <String>['t']);
 
-      await a.delete(tag: 't');
+      await a.delete(const DVCacheTag('t'));
 
       expect(await a.has('k'), isFalse);
       expect(await b.get<String>('k'), 'b');
       expect(await DV.Cache.get<String>('k'), 'default');
       expect(DVCacheRuntime.keysForTag('t'), <String>{'k'});
 
-      await DV.Cache.delete(tag: 't');
+      await DV.Cache.delete(const DVCacheTag('t'));
       expect(await b.get<String>('k'), 'b');
     });
 
@@ -418,7 +462,7 @@ void main() {
       final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
       await DV.Cache.withAdapter(store).set('k', 'v', tags: <String>['t']);
 
-      await DV.Cache.withAdapter(store).delete(tag: 't');
+      await DV.Cache.withAdapter(store).delete(const DVCacheTag('t'));
 
       expect(await store.read('k'), isNull);
     });
@@ -474,9 +518,13 @@ void main() {
       expect(await store.read('feed'), 'v2');
     });
 
-    test('delete on a switched adapter still takes exactly one target', () {
-      final DVCacheView cache = DV.Cache.withAdapter(DVMemoryCacheAdapter());
-      expect(() => cache.delete(), throwsArgumentError);
+    test('delete on a switched adapter refuses what is not a target', () async {
+      final DVMemoryCacheAdapter store = DVMemoryCacheAdapter();
+      final DVCacheView cache = DV.Cache.withAdapter(store);
+      await cache.set('k', 'kept');
+
+      await expectLater(() => cache.delete(7), throwsArgumentError);
+      expect(await store.read('k'), 'kept');
     });
   });
 
@@ -490,15 +538,18 @@ void main() {
       expect(DVCacheRuntime.adapter, same(store));
     });
 
-    test('keysForTag and tags name what delete(tag:) would drop', () async {
-      await DV.Cache.set('users:list', 'everyone', tags: <String>['users']);
+    test(
+      'keysForTag and tags name what deleting a DVCacheTag would drop',
+      () async {
+        await DV.Cache.set('users:list', 'everyone', tags: <String>['users']);
 
-      expect(DVCacheRuntime.tags, contains('users'));
-      expect(DVCacheRuntime.keysForTag('users'), <String>{'users:list'});
+        expect(DVCacheRuntime.tags, contains('users'));
+        expect(DVCacheRuntime.keysForTag('users'), <String>{'users:list'});
 
-      await DV.Cache.delete(tag: 'users');
-      expect(DVCacheRuntime.keysForTag('users'), isEmpty);
-    });
+        await DV.Cache.delete(const DVCacheTag('users'));
+        expect(DVCacheRuntime.keysForTag('users'), isEmpty);
+      },
+    );
 
     test('the global cache is refused until one is configured', () async {
       DVCacheRuntime.configureGlobal(null);
@@ -521,7 +572,7 @@ void main() {
       expect(await shared.read('k'), 'everyone');
       expect(await DV.Cache.has('k'), isFalse);
 
-      await DVCacheRuntime.global.delete(tag: 'broadcast');
+      await DVCacheRuntime.global.delete(const DVCacheTag('broadcast'));
       expect(await DVCacheRuntime.global.has('k'), isFalse);
     });
 
@@ -689,7 +740,7 @@ void main() {
       );
       await tenants.withTenant('globex', () => DV.Cache.set('users', 'globex'));
 
-      await DV.Cache.delete(tag: 'users');
+      await DV.Cache.delete(const DVCacheTag('users'));
 
       expect(
         await tenants.withTenant('acme', () => DV.Cache.has('users')),
