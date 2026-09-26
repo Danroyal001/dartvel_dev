@@ -66,6 +66,26 @@ void declare() {
       );
     });
 
+    test('a declaration quoted inside a string, as a docs sample holds one, '
+        'is not an event', () {
+      expect(
+        discoverWebhookEvents(<(String, String)>[
+          (
+            'lib/components/docs_samples.dart',
+            "const List<String> lines = <String>[\n"
+                "  '  DV.Webhooks.declare(const DVWebhookEvent(',\n"
+                "  \"DVWebhookEvent(name)\",\n"
+                "];\n"
+                "const String block = '''\n"
+                "DVWebhookEvent(eventName)\n"
+                "''';\n"
+                "final e = DVWebhookEvent('real.event');\n",
+          ),
+        ]),
+        <String>['real.event'],
+      );
+    });
+
     for (final (String label, String source) in <(String, String)>[
       ('a variable', 'DVWebhookEvent(eventName)'),
       ('an interpolated string', r"DVWebhookEvent('order.$kind')"),
