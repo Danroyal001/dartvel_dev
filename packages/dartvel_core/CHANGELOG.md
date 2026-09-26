@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **`dartvel.webhooks` is read.** `DVWebhooksConfig.read` takes `format`
+  (`dartvel` | `cloudevents`), `mode` (`structured` | `binary`), `source`,
+  `signature` (`dartvel` | `standard`), `allowPrivateAddresses`, `retention`,
+  `disableAfter` and `maxAttempts`, and refuses anything else with
+  `DV-WEBHOOK-009`. The defaults send exactly what was sent before.
+- **`DVCloudEvent`**: CloudEvents 1.0.2 over HTTP. `toHttp` writes structured
+  or binary mode; `fromHttp` reads either and refuses what is not a CloudEvent
+  with `DV-WEBHOOK-008`.
+- **`DVStandardWebhookSignature`**: Standard Webhooks `sign`, `header` and
+  `verify`, with the libraries' five-minute window.
+
 - **Breaking: `@DVModel(generatePublicPages:)` defaults to `true`.** Add
   `generatePublicPages: false` to a model that must have no public pages.
 - **`DVPolicyAction.viewSensitive`**: the policy a generated model page asks
