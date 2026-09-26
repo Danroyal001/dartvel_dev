@@ -345,7 +345,7 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'await DV.Cache.set(\'greeting\', \'hello\', ttl: const Duration(hours: 1));',
     'final String? greeting = await DV.Cache.get<String>(\'greeting\');',
     'final bool cached = await DV.Cache.has(\'greeting\');',
-    'await DV.Cache.delete(key: \'greeting\');',
+    'await DV.Cache.delete(\'greeting\');',
   ],
   'cache-compute': <String>[
     'Future<List<String>?> productNames() => DV.Cache.get<List<String>>(',
@@ -373,8 +373,8 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
   'cache-tags': <String>[
     'await DV.Cache.set(\'home:featured\', <String>[\'Starter kit\'],',
     '    tags: <String>[\'products\', \'home\']);',
-    'await DV.Cache.delete(tag: \'products\'); // every key tagged products',
-    'await DV.Cache.delete(all: true); // every key',
+    'await DV.Cache.delete(const DVCacheTag(\'products\')); // every key tagged products',
+    'await DV.Cache.delete(DVCache.all); // every key',
   ],
   'capture-config': <String>[
     'capture:',
