@@ -113,6 +113,14 @@ dartvel:
     remoteHosts: [images.example.com]
   # docs:end
 
+  # docs:start yaml-webhooks
+  webhooks:
+    format: cloudevents             # dartvel (default) | cloudevents
+    mode: structured                # or binary: ce- headers, data as the body
+    source: https://shop.example.com
+    signature: standard             # dartvel (default) | standard
+  # docs:end
+
   # docs:start yaml-graphql
   api:
     graphql:
