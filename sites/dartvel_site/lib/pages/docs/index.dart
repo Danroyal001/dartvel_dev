@@ -24,36 +24,39 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             DocsText('You need Flutter 3.47 or newer, which ships Dart 3.13. '
                 'Pick one install method.'),
             DocsShell(<String>[
-              '# npm: downloads the prebuilt binary, no Dart SDK needed',
-              'npm install -g dartvel_dev',
+              '# pub: the CLI as a global command',
+              'dart pub global activate dartvel_cli',
               '',
-              '# Homebrew: the same binary',
+              '# Homebrew: a prebuilt binary',
               'brew install Danroyal001/dartvel_dev/dartvel_dev',
               '',
               '# In a project, from its dev_dependencies',
               'dart run dartvel_cli:dartvel --help',
+              '',
+              '# npm: the same prebuilt binary',
+              'npm install -g dartvel_dev',
             ]),
             Bullets(<String>[
               'The command is `dartvel`, whichever way you install it.',
               'You can also download the binary from the GitHub releases '
                   'page. `dartvel ensure-path` adds it to your PATH if your shell '
                   'cannot find it.',
+              'Activate dartvel_cli, the command. dartvel_dev is the package '
+                  'your app depends on, and it depends on Flutter, which pub '
+                  'does not run as a global command.',
+              'Pub puts `dartvel` in ~/.pub-cache/bin. Add that to your PATH '
+                  'if your shell cannot find it.',
               'The Homebrew tap is updated after each release, so it can be a '
-                  'version behind npm.',
-              '`dart pub global activate` is not a supported install. Activating '
-                  'dartvel_dev succeeds and every run then fails, because the '
-                  'package depends on Flutter and pub will not run a global '
-                  'command from a package that does.',
+                  'version behind pub.dev.',
               '`dart run` works in a project that already lists dartvel_cli in '
                   'dev_dependencies, which `dartvel create` writes. The first '
                   'run compiles the CLI, so it is slower than the binary.',
               '`dartvel update` installs the latest release later.',
             ]),
-            DocsNote('0.6.0 binaries are Linux only for now',
-                'As of 2026-09-25, the 0.6.0 release has Linux binaries only, '
-                'so `npm install` works on Linux. The macOS and Windows binaries '
-                'follow when the release workflow can run again. Until then, '
-                'install on a Linux machine or wait for those binaries.'),
+            DocsNote('Prebuilt binaries are Linux only for now',
+                'As of 2026-09-26, the release binaries behind Homebrew and npm '
+                'are Linux only. The macOS and Windows binaries follow when the '
+                'release workflow can run again.'),
             ExternalLink('Download a release', kReleasesUrl),
           ],
         ),
