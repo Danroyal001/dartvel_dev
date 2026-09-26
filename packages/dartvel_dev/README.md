@@ -12,16 +12,27 @@ from [`dartvel_cli`](https://pub.dev/packages/dartvel_cli).
 
 ## Start a project
 
-Install the CLI (a self-contained binary; no Dart or Flutter needed to run it):
+Install the CLI from pub.dev:
 
 ```sh
-npm install -g dartvel_dev      # or: brew install Danroyal001/dartvel_dev/dartvel_dev
+dart pub global activate dartvel_cli
 ```
 
-or take a binary from the
-[releases page](https://github.com/Danroyal001/dartvel_dev/releases). For
-0.6.0 only the Linux binaries are attached until the CI release workflow has
-run. Then:
+Activate `dartvel_cli`, the command, rather than this package: this one is what
+an application depends on, and it depends on Flutter, which pub does not run as
+a global command. Pub puts `dartvel` in `~/.pub-cache/bin`; add that to your
+PATH if your shell cannot find it.
+
+The same CLI also comes as a self-contained binary, with no Dart or Flutter
+needed to run it:
+
+```sh
+brew install Danroyal001/dartvel_dev/dartvel_dev
+npm install -g dartvel_dev
+```
+
+or take one from the
+[releases page](https://github.com/Danroyal001/dartvel_dev/releases). Then:
 
 ```sh
 dartvel create my_app
@@ -29,10 +40,8 @@ cd my_app
 dartvel dev
 ```
 
-`dart pub global activate dartvel_dev` does not work: this package depends on
-the Flutter SDK, and pub refuses to run a global executable from a package
-that does. The [dartvel_cli README](https://pub.dev/packages/dartvel_cli)
-covers every install route, the command reference and configuration.
+The [dartvel_cli README](https://pub.dev/packages/dartvel_cli) covers every
+install route, the command reference and configuration.
 
 ## What is in it
 
