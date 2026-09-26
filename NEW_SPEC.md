@@ -2913,6 +2913,62 @@ header lists `v1=` entries — one normally, two through a rotation overlap — 
 a consumer verifies against whichever key it holds. The names are fixed here
 because the consumer documentation has to describe what is actually sent.
 
+## Standard envelopes and signatures
+
+Dartvel's envelope and signature are the default, and stay the default: a
+subscriber written against them keeps working. An application whose customers
+already speak a standard picks it in `pubspec.yaml`, for every subscription:
+
+```yaml
+dartvel:
+  webhooks:
+    format: cloudevents     # dartvel (default) | cloudevents
+    mode: structured        # cloudevents only: structured (default) | binary
+    source: https://shop.example.com   # cloudevents only; default /<package name>
+    signature: standard     # dartvel (default) | standard
+```
+
+- **CloudEvents 1.0.2.** Each delivery is an event whose `id` is the delivery
+  id (stable across retries and replays), whose `type` is the event name and
+  whose `time` is when it was emitted. Structured mode sends
+  `application/cloudevents+json`, so every attribute sits inside the signed
+  body; binary mode sends the data as the body and the attributes as
+  percent-encoded `ce-` headers, which the body signature does not cover.
+  `DVCloudEvent.fromHttp` reads either mode on the receiving side and refuses
+  anything else — plain JSON, a batch, a missing `id`, `source` or `type`, a
+  `specversion` other than 1.0, a header that is not valid UTF-8 —
+  with `DV-WEBHOOK-008`.
+- **Standard Webhooks.** `webhook-id`, `webhook-timestamp` and
+  `webhook-signature`: HMAC-SHA256 over `id.timestamp.body` with the
+  base64-decoded `whsec_` key, as space-delimited `v1,` entries, both keys
+  through a rotation overlap. The id is signed, which Dartvel's own scheme
+  does not do. A customer verifies with the official `standardwebhooks`
+  library in their own language; `DVStandardWebhookSignature.verify` keeps the
+  libraries' five-minute window and compares in constant time. A secret that
+  does not hold a `whsec_` key fails the attempt without sending it.
+
+Deliveries are stored in Dartvel's envelope and rendered in the configured
+format when attempted, so a change of format reaches deliveries still waiting.
+The block is read by `DVWebhooksConfig.read` at build time and again at
+startup; a key or value it does not understand stops the build with
+`DV-WEBHOOK-009`. A per-subscription choice is not offered yet: subscriptions
+carry no delivery settings, and adding one is a change to the subscription
+record.
+
+## The event catalog is an AsyncAPI document
+
+`dartvel build` writes an AsyncAPI 3.0.0 document for the declared events
+into the client (`dartvelAsyncApiJson`), and the generated backend serves it
+at `<apiBasePath>/asyncapi.json` beside `openapi.json`. It is read from the
+`DVWebhookEvent('name')` declarations `emit` already checks, so the catalog a
+customer reads and the events the code can send are one list. Each event is a
+channel whose address is null (it is each subscriber's URL) and a `send`
+operation with an HTTP `POST` binding; each message is described in the
+configured envelope, with the configured signature headers. A declaration
+whose name is not a string literal cannot be listed, so it stops the build
+(`DV-WEBHOOK-010`) instead of leaving the document short. The data inside the
+envelope has no schema yet, because a declaration names no payload type.
+
 ## Delivery is durable work, partitioned per endpoint
 
 Deliveries ride `DV.Jobs` with the retry, backoff and dead-letter behaviour
@@ -2955,8 +3011,8 @@ dartvel:
     disableAfter: 20
 ```
 
-This block is not read from `pubspec.yaml` yet. The same three settings are
-constructor arguments on `DVWebhooks`, with the defaults shown.
+`DVWebhooksConfig.read` reads these with the envelope and signature keys
+above; `maxAttempts` is read too.
 
 ## Retention and replay
 
@@ -2985,6 +3041,9 @@ arrives empty cannot be distinguished from a real event.
 | `DV-WEBHOOK-005` | replay requested after the payload retention window | `warning` |
 | `DV-WEBHOOK-006` | an emitted event name is not in the declared catalog | build `error` |
 | `DV-WEBHOOK-007` | signing key rotated; both signatures are sent until the overlap ends | `info` |
+| `DV-WEBHOOK-008` | a received request is not a CloudEvent this receiver reads | runtime `error` |
+| `DV-WEBHOOK-009` | `dartvel.webhooks` names a key or value Dartvel cannot honour | build `error` |
+| `DV-WEBHOOK-010` | a `DVWebhookEvent` name is not a string literal, so the AsyncAPI document could not list it | build `error` |
 
 ## Deliberately absent
 
