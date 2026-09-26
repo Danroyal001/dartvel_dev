@@ -285,19 +285,22 @@ server library are linked into it, so nothing has to be installed first —
 *build* an application, for whichever target you are building.
 
 ```bash
+# pub — the CLI as a global command
+dart pub global activate dartvel_cli
+
 # Homebrew — a prebuilt binary
 brew install Danroyal001/dartvel_dev/dartvel_dev
 
-# npm — downloads the same binary
-npx dartvel_dev --help
-
 # pub — inside a project that has dartvel_cli as a dev_dependency
 dart run dartvel_cli:dartvel --help
+
+# npm — downloads the same prebuilt binary
+npx dartvel_dev --help
 ```
 
-`dart pub global activate` is not a supported install: the CLI's packages carry
-native build hooks and depend on the Flutter SDK, which global executables
-cannot.
+Activate `dartvel_cli`, not `dartvel_dev`: `dartvel_dev` is the package an
+application depends on, and it depends on the Flutter SDK, which pub does not
+run as a global command.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
