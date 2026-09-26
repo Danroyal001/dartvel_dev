@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`dartvel routes` writes an AsyncAPI 3.0 document** for the application's
+  `DVWebhookEvent` declarations into `lib/dartvel_client/asyncapi.g.dart`, and
+  the generated backend serves it at `<apiBasePath>/asyncapi.json`. A
+  declaration whose name is not a string literal stops the build
+  (`DV-WEBHOOK-010`).
+- **`dartvel.webhooks` reaches the server.** The build reads it with the
+  runtime's reader and stops on a block it cannot honour (`DV-WEBHOOK-009`);
+  the web, worker and cron roles install it at startup.
+
 - **Breaking: every data model under `lib/models/` gets public pages unless it
   says `generatePublicPages: false`.** Models that stand for accounts,
   sessions, credentials or audit records, rows that are their own privacy
