@@ -644,7 +644,7 @@ void main() {
     await DV.Cache.set('answer', 42);
     expect(await DV.Cache.get<int>('answer'), 42);
 
-    await DV.Cache.delete(key: 'answer');
+    await DV.Cache.delete('answer');
     expect(await DV.Cache.get<int>('answer'), isNull);
 
     DV.Theme.setMode(ThemeMode.dark);
@@ -831,7 +831,7 @@ void main() {
     );
 
     await DV.Cache.set('users:list', 'everyone', tags: <String>['users']);
-    await DV.Cache.delete(tag: 'users');
+    await DV.Cache.delete(const DVCacheTag('users'));
     expect(await DV.Cache.has('users:list'), isFalse);
   });
 
