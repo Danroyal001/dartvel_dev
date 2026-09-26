@@ -90,7 +90,7 @@ const Map<String, String> dvPageMiddlewareKeysUnavailableReason =
       'something, and opening a page changes nothing. Declare it on the '
       '@DVBackendFunction that writes.',
   'cacheTags': 'Nothing implements this in any scope. Cache invalidation '
-      'lives on DV.Cache: set(key, value, tags: ...) and delete(tag: ...).',
+      'lives on DV.Cache: set(key, value, tags: ...) and delete(DVCacheTag(...)).',
   'featureFlags': 'Nothing in the middleware list says which flag. If the '
       'flag decides who may open the page, that is @DVPage(policy: ...); if '
       'it decides what a call returns, declare the key on the '

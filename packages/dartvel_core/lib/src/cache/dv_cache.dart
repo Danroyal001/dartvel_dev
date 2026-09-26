@@ -4,7 +4,8 @@
 /// [DVCacheView.has] and [DVCacheView.delete] -- and everything else is a
 /// named option on them: `get` with `compute:` reads through, sharing one
 /// compute per key and serving a stale value inside `staleFor:`; `set` takes
-/// `tags:`; `delete` drops a key, every key under a tag, or everything.
+/// `tags:`; `delete` drops a key, every key under a [DVCacheTag], or
+/// [DVCache.all].
 ///
 /// It lives here rather than in the Flutter layer so a backend function, a
 /// job and a page all reach the same cache through the same spelling. The
@@ -78,6 +79,34 @@ final Expando<_DVStoreTags> _storeTags = Expando<_DVStoreTags>();
 /// each get their own.
 final Expando<Map<String, Future<Object?>>> _inFlight =
     Expando<Map<String, Future<Object?>>>();
+
+/// What [DVCacheView.delete] drops besides a `String` key: a [DVCacheTag],
+/// or [DVCache.all].
+///
+/// Sealed so a `switch` over `String` and [DVCacheTarget] covers every
+/// target, and so nothing outside the cache can add a target `delete` would
+/// not know how to drop.
+sealed class const DVCacheTarget();
+
+/// Every key tagged [name]: `DV.Cache.delete(const DVCacheTag('products'))`.
+///
+/// A value, so two tags with the same name are equal.
+final class const DVCacheTag(final String name) extends DVCacheTarget {
+  @override
+  bool operator ==(Object other) => other is DVCacheTag && other.name == name;
+
+  @override
+  int get hashCode => Object.hash(DVCacheTag, name);
+
+  @override
+  String toString() => "DVCacheTag('$name')";
+}
+
+/// [DVCache.all]: every key and every tag.
+final class const _DVCacheAll() extends DVCacheTarget {
+  @override
+  String toString() => 'DVCache.all';
+}
 
 /// The four calls, on one store: `DV.Cache`, or the store
 /// [DVCache.withAdapter] switched to.
@@ -221,7 +250,8 @@ class DVCacheView {
   /// Stores [value] under [key].
   ///
   /// With a [ttl] the entry expires after it; without one it stays until it
-  /// is deleted or evicted. [tags] name groups `delete(tag: ...)` drops.
+  /// is deleted or evicted. [tags] name groups that deleting a [DVCacheTag]
+  /// drops.
   Future<void> set(
     String key,
     Object? value, {
@@ -236,34 +266,43 @@ class DVCacheView {
   /// Whether [key] holds a value that has not expired.
   Future<bool> has(String key) async => await _store.read(_scoped(key)) != null;
 
-  /// Removes exactly one of: the entry under [key], every entry tagged [tag],
-  /// or, with [all], every entry and every tag.
+  /// Removes what [target] names: a `String` key drops that entry, a
+  /// [DVCacheTag] drops every entry tagged with it, and [DVCache.all] drops
+  /// every entry and every tag.
   ///
-  /// The key is named rather than positional because Dart cannot mix an
-  /// optional positional parameter with named ones. Naming none of the three,
-  /// or more than one, is an [ArgumentError]: `delete(key: k, all: true)`
-  /// could mean either, and guessing drops the wrong thing.
-  Future<void> delete({String? key, String? tag, bool all = false}) async {
-    final int named =
-        (key != null ? 1 : 0) + (tag != null ? 1 : 0) + (all ? 1 : 0);
-    if (named != 1) {
-      throw ArgumentError(
-        'delete takes exactly one of key:, tag: or all: true; '
-        '${named == 0 ? 'none was' : '$named were'} given.',
-      );
-    }
-    final DVCacheAdapter store = _store;
-    if (key != null) {
-      await store.delete(_scoped(key));
-    } else if (tag != null) {
-      // Tags record the scoped key: this removes exactly the entries the
-      // tenant that tagged them can see.
-      for (final String scoped in _tags.revalidateTag(tag)) {
-        await store.delete(scoped);
-      }
-    } else {
-      await store.clear();
-      _tags.clear();
+  /// ```dart
+  /// await DV.Cache.delete('greeting');                   // a key
+  /// await DV.Cache.delete(const DVCacheTag('products')); // every key tagged products
+  /// await DV.Cache.delete(DVCache.all);                  // every key
+  /// ```
+  ///
+  /// The parameter is an [Object] because Dart has no union type: a `String`
+  /// cannot implement the sealed [DVCacheTarget], and an extension type over
+  /// `String` is a `String` at runtime, so a tag spelled that way could not
+  /// be told from a key. Anything that is not a `String` or a
+  /// [DVCacheTarget] is an [ArgumentError] naming its type, and removes
+  /// nothing.
+  Future<void> delete(Object target) async {
+    switch (target) {
+      case final String key:
+        await _store.delete(_scoped(key));
+      case DVCacheTag(:final String name):
+        final DVCacheAdapter store = _store;
+        // Tags record the scoped key: this removes exactly the entries the
+        // tenant that tagged them can see.
+        for (final String scoped in _tags.revalidateTag(name)) {
+          await store.delete(scoped);
+        }
+      case _DVCacheAll():
+        await _store.clear();
+        _tags.clear();
+      default:
+        throw ArgumentError.value(
+          target,
+          'target',
+          'delete takes a String key, a DVCacheTag or DVCache.all, not a '
+              '${target.runtimeType}',
+        );
     }
   }
 
@@ -357,6 +396,12 @@ class DVCacheView {
 class DVCache extends DVCacheView {
   const DVCache() : super._();
 
+  /// What `delete` drops to empty a store: every key and every tag.
+  ///
+  /// `DV.Cache.delete(DVCache.all)`, and the same on a view from
+  /// [withAdapter], where it empties that store and no other.
+  static const DVCacheTarget all = _DVCacheAll();
+
   static DVCacheAdapter _adapter = DVMemoryCacheAdapter();
   static DVCacheAdapter? _globalAdapter;
 
@@ -373,7 +418,7 @@ class DVCache extends DVCacheView {
   /// ```
   ///
   /// Every call goes to [adapter] and never to the configured store. Tags
-  /// and the shared compute are kept per adapter, so `delete(tag: ...)` on
+  /// and the shared compute are kept per adapter, so deleting a [DVCacheTag] on
   /// one store leaves another's entries alone, and two views of one adapter
   /// are one cache.
   DVCacheView withAdapter(DVCacheAdapter adapter) => _DVAdapterCache(adapter);

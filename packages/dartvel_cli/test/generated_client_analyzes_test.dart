@@ -683,7 +683,7 @@ import 'package:generated_client_probe/dartvel_client/dartvel_client.dart';
 Future<void> control() async {
   await DV.Cache.set('k', 1, ttl: const Duration(minutes: 1));
   final DVCacheView switched = DV.Cache.withAdapter(DVMemoryCacheAdapter());
-  await switched.delete(all: true);
+  await switched.delete(DVCache.all);
 }
 
 List<Type> get adapters => <Type>[

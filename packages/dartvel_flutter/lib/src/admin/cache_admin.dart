@@ -40,7 +40,7 @@ class _DVCacheAdminState extends State<DVCacheAdmin> {
   Future<void> _revalidate(String tag) async {
     try {
       final Set<String> dropped = DVCacheRuntime.keysForTag(tag);
-      await _cache.delete(tag: tag);
+      await _cache.delete(DVCacheTag(tag));
       if (!mounted) return;
       // The count is the point: revalidating a tag that covered nothing looks
       // identical to revalidating one that cleared a hundred entries.
