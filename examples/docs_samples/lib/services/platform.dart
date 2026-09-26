@@ -28,6 +28,27 @@ bool isGenuine(Map<String, String> headers, String body, String secret) =>
     );
 // docs:end
 
+// docs:start webhooks-verify-standard
+// With signature: standard, any official standardwebhooks library verifies a
+// delivery. In Dart, so does this; the key is the whsec_ value.
+bool isGenuineStandard(Map<String, String> headers, String body, String key) =>
+    DVStandardWebhookSignature.verify(
+      secret: key,
+      headers: headers,
+      body: body, // exactly as received, before any JSON parsing
+    ); // refuses a timestamp more than five minutes off
+// docs:end
+
+// docs:start webhooks-read-cloudevent
+// With format: cloudevents, read the event in either content mode.
+String orderIdFrom(Map<String, String> headers, String body) {
+  final DVCloudEvent event = DVCloudEvent.fromHttp(headers: headers, body: body);
+  // event.id is the delivery id: deduplicate on it.
+  final Map<String, Object?> data = event.data! as Map<String, Object?>;
+  return '${event.type} ${data['orderId']}';
+}
+// docs:end
+
 // docs:start graphql-field
 void registerGraphQL() {
   DVGraphQL.registerQuery(DVGraphQLField(

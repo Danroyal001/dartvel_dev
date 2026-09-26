@@ -927,6 +927,24 @@ final class DVDiagnostics {
       level: 'info',
     ),
     DVDiagnostic(
+      code: 'DV-WEBHOOK-008',
+      reason: 'a received request is not a CloudEvent this receiver reads',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-009',
+      reason:
+          '`dartvel.webhooks` names a key or value Dartvel cannot honour',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-WEBHOOK-010',
+      reason:
+          'a `DVWebhookEvent` name is not a string literal, so the AsyncAPI '
+          'document could not list it',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-SEMANTIC-001',
       reason: 'a `semantic: true` field with no declared embedder',
       level: 'error',

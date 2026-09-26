@@ -1662,6 +1662,15 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '',
     'await DV.Webhooks.emit(\'order.paid\', <String, Object?>{\'orderId\': \'o-42\'});',
   ],
+  'webhooks-read-cloudevent': <String>[
+    '// With format: cloudevents, read the event in either content mode.',
+    'String orderIdFrom(Map<String, String> headers, String body) {',
+    '  final DVCloudEvent event = DVCloudEvent.fromHttp(headers: headers, body: body);',
+    '  // event.id is the delivery id: deduplicate on it.',
+    '  final Map<String, Object?> data = event.data! as Map<String, Object?>;',
+    '  return \'\${event.type} \${data[\'orderId\']}\';',
+    '}',
+  ],
   'webhooks-verify': <String>[
     'bool isGenuine(Map<String, String> headers, String body, String secret) =>',
     '    DVWebhookSignature.verify(',
@@ -1671,6 +1680,16 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '      header: headers[\'dartvel-webhook-signature\']!,',
     '      tolerance: const Duration(minutes: 5),',
     '    );',
+  ],
+  'webhooks-verify-standard': <String>[
+    '// With signature: standard, any official standardwebhooks library verifies a',
+    '// delivery. In Dart, so does this; the key is the whsec_ value.',
+    'bool isGenuineStandard(Map<String, String> headers, String body, String key) =>',
+    '    DVStandardWebhookSignature.verify(',
+    '      secret: key,',
+    '      headers: headers,',
+    '      body: body, // exactly as received, before any JSON parsing',
+    '    ); // refuses a timestamp more than five minutes off',
   ],
   'workers-run': <String>[
     '// A task is a top-level function, so it can be sent to another isolate.',
@@ -1796,5 +1815,12 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     'tenancy:',
     '  isolation: shared-database',
     '  source: subdomain',
+  ],
+  'yaml-webhooks': <String>[
+    'webhooks:',
+    '  format: cloudevents             # dartvel (default) | cloudevents',
+    '  mode: structured                # or binary: ce- headers, data as the body',
+    '  source: https://shop.example.com',
+    '  signature: standard             # dartvel (default) | standard',
   ],
 };
