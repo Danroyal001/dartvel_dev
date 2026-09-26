@@ -186,7 +186,13 @@ class DVWebhooksConfig {
       source = application == null ? '/dartvel' : '/$application';
     } else {
       final String text = '$writtenSource'.trim();
-      if (text.isEmpty || Uri.tryParse(text) == null) {
+      // Dart's parser would accept a space or a raw non-ASCII character by
+      // encoding it; RFC 3986 does not, and neither do the consumers'
+      // CloudEvents SDKs, so a source they would refuse is refused here.
+      if (text.isEmpty ||
+          !RegExp(r'^[!-~]+$').hasMatch(text) ||
+          text.contains('"') ||
+          Uri.tryParse(text) == null) {
         throw DVWebhooksConfigException(
             'dartvel.webhooks.source is a URI reference naming this '
             'application, such as https://shop.example.com or /shop; '

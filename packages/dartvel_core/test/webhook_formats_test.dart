@@ -364,6 +364,18 @@ void main() {
           _refused('source'));
     });
 
+    // The official JavaScript SDK's validate() refuses both, so a delivery
+    // carrying either would be refused by the consumers CloudEvents is for.
+    for (final String source in <String>['urn:my shop', 'https://shop/€']) {
+      test('a source "$source" that is not an RFC 3986 URI reference is '
+          'refused', () {
+        expect(
+            () => DVWebhooksConfig.read(
+                <String, Object?>{'format': 'cloudevents', 'source': source}),
+            _refused('source'));
+      });
+    }
+
     test('allowPrivateAddresses must be a boolean, not a string that reads '
         'as one', () {
       expect(
