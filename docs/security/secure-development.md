@@ -162,6 +162,13 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
   generation: both treat that model as having no view policy and publish its
   non-protected fields. Protected fields stay out regardless. Declare the
   policy as a class, or say `generatePublicPages: false`.
+- **A CloudEvents binary-mode delivery signs the body and not the `ce-`
+  headers.** With `dartvel.webhooks.mode: binary` the event's attributes
+  travel as headers, and neither Dartvel's signature nor Standard Webhooks
+  covers them, so somebody able to replay a captured delivery inside the
+  tolerance window could relabel its `ce-type`. Structured mode, the default,
+  puts every attribute in the signed body. Under Standard Webhooks the signed
+  `webhook-id` equals `ce-id`, and a receiver should check that it does.
 - **No threat model document.** The rules above are the distilled version; the
   reasoning behind them is spread across commit messages.
 
