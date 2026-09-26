@@ -454,6 +454,8 @@ export 'package:dartvel_core/dartvel.dart'
         DVUseMiddleware,
         DVCache,
         DVCacheAdapter,
+        DVCacheTag,
+        DVCacheTarget,
         DVCacheView,
         DVDatabaseCacheAdapter,
         DVDistributedCacheAdapter,

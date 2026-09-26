@@ -55,10 +55,14 @@ Future<void> use() async {
     staleFor: const Duration(minutes: 1),
   );
   final bool cached = await DV.Cache.has('k');
-  await DV.Cache.delete(key: 'k');
-  await DV.Cache.delete(tag: 't');
-  await DV.Cache.delete(all: true);
-  print('\$read \$cached');
+  await DV.Cache.delete('k');
+  await DV.Cache.delete(const DVCacheTag('t'));
+  await DV.Cache.delete(DVCache.all);
+  const List<DVCacheTarget> targets = <DVCacheTarget>[
+    DVCacheTag('t'),
+    DVCache.all,
+  ];
+  print('\$read \$cached \$targets');
 }
 
 Future<void> switched(DVDatabaseAdapter database) async {
@@ -76,7 +80,7 @@ Future<void> switched(DVDatabaseAdapter database) async {
     await cache.set('k', 1, tags: <String>['t']);
     await cache.get<int>('k', compute: () async => 1);
     await cache.has('k');
-    await cache.delete(tag: 't');
+    await cache.delete(const DVCacheTag('t'));
   }
 }
 ''');

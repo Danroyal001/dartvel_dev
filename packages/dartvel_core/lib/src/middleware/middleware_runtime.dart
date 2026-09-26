@@ -158,7 +158,7 @@ const Map<String, String> dvMiddlewareKeysUnbuiltReason = <String, String>{
       'rateLimit; there is no code behind the name at all. Use '
       'DVMiddlewares.rateLimit.',
   'cacheTags': 'Nothing implements this. Cache invalidation lives on '
-      'DV.Cache: set(key, value, tags: ...) and delete(tag: ...).',
+      'DV.Cache: set(key, value, tags: ...) and delete(DVCacheTag(...)).',
 };
 
 /// Keys nothing implements.

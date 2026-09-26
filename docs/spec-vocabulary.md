@@ -57,7 +57,7 @@ A proxy reads `DV.X` or `DV.Platform.X` and nothing else.
 | `DV.Auth.authorization` | `DV.Authorization` |
 | `DV.Notifications.mail.send(...)` | `DV.Mail` |
 | `DV.FileStorage` (alias `DV.BlobStorage`) | `DV.Storage` |
-| `DV.Cache.delete(tag: ...)` | `DV.CacheInvalidation`, `DV.Cache.revalidateTag(...)` |
+| `DV.Cache.delete(DVCacheTag(...))` | `DV.CacheInvalidation`, `DV.Cache.revalidateTag(...)` |
 | generated model sync, signals, queues | `DV.Realtime`, `DVRealtime` |
 | `context.signal(...)`, `DV.global<T>(...)` | `DV.Signals`, `context.computed(...)`, `DVService` |
 | `DV.Purchases`, entitlements as generated models | `DV.Entitlements` |

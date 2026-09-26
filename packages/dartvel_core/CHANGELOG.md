@@ -33,9 +33,11 @@
   named option on the four: `set(key, value, {ttl, tags})`;
   `get<T>(key, {compute, ttl, tags, staleFor})`, where `compute:` reads
   through with one shared compute per key and `staleFor:` serves a stale
-  value while one refresh runs behind it; and `delete({key, tag, all})`,
-  which takes exactly one of the three and throws an `ArgumentError`
-  otherwise. `ttl:`, `tags:` or `staleFor:` on a `get` without `compute:`,
+  value while one refresh runs behind it; and `delete(target)`, whose one
+  positional target is a `String` key, a `DVCacheTag` (a const value naming
+  a tag) or `DVCache.all` (a const sentinel), and which throws an
+  `ArgumentError` naming the type of anything else. `DVCacheTag` and the
+  sealed `DVCacheTarget` are exported with `DVCache`. `ttl:`, `tags:` or `staleFor:` on a `get` without `compute:`,
   and `staleFor:` without `ttl:`, are an `ArgumentError` rather than
   ignored. Backend code reaches it as `DV.Cache` from
   `package:dartvel_core/dv.dart`.
@@ -49,8 +51,8 @@
   `remember(key, compute, ...)` and `staleWhileRevalidate(...)` as
   `get(key, compute: compute, ...)`, `tag(key, tags)` as
   `set(key, value, tags: tags)`, `revalidateTag(tag)` as
-  `delete(tag: tag)`, `clear()` as `delete(all: true)`, and `delete(key)`
-  as `delete(key: key)`. `lock`, `purgeExpired`, `keysForTag`, `tags`,
+  `delete(DVCacheTag(tag))`, and `clear()` as `delete(DVCache.all)`;
+  `delete(key)` is unchanged. `lock`, `purgeExpired`, `keysForTag`, `tags`,
   `configure`, `adapter` and the global cache (`configureGlobal`,
   `globalGet`, `globalSet`, `globalDelete`, `globalTag`,
   `globalRevalidateTag`) moved to `DVCacheRuntime`, exported from

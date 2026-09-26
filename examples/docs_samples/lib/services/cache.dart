@@ -7,7 +7,7 @@ Future<void> basics() async {
   await DV.Cache.set('greeting', 'hello', ttl: const Duration(hours: 1));
   final String? greeting = await DV.Cache.get<String>('greeting');
   final bool cached = await DV.Cache.has('greeting');
-  await DV.Cache.delete(key: 'greeting');
+  await DV.Cache.delete('greeting');
   // docs:end
   DV.log('$greeting $cached');
 }
@@ -25,8 +25,8 @@ Future<void> tags() async {
   // docs:start cache-tags
   await DV.Cache.set('home:featured', <String>['Starter kit'],
       tags: <String>['products', 'home']);
-  await DV.Cache.delete(tag: 'products'); // every key tagged products
-  await DV.Cache.delete(all: true); // every key
+  await DV.Cache.delete(const DVCacheTag('products')); // every key tagged products
+  await DV.Cache.delete(DVCache.all); // every key
   // docs:end
 }
 
