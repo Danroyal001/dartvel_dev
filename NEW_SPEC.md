@@ -3807,15 +3807,19 @@ final List<String>? names = await DV.Cache.get<List<String>>(
   staleFor: const Duration(minutes: 10), // optional: serve stale, refresh behind
 );
 
-await DV.Cache.delete(key: 'greeting');
-await DV.Cache.delete(tag: 'products'); // every key tagged products
-await DV.Cache.delete(all: true);       // every key
+await DV.Cache.delete('greeting');                   // a key
+await DV.Cache.delete(const DVCacheTag('products')); // every key tagged products
+await DV.Cache.delete(DVCache.all);                  // every key
 ```
 
-The time to live is named everywhere. `delete` takes exactly one of `key:`,
-`tag:` or `all: true`, and none or more than one is an `ArgumentError`; the key
-is named because Dart cannot mix an optional positional parameter with named
-ones. `ttl:`, `tags:` and `staleFor:` on a `get` apply to what `compute:`
+The time to live is named everywhere. Every call takes what it acts on first
+and positionally: `get(key)`, `set(key, value)`, `has(key)` and
+`delete(target)`, where the target is a `String` key, a `DVCacheTag` (a const
+value naming a tag) or `DVCache.all` (a const sentinel, the same on
+`DV.Cache` and on a view from `withAdapter`). Dart has no union type, so
+`delete` takes an `Object`: the targets that are not keys are a sealed
+`DVCacheTarget`, and anything that is neither a `String` nor one of them is
+an `ArgumentError` naming its type, dropping nothing. `ttl:`, `tags:` and `staleFor:` on a `get` apply to what `compute:`
 stores, and without a `compute:` they are an `ArgumentError` rather than
 ignored.
 
@@ -4817,7 +4821,7 @@ the resolved input, with the tags the Cache section already defines:
 ```
 
 The prompt version is part of the key, so shipping version 5 does not serve
-version 4's answers, and `DV.Cache.delete(tag: 'ticket:42')` drops what a
+version 4's answers, and `DV.Cache.delete(const DVCacheTag('ticket:42'))` drops what a
 changed ticket made stale. There is no AI-specific cache.
 
 ## What a feature is allowed to see
@@ -13352,7 +13356,7 @@ data, applied to the document.
 **On demand.** A write that invalidates a page rebuilds it:
 
 ```dart
-await DV.Cache.delete(tag: 'product:${product.id}');
+await DV.Cache.delete(DVCacheTag('product:${product.id}'));
 ```
 
 The tag is the one the page already declares, so nothing new is named and a
