@@ -19,8 +19,8 @@
 
 - **`DV.Cache` is dartvel_core's `DVCache`**, so a page and a backend function
   share one cache and one API: `get`, `set`, `has` and `delete`, with
-  read-through (`compute:`, `staleFor:`), `tags:` and bulk deletes
-  (`tag:`, `all: true`) as options. Breaking: `remember`, `tag`,
+  read-through (`compute:`, `staleFor:`) and `tags:` as options, and bulk
+  deletes as `delete(DVCacheTag('products'))` and `delete(DVCache.all)`. Breaking: `remember`, `tag`,
   `revalidateTag`, `clear`, `lock`, `configure`, `adapter` and the `global*`
   helpers are gone from `DV.Cache`; see dartvel_core's changelog for the
   rewrite of each. `DVCacheLock` is gone too.

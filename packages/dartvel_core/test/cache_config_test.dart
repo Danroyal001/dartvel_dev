@@ -428,7 +428,7 @@ void main() {
           );
           expect(await const DVCache().get<String>('greeting'), 'hello');
         } finally {
-          await const DVCache().delete(all: true);
+          await const DVCache().delete(DVCache.all);
           await raw.close();
         }
       },
