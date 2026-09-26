@@ -54,12 +54,12 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsCode('cache-tags'),
             Bullets(<String>[
-              'set and get take tags. delete(tag:) removes every key with '
-                  'that tag.',
-              'delete takes exactly one of key:, tag: or all: true. None, or '
-                  'more than one, is an error, never a guess.',
-              'Tags are kept in each server\'s memory. delete(tag:) drops the '
-                  'keys this server has tagged.',
+              'set and get take tags. delete(DVCacheTag(...)) removes every '
+                  'key with that tag, and delete(DVCache.all) removes every key.',
+              'delete takes one argument: a String key, a DVCacheTag or '
+                  'DVCache.all. Anything else is an error, never a guess.',
+              'Tags are kept in each server\'s memory. Deleting a tag drops '
+                  'the keys this server has tagged.',
             ]),
           ],
         ),
@@ -108,7 +108,7 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
                   'DVRedisCacheAdapter, DVMemcachedCacheAdapter and '
                   'DVDistributedCacheAdapter.',
               'Tags and the shared compute are kept per adapter, so '
-                  'delete(tag:) on one store leaves the others alone.',
+                  'deleting a tag on one store leaves the others alone.',
             ]),
           ],
         ),
@@ -140,8 +140,8 @@ Widget _docsCachePage(BuildContext context) => const DocsArticle(
             DocsStatus('Cache', missing: <String>[
               'No model query cache, and no caching a backend function by '
                   'annotation.',
-              'Model writes do not drop tags yet. Call delete(tag:) '
-                  'yourself.',
+              'Model writes do not drop tags yet. Call '
+                  'delete(DVCacheTag(...)) yourself.',
               'Several Redis or Memcached nodes are not a store pubspec.yaml '
                   'can name yet. Pass a DVDistributedCacheAdapter to '
                   'withAdapter instead.',

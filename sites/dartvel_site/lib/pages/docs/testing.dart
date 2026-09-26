@@ -52,7 +52,7 @@ Widget _docsTestingPage(BuildContext context) => const DocsArticle(
               'A host with no stub fails the call, so a test never reaches the '
                   'network.',
               'There is no cache fake: in a test DV.Cache is in memory. Call '
-                  'DV.Cache.delete(all: true) in setUp.',
+                  'DV.Cache.delete(DVCache.all) in setUp.',
             ]),
           ],
         ),
