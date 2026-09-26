@@ -16,6 +16,7 @@ Widget _docsGraphqlPage(BuildContext context) => const DocsArticle(
         'Your models already have a GraphQL API, and your backend functions '
             'already have an OpenAPI document.',
         'Both are served by the generated backend with no setup.',
+        'The webhook events you send get an AsyncAPI document the same way.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -32,6 +33,8 @@ Widget _docsGraphqlPage(BuildContext context) => const DocsArticle(
                   'events'],
               <String>['GET /api/openapi.json', 'OpenAPI 3.1 for your backend '
                   'functions'],
+              <String>['GET /api/asyncapi.json', 'AsyncAPI 3.0 for the webhook '
+                  'events you send'],
             ]),
           ],
         ),
