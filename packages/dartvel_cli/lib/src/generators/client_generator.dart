@@ -624,6 +624,7 @@ export 'dartvel_runtime.dart';
 export 'env.g.dart';
 export 'ai_tools.g.dart';
 export 'analytics.g.dart';
+export 'asyncapi.g.dart';
 export 'functions.g.dart';
 export 'flags.g.dart';
 export 'http.g.dart';

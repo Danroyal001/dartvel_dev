@@ -283,6 +283,8 @@ export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
 export 'src/web/seo_head.dart';
 export 'src/webhooks/webhooks.dart';
+export 'src/webhooks/standard_webhooks.dart';
+export 'src/webhooks/cloudevents.dart';
 export 'src/widgets/home_widget.dart';
 export 'src/windowing/single_instance.dart';
 export 'src/xr/xr.dart';
