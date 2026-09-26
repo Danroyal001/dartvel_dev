@@ -62,7 +62,7 @@ Widget _docsWebhooksPage(BuildContext context) => const DocsArticle(
               'signature: standard signs the Standard Webhooks way, with '
                   'webhook-id, webhook-timestamp and webhook-signature. The '
                   'subscription\'s secret must hold a whsec_ key.',
-              'A key or value Dartvel does not know stops dartvel build with '
+              'A key or value Dartvel does not know stops `dartvel build` with '
                   'DV-WEBHOOK-009.',
             ]),
           ],
@@ -88,7 +88,7 @@ Widget _docsWebhooksPage(BuildContext context) => const DocsArticle(
           id: 'catalog',
           title: 'Publish the event catalog',
           children: <Widget>[
-            DocsText('dartvel build writes an AsyncAPI 3.0 document for your '
+            DocsText('`dartvel build` writes an AsyncAPI 3.0 document for your '
                 'declared events, and the backend serves it at '
                 '/api/asyncapi.json.'),
             Bullets(<String>[
