@@ -40,7 +40,55 @@ class DVWebhookEvent {
   final Set<String> sensitiveFields;
 }
 
+/// The envelope a delivery's body is written in.
+enum DVWebhookFormat {
+  /// `{id, event, created, data}`: the default, and what every subscriber
+  /// created before the choice existed receives.
+  dartvel,
+
+  /// A CloudEvents 1.0.2 event, structured or binary.
+  cloudevents,
+}
+
+/// Which headers carry a delivery's signature.
+enum DVWebhookSignatureScheme {
+  /// `dartvel-webhook-id`, `-timestamp` and `-signature`, HMAC-SHA256 over
+  /// `timestamp.body` with `v1=` entries. The default.
+  dartvel,
+
+  /// Standard Webhooks: `webhook-id`, `webhook-timestamp` and
+  /// `webhook-signature`, over `id.timestamp.body` with a `whsec_` key.
+  standard,
+}
+
+/// `DV-WEBHOOK-009`: a `dartvel.webhooks` block Dartvel cannot honour.
+class DVWebhooksConfigException implements Exception {
+  const DVWebhooksConfigException(this.message);
+  final String message;
+  String get code => 'DV-WEBHOOK-009';
+
+  @override
+  String toString() => '$code: $message';
+}
+
 /// `dartvel.webhooks` in `pubspec.yaml`.
+///
+/// ```yaml
+/// dartvel:
+///   webhooks:
+///     format: cloudevents     # dartvel (default) | cloudevents
+///     mode: structured        # cloudevents: structured (default) | binary
+///     source: https://shop.example.com   # cloudevents; default /<package>
+///     signature: standard     # dartvel (default) | standard
+///     allowPrivateAddresses: false
+///     retention: 30d
+///     disableAfter: 20
+///     maxAttempts: 5
+/// ```
+///
+/// Read through [read] twice, as `dartvel.cache` is: by the build, which
+/// refuses a block it cannot honour, and by the generated server at startup,
+/// so the two cannot disagree about a key.
 class DVWebhooksConfig {
   const DVWebhooksConfig({
     this.allowPrivateAddresses = false,
@@ -49,7 +97,152 @@ class DVWebhooksConfig {
     this.maxAttempts = 5,
     this.backoff = const Duration(seconds: 30),
     this.maxRedirects = 3,
+    this.format = DVWebhookFormat.dartvel,
+    this.cloudEventsMode = DVCloudEventMode.structured,
+    this.source = '/dartvel',
+    this.signature = DVWebhookSignatureScheme.dartvel,
   });
+
+  /// The envelope deliveries are written in when they are attempted, so a
+  /// change reaches deliveries still waiting as well as new ones.
+  final DVWebhookFormat format;
+
+  /// How a CloudEvent is carried. Structured keeps every attribute inside
+  /// the signed body; binary puts them in `ce-` headers the body signature
+  /// does not cover.
+  final DVCloudEventMode cloudEventsMode;
+
+  /// The CloudEvents `source`: a URI reference naming this application.
+  final String source;
+
+  final DVWebhookSignatureScheme signature;
+
+  static const Set<String> _keys = <String>{
+    'format',
+    'mode',
+    'source',
+    'signature',
+    'allowPrivateAddresses',
+    'retention',
+    'disableAfter',
+    'maxAttempts',
+  };
+
+  /// Reads [block], the value of `dartvel.webhooks`; null is the defaults.
+  ///
+  /// [application] names the default CloudEvents source, `/<application>`.
+  /// Throws [DVWebhooksConfigException] for a key or value it does not
+  /// understand, and for a CloudEvents setting under a format that would
+  /// ignore it -- a setting that does nothing is a mistake somebody made.
+  static DVWebhooksConfig read(Object? block, {String? application}) {
+    if (block == null) return const DVWebhooksConfig();
+    if (block is! Map) {
+      throw const DVWebhooksConfigException(
+          'dartvel.webhooks must be a map of settings.');
+    }
+    for (final Object? key in block.keys) {
+      if (!_keys.contains('$key')) {
+        throw DVWebhooksConfigException(
+            'dartvel.webhooks.$key is not a setting. dartvel.webhooks takes '
+            '${(_keys.toList()..sort()).join(', ')}.');
+      }
+    }
+    T choose<T extends Enum>(String key, List<T> values, T fallback) {
+      final Object? written = block[key];
+      if (written == null) return fallback;
+      for (final T value in values) {
+        if (value.name == '$written') return value;
+      }
+      throw DVWebhooksConfigException(
+          'dartvel.webhooks.$key is one of '
+          '${values.map((T v) => v.name).join(', ')}; "$written" is not.');
+    }
+
+    int count(String key, int fallback) {
+      final Object? written = block[key];
+      if (written == null) return fallback;
+      if (written is! int || written < 1) {
+        throw DVWebhooksConfigException(
+            'dartvel.webhooks.$key is a whole number of at least 1; '
+            '"$written" is not.');
+      }
+      return written;
+    }
+
+    final DVWebhookFormat format =
+        choose('format', DVWebhookFormat.values, DVWebhookFormat.dartvel);
+    if (format != DVWebhookFormat.cloudevents) {
+      for (final String key in <String>['mode', 'source']) {
+        if (block[key] != null) {
+          throw DVWebhooksConfigException(
+              'dartvel.webhooks.$key applies to CloudEvents deliveries only; '
+              'set format: cloudevents as well, or remove it.');
+        }
+      }
+    }
+    final Object? writtenSource = block['source'];
+    final String source;
+    if (writtenSource == null) {
+      source = application == null ? '/dartvel' : '/$application';
+    } else {
+      final String text = '$writtenSource'.trim();
+      if (text.isEmpty || Uri.tryParse(text) == null) {
+        throw DVWebhooksConfigException(
+            'dartvel.webhooks.source is a URI reference naming this '
+            'application, such as https://shop.example.com or /shop; '
+            '"$writtenSource" is not.');
+      }
+      source = text;
+    }
+
+    final Object? private = block['allowPrivateAddresses'];
+    if (private != null && private is! bool) {
+      throw DVWebhooksConfigException(
+          'dartvel.webhooks.allowPrivateAddresses is true or false; '
+          '"$private" is not.');
+    }
+    final Object? retention = block['retention'];
+    Duration? keep;
+    if (retention != null) {
+      try {
+        keep = dvParseSchemaDuration('$retention');
+      } on FormatException {
+        keep = null;
+      }
+      if (keep == null || keep <= Duration.zero) {
+        throw DVWebhooksConfigException(
+            'dartvel.webhooks.retention is a duration such as 30d or 12h; '
+            '"$retention" is not.');
+      }
+    }
+    return DVWebhooksConfig(
+      format: format,
+      cloudEventsMode: choose(
+          'mode', DVCloudEventMode.values, DVCloudEventMode.structured),
+      source: source,
+      signature: choose('signature', DVWebhookSignatureScheme.values,
+          DVWebhookSignatureScheme.dartvel),
+      allowPrivateAddresses: private == true,
+      retention: keep ?? const Duration(days: 30),
+      disableAfter: count('disableAfter', 20),
+      maxAttempts: count('maxAttempts', 5),
+    );
+  }
+
+  /// The block [read] reads back as this configuration, for the generated
+  /// server to carry.
+  Map<String, Object?> toMap() => <String, Object?>{
+        'format': format.name,
+        if (format == DVWebhookFormat.cloudevents) ...<String, Object?>{
+          'mode': cloudEventsMode.name,
+          'source': source,
+        },
+        'signature': signature.name,
+        'allowPrivateAddresses': allowPrivateAddresses,
+        'retention': '${retention.inSeconds}s',
+        'disableAfter': disableAfter,
+        'maxAttempts': maxAttempts,
+      };
 
   /// Deliver to private, loopback and link-local addresses. Only for a
   /// deployment with no cloud metadata service to reach.
@@ -840,6 +1033,38 @@ class DVWebhooks {
     ];
   }
 
+  /// The body and envelope headers [stored] goes out as, in the configured
+  /// format.
+  ///
+  /// What is stored is always Dartvel's envelope, so rows written before the
+  /// format could be chosen read the same as rows written after, and the
+  /// format is applied when the delivery is attempted. The CloudEvent's id
+  /// is the delivery id, stable across retries and replays, which is what a
+  /// consumer deduplicates on; its time is when the event was emitted, not
+  /// when this attempt was made.
+  (String, Map<String, String>) _render(
+      DVWebhookDelivery delivery, String stored) {
+    if (config.format == DVWebhookFormat.dartvel) {
+      return (
+        stored,
+        <String, String>{
+          'content-type': 'application/json; charset=utf-8',
+          'dartvel-webhook-event': delivery.event,
+        },
+      );
+    }
+    final Map<String, Object?> envelope =
+        jsonDecode(stored) as Map<String, Object?>;
+    final DVCloudEventMessage message = DVCloudEvent(
+      id: delivery.id,
+      source: config.source,
+      type: delivery.event,
+      time: DateTime.tryParse('${envelope['created']}') ?? delivery.createdAt,
+      data: envelope['data'],
+    ).toHttp(mode: config.cloudEventsMode);
+    return (message.body, message.headers);
+  }
+
   /// One attempt: the address is checked, the body signed with the keys valid
   /// now, and redirects followed only after the same check.
   Future<int> _send(
@@ -848,14 +1073,17 @@ class DVWebhooks {
     String body,
   ) async {
     Uri target = subscription.url;
+    final (String wireBody, Map<String, String> envelopeHeaders) =
+        _render(delivery, body);
     for (int hop = 0;; hop++) {
       final String? address = await _checkAddress(target);
       final String timestamp =
           '${clock().toUtc().millisecondsSinceEpoch ~/ 1000}';
+      final List<String> keys = _signingKeys(subscription);
       final Response response = await const DVHttp().send(
         'POST',
         target,
-        body: body,
+        body: wireBody,
         connectAddress: address,
         // A subscriber's endpoint is data, not configuration: no pubspec can
         // list it, so it cannot be a declared host. What stands in for the
@@ -867,15 +1095,28 @@ class DVWebhooks {
         // keeps the line's order and applies the backoff.
         attempts: 1,
         headers: <String, String>{
-          'content-type': 'application/json; charset=utf-8',
-          'dartvel-webhook-id': delivery.id,
-          'dartvel-webhook-event': delivery.event,
-          'dartvel-webhook-timestamp': timestamp,
-          'dartvel-webhook-signature': DVWebhookSignature.header(
-            timestamp: timestamp,
-            body: body,
-            secrets: _signingKeys(subscription),
-          ),
+          ...envelopeHeaders,
+          ...switch (config.signature) {
+            DVWebhookSignatureScheme.dartvel => <String, String>{
+                'dartvel-webhook-id': delivery.id,
+                'dartvel-webhook-timestamp': timestamp,
+                'dartvel-webhook-signature': DVWebhookSignature.header(
+                  timestamp: timestamp,
+                  body: wireBody,
+                  secrets: keys,
+                ),
+              },
+            DVWebhookSignatureScheme.standard => <String, String>{
+                'webhook-id': delivery.id,
+                'webhook-timestamp': timestamp,
+                'webhook-signature': DVStandardWebhookSignature.header(
+                  id: delivery.id,
+                  timestamp: timestamp,
+                  body: wireBody,
+                  secrets: keys,
+                ),
+              },
+          },
         },
       );
       final int status = response.status;
