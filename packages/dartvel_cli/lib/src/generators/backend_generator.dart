@@ -8,6 +8,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVCrashConfig,
         DVCrashSinkChoice,
         DVPlatformApiConfig,
+        DVWebhooksConfig,
+        DVWebhooksConfigException,
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
@@ -33,6 +35,7 @@ import '../updates/shorebird_config.dart';
 import '../graph/module_mounts.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
+import 'asyncapi_generator.dart';
 import 'openapi_generator.dart';
 import 'page_policy.dart';
 import 'platform_api_generator.dart';
@@ -293,6 +296,12 @@ class BackendGenerator {
     final backendOut = Directory(p.join(root, '.dart_tool'));
     final libClientDir = Directory(p.join(root, 'lib', 'dartvel_client'));
     await _validateMiddlewareAnnotations(root);
+    // dartvel.webhooks and the declared webhook events, read before anything
+    // is written: a block the runtime could not honour (DV-WEBHOOK-009) or an
+    // event the AsyncAPI document could not list (DV-WEBHOOK-010) stops here.
+    final DVWebhooksConfig webhooks = _dvWebhooksConfig(root, pkgName);
+    final List<String> webhookEvents = discoverWebhookEvents(
+        dvMergedLibSources(root, pkgName, backendDir));
     backendOut.createSync(recursive: true);
     libClientDir.createSync(recursive: true);
     // One library per lowered function, numbered by position: a function
@@ -698,6 +707,27 @@ class BackendGenerator {
       }
     }
     final String schemaTablesJson = jsonEncode(schemaTables);
+    // AsyncAPI: the outbound webhook events, from the same DVWebhookEvent
+    // declarations DV.Webhooks.emit refuses to send without, in the envelope
+    // and with the signature dartvel.webhooks selects. Written into the
+    // client and served at /asyncapi.json, as OpenAPI is.
+    final String asyncApiJson = encodeAsyncApiDocument(buildAsyncApiDocument(
+      title: pkgName,
+      version: pubspecVersion,
+      events: webhookEvents,
+      config: webhooks,
+    ));
+    File(p.join(libClientDir.path, 'asyncapi.g.dart')).writeAsStringSync('''
+// GENERATED – do not edit.
+library dartvel_client_asyncapi;
+
+/// The generated AsyncAPI 3.0 document for the webhook events this
+/// application sends, as JSON. Served by the generated backend at
+/// `<apiBasePath>/asyncapi.json`.
+const String dartvelAsyncApiJson = r\'\'\'
+$asyncApiJson\'\'\';
+''');
+    final String webhooksConfiguration = _dvWebhooksConfiguration(webhooks);
     File(p.join(libClientDir.path, 'openapi.g.dart')).writeAsStringSync('''
 // GENERATED – do not edit.
 library dartvel_client_openapi;
@@ -825,6 +855,10 @@ ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' 
 const String _dvOpenApiJson = r\'\'\'
 $openApiJson\'\'\';
 
+// The generated AsyncAPI document, served at cfg.apiBasePath + '/asyncapi.json'.
+const String _dvAsyncApiJson = r\'\'\'
+$asyncApiJson\'\'\';
+
 // The generated models' tables: each statement and its columns.
 const String _dvSchemaTablesJson = r\'\'\'
 $schemaTablesJson\'\'\';
@@ -897,6 +931,7 @@ Future<void> _dartvelPrepareDatabase(core.DVProcessStores stores) async {
 
 
 $cacheInstaller
+$webhooksConfiguration
 // Multipart structures and parser (bytes): collects text fields and files
 class DvMultipartFile {
   final String name;
@@ -1595,6 +1630,12 @@ ${platformApi?.oauth != null ? _dvOAuthRouteSource() : ''}${servesCrashes ? _dvC
       dv.Response(200,
           headers: dv.Headers({'content-type': 'application/json'}),
           body: Stream<List<int>>.value(conv.utf8.encode(_dvOpenApiJson)))));
+  // The webhook catalog is published to the application's customers, so it
+  // is answered like the API reference beside it.
+  router.get(cfg.apiBasePath + '/asyncapi.json', (dv.Request req) => _dvStaged(req, () async =>
+      dv.Response(200,
+          headers: dv.Headers({'content-type': 'application/json'}),
+          body: Stream<List<int>>.value(conv.utf8.encode(_dvAsyncApiJson)))));
   return router;
 }
 
@@ -1705,6 +1746,8 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // The hosts dartvel.http declares, before a backend function, a job or a
   // webhook can send: the same declaration the client runtime installs.
   configureDartvelHttp();
+  // dartvel.webhooks: the envelope and signature deliveries go out in.
+  _dartvelConfigureWebhooks();
   registerDartvelJobs();
   // Every @DVPolicy class, before the first await below. The router registers
   // them again when it is built; nothing that runs while the database is
@@ -1970,6 +2013,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       // A job that fails until it is dead-lettered is this worker's crash.
       _dartvelInstallServerCrashes(process.role);
       configureDartvelHttp();
+      // dartvel.webhooks: the envelope and signature deliveries go out in.
+      _dartvelConfigureWebhooks();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // The codecs and the handlers a server can run, and the queue this
@@ -2012,6 +2057,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       // A schedule that throws is this cron process's crash.
       _dartvelInstallServerCrashes(process.role);
       configureDartvelHttp();
+      // dartvel.webhooks: the envelope and signature deliveries go out in.
+      _dartvelConfigureWebhooks();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // A schedule may dispatch a job, and that job has to reach the worker.
@@ -4446,6 +4493,35 @@ Future<void> _dartvelInstallCache(core.DVDatabaseAdapter? database) =>
         .install(database: database);
 ''';
 }
+
+/// `dartvel.webhooks`, read with the parser the generated server reads it
+/// with, so the build and the process cannot disagree about a key.
+DVWebhooksConfig _dvWebhooksConfig(String root, String pkgName) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  Object? block;
+  if (pubspec.existsSync()) {
+    final Object? parsed = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = parsed is YamlMap ? parsed['dartvel'] : null;
+    block = dartvel is YamlMap ? dartvel['webhooks'] : null;
+  }
+  try {
+    return DVWebhooksConfig.read(block, application: pkgName);
+  } on DVWebhooksConfigException catch (error) {
+    throw StateError('$error');
+  }
+}
+
+/// The generated `_dartvelConfigureWebhooks`, which every role calls before
+/// application code runs. The configuration is carried as the map the build
+/// read and read again by the same reader at startup.
+String _dvWebhooksConfiguration(DVWebhooksConfig config) => '''
+/// `dartvel.webhooks` from pubspec.yaml: the envelope and signature webhook
+/// deliveries are sent in.
+void _dartvelConfigureWebhooks() {
+  core.DVWebhooks.config = core.DVWebhooksConfig.read(
+      conv.jsonDecode('${esc(jsonEncode(config.toMap()))}'));
+}
+''';
 
 /// `dartvel.security.csp` from pubspec.yaml, or null.
 ///
