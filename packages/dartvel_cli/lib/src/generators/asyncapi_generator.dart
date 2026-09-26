@@ -22,8 +22,10 @@ List<String> discoverWebhookEvents(List<(String, String)> sources) {
   final RegExp call = RegExp(r'\bDVWebhookEvent\s*\(');
   for (final (String path, String raw) in sources) {
     if (!raw.contains('DVWebhookEvent')) continue;
-    final String source = _blankComments(raw);
+    final String source = raw;
+    final List<bool> code = _codePositions(source);
     for (final Match match in call.allMatches(source)) {
+      if (!code[match.start]) continue;
       final int start = match.end;
       final String? name = _literalAt(source, start);
       if (name == null) {
@@ -83,50 +85,49 @@ String? _literalAt(String source, int from) {
   return value.toString();
 }
 
-/// [source] with every comment replaced by spaces, newlines kept, so a match
-/// still reports the line it is on.
-String _blankComments(String source) {
-  final StringBuffer out = StringBuffer();
+/// Which positions of [source] are code: not inside a comment and not
+/// inside a string literal, triple-quoted and raw ones included.
+///
+/// A string is skipped whole, so a docs sample that quotes a declaration --
+/// the site keeps its samples as lists of strings -- is not mistaken for one.
+List<bool> _codePositions(String source) {
+  final List<bool> code = List<bool>.filled(source.length, false);
   int i = 0;
-  String? quote;
   while (i < source.length) {
-    final String c = source[i];
-    if (quote != null) {
-      out.write(c);
-      if (c == r'\' && i + 1 < source.length) {
-        out.write(source[i + 1]);
-        i += 2;
-        continue;
-      }
-      if (c == quote || c == '\n') quote = null;
-      i++;
-      continue;
-    }
-    if (c == "'" || c == '"') {
-      quote = c;
-      out.write(c);
-      i++;
-      continue;
-    }
     if (source.startsWith('//', i)) {
       while (i < source.length && source[i] != '\n') {
-        out.write(' ');
         i++;
       }
       continue;
     }
     if (source.startsWith('/*', i)) {
-      final int end = source.indexOf('*/', i + 2);
-      final int stop = end == -1 ? source.length : end + 2;
-      for (; i < stop; i++) {
-        out.write(source[i] == '\n' ? '\n' : ' ');
+      final int close = source.indexOf('*/', i + 2);
+      i = close == -1 ? source.length : close + 2;
+      continue;
+    }
+    final String c = source[i];
+    if (c == "'" || c == '"') {
+      final bool raw = i > 0 && source[i - 1] == 'r';
+      final String delimiter = source.startsWith(c * 3, i) ? c * 3 : c;
+      i += delimiter.length;
+      while (i < source.length) {
+        if (!raw && source[i] == r'\') {
+          i += 2;
+          continue;
+        }
+        if (source.startsWith(delimiter, i)) {
+          i += delimiter.length;
+          break;
+        }
+        if (delimiter.length == 1 && source[i] == '\n') break;
+        i++;
       }
       continue;
     }
-    out.write(c);
+    code[i] = true;
     i++;
   }
-  return out.toString();
+  return code;
 }
 
 /// A component key for [name]: AsyncAPI keys match `^[A-Za-z0-9._-]+$`.
