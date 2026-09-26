@@ -16,24 +16,34 @@ once through [`dartvel_dev`](https://pub.dev/packages/dartvel_dev).
 
 ## Install
 
-The CLI ships as one self-contained executable. The Dart runtime and the Rust
-server library are linked into it, so running `dartvel` needs neither Dart nor
-Flutter. Building an application still needs Flutter, for whichever target you
-are building.
+Install the CLI from pub.dev, or as a self-contained executable with the Dart
+runtime and the Rust server library linked into it, which needs neither Dart
+nor Flutter to run. Building an application still needs Flutter, for whichever
+target you are building.
 
-### npm
+### From pub
+
+With the Dart SDK installed (it ships with Flutter):
 
 ```sh
-npm install -g dartvel_dev      # or: npm install -g dartvel_cli
+dart pub global activate dartvel_cli
 dartvel --help
-
-npx dartvel_dev --help          # without installing
 ```
 
-`dartvel_cli` on npm is an alias that forwards to `dartvel_dev`. The first time
-it runs, the launcher downloads the binary for your platform from the GitHub
-release of the same version, checks it against that release's `SHA256SUMS`,
-and keeps it beside the package. Node 18 or newer.
+Activate `dartvel_cli`, the command. Activating `dartvel_dev` instead succeeds
+and then every run fails, because `dartvel_dev` is the package an application
+depends on, it depends on Flutter, and pub does not run a global command from a
+package that does. Pub puts `dartvel` in `~/.pub-cache/bin`; add that to your
+PATH if your shell cannot find it.
+
+### Homebrew
+
+```sh
+brew install Danroyal001/dartvel_dev/dartvel_dev
+```
+
+The [tap](https://github.com/Danroyal001/homebrew-dartvel_dev) installs the
+same prebuilt binary. It is bumped after a release, so it can trail npm.
 
 ### GitHub releases
 
@@ -64,15 +74,6 @@ workflow has run.** Until then, npm on macOS or Windows fails on the download
 and prints the release URL. Use the per-project route below on those hosts,
 or 0.5.0.
 
-### Homebrew
-
-```sh
-brew install Danroyal001/dartvel_dev/dartvel_dev
-```
-
-The [tap](https://github.com/Danroyal001/homebrew-dartvel_dev) installs the
-same prebuilt binary. It is bumped after a release, so it can trail npm.
-
 ### From pub, per project
 
 With the Dart SDK installed, the CLI can run from a project's own
@@ -90,18 +91,22 @@ dart run dartvel_cli:dartvel dev
 
 The first `dart run` compiles the CLI, so it is slower than the binary.
 
-`dart pub global activate` is not a supported install. Activating
-`dartvel_dev` succeeds and then every run fails with:
-
-```text
-dartvel_dev as globally activated requires the Flutter SDK, which is unsupported for global executables.
-```
-
-because the umbrella package depends on Flutter. That is why the npm package
-and the Homebrew formula install the compiled binary instead.
-
 `dartvel --version` prints the CLI version with the Dart, Flutter and
 Shorebird it finds, so a missing toolchain shows up before a build fails on it.
+
+### npm
+
+```sh
+npm install -g dartvel_dev      # or: npm install -g dartvel_cli
+dartvel --help
+
+npx dartvel_dev --help          # without installing
+```
+
+`dartvel_cli` on npm is an alias that forwards to `dartvel_dev`. The first time
+it runs, the launcher downloads the binary for your platform from the GitHub
+release of the same version, checks it against that release's `SHA256SUMS`,
+and keeps it beside the package. Node 18 or newer.
 
 ## Quick start
 
