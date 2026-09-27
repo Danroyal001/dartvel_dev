@@ -404,11 +404,16 @@ class DVPrivacyDeclarations {
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
       ..writeln('// ignore_for_file: prefer_const_constructors')
       ..writeln()
-      ..writeln("import 'package:dartvel_core/dartvel.dart';")
-      // The record layer, which is generated code's to name and not an
-      // application's: erasure walks a model's table directly because a
-      // subject's rows have to go whether or not the model is loadable.
-      ..writeln("import 'package:dartvel_core/framework.dart';")
+      ..writeln("import 'package:dartvel_core/dartvel.dart';");
+    // The record layer, which is generated code's to name and not an
+    // application's: erasure walks a model's table directly because a
+    // subject's rows have to go whether or not the model is loadable. Only
+    // when a model is listed, since a project with none would import it
+    // unused and fail its own analyze.
+    if (models.any((DVPrivacyModelDeclaration d) => d.declaresAnything)) {
+      sb.writeln("import 'package:dartvel_core/framework.dart';");
+    }
+    sb
       ..writeln()
       ..writeln('/// Every model that declares a subject path, a retention or a')
       ..writeln('/// sensitive field, as the privacy walk sees it, over [database].')
