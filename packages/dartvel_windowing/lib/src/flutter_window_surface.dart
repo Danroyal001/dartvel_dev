@@ -44,15 +44,15 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
     return _FlutterWindowSurface(
       window,
       content,
-      // RegularWindowController, and the size is `preferred`: the platform
+      // RegularWindowController, and the size is a request: the platform
       // may not honour either. Named for the window kind rather than generic,
       // because Flutter has a controller per kind -- dialog, popup, tooltip,
       // satellite -- and the owned kinds are not wired up yet.
-      // No preferredConstraints: DVWindowOptions.constraints is not carried
+      // No constraints: DVWindowOptions.constraints is not carried
       // in the window.open payload yet, and passing null here would look like
       // it had been considered.
       RegularWindowController(
-        preferredSize: preferredSizeFor(request, DV.Platform.Window.displays.value),
+        size: preferredSizeFor(request, DV.Platform.Window.displays.value),
         title: request?.title,
       ),
     );
