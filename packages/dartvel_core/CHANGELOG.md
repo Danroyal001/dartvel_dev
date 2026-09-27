@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.0
 
 - **`dartvel.webhooks` is read.** `DVWebhooksConfig.read` takes `format`
   (`dartvel` | `cloudevents`), `mode` (`structured` | `binary`), `source`,
@@ -10,6 +10,18 @@
   with `DV-WEBHOOK-008`.
 - **`DVStandardWebhookSignature`**: Standard Webhooks `sign`, `header` and
   `verify`, with the libraries' five-minute window.
+- **`DV-WEBHOOK-008` to `010` are in the diagnostics registry.** The
+  specification listed them and `DVDiagnostics` did not, so a lookup of any
+  of the three found nothing.
+- **Fixed: a schedule on a UTC clock fired early east of Greenwich.**
+  `DVCronSchedule.nextAfter` answered a UTC instant in the host's zone, so
+  02:59:30Z came back as 03:00 local, already past; each tick ran an
+  occurrence that was not due, and two processes sharing a schedule lease
+  claimed different instants for one run. It now answers in the zone of the
+  instant it is given.
+- **Fixed: a capture session that fails while finishing an error is
+  recorded.** `_run` returned the finishing future from inside its `try`
+  without awaiting it, so a failure there escaped the `catch`.
 
 - **Breaking: `@DVModel(generatePublicPages:)` defaults to `true`.** Add
   `generatePublicPages: false` to a model that must have no public pages.

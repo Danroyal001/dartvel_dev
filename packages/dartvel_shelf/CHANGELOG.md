@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0
 
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13
   is the first release with primary constructors
