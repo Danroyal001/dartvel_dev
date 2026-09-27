@@ -307,7 +307,7 @@ class DVWindowSharedStore {
     try {
       final bytes = await storage.get(plaintext.substring(_spillPrefix.length));
       final body = _cipher.decrypt(utf8.decode(bytes));
-      return body == null ? null : _open(key, body);
+      return body == null ? null : await _open(key, body);
     } catch (_) {
       // A pointer whose object is gone is an unreadable value like any other.
       return null;
