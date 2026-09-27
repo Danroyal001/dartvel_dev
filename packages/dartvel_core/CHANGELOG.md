@@ -1,3 +1,8 @@
+## 0.7.1
+
+- Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no
+  changes in this package.
+
 ## 0.7.0
 
 - **`dartvel.webhooks` is read.** `DVWebhooksConfig.read` takes `format`

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.7.1 — 2026-09-28
+
+A fix release. On the web, every page reported Esc handled, so the browser
+never saw it, and Esc pressed in the page did not close the find bar. Esc now
+reaches the browser unless the page has something open to close. A
+dialog opened over a page also lost its keys to the page beneath. Both are
+fixed in dartvel_flutter; nothing to migrate.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.7.1.
+dartvel_shelf stays 0.8.0 and dartvel_generator 1.4.0.
+
 ## 0.7.0 — 2026-09-27
 
 `DV.Cache` becomes four calls, every data model gets a public page unless it

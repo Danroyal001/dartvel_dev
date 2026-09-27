@@ -8,7 +8,7 @@
 ///
 /// A test asserts this admits the version each package declares, so the two
 /// cannot drift again without the suite saying so.
-const String dartvelPackageVersion = '0.7.0';
+const String dartvelPackageVersion = '0.7.1';
 
 /// The same, for dartvel_shelf, which is a minor ahead of the others.
 ///

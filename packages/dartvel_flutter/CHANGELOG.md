@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.1
 
 - **Fixed: Esc on a page is left to the browser when the page has nothing
   open.** The selection area every `DVPageShell` page carries reported every
