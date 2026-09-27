@@ -2,7 +2,6 @@
 // window, tenant-aware keys, and the framework's lock -- is covered in
 // dartvel_core's dv_cache_test, where the cache lives; this checks that a page
 // reaches that same cache through the same four calls.
-import 'package:dartvel_core/dartvel.dart' show DVMemoryCacheAdapter;
 import 'package:dartvel_core/dv.dart' as server;
 import 'package:dartvel_core/framework.dart' show DVCacheRuntime;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
