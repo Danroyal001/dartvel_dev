@@ -26,6 +26,16 @@ ProcessResult verify(String unit, Directory dir) {
   return Process.runSync('systemd-analyze', <String>['verify', file.path]);
 }
 
+/// Whether [line] is systemd talking about a unit installed on this machine
+/// rather than the one under test.
+///
+/// `verify` loads the units ours depends on, so a host whose own units carry a
+/// removed option (Ubuntu's xfs_scrub units and `CPUAccounting=`, on systemd
+/// 259) prints a warning naming that file. It is not about the generated unit,
+/// which is the only one in [dir].
+bool aboutAnotherUnit(String line, Directory dir) =>
+    line.startsWith('/') && !line.startsWith(dir.path);
+
 DVSupervisorDeclaration declare(Map<String, Object?> application) =>
     DVSupervisorDeclaration.parse(
       <String, Object?>{
@@ -61,6 +71,7 @@ void main() {
         .join('\n')
         .split('\n')
         .where((String line) => line.trim().isNotEmpty)
+        .where((String line) => !aboutAnotherUnit(line, dir))
         .where((String line) => !line.contains('flutter-drm-gbm-backend'))
         .join('\n');
     expect(complaints, isEmpty, reason: 'systemd rejected the generated unit');
@@ -86,6 +97,7 @@ void main() {
         .join('\n')
         .split('\n')
         .where((String line) => line.trim().isNotEmpty)
+        .where((String line) => !aboutAnotherUnit(line, dir))
         .where((String line) => !line.contains('flutter-client'))
         .join('\n');
     expect(complaints, isEmpty, reason: 'systemd rejected the watchdog unit');
