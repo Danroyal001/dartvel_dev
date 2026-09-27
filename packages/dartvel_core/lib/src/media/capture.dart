@@ -153,14 +153,14 @@ final class DVCaptureSession implements Future<DVFile> {
       final String? unsupported =
           request.unsupportedBy(_runtime.capabilities);
       if (unsupported != null) {
-        return _finishError(
+        return await _finishError(
             DVCaptureState.failed, DVCaptureUnsupported(unsupported));
       }
       if (!_runtime._claim(this)) {
-        return _finishError(DVCaptureState.failed, const DVCaptureBusy());
+        return await _finishError(DVCaptureState.failed, const DVCaptureBusy());
       }
       if (_inBackground(_runtime.lifecycle.value)) {
-        return _finishError(DVCaptureState.interrupted,
+        return await _finishError(DVCaptureState.interrupted,
             const DVCaptureInterrupted(DVCaptureInterruption.backgrounded, null));
       }
 
@@ -173,13 +173,13 @@ final class DVCaptureSession implements Future<DVFile> {
             'DV-MEDIA-104',
             '$permission was refused for a ${request.kind.name} recording',
           );
-          return _finishError(
+          return await _finishError(
               DVCaptureState.refused, DVCapturePermissionRefused(permission));
         }
       }
       // A permission prompt can outlast the application being on screen.
       if (_inBackground(_runtime.lifecycle.value)) {
-        return _finishError(DVCaptureState.interrupted,
+        return await _finishError(DVCaptureState.interrupted,
             const DVCaptureInterrupted(DVCaptureInterruption.backgrounded, null));
       }
 
