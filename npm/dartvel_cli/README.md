@@ -19,7 +19,7 @@ package of the same version and forwards its arguments to it, rather than
 carrying a second copy of the launcher that would have to be kept in step.
 What `dartvel_dev` does on first run (download the self-contained binary for
 your platform from the GitHub release and verify its checksum), the supported
-platforms, and the 0.7.0 note about which binaries are attached are described
+platforms, and the 0.7.1 note about which binaries are attached are described
 in its [README](https://www.npmjs.com/package/dartvel_dev).
 
 The command reference, configuration and troubleshooting are in the
