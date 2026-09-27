@@ -44,6 +44,18 @@
   that ships Dart 3.13.0. Raise `environment: sdk:` to `">=3.13.0 <4.0.0"`
   and upgrade Flutter before taking this release.
 
+## 0.6.2
+
+- Documentation only: install the CLI with `dart pub global activate
+  dartvel_cli` first, then Homebrew, the release binaries, dev_dependencies
+  and npm.
+
+## 0.6.1
+
+- Declares the platforms it supports in pubspec.yaml, so pub.dev lists
+  them instead of inferring them from platform-specific imports. No code
+  changes.
+
 ## 0.6.0
 
 - **Studio image export shares the box modifier chain.** An exported image is
