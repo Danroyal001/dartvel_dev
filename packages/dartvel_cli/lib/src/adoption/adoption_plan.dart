@@ -46,6 +46,7 @@ class DVAdoptionCheck {
 const Map<String, Map<String, String>> dvDartvelDependencyConstraints =
     <String, Map<String, String>>{
   'dartvel_core': <String, String>{
+    'path': '^1.9.0',
     'meta': '^1.12.0',
     'async': '^2.13.1',
     'crypto': '^3.0.7',
@@ -70,7 +71,9 @@ const Map<String, Map<String, String>> dvDartvelDependencyConstraints =
     'flutter_riverpod': '^2.5.1',
     'ffi': '^2.1.0',
     'meta': '^1.15.0',
-    'dartvel_core': '^0.5.0',
+    // The family version, so a release cannot leave it behind: this said
+    // ^0.5.0 through 0.6.x.
+    'dartvel_core': '^$dartvelPackageVersion',
     'jni': '^1.0.3',
     'dbus': '^0.7.15',
   },
