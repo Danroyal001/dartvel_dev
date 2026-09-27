@@ -1,3 +1,23 @@
+## Unreleased
+
+- **Fixed: Esc on a page is left to the browser when the page has nothing
+  open.** The selection area every `DVPageShell` page carries reported every
+  Esc handled, so on the web the engine called `preventDefault` on it and the
+  browser never saw it: with the find bar open and the page focused, Esc did
+  not close the find bar. The page now answers Esc beneath the selection
+  area. It closes the selection menu when one is showing, passes the
+  `DismissIntent` on to whatever answers it above the page (a dismissible
+  route, the application's own action), and otherwise leaves the key
+  unhandled. Dialogs, menus and text fields keep their own Esc, and a text
+  field that is composing keeps it for the input method.
+
+- **Fixed: a dialog opened over a page keeps focus.** Keyboard scrolling took
+  focus back whenever it rested on any focus scope, a dialog's that had just
+  opened included, so the dialog's keys, Esc among them, went to the page
+  beneath. It now takes focus only from the scopes the page itself sits in,
+  and from the selection area after a click into the text, which leaves
+  Page Down and Esc working after the click.
+
 ## 0.7.0
 
 - **Breaking: `DV.Platform.Tray.show(icon:)` takes a generated asset.** The

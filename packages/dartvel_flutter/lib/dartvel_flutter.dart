@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/keyboard_scroll.dart';
+import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/qr_code.dart' show DVQrImage;
@@ -9053,6 +9054,13 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   /// What is selected, kept as it changes so the menu can copy it.
   SelectedContent? _selected;
 
+  /// The selection menu on screen, if one is, so Esc can close it.
+  final DVSelectionMenuTracker _menu = DVSelectionMenuTracker();
+
+  /// The page's answer to Esc. See page_escape.dart.
+  late final DVPageDismissAction _dismiss =
+      DVPageDismissAction(outside: () => context, menu: _menu);
+
   /// The selection menu: the platform's own items, and on the web More,
   /// which hands the next right-click to the browser.
   ///
@@ -9236,7 +9244,10 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // keys first and only what is left over scrolls -- and no page has to ask
     // for this, because a page a keyboard cannot move is a broken page rather
     // than a style.
-    final Widget scrollable = DVKeyboardScroll(child: keyed);
+    final Widget scrollable = DVKeyboardScroll(
+      takesFocusFrom: selectable ? _selectionFocusNode : null,
+      child: keyed,
+    );
     // And every other way somebody drives a page: a TV remote's D-pad and
     // select key, and one or two switches. On the same argument as the keys
     // above, and for the same reason no page asks for those -- a page one
@@ -9255,13 +9266,24 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
             // subsequent one was off by one. It still takes focus when a
             // selection starts; it is simply not somewhere Tab stops.
             focusNode: _selectionFocusNode,
-            contextMenuBuilder: _selectionMenu,
+            contextMenuBuilder:
+                (BuildContext context, SelectableRegionState selection) =>
+                    DVTrackedSelectionMenu(
+                      tracker: _menu,
+                      region: selection,
+                      child: _selectionMenu(context, selection),
+                    ),
             onSelectionChanged: (SelectedContent? content) =>
                 _selected = content,
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
-              child: reachable,
+              // Esc beneath the selection area, which otherwise reports every
+              // Esc handled and keeps it from the browser. See page_escape.dart.
+              child: Actions(
+                actions: <Type, Action<Intent>>{DismissIntent: _dismiss},
+                child: reachable,
+              ),
             ),
           )
         : reachable;
