@@ -85,6 +85,8 @@ jobs:
       # scrolls the Flutter page until the phrase is on screen. The phrase
       # sits at the bottom of the page, so the check fails unless the page
       # actually scrolled.
+      # Esc pressed in the page, before and after a click into its text, is
+      # not preventDefault-ed, so the browser can close its find bar with it.
       - name: The browser's find reaches a docs page
         timeout-minutes: 10
         run: |
