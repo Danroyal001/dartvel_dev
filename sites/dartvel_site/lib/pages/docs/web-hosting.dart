@@ -136,6 +136,10 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                 'and other Chromium browsers, and in Firefox 139 and later. '
                 'Safari has not been checked yet. A browser without '
                 'until-found finds nothing on the page, as before.'),
+            DocsText('Esc closes the find bar from the page as well as from '
+                'the bar. A page answers Esc only when it has something open '
+                'to close, such as a dialog, a menu or the text selection '
+                'menu. Otherwise the key goes to the browser.'),
             DocsText('A list builds only the rows near the screen, so text in '
                 'a row that has not been built yet is not found.'),
             DocsNote('Planned',
