@@ -156,6 +156,24 @@ void main() {
       expect(s.nextAfter(at(2026, 3, 1, 0, 0)), at(2028, 2, 29, 0, 0));
     });
 
+    test('a UTC instant is answered in UTC, whatever zone the host is in', () {
+      // The scheduler's clock may hand it UTC. Rebuilding the next minute
+      // from the fields in the host's zone turned 02:59:30Z into 03:00 local,
+      // which on a host east of Greenwich is hours in the past: every tick
+      // then ran an occurrence that was not due, and a pair of processes
+      // each claimed a different instant for the same run. Compared with a
+      // UTC value because DateTime equality also compares the zone flag.
+      final DVCronSchedule s = DVCronSchedule.parse('* * * * *');
+      final DateTime? next = s.nextAfter(DateTime.utc(2026, 9, 14, 2, 59, 30));
+      expect(next, DateTime.utc(2026, 9, 14, 3, 0));
+
+      final DVCronSchedule hourly = DVCronSchedule.parse('0 * 1 * *');
+      expect(
+        hourly.nextAfter(DateTime.utc(2026, 9, 30, 23, 30)),
+        DateTime.utc(2026, 10, 1, 0, 0),
+      );
+    });
+
     test('a date that can never occur returns null rather than hanging', () {
       // The 31st of February. A search with no bound runs forever on it.
       final DVCronSchedule s = DVCronSchedule.parse('0 0 31 2 *');
