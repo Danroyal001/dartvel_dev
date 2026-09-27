@@ -1,3 +1,8 @@
+## 0.7.1
+
+- Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no
+  changes in this package.
+
 ## 0.7.0
 
 - **`dartvel_database.dart` exports the cache adapters again.** It showed
