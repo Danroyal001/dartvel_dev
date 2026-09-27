@@ -18,7 +18,8 @@ import 'dart:io';
 import 'package:dartvel_cli/src/commands/db_command.dart';
 import 'package:dartvel_cli/src/generators/model_generator.dart';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHistory, DVRecord, DVRecordTable, SqliteDVDatabaseAdapter;
+    show DVHistory, SqliteDVDatabaseAdapter;
+import 'package:dartvel_core/framework.dart' show DVRecord, DVRecordTable;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
