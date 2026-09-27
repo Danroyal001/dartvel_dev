@@ -22,6 +22,11 @@
 ///    the app is still loading, so this also covers the case where the
 ///    runtime picks up a section the browser revealed before it was
 ///    listening.
+/// 5. Esc pressed in the page, before and after a click into its text, is
+///    not `preventDefault`-ed. With the find bar open and the page focused,
+///    an Esc the page swallows is an Esc the browser never uses to close
+///    the find bar; the selection area every page carries swallowed every
+///    one.
 ///
 /// Where the Flutter page put the phrase is read from Flutter's semantics
 /// tree, whose DOM nodes sit where the text is drawn.
@@ -115,6 +120,23 @@ Future<void> main(List<String> arguments) async {
     check(fragment.onScreen,
         'a #:~:text= link, matched by the browser, scrolled the phrase onto the screen');
     await chrome.shot(shots, '3-after-text-fragment');
+
+    // 5. Esc is left to the browser when the page has nothing open.
+    await chrome.open('about:blank');
+    await chrome.open('$base$route');
+    await chrome.waitFor(_mirrorReady, 'the find runtime to take the block');
+    await chrome.evaluate(_recordEscape);
+    await chrome.press('Escape', 27);
+    stdout.writeln('     Esc keydowns, prevented or not: '
+        '${await chrome.evaluate("JSON.stringify(window.__dvEscapes)")}');
+    check(await chrome.evaluate(_escapeLeft) == true,
+        'Esc on the page is left to the browser (not preventDefault-ed)');
+    await chrome.clickAt(0.5, 0.6);
+    await chrome.press('Escape', 27);
+    stdout.writeln('     after a click: '
+        '${await chrome.evaluate("JSON.stringify(window.__dvEscapes)")}');
+    check(await chrome.evaluate(_escapeLeft) == true,
+        'Esc after a click into the text is still left to the browser');
   } finally {
     await chrome.close();
   }
@@ -126,6 +148,25 @@ Future<void> main(List<String> arguments) async {
   }
   stdout.writeln('find in page: every check passed.');
 }
+
+/// Records, for every Esc keydown, whether the page called preventDefault.
+///
+/// Captured on the window, so it sees the key whatever stops it later, and
+/// read on the next task, once Flutter has decided.
+const String _recordEscape = '''(() => {
+  window.__dvEscapes = [];
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    // Read once the event has been through every listener, Flutter's too.
+    setTimeout(() => window.__dvEscapes.push(e.defaultPrevented), 0);
+  }, true);
+})()''';
+
+/// The last Esc was seen and not prevented.
+const String _escapeLeft = '''(() => {
+  const seen = window.__dvEscapes || [];
+  return seen.length > 0 && seen[seen.length - 1] === false;
+})()''';
 
 /// The runtime has read the page and taken the block over.
 const String _mirrorReady = '''(() => {
@@ -319,6 +360,41 @@ class _Chrome {
     if (best == null) return _Where(false, 0, 0, viewport);
     return _Where(true, (best['top']! as num).toDouble(),
         (best['bottom']! as num).toDouble(), viewport);
+  }
+
+  /// A key pressed and released, as the keyboard sends it to the page.
+  Future<void> press(String key, int keyCode) async {
+    await _send('Emulation.setFocusEmulationEnabled',
+        <String, Object?>{'enabled': true});
+    for (final String type in <String>['keyDown', 'keyUp']) {
+      await _send('Input.dispatchKeyEvent', <String, Object?>{
+        'type': type,
+        'key': key,
+        'code': key,
+        'windowsVirtualKeyCode': keyCode,
+        'nativeVirtualKeyCode': keyCode,
+      });
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  /// A left click at a fraction of the viewport.
+  Future<void> clickAt(double x, double y) async {
+    final Object? size = await evaluate(
+        'JSON.stringify([window.innerWidth, window.innerHeight])');
+    final List<Object?> wh = jsonDecode(size! as String) as List<Object?>;
+    final double px = (wh[0]! as num) * x;
+    final double py = (wh[1]! as num) * y;
+    for (final String type in <String>['mousePressed', 'mouseReleased']) {
+      await _send('Input.dispatchMouseEvent', <String, Object?>{
+        'type': type,
+        'x': px,
+        'y': py,
+        'button': 'left',
+        'clickCount': 1,
+      });
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
   }
 
   Future<void> shot(String? directory, String name) async {
