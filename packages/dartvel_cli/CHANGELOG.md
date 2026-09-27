@@ -1,4 +1,12 @@
-## Unreleased
+## 0.7.0
+
+- **Fixed: `privacy.g.dart` no longer imports `framework.dart` unused.** A
+  project with no data model declaring a subject, retention or sensitive
+  field got a warning from its own analyze.
+- **Fixed: `dartvel init` checks a project against what the packages really
+  depend on.** Its table left out dartvel_core's `path` and still named
+  dartvel_core ^0.5.0 for dartvel_flutter; the core constraint now follows
+  the release.
 
 - **`dartvel routes` writes an AsyncAPI 3.0 document** for the application's
   `DVWebhookEvent` declarations into `lib/dartvel_client/asyncapi.g.dart`, and

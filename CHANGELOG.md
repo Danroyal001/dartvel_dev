@@ -5,9 +5,26 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.7.0 — 2026-09-27
+
+`DV.Cache` becomes four calls, every data model gets a public page unless it
+opts out, and outbound webhooks can go as CloudEvents or signed the Standard
+Webhooks way, with an AsyncAPI 3.0 catalog served beside `openapi.json`.
+Change capture and offline data models are declared rather than wired, and
+application-facing Dart is written with primary constructors, which raises
+the SDK floor to Dart 3.13.0 and Flutter 3.47.0.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.7.0,
+dartvel_shelf to 0.8.0 and dartvel_generator to 1.4.0 (after 1.3.1; its
+0.6.1 and 0.6.2 were numbered with the family by mistake). The package
+changelogs list every change; the ones below need action.
 
 ### Breaking
+
+- **`DV.Platform.Tray.show(icon:)` takes a generated asset.** The icon is a
+  `DVAssetRef`, the `DVAsset` value `dartvel routes` generates, instead of a
+  path string, so a renamed or unlisted icon is a compile error rather than an
+  empty tray slot. Rewrite `icon: 'assets/tray.png'` as `icon: DVAsset.tray`.
 
 - **Every data model gets public pages unless it opts out.**
   `@DVModel(generatePublicPages:)` now defaults to `true`: each record is served
@@ -166,6 +183,21 @@ erased records out of every copy.
   project is on Dart 3.13 so its own classes can be too. The
   generator reads inputs written either way, and old-style inputs generate
   exactly what they did.
+
+## 0.6.2 — 2026-09-26
+
+Documentation only: every README installs the CLI with `dart pub global
+activate dartvel_cli` first, then Homebrew, the release binaries,
+dev_dependencies and npm. dartvel_shelf is 0.7.2.
+
+## 0.6.1 — 2026-09-26
+
+Every published package declares its platforms in `pubspec.yaml`, so pub.dev
+lists Android, iOS, Linux, macOS, Web and Windows instead of inferring them
+from platform-specific imports, which listed dartvel_flutter as Linux and
+Windows only and dartvel_core as supporting nothing. No code changes.
+dartvel_shelf is 0.7.1. On main, `tool/pubspec_platforms_check.dart` now
+fails when a published package stops declaring them.
 
 ## 0.6.0 — 2026-09-25
 

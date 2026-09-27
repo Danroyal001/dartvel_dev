@@ -1,4 +1,9 @@
-## Unreleased
+## 1.4.0
+
+- **1.4.0 follows 1.3.1.** 0.6.1 and 0.6.2 below were published with the
+  family's numbers by mistake. pub orders them below 1.3.1, which stayed the
+  version a new dependency resolved, and they changed nothing the builders
+  generate.
 
 - **The retired builders read Dart 3.13.** `analyzer` is `^14.4.0`, which
   parses primary constructors; on the 10.x it required, any library
