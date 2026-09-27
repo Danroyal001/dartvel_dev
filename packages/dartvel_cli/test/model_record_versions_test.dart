@@ -31,8 +31,8 @@ import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/db_command.dart';
 import 'package:dartvel_cli/src/commands/privacy_command.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
-import 'package:dartvel_core/dartvel.dart'
-    show DVRecordTable, SqliteDVDatabaseAdapter;
+import 'package:dartvel_core/dartvel.dart' show SqliteDVDatabaseAdapter;
+import 'package:dartvel_core/framework.dart' show DVRecordTable;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

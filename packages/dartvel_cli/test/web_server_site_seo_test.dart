@@ -73,7 +73,7 @@ void main() {
     try {
       final request = await client.getUrl(Uri.parse('$base$path'));
       final response = await request.close();
-      return response.transform(utf8.decoder).join();
+      return await response.transform(utf8.decoder).join();
     } finally {
       client.close(force: true);
     }
