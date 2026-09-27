@@ -31,9 +31,17 @@ import 'package:flutter/services.dart';
 /// others belong to the page whatever has focus, because no control uses
 /// them for anything else.
 class DVKeyboardScroll extends StatefulWidget {
-  const DVKeyboardScroll({super.key, required this.child});
+  const DVKeyboardScroll({super.key, required this.child, this.takesFocusFrom});
 
   final Widget child;
+
+  /// A node above the page that takes focus without wanting the keys: the
+  /// page shell's selection area, which takes focus on every click into the
+  /// text. Focus on it passes here, beneath it, so a click into a paragraph
+  /// leaves the page as it was before the click -- Page Down scrolls, Esc is
+  /// the page's to answer -- and the selection stays, because focus is still
+  /// inside the area that holds it.
+  final FocusNode? takesFocusFrom;
 
   /// How far one arrow press moves: about three lines of body text, which is
   /// what a browser scrolls and slow enough to read past.
@@ -79,10 +87,19 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
   /// Only when focus has landed nowhere. Something a reader is using -- a
   /// text field, a link, a button -- keeps it, because a page that snatched
   /// focus back would take the reader out of what they were typing in.
+  ///
+  /// "Nowhere" is no node, a scope this page sits in, or the node named by
+  /// [DVKeyboardScroll.takesFocusFrom]. A scope somewhere else is a dialog or
+  /// a sheet that has just opened over the page and is about to focus its
+  /// first control: taking focus back from it put the dialog's keys on the
+  /// page beneath, and Esc never reached the dialog.
   void _focusChanged() {
     if (!mounted || !_node.canRequestFocus) return;
     final FocusNode? focused = FocusManager.instance.primaryFocus;
-    if (focused == null || focused is FocusScopeNode) {
+    if (identical(focused, _node)) return;
+    if (focused == null ||
+        identical(focused, widget.takesFocusFrom) ||
+        (focused is FocusScopeNode && _node.ancestors.contains(focused))) {
       _node.requestFocus();
     }
   }
