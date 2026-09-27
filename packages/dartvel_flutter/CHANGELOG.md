@@ -1,4 +1,15 @@
-## Unreleased
+## 0.7.0
+
+- **Breaking: `DV.Platform.Tray.show(icon:)` takes a generated asset.** The
+  icon is a `DVAssetRef`, the `DVAsset` value `dartvel routes` generates,
+  instead of a path string, so a renamed or unlisted icon is a compile error
+  rather than an empty tray slot. An asset that is not an image is refused
+  with an `ArgumentError` naming it. Rewrite `icon: 'assets/tray.png'` as
+  `icon: DVAsset.tray`.
+
+- **Fixed: a shared-store value spilled to file storage that fails to open
+  reads as unreadable** (`null`), like any other unreadable value, instead
+  of throwing.
 
 - **The browser's own find reaches a page on the web.** Ctrl+F, and "Find
   in page" on a phone, find text on a `DVPageShell` page and scroll the

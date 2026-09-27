@@ -371,7 +371,7 @@ final cors = CorsOptions(
 that category, and `exposeHeaders` and `allowCredentials` are also available.
 Credentials cannot be combined with any origin.
 
-The `ignore_for_file` line is needed in 0.7.0. `CorsOptions` has two
+The `ignore_for_file` line is needed in 0.8.0. `CorsOptions` has two
 definitions behind a conditional export, one for platforms with `dart:ffi` and
 a stub for the web, and the analyzer (and so your IDE and the API reference)
 reads the stub, whose fields are named differently (`allowedOrigins`,
@@ -498,7 +498,7 @@ behaves; see [Routing](#routing).
 **Requests hang for a minute and then get 504.** A handler is awaiting
 something that never completes. Lower `requestTimeout` to find it sooner.
 
-## Known limitations in 0.7.0
+## Known limitations in 0.8.0
 
 - No HTTP/2 over TLS (see above).
 - Some configuration is process-wide rather than per server. If you start more

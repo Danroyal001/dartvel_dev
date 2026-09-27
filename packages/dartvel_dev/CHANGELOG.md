@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.0
 
 - **`dartvel_database.dart` exports the cache adapters again.** It showed
   `DVCacheAdapter`, `DVMemoryCacheAdapter` and `DVDatabaseCacheAdapter` from
