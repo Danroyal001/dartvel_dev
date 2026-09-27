@@ -142,8 +142,17 @@ class DVCronSchedule {
   /// 31st of February parses fine and occurs never, and an unbounded search
   /// hangs the process rather than reporting it.
   DateTime? nextAfter(DateTime from) {
+    // In the zone [from] is in. A UTC clock gets UTC minutes back; rebuilt
+    // in the host's zone, 02:59:30Z became 03:00 local, which east of
+    // Greenwich is hours before now, so every tick found an occurrence due.
+    DateTime at(int year,
+            [int month = 1, int day = 1, int hour = 0, int minute = 0]) =>
+        from.isUtc
+            ? DateTime.utc(year, month, day, hour, minute)
+            : DateTime(year, month, day, hour, minute);
+
     // Minute resolution, so start at the next whole minute.
-    var candidate = DateTime(
+    var candidate = at(
       from.year,
       from.month,
       from.day,
@@ -154,23 +163,23 @@ class DVCronSchedule {
     // Five years of minutes is far past any real schedule, and the day-level
     // skip below means most of these iterations never happen. The 29th of
     // February needs four years of headroom on its own.
-    final DateTime limit = DateTime(from.year + 5, from.month, from.day);
+    final DateTime limit = at(from.year + 5, from.month, from.day);
 
     while (candidate.isBefore(limit)) {
       if (!_months.contains(candidate.month)) {
         // Skip to the first of the next month rather than a minute at a time.
         candidate = candidate.month == 12
-            ? DateTime(candidate.year + 1, 1, 1)
-            : DateTime(candidate.year, candidate.month + 1, 1);
+            ? at(candidate.year + 1, 1, 1)
+            : at(candidate.year, candidate.month + 1, 1);
         continue;
       }
       if (!_dayMatches(candidate)) {
-        candidate = DateTime(candidate.year, candidate.month, candidate.day)
+        candidate = at(candidate.year, candidate.month, candidate.day)
             .add(const Duration(days: 1));
         continue;
       }
       if (!_hours.contains(candidate.hour)) {
-        candidate = DateTime(
+        candidate = at(
           candidate.year,
           candidate.month,
           candidate.day,
