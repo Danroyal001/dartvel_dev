@@ -247,10 +247,10 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'Browser',
               'Backend',
             ], rows: <List<String>>[
-              <String>['Dart package', 'the package', 'the package, unless it needs dart:io', 'the package, unless it needs Flutter'],
-              <String>['npm package', '--elsewhere', 'dynamic import() of the bundled package', 'Node, one process per call'],
-              <String>['C library, Rust crate', '@Native, built by the module\'s hook', '--elsewhere', '@Native, built by the hook'],
-              <String>['WebAssembly binary', '--elsewhere', 'WebAssembly.instantiate', 'Node\'s WebAssembly'],
+              <String>['Dart package', 'the package', 'the package; one that needs dart:io runs on the backend over generated RPC', 'the package, unless it needs Flutter'],
+              <String>['npm package', 'Node bundled beside a desktop app; phones not yet', 'dynamic import() of the bundled package', 'Node, one process per call'],
+              <String>['C library, Rust crate', '@Native, built by the module\'s hook', 'the same sources compiled to WebAssembly, for functions of numbers', '@Native, built by the hook'],
+              <String>['WebAssembly binary', 'Node bundled beside a desktop app; phones not yet', 'WebAssembly.instantiate', 'Node\'s WebAssembly'],
               <String>['Maven artifact or jar', 'JNI through package:jni, Android only', '--elsewhere', '--elsewhere'],
               <String>['Swift package or pod', 'C-ABI shim built by the hook, iOS and macOS', '--elsewhere', '--elsewhere'],
             ]),
@@ -264,10 +264,15 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'is listed in the module\'s README with the reason: a '
                   'callback, a generic, an instance method, or a pointer whose '
                   'owner nobody named (DV-BIND-003).',
-              '--elsewhere unavailable, the default, makes a call from an '
-                  'environment the source cannot reach throw DVModuleUnavailable '
-                  'naming the module, the call and the environment. --elsewhere '
-                  'noop makes it do nothing instead.',
+              'Where a source cannot run but the backend can, an asynchronous '
+                  'call crosses to the backend, and the build asks who may make '
+                  'it: dartvel.modules.<id>.backendPolicy names a policy, or '
+                  'public (DV-MODULE-021 when it is missing), because the call '
+                  'runs with the server\'s authority.',
+              '--elsewhere unavailable makes a call from an environment the '
+                  'source cannot reach throw DVModuleUnavailable naming the '
+                  'module, the call and the environment, instead of crossing to '
+                  'the backend. --elsewhere noop makes it do nothing.',
               'dartvel build refuses a call it can see reaching an unavailable '
                   'operation (DV-MODULE-013), and a call from a target the '
                   'module does not run on (DV-MODULE-014).',
@@ -275,7 +280,10 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'generated module and the generator version. dartvel inspect '
                   'modules reports a module edited by hand (DV-MODULE-016).',
               'npm and WebAssembly calls on the backend need Node on the host '
-                  '(DV-MODULE-020 when it is missing). Building a C library needs '
+                  '(DV-MODULE-020 when it is missing); dartvel build copies Node '
+                  'into a desktop bundle that calls one. Compiling C for the '
+                  'browser needs clang and a wasm-ld (a Rust toolchain carries '
+                  'one), and a crate needs the wasm32-unknown-unknown target. Building a C library needs '
                   'a C compiler, a crate needs cargo, and a Swift package or '
                   'pod needs Xcode.',
             ]),
