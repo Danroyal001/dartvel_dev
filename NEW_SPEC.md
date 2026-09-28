@@ -11850,6 +11850,47 @@ for the capability to exist there.
 The deployment modes are unchanged — `embedded`, `split-backend`, `federated`,
 `backend-only` — and no `native-wrapper` mode is introduced.
 
+## The placement matrix
+
+Every kind of source reaches every platform Dartvel builds for. What differs
+is the carrier: the form the same source takes where it runs. The table is
+the contract `dartvel add` generates against. The build picks the first
+carrier in a cell that it can produce for the target, and reports the one it
+chose.
+
+| Source | Android / iOS | Desktop (Linux, macOS, Windows) | Web | Backend |
+|---|---|---|---|---|
+| Dart package, pure | the package | the package | the package | the package |
+| Dart package needing `dart:io` | the package | the package | backend over RPC | the package |
+| npm | embedded Node (nodejs-mobile) | bundled Node binary | ES `import()`; Node compiled to WASM when it needs Node APIs | Node |
+| C / C++ | FFI (`.so`, `.a`, `.xcframework`) | FFI (`.so`, `.dylib`, `.dll`) | WASM (clang `wasm32`, wasi-sdk or emscripten) | linked into the server, FFI |
+| Rust | FFI (`.so`, `.a`, `.xcframework`) | FFI (`.so`, `.dylib`, `.dll`) | WASM (`wasm32-unknown-unknown`) | linked into the server, FFI |
+| JVM (maven, jar) | JNI on Android; GraalVM native-image library on iOS | JNI into a bundled runtime (jlink), or a GraalVM native-image library | TeaVM or CheerpJ; else backend over RPC | JNI into a bundled runtime, or native-image |
+| Swift, CocoaPods | Apple native on iOS; the Swift SDK for Android | Apple native on macOS; the Swift toolchain on Linux and Windows | SwiftWasm; else backend over RPC | the Swift toolchain |
+| WASM | an embedded WASM runtime (wasmtime, wasm3) | an embedded WASM runtime | the browser's `WebAssembly` | Node's `WebAssembly`, or an embedded runtime |
+
+Three rules make the table honest:
+
+- **Backend over RPC is the carrier of last resort, and it is generated.**
+  Where a source cannot run in the calling environment but can on the
+  backend, the operation is declared `{ compat: backend }` and the module
+  generates both halves: a client carrier that sends the call to the
+  application's own backend, and a route there that decodes the arguments,
+  runs the real implementation and returns the result. The call site does
+  not change. The route is refused unless the application names a `backendPolicy:` for the module
+  -- a `DVPolicies` name, or `public` said out loud -- because the backend
+  runs the operation with the server's authority, not the caller's.
+- **Refusal is the last resort, and it names what blocks it.** A module is
+  refused on a platform only where no carrier in its cell can be produced
+  and no backend is reachable, and the refusal names the exact API that
+  blocks it (`UIKit`, `android.content.Context`), never just the platform.
+- **`--elsewhere` is still an opt-out**, for an application that would
+  rather a call fail than cross to the backend.
+
+A cell the build cannot yet produce is reported as that cell, not as the
+source being unsupported. Which cells are built is recorded in
+`docs/spec-status.json` under Module Sources.
+
 ## Compatibility, degradation, and nothing in between
 
 For every environment a module is actually called from, the build produces
@@ -12199,6 +12240,7 @@ build-time wherever it can be.
 | `DV-MODULE-016` | a generated wrapper was hand-edited; changes will be lost | `warning` |
 | `DV-MODULE-017` | `compat` is declared but no compatibility path can be generated | build `error` |
 | `DV-MODULE-020` | an ambient requirement cannot be satisfied on a declared target | build `error` |
+| `DV-MODULE-021` | an operation is carried to the backend over RPC and the module names no `backendPolicy`; at run time, a call the backend does not carry | build `error` |
 
 ## Deliberately absent
 

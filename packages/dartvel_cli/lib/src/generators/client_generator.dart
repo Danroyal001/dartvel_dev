@@ -705,7 +705,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
 ${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
@@ -718,7 +718,7 @@ import 'models.g.dart' show registerDartvelModels;
 import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 import 'policies.g.dart' show dartvelRegisterPolicies;
-import 'functions.g.dart' show DartvelClient;
+import 'functions.g.dart' show DartvelClient, dvModuleRpcSend;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -765,6 +765,8 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // project that declared its gateway in pubspec.yaml otherwise met
   // DV-HTTP-001 on its first DV.Http request.
   configureDartvelHttp();
+  // A module call carried to the backend goes the way every other call does.
+  DVModuleRpc.transport = dvModuleRpcSend;
   // What this application's @DVHomeWidget declarations are. The list was
   // generated, exported from the barrel and read by nothing -- so
   // DVHomeWidgets.publish took any string at all, and a misspelled id wrote
