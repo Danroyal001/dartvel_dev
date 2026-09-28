@@ -296,7 +296,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '                      (defaults to on)',
       '    --[no-]desktop    Include desktop platforms',
       '    --[no-]ssr        Enable SSR/SSG features',
-      '-n, --name            Project name',
+      '    --project-name    The package name, when it should differ from the folder\'s. Lowercase with underscores, as `flutter create` requires.',
       '-o, --org             Organization domain',
       '                      (defaults to "com.example")',
     ],
