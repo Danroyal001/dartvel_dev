@@ -30,6 +30,8 @@ import '../modules/described_api.dart';
 import '../modules/foreign/dart_package_module.dart';
 import '../modules/foreign/dart_surface.dart';
 import '../modules/foreign/module_writer.dart';
+import '../modules/foreign/npm_module.dart';
+import '../modules/foreign/npm_surface.dart';
 import '../modules/foreign/resolver.dart';
 import '../modules/graphql_module.dart';
 import '../modules/openapi_module.dart';
@@ -209,7 +211,12 @@ class AddCommand extends Command<void> {
   }
 
   /// The schemes a foreign source is resolved from here.
-  static const List<String> foreignSchemes = <String>['pub:', 'git:', 'path:'];
+  static const List<String> foreignSchemes = <String>[
+    'pub:',
+    'git:',
+    'path:',
+    'npm:',
+  ];
 
   /// Whether [source] names a foreign source this command generates a
   /// module from.
@@ -231,34 +238,26 @@ class AddCommand extends Command<void> {
     DVSourceFetcher fetcher = const DVSourceFetcher(),
   }) async {
     final DVResolvedSource resolved;
-    final DVDartSurface surface;
+    final DVForeignModuleSpec Function(String id) specFor;
     try {
-      resolved = await dvResolveDartSource(
-        root,
-        source.startsWith('path:') ? source.substring(5) : source,
-        fetcher: fetcher,
-      );
-      surface = dvScanDartPackage(resolved.directory);
+      (resolved, specFor) =
+          await _resolveForeign(root, source, elsewhere, fetcher);
     } on DVSourceUnresolved catch (e) {
       throw DVAddRefused(e.message);
     } on DVDartSurfaceRefused catch (e) {
       throw DVAddRefused(e.message);
     }
 
-    final String moduleId = id ?? dvCamel(resolved.name);
+    // The package's own name, less an npm scope: @acme/text-kit is textKit.
+    final String moduleId =
+        id ?? dvCamel(resolved.name.replaceFirst(RegExp(r'^@[^/]+/'), ''));
     if (_modulesOf(root).containsKey(moduleId)) {
       throw DVAddRefused(
         'DV-MODULE-011: dartvel.modules.$moduleId is already mounted. '
         'Nothing was written: remove it first, or pass --as with another id.',
       );
     }
-    final DVForeignModuleSpec spec = dvDartPackageModuleSpec(
-      id: moduleId,
-      source: resolved.descriptor,
-      surface: surface,
-      dependency: resolved.dependency,
-      elsewhere: elsewhere,
-    );
+    final DVForeignModuleSpec spec = specFor(moduleId);
     final DVGeneratedModule module;
     try {
       module = dvWriteForeignModule(spec);
@@ -297,6 +296,46 @@ class AddCommand extends Command<void> {
         resolvedFrom: resolved.resolvedFrom,
         targets: const <String>['backend', 'native', 'web'],
       ),
+    );
+  }
+
+
+  /// Stages 1 to 9 for one scheme: the fetched source, and how to make the
+  /// module spec once its id is known.
+  static Future<(DVResolvedSource, DVForeignModuleSpec Function(String))>
+      _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
+          DVSourceFetcher fetcher) async {
+    if (source.startsWith('npm:')) {
+      final DVResolvedSource resolved =
+          await dvResolveNpmSource(root, source.substring(4), fetcher: fetcher);
+      final DVNpmSurface surface = dvScanNpmPackage(resolved.directory);
+      final DVNpmBundles bundles = await dvBundleNpm(surface, fetcher: fetcher);
+      return (
+        resolved,
+        (String id) => dvNpmModuleSpec(
+              id: id,
+              source: resolved.descriptor,
+              surface: surface,
+              bundles: bundles,
+              elsewhere: elsewhere,
+            ),
+      );
+    }
+    final DVResolvedSource resolved = await dvResolveDartSource(
+      root,
+      source.startsWith('path:') ? source.substring(5) : source,
+      fetcher: fetcher,
+    );
+    final DVDartSurface surface = dvScanDartPackage(resolved.directory);
+    return (
+      resolved,
+      (String id) => dvDartPackageModuleSpec(
+            id: id,
+            source: resolved.descriptor,
+            surface: surface,
+            dependency: resolved.dependency,
+            elsewhere: elsewhere,
+          ),
     );
   }
 
