@@ -483,16 +483,23 @@ Widget buildDartvelAdminTelemetryPage(BuildContext context) => DVBox(
 
   static const String _studioPage = '''
 import '../../dartvel_client/dartvel_client.dart';
+import '../../dartvel_client/model_pages.g.dart' show dartvelStudioModels;
 import 'package:flutter/widgets.dart';
 
 @DVPage(title: 'Dartvel Studio', path: '/_dartvel_admin/studio', policy: DVPolicies.viewAdmin)
 @pragma('vm:entry-point')
 Widget _dartvelAdminStudioPage(BuildContext context) => buildDartvelAdminStudioPage(context);
 
-/// The page builder itself. DVStudioScreen is a tested widget in
-/// dartvel_flutter rather than source emitted here, so what the generator
-/// writes cannot drift from the editor it opens.
-Widget buildDartvelAdminStudioPage(BuildContext context) => const DVStudioScreen();
+/// Studio itself, over this application's own routes and data models: the
+/// generated route manifest lists every page, the generated specs every
+/// model, and a compiled page is previewed as its route builds it. What the
+/// generator writes is one call to a tested widget in dartvel_flutter, so
+/// it cannot drift from the Studio it opens.
+Widget buildDartvelAdminStudioPage(BuildContext context) => const DVStudioInApp(
+      routes: dartvelRouteManifest,
+      models: dartvelStudioModels,
+      preview: dartvelPagePreview,
+    );
 ''';
 
   static const String _queuesPage = '''

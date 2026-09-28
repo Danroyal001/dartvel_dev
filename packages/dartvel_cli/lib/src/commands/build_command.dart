@@ -3497,6 +3497,16 @@ class BuildCommand extends Command<void> {
     for (final MapEntry<String, String> file in files.entries) {
       File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
     }
+    // Each page's captured structure, so Studio opens a compiled page as
+    // what it is made of rather than as an empty canvas.
+    final int structures = dvCopyPageStructures(
+      semantics: p.join(root, '.dart_tool', 'dartvel_semantics'),
+      adminRoot: adminRoot.path,
+    );
+    if (structures > 0) {
+      Logger.log('   Studio can open $structures compiled pages by their '
+          'structure.');
+    }
 
     // Studio itself, over the manifest: DVStudioApp compiled for the mount,
     // reading records, pages and grants from the backend that serves it.
