@@ -12,6 +12,7 @@ import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
+        DVModuleEnvironment,
         DVHomeWidgetSpec,
         DVBuildLifecycle,
         DVImageVariants,
@@ -34,6 +35,7 @@ import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
+import '../build/module_call_check.dart';
 import '../build/device_profile_check.dart';
 import '../build/pwa_icons.dart';
 import '../build/pwa_manifest.dart';
@@ -758,6 +760,24 @@ class BuildCommand extends Command<void> {
         Logger.log(line);
       }
       Logger.log('   Run `dartvel doctor` for the whole picture.');
+      exit(78); // EX_CONFIG
+    }
+
+    // A call the build can see reaching a module operation declared
+    // unavailable, or declaring nothing, where this build runs.
+    final DVModuleCallCheck moduleCalls = DVModuleCallCheck.run(root, <DVModuleEnvironment>{
+      for (final String platform in platforms)
+        platform == 'web'
+            ? DVModuleEnvironment.web
+            : (platform == 'server' || platform == 'backend')
+                ? DVModuleEnvironment.backend
+                : DVModuleEnvironment.native,
+    });
+    if (!moduleCalls.ok) {
+      Logger.log('❌ This build calls a module where it cannot run:');
+      for (final String line in moduleCalls.lines) {
+        Logger.log(line);
+      }
       exit(78); // EX_CONFIG
     }
 
