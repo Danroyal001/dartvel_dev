@@ -265,7 +265,7 @@ Future<ServerHandle> serve(
       // page served to every browser was not there.
       if (resp.status == 404 && req.method == 'HEAD') {
         final page = await handleSsrFallback(req, spaRoot,
-            pageData: pageData, pageStore: pageStore);
+            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
         return Response(page.status,
             headers: page.headers, body: const Stream<List<int>>.empty());
       }
