@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../components/password_manager_demo.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
@@ -40,6 +41,28 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
                   'sit beside it.',
             ]),
             DocsCode('auth-sign-up-out'),
+          ],
+        ),
+        DocsSection(
+          id: 'password-managers',
+          title: 'Password managers save and fill the sign-in page',
+          children: <Widget>[
+            DocsText('The prebuilt sign-in and sign-up pages work with the '
+                'browser\'s password manager, and with 1Password, Bitwarden, '
+                'iCloud Keychain and Google Password Manager on phones.'),
+            Bullets(<String>[
+              'The email and password fields are one form, marked as a '
+                  'username and a password, so a manager recognises them and '
+                  'fills them.',
+              'Enter in the password field signs in.',
+              'The manager is asked to save the password only after the '
+                  'server accepts it. A wrong password is never offered for '
+                  'saving, and leaving the page saves nothing.',
+            ]),
+            DocsText('Try it: if your browser has a saved password for any '
+                'site, click the email field below. This demo signs nobody in, '
+                'so it never asks to save.'),
+            PasswordManagerDemo(),
           ],
         ),
         DocsSection(
