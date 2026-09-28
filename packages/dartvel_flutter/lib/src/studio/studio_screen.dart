@@ -10,6 +10,7 @@ import 'package:flutter/material.dart'
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import 'studio_command_palette.dart';
 import 'studio_flags.dart';
 import 'studio_formula.dart';
 import 'studio_formula_bar.dart';
@@ -208,6 +209,32 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     // sections move to a bar along the bottom, where a thumb reaches them.
     final bool phone =
         (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < dvStudioPhoneWidth;
+    // Ctrl+K (Cmd+K) over all of it. The sections are here; each section
+    // adds what can be done inside it while it is on screen.
+    return DVStudioCommandScope(
+      child: Builder(builder: (BuildContext inner) {
+        DVStudioCommandScope.provide(inner, this, () => <DVStudioCommand>[
+              for (final DVStudioSection section in sections)
+                DVStudioCommand(
+                  id: 'go-${section.id}',
+                  title: 'Go to ${section.label}',
+                  group: 'Go to',
+                  run: () => setState(() => _selected = section.id),
+                ),
+              DVStudioCommand(
+                id: 'shortcuts',
+                title: 'Keyboard shortcuts',
+                group: 'Help',
+                keywords: const <String>['keys', 'help'],
+                run: () => unawaited(dvShowStudioShortcuts(inner)),
+              ),
+            ]);
+        return _frame(sections, body, phone);
+      }),
+    );
+  }
+
+  Widget _frame(List<DVStudioSection> sections, Widget body, bool phone) {
     return Material(
       color: DVStudioStyle.canvas,
       child: phone
@@ -1227,7 +1254,76 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   // --- editor ---------------------------------------------------------------
 
+  /// What the command palette offers while a page is open: its pages, what
+  /// can be done to the page and the selected element, every element by
+  /// name, and every element that can be inserted.
+  List<DVStudioCommand> _commands(DVStudioEditorController controller) {
+    final DVPageDocument document = controller.document;
+    final String? selected = controller.selectedId;
+    final bool editable = !controller.readOnly;
+    final List<DVPageNode> nodes = <DVPageNode>[];
+    void walk(DVPageNode n) {
+      nodes.add(n);
+      n.children.forEach(walk);
+    }
+
+    walk(document.root);
+    return <DVStudioCommand>[
+      for (final String route in _routes)
+        if (route != document.route)
+          DVStudioCommand(
+            id: 'open-$route',
+            title: 'Open page $route',
+            group: 'Page',
+            run: () => unawaited(_open(route)),
+          ),
+      if (editable && controller.canUndo)
+        DVStudioCommand(
+            id: 'undo', title: 'Undo', group: 'Edit', shortcut: 'Ctrl+Z',
+            run: controller.undo),
+      if (editable && controller.canRedo)
+        DVStudioCommand(
+            id: 'redo', title: 'Redo', group: 'Edit', shortcut: 'Ctrl+Shift+Z',
+            run: controller.redo),
+      if (editable && selected != null && selected != document.root.id) ...<DVStudioCommand>[
+        DVStudioCommand(
+            id: 'duplicate', title: 'Duplicate element', group: 'Element',
+            shortcut: 'Ctrl+D', run: () => controller.duplicate(selected)),
+        DVStudioCommand(
+            id: 'delete', title: 'Delete element', group: 'Element',
+            shortcut: 'Delete', run: () => controller.remove(selected)),
+      ],
+      DVStudioCommand(
+        id: 'code',
+        title: _showingCode ? 'Hide the code' : 'Show the code',
+        group: 'Page',
+        keywords: const <String>['source', 'export', 'dart'],
+        run: () => setState(() => _showingCode = !_showingCode),
+      ),
+      for (final DVPageNode node in nodes)
+        if (node.id != document.root.id)
+          DVStudioCommand(
+            id: 'select-${node.id}',
+            title: 'Select ${dvStudioNodeTitle(node, document)}',
+            group: 'Element',
+            run: () => controller.select(node.id),
+          ),
+      if (editable)
+        for (final DVStudioPaletteItem item in widget.palette.isEmpty
+            ? DVStudioPaletteItem.defaults
+            : widget.palette)
+          DVStudioCommand(
+            id: 'insert-${item.label}',
+            title: 'Insert ${item.label}',
+            group: 'Insert',
+            run: () => controller.insert(item.create(),
+                parent: dvStudioInsertTarget(controller)),
+          ),
+    ];
+  }
+
   Widget _editor(DVStudioEditorController controller) {
+    DVStudioCommandScope.provide(context, this, () => _commands(controller));
     final bool narrow = _narrow;
     final StudioReviewSession? review = _review;
     final Widget editor = Column(
