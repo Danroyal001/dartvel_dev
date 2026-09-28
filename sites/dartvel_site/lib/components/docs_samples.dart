@@ -896,6 +896,14 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '',
     'Widget articlePage(Article article) => Article.Page.sync(article);',
   ],
+  'modules-dart-package': <String>[
+    '// dartvel add pub:slugify wrote modules/dv_slugify_module, and the',
+    '// parent calls it through the one surface it already has.',
+    'Future<void> publish(Article article) async {',
+    '  final String slug = DV.Modules.slugify.slugify(article.title);',
+    '  await article.copyWith(slug: slug).save();',
+    '}',
+  ],
   'modules-native-ffi': <String>[
     '// modules/payments/lib/payments.dart',
     'import \'dart:ffi\';',
