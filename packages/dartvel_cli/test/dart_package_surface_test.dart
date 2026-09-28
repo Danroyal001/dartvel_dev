@@ -130,6 +130,15 @@ const int defaultWidth = 4;
     expect((adaptive.native, adaptive.web, adaptive.backend), (true, true, true));
   });
 
+  test('an apostrophe in a doc comment is prose, not a string', () {
+    final DVDartSurface surface = dvScanDartPackage(package(<String, String>{
+      'lib/textkit.dart': "/// The platform's own separator.\nString sep() => '/';\n"
+          'int two() => 2;\n',
+    }).path);
+    expect(surface.operations.map((DVModuleOperation o) => o.name),
+        <String>['sep', 'two']);
+  });
+
   test('a package with no library of its own name has no surface', () {
     expect(
       () => dvScanDartPackage(package(<String, String>{'lib/other.dart': ''}).path),
