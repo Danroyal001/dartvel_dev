@@ -1,3 +1,9 @@
+## Unreleased
+
+- `DVModuleEnvironment`, `DVModuleOutcome` and `DVModuleUnavailable`: the
+  environment a generated module was compiled for, the four outcomes it
+  declares, and the failure an unavailable operation throws (DV-MODULE-013).
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no
