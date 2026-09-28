@@ -8,7 +8,7 @@
 // the deployment that most needs it, and the page validated cleanly while
 // saying the wrong thing.
 import 'package:dartvel_cli/src/build/static_generation.dart';
-import 'package:dartvel_cli/src/build/structured_data.dart';
+import 'package:dartvel_core/dartvel.dart' show dvStructuredData;
 import 'package:test/test.dart';
 
 const String generated = '''

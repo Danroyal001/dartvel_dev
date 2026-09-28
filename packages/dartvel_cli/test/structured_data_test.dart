@@ -7,7 +7,7 @@
 // search box.
 import 'dart:convert';
 
-import 'package:dartvel_cli/src/build/structured_data.dart';
+import 'package:dartvel_core/dartvel.dart' show dvStructuredData;
 import 'package:test/test.dart';
 
 List<Map<String, Object?>> parse(String html) {

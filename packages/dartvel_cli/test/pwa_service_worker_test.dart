@@ -152,6 +152,43 @@ void main() {
     });
   });
 
+  group('what it leaves to the browser', () {
+    // A site worker registered at / controls Studio too. It cached Studio's
+    // API answers cache-first, so a record edited in Studio showed its old
+    // value until the next deploy, and a /__studio/api request answered
+    // with the site shell while signed out was served from the cache after
+    // signing in. Studio and the API are not assets.
+    String worker() => dvServiceWorker(
+          buildId: 'b',
+          precache: const <String>['/'],
+          adminPath: '/__studio',
+          apiBasePath: '/api',
+        );
+
+    test('every request under the Studio mount, before anything else', () {
+      final String w = worker();
+      final int guard = w.indexOf('const ADMIN = "/__studio";');
+      final int check = w.indexOf('if (ADMIN && (url.pathname === ADMIN || url.pathname.startsWith(ADMIN + "/"))) return;');
+      expect(guard, greaterThan(-1));
+      expect(check, greaterThan(-1));
+      expect(check, lessThan(w.indexOf('event.respondWith')),
+          reason: 'a Studio request, even a POST, never reaches the outbox or the cache');
+    });
+
+    test('GETs to the API, which are answers and not assets', () {
+      final String w = worker();
+      final int check = w.indexOf('if (API && request.method === "GET" && (url.pathname === API || url.pathname.startsWith(API + "/"))) return;');
+      expect(check, greaterThan(-1));
+      expect(check, lessThan(w.indexOf('caches.match(request).then((cached) => cached ||')));
+    });
+
+    test('nothing, when there is no mount and no API', () {
+      final String w = dvServiceWorker(buildId: 'b', precache: const <String>[]);
+      expect(w, contains('const ADMIN = null;'));
+      expect(w, contains('const API = null;'));
+    });
+  });
+
   test('one replay at a time: a sync event and the replay message arriving together send once', () {
     // Found in Chrome on CI: both arrived when the network came back, both
     // read the outbox before either had deleted from it, and the server got
