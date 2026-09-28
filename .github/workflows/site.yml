@@ -201,7 +201,7 @@ jobs:
   # dartvel.dev is served by the web-server binary, not by the static bundle
   # above, so the binary is built and asked too: every sitemap page rendered
   # on the server with its title, description and crawler text, HEAD / a
-  # 200, an anonymous /__studio answered as a path nobody serves, and the
+  # 200, a signed-out /__studio sent to /__studio/login, and the
   # image endpoint resizing. The deploy itself runs on the server with
   # tool/deploy_site_server.sh, which runs the same check.
   web-server:

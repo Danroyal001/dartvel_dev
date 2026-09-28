@@ -23,13 +23,11 @@ On the server:
 The nginx server block and the systemd unit are in `deploy/`.
 
 Studio is at `/__studio`. `dartvel.admin.enabled: true` in `pubspec.yaml` puts
-it in the release build, and it opens only for a signed-in person granted
-`Studio.access`. Everybody else gets the same 404 as any path the site does not
-serve. On dartvel.dev nginx sends a request with no session cookie at all to
-`/login?from=/__studio` instead, and the sign-in page loads Studio from the
-server once it succeeds. The site's one account
-page is the sign-in at `/login`; there is no sign-up page, and nginx refuses
-`/api/auth/sign-up`, so nobody else can make an account here.
+it in the release build. Studio signs people in itself at `/__studio/login`,
+and a signed-out visit to a Studio page is sent there; it opens only for a
+person granted `Studio.access`. The site serves no account pages of its own,
+and nginx refuses `/api/auth/sign-up`, so nobody else can make an account
+here.
 
 Granting and revoking, on the server:
 
@@ -51,8 +49,8 @@ tool/deploy_site_server.sh --rollback    # back to the previous release
 
 The script signals the unit's main process and systemd starts it again on the
 new binary, so it needs no sudo. It then checks that the home page and
-`/studio` render on the server, that `sitemap.xml` is served and that an
-anonymous `/__studio/` answers 404, and swaps the previous release back in if
+`/studio` render on the server, that `sitemap.xml` is served and that a
+signed-out `/__studio/` is sent to `/__studio/login`, and swaps the previous release back in if
 any of that fails.
 
 The static bundle the site used to be served from is still at
@@ -63,8 +61,8 @@ is `/etc/nginx/sites-available/dartvel.dev.static.conf`.
 
 `.github/workflows/site.yml` builds the static bundle, checks every page's
 crawler text and photographs every page, publishes that bundle to GitHub Pages,
-and builds the web-server binary and checks that it renders pages and refuses
-an anonymous Studio.
+and builds the web-server binary and checks that it renders pages and sends
+a signed-out visitor at Studio's own sign-in.
 
 ## Working on it
 

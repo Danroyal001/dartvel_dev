@@ -65,11 +65,12 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           '',
           r'$ dartvel build web-server',
           r'$ dartvel admin grant <user-id> --database dartvel_data/data.db',
-          '# sign in to your app, then open https://your-host/__studio',
+          '# open https://your-host/__studio and sign in there',
         ]),
         Bullets(<String>[
-          'Only people you grant can open it. A visitor who is not signed in '
-              'gets the same answer as a page that does not exist.',
+          'Only people you grant can open it. Studio has its own sign-in at '
+              '/__studio/login, so it opens even with your app\'s account '
+              'pages turned off.',
           'Edit model records in a form. An edit made against a row that '
               'changed after you opened it is refused.',
           'Studio fits a phone: sections move to a bar along the bottom, and '
