@@ -19,7 +19,7 @@ void main() {
 
       DV.lifecycle.setApp(DVAppLifecycle.booting);
       DV.lifecycle.setApp(DVAppLifecycle.ready);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <DVAppLifecycle>[
         DVAppLifecycle.booting,

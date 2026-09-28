@@ -44,7 +44,7 @@ Widget window(
   view.devicePixelRatio = 1;
   return MediaQuery(
     data: MediaQueryData(size: size, displayFeatures: features),
-    child: Directionality(textDirection: TextDirection.ltr, child: child),
+    child: Directionality(textDirection: .ltr, child: child),
   );
 }
 

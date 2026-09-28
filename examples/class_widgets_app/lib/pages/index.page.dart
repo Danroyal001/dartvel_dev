@@ -17,7 +17,7 @@ Widget _indexPage(BuildContext context) => (() {
           Button('Docs', () {}),
           Button('GitHub', () {}),
         ], spacing: 12),
-      ]).modifier(const DVModifier().padding(24).align(Alignment.center));
+      ]).modifier(const DVModifier().padding(24).align(.center));
     })();
 
 final titleStyle = const DVModifier()

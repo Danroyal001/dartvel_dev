@@ -27,9 +27,9 @@ Future<ImageProvider> providerIn(
     MediaQuery(
       data: MediaQueryData(devicePixelRatio: devicePixelRatio),
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Align(
-          alignment: Alignment.topLeft,
+          alignment: .topLeft,
           child: SizedBox(width: slot, child: DVImageView(image)),
         ),
       ),
@@ -111,7 +111,7 @@ void main() {
         const MediaQuery(
           data: MediaQueryData(),
           child: Directionality(
-            textDirection: TextDirection.ltr,
+            textDirection: .ltr,
             child: Row(children: <Widget>[
               DVImageView(DVImage.asset('assets/hero.png', width: 100)),
             ]),

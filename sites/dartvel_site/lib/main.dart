@@ -13,7 +13,7 @@ void main() {
 Widget createDartvelApp() => MaterialApp.router(
       title: 'Dartvel: the full-stack platform for Flutter in one Dart project',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: .system,
       theme: dartvelSiteTheme(Brightness.light),
       darkTheme: dartvelSiteTheme(Brightness.dark),
       scrollBehavior: const DartvelSiteScrollBehavior(),

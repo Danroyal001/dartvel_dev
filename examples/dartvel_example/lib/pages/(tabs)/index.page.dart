@@ -54,7 +54,7 @@ Widget _shopPage(BuildContext context) => (() {
               selectedColor: p.accentSoft,
               labelStyle: TextStyle(
                 color: roast.value == option ? p.ink : p.inkMuted,
-                fontWeight: FontWeight.w600,
+                fontWeight: .w600,
               ),
               onSelected: (_) => roast.value = option,
             ),

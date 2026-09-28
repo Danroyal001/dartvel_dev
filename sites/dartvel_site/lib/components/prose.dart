@@ -44,7 +44,7 @@ Widget _prose(
       (double step) => step < (style.fontSizeValue ?? 17),
       orElse: () => kTypeScale.first,
     ),
-    fontWeight: FontWeight.w500,
+    fontWeight: .w500,
     letterSpacing: 0,
     color: onDark ? Palette.deepInk : palette.ink,
     backgroundColor: (onDark ? Palette.deepAccent : palette.accent)

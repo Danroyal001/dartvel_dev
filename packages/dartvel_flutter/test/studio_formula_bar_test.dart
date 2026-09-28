@@ -62,7 +62,7 @@ void main() {
     expect(tester.widget<TextField>(input()).controller!.text, '"Welcome"');
 
     await tester.enterText(input(), '"Hello there"');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pump();
     expect(c.selectedNode!.properties['text'], 'Hello there');
 
@@ -81,7 +81,7 @@ void main() {
     expect(tester.widget<TextField>(input()).controller!.text, '18');
 
     await tester.enterText(input(), '=12 * 2');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pump();
     expect(c.selectedNode!.properties['fontSize'], 24);
   });
@@ -94,7 +94,7 @@ void main() {
     await tester.pump();
     await pickField(tester, 'color');
     await tester.enterText(input(), '#GG0000');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pump();
     expect(find.byKey(DVStudioFormulaBar.errorKey), findsOneWidget);
     expect(find.textContaining('A colour is'), findsOneWidget);

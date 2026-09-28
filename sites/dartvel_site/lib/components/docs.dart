@@ -377,7 +377,7 @@ Widget _docsArticle(
               Eyebrow((info?.group ?? 'Docs').toUpperCase()),
               Prose(info?.title ?? '', const DVModifier()
                   .fontSize(context.screen.value<double>(mobile: 30, desktop: 38))
-                  .fontWeight(FontWeight.w700)
+                  .fontWeight(.w700)
                   .color(palette.ink)
                   .lineHeight(1.15)
                   .semanticHeading(1)),
@@ -411,12 +411,12 @@ Widget _docsOnThisPage(BuildContext context,
       for (final DocsSection section in parts)
         Prose(section.title, const DVModifier()
             .fontSize(15)
-            .fontWeight(FontWeight.w600)
+            .fontWeight(.w600)
             .color(palette.accent)
             .paddingSymmetric(vertical: 5)
             .semanticButton()
             .onTap(() => dvDocsGoTo(context, section.id))),
-    ], spacing: 2, crossAlign: DVCrossAlign.start),
+    ], spacing: 2, crossAlign: .start),
     const DVModifier()
         .width(double.infinity)
         .padding(20)
@@ -437,12 +437,12 @@ Widget _docsSection(
   return DVBox.list(<Widget>[
     Prose(title, const DVModifier()
         .fontSize(context.screen.value<double>(mobile: 20, desktop: 24))
-        .fontWeight(FontWeight.w700)
+        .fontWeight(.w700)
         .color(palette.ink)
         .lineHeight(1.25)
         .semanticHeading(2)),
     ...children,
-  ], spacing: 16, crossAlign: DVCrossAlign.start);
+  ], spacing: 16, crossAlign: .start);
 }
 
 /// A smaller heading inside a section.
@@ -450,7 +450,7 @@ Widget _docsSection(
 Widget _docsSubheading(BuildContext context, String text) =>
     Prose(text, const DVModifier()
         .fontSize(17)
-        .fontWeight(FontWeight.w700)
+        .fontWeight(.w700)
         .color(Palette.of(context).ink)
         .semanticHeading(3));
 
@@ -549,7 +549,7 @@ Widget _docsNote(BuildContext context, String title, String text) {
     DVBox.list(<Widget>[
       Prose(title, const DVModifier()
           .fontSize(15)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(palette.ink)),
       Prose(text, const DVModifier()
           .fontSize(15)
@@ -593,7 +593,7 @@ Widget _docsStatus(
                     : 'Partial')
             .modifier(const DVModifier()
             .fontSize(12)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .color(partial ? palette.ink : palette.accent)
             .paddingSymmetric(horizontal: 9, vertical: 3)
             .backgroundColor(partial
@@ -602,9 +602,9 @@ Widget _docsStatus(
             .rounded(999)),
         DVText('Spec section: $section').modifier(const DVModifier()
             .fontSize(14)
-            .fontWeight(FontWeight.w600)
+            .fontWeight(.w600)
             .color(palette.muted)),
-      ], spacing: 10, crossAlign: DVCrossAlign.center),
+      ], spacing: 10, crossAlign: .center),
       if (gaps.isNotEmpty) Bullets(gaps),
     ], spacing: 12),
     const DVModifier()
@@ -632,7 +632,7 @@ Widget _docsTable(
         DVBox.list(<Widget>[
           Prose(row.first, const DVModifier()
               .fontSize(15)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .fontFamily('JetBrainsMono')
               .color(palette.ink)),
           for (int i = 1; i < row.length && i < heads.length; i++)
@@ -673,17 +673,17 @@ Widget _docsPagerLink(
   final Palette palette = Palette.of(context);
   return DVNavLink(
     to: page.target,
-    padding: EdgeInsets.zero,
+    padding: .zero,
     child: DVBox(
       DVBox.list(<Widget>[
         DVText(label.toUpperCase()).modifier(const DVModifier()
             .fontSize(12)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .letterSpacing(1.2)
             .color(palette.faint)),
         Prose(page.title, const DVModifier()
             .fontSize(17)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .color(palette.accent)),
         Prose(page.summary, 
             const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.4)),
@@ -730,7 +730,7 @@ Widget _docsNav(
                   Flexible(
                     child: DVText(group.toUpperCase()).modifier(const DVModifier()
                         .fontSize(13)
-                        .fontWeight(FontWeight.w700)
+                        .fontWeight(.w700)
                         .letterSpacing(1.2)
                         .color(openGroup.value == group
                             ? palette.ink
@@ -740,13 +740,13 @@ Widget _docsNav(
                     child: DVText(openGroup.value == group ? '−' : '+')
                         .modifier(const DVModifier()
                             .fontSize(17)
-                            .fontWeight(FontWeight.w600)
+                            .fontWeight(.w600)
                             .color(palette.faint)),
                   ),
                 ],
                     spacing: 12,
-                    align: DVAlign.spaceBetween,
-                    crossAlign: DVCrossAlign.center),
+                    align: .spaceBetween,
+                    crossAlign: .center),
                 const DVModifier()
                     .width(double.infinity)
                     .paddingSymmetric(vertical: 10)
@@ -758,7 +758,7 @@ Widget _docsNav(
         else
           DVText(group.toUpperCase()).modifier(const DVModifier()
               .fontSize(12)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .letterSpacing(1.2)
               .color(palette.faint)
               .semanticHeading(2)),
@@ -766,8 +766,8 @@ Widget _docsNav(
           for (final DocsPageInfo page in kDocsPages)
             if (page.group == group)
               DocsNavLink(page: page, active: page.path == current),
-      ], spacing: 2, crossAlign: DVCrossAlign.start),
-  ], spacing: fold ? 4 : 22, crossAlign: DVCrossAlign.start);
+      ], spacing: 2, crossAlign: .start),
+  ], spacing: fold ? 4 : 22, crossAlign: .start);
 }
 
 /// One link in the docs navigation.
@@ -780,7 +780,7 @@ Widget _docsNavLink(
   final Palette palette = Palette.of(context);
   return DVNavLink(
     to: page.target,
-    padding: const EdgeInsets.symmetric(vertical: 5),
+    padding: const .symmetric(vertical: 5),
     child: Prose(page.title, const DVModifier()
         .fontSize(15)
         .fontWeight(active ? FontWeight.w700 : FontWeight.w500)
@@ -806,7 +806,7 @@ Widget _docsFrame(
         SingleChildScrollView(
           // The sidebar, not the page: the page's controller is the article's.
           primary: false,
-          padding: const EdgeInsets.fromLTRB(32, 32, 20, 48),
+          padding: const .fromLTRB(32, 32, 20, 48),
           child: DocsNav(current: current),
         ),
         const DVModifier()
@@ -814,7 +814,7 @@ Widget _docsFrame(
             .border(Border(right: BorderSide(color: palette.rule))),
       ),
       Expanded(child: page),
-    ], spacing: 0, crossAlign: DVCrossAlign.stretch);
+    ], spacing: 0, crossAlign: .stretch);
   }
 
   final DocsPageInfo? here = docsPageAt(current);
@@ -823,7 +823,7 @@ Widget _docsFrame(
       DVBox.row(<Widget>[
         DVText(open.value ? 'Close menu' : 'Docs menu').modifier(const DVModifier()
             .fontSize(15)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .color(palette.accent)),
         Flexible(
           child: Prose(here?.title ?? '', const DVModifier()
@@ -831,7 +831,7 @@ Widget _docsFrame(
               .color(palette.muted)
               .maxLines(1)),
         ),
-      ], spacing: 12, crossAlign: DVCrossAlign.center),
+      ], spacing: 12, crossAlign: .center),
       const DVModifier()
           .width(double.infinity)
           .paddingSymmetric(horizontal: 22, vertical: 12)
@@ -846,7 +846,7 @@ Widget _docsFrame(
           ? DVBox(
               SingleChildScrollView(
                 primary: false,
-                padding: const EdgeInsets.fromLTRB(22, 20, 22, 40),
+                padding: const .fromLTRB(22, 20, 22, 40),
                 child: DocsNav(current: current, folding: true),
               ),
               const DVModifier().width(double.infinity).backgroundColor(palette.page),
@@ -874,10 +874,10 @@ Widget _docsCliEntry(BuildContext context, {required DocsCliCommand command}) {
           DocsSubheading('dartvel ${entry.name} ${sub.name}'),
           DocsText(sub.description),
           if (sub.options.isNotEmpty) CodeBlock(sub.options),
-        ], spacing: 10, crossAlign: DVCrossAlign.start),
+        ], spacing: 10, crossAlign: .start),
         const DVModifier()
             .paddingOnly(left: 14)
             .border(Border(left: BorderSide(color: palette.rule, width: 2))),
       ),
-  ], spacing: 12, crossAlign: DVCrossAlign.start);
+  ], spacing: 12, crossAlign: .start);
 }

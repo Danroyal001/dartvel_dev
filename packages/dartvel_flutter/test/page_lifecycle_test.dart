@@ -83,7 +83,7 @@ void main() {
 
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Column(
           children: <Widget>[
             DVPageLifecycleHost(

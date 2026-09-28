@@ -54,7 +54,7 @@ class const OrderPanel({super.key}) extends StatelessWidget {
       DVText(shop.name).modifier(
         const DVModifier()
             .fontSize(28)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .semanticHeading(1),
       ),
       const DVText('House espresso, 250 g'),
@@ -66,9 +66,9 @@ class const OrderPanel({super.key}) extends StatelessWidget {
           const DVModifier().fontSize(20).semanticLabel('Quantity'),
         ),
         _button('Add one', () => quantity.update((int n) => n + 1)),
-      ], spacing: 12, crossAlign: DVCrossAlign.center),
+      ], spacing: 12, crossAlign: .center),
       DVText('Total ${shop.price(total.value)}').modifier(
-        const DVModifier().fontSize(20).fontWeight(FontWeight.w600),
+        const DVModifier().fontSize(20).fontWeight(.w600),
       ),
       DVText(agreed.value ? '[x] I accept the terms' : '[ ] I accept the terms')
           .modifier(

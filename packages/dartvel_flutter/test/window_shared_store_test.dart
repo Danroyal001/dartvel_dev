@@ -76,7 +76,7 @@ void main() {
       await store.set('shop.activeTab', const DVJsonString('reports'));
 
       final signal = store.signal('shop.activeTab');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect((signal.value! as DVJsonString).value, 'reports',
           reason: 'a window opened after the write must still see it');
@@ -90,7 +90,7 @@ void main() {
 
       final signal = store.signal('shop.activeTab');
       backend.externalWrite('shop.activeTab', '"customers"');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect((signal.value! as DVJsonString).value, 'customers');
     });
@@ -104,7 +104,7 @@ void main() {
       final seen = <DVJsonValue?>[];
       store.watch('k').listen(seen.add);
       backend.externalWrite('k', '"from-another-window"');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, hasLength(1));
       expect((seen.single! as DVJsonString).value, 'from-another-window');

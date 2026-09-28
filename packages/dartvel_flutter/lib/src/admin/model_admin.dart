@@ -224,7 +224,7 @@ class _DVModelAdminState<T> extends State<DVModelAdmin<T>> {
   Widget _list() {
     return DVBox.scrollableList(<Widget>[
       DVText(widget.title)
-          .modifier(const DVModifier().fontSize(20).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(20).fontWeight(.bold)),
       if (_error != null) DVText('Could not read ${widget.title}: $_error'),
       if (_notice != null) DVText(_notice!),
       for (final record in _records)
@@ -250,7 +250,7 @@ class _DVModelAdminState<T> extends State<DVModelAdmin<T>> {
     return DVBox.scrollableList(<Widget>[
       DVBox.wrapLine(<Widget>[
         DVText(widget.label(editing)).modifier(
-            const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+            const DVModifier().fontSize(18).fontWeight(.bold)),
         if (_mayDelete == true)
           GestureDetector(
             key: const ValueKey<String>('dv-admin-delete'),

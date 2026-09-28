@@ -89,7 +89,7 @@ class _DVQueueAdminState extends State<DVQueueAdmin> {
     if (_loading) return const DVText('Loading queues…');
     return DVBox.scrollableList(<Widget>[
       const DVText('Queues and Jobs')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       if (_error != null) DVText('Could not read queues: $_error'),
       if (_notice != null) DVText(_notice!),
       for (final queue in widget.queues) _queueSection(queue),
@@ -101,7 +101,7 @@ class _DVQueueAdminState extends State<DVQueueAdmin> {
     final dead = _dead[queue] ?? const <DVJobEnvelope<DVJobPayload>>[];
     return DVBox.list(<Widget>[
       DVText(queue)
-          .modifier(const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(18).fontWeight(.bold)),
       DVText('${pending.length} pending, ${dead.length} failed'),
       for (final job in pending)
         DVText('${job.id} · attempt ${job.attempts}/${job.maxAttempts}'),

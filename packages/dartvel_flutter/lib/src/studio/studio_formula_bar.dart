@@ -283,10 +283,10 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
     return Material(
       color: theme.colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const .symmetric(horizontal: 8, vertical: 6),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .stretch,
+          mainAxisSize: .min,
           children: <Widget>[
             LayoutBuilder(
               builder: (BuildContext context, BoxConstraints box) {
@@ -294,15 +294,15 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                 // to the formula.
                 final bool narrow = box.maxWidth < 480;
                 return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     if (!narrow)
                       Padding(
-                        padding: const EdgeInsets.only(top: 10, right: 6),
+                        padding: const .only(top: 10, right: 6),
                         child: Text(
                           'fx',
                           style: theme.textTheme.labelLarge?.copyWith(
-                            fontStyle: FontStyle.italic,
+                            fontStyle: .italic,
                           ),
                         ),
                       ),
@@ -382,7 +382,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
             if (_error != null)
               Padding(
                 key: DVStudioFormulaBar.errorKey,
-                padding: const EdgeInsets.only(left: 190, top: 4),
+                padding: const .only(left: 190, top: 4),
                 child: Text(
                   _error!,
                   style: TextStyle(
@@ -393,7 +393,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
               ),
             if (suggestions.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(left: 190, top: 4),
+                padding: const .only(left: 190, top: 4),
                 child: Wrap(
                   spacing: 6,
                   runSpacing: 4,

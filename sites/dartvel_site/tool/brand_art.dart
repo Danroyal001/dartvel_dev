@@ -305,10 +305,10 @@ void paintSocialCard(Canvas canvas, Size size) {
         fontSize: 32,
         letterSpacing: 1,
         color: kCardMuted,
-        fontWeight: FontWeight.w500,
+        fontWeight: .w500,
       ),
     ),
-    textDirection: TextDirection.ltr,
+    textDirection: .ltr,
   )..layout();
   tagline.paint(
     canvas,
