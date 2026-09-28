@@ -169,6 +169,16 @@ closes. Each is tracked in [compliance-plan.md](compliance-plan.md):
   tolerance window could relabel its `ce-type`. Structured mode, the default,
   puts every attribute in the signed body. Under Standard Webhooks the signed
   `webhook-id` equals `ce-id`, and a receiver should check that it does.
+- **The data API of a model designed in Studio checks uniqueness by reading
+  the model's records.** `/_dartvel/data/<Model>` answers only the models
+  designed in Studio and only the callers each model's access allows, but a
+  model whose `create` is `anyone` and which has a unique field reads every
+  record on each write, and the endpoint has no rate limit of its own beyond
+  the application's. The unique index the database is asked for keeps the
+  rule; the read is what makes a flood cost the server more than it costs
+  the caller. A designer's pattern that repeats a repetition is refused, and
+  no pattern is run against more than 10,000 characters
+  (`packages/dartvel_core/lib/src/admin/studio_model_schema.dart`).
 - **No threat model document.** The rules above are the distilled version; the
   reasoning behind them is spread across commit messages.
 

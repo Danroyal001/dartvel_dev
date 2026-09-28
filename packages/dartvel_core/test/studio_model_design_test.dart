@@ -344,6 +344,53 @@ void main() {
       expect(problems.join('\n'), contains('Money is not a type'));
     });
 
+    test('cannot have a pattern that takes a server forever to check',
+        () async {
+      final Response refused = await send(
+        'PUT',
+        'models/Article',
+        json: <String, Object?>{
+          'definition': _article(
+            extra: <Map<String, Object?>>[
+              <String, Object?>{
+                'name': 'code',
+                'type': 'String?',
+                'pattern': '(a+)+b',
+              },
+            ],
+          ),
+        },
+      );
+      expect(refused.status, 400);
+      expect('${(await _json(refused))['message']}',
+          contains('repeats something that already repeats'));
+    });
+
+    test('asks a SQL database for its indexes', () async {
+      final SqliteDVDatabaseAdapter sqlite = SqliteDVDatabaseAdapter.memory();
+      addTearDown(sqlite.close);
+      final DVAdminServer onSqlite = DVAdminServer(
+        mount: _guarded,
+        root: root.path,
+        authenticated: (Request _) async => true,
+        database: sqlite,
+      );
+      final Response created = await send(
+        'PUT',
+        'models/Article',
+        json: <String, Object?>{'definition': _article()},
+        through: onSqlite,
+      );
+      expect(created.status, 201, reason: '${await _json(created)}');
+      final List<String> indexes = <String>[
+        for (final Map<String, Object?> row in await sqlite.query(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'articles'",
+        ))
+          '${row['name']}',
+      ];
+      expect(indexes, containsAll(<String>['articles_slug_unique', 'articles_status_views_idx']));
+    });
+
     test('cannot take the name of a model written in code', () async {
       final Response refused = await send(
         'PUT',
