@@ -133,6 +133,24 @@ class DVStudioEditorController extends ChangeNotifier {
     update(id, (DVPageNode node) => node.withAction(action));
   }
 
+  /// Copies the element [id] and places the copy right after it, in the same
+  /// container, with fresh ids all the way down, and selects the copy. This
+  /// is Ctrl+D (Cmd+D).
+  ///
+  /// Fresh ids, because two nodes answering to one id would be one
+  /// selection, one edit target and one entry in a collaborator's document.
+  void duplicate(String id) {
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) {
+      throw ArgumentError.value(id, 'id', 'is the page or not on it');
+    }
+    final DVPageNode original = _editor.find(id)!;
+    final DVPageNode copy = _dvStudioFresh(original);
+    final int index =
+        parent.children.indexWhere((DVPageNode n) => n.id == id) + 1;
+    insert(copy, parent: parent.id, index: index);
+  }
+
   void remove(String id) {
     _mutate((DVPageDocumentEditor editor) {
       editor.remove(id);
@@ -232,6 +250,35 @@ String _dvStudioNodeLabel(DVPageNode node, DVPageDocument document) {
   if (node.id == document.root.id) return 'Page';
   final DVStudioLeafType? leaf = dvStudioLeafTypeFor(node);
   return leaf?.label ?? dvStudioLayoutLabel(node.layout);
+}
+
+/// [node] and everything in it, with new ids.
+DVPageNode _dvStudioFresh(DVPageNode node) => DVPageNode(
+      type: node.type,
+      layout: node.layout,
+      properties: <String, Object?>{...node.properties},
+      action: node.action == null ? null : <String, Object?>{...node.action!},
+      breakpoints: <String, Map<String, Object?>>{
+        for (final MapEntry<String, Map<String, Object?>> b
+            in node.breakpoints.entries)
+          b.key: <String, Object?>{...b.value},
+      },
+      children: <DVPageNode>[
+        for (final DVPageNode child in node.children) _dvStudioFresh(child),
+      ],
+    );
+
+/// What a node is called in Layers and in the command palette: the page, a
+/// leaf's palette label, or a box's layout label, with its text when it has
+/// some, so two Text elements can be told apart.
+String dvStudioNodeTitle(DVPageNode node, DVPageDocument document) {
+  final String label = _dvStudioNodeLabel(node, document);
+  final Object? text = node.properties['text'];
+  if (text is String && text.trim().isNotEmpty) {
+    final String t = text.trim();
+    return '$label "${t.length > 32 ? '${t.substring(0, 31)}…' : t}"';
+  }
+  return label;
 }
 
 /// The container holding [id], or null when [id] is the root or absent.
@@ -836,6 +883,15 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
 
   void _onChanged() => setState(() {});
 
+  /// Ctrl+D (Cmd+D): the selected element, again, right after it. Nothing
+  /// for the page itself or a read-only editor.
+  void _duplicateSelected() {
+    final DVStudioEditorController c = widget.controller;
+    final String? id = c.selectedId;
+    if (id == null || id == c.document.root.id || c.readOnly) return;
+    c.duplicate(id);
+  }
+
   void _select(String? id) {
     widget.controller.select(id);
     // Focus follows the click, so Delete and Escape act on the canvas and not
@@ -939,6 +995,10 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
                 control: true, shift: true): widget.controller.redo,
             const SingleActivator(LogicalKeyboardKey.keyZ,
                 meta: true, shift: true): widget.controller.redo,
+            const SingleActivator(LogicalKeyboardKey.keyD, control: true):
+                _duplicateSelected,
+            const SingleActivator(LogicalKeyboardKey.keyD, meta: true):
+                _duplicateSelected,
           },
           child: Focus(
             focusNode: _focus,
@@ -2185,3 +2245,9 @@ Object? _parseProperty(DVStudioProperty property, String input) {
       text,
   };
 }
+
+/// Where an element inserted without a drop target goes; see
+/// [_dvStudioInsertTarget]. The command palette inserts the same way the
+/// palette's tap does.
+String dvStudioInsertTarget(DVStudioEditorController controller) =>
+    _dvStudioInsertTarget(controller);
