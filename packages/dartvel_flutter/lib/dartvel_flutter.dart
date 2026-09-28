@@ -752,6 +752,7 @@ export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/config_routes.dart';
+export 'src/routing/host_routers.dart';
 export 'src/routing/mount.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
