@@ -13,6 +13,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVAdminMount,
         DVAdminServer,
         DVDatabaseAdapter,
+        DVModelDataApi,
         DVPublishedPages,
         DVStudioDevGrant;
 
@@ -180,6 +181,7 @@ class PreviewCommand extends Command<void> {
                   )
                 : null,
             publishedPages: DVPublishedPages(database: () => database),
+            modelData: DVModelDataApi(database: () => database),
           ),
           host,
           port,

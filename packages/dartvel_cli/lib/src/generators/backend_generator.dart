@@ -1724,7 +1724,7 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// With [admin] and [adminRoot], the admin dashboard in [adminRoot] is served
 /// at the mount: to a signed-in session when the mount requires one, and to
 /// nobody else. The web-server binary passes both from what it carries.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, core.DVStudioDevGrant? studioDevGrant}) async {
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
   // Preview Environments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
@@ -1896,7 +1896,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // as it answers any route it does not serve.
   final core.DVAdminServer? adminServer = admin == null || adminRoot == null
       ? null
-      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant);
+      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot);
   final Future<dv.Response> Function(dv.Request) withAdmin = adminServer == null
       ? application
       : (dv.Request request) async => await adminServer.respond(request) ?? await application(request);
@@ -1904,7 +1904,11 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // stored page take over its route without a rebuild. Public: a published
   // page is what the site shows anybody.
   final core.DVPublishedPages publishedPages = core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
-  final Future<dv.Response> Function(dv.Request) handler = (dv.Request request) async => await publishedPages.respond(request) ?? await withAdmin(request);
+  // The data API of the models designed in Studio: their records, read and
+  // written through the same checks Studio's own writes go through, for the
+  // callers each model's access allows.
+  final core.DVModelDataApi modelData = core.DVModelDataApi(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
+  final Future<dv.Response> Function(dv.Request) handler = (dv.Request request) async => await publishedPages.respond(request) ?? await modelData.respond(request) ?? await withAdmin(request);
   return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),

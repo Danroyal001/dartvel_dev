@@ -78,8 +78,11 @@ class DevCommand extends Command<void> {
     final String studioRoot =
         p.join(toolDir.path, 'dartvel_studio', 'admin');
     final DVStudioDevGrant studioGrant = DVStudioDevGrant.generate();
-    devServer.writeAsStringSync(
-        dvDevServerSource(admin: studioMount, adminRoot: studioRoot));
+    devServer.writeAsStringSync(dvDevServerSource(
+        admin: studioMount, adminRoot: studioRoot, projectRoot: root));
+    // The project graph beside Studio, as a build writes it, so the Site map
+    // and Pages list the compiled routes on a development server too.
+    await dvWriteDevStudioGraph(root: root, adminRoot: studioRoot);
 
     // Start processes: build_runner + backend + flutter
     Process? buildRunnerP;
@@ -336,6 +339,7 @@ class DevCommand extends Command<void> {
         Logger.log('[dev] regenerating...');
         try {
           await generate();
+          await dvWriteDevStudioGraph(root: root, adminRoot: studioRoot);
         } catch (e) {
           Logger.log('[dev] generation failed: $e');
         }
@@ -853,6 +857,7 @@ Map<String, String> dvDevBackendEnvironment(
 String dvDevServerSource({
   required DVAdminMount admin,
   required String adminRoot,
+  String? projectRoot,
 }) {
   String quoted(String value) =>
       "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$')}'";
@@ -861,7 +866,9 @@ String dvDevServerSource({
     admin: const core.DVAdminMount(path: ${quoted(admin.path)}, enabled: true, requiresAuth: true),
     adminRoot: ${quoted(adminRoot)},
     studioDevGrant: core.DVStudioDevGrant.fromEnvironment(Platform.environment),
-'''
+${projectRoot == null ? '' : '''    studioSourceRoot: ${quoted(projectRoot)},
+    studioStructureRoot: ${quoted(p.join(projectRoot, '.dart_tool', 'dartvel_semantics'))},
+'''}'''
       : '';
   return '''
 import 'dart:async';

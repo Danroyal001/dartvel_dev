@@ -23,6 +23,15 @@ import 'dart:isolate';
 import 'package:dartvel_cli/src/commands/admin_command.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
 import 'package:dartvel_cli/src/templates/project_templates.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVAccess,
+        DVModelAccess,
+        DVStudioFieldSpec,
+        DVStudioIndexSpec,
+        DVStudioModelOrigin,
+        DVStudioModelSpec,
+        dvStudioModelDartSource;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -368,6 +377,42 @@ void main() {
     write(p.join(project.path, 'lib', 'models', 'product.dart'), _product3d);
     write(p.join(project.path, 'lib', 'models', 'article.dart'), _article);
     write(p.join(project.path, 'lib', 'models', 'member.dart'), _member);
+    // A data model as Studio writes one out to source: a required choice, a
+    // relation, value rules, a unique field, an index and access.
+    write(
+      p.join(project.path, 'lib', 'models', 'booking.dart'),
+      dvStudioModelDartSource(const DVStudioModelSpec(
+        model: 'Booking',
+        table: 'bookings',
+        key: 'id',
+        origin: DVStudioModelOrigin.studio,
+        fields: <DVStudioFieldSpec>[
+          DVStudioFieldSpec(name: 'id', type: 'String'),
+          DVStudioFieldSpec(name: 'guest', type: 'String', minLength: 2),
+          DVStudioFieldSpec(
+            name: 'code',
+            type: 'String?',
+            unique: true,
+            pattern: r'^[A-Z]{3}-\d+$',
+          ),
+          DVStudioFieldSpec(name: 'seats', type: 'int', min: 1, max: 12),
+          DVStudioFieldSpec(
+            name: 'status',
+            type: 'BookingStatus',
+            options: <String>['held', 'confirmed'],
+          ),
+          DVStudioFieldSpec(
+            name: 'accountId',
+            type: 'String?',
+            relation: 'Account',
+          ),
+        ],
+        indexes: <DVStudioIndexSpec>[
+          DVStudioIndexSpec(fields: <String>['status', 'seats']),
+        ],
+        access: DVModelAccess(view: DVAccess.anyone),
+      )),
+    );
     write(p.join(project.path, 'lib', 'policies', 'article_policy.dart'),
         _articlePolicy);
     write(p.join(project.path, 'lib', 'pages', 'index.page.dart'), _indexPage);
@@ -489,6 +534,7 @@ dependency_overrides:
       .where((String line) => !line.contains('lib/models/product.dart'))
       .where((String line) => !line.contains('lib/models/article.dart'))
       .where((String line) => !line.contains('lib/models/member.dart'))
+      .where((String line) => !line.contains('lib/models/booking.dart'))
       .where((String line) => !line.contains('lib/backend/'))
       .where((String line) => !line.contains('.page.dart'))
       .toList(growable: false);
