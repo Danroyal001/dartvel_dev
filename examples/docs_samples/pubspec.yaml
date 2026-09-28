@@ -13,6 +13,8 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
+  dv_slugify_module:
+    path: modules/dv_slugify_module
   flutter:
     sdk: flutter
   go_router: ^14.2.0
@@ -46,6 +48,11 @@ flutter:
     - assets/tray.png
 
 dartvel:
+  modules:
+    slugify:
+      source:
+        path: modules/dv_slugify_module
+      mount: /slugify
   backendHost: 0.0.0.0
   backendPort: 3000
   devBackendHost: http://localhost:3000
