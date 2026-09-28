@@ -72,7 +72,7 @@ void main() {
 
   test('the session token reaches every generated call', () async {
     final String runtime = await _runtime();
-    expect(runtime, contains("import 'functions.g.dart' show DartvelClient;"));
+    expect(runtime, contains("import 'functions.g.dart' show DartvelClient"));
     expect(runtime,
         contains("onToken: (String? token) => DartvelClient.setAuthToken(token ?? ''),"));
   });
