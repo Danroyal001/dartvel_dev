@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Studio: a formula bar and a command palette.** The formula bar runs
+  across the page editor: pick a field of the selected element, type a
+  formula of its kind (text, arithmetic, a colour, an option, TRUE/FALSE,
+  `Navigate(...)`), with highlighting, completions and inline errors; Enter
+  applies it as one undoable edit and Esc puts back what was there. Ctrl+K
+  (Cmd+K) opens a palette of every section, page, element and action;
+  Ctrl+D duplicates the selected element; Ctrl+/ lists the shortcuts.
+
 - **Password managers save and fill the prebuilt sign-in and sign-up
   pages.** The email and password fields are one `AutofillGroup`, hinted as
   a username and a password (a new password on sign-up), Enter in the
