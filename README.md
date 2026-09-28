@@ -467,6 +467,10 @@ dartvel admin list --database dartvel_data/data.db
 dartvel admin revoke user_123 --database dartvel_data/data.db
 ```
 
+dartvel.dev itself runs this way: one binary behind nginx, with Studio
+enabled and granted to its owner. `sites/dartvel_site/README.md` has the
+service, the deploy script and the rollback.
+
 Hosts: `dartvel_shelf` ships its native library for linux-x64, linux-arm64,
 macos-arm64, macos-x64, windows-x64 and windows-arm64, and CI builds the binary
 on each one, copies it alone into an empty directory and checks that it serves
