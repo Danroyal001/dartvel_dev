@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant;
 import 'package:dartvel_core/http.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -232,12 +232,19 @@ Future<Response> _fromManifest(
   if (data != null && data.visibility != DVPageVisibility.public) {
     // No description and no image: they describe a page the reader is not
     // being shown.
-    final String bare = dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName);
+    final String bare = dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: shellTitle ?? title, siteUrl: siteUrl, siteName: siteName));
     // Not streamed whatever the declaration says: there is no slow half to
     // wait for, and a refusal is smaller than the chunk framing around it.
     return _html(bare, status: data.visibility == DVPageVisibility.hidden ? 404 : 401);
   }
-  final String page = data == null
+  // The page as `dartvel build web` renders it, by the same function, from
+  // what the build wrote into the manifest. The older fields are for a
+  // manifest from before it carried the page.
+  final Object? routePage = route?['page'];
+  final String page = data == null && routePage is Map
+      ? dvRenderRoutePage(shell, DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(path),
+          onUncaptured: (String r) => stderr.writeln('dartvel: $r has no captured page; serving its source text'))
+      : data == null
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
       : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
   // A path nothing serves is a 404, with the shell still the body so the app
@@ -248,7 +255,7 @@ Future<Response> _fromManifest(
   final bool missing = matched == null &&
       routeMap.isNotEmpty &&
       !(await publishedRoutes?.call() ?? const <String>{}).contains(path);
-  return _html(dvWithPreloads(page, preloads), status: missing ? 404 : 200, streaming: settings.streaming);
+  return _html(dvMinifyHtml(dvWithPreloads(page, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
 /// The page for [path] as three writes, the first before the data: the

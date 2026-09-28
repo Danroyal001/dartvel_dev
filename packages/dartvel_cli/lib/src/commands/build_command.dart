@@ -52,7 +52,6 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/semantics_capture.dart';
 import '../build/server_config.dart';
-import '../build/structured_data.dart';
 import '../build/supervisor_unit.dart';
 import '../build/render_backends.dart';
 import '../build/static_seo.dart';
@@ -3217,6 +3216,93 @@ class BuildCommand extends Command<void> {
     return html.trim().isEmpty ? null : html;
   }
 
+  /// Each route's page, as both targets render it: `dartvel build web` at
+  /// build time and the web-server binary on request, from its manifest.
+  Map<String, DVRoutePage> _routePages(String root, List<String> routes) {
+    final web = Directory(p.join(root, 'build', 'web'));
+    final dartvel = _dartvelSection(root);
+    final seo = dartvel['seo'];
+    final settings = seo is Map ? seo : const <Object?, Object?>{};
+    final pwa = dartvel['pwa'];
+    final pwaSettings = pwa is Map ? pwa : const <Object?, Object?>{};
+    final String? siteUrl = settings['siteUrl'] as String?;
+    final Map<String, List<String>> routeText = _routeText(root);
+    final String baseTitle = dvSeoTitle(settings, _packageName(root) ?? 'Dartvel');
+    final String siteName = settings['siteName'] as String? ?? baseTitle;
+    // What each page calls itself, which is better than anything derivable
+    // from the path, and what each says it is *about*: without that every
+    // page shipped dartvel.seo.description and competed for one snippet.
+    final Map<String, String> declared = dvRouteTitles(_routerSource(root));
+    final Map<String, String> declaredDescriptions =
+        dvRouteDescriptions(_routerSource(root));
+    // The home page's head is its declared title and description, falling
+    // back through what dartvel.seo and dartvel.pwa configure.
+    final ({String title, String? description}) rootHead = dvRootHead(
+      routerSource: _routerSource(root),
+      fallbackTitle: dvSeoTitle(settings,
+          '${pwaSettings['name'] ?? _packageName(root) ?? 'Dartvel'}'),
+      fallbackDescription: dvSeoDescription(settings) ??
+          (pwaSettings['description'] == null
+              ? null
+              : '${pwaSettings['description']}'),
+    );
+    // Which icon each generated model page wears, and what each says it is:
+    // `@DVModel(favicon:)` and `@DVModel(schemaType:)`, with dartvel.seo's
+    // favicon as the application-wide fallback.
+    final String modelPages = _modelPagesSource(root);
+    final Map<String, String> modelFavicons = dvModelPageFavicons(modelPages);
+    final String? seoFavicon = settings['favicon'] as String?;
+    final Map<String, String> modelSchemaTypes =
+        dvModelPageSchemaTypes(modelPages);
+
+    final Map<String, DVRoutePage> pages = <String, DVRoutePage>{};
+    for (final String route in routes) {
+      final bool home = route == '/';
+      final meta = home ? null : _prerendered(web.path, route);
+      final String? modelTemplate =
+          dvTemplateFor(route, modelSchemaTypes.keys);
+      final (Map<String, String> alternates, String? defaultAlternate) =
+          _alternatesFor(root, route);
+      pages[route] = DVRoutePage(
+        route: route,
+        title: home
+            ? rootHead.title
+            : meta?.title ??
+                declared[route] ??
+                '${_routeLabel(route)} — $baseTitle',
+        description: home
+            ? rootHead.description
+            : declaredDescriptions[route] ?? dvSeoDescription(settings),
+        content: meta?.content,
+        siteUrl: siteUrl,
+        image: settings['image'] as String?,
+        siteName: siteName,
+        alternates: alternates,
+        defaultAlternate: defaultAlternate,
+        favicon: dvBuildFavicon(
+          root: root,
+          webRoot: web,
+          declared: dvPageFavicon(route, modelFavicons, application: seoFavicon),
+        ),
+        schemaType:
+            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
+        // The semantics tree when there is one: the structure the application
+        // declares -- headings, links, landmarks, code -- and the same one a
+        // screen reader is given. The source-literal lines only when nothing
+        // was captured; they cannot tell a heading from a sentence and carry
+        // no links at all.
+        html: _semanticHtmlFor(root, route),
+        text: routeText[route] ?? const <String>[],
+      );
+    }
+    return pages;
+  }
+
+  void _logUncaptured(String route) {
+    Logger.log('   ⚠ $route has no captured page; its crawler text is the '
+        'plain lines from its source.');
+  }
+
   Future<void> _writeStaticPages(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     final index = File(p.join(web.path, 'index.html'));
@@ -3240,8 +3326,6 @@ class BuildCommand extends Command<void> {
           'longer exist: ${stale.join(', ')}');
     }
     if (routes.isEmpty) return;
-    final routeText = _routeText(root);
-
     final baseTitle = dvSeoTitle(settings, _packageName(root) ?? 'Dartvel');
     // The template Flutter wrote, cleaned before anything is built from it:
     // its two developer-facing comments and its package-name iOS title
@@ -3250,78 +3334,26 @@ class BuildCommand extends Command<void> {
       index.readAsStringSync(),
       siteName: settings['siteName'] as String? ?? baseTitle,
     );
-    // What each page calls itself, which is better than anything derivable
-    // from the path.
-    final declared = dvRouteTitles(_routerSource(root));
-    // And what each page says it is *about*. Without this every page on the
-    // site shipped dartvel.seo.description, so fifty pages competed for one
-    // snippet and a search engine had no reason to tell them apart.
-    final Map<String, String> declaredDescriptions =
-        dvRouteDescriptions(_routerSource(root));
-
-    // Which icon each generated model page wears. `@DVModel(favicon:)` was
-    // read by the web server's page resolver and by nothing else, so a site
-    // built statically served the shell's icon on every product and article
-    // while the declaration sat in the model doing nothing at all --
-    // and `dartvel.seo.favicon`, the application-wide fallback, reached the
-    // static build not at all.
-    final String modelPages = _modelPagesSource(root);
-    final Map<String, String> modelFavicons = dvModelPageFavicons(modelPages);
-    final String? seoFavicon = settings['favicon'] as String?;
-    // And what each one says it is. `@DVModel(schemaType:)` was in the same
-    // state, so a statically built store announced every product as a plain
-    // WebPage -- structured data that validates and says the wrong thing.
-    final Map<String, String> modelSchemaTypes =
-        dvModelPageSchemaTypes(modelPages);
+    // The same pages the web server renders on request, rendered by the same
+    // function: the only difference between the two targets is when.
+    final Map<String, DVRoutePage> pages = _routePages(root, routes);
     var written = 0;
 
     for (final String route in routes) {
       final target = dvStaticRoutePath(route);
-      // The root is already index.html and carries its head tags from
-      // _writeSeoHead; rewriting it here would undo them.
+      // The root is written last, below: it is the shell every other page is
+      // made from until then.
       if (target == null || target == 'index.html') continue;
-
-      final meta = _prerendered(web.path, route);
-      final text = routeText[route] ?? const <String>[];
-      // Null for a page no model owns, which stays a WebPage.
-      final String? modelTemplate =
-          dvTemplateFor(route, modelSchemaTypes.keys);
-      final page = dvStaticPage(
-        shell: shell,
-        route: route,
-        title: meta?.title ??
-            declared[route] ??
-            '${_routeLabel(route)} — $baseTitle',
-        description:
-            declaredDescriptions[route] ?? dvSeoDescription(settings),
-        content: meta?.content,
-        siteUrl: siteUrl,
-        image: settings['image'] as String?,
-        siteName: settings['siteName'] as String? ?? baseTitle,
-        alternates: _alternatesFor(root, route).$1,
-        defaultAlternate: _alternatesFor(root, route).$2,
-        favicon: dvBuildFavicon(
-          root: root,
-          webRoot: web,
-          declared:
-              dvPageFavicon(route, modelFavicons, application: seoFavicon),
-        ),
-        schemaType:
-            modelTemplate == null ? null : modelSchemaTypes[modelTemplate],
-      );
-
-      // The semantics tree when there is one, the source-literal extractor
-      // when there is not. The tree is the structure the application declares
-      // -- headings, links, landmarks -- and the same one a screen reader is
-      // given; the extractor can only see strings, so it cannot tell a
-      // heading from a sentence and produces no links at all.
-      final String? semantics = _semanticHtmlFor(root, route);
       File(p.join(web.path, target))
         ..parent.createSync(recursive: true)
-        ..writeAsStringSync(semantics != null
-            ? dvApplyPageHtml(page, semantics, path: route)
-            : dvApplyPageText(page, text, path: route));
+        ..writeAsStringSync(dvRenderRoutePage(shell, pages[route]!,
+            onUncaptured: _logUncaptured));
       written++;
+    }
+    final DVRoutePage? home = pages['/'];
+    if (home != null) {
+      index.writeAsStringSync(
+          dvRenderRoutePage(shell, home, onUncaptured: _logUncaptured));
     }
 
     // After every page is on disk, root included: each names its own
@@ -3510,6 +3542,18 @@ class BuildCommand extends Command<void> {
     final seo = settings is Map ? settings : const <Object?, Object?>{};
     final siteUrl = seo['siteUrl'] as String?;
 
+    // The shell the server renders every page from is the one the static
+    // build renders from: cleaned of the template's developer comments and
+    // its package-name title, so the two targets answer with the same page.
+    final File shellFile = File(p.join(web.path, 'index.html'));
+    if (shellFile.existsSync()) {
+      shellFile.writeAsStringSync(dvCleanShell(
+        shellFile.readAsStringSync(),
+        siteName: seo['siteName'] as String? ??
+            dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
+      ));
+    }
+
     final routes = _generatedRoutes(root);
     if (routes.isEmpty) return;
 
@@ -3540,6 +3584,7 @@ class BuildCommand extends Command<void> {
         titles: dvRouteTitles(_routerSource(root)),
         text: _routeText(root),
         siteUrl: siteUrl,
+        pages: _routePages(root, routes),
         // dartvel.seo, carried so the server can put it back. _writeSeoHead
         // wrote these into the shell a moment ago and rendering a route
         // replaces that whole block -- so a server without them served every
