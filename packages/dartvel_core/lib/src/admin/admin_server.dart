@@ -251,6 +251,8 @@ class DVAdminServer {
     List<String>? queues,
     this.apiBasePath = '/api',
     this.devGrant,
+    String? sourceRoot,
+    String? structureRoot,
   })  : _authenticated =
             authenticated ?? devGrant?.check ?? dvAdminAuthorized,
         _database = database,
@@ -262,6 +264,9 @@ class DVAdminServer {
           queues: queues == null
               ? () => dvAdminGraphQueues(root)
               : () => queues,
+          root: root,
+          sourceRoot: sourceRoot,
+          structureRoot: structureRoot,
         );
 
   final DVAdminMount mount;
