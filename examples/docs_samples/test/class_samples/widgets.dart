@@ -10,7 +10,7 @@ class const PriceTag(final int cents, {super.key, final String currency = 'USD'}
   @override
   Widget build(BuildContext context) =>
       DVText('$currency ${(cents / 100).toStringAsFixed(2)}').modifier(
-        const DVModifier().fontWeight(FontWeight.w600),
+        const DVModifier().fontWeight(.w600),
       );
 }
 
