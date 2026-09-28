@@ -24,7 +24,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
 import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget;
+import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'link_interception.dart' show DVPressedLink;
+import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
 import 'route_prefetch.dart' show DVRoutePrefetch;
 
 /// When a link fetches the route it points at.
@@ -200,6 +202,9 @@ class _DVNavLinkState extends State<DVNavLink> {
   @override
   void initState() {
     super.initState();
+    // Flutter's menu rather than the browser's, on a page with no shell to
+    // have turned the browser's off: the 404 page is often the first page.
+    DVBrowserMenu.install();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
       WidgetsBinding.instance
@@ -487,10 +492,19 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
     // A right-click: the page's menu opens over it, and asks what it was on.
     if (event.buttons == kSecondaryMouseButton) {
-      DVPressedLinkTarget.press(
-        widget.externalUrl ?? DVNavigation.locationOf(widget.to),
-        event.position,
-      );
+      final String link =
+          widget.externalUrl ?? DVNavigation.locationOf(widget.to);
+      DVPressedLinkTarget.press(link, event.position);
+      // A menu, not a preview: the pointer is still over the link.
+      _previewTimer?.cancel();
+      _previewPending = false;
+      _removePreview();
+      // With no page menu above to ask -- the 404 page, a page with
+      // selection off -- the link opens the menu itself, or a right-click
+      // shows nothing: the browser's own menu is off so Flutter's can show.
+      if (!DVLinkMenuScope.covers(context)) {
+        dvShowLinkMenu(context, link, event.position);
+      }
       return;
     }
     // A mouse's primary button follows the link on the press. A click is two
