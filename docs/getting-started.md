@@ -28,18 +28,25 @@ what that means before building anything you have to keep.
 ## Create a project
 
 ```bash
-dartvel create --name hello_dartvel
+dartvel create hello_dartvel
 ```
 
-`new` is an alias. `init` is a different command: it adds Dartvel to an
-existing Flutter project, the dependency and the `dartvel:` key and nothing
-else, and `dartvel init --dry-run` shows what it would change first.
+As with `flutter create`, the folder names the project: this makes
+`hello_dartvel/` and a package called `hello_dartvel`. `dartvel create .` uses
+the current folder. With no folder, `dartvel create` asks whether the current
+folder is the one: press Enter to use it, or type a name to create that folder
+instead. Where there is no terminal to ask at, the current folder is used.
+
+`new` is an alias. `init` does the same in a folder with no project in it. In
+an existing Flutter project it adds Dartvel instead, the dependency and the
+`dartvel:` key and nothing else, and `dartvel init --dry-run` shows what it
+would change first.
 
 Flags for `create`:
 
 | Flag | Default | Effect |
 |---|---|---|
-| `--name` | prompted | Project name |
+| `--project-name` | the folder's name | Package name, when it should differ from the folder's |
 | `--org` | `com.example` | Organisation domain |
 | `--[no-]web` | on | Include web |
 | `--[no-]mobile` | on | Include Android and iOS |

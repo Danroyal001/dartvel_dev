@@ -60,7 +60,7 @@ For a Dartvel application, install the CLI and let it write the project:
 
 ```sh
 dart pub global activate dartvel_cli
-dartvel create --name shop
+dartvel create shop
 cd shop && dartvel dev
 ```
 

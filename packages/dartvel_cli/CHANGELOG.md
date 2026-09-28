@@ -1,3 +1,13 @@
+## Unreleased
+
+- **`dartvel create <folder>` names the project the way `flutter create`
+  does.** The folder is created and names the package; `--name` is gone and
+  `--project-name` overrides the folder's name, refusing a name that is not a
+  valid package name with the one it would suggest. With no folder, `create`
+  asks whether the current folder is the one, and typing a name creates that
+  folder instead. `dartvel init` in a folder with no project does the same; in
+  an existing project it still adds Dartvel to it.
+
 ## 0.9.0
 
 - **Placement follows call sites: every module source reaches more platforms.**
