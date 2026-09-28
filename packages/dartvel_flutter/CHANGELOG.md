@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **Password managers save and fill the prebuilt sign-in and sign-up
+  pages.** The email and password fields are one `AutofillGroup`, hinted as
+  a username and a password (a new password on sign-up), Enter in the
+  password field submits, and the platform is asked to save only after the
+  server accepts the password. Leaving the page cancels, so a refused
+  password is never offered for saving.
+
 - **A link to a heading opens the page at that heading.** An address ending
   in `#heading-id` scrolls a `DVPageShell` page to that heading on its first
   frame and whenever the address changes, on the web and in native apps.
