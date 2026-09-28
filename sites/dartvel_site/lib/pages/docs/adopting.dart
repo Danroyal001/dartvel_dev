@@ -60,6 +60,43 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'other-routers',
+          title: 'Keep your auto_route or Navigator',
+          children: <Widget>[
+            DocsText('Dartvel mounts into three routers: go_router, auto_route and '
+                'Flutter\'s own Navigator. `dartvel init` says which one your app '
+                'uses. Any other router is named, with these three.'),
+            DocsShell(<String>[
+              '// auto_route',
+              'List<AutoRoute> get routes => <AutoRoute>[',
+              '  ...myRoutes,',
+              '  ...dartvelAutoRoutes(at: \'/app\'),',
+              '];',
+              '',
+              '// Navigator 1.0',
+              'MaterialApp(',
+              '  onGenerateRoute: (RouteSettings settings) =>',
+              '      dartvelOnGenerateRoute(settings, at: \'/app\') ?? myRoute(settings),',
+              ');',
+              'Navigator.pushNamed(context, dvHostedPath(DVRoutes.about.path, at: \'/app\'));',
+              '',
+              '// Navigator 2.0, in your RouterDelegate',
+              'Navigator(pages: <Page<Object?>>[',
+              '  ...myPages,',
+              '  ?dartvelPageFor(location, at: \'/app\'),',
+              '])',
+            ]),
+            Bullets(<String>[
+              'Dartvel\'s pages run in a router of their own under the prefix, '
+                  'with their own guards and redirects.',
+              'Back goes through Dartvel\'s stack first, then yours. On the web '
+                  'the address bar follows the Dartvel page.',
+              'Deep links to /app/... open the page; a path that is not a '
+                  'Dartvel page is left to your router.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'inventory',
           title: 'See what Dartvel manages',
           children: <Widget>[
