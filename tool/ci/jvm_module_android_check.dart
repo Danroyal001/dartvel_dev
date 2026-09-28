@@ -68,7 +68,10 @@ public class Scanner {
 
   // 2. The application and the module.
   final String app = '${work.path}/app';
-  if (!Directory(app).existsSync()) {
+  // A fresh application every run: one left from a run before already
+  // mounts the module, and adding it again is rightly refused.
+  if (Directory(app).existsSync()) Directory(app).deleteSync(recursive: true);
+  {
     check(
         (await run('flutter', <String>[
           'create', '--platforms', 'android', '--project-name', 'jvm_probe',
