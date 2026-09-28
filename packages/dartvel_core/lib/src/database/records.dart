@@ -34,7 +34,14 @@ class DVRecordShape {
     required this.collection,
     this.key,
     required this.fields,
+    this.indexes = const <DVRecordIndex>[],
   });
+
+  /// The indexes the collection asks its engine for, beyond its key. An
+  /// engine that indexes on its own, or has nothing to ask for, ignores
+  /// them; a unique one is also a rule the caller checks, so a collection
+  /// whose values already repeat still refuses the next repeat.
+  final List<DVRecordIndex> indexes;
 
   final String collection;
 
@@ -44,6 +51,20 @@ class DVRecordShape {
 
   /// Every field, the key included, with how it is stored.
   final Map<String, DVFieldType> fields;
+}
+
+/// An index over one field or several, and whether no two records may share
+/// the combination.
+class DVRecordIndex {
+  const DVRecordIndex(this.fields, {this.unique = false});
+
+  final List<String> fields;
+  final bool unique;
+
+  /// The name an engine that names its indexes gives this one on
+  /// [collection]: the same every time, so asking twice asks for one index.
+  String nameOn(String collection) =>
+      '${collection.split('.').last}_${fields.join('_')}_${unique ? 'unique' : 'idx'}';
 }
 
 /// A comparison a [DVFilter] can make.
@@ -248,7 +269,8 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
   static final Expando<Set<String>> _ensured = Expando<Set<String>>();
 
   static String _shapeKey(DVRecordShape shape) =>
-      '${shape.collection}(${(shape.fields.keys.toList()..sort()).join(',')})';
+      '${shape.collection}(${(shape.fields.keys.toList()..sort()).join(',')})'
+      '[${<String>[for (final DVRecordIndex i in shape.indexes) i.nameOn(shape.collection)].join(',')}]';
 
   @override
   Future<void> ensure(DVRecordShape shape) async {
@@ -285,6 +307,21 @@ class DVSqlRecordAdapter implements DVRecordAdapter {
           'ALTER TABLE $table ADD COLUMN $column ${field.value.sql}',
           const <Object?>[],
         );
+      }
+    }
+    for (final DVRecordIndex index in shape.indexes) {
+      final String columns = index.fields.map(_name).join(', ');
+      try {
+        await _execute(
+          'CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS '
+          '${_name(index.nameOn(shape.collection))} ON $table ($columns)',
+          const <Object?>[],
+        );
+      } on Object {
+        // MySQL has no IF NOT EXISTS for an index, and a unique index over
+        // values that already repeat cannot be made. Either way the caller
+        // checks the rule on every write, which is what holds it; the index
+        // is what makes that check fast where the engine agreed to one.
       }
     }
     done.add(ensured);
