@@ -252,7 +252,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               <String>['C library, Rust crate', '@Native, built by the module\'s hook', 'the same sources compiled to WebAssembly, for functions of numbers', '@Native, built by the hook'],
               <String>['WebAssembly binary', 'Node bundled beside a desktop app; phones not yet', 'WebAssembly.instantiate', 'Node\'s WebAssembly'],
               <String>['Maven artifact or jar', 'JNI through package:jni, Android only', '--elsewhere', '--elsewhere'],
-              <String>['Swift package or pod', 'C-ABI shim built by the hook, iOS and macOS', '--elsewhere', '--elsewhere'],
+              <String>['Swift package or pod', 'C-ABI shim built by the hook: iOS and macOS, and Linux and Windows with the Swift toolchain unless it imports an Apple framework', '--elsewhere', 'the Swift toolchain, for a package that imports no Apple framework'],
             ]),
             Bullets(<String>[
               'Every download is checked against what its registry publishes: '
