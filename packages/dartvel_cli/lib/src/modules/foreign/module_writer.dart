@@ -247,7 +247,8 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('  sdk: ">=3.13.0 <4.0.0"')
     ..writeln()
     ..writeln('dependencies:')
-    ..writeln('  dartvel_core: any');
+    // The first release with DVModuleUnavailable and the outcomes.
+    ..writeln('  dartvel_core: ^0.8.0');
   for (final MapEntry<String, String> dep in spec.dependencies.entries) {
     out.writeln('  ${dep.key}: ${dep.value}');
   }
