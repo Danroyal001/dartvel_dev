@@ -1,4 +1,10 @@
-## Unreleased
+## 0.9.1
+
+- The web-server build writes each route's page into its manifest, and
+  `dartvel preview` renders it with `dvRenderRoutePage`, as the static build
+  does.
+- The PWA service worker leaves Studio and API reads to the browser.
+- The semantics capture gives each route 120 seconds and three tries.
 
 - **`dartvel create <folder>` names the project the way `flutter create`
   does.** The folder is created and names the package; `--name` is gone and
