@@ -65,7 +65,8 @@ flutter:
     - assets/texture/
 
 dartvel:
-  backendHost: 0.0.0.0
+  # Behind nginx on dartvel.dev, so the binary listens on loopback only.
+  backendHost: 127.0.0.1
   backendPort: 3000
   devBackendHost: http://localhost:3000
   prodBackendHost: https://api.dartvel-site.com
