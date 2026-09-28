@@ -14,7 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show Selectable, SelectedContent, SelectionRegistrar;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
@@ -6933,6 +6933,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
           email: _email.text,
           password: _password.text,
         );
+        _savePassword();
       }
       _deletionCancelled = DVSessionClient.installed?.deletionCancelled ?? false;
       final String? from = widget.from;
@@ -6947,6 +6948,8 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
         router.go(DVPageMfa.safeReturn(from));
       }
     } on DVMfaRequired {
+      // The password was right; the second factor is a separate question.
+      _savePassword();
       _awaitingCode = true;
     } on DVAccountDeleted catch (refusal) {
       error = refusal.message;
@@ -6968,6 +6971,12 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
     });
   }
 
+  /// Tells the platform the sign-in form was submitted with a password the
+  /// server accepted, which is when a browser or password manager offers to
+  /// save it. Never before: a refused password offered for saving is saved
+  /// by the reader who clicks yes without reading.
+  void _savePassword() => TextInput.finishAutofillContext();
+
   @override
   Widget build(BuildContext context) {
     final String? error = _error;
@@ -6976,19 +6985,28 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
         constraints: const BoxConstraints(maxWidth: 360),
         child: Material(
           type: MaterialType.transparency,
-          child: DVBox.list([
+          child: _dvAutofillForm(DVBox.list([
             _dvAccountHeading('Sign in to your account'),
             if (!_awaitingCode) ...<Widget>[
               TextField(
                 key: const ValueKey<String>('dv-auth-email'),
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const <String>[
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
               ),
               TextField(
                 key: const ValueKey<String>('dv-auth-password'),
                 controller: _password,
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
+                autofillHints: const <String>[AutofillHints.password],
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => unawaited(_submit()),
               ),
             ] else
               TextField(
@@ -7022,7 +7040,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                     .onPressed(() => unawaited(_submit())),
               ),
             ),
-          ]),
+          ])),
         ),
       ),
     );
@@ -7162,6 +7180,18 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
     );
   }
 }
+
+/// One form, as a browser or password manager sees it: the fields inside are
+/// filled and saved together, which is what lets a manager recognise a
+/// username beside a password at all.
+///
+/// Leaving the page cancels rather than commits. A form given up on, or one
+/// the server refused, is not a password to offer for saving; a page commits
+/// with [TextInput.finishAutofillContext] once the server has accepted it.
+Widget _dvAutofillForm(Widget child) => AutofillGroup(
+      onDisposeAction: AutofillContextAction.cancel,
+      child: child,
+    );
 
 /// The account pages' shared frame: a column of at most 440 logical pixels,
 /// scrolled when it is taller than the window, so no page overflows at any
@@ -7653,6 +7683,8 @@ class _SignUpPageState extends State<_SignUpPage> {
         password: _password.text,
         metadata: <String, Object?>{if (name.isNotEmpty) 'name': name},
       );
+      // Accepted: now the new password is worth offering to save.
+      TextInput.finishAutofillContext();
       _done = true;
     } on AuthException catch (refusal) {
       error = switch (refusal.failure) {
@@ -7682,7 +7714,7 @@ class _SignUpPageState extends State<_SignUpPage> {
         _dvAccountKeyed('dv-signup-done', const DVText('Your account is ready.')),
       ]);
     }
-    return _dvAccountFrame(<Widget>[
+    return _dvAutofillForm(_dvAccountFrame(<Widget>[
       _dvAccountHeading('Create an account'),
       TextField(
         key: const ValueKey<String>('dv-signup-name'),
@@ -7695,7 +7727,11 @@ class _SignUpPageState extends State<_SignUpPage> {
         controller: _email,
         decoration: const InputDecoration(labelText: 'Email'),
         keyboardType: TextInputType.emailAddress,
-        autofillHints: const <String>[AutofillHints.email],
+        textInputAction: TextInputAction.next,
+        autofillHints: const <String>[
+          AutofillHints.username,
+          AutofillHints.email,
+        ],
       ),
       TextField(
         key: const ValueKey<String>('dv-signup-password'),
@@ -7703,11 +7739,13 @@ class _SignUpPageState extends State<_SignUpPage> {
         decoration: const InputDecoration(labelText: 'Password'),
         obscureText: true,
         autofillHints: const <String>[AutofillHints.newPassword],
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => unawaited(_submit()),
       ),
       if (error != null) _dvAccountKeyed('dv-signup-error', DVText(error)),
       _dvAccountButton('dv-signup-submit', _busy ? 'Creating...' : 'Create account',
           () => unawaited(_submit())),
-    ]);
+    ]));
   }
 }
 
