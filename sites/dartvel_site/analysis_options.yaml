@@ -16,6 +16,10 @@ analyzer:
   exclude:
     - "lib/dartvel_client/**"
     - ".dart_tool/**"
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
 
 linter:
   rules:
