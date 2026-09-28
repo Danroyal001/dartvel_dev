@@ -23,6 +23,19 @@ changes are called out explicitly below.
 
 ### Fixed
 
+- **`dartvel build web` and the web-server binary render a page with one
+  function.** The binary rendered routes from plain lines guessed out of the
+  page source and never minified them, so a crawler or a reader with
+  scripting off got no links, headings or code blocks, and the home page was
+  250 lines where the static build wrote 32. Both now render with
+  `dvRenderRoutePage` in dartvel_core: the static build for every route at
+  build time, the binary on request from the page the build wrote into its
+  manifest, `dartvel preview` likewise. The minifier, the static page head
+  and the structured data moved into dartvel_core for it. (dartvel_core,
+  dartvel_shelf, dartvel_cli)
+- **The semantics capture waits out a slow first paint.** One route missing
+  puppeteer's 30-second navigation timeout on a loaded machine failed the
+  whole build; each route now has 120 seconds and three tries. (dartvel_cli)
 - **HEAD on a server-rendered page answers as GET does.** It answered 404
   while GET answered 200, so an uptime monitor or a crawler that asks HEAD
   first saw no pages. (dartvel_shelf)
