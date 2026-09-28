@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.9.1 — 2026-09-28
+
+**Studio signs people in itself, and the web-server binary serves the page
+the static build writes.** dartvel.dev now runs on the web-server binary,
+and these are what that turned up. dartvel_core, dartvel_shelf,
+dartvel_flutter, dartvel_cli and dartvel_dev go to 0.9.1; dartvel_generator
+stays at 1.4.2, which already accepts it.
 
 ### Added
 

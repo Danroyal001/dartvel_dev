@@ -1,4 +1,13 @@
-## Unreleased
+## 0.9.1
+
+- Studio signs people in itself: a signed-out visit to a Studio page is sent
+  to `<mount>/login`, the mount answers the application's sign-in and second
+  factor at `<mount>/api/auth/*` and `<mount>/api/access`, and serves the
+  Studio app's shell and code to anybody while `graph.json` and the API stay
+  behind the grant.
+- `dvRenderRoutePage` and `DVRoutePage`: one renderer for a route's page,
+  shared by `dartvel build web` and the web-server binary. The minifier, the
+  static page head and the structured data move here from dartvel_cli.
 
 - DV-MODULE-021 is registered with the other diagnostics, as the specification
   lists it.
