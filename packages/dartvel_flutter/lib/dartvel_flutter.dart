@@ -13,7 +13,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show Selectable, SelectedContent, SelectionRegistrar;
+    show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1615,6 +1615,15 @@ class DVModifier {
 
 typedef DVStyleModifier = DVModifier;
 
+/// Across one fold, which of [DVBox.threePane]'s panes share a side.
+enum DVThreePaneFold {
+  /// The first pane has a side; the second and third share the other.
+  firstAlone,
+
+  /// The first and second share a side; the third has the other.
+  lastAlone,
+}
+
 enum _DVBoxLayout {
   vertical,
   row,
@@ -1624,6 +1633,7 @@ enum _DVBoxLayout {
   horizontalScrollable,
   masonry,
   twoPane,
+  threePane,
 }
 
 /// How a row or list distributes its children along its own axis.
@@ -1694,6 +1704,9 @@ class DVBox<T> extends StatelessWidget {
   final DVAlign _align;
   final DVCrossAlign _crossAlign;
   final int _columns;
+
+  /// For [DVBox.threePane]: which panes share a side across one fold.
+  final DVThreePaneFold _oneFold;
   /// Whether [_columns] is a ceiling that steps down on narrow screens, or an
   /// exact count. True everywhere except where a developer opted out.
   final bool _responsive;
@@ -1714,7 +1727,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = 8,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   const DVBox.list(
     List<Widget> children, {
@@ -1733,7 +1747,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   const DVBox.row(
     List<Widget> children, {
@@ -1752,7 +1767,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   /// A vertical list that scrolls when its children do not fit.
   ///
@@ -1774,7 +1790,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = true,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   /// Canonical wrap layout for a static collection of [children].
   const DVBox.wrapLine(
@@ -1794,7 +1811,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   /// Compatibility alias for [DVBox.wrapLine]; prefer `wrapLine` in new code.
   const DVBox.wrap(
@@ -1814,7 +1832,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   const DVBox.stack(List<Widget> children, {DVModifier? modifier})
       : _child = null,
@@ -1828,7 +1847,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = 8,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   const DVBox.grid(
     List<Widget> children, {
@@ -1847,7 +1867,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   const DVBox.horizontalScrollable(
     List<Widget> children, {
@@ -1864,9 +1885,10 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
-  /// Two panes, one each side of the fold on a foldable.
+    /// Two panes, one each side of the fold on a foldable.
   ///
   /// Across a book-style hinge the first pane takes the left side and the
   /// second the right; across a fold the phone lies open on a table, the
@@ -1893,7 +1915,43 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
+
+  /// Three panes, one per panel of a tri-fold.
+  ///
+  /// A tri-fold reports two folds or hinges, and each pane fills one panel:
+  /// left to right in a left-to-right language, right to left otherwise,
+  /// and top to bottom when the device is turned and the folds run across.
+  /// Nothing is laid out in a crease.
+  ///
+  /// Across one fold -- a two-panel foldable, or a tri-fold half closed --
+  /// [oneFold] decides: by default the first pane has one side and the
+  /// second and third share the other, one above the other;
+  /// [DVThreePaneFold.lastAlone] gives the first two one side and the third
+  /// the other. With no fold, three columns from a desktop width, two on a
+  /// tablet (sharing as [oneFold] says), and stacked on a phone.
+  ///
+  /// A screen reader reads the panes first to last whatever the direction,
+  /// and each pane sees a screen with no fold in it, as with [DVBox.twoPane].
+  const DVBox.threePane(
+    List<Widget> children, {
+    DVModifier? modifier,
+    double spacing = 16,
+    DVThreePaneFold oneFold = DVThreePaneFold.firstAlone,
+  })  : _child = null,
+        _children = children,
+        _modifier = modifier,
+        _layout = _DVBoxLayout.threePane,
+        _align = DVAlign.start,
+        _crossAlign = DVCrossAlign.stretch,
+        _columns = 3,
+        _responsive = true,
+        _spacing = spacing,
+        _scrollable = false,
+        _items = null,
+        _itemBuilder = null,
+        _oneFold = oneFold;
 
   const DVBox.masonry(
     List<Widget> children, {
@@ -1912,7 +1970,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = false,
         _items = null,
-        _itemBuilder = null;
+        _itemBuilder = null,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   /// An image, as a box.
   ///
@@ -2014,7 +2073,8 @@ class DVBox<T> extends StatelessWidget {
         _spacing = spacing,
         _scrollable = scrollable,
         _items = items,
-        _itemBuilder = itemBuilder;
+        _itemBuilder = itemBuilder,
+        _oneFold = DVThreePaneFold.firstAlone;
 
   static DVBox<T> builder<T>(
     Iterable<T> items,
@@ -2434,6 +2494,8 @@ class DVBox<T> extends StatelessWidget {
         break;
       case _DVBoxLayout.twoPane:
         result = _buildTwoPane(context, children);
+      case _DVBoxLayout.threePane:
+        result = _buildThreePane(context, children);
         break;
     }
     return _maybeScrollable(result);
@@ -2464,6 +2526,114 @@ class DVBox<T> extends StatelessWidget {
     // A packed row stays as wide as its children, as a Row with
     // MainAxisSize.min is: OverflowBar on its own takes the whole width.
     return _mainAxisSize == MainAxisSize.min ? IntrinsicWidth(child: bar) : bar;
+  }
+
+  Widget _buildThreePane(BuildContext context, List<Widget> children) {
+    if (children.length != 3) {
+      throw ArgumentError.value(children.length, 'children',
+          'DVBox.threePane takes exactly three panes');
+    }
+    final MediaQueryData media = MediaQuery.of(context);
+    final bool rtl = Directionality.maybeOf(context) == TextDirection.rtl;
+    // Each pane is a screen of its own, and is read in its place in the
+    // list whatever the direction lays it out in.
+    Widget pane(int i) => Semantics(
+          sortKey: OrdinalSortKey(i.toDouble()),
+          child: MediaQuery(
+            data: media.copyWith(displayFeatures: const <ui.DisplayFeature>[]),
+            child: children[i],
+          ),
+        );
+    final List<Widget> p = <Widget>[pane(0), pane(1), pane(2)];
+    // Two stacked in one place, for a side two panes share.
+    Widget pair(Widget a, Widget b) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Expanded(child: a),
+            SizedBox(height: _spacing),
+            Expanded(child: b),
+          ],
+        );
+    final List<Widget> sides = _oneFold == DVThreePaneFold.firstAlone
+        ? <Widget>[p[0], pair(p[1], p[2])]
+        : <Widget>[pair(p[0], p[1]), p[2]];
+
+    // Laid out left to right or top to bottom in window space: the folds are
+    // where they are, whatever the language reads.
+    Widget across(bool vertical, List<Widget> parts, List<Rect> creases) {
+      final List<Widget> ordered =
+          vertical && rtl ? parts.reversed.toList() : parts;
+      final double end = vertical ? media.size.width : media.size.height;
+      final List<Widget> out = <Widget>[];
+      double at = 0;
+      for (int i = 0; i < ordered.length; i++) {
+        final bool last = i == ordered.length - 1;
+        final double start = last ? end : (vertical ? creases[i].left : creases[i].top);
+        final double extent = (start - at).clamp(0, double.infinity);
+        out.add(vertical
+            ? SizedBox(width: extent, child: ordered[i])
+            : SizedBox(height: extent, child: ordered[i]));
+        if (!last) {
+          final Rect c = creases[i];
+          out.add(vertical ? SizedBox(width: c.width) : SizedBox(height: c.height));
+          at = vertical ? c.right : c.bottom;
+        }
+      }
+      return vertical
+          ? Row(
+              textDirection: TextDirection.ltr,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: out)
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: out);
+    }
+
+    final List<DVFold> folds = context.screen.folds;
+    if (folds.length >= 2) {
+      final bool vertical = folds.first.isVertical;
+      final List<Rect> creases = <Rect>[
+        for (final DVFold f in folds)
+          if (f.isVertical == vertical) f.bounds,
+      ]..sort((Rect a, Rect b) =>
+          vertical ? a.left.compareTo(b.left) : a.top.compareTo(b.top));
+      if (creases.length >= 2) return across(vertical, p, creases.take(2).toList());
+    }
+    if (folds.isNotEmpty) {
+      final DVFold fold = folds.first;
+      return across(fold.isVertical, sides, <Rect>[fold.bounds]);
+    }
+    if (context.screen.isDesktop) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: p[0]),
+          SizedBox(width: _spacing),
+          Expanded(child: p[1]),
+          SizedBox(width: _spacing),
+          Expanded(child: p[2]),
+        ],
+      );
+    }
+    if (context.screen.isAtLeastTablet) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: sides[0]),
+          SizedBox(width: _spacing),
+          Expanded(child: sides[1]),
+        ],
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        p[0],
+        SizedBox(height: _spacing),
+        p[1],
+        SizedBox(height: _spacing),
+        p[2],
+      ],
+    );
   }
 
   Widget _buildTwoPane(BuildContext context, List<Widget> children) {
@@ -2527,6 +2697,9 @@ class DVBox<T> extends StatelessWidget {
     switch (_layout) {
       case _DVBoxLayout.twoPane:
         return _buildTwoPane(
+            context, [for (final item in items) builder(context, item)]);
+      case _DVBoxLayout.threePane:
+        return _buildThreePane(
             context, [for (final item in items) builder(context, item)]);
       case _DVBoxLayout.grid:
         return GridView.builder(
