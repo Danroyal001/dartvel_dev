@@ -13,6 +13,13 @@
   `DV.progress.color` and `DV.progress.enabled` theme and turn it off.
   Themed from the colour scheme, still under reduced motion.
 
+## 0.9.1
+
+- Studio's sign-in is a Flutter page of the Studio app, `DVStudioSignInScreen`,
+  shown by `DVStudioApp` at `<mount>/login`.
+- Signing in with `from=` a path the router does not serve loads it from the
+  server instead of drawing the application's not-found page.
+
 ## 0.9.0
 
 - **`DVBox.threePane`: three panes, one per panel of a tri-fold.** Each pane

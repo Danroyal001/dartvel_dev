@@ -1,3 +1,8 @@
+## 0.9.1
+
+- Released with dartvel_core, dartvel_shelf, dartvel_flutter and dartvel_cli
+  0.9.1: Studio's own sign-in, and one page renderer for both web targets.
+
 ## 0.9.0
 
 - Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.0: module
