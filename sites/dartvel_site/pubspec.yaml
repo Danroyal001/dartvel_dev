@@ -77,9 +77,23 @@ dartvel:
   webPrerender: false
   ota: false
 
-  # A static site with no sign-in: no /login, /sign-up or /account pages.
+  # dartvel.dev runs as a web-server binary carrying Studio, and the one
+  # person granted Studio.access signs in at /login. That is the only account
+  # page: no /sign-up (nobody else needs an account here), and no profile,
+  # security, sessions or delete pages.
   auth:
-    pages: false
+    pages:
+      profile: false
+      security: false
+      sessions: false
+      delete: false
+      signUp: false
+
+  # Studio at /__studio, in the release build. It opens only for a signed-in
+  # person granted Studio.access with `dartvel admin grant`; everybody else
+  # gets the same 404 as any path the site does not serve.
+  admin:
+    enabled: true
 
   transitions:
     default: fade
@@ -100,7 +114,7 @@ dartvel:
     # keeps its own priority and its own frequency.
     sitemap:
       enabled: true
-      exclude: [/__admin/**]
+      exclude: [/__admin/**, /__studio/**, /login]
       defaults:
         priority: 0.5
         changeFrequency: monthly
