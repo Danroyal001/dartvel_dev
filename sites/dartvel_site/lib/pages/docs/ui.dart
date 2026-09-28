@@ -154,6 +154,10 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
             DocsText('Annotate a private function with @DVFunctionalWidget. '
                 'Dartvel generates a widget class with a const constructor.'),
             DocsCode('ui-functional-widget'),
+            DocsText('Prefer classes? Every sample written as a function has a '
+                'Class tab beside it. A page is a class extending '
+                'DVClassWidget with @DVPage on it, and a widget is an ordinary '
+                'StatelessWidget. Both shapes build and route the same way.'),
           ],
         ),
         DocsSection(
