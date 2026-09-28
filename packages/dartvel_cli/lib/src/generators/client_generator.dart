@@ -2165,6 +2165,30 @@ ${(() {
         sbRoutes.writeln('  ),');
       }
       sbRoutes.writeln('];');
+      // Each page without parameters, built the way its route builds it, so
+      // Studio inside the application can show a compiled page as the
+      // application draws it rather than guess at it.
+      sbRoutes.writeln();
+      sbRoutes.writeln('/// A page with no parameters, built as its route builds it, for');
+      sbRoutes.writeln("/// Studio's preview of a compiled page. Null for any other path.");
+      sbRoutes.writeln('Widget? dartvelPagePreview(String path) {');
+      sbRoutes.writeln('  final DartvelPage? page = switch (path) {');
+      for (final e in pageEntries) {
+        if (e.route.contains(':')) continue;
+        sbRoutes.writeln("    '${e.route}' => const ${e.generatedWidget}(),");
+      }
+      sbRoutes.writeln('    _ => null,');
+      sbRoutes.writeln('  };');
+      sbRoutes.writeln('  if (page == null) return null;');
+      sbRoutes.writeln('  return DartvelRouteState(');
+      sbRoutes.writeln('    params: const <String, String>{},');
+      sbRoutes.writeln('    query: const <String, String>{},');
+      sbRoutes.writeln('    child: DvDataLoader(');
+      sbRoutes.writeln('      load: () => page.loadData(const <String, String>{}, const <String, String>{}),');
+      sbRoutes.writeln('      child: page,');
+      sbRoutes.writeln('    ),');
+      sbRoutes.writeln('  );');
+      sbRoutes.writeln('}');
       return sbRoutes.toString();
     })()}
 ''';

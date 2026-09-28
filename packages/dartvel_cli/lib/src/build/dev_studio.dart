@@ -21,6 +21,8 @@ import 'package:dartvel_core/dartvel.dart'
         SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
 
+import '../graph/project_graph.dart' show DartvelProjectGraph;
+
 import '../commands/db_command.dart' show dvDatabaseSettings;
 import 'admin_mount.dart' show dvAdminMount;
 
@@ -72,4 +74,35 @@ DVDatabaseAdapter? dvDevStudioDatabase(
       : p.join(root, settings.path);
   File(file).parent.createSync(recursive: true);
   return SqliteDVDatabaseAdapter.file(file);
+}
+
+/// Writes the project graph into [adminRoot], where Studio's Site map and
+/// Pages read the compiled routes from, as `dartvel build` writes it beside
+/// the Studio it compiles. A graph that cannot be built leaves the last one
+/// in place: a page mid-edit that fails to parse is not a reason to list no
+/// pages at all.
+Future<void> dvWriteDevStudioGraph({
+  required String root,
+  required String adminRoot,
+}) async {
+  try {
+    final Object? declared = _pubspecName(root);
+    final DartvelProjectGraph graph = await DartvelProjectGraph.build(
+      root: root,
+      pkgName: declared is String ? declared : p.basename(root),
+    );
+    Directory(adminRoot).createSync(recursive: true);
+    File(p.join(adminRoot, 'graph.json'))
+        .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(graph.toJson()));
+  } on Object {
+    // Kept as it was.
+  }
+}
+
+Object? _pubspecName(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  final RegExpMatch? name = RegExp(r'^name:\s*([A-Za-z0-9_]+)', multiLine: true)
+      .firstMatch(pubspec.readAsStringSync());
+  return name?.group(1);
 }

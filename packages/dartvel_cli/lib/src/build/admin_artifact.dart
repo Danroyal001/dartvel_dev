@@ -26,6 +26,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' show dvStudioStructureDirectory;
 
 /// The files to write under the admin root, by path relative to it.
 ///
@@ -291,3 +294,33 @@ fetch('graph.json', {credentials: 'same-origin'})
     panel.appendChild(text('p', 'The project graph could not be read. ' + error.message));
   });
 ''';
+
+/// Copies each route's captured semantics tree from [semantics] into the
+/// admin root's `structure` directory, where Studio's site endpoint reads
+/// it, and answers how many it copied.
+///
+/// The trees are the ones the build already captured for the crawler HTML;
+/// the prefetch lists beside them are not structure and stay behind. The
+/// directory is emptied first, so a page that no longer exists is not
+/// opened from a tree an earlier build left.
+int dvCopyPageStructures({
+  required String semantics,
+  required String adminRoot,
+}) {
+  final Directory source = Directory(semantics);
+  final Directory target = Directory(
+    '$adminRoot${Platform.pathSeparator}$dvStudioStructureDirectory',
+  );
+  if (target.existsSync()) target.deleteSync(recursive: true);
+  if (!source.existsSync()) return 0;
+  target.createSync(recursive: true);
+  int copied = 0;
+  for (final FileSystemEntity entity in source.listSync()) {
+    if (entity is! File) continue;
+    final String name = entity.uri.pathSegments.last;
+    if (!name.endsWith('.json') || name.endsWith('.images.json')) continue;
+    entity.copySync('${target.path}${Platform.pathSeparator}$name');
+    copied++;
+  }
+  return copied;
+}
