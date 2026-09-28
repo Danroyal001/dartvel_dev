@@ -12,6 +12,7 @@
 /// [dvApplyAdoption] in one rename -- or not at all.
 library;
 
+import 'host_router.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -635,9 +636,7 @@ List<String> _coexistence(YamlMap pubspec) {
   bool has(String name) => <String>['dependencies', 'dev_dependencies']
       .any((String s) => pubspec[s] is YamlMap && (pubspec[s] as YamlMap).containsKey(name));
   return <String>[
-    if (has('go_router'))
-      'go_router: your routes stay yours. `dartvel routes` fails with '
-          'DV-ADOPT-002 when a GoRoute path is also a generated page route.',
+    dvDetectHostRouter(pubspec).message,
     if (has('freezed') || has('json_serializable'))
       'freezed / json_serializable: those classes stay as they are. A class '
           'becomes a Dartvel model only when it is annotated, and annotating '
