@@ -41,7 +41,12 @@ void main() {
       for (final String source in pages.values)
         for (final Match m in named.allMatches(source)) m[1]!,
     };
-    expect(kDocsSamples.keys.where((String k) => !used.contains(k)), isEmpty,
+    // A class alternative is shown by its function sample's tabs.
+    bool shown(String k) =>
+        used.contains(k) ||
+        k.endsWith('-class') &&
+            used.contains(k.substring(0, k.length - '-class'.length));
+    expect(kDocsSamples.keys.where((String k) => !shown(k)), isEmpty,
         reason: 'a sample nobody shows is code nothing checks against a page');
   });
 

@@ -464,9 +464,67 @@ Widget _docsText(BuildContext context, String text) =>
         .maxWidth(680));
 
 /// A compiled sample from examples/docs_samples, by name.
+///
+/// Where the sample writes a widget or a page as an annotated function and
+/// `<name>-class` holds the same thing written as a class, both are shown
+/// behind Functional and Class tabs, the function first: it is the shape
+/// Dartvel teaches, and the class is there for a reader who prefers one.
 @DVFunctionalWidget()
-Widget _docsCode(BuildContext context, String name) =>
-    CodeBlock(kDocsSamples[name] ?? <String>['// missing sample: $name']);
+Widget _docsCode(BuildContext context, String name) {
+  final List<String> lines =
+      kDocsSamples[name] ?? <String>['// missing sample: $name'];
+  final List<String>? asClass = kDocsSamples['$name-class'];
+  return asClass == null ? CodeBlock(lines) : CodeTabs(lines, asClass);
+}
+
+/// One sample in two shapes, the function first.
+class const CodeTabs(final List<String> functional, final List<String> asClass,
+    {super.key}) extends StatefulWidget {
+  @override
+  State<CodeTabs> createState() => _CodeTabsState();
+}
+
+class _CodeTabsState extends State<CodeTabs> {
+  bool _class = false;
+
+  Widget _tab(String label, bool selected, bool asClass) {
+    final Palette palette = Palette.of(context);
+    // An underline marks the selected tab, and the same fact is given to a
+    // screen reader as the tab's selected state.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: selected ? palette.accent : palette.rule,
+            width: 2,
+          ),
+        ),
+      ),
+      child: TextButton(
+        onPressed: () => setState(() => _class = asClass),
+        style: TextButton.styleFrom(
+          foregroundColor: selected ? palette.accent : palette.muted,
+          shape: const RoundedRectangleBorder(),
+          padding: const .symmetric(horizontal: 14, vertical: 8),
+        ),
+        child: Semantics(
+          selected: selected,
+          child: Text(label,
+              style: TextStyle(fontWeight: selected ? .w700 : .w500)),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => DVBox.list(<Widget>[
+        DVBox.row(<Widget>[
+          _tab('Functional', !_class, false),
+          _tab('Class', _class, true),
+        ], spacing: 4),
+        CodeBlock(_class ? widget.asClass : widget.functional),
+      ], spacing: 6);
+}
 
 /// A block of the dartvel: section of pubspec.yaml, from the samples
 /// project, where generation reads and checks it.
