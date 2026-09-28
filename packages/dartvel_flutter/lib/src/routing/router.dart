@@ -123,7 +123,7 @@ class _DVPendingDelegate extends GoRouterDelegate {
 
 /// What a route shows while its first location is resolving.
 ///
-/// The theme's page background with a progress indicator on it, announced as
+/// The theme's page background with the loading bar across its top, announced as
 /// loading, so the moment reads as the application working rather than as a
 /// screen that failed to draw.
 class DVRoutePending extends StatelessWidget {
@@ -133,10 +133,11 @@ class DVRoutePending extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Theme.of(context).scaffoldBackgroundColor,
+      // The bar labels itself Loading; this makes it a live region, so the
+      // moment is announced as well as shown.
       child: Semantics(
-        label: 'Loading',
         liveRegion: true,
-        child: const Center(child: DvDefaultLoading()),
+        child: const DvDefaultLoading(),
       ),
     );
   }
