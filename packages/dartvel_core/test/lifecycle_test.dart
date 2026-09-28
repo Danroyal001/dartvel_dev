@@ -19,7 +19,7 @@ void main() {
       signal.set(DVAppLifecycle.initializing);
       signal.set(DVAppLifecycle.booting);
       signal.set(DVAppLifecycle.ready);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <DVAppLifecycle>[
         DVAppLifecycle.initializing,
@@ -38,7 +38,7 @@ void main() {
 
       signal.set(DVAppLifecycle.ready);
       signal.set(DVAppLifecycle.ready);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, isEmpty);
     });
@@ -52,7 +52,7 @@ void main() {
       signal.listen(seen.add);
 
       signal.set(DVAppLifecycle.ready);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <DVAppLifecycle>[DVAppLifecycle.ready]);
       expect(signal.value, DVAppLifecycle.ready);
@@ -63,7 +63,7 @@ void main() {
           DVMutableLifecycleSignal<DVAppLifecycle>(DVAppLifecycle.uninitialized);
       var ran = false;
       signal.listen((_) async {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         ran = true;
       });
 
@@ -100,7 +100,7 @@ void main() {
 
       registry.setApp(DVAppLifecycle.booting);
       registry.setApp(DVAppLifecycle.ready);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <DVAppLifecycle>[
         DVAppLifecycle.booting,

@@ -400,7 +400,7 @@ Widget _dartvelAdminIndexPage(BuildContext context) => buildDartvelAdminIndexPag
 
 Widget buildDartvelAdminIndexPage(BuildContext context) => DVBox.list([
     const DVText('Dartvel Admin').modifier(
-      const DVModifier().fontSize(28).fontWeight(FontWeight.bold),
+      const DVModifier().fontSize(28).fontWeight(.bold),
     ),
     DVText('Generated model, route, queue, cache, policy, and notification tools.'),
     DVBox.grid([

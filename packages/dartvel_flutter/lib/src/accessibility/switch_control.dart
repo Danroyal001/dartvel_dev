@@ -288,10 +288,10 @@ class DVAccessibilityToggle extends StatelessWidget {
             label: 'Switch control',
             child: GestureDetector(
               key: const ValueKey<String>('dv-accessibility-toggle'),
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: DVAccessibilitySwitchControl.state.toggle,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const .all(12),
                 child: Text('Switch control: ${on ? 'on' : 'off'}'),
               ),
             ),

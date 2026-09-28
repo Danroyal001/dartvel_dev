@@ -33,7 +33,7 @@ Widget _countUp(
   final int? target = int.tryParse(value);
   final DVModifier style = const DVModifier()
       .fontSize(size)
-      .fontWeight(FontWeight.w700)
+      .fontWeight(.w700)
       // The palette's, unless a caller on a dark band says otherwise. It
       // used to default to a hard-coded blue, which is how the accent came
       // to exist in four places at once.

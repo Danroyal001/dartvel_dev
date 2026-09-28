@@ -383,7 +383,7 @@ class _DVDevMenuState extends State<DVDevMenu> {
           final DVDevClientInspection? found = snapshot.data;
           if (found == null) return const Text('Inspecting the project...');
           Widget section(String heading, List<String> items, String none) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: <Widget>[
                   _Heading(heading),
                   if (items.isEmpty) Text(none),
@@ -391,7 +391,7 @@ class _DVDevMenuState extends State<DVDevMenu> {
                 ],
               );
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               section('Routes', found.routes, 'No routes.'),
               section('Models', found.models, 'No models.'),
@@ -414,12 +414,12 @@ class _DVDevMenuState extends State<DVDevMenu> {
     return Scaffold(
       appBar: AppBar(title: const Text('Dev menu')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         children: <Widget>[
           Text('Branch: ${branch ?? 'not paired'} · ${shell.target}'),
           const SizedBox(height: 8),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: .centerLeft,
             child: FilledButton(
               onPressed: () => unawaited(onReload()),
               child: const Text('Reload'),
@@ -451,7 +451,7 @@ class _Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 4),
+        padding: const .only(top: 16, bottom: 4),
         child: Text(text, style: Theme.of(context).textTheme.titleMedium),
       );
 }
@@ -629,9 +629,9 @@ class _PairingForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: <Widget>[
             const Text('Scan the QR code `dartvel dev` prints, '
                 'or paste its dartvel-dev:// link.'),

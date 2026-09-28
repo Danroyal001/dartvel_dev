@@ -12,7 +12,7 @@ void main() {
 
   test('HttpCache removes expired entries', () {
     final cache = HttpCache.instance;
-    cache.set<String>('temporary', 'value', ttl: Duration.zero);
+    cache.set<String>('temporary', 'value', ttl: .zero);
 
     expect(cache.get<String>('temporary'), isNull);
     expect(cache.has('temporary'), isFalse);

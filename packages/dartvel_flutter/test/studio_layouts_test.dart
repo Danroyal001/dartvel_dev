@@ -127,7 +127,7 @@ void main() {
         const MaterialApp(
           home: DVBox.wrapLine(
             <Widget>[DVText('one')],
-            align: DVAlign.center,
+            align: .center,
           ),
         ),
       );

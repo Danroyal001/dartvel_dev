@@ -85,7 +85,7 @@ void main() {
   testWidgets('a horizontal page answers the left and right arrows',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-        page(axis: Axis.horizontal, controller: controller));
+        page(axis: .horizontal, controller: controller));
     await tester.pumpAndSettle();
 
     await press(tester, LogicalKeyboardKey.arrowRight);

@@ -340,7 +340,7 @@ void main() {
 
       final Future<DV3DDegradation> updating =
           runtime.update(doc(models: <String>['kart', 'crate']));
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       final DVSceneFrame during =
           runtime.frame(DVSceneView.orbit(distance: 3), 10, 10);

@@ -44,7 +44,7 @@ final class _Report {
 
 Future<void> _settle() async {
   for (int i = 0; i < 10; i++) {
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
   }
 }
 

@@ -31,7 +31,7 @@ Widget _accountPage(BuildContext context) => (() {
                     .width(52)
                     .height(52)
                     .rounded(26)
-                    .align(Alignment.center)
+                    .align(.center)
                     .backgroundColor(p.accent),
               ),
               Expanded(
@@ -42,7 +42,7 @@ Widget _accountPage(BuildContext context) => (() {
               ),
             ],
             spacing: 14,
-            crossAlign: DVCrossAlign.center,
+            crossAlign: .center,
           ),
           const OutlinedButton(
             key: Key('sign-out'),
@@ -77,15 +77,15 @@ Widget _accountPage(BuildContext context) => (() {
           showSelectedIcon: false,
           segments: const <ButtonSegment<ThemeMode>>[
             ButtonSegment<ThemeMode>(
-              value: ThemeMode.system,
+              value: .system,
               label: Text('Automatic'),
             ),
             ButtonSegment<ThemeMode>(
-              value: ThemeMode.light,
+              value: .light,
               label: Text('Light'),
             ),
             ButtonSegment<ThemeMode>(
-              value: ThemeMode.dark,
+              value: .dark,
               label: Text('Dark'),
             ),
           ],

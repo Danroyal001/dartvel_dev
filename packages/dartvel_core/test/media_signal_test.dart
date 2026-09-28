@@ -7,7 +7,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
-Future<void> pump() => Future<void>.delayed(Duration.zero);
+Future<void> pump() => Future<void>.delayed(.zero);
 
 void main() {
   test('holds no subscription on its target until something listens', () async {

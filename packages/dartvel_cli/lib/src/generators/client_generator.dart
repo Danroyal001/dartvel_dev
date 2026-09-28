@@ -1259,7 +1259,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
       pageBuilder: (context, state) => NoTransitionPage<void>(
         child: DVPageShell(
           spec: ${e.scaffold},
-          child: ${e.heading == null || e.heading!.isEmpty ? 'Center(child: ${e.spec.name}())' : "Center(child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[DVText('${esc(e.heading!)}').modifier(const DVModifier().semanticHeading(1)), const SizedBox(height: 16), ${e.spec.name}()]))"},
+          child: ${e.heading == null || e.heading!.isEmpty ? 'Center(child: ${e.spec.name}())' : "Center(child: Column(mainAxisSize: .min, children: <Widget>[DVText('${esc(e.heading!)}').modifier(const DVModifier().semanticHeading(1)), const SizedBox(height: 16), ${e.spec.name}()]))"},
         ),
       ),
     ),''',

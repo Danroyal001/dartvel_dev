@@ -82,7 +82,7 @@ void main() {
       expect(
         () => levels.add(const DVServiceLevel(
           name: 'instant',
-          objective: DVObjective.successRate(0.99, over: Duration.zero),
+          objective: DVObjective.successRate(0.99, over: .zero),
           applies: DVAppliesTo.page('/'),
         )),
         throwsArgumentError,

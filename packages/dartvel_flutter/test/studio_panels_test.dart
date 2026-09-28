@@ -251,7 +251,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Align(
-            alignment: Alignment.topLeft,
+            alignment: .topLeft,
             child: SizedBox(
               width: 300,
               height: 500,
@@ -290,7 +290,7 @@ void main() {
     Widget narrow(Widget child, double width) => MaterialApp(
           home: Scaffold(
             body: Align(
-              alignment: Alignment.topLeft,
+              alignment: .topLeft,
               child: SizedBox(width: width, height: 600, child: child),
             ),
           ),

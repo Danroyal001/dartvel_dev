@@ -780,7 +780,7 @@ Widget _featureRow(
         Prose(area,
           const DVModifier()
               .fontSize(17)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .color(palette.ink)
               .semanticHeading(3),
         ),
@@ -794,13 +794,13 @@ Widget _featureRow(
             .color(palette.muted)
             .lineHeight(1.6)
             .maxLines(3)
-            .overflow(TextOverflow.ellipsis),
+            .overflow(.ellipsis),
       ),
       if (gap.isNotEmpty)
         DVBox.list(<Widget>[
           const DVText('Missing').modifier(const DVModifier()
               .fontSize(12)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .letterSpacing(0.8)
               .color(palette.faint)),
           Prose(gap,
@@ -809,9 +809,9 @@ Widget _featureRow(
                 .color(palette.muted)
                 .lineHeight(1.6)
                 .maxLines(3)
-                .overflow(TextOverflow.ellipsis),
+                .overflow(.ellipsis),
           ),
-        ], spacing: 4, crossAlign: DVCrossAlign.start),
+        ], spacing: 4, crossAlign: .start),
     ], spacing: 10),
     const DVModifier()
         // No height: a wrap gives its children unbounded height.

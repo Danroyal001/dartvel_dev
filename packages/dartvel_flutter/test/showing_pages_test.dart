@@ -16,7 +16,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget pages(int count) => Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
       child: Column(children: <Widget>[
         for (int i = 0; i < count; i++)
           DVPageLifecycleHost(key: ValueKey<int>(i), child: const SizedBox()),

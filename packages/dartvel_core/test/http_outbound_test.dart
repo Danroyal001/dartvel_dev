@@ -285,7 +285,7 @@ void main() {
 
   group('timeouts', () {
     test('a slow host times out with a typed error naming it', () async {
-      DVHttp.sleep = (Duration d) => Future<void>.delayed(Duration.zero);
+      DVHttp.sleep = (Duration d) => Future<void>.delayed(.zero);
       final Completer<DVHttpStreamedResponse> never =
           Completer<DVHttpStreamedResponse>();
       DVHttp.transport = (DVHttpRequest _) => never.future;

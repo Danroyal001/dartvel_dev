@@ -57,7 +57,7 @@ void main() {
     factory = _RecordingFactory();
     surfaces = DVWindowSurfaces(
       factory: factory,
-      contentFor: (DVWindow w) => Text(w.route.path, textDirection: TextDirection.ltr),
+      contentFor: (DVWindow w) => Text(w.route.path, textDirection: .ltr),
     );
   });
 

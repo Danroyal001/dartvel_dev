@@ -88,7 +88,7 @@ Widget _versusMore(BuildContext context, {required String current}) =>
         for (final VersusPage page in kVersusPages)
           if (page.path != current) GhostLink(page.phrase, page.path),
       ], spacing: 12),
-    ], spacing: 22, crossAlign: DVCrossAlign.start);
+    ], spacing: 22, crossAlign: .start);
 
 /// When the claims about the other project were last read against its own
 /// documentation, and where. Another project moves as fast as this one does:

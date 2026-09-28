@@ -137,7 +137,7 @@ void main() {
     await pump(
       tester,
       const DVText('Centred').modifier(
-        const DVModifier().align(Alignment.center),
+        const DVModifier().align(.center),
       ),
     );
 

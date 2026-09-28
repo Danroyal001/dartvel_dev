@@ -24,11 +24,11 @@ Widget _studioShot(
   return DVBox.list(<Widget>[
     DVBox(
       ClipRRect(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: .circular(11),
         child: Image.asset(
           asset,
           semanticLabel: label,
-          fit: BoxFit.fitWidth,
+          fit: .fitWidth,
           width: double.infinity,
         ),
       ),

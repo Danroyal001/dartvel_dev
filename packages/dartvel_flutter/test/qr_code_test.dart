@@ -87,7 +87,7 @@ void main() {
       (WidgetTester tester) async {
     const String text = 'otpauth://totp/Probe:a?secret=JBSWY3DPEHPK3PXP';
     await tester.pumpWidget(Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
       child: Center(child: DVQrImage(data: text, size: 232)),
     ));
     expect(tester.takeException(), isNull);

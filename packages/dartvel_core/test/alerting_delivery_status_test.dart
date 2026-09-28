@@ -219,7 +219,7 @@ void main() {
         health: const DVHealthReport(
           status: DVHealthStatus.up,
           checks: <String, DVHealthResult>{},
-          uptime: Duration.zero,
+          uptime: .zero,
         ),
         incidents: <DVIncident>[stored],
         now: at(41),

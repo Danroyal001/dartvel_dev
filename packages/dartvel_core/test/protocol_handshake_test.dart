@@ -40,7 +40,7 @@ DVProtocolPlan plan() {
       );
   return DVProtocolPlan.build(
     lock: lock,
-    window: const DVProtocolWindow(versions: 1, minimumAge: Duration.zero),
+    window: const DVProtocolWindow(versions: 1, minimumAge: .zero),
     now: DateTime.utc(2026, 9, 14),
     onDiagnostic: (_, _) {},
   );
@@ -199,7 +199,7 @@ void main() {
       client.state.changes.listen(seen.add);
       expect(await client.handshake(), DVProtocolResult.degraded);
       expect(client.state.value, DVProtocolResult.degraded);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(seen, <DVProtocolResult?>[DVProtocolResult.degraded]);
     });
 

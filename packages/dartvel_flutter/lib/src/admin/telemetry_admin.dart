@@ -39,7 +39,7 @@ class _DVTelemetryAdminState extends State<DVTelemetryAdmin> {
     final analytics = widget.analytics;
     return DVBox.scrollableList(<Widget>[
       const DVText('Entitlements and Events')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       GestureDetector(
         key: const ValueKey<String>('dv-telemetry-refresh'),
         onTap: _refresh,
@@ -60,7 +60,7 @@ class _DVTelemetryAdminState extends State<DVTelemetryAdmin> {
     final customers = grants.keys.toList()..sort();
     return DVBox.list(<Widget>[
       DVText('Entitlements (${customers.length} customers)').modifier(
-          const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          const DVModifier().fontSize(18).fontWeight(.bold)),
       // A customer who lost access and one who never had it both answer false
       // to hasEntitlement; the list is what tells them apart.
       if (customers.isEmpty) const DVText('Nobody holds an entitlement.'),
@@ -78,7 +78,7 @@ class _DVTelemetryAdminState extends State<DVTelemetryAdmin> {
     final events = analytics.events.reversed.take(widget.eventLimit).toList();
     return DVBox.list(<Widget>[
       DVText('Events (${analytics.events.length})').modifier(
-          const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          const DVModifier().fontSize(18).fontWeight(.bold)),
       if (events.isEmpty) const DVText('No events recorded.'),
       if (analytics.events.length > events.length)
         DVText('showing the most recent ${events.length}'),

@@ -17,7 +17,7 @@ Future<String> _serve(
     await dvRunMiddlewares(keys, request);
     // The handler's first await. A server with two requests in flight runs
     // the other one's middleware here.
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     return const DVTenants().currentTenant;
   });
 }

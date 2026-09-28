@@ -112,7 +112,7 @@ abstract final class DVStudioStyle {
         const DVModifier()
             .fontSize(20)
             .color(ink)
-            .fontWeight(FontWeight.w700),
+            .fontWeight(.w700),
       );
 
   /// A panel's or card's heading.
@@ -120,7 +120,7 @@ abstract final class DVStudioStyle {
         const DVModifier()
             .fontSize(14)
             .color(ink)
-            .fontWeight(FontWeight.w600),
+            .fontWeight(.w600),
       );
 
   /// The small heading over a group of controls or a list.
@@ -128,7 +128,7 @@ abstract final class DVStudioStyle {
         const DVModifier()
             .fontSize(11)
             .color(muted)
-            .fontWeight(FontWeight.w600),
+            .fontWeight(.w600),
       );
 
   /// Ordinary text in a panel.
@@ -147,14 +147,14 @@ abstract final class DVStudioStyle {
     IconData icon = Icons.info_outline,
   }) {
     return Container(
-      padding: const EdgeInsets.all(space3),
+      padding: const .all(space3),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.08),
         border: Border.all(color: tone.withValues(alpha: 0.28)),
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: .circular(radius),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Icon(icon, size: 16, color: tone),
           const SizedBox(width: space2),
@@ -188,7 +188,7 @@ abstract final class DVStudioStyle {
             : ink;
     return Container(
       height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: space3),
+      padding: const .symmetric(horizontal: space3),
       decoration: BoxDecoration(
         color: !enabled
             ? const Color(0xFFF4F4F7)
@@ -202,10 +202,10 @@ abstract final class DVStudioStyle {
                   ? accent
                   : lineStrong,
         ),
-        borderRadius: BorderRadius.circular(radiusSmall),
+        borderRadius: .circular(radiusSmall),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           if (icon != null) ...<Widget>[
             Icon(icon, size: 15, color: foreground),
@@ -242,7 +242,7 @@ abstract final class DVStudioStyle {
     double listWidth = 260,
   }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           width: listWidth,
@@ -273,7 +273,7 @@ abstract final class DVStudioStyle {
   }) {
     return Container(
       height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: space4),
+      padding: const .symmetric(horizontal: space4),
       decoration: const BoxDecoration(
         color: surface,
         border: Border(bottom: BorderSide(color: line)),
@@ -290,7 +290,7 @@ abstract final class DVStudioStyle {
                     const DVModifier()
                         .fontSize(14)
                         .color(ink)
-                        .fontWeight(FontWeight.w600)
+                        .fontWeight(.w600)
                         .maxLines(1),
                   ),
                 ),
@@ -320,9 +320,9 @@ abstract final class DVStudioStyle {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: line)),
       ),
-      padding: const EdgeInsets.fromLTRB(space4, space3, space4, space4),
+      padding: const .fromLTRB(space4, space3, space4, space4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -343,13 +343,13 @@ abstract final class DVStudioStyle {
   /// A small coloured label: Published, Draft, Pro.
   static Widget badge(String text, {Color tone = accent}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const .symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: .circular(999),
       ),
       child: DVText(text).modifier(
-        const DVModifier().fontSize(11).color(tone).fontWeight(FontWeight.w600),
+        const DVModifier().fontSize(11).color(tone).fontWeight(.w600),
       ),
     );
   }
@@ -364,11 +364,11 @@ abstract final class DVStudioStyle {
   /// A keyboard shortcut, shown beside the action it triggers.
   static Widget kbd(String keys) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const .symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: canvas,
         border: Border.all(color: line),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: DVText(keys).modifier(
         const DVModifier().fontSize(11).color(muted),
@@ -386,7 +386,7 @@ abstract final class DVStudioStyle {
       decoration: BoxDecoration(
         color: surface,
         border: Border.all(color: line),
-        borderRadius: BorderRadius.circular(radiusLarge),
+        borderRadius: .circular(radiusLarge),
         boxShadow: shadow,
       ),
       child: child,
@@ -403,8 +403,8 @@ abstract final class DVStudioStyle {
   }) {
     return card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -414,7 +414,7 @@ abstract final class DVStudioStyle {
                   height: 28,
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(radiusSmall),
+                    borderRadius: .circular(radiusSmall),
                   ),
                   child: Icon(icon, size: 16, color: tone),
                 ),
@@ -428,7 +428,7 @@ abstract final class DVStudioStyle {
             const DVModifier()
                 .fontSize(26)
                 .color(ink)
-                .fontWeight(FontWeight.w700),
+                .fontWeight(.w700),
           ),
           if (detail != null) ...<Widget>[
             const SizedBox(height: space1),
@@ -452,16 +452,16 @@ abstract final class DVStudioStyle {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 320 + space4 * 2),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: space4),
+          padding: const .symmetric(horizontal: space4),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
                   color: accentSoft,
-                  borderRadius: BorderRadius.circular(radiusLarge),
+                  borderRadius: .circular(radiusLarge),
                 ),
                 child: Icon(icon, size: 22, color: accent),
               ),
@@ -473,7 +473,7 @@ abstract final class DVStudioStyle {
                 // title has to be centred too, and DVModifier has no alignment.
                 Text(
                   message,
-                  textAlign: TextAlign.center,
+                  textAlign: .center,
                   style: const TextStyle(fontSize: 13, color: muted),
                 ),
               ],
@@ -561,7 +561,7 @@ class _DVStudioIconButtonState extends State<DVStudioIconButton> {
             height: widget.size,
             decoration: BoxDecoration(
               color: background,
-              borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+              borderRadius: .circular(DVStudioStyle.radiusSmall),
             ),
             child: Icon(widget.icon, size: 17, color: foreground),
           ),
@@ -641,11 +641,11 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: widget.onTap,
           child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
-          padding: EdgeInsets.fromLTRB(
+          margin: const .symmetric(horizontal: DVStudioStyle.space2),
+          padding: .fromLTRB(
             DVStudioStyle.space2 + widget.indent,
             widget.subtitle == null ? 7 : 6,
             DVStudioStyle.space2,
@@ -653,7 +653,7 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
           ),
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+            borderRadius: .circular(DVStudioStyle.radiusSmall),
           ),
           child: Row(
             children: <Widget>[
@@ -669,8 +669,8 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
               ],
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: .start,
+                  mainAxisSize: .min,
                   children: <Widget>[
                     DVText(widget.title).modifier(
                       const DVModifier()
@@ -775,7 +775,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
       onTap: _focus.requestFocus,
       child: Container(
         height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const .symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: DVStudioStyle.surface,
           border: Border.all(
@@ -783,7 +783,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                 ? DVStudioStyle.accent
                 : DVStudioStyle.lineStrong,
           ),
-          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+          borderRadius: .circular(DVStudioStyle.radiusSmall),
         ),
         child: Row(
           children: <Widget>[
@@ -797,7 +797,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
             ],
             Expanded(
               child: Stack(
-                alignment: Alignment.centerLeft,
+                alignment: .centerLeft,
                 children: <Widget>[
                   if (_text.text.isEmpty && widget.placeholder != null)
                     IgnorePointer(
@@ -865,13 +865,13 @@ class DVStudioSegmented<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 32,
-      padding: const EdgeInsets.all(2),
+      padding: const .all(2),
       decoration: BoxDecoration(
         color: DVStudioStyle.canvas,
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           for (final DVStudioSegment<T> segment in segments)
             _segment(segment, segment.value == value),
@@ -890,15 +890,15 @@ class DVStudioSegmented<T> extends StatelessWidget {
       child: GestureDetector(
         onTap: onChanged == null ? null : () => onChanged!(segment.value),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center,
+          padding: const .symmetric(horizontal: 10),
+          alignment: .center,
           decoration: BoxDecoration(
             color: active ? DVStudioStyle.surface : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: .circular(4),
             boxShadow: active ? DVStudioStyle.shadow : null,
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               if (segment.icon != null)
                 Icon(segment.icon, size: 15, color: foreground),
@@ -938,7 +938,7 @@ class DVStudioSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Material(type: MaterialType.canvas, color: color, child: child);
+      Material(type: .canvas, color: color, child: child);
 }
 
 /// Icons Studio names in more than one place, so a page is the same glyph in
