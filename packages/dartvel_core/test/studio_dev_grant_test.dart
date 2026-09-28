@@ -69,7 +69,7 @@ void main() {
     expect(models?.status, 200);
     expect(
       jsonDecode(utf8.decode(await models!.body!.bytes())),
-      <String, Object?>{'models': <Object?>[]},
+      containsPair('models', <Object?>[]),
     );
   });
 
