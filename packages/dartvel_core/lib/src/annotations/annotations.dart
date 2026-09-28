@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../auth/sessions.dart' show DVMfa;
 import '../data/record_history.dart' show DVConflict, DVHistory;
 import '../privacy/privacy.dart' show DVRetention;
+import 'model_access.dart' show DVIndex, DVModelAccess;
 
 /// Annotation for a route
 class Route {
@@ -421,6 +422,25 @@ class DVModel {
   /// it back.
   final bool softDelete;
 
+  /// Who may read, create, change and delete records through the model's
+  /// data API, for a model that says so here rather than in a `@DVPolicy`
+  /// class. Studio stores the same rules for a model designed there.
+  final DVModelAccess? access;
+
+  /// The indexes the model asks its database for, beyond its key.
+  final List<DVIndex> indexes;
+
+  /// `@DVModel.uniqueField()`: no two records hold the same value here.
+  final bool unique;
+
+  /// `@DVModel.validate(...)`: the smallest and largest number, the
+  /// shortest and longest text, and a pattern the whole text matches.
+  final num? min;
+  final num? max;
+  final int? minLength;
+  final int? maxLength;
+  final String? pattern;
+
   const DVModel({
     this.searchable = false,
     this.billable = false,
@@ -439,7 +459,15 @@ class DVModel {
     this.offline,
     this.version = true,
     this.softDelete = false,
+    this.access,
+    this.indexes = const <DVIndex>[],
   })  : encrypted = false,
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
         retainYears = null,
         retainBecause = null,
         onErase = DVErase.delete,
@@ -475,7 +503,15 @@ class DVModel {
     this.showInForms = false,
     this.showInAdmin = false,
     this.onErase = DVErase.delete,
-  })  : searchable = false,
+  })  : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        searchable = false,
         subject = null,
         history = null,
         capture = false,
@@ -501,10 +537,107 @@ class DVModel {
         model3dMaxSizeMb = null,
         model3dMaxTriangles = null;
 
+  /// The rules a field's value has to meet before it is stored:
+  /// `@DVModel.validate(minLength: 3, maxLength: 120)`.
+  ///
+  /// [min] and [max] bound a number, [minLength] and [maxLength] a text's
+  /// length, and [pattern] is a regular expression the whole text matches.
+  /// Checked wherever the record is written through Studio or the data API,
+  /// so neither stores what the other would refuse.
+  const DVModel.validate({
+    this.min,
+    this.max,
+    this.minLength,
+    this.maxLength,
+    this.pattern,
+  })  : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        searchable = false,
+        subject = null,
+        history = null,
+        capture = false,
+        semantic = false,
+        offline = null,
+        version = true,
+        softDelete = false,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
+        billable = false,
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = true,
+        publicPathsResolver = null,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null,
+        schemaType = null,
+        favicon = null,
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
+
+  /// Marks a field no two records may share: `@DVModel.uniqueField()`.
+  ///
+  /// The database is asked for a unique index on it, and a write that would
+  /// repeat a value is refused before it reaches the database.
+  const DVModel.uniqueField()
+      : unique = true,
+        access = null,
+        indexes = const <DVIndex>[],
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        searchable = false,
+        subject = null,
+        history = null,
+        capture = false,
+        semantic = false,
+        offline = null,
+        version = true,
+        softDelete = false,
+        retain = null,
+        retainYears = null,
+        retainBecause = null,
+        onErase = DVErase.delete,
+        billable = false,
+        nativePrice = null,
+        pageDataMode = DVModelPageDataMode.auto,
+        generatePublicPages = true,
+        publicPathsResolver = null,
+        encrypted = false,
+        showInForms = false,
+        showInAdmin = false,
+        pageRole = null,
+        pageOrderIndex = null,
+        schemaType = null,
+        favicon = null,
+        tenantScoped = false,
+        isModel3dField = false,
+        model3dPoster = false,
+        model3dMaxSizeMb = null,
+        model3dMaxTriangles = null;
+
   /// Marks a model field for generated search indexing:
   /// `@DVModel.searchableField()`.
   const DVModel.searchableField()
-      : searchable = true,
+      : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        searchable = true,
         subject = null,
         history = null,
         capture = false,
@@ -583,7 +716,15 @@ class DVModel {
     bool poster = true,
     int? maxSizeMb,
     int? maxTriangles,
-  })  : isModel3dField = true,
+  })  : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        isModel3dField = true,
         subject = null,
         history = null,
         capture = false,
@@ -621,7 +762,15 @@ class DVModel {
   /// the answer to "why do you still have my invoice" is in the codebase
   /// rather than in somebody's memory.
   const DVModel.retain({required int years, required String because})
-      : retainYears = years,
+      : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        retainYears = years,
         retainBecause = because,
         subject = null,
         history = null,
@@ -652,7 +801,15 @@ class DVModel {
         model3dMaxTriangles = null;
 
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
-      : searchable = false,
+      : access = null,
+        indexes = const <DVIndex>[],
+        unique = false,
+        min = null,
+        max = null,
+        minLength = null,
+        maxLength = null,
+        pattern = null,
+        searchable = false,
         subject = null,
         history = null,
         capture = false,

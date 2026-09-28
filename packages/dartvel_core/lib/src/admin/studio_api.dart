@@ -18,9 +18,12 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 
 import '../../dartvel.dart'
     show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
+import '../annotations/model_access.dart';
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
@@ -36,8 +39,15 @@ import '../modules/modules.dart'
 import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
+import 'studio_model_schema.dart';
+import 'studio_site.dart';
 
 /// One field of a model, as Studio edits it.
+///
+/// The same description whether the model was compiled from a `@DVModel`
+/// or designed in Studio: the generator writes one of these for every field
+/// it reads, Studio stores one for every field somebody adds, and the
+/// checks a write goes through are read from here either way.
 class DVStudioFieldSpec {
   const DVStudioFieldSpec({
     required this.name,
@@ -45,7 +55,39 @@ class DVStudioFieldSpec {
     this.sensitive = false,
     this.options,
     this.relation,
+    this.unique = false,
+    this.min,
+    this.max,
+    this.minLength,
+    this.maxLength,
+    this.pattern,
   });
+
+  /// A field from [toJson]'s output.
+  factory DVStudioFieldSpec.fromJson(Map<Object?, Object?> json) {
+    num? number(Object? value) =>
+        value is num ? value : num.tryParse('${value ?? ''}');
+    int? whole(Object? value) => number(value)?.toInt();
+    return DVStudioFieldSpec(
+      name: '${json['name']}',
+      type: '${json['type']}',
+      sensitive: json['sensitive'] == true,
+      options: json['options'] is List
+          ? <String>[
+              for (final Object? option in json['options']! as List) '$option',
+            ]
+          : null,
+      relation: json['relation'] is String ? json['relation']! as String : null,
+      unique: json['unique'] == true,
+      min: number(json['min']),
+      max: number(json['max']),
+      minLength: whole(json['minLength']),
+      maxLength: whole(json['maxLength']),
+      pattern: json['pattern'] is String && '${json['pattern']}'.isNotEmpty
+          ? json['pattern']! as String
+          : null,
+    );
+  }
 
   final String name;
 
@@ -55,6 +97,20 @@ class DVStudioFieldSpec {
   /// The model, by the name Studio lists it under, that this field holds the
   /// key of: `userSlug` holding a `User`'s slug.
   final String? relation;
+
+  /// No two records hold the same value here.
+  final bool unique;
+
+  /// The smallest and largest number the field takes.
+  final num? min;
+  final num? max;
+
+  /// The shortest and longest text the field takes.
+  final int? minLength;
+  final int? maxLength;
+
+  /// A regular expression the whole text has to match.
+  final String? pattern;
 
   /// Whether the value is a list, set or map, kept as JSON.
   bool get isCollection {
@@ -70,8 +126,20 @@ class DVStudioFieldSpec {
   /// The declared Dart type, with `?` when nullable.
   final String type;
 
+  /// Whether the field may be left empty.
+  bool get nullable => type.trim().endsWith('?');
+
   /// Never sent to Studio, and refused when Studio sends it.
   final bool sensitive;
+
+  /// Whether the field carries a rule beyond its type.
+  bool get hasRules =>
+      unique ||
+      min != null ||
+      max != null ||
+      minLength != null ||
+      maxLength != null ||
+      pattern != null;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'name': name,
@@ -79,6 +147,35 @@ class DVStudioFieldSpec {
     if (sensitive) 'sensitive': true,
     'options': ?options,
     'relation': ?relation,
+    if (unique) 'unique': true,
+    'min': ?min,
+    'max': ?max,
+    'minLength': ?minLength,
+    'maxLength': ?maxLength,
+    'pattern': ?pattern,
+  };
+}
+
+/// An index a model asks its database for: one field or several, and
+/// whether no two records may share the combination.
+class DVStudioIndexSpec {
+  const DVStudioIndexSpec({required this.fields, this.unique = false});
+
+  factory DVStudioIndexSpec.fromJson(Map<Object?, Object?> json) =>
+      DVStudioIndexSpec(
+        fields: <String>[
+          for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
+            '$field',
+        ],
+        unique: json['unique'] == true,
+      );
+
+  final List<String> fields;
+  final bool unique;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'fields': fields,
+    if (unique) 'unique': true,
   };
 }
 
@@ -96,10 +193,24 @@ class DVStudioModelSpec {
     this.capture = false,
     this.module,
     this.data,
+    this.indexes = const <DVStudioIndexSpec>[],
+    this.access,
+    this.origin = DVStudioModelOrigin.code,
   });
 
   /// The model's class name.
   final String model;
+
+  /// The indexes the model asks its database for, beyond its key.
+  final List<DVStudioIndexSpec> indexes;
+
+  /// Who may do what to the model's records through its data API, or null
+  /// for a model whose policies are written in code.
+  final DVModelAccess? access;
+
+  /// Where the model is defined: compiled from a `@DVModel`, or designed in
+  /// Studio and stored beside the records it describes.
+  final DVStudioModelOrigin origin;
 
   /// The mounted module the model belongs to, or null for the application's
   /// own. Studio names it `<module>.<Model>`, so a module's `Order` and the
@@ -189,6 +300,12 @@ class DVStudioModelSpec {
     'softDelete': softDelete,
     if (offline != null) 'offline': offline!.name,
     if (capture) 'capture': true,
+    if (indexes.isNotEmpty)
+      'indexes': <Object?>[
+        for (final DVStudioIndexSpec index in indexes) index.toJson(),
+      ],
+    if (access != null) 'access': access!.toJson(),
+    if (origin != DVStudioModelOrigin.code) 'origin': origin.name,
   };
 
   /// A spec from [toManifest]'s output.
@@ -206,33 +323,54 @@ class DVStudioModelSpec {
             : DVConflict.byName('${json['offline']}'),
         fields: <DVStudioFieldSpec>[
           for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
-            if (field is Map)
-              DVStudioFieldSpec(
-                name: '${field['name']}',
-                type: '${field['type']}',
-                sensitive: field['sensitive'] == true,
-                options: field['options'] is List
-                    ? <String>[
-                        for (final Object? option in field['options'] as List)
-                          '$option',
-                      ]
-                    : null,
-                relation:
-                    field['relation'] is String ? field['relation'] as String : null,
-              ),
+            if (field is Map) DVStudioFieldSpec.fromJson(field),
         ],
+        indexes: <DVStudioIndexSpec>[
+          for (final Object? index in (json['indexes'] as List?) ?? const <Object?>[])
+            if (index is Map) DVStudioIndexSpec.fromJson(index),
+        ],
+        access: json['access'] is Map
+            ? DVModelAccess.fromJson(json['access']! as Map)
+            : null,
+        origin: json['origin'] == DVStudioModelOrigin.studio.name
+            ? DVStudioModelOrigin.studio
+            : DVStudioModelOrigin.code,
       );
+
+  /// This spec, with [origin] said.
+  DVStudioModelSpec withOrigin(DVStudioModelOrigin origin) =>
+      DVStudioModelSpec.fromManifest(<String, Object?>{
+        ...toManifest(),
+        'origin': origin.name,
+      });
 
   Map<String, Object?> toJson() => <String, Object?>{
     'model': id,
     'module': ?module,
     'key': key,
+    'table': table,
     'fields': <Object?>[
       for (final DVStudioFieldSpec field in fields) field.toJson(),
     ],
     'versioned': versioned,
     'softDelete': softDelete,
+    'origin': origin.name,
+    if (indexes.isNotEmpty)
+      'indexes': <Object?>[
+        for (final DVStudioIndexSpec index in indexes) index.toJson(),
+      ],
+    if (access != null) 'access': access!.toJson(),
   };
+}
+
+/// Where a data model is defined.
+enum DVStudioModelOrigin {
+  /// A `@DVModel` in the project's source, compiled into this build.
+  code,
+
+  /// Designed in Studio and stored in the application's database, served
+  /// without a rebuild.
+  studio,
 }
 
 /// A refusal with a status and a code Studio can show.
@@ -243,6 +381,17 @@ class _StudioRefusal implements Exception {
   final String code;
   final String message;
 
+}
+
+/// A new record key: twenty characters of secure random, lower case and
+/// digits, so it reads in an address and sorts nowhere in particular.
+String dvStudioNewKey() {
+  final math.Random random = math.Random.secure();
+  const String alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  return String.fromCharCodes(<int>[
+    for (int i = 0; i < 20; i++)
+      alphabet.codeUnitAt(random.nextInt(alphabet.length)),
+  ]);
 }
 
 /// The account id of the live session [request] carries, or null.
@@ -298,7 +447,16 @@ class DVStudioApi {
     Future<String?> Function(Request request)? caller,
     DVAccountDirectory? accounts,
     List<String> Function()? queues,
+    this.root,
+    this.sourceRoot,
+    List<Map<String, Object?>> Function()? compiledRoutes,
+    String? structureRoot,
   })  : _caller = caller ?? dvStudioSessionUserId,
+        _compiledRoutes = compiledRoutes ?? (() => dvStudioGraphRoutes(root)),
+        _structureRoot = structureRoot ??
+            (root == null
+                ? null
+                : '$root${Platform.pathSeparator}$dvStudioStructureDirectory'),
         _accounts = accounts,
         _queues = queues ?? (() => const <String>['default']);
 
@@ -306,7 +464,25 @@ class DVStudioApi {
   /// queue, so there is nothing to enumerate them from but the build.
   final List<String> Function() _queues;
 
+  /// The models compiled into this build.
   final List<DVStudioModelSpec> models;
+
+  /// The directory Studio is served from, where the build writes the
+  /// project graph and each page's captured structure. Null lists no
+  /// compiled page.
+  final String? root;
+
+  /// The routes the application compiled: the project graph's by default.
+  final List<Map<String, Object?>> Function() _compiledRoutes;
+
+  /// Where each compiled page's captured structure is, one JSON file per
+  /// route: the admin root's `structure` directory by default.
+  final String? _structureRoot;
+
+  /// The project's source tree, on a development server: a model designed in
+  /// Studio can be written out to `lib/models` there. Null on a deployed
+  /// server, which has no source to keep in step.
+  final String? sourceRoot;
 
   /// The signed-in account making [Request], for the grants a caller may
   /// not revoke from under themselves without saying so.
@@ -329,33 +505,59 @@ class DVStudioApi {
 
   /// The answer to [request], whose path below the API is [rest] (no
   /// leading slash).
-  Future<Response> respond(Request request, String rest) async {
-    try {
-      final String method = request.method.toUpperCase();
-      if (method != 'GET' && method != 'HEAD') _requireCsrf(request);
-      final List<String> segments = rest
-          .split('/')
-          .where((String s) => s.isNotEmpty)
-          .map(Uri.decodeComponent)
-          .toList(growable: false);
-      if (segments.isEmpty) {
+  Future<Response> respond(Request request, String rest) =>
+      _guard(() async {
+        final String method = request.method.toUpperCase();
+        if (method != 'GET' && method != 'HEAD') _requireCsrf(request);
+        final List<String> segments = rest
+            .split('/')
+            .where((String s) => s.isNotEmpty)
+            .map(Uri.decodeComponent)
+            .toList(growable: false);
+        if (segments.isEmpty) {
+          throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+        }
+        switch (segments.first) {
+          case 'models':
+            return await _models(request, method, segments.sublist(1));
+          case 'pages':
+            return await _pages(request, method);
+          case 'site':
+            return await _site(request, method, segments.sublist(1));
+          case 'functions':
+            return await _functions(request, method);
+          case 'grants':
+            if (segments.length == 1) return await _grantsAt(request, method);
+          case 'queues':
+            return await _queuesAt(method, segments.sublist(1));
+          case 'cache':
+            return await _cacheAt(method, segments.sublist(1));
+        }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
-      }
-      switch (segments.first) {
-        case 'models':
-          return await _models(request, method, segments.sublist(1));
-        case 'pages':
-          return await _pages(request, method);
-        case 'functions':
-          return await _functions(request, method);
-        case 'grants':
-          if (segments.length == 1) return await _grantsAt(request, method);
-        case 'queues':
-          return await _queuesAt(method, segments.sublist(1));
-        case 'cache':
-          return await _cacheAt(method, segments.sublist(1));
-      }
-      throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
+      });
+
+  /// The records of [spec], for a caller something else has already
+  /// decided may reach them: the data API of the models designed in Studio.
+  Future<Response> respondRecords(
+    Request request,
+    DVStudioModelSpec spec,
+    List<String> rest, {
+    String? method,
+  }) =>
+      _guard(
+        () => _recordsOf(
+          request,
+          method ?? request.method.toUpperCase(),
+          spec,
+          rest,
+        ),
+      );
+
+  /// [run]'s answer, with a refusal or a conflict answered as Studio shows
+  /// one.
+  Future<Response> _guard(Future<Response> Function() run) async {
+    try {
+      return await run();
     } on _StudioRefusal catch (refusal) {
       return _reply(<String, Object?>{
         'error': refusal.code,
@@ -419,6 +621,66 @@ class DVStudioApi {
 
   // ---- models ------------------------------------------------------------
 
+  /// Every data model: the ones compiled into this build, then the ones
+  /// designed in Studio.
+  ///
+  /// A stored definition under a compiled model's name is not served: the
+  /// compiled one is what the application's own code reads and writes, and
+  /// two descriptions of one table would disagree the first time either
+  /// changed.
+  Future<List<DVStudioModelSpec>> allModels() async {
+    final Set<String> compiled = <String>{
+      for (final DVStudioModelSpec model in models) model.id,
+    };
+    return <DVStudioModelSpec>[
+      ...models,
+      for (final DVStudioModelSpec model in await storedModels())
+        if (!compiled.contains(model.id)) model,
+    ];
+  }
+
+  /// The models designed in Studio, from the application's database.
+  Future<List<DVStudioModelSpec>> storedModels() async {
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter == null) return const <DVStudioModelSpec>[];
+    final DVRecordAdapter records = DVRecordAdapter.over(adapter);
+    await records.ensure(dvStudioModelsShape);
+    final List<Map<String, Object?>> rows = await records.find(
+      dvStudioModelsTable,
+      fields: const <String>['name', 'document'],
+      orderBy: const <DVSort>[DVSort('name')],
+    );
+    final List<DVStudioModelSpec> stored = <DVStudioModelSpec>[];
+    for (final Map<String, Object?> row in rows) {
+      try {
+        final Object? decoded = jsonDecode('${row['document']}');
+        if (decoded is! Map) continue;
+        stored.add(DVStudioModelSpec.fromManifest(<String, Object?>{
+          ...decoded.cast<String, Object?>(),
+          'model': '${row['name']}',
+          'table': dvStudioTableFor('${row['name']}'),
+          'origin': DVStudioModelOrigin.studio.name,
+        }));
+      } on FormatException {
+        // A definition that no longer parses is left out rather than taking
+        // every other model down with it.
+      }
+    }
+    return stored;
+  }
+
+  /// The model Studio lists as [name], or a 404.
+  Future<DVStudioModelSpec> _spec(String name) async {
+    for (final DVStudioModelSpec model in await allModels()) {
+      if (model.id == name) return model;
+    }
+    throw _StudioRefusal(
+      404,
+      'not_found',
+      'No model named $name is declared.',
+    );
+  }
+
   Future<Response> _models(
     Request request,
     String method,
@@ -428,24 +690,48 @@ class DVStudioApi {
       if (method != 'GET') _notAllowed();
       return _reply(<String, Object?>{
         'models': <Object?>[
-          for (final DVStudioModelSpec model in models) model.toJson(),
+          for (final DVStudioModelSpec model in await allModels())
+            model.toJson(),
         ],
+        // Whether a model designed here can also be written to the
+        // project's source: only a development server has any.
+        'sourceWritable': sourceRoot != null,
       });
     }
-    final DVStudioModelSpec spec = models.firstWhere(
-      (DVStudioModelSpec m) => m.id == path.first,
-      orElse: () => throw _StudioRefusal(
-        404,
-        'not_found',
-        'No model named ${path.first} is declared.',
-      ),
-    );
+    if (path.length == 1) {
+      switch (method) {
+        case 'GET':
+          return _reply((await _spec(path.first)).toJson());
+        case 'PUT':
+          return _saveDefinition(request, path.first);
+        case 'DELETE':
+          return _deleteDefinition(path.first);
+      }
+      _notAllowed();
+    }
+    if (path.length == 2 && path[1] == 'source') {
+      if (method != 'POST') _notAllowed();
+      return _writeSource(await _spec(path.first));
+    }
+    final DVStudioModelSpec spec = await _spec(path.first);
     if (path.length < 2 || path[1] != 'records' || path.length > 3) {
       throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
     }
+    return _recordsOf(request, method, spec, path.sublist(2));
+  }
+
+  /// The records of [spec]: all of them with an empty [rest], one with its
+  /// key, created, changed and deleted -- through the checks every write
+  /// here goes through, whoever is making it.
+  Future<Response> _recordsOf(
+    Request request,
+    String method,
+    DVStudioModelSpec spec,
+    List<String> rest,
+  ) async {
     final DVRecordTable table = _table(spec);
-    await table.ensureSchema();
-    if (path.length == 2) {
+    await prepare(spec, table);
+    if (rest.isEmpty) {
       if (method == 'GET') {
         final List<DVRecord> records = await table.all();
         return _reply(<String, Object?>{
@@ -457,7 +743,7 @@ class DVStudioApi {
       if (method == 'POST') return _create(spec, table, await _body(request));
       _notAllowed();
     }
-    final String key = path[2];
+    final String key = rest.first;
     switch (method) {
       case 'GET':
         final DVRecord? record = await table.read(key);
@@ -486,6 +772,267 @@ class DVStudioApi {
         return _reply(<String, Object?>{'deleted': key});
     }
     _notAllowed();
+  }
+
+  /// The tables, columns and indexes [spec] has been made sure of, per
+  /// database, so a model is prepared once per process and again when its
+  /// definition changes.
+  static final Expando<Set<String>> _prepared = Expando<Set<String>>();
+
+  /// Makes sure [spec]'s table has every column its fields name and every
+  /// index it asks for.
+  ///
+  /// A model designed in Studio grows a field without a migration: the
+  /// column is added the first time its records are touched. An index the
+  /// database cannot make -- a unique one over values that already repeat,
+  /// or an engine with no indexes to ask for -- is left to the check every
+  /// write makes, so the rule holds either way.
+  Future<void> prepare(DVStudioModelSpec spec, DVRecordTable table) async {
+    final DVDatabaseAdapter adapter = _databaseFor(spec);
+    final Set<String> done = _prepared[adapter] ??= <String>{};
+    final String signature = jsonEncode(<Object?>[
+      table.table,
+      <String>[for (final DVStudioFieldSpec f in spec.fields) f.name],
+      <Object?>[
+        for (final ({String name, List<String> fields, bool unique}) index
+            in dvStudioIndexesOf(spec))
+          index.name,
+      ],
+    ]);
+    await table.ensureSchema();
+    if (done.contains(signature)) return;
+    for (final DVStudioFieldSpec field in spec.fields) {
+      try {
+        await adapter.query(
+          'SELECT ${field.name} FROM ${table.table} LIMIT 0',
+          const <Object?>[],
+        );
+      } on Object {
+        try {
+          await adapter.execute(
+            'ALTER TABLE ${table.table} ADD COLUMN ${field.name} TEXT',
+          );
+        } on Object {
+          // The engine keeps no columns to add: nothing to do.
+        }
+      }
+    }
+    for (final ({String name, List<String> fields, bool unique}) index
+        in dvStudioIndexesOf(spec)) {
+      try {
+        await adapter.execute(
+          'CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS '
+          '${index.name} ON ${table.table} (${index.fields.join(', ')})',
+        );
+      } on Object {
+        // Checked on every write instead.
+      }
+    }
+    done.add(signature);
+  }
+
+  /// Stores [name]'s definition, designed in Studio.
+  Future<Response> _saveDefinition(Request request, String name) async {
+    final Object? definition = (await _body(request))['definition'];
+    if (definition is! Map) {
+      throw _StudioRefusal(
+        400,
+        'bad_definition',
+        'Send the model as {"definition": {...}}.',
+      );
+    }
+    final DVStudioModelSpec spec = DVStudioModelSpec.fromManifest(
+      <String, Object?>{
+        ...definition.cast<String, Object?>(),
+        'model': name,
+        'table': dvStudioTableFor(name),
+        'origin': DVStudioModelOrigin.studio.name,
+      },
+    );
+    final List<DVStudioModelSpec> every = await allModels();
+    final Map<String, DVStudioModelSpec> others = <String, DVStudioModelSpec>{
+      for (final DVStudioModelSpec model in every)
+        if (model.id != name) model.id: model,
+    };
+    final List<String> problems =
+        dvStudioDefinitionProblems(spec, others: others);
+    if (problems.isNotEmpty) {
+      return _reply(<String, Object?>{
+        'error': 'bad_definition',
+        'message': problems.first,
+        'problems': problems,
+      }, status: 400);
+    }
+    final DVStudioModelSpec? compiled = models
+        .where((DVStudioModelSpec m) => m.id == name)
+        .firstOrNull;
+    if (compiled != null) {
+      // A compiled model is changed where it is written. On a development
+      // server whose model file Studio wrote, that is here: the file is
+      // written again and the next build compiles it.
+      final File? file = _sourceFile(name);
+      if (file == null || !_studioWritten(file)) {
+        throw _StudioRefusal(
+          409,
+          'in_code',
+          '$name is written in code, so it is changed there.',
+        );
+      }
+      file.writeAsStringSync(dvStudioModelDartSource(spec));
+      return _reply(<String, Object?>{
+        ...spec.withOrigin(DVStudioModelOrigin.code).toJson(),
+        'source': _relativeSource(name),
+        'rebuild': true,
+      });
+    }
+    final DVStudioModelSpec? existing = (await storedModels())
+        .where((DVStudioModelSpec m) => m.id == name)
+        .firstOrNull;
+    if (existing != null && existing.key != spec.key) {
+      final DVRecordTable table = _table(existing);
+      await table.ensureSchema();
+      if ((await table.all(withDeleted: true)).isNotEmpty) {
+        throw _StudioRefusal(
+          409,
+          'key_change',
+          '$name already has records found by ${existing.key}, so its key '
+              'stays ${existing.key}.',
+        );
+      }
+    }
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioModelsShape);
+    await records.delete(
+      dvStudioModelsTable,
+      where: DVFilter.equals('name', name),
+    );
+    await records.insert(dvStudioModelsTable, <String, Object?>{
+      'name': name,
+      'document': jsonEncode(spec.toManifest()),
+    });
+    // Its table now, so the first record written through any path finds it.
+    await prepare(spec, _table(spec));
+    return _reply(spec.toJson(), status: existing == null ? 201 : 200);
+  }
+
+  /// Removes [name]'s definition. Its records stay where they are: defining
+  /// the model again under the same name finds them.
+  Future<Response> _deleteDefinition(String name) async {
+    if (models.any((DVStudioModelSpec m) => m.id == name)) {
+      throw _StudioRefusal(
+        409,
+        'in_code',
+        '$name is written in code, so it is removed there.',
+      );
+    }
+    final DVRecordAdapter records = DVRecordAdapter.over(_database);
+    await records.ensure(dvStudioModelsShape);
+    final int removed = await records.delete(
+      dvStudioModelsTable,
+      where: DVFilter.equals('name', name),
+    );
+    if (removed == 0) {
+      throw _StudioRefusal(404, 'not_found', 'No model named $name is stored.');
+    }
+    return _reply(<String, Object?>{'deleted': name, 'recordsKept': true});
+  }
+
+  /// `lib/models/<name>.dart` in the source tree, or null without one.
+  File? _sourceFile(String name) {
+    final String? root = sourceRoot;
+    if (root == null || name.contains('.')) return null;
+    final String separator = Platform.pathSeparator;
+    return File(
+      '$root${separator}lib${separator}models$separator'
+      '${dvStudioSnakeCase(name)}.dart',
+    );
+  }
+
+  static String _relativeSource(String name) =>
+      'lib/models/${dvStudioSnakeCase(name)}.dart';
+
+  static bool _studioWritten(File file) {
+    if (!file.existsSync()) return false;
+    return file.readAsStringSync().startsWith(dvStudioModelSourceMarker);
+  }
+
+  /// Writes [spec] to the project's source as the `@DVModel` it compiles
+  /// back from, so code and Studio describe one model.
+  Future<Response> _writeSource(DVStudioModelSpec spec) async {
+    final File? file = _sourceFile(spec.model);
+    if (file == null || spec.module != null) {
+      throw _StudioRefusal(
+        404,
+        'no_source',
+        'This server has no source tree to write the model to. Run it with '
+            'dartvel dev to keep a model in code as well.',
+      );
+    }
+    if (file.existsSync() && !_studioWritten(file)) {
+      throw _StudioRefusal(
+        409,
+        'hand_written',
+        '${_relativeSource(spec.model)} was written by hand, so Studio '
+            'leaves it alone.',
+      );
+    }
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(dvStudioModelDartSource(spec));
+    return _reply(<String, Object?>{
+      'model': spec.id,
+      'source': _relativeSource(spec.model),
+    });
+  }
+
+  // ---- site --------------------------------------------------------------
+
+  /// Every route of the site, compiled and stored, and the structure the
+  /// build captured for a compiled one.
+  Future<Response> _site(
+    Request request,
+    String method,
+    List<String> path,
+  ) async {
+    if (method != 'GET') _notAllowed();
+    if (path.isEmpty) {
+      final Map<String, String?> stored = <String, String?>{};
+      final DVDatabaseAdapter? adapter = database;
+      if (adapter != null) {
+        final DVRecordAdapter records = DVRecordAdapter.over(adapter);
+        await records.ensure(dvStudioPagesShape);
+        for (final Map<String, Object?> row in await records.find(
+          dvStudioPagesTable,
+          fields: const <String>['route', 'title'],
+        )) {
+          stored['${row['route']}'] =
+              row['title'] == null ? null : '${row['title']}';
+        }
+      }
+      return _reply(<String, Object?>{
+        'pages': <Object?>[
+          for (final DVStudioSitePage page in dvStudioSitePages(
+            compiled: _compiledRoutes(),
+            stored: stored,
+            hasStructure: (String path) =>
+                dvStudioHasStructure(_structureRoot, path),
+          ))
+            page.toJson(),
+        ],
+      });
+    }
+    if (path.length == 1 && path.first == 'structure') {
+      final String route = request.url.queryParameters['route'] ?? '';
+      final Object? tree = dvStudioStructureIn(_structureRoot, route);
+      if (tree == null) {
+        throw _StudioRefusal(
+          404,
+          'no_structure',
+          'The build captured no structure for $route.',
+        );
+      }
+      return _reply(<String, Object?>{'route': route, 'structure': tree});
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
   }
 
   Never _notAllowed() =>
@@ -555,13 +1102,22 @@ class DVStudioApi {
     Map<String, Object?> body,
   ) async {
     final Map<String, Object?> values = await _in(spec, body['values']);
-    final Object? key = values[spec.key];
+    Object? key = values[spec.key];
     if (key == null || '$key'.isEmpty) {
-      throw _StudioRefusal(
-        400,
-        'bad_values',
-        'A new ${spec.model} needs a ${spec.key}.',
-      );
+      final DVStudioFieldSpec? keyField = spec.fields
+          .where((DVStudioFieldSpec f) => f.name == spec.key)
+          .firstOrNull;
+      // A text key nobody typed is made up, as a record in any content
+      // system gets an id without being asked for one. Any other key is
+      // the record's to say.
+      if (keyField == null || _base(keyField.type) != 'String') {
+        throw _StudioRefusal(
+          400,
+          'bad_values',
+          'A new ${spec.model} needs a ${spec.key}.',
+        );
+      }
+      key = values[spec.key] = dvStudioNewKey();
     }
     if (await table.read(key, withDeleted: true) != null) {
       throw _StudioRefusal(
@@ -570,6 +1126,8 @@ class DVStudioApi {
         'A ${spec.model} with ${spec.key} $key already exists.',
       );
     }
+    await _checkRequired(spec, values);
+    await _checkUnique(spec, table, '$key', values);
     final DVWriteResult written = await table.write(values);
     return _reply(_recordJson(spec, written.record), status: 201);
   }
@@ -602,11 +1160,13 @@ class DVStudioApi {
         actualVersion: current.version,
       );
     }
-    final DVWriteResult written = await table.write(<String, Object?>{
+    final Map<String, Object?> next = <String, Object?>{
       for (final MapEntry<String, Object?> entry in current.values.entries)
         if (entry.key != dvTenantColumn) entry.key: entry.value,
       ...values,
-    }, base: current);
+    };
+    await _checkUnique(spec, table, key, next);
+    final DVWriteResult written = await table.write(next, base: current);
     return _reply(_recordJson(spec, written.record));
   }
 
@@ -637,11 +1197,72 @@ class DVStudioApi {
         );
       }
       stored[name] = _stored(field, entry.value);
+      final String? broken = dvStudioValueProblem(field, stored[name]);
+      if (broken != null) throw _StudioRefusal(400, 'bad_values', broken);
       if (field.relation != null && stored[name] != null) {
         await _checkRelation(spec, field, stored[name]!);
       }
     }
     return stored;
+  }
+
+  /// Refuses a new record of a model designed in Studio that leaves a
+  /// field out which cannot be empty.
+  ///
+  /// Only those: a compiled model's fields can have defaults this spec does
+  /// not know, which its own constructor fills in.
+  Future<void> _checkRequired(
+    DVStudioModelSpec spec,
+    Map<String, Object?> values,
+  ) async {
+    if (spec.origin != DVStudioModelOrigin.studio) return;
+    for (final DVStudioFieldSpec field in spec.fields) {
+      if (field.nullable || field.sensitive) continue;
+      if (values[field.name] != null) continue;
+      if (_base(field.type) == 'bool') {
+        values[field.name] = 0;
+        continue;
+      }
+      throw _StudioRefusal(
+        400,
+        'bad_values',
+        '${field.name} cannot be empty.',
+      );
+    }
+  }
+
+  /// Refuses a write that would give two records the same value in a field,
+  /// or combination of fields, [spec] says no two may share.
+  Future<void> _checkUnique(
+    DVStudioModelSpec spec,
+    DVRecordTable table,
+    String key,
+    Map<String, Object?> values,
+  ) async {
+    final List<List<String>> groups = <List<String>>[
+      for (final ({String name, List<String> fields, bool unique}) index
+          in dvStudioIndexesOf(spec))
+        if (index.unique) index.fields,
+    ];
+    if (groups.isEmpty) return;
+    final List<DVRecord> records = await table.all(withDeleted: true);
+    for (final List<String> fields in groups) {
+      if (fields.any((String f) => values[f] == null)) continue;
+      String of(Map<String, Object?> v) =>
+          jsonEncode(<String>[for (final String f in fields) '${v[f]}']);
+      final String mine = of(values);
+      for (final DVRecord record in records) {
+        if ('${record.key}' == key) continue;
+        if (of(record.values) == mine) {
+          throw _StudioRefusal(
+            409,
+            'not_unique',
+            'Another ${spec.model} already has '
+                '${fields.map((String f) => '$f ${values[f]}').join(' and ')}.',
+          );
+        }
+      }
+    }
   }
 
   /// Refuses a key no record of the related model has: a reference to
@@ -652,6 +1273,7 @@ class DVStudioApi {
     Object key,
   ) async {
     final String relation = field.relation!;
+    final List<DVStudioModelSpec> models = await allModels();
     final DVStudioModelSpec? related = models
             .where((DVStudioModelSpec m) =>
                 spec.module != null && m.id == '${spec.module}.$relation')
