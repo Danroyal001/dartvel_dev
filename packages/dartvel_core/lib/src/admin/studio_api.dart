@@ -1022,7 +1022,7 @@ class DVStudioApi {
     }
     if (path.length == 1 && path.first == 'structure') {
       final String route = request.url.queryParameters['route'] ?? '';
-      final Object? tree = dvStudioStructureIn(_structureRoot, route);
+      final Object? tree = dvStudioPageContentIn(_structureRoot, route);
       if (tree == null) {
         throw _StudioRefusal(
           404,
