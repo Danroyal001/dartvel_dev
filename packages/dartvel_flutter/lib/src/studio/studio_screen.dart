@@ -11,6 +11,8 @@ import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
 import 'studio_flags.dart';
+import 'studio_formula.dart';
+import 'studio_formula_bar.dart';
 import 'studio_operations.dart';
 import 'studio_review.dart';
 
@@ -1232,6 +1234,14 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _toolbar(controller),
+        // The selected element's fields as formulas, Excel's way: pick a
+        // field, type, Enter. It writes through the same controller as the
+        // canvas and the inspector, so it is one history and one document.
+        if (!_showingCode)
+          DVStudioFormulaBar(
+            controller: controller,
+            vocabulary: DVFormulaVocabulary(routes: _routes),
+          ),
         if (review != null) ..._banners(review),
         Expanded(
           child: _showingCode
