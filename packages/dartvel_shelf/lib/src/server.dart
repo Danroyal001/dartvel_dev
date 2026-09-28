@@ -260,6 +260,15 @@ Future<ServerHandle> serve(
       if (resp.status == 404 && req.method == 'GET') {
         return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
       }
+      // HEAD is GET without the body. Answering it 404 told an uptime
+      // monitor, a link checker and a crawler that asks HEAD first that a
+      // page served to every browser was not there.
+      if (resp.status == 404 && req.method == 'HEAD') {
+        final page = await handleSsrFallback(req, spaRoot,
+            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
+        return Response(page.status,
+            headers: page.headers, body: const Stream<List<int>>.empty());
+      }
       return resp;
     };
   }

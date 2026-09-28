@@ -292,6 +292,30 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
     });
 
+    testWidgets('a from the router does not serve is loaded from the server',
+        (WidgetTester tester) async {
+      // Studio is served by the backend at its mount, not by the app's
+      // router. dartvel.dev sent a signed-out visitor to
+      // /login?from=/__studio, and router.go('/__studio') after the sign-in
+      // drew the site's own not-found page over a Studio that was there.
+      await tester.runAsync(() => install(signIn: false));
+      final List<String> loaded = <String>[];
+      DVNavigation.debugLoadFromServer = loaded.add;
+      addTearDown(() => DVNavigation.debugLoadFromServer = null);
+      final GoRouter router = await app(tester, const Size(800, 600));
+      router.go('/login?from=/__studio');
+      await settle(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-email')), 'ada@example.com');
+      await tester.enterText(
+          find.byKey(const ValueKey<String>('dv-auth-password')), 'correct horse');
+      await tester.tap(find.byKey(const ValueKey<String>('dv-auth-submit')));
+      await settle(tester);
+      expect(loaded, <String>['/__studio']);
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/login',
+          reason: 'the router is not asked for a page it does not have');
+    });
+
     testWidgets('a from that leaves the application goes home instead',
         (WidgetTester tester) async {
       await tester.runAsync(() => install(signIn: false));

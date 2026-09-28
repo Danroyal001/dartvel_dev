@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -89,6 +89,7 @@ String dvWebServerManifest({
   Map<String, String> federated = const <String, String>{},
   Set<String> guarded = const <String>{},
   DVImageVariants? images,
+  Map<String, DVRoutePage> pages = const <String, DVRoutePage>{},
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
@@ -114,6 +115,10 @@ String dvWebServerManifest({
             // anything. Absent rather than false, so a manifest from before
             // the marker reads the same for every unguarded route.
             if (guarded.contains(route)) 'guarded': true,
+            // The page as `dartvel build web` renders it: head, structured
+            // data, icon and the captured document. The server renders the
+            // same thing from it, with the same function.
+            if (pages[route] != null) 'page': pages[route]!.toJson(),
           },
         // A federated module's routes, and where each answers. The
         // specification asks for a micro-site that serves its own HTML while
@@ -232,6 +237,14 @@ Handler dvWebServerHandler({
             in ((e.value as Map?)?['text'] as List?) ?? const <Object?>[])
           '$line',
       ],
+  };
+  // Each route's page, as `dartvel build web` renders it: the same function
+  // renders it here, so a preview answers with the bytes a static build wrote.
+  final pages = <String, DVRoutePage>{
+    for (final MapEntry<String, Object?> e in routeMap.entries)
+      if ((e.value as Map?)?['page'] is Map)
+        e.key: DVRoutePage.fromJson(
+            ((e.value as Map)['page'] as Map).cast<String, Object?>()),
   };
   // A mounted micro-site's routes, and where each one really answers. The
   // build has written these since federation landed and the deployed backend
@@ -466,7 +479,10 @@ Handler dvWebServerHandler({
       return Response(data.visibility == DVPageVisibility.hidden ? 404 : 401, body: bare, headers: htmlHeaders);
     }
 
-    final String page = data == null
+    final DVRoutePage? routePage = matched == null ? null : pages[matched.pattern];
+    final String page = data == null && routePage != null
+        ? dvRenderRoutePage(shell, routePage.at(cleanPath))
+        : data == null
         ? dvServeRoute(
             shell: shell,
             path: cleanPath,
@@ -489,7 +505,7 @@ Handler dvWebServerHandler({
 
     // The route's own parts and images at the end of its head, as the
     // deployed server writes them.
-    final String served = dvWithPreloads(page, routePreloads);
+    final String served = dvMinifyHtml(dvWithPreloads(page, routePreloads));
 
     // A path nothing serves is a 404, with the shell still the body so the
     // app draws its not-found page. Answering 200 was a soft 404: a crawler
