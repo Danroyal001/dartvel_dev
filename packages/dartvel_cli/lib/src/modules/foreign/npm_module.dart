@@ -23,6 +23,7 @@ import 'package:path/path.dart' as p;
 import '../described_api.dart';
 import 'dart_surface.dart';
 import 'module_writer.dart';
+import 'node_carrier.dart';
 import 'npm_surface.dart';
 import 'resolver.dart';
 
@@ -96,7 +97,8 @@ DVForeignModuleSpec dvNpmModuleSpec({
   final String packageName = 'dv_${dvSnake(id)}_module';
   final String asset = 'assets/npm/${dvSnake(surface.name)}.mjs';
   final Map<DVModuleEnvironment, bool> runs = <DVModuleEnvironment, bool>{
-    DVModuleEnvironment.native: false,
+    // A desktop runs it in the Node dartvel build bundles beside it.
+    DVModuleEnvironment.native: surface.node,
     DVModuleEnvironment.web: surface.web,
     DVModuleEnvironment.backend: surface.node,
   };
@@ -137,7 +139,18 @@ DVForeignModuleSpec dvNpmModuleSpec({
           body: (DVModuleOperation op) =>
               "_call('${op.name}', <Object?>[${_args(op)}])${_convert(op)}",
         ),
+      if (surface.node)
+        DVModuleEnvironment.native: DVCarrierSource(
+          imports: const <String>[
+            "import 'dart:convert';",
+            "import 'dart:io';",
+          ],
+          declarations: _nodeRunner(id, packageName, digest, bundles.node),
+          body: (DVModuleOperation op) =>
+              "_call('${op.name}', <Object?>[${_args(op)}])${_convert(op)}",
+        ),
     },
+    targets: surface.node ? dvNodeTargets : const <String>[],
     skipped: surface.skipped,
     extraFiles: <String, String>{
       if (surface.web) asset: bundles.browser,
@@ -209,6 +222,8 @@ const String _bundle =
 /// Where the bundle is written for Node to import, once per process.
 String? _path;
 
+$dvNodeLocator
+
 /// What Node runs: import the bundle, call one function, print the answer.
 const String _runner = r"""
 import { pathToFileURL } from 'node:url';
@@ -229,12 +244,12 @@ Future<Object?> _call(String name, List<Object?> args) async {
   }();
   final ProcessResult result;
   try {
-    result = await Process.run('node', <String>[
+    result = await Process.run(_node, <String>[
       '--input-type=module', '-e', _runner, path, name, jsonEncode(args),
     ]);
   } on ProcessException {
-    throw StateError('DV-MODULE-020: $id.\$name runs in Node on the backend, '
-        'and this host has no node on its PATH.');
+    throw StateError('DV-MODULE-020: $id.\$name runs in Node, and there is '
+        'none bundled beside the application, named by DARTVEL_NODE or on PATH.');
   }
   if (result.exitCode != 0) {
     throw StateError('$id.\$name failed in Node: \${result.stderr}');

@@ -1,3 +1,13 @@
+## 0.9.0
+
+- **`DVBox.threePane`: three panes, one per panel of a tri-fold.** Each pane
+  fills a panel between two folds or hinges, left to right, right to left
+  in an RTL language, or top to bottom when the folds run across. Across
+  one fold the first pane has a side and the others share the other, or
+  with `oneFold: DVThreePaneFold.lastAlone` the first two share; with no
+  fold, three columns on a desktop, two on a tablet, stacked on a phone.
+  Screen readers read the panes first to last.
+
 ## 0.8.0
 
 - **Studio: a formula bar and a command palette.** The formula bar runs
