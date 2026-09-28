@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import '../build/node_runtime_bundle.dart';
 import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
@@ -1216,6 +1217,10 @@ class BuildCommand extends Command<void> {
       }
       if (platform == 'linux') _writeLinuxDesktopFiles(_projectRoot);
       if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
+      if (!_bundleNodeRuntime(_projectRoot, platform)) {
+        Logger.log('❌ $platform build failed');
+        return _PlatformBuildResult.failed;
+      }
       Logger.log('✅ $platform build successful');
       return _PlatformBuildResult.succeeded;
     } else {
@@ -1462,6 +1467,39 @@ class BuildCommand extends Command<void> {
   /// next to the binary. What a package installs into the system's
   /// applications and mime directories; what a developer copies there by
   /// hand to try an association.
+  /// Node in a desktop bundle, for a module that runs in it there. False
+  /// when one needs it and the host has none: an application whose module
+  /// throws on first use is not a build that succeeded.
+  bool _bundleNodeRuntime(String root, String platform) {
+    final String? bundle = switch (platform) {
+      'linux' => '$root/build/linux/${_hostArchitecture()}/release/bundle',
+      'windows' => '$root/build/windows/x64/runner/Release',
+      'macos' => () {
+          final Directory products =
+              Directory('$root/build/macos/Build/Products/Release');
+          if (!products.existsSync()) return null;
+          for (final FileSystemEntity e in products.listSync()) {
+            if (e is Directory && e.path.endsWith('.app')) {
+              return '${e.path}/Contents/MacOS';
+            }
+          }
+          return null;
+        }(),
+      _ => null,
+    };
+    if (bundle == null || !Directory(bundle).existsSync()) return true;
+    final DVNodeBundle result = dvBundleNodeRuntime(root, bundle,
+        node: dvHostNode(), linux: platform == 'linux');
+    if (result.problem != null) {
+      Logger.log('❌ ${result.problem}');
+      return false;
+    }
+    if (result.modules.isNotEmpty) {
+      Logger.log('   Bundled Node for ${result.modules.join(', ')}.');
+    }
+    return true;
+  }
+
   void _writeLinuxDesktopFiles(String root) {
     final String bundle = '$root/build/linux/${_hostArchitecture()}/release/bundle';
     if (!Directory(bundle).existsSync()) return;
