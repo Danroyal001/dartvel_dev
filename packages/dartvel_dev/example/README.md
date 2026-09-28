@@ -21,7 +21,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dartvel_dev: ^0.7.1
+  dartvel_dev: ^0.8.0
   # The umbrella decides these versions. Declaring them is for the
   # depend_on_referenced_packages lint, since models and backend functions
   # import package:dartvel_core by name.
@@ -29,7 +29,7 @@ dependencies:
   dartvel_flutter: any
 
 dev_dependencies:
-  dartvel_cli: ^0.7.1   # for `dart run dartvel_cli:dartvel`
+  dartvel_cli: ^0.8.0   # for `dart run dartvel_cli:dartvel`
   lints: ^4.0.0
 
 flutter:

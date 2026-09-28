@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0
 
 - **Studio: a formula bar and a command palette.** The formula bar runs
   across the page editor: pick a field of the selected element, type a

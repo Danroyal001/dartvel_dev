@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0
 
 - `dvHeadingSlug` and `dvHeadingIds`: the id a link to a heading names, a
   heading's words as a slug, numbered from 2 when a heading repeats.

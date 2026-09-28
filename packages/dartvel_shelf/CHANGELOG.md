@@ -1,3 +1,7 @@
+## 0.8.1
+
+- Accepts dartvel_core 0.8.0. No changes in this package.
+
 ## 0.8.0
 
 - **Breaking: the SDK floor is Dart 3.13.0 and Flutter 3.47.0.** Dart 3.13

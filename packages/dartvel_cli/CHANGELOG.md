@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0
 
 - **`dartvel add pub:`, `git:` and `path:` wrap a Dart package as a module.**
   The package's public functions that every environment can call become

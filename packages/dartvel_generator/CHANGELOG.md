@@ -1,3 +1,7 @@
+## 1.4.1
+
+- Accepts dartvel_core 0.8.0. No changes in this package.
+
 ## 1.4.0
 
 - **1.4.0 follows 1.3.1.** 0.6.1 and 0.6.2 below were published with the
