@@ -20,13 +20,22 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVModuleEnvironment, DVModuleOutcome;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../module_trust/module_lock.dart';
+import '../modules/described_api.dart';
+import '../modules/foreign/dart_package_module.dart';
+import '../modules/foreign/dart_surface.dart';
+import '../modules/foreign/module_writer.dart';
+import '../modules/foreign/resolver.dart';
 import '../modules/graphql_module.dart';
 import '../modules/openapi_module.dart';
 import '../modules/source_detection.dart';
 import '../utils/logger.dart';
+import 'version_command.dart' show dartvelCliVersion;
 
 /// Thrown when `dartvel add` will not do what was asked.
 ///
@@ -51,7 +60,15 @@ class DVAddPlan {
     required this.packageName,
     this.generated,
     this.from,
+    this.pin,
+    this.outcomes = const <String>[],
   });
+
+  /// The lock entry a foreign source is pinned by, written with the module.
+  final DVModulePin? pin;
+
+  /// Each operation and what it does in each environment, for the plan.
+  final List<String> outcomes;
 
   /// What the parent will know it by: `DV.Modules.<id>`.
   final String id;
@@ -93,6 +110,20 @@ class DVAddPlan {
             'dartvel.modules.$id',
       ];
     }
+    if (pin != null) {
+      return <String>[
+        'module   $id',
+        'from     ${pin!.source}  (${pin!.resolvedFrom})',
+        'digest   sha256 ${pin!.sourceDigest}',
+        'mount    $mount',
+        'package  $packageName',
+        ...outcomes,
+        for (final String file in module.files.keys) 'writes   $path/$file',
+        'writes   pubspec.yaml: dependencies.$packageName, '
+            'dartvel.modules.$id',
+        'writes   $dvModuleLockFile: $packageName',
+      ];
+    }
     return <String>[
       'module   $id',
       'from     $from  (a described API, generated into a pure Dart module)',
@@ -109,8 +140,13 @@ class DVAddPlan {
 class AddCommand extends Command<void> {
   /// [root] is the project to add to; the working directory when null, which
   /// is what the CLI passes.
-  AddCommand({this.root}) {
+  AddCommand({this.root, this.fetcher = const DVSourceFetcher()}) {
     argParser
+      ..addOption('elsewhere',
+          allowed: <String>['unavailable', 'noop'],
+          defaultsTo: 'unavailable',
+          help: 'What an operation does in an environment the source cannot '
+              'run in. Written into the module per operation.')
       ..addOption('as', help: 'The id the parent knows the module by.')
       ..addOption('mount', help: 'Where the parent serves it.')
       ..addOption('url',
@@ -122,6 +158,9 @@ class AddCommand extends Command<void> {
   }
 
   final String? root;
+
+  /// The network, for a source that is fetched.
+  final DVSourceFetcher fetcher;
 
   @override
   final String name = 'add';
@@ -140,10 +179,19 @@ class AddCommand extends Command<void> {
       throw UsageException('dartvel add takes one source.', usage);
     }
     final String target = root ?? Directory.current.path;
-    final DVAddPlan plan = planFor(target, rest.single,
-        id: argResults?['as'] as String?,
-        mount: argResults?['mount'] as String?,
-        url: argResults?['url'] as String?);
+    final String source = rest.single;
+    final DVAddPlan plan = isForeign(source)
+        ? await planForeign(target, source,
+            id: argResults?['as'] as String?,
+            mount: argResults?['mount'] as String?,
+            elsewhere: argResults?['elsewhere'] == 'noop'
+                ? DVModuleOutcome.noop
+                : DVModuleOutcome.unavailable,
+            fetcher: fetcher)
+        : planFor(target, source,
+            id: argResults?['as'] as String?,
+            mount: argResults?['mount'] as String?,
+            url: argResults?['url'] as String?);
 
     for (final String line in plan.lines) {
       Logger.log('  $line');
@@ -155,8 +203,110 @@ class AddCommand extends Command<void> {
     _write(target, plan);
     _depend(target, plan);
     _mount(target, plan);
+    _pin(target, plan);
     Logger.log('Mounted ${plan.id} at ${plan.mount}. '
         'Run dartvel routes to regenerate the client.');
+  }
+
+  /// The schemes a foreign source is resolved from here.
+  static const List<String> foreignSchemes = <String>['pub:', 'git:', 'path:'];
+
+  /// Whether [source] names a foreign source this command generates a
+  /// module from.
+  static bool isForeign(String source) =>
+      foreignSchemes.any((String scheme) => source.startsWith(scheme));
+
+  /// The plan for a foreign source: resolved, fetched and verified, its
+  /// surface read and its module generated, before anything in the project
+  /// is written.
+  ///
+  /// The fetched source is kept under `.dartvel/sources/`, which is a cache:
+  /// the pin is what is committed.
+  static Future<DVAddPlan> planForeign(
+    String root,
+    String source, {
+    String? id,
+    String? mount,
+    DVModuleOutcome elsewhere = DVModuleOutcome.unavailable,
+    DVSourceFetcher fetcher = const DVSourceFetcher(),
+  }) async {
+    final DVResolvedSource resolved;
+    final DVDartSurface surface;
+    try {
+      resolved = await dvResolveDartSource(
+        root,
+        source.startsWith('path:') ? source.substring(5) : source,
+        fetcher: fetcher,
+      );
+      surface = dvScanDartPackage(resolved.directory);
+    } on DVSourceUnresolved catch (e) {
+      throw DVAddRefused(e.message);
+    } on DVDartSurfaceRefused catch (e) {
+      throw DVAddRefused(e.message);
+    }
+
+    final String moduleId = id ?? dvCamel(resolved.name);
+    if (_modulesOf(root).containsKey(moduleId)) {
+      throw DVAddRefused(
+        'DV-MODULE-011: dartvel.modules.$moduleId is already mounted. '
+        'Nothing was written: remove it first, or pass --as with another id.',
+      );
+    }
+    final DVForeignModuleSpec spec = dvDartPackageModuleSpec(
+      id: moduleId,
+      source: resolved.descriptor,
+      surface: surface,
+      dependency: resolved.dependency,
+      elsewhere: elsewhere,
+    );
+    final DVGeneratedModule module;
+    try {
+      module = dvWriteForeignModule(spec);
+    } on DVModuleGenerationRefused catch (e) {
+      throw DVAddRefused('$e');
+    }
+    final String path = p.join('modules', module.packageName);
+    if (Directory(p.join(root, path)).existsSync()) {
+      throw DVAddRefused(
+        '$path is already there, and generating over it would take whatever '
+        'is in it with no way back. Delete it first, or pass --as with '
+        'another id.',
+      );
+    }
+    return DVAddPlan(
+      id: moduleId,
+      path: path.replaceAll('\\', '/'),
+      mount: mount ?? '/$moduleId',
+      packageName: module.packageName,
+      generated: module,
+      from: resolved.descriptor,
+      outcomes: <String>[
+        for (final DVModuleOperation op in spec.operations)
+          'op       ${op.name}: ${dvModuleEnvironments.map((DVModuleEnvironment e) => '${e.name} ${spec.outcomes[op.name]![e]!.name}').join(', ')}',
+        for (final MapEntry<String, String> skip in spec.skipped.entries)
+          'skips    ${skip.key}: ${skip.value}',
+      ],
+      pin: DVModulePin(
+        package: module.packageName,
+        version: resolved.version,
+        capabilities: const <String>[],
+        source: resolved.descriptor,
+        sourceDigest: resolved.sourceDigest,
+        wrapperHash: dvWrapperHash(module.files),
+        generator: 'dartvel_cli $dartvelCliVersion',
+        resolvedFrom: resolved.resolvedFrom,
+        targets: const <String>['backend', 'native', 'web'],
+      ),
+    );
+  }
+
+  /// Writes the pin a foreign module was planned with into the lock.
+  static void _pin(String root, DVAddPlan plan) {
+    final DVModulePin? pin = plan.pin;
+    if (pin == null) return;
+    final DVModuleLock lock = DVModuleLock.read(root);
+    DVModuleLock(<String, DVModulePin>{...lock.pins, pin.package: pin})
+        .write(root);
   }
 
   /// What [source] resolves to, or the reason it does not.
@@ -189,7 +339,8 @@ class AddCommand extends Command<void> {
       case DVSourceKind.dartPackage:
         throw DVAddRefused(
           '$source is a Dart package and not a Dartvel project: '
-          '${found.reason}',
+          '${found.reason} To wrap it as a module anyway, add it as '
+          'path:$source.',
         );
       case DVSourceKind.unknown:
         throw DVAddRefused('${found.code}: $source is not a source Dartvel '
