@@ -37,6 +37,11 @@ DVForeignModuleSpec dvAppleModuleSpec({
   final String assetId = 'package:$packageName/native';
   final String prefix = dvAppleSymbolPrefix(surface);
   final bool swift = surface.language == 'swift';
+  // A Swift package runs off Apple through the Swift toolchain -- Linux,
+  // Windows and the backend -- unless it imports an Apple framework, and
+  // then the import is what the README names.
+  final String? blocker = swift ? dvAppleOnlyImport(surface) : null;
+  final bool offApple = swift && blocker == null;
   String ffi(String t) => swift ? dvSwiftFfi(t) : dvObjcFfi(t);
   bool text(String t) => t == 'String' || t == 'NSString*';
   final StringBuffer externs = StringBuffer()
@@ -100,19 +105,32 @@ DVForeignModuleSpec dvAppleModuleSpec({
         f.operation.name: <DVModuleEnvironment, DVModuleOutcome>{
           DVModuleEnvironment.native: DVModuleOutcome.real,
           DVModuleEnvironment.web: elsewhere,
-          DVModuleEnvironment.backend: elsewhere,
+          DVModuleEnvironment.backend:
+              offApple ? DVModuleOutcome.real : elsewhere,
         },
     },
     carriers: <DVModuleEnvironment, DVCarrierSource>{
       DVModuleEnvironment.native: native,
+      if (offApple) DVModuleEnvironment.backend: native,
     },
+    notes: <String>[
+      if (offApple)
+        'Linux, Windows and the backend build it with swiftc, which has to '
+            'be on the PATH there. The browser is not reached: SwiftWasm is '
+            'not built.',
+      if (blocker != null)
+        'Linux, Windows and the backend are not reached: $blocker, an '
+            'Apple framework no other platform has.',
+    ],
     dependencies: <String, String>{
       'ffi': '^2.1.0',
       'hooks': '^0.20.1',
       'code_assets': '^0.19.7',
       if (!swift) 'native_toolchain_c': '^0.17.2',
     },
-    targets: const <String>['ios', 'macos'],
+    targets: offApple
+        ? const <String>['ios', 'macos', 'linux', 'windows']
+        : const <String>['ios', 'macos'],
     skipped: surface.skipped,
     extraFiles: <String, String>{
       ...files,
@@ -144,7 +162,11 @@ Future<void> main(List<String> args) async {
     final List<String> files = <String>[
       for (final String s in _sources) input.packageRoot.resolve(s).toFilePath(),
     ];
-    final String name = os == OS.linux ? 'lib$packageName.so' : 'lib$packageName.dylib';
+    final String name = switch (os) {
+      OS.linux => 'lib$packageName.so',
+      OS.windows => '$packageName.dll',
+      _ => 'lib$packageName.dylib',
+    };
     final String out = input.outputDirectory.resolve(name).toFilePath();
     final List<String> common = <String>[
       '-emit-library', '-O', '-module-name', '${module.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '_')}',
@@ -153,6 +175,7 @@ Future<void> main(List<String> args) async {
     final ProcessResult built;
     switch (os) {
       case OS.linux:
+      case OS.windows:
         built = await Process.run('swiftc', common);
       case OS.macOS:
         built = await Process.run('xcrun', <String>[
@@ -214,3 +237,32 @@ ${sources.map((String s) => "        '$s',").join('\n')}
   });
 }
 ''';
+
+/// Apple frameworks with no counterpart off Apple. Foundation is not among
+/// them: swift-corelibs-foundation carries it to Linux and Windows.
+const List<String> _appleOnly = <String>[
+  'UIKit', 'AppKit', 'SwiftUI', 'Cocoa', 'CoreLocation', 'CoreBluetooth',
+  'AVFoundation', 'AVKit', 'CoreData', 'MapKit', 'WebKit', 'StoreKit',
+  'HealthKit', 'ARKit', 'CoreML', 'Vision', 'Metal', 'MetalKit',
+  'QuartzCore', 'CoreGraphics', 'CoreImage', 'CoreMotion', 'Photos',
+  'PhotosUI', 'Contacts', 'EventKit', 'UserNotifications', 'WatchKit',
+  'CloudKit', 'GameKit', 'LocalAuthentication', 'Security', 'SafariServices',
+];
+
+/// The first Apple-only import in [surface]'s sources, as
+/// "`import UIKit` in Sources/TextKit/Screen.swift", or null.
+String? dvAppleOnlyImport(DVAppleSurface surface) {
+  final RegExp import = RegExp(
+      r'^\s*(?:@_exported\s+)?import\s+(?:class\s+|struct\s+|enum\s+|func\s+)?([A-Za-z_]\w*)',
+      multiLine: true);
+  for (final String source in surface.sources) {
+    final File file = File(p.join(surface.directory, source));
+    if (!file.existsSync()) continue;
+    for (final RegExpMatch m in import.allMatches(file.readAsStringSync())) {
+      if (_appleOnly.contains(m.group(1))) {
+        return '`import ${m.group(1)}` in $source';
+      }
+    }
+  }
+  return null;
+}
