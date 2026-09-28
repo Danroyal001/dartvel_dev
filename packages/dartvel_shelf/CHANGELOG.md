@@ -1,3 +1,10 @@
+## 0.9.1
+
+- A route's page is rendered with `dvRenderRoutePage` from the page the build
+  wrote into `dartvel_routes.json`, and minified: the same bytes `dartvel
+  build web` writes, with the captured links, headings and code blocks.
+- `HEAD` on a server-rendered page answers as `GET` does, without the body.
+
 ## 0.9.0
 
 - Accepts dartvel_core 0.9.0. No changes in this package.
