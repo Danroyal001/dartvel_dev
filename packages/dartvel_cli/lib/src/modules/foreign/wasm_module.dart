@@ -27,6 +27,7 @@ import 'package:dartvel_core/dartvel.dart'
 import '../described_api.dart';
 import 'dart_surface.dart';
 import 'module_writer.dart';
+import 'node_carrier.dart';
 
 /// What a WebAssembly binary exports.
 class DVWasmSurface {
@@ -241,7 +242,8 @@ DVForeignModuleSpec dvWasmModuleSpec({
     outcomes: <String, Map<DVModuleEnvironment, DVModuleOutcome>>{
       for (final DVModuleOperation op in surface.operations)
         op.name: <DVModuleEnvironment, DVModuleOutcome>{
-          DVModuleEnvironment.native: elsewhere,
+          // A desktop runs it in the Node dartvel build bundles beside it.
+          DVModuleEnvironment.native: DVModuleOutcome.real,
           DVModuleEnvironment.web: DVModuleOutcome.real,
           DVModuleEnvironment.backend: DVModuleOutcome.real,
         },
@@ -257,6 +259,14 @@ DVForeignModuleSpec dvWasmModuleSpec({
         declarations: _webInstance(b64, types),
         body: body,
       ),
+      DVModuleEnvironment.native: DVCarrierSource(
+        imports: const <String>[
+          "import 'dart:convert';",
+          "import 'dart:io';",
+        ],
+        declarations: _nodeInstance(id, packageName, digest, b64, types),
+        body: body,
+      ),
       DVModuleEnvironment.backend: DVCarrierSource(
         imports: const <String>[
           "import 'dart:convert';",
@@ -266,6 +276,7 @@ DVForeignModuleSpec dvWasmModuleSpec({
         body: body,
       ),
     },
+    targets: dvNodeTargets,
     skipped: surface.skipped,
   );
 }
@@ -334,6 +345,8 @@ process.stdout.write(JSON.stringify(typeof r === 'bigint' ? r.toString() : (r ??
 
 String? _path;
 
+$dvNodeLocator
+
 Future<Object?> _call(String name, String op, List<Object> args) async {
   final String path = _path ??= () {
     final File file = File('\${Directory.systemTemp.path}/${packageName}_$digest.wasm');
@@ -342,13 +355,13 @@ Future<Object?> _call(String name, String op, List<Object> args) async {
   }();
   final ProcessResult result;
   try {
-    result = await Process.run('node', <String>[
+    result = await Process.run(_node, <String>[
       '--input-type=module', '-e', _runner, path, name, op,
       jsonEncode(<String>[for (final Object a in args) '\$a']), _types,
     ]);
   } on ProcessException {
-    throw StateError('DV-MODULE-020: $id.\$op runs in Node on the backend, '
-        'and this host has no node on its PATH.');
+    throw StateError('DV-MODULE-020: $id.\$op runs in Node, and there is '
+        'none bundled beside the application, named by DARTVEL_NODE or on PATH.');
   }
   if (result.exitCode != 0) {
     throw StateError('$id.\$op failed: \${result.stderr}');

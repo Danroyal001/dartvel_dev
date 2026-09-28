@@ -19,14 +19,16 @@ import 'module_writer.dart';
 /// [dependency] is the YAML value the module's pubspec depends on the
 /// package with: `^1.2.3`, `{path: ../textkit}`, a git map. [elsewhere] is
 /// what an operation does in an environment the package cannot run in,
-/// `unavailable` or `noop`; it is written into the module's pubspec per
-/// operation, so it is a declaration rather than a default.
+/// `unavailable` or `noop`; when it is null the call crosses to the backend
+/// where it can, and is unavailable where it cannot. Either way it is
+/// written into the module's pubspec per operation, so it is a declaration
+/// rather than a default.
 DVForeignModuleSpec dvDartPackageModuleSpec({
   required String id,
   required String source,
   required DVDartSurface surface,
   required String dependency,
-  DVModuleOutcome elsewhere = DVModuleOutcome.unavailable,
+  DVModuleOutcome? elsewhere,
 }) {
   final DVDartPlatformNeeds needs = surface.needs;
   final Map<DVModuleEnvironment, bool> runs = <DVModuleEnvironment, bool>{
@@ -49,7 +51,16 @@ DVForeignModuleSpec dvDartPackageModuleSpec({
       for (final DVModuleOperation op in surface.operations)
         op.name: <DVModuleEnvironment, DVModuleOutcome>{
           for (final DVModuleEnvironment env in dvModuleEnvironments)
-            env: runs[env]! ? DVModuleOutcome.real : elsewhere,
+            env: runs[env]!
+                ? DVModuleOutcome.real
+                // Where the package cannot run, the call crosses to the
+                // backend when it can: the answer comes later and every
+                // value is one JSON carries. --elsewhere opts out.
+                : elsewhere ??
+                    (runs[DVModuleEnvironment.backend]! &&
+                            dvRpcTypeRefusal(op) == null
+                        ? DVModuleOutcome.compat
+                        : DVModuleOutcome.unavailable),
         },
     },
     carriers: <DVModuleEnvironment, DVCarrierSource>{

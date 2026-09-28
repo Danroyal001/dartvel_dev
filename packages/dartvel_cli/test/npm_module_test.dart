@@ -91,12 +91,12 @@ String install(Directory root, DVGeneratedModule module) {
 }
 
 void main() {
-  test('it runs in a browser and in Node, and is unavailable on a device',
+  test('it runs in a browser, and in Node on the backend and the desktop',
       () async {
     final DVGeneratedModule module = await generate(scratch());
     expect(module.files['pubspec.yaml'], contains('''
       slug:
-        native: unavailable
+        native: real
         web: real
         backend: real'''));
     expect(module.files['pubspec.yaml'], contains('    - assets/npm/'));
