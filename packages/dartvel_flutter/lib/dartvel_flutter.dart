@@ -455,6 +455,11 @@ export 'package:dartvel_core/dartvel.dart'
         DVPolicy,
         DVPolicies,
         DVPolicyAction,
+        // Studio's site: every route, compiled and stored, and what kind
+        // of page each is.
+        DVStudioPageKind,
+        DVStudioSitePage,
+        dvStudioSitePages,
         DVUseMiddleware,
         DVCache,
         DVCacheAdapter,
@@ -779,6 +784,7 @@ export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_server.dart';
+export 'src/studio/studio_site_pages.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
 export 'src/updates/shorebird_updates.dart'
