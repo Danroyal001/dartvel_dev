@@ -58,6 +58,7 @@ import 'src/platform/terminal_size.dart';
 import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
+import 'src/progress/top_progress.dart';
 import 'src/pwa/install_prompt.dart';
 import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
@@ -748,9 +749,11 @@ export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
 export 'src/platform/windows/windows_bindings.dart';
+export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/config_routes.dart';
+export 'src/routing/host_routers.dart';
 export 'src/routing/mount.dart';
 export 'src/routing/nav_link.dart';
 export 'src/routing/page_lifecycle.dart';
@@ -8574,6 +8577,10 @@ class DVObservabilityAndLogging {
 
 class DV {
   static final _globals = <_DVGlobalKey, Object>{};
+
+  /// The loads the bar across the top of the page shows: `track(future)`,
+  /// or `start()` and the callback it returns.
+  static final DVTopProgress progress = DVTopProgress.instance;
   static ProviderContainer? container;
 
   static T global<T>([T? instance, String namespace = '']) {
@@ -9561,8 +9568,17 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
             ),
           )
         : reachable;
-    final Widget framed =
+    final Widget safe =
         spec.safeArea ? SafeArea(child: selectionWrapped) : selectionWrapped;
+    // What the application tracks through DV.progress, across the top of
+    // the page, over whatever it is showing.
+    final Widget framed = Stack(
+      fit: StackFit.passthrough,
+      children: <Widget>[
+        safe,
+        const Positioned(top: 0, left: 0, right: 0, child: DVTrackedProgress()),
+      ],
+    );
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
       return framed;
     }
@@ -9730,12 +9746,12 @@ class DvDefaultLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DVBox(
-      SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+    // The bar across the top, as the web page has before its first frame:
+    // a spinner in the middle of an empty page reads as the page, where a
+    // bar reads as the page on its way.
+    return const Align(
+      alignment: .topCenter,
+      child: DVTopProgressBar(),
     );
   }
 }

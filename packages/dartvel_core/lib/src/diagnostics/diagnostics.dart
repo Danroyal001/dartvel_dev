@@ -734,6 +734,24 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-BROWNFIELD-001',
+      reason:
+          'two projects in one integrated module disagree on the Dartvel or '
+          'Flutter version',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BROWNFIELD-002',
+      reason: 'a host message is declared on one side and not the other',
+      level: 'error',
+    ),
+    DVDiagnostic(
+      code: 'DV-BROWNFIELD-003',
+      reason:
+          'a target has no embedder API a host can start an engine through',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-BIND-001',
       reason:
           'a source\'s surface cannot be expressed across the chosen '
