@@ -15,7 +15,8 @@ library;
 
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVFindBlock, dvFindMatch;
+import 'package:dartvel_core/dartvel.dart'
+    show DVFindBlock, dvFindMatch, dvHeadingIds;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -145,6 +146,29 @@ abstract final class DVFindInPage {
       curve: Curves.easeInOut,
     );
     if (target.mounted) _highlight(target);
+    return true;
+  }
+
+  /// Scrolls the page on top to the heading whose id is [id], putting it at
+  /// the top of the screen, as a browser does with a link to an element.
+  ///
+  /// [id] is what follows the `#` in a link, from [dvHeadingIds]: the
+  /// heading's words as a slug, numbered from 2 when a heading repeats. False,
+  /// and nothing moved, when no heading on the page has that id -- yet, for
+  /// a page whose content is still arriving.
+  static Future<bool> revealHeading(String id) async {
+    final List<DVFoundParagraph> found = paragraphs();
+    final List<String?> ids =
+        dvHeadingIds(found.map((DVFoundParagraph p) => p.block));
+    final int index = ids.indexOf(id);
+    if (index < 0) return false;
+    final BuildContext target = found[index].context;
+    final bool still = MediaQuery.maybeDisableAnimationsOf(target) ?? false;
+    await Scrollable.ensureVisible(
+      target,
+      duration: still ? Duration.zero : const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
     return true;
   }
 
