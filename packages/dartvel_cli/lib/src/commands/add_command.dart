@@ -18,6 +18,9 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_core/dartvel.dart'
@@ -35,6 +38,7 @@ import '../modules/foreign/module_writer.dart';
 import '../modules/foreign/npm_module.dart';
 import '../modules/foreign/npm_surface.dart';
 import '../modules/foreign/resolver.dart';
+import '../modules/foreign/wasm_module.dart';
 import '../modules/graphql_module.dart';
 import '../modules/openapi_module.dart';
 import '../modules/source_detection.dart';
@@ -220,6 +224,7 @@ class AddCommand extends Command<void> {
     'npm:',
     'c:',
     'cargo:',
+    'wasm:',
   ];
 
   /// Whether [source] names a foreign source this command generates a
@@ -231,11 +236,15 @@ class AddCommand extends Command<void> {
   /// scheme it would have been given: what is there decides.
   static String withScheme(String root, String source) {
     if (isForeign(source) || source.contains(':')) return source;
+    if (source.endsWith('.wasm') && File(p.join(root, source)).existsSync()) {
+      return 'wasm:$source';
+    }
     final DVDetectedSource found =
         dvDetectSource(p.join(root, source));
     return switch (found.kind) {
       DVSourceKind.rust => 'cargo:$source',
       DVSourceKind.c => 'c:$source',
+      DVSourceKind.wasm => 'wasm:$source',
       _ => source,
     };
   }
@@ -322,6 +331,57 @@ class AddCommand extends Command<void> {
   static Future<(DVResolvedSource, DVForeignModuleSpec Function(String))>
       _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
           DVSourceFetcher fetcher) async {
+    if (source.startsWith('wasm:')) {
+      final String rest = source.substring(5);
+      final Uint8List bytes;
+      final String where;
+      if (rest.startsWith('https://')) {
+        bytes = Uint8List.fromList(await fetcher.getBytes(Uri.parse(rest)));
+        where = rest;
+      } else {
+        String path = p.normalize(p.join(root, rest));
+        if (Directory(path).existsSync()) {
+          final List<File> found = Directory(path)
+              .listSync()
+              .whereType<File>()
+              .where((File f) => f.path.endsWith('.wasm'))
+              .toList();
+          if (found.length != 1) {
+            throw DVSourceUnresolved('$rest holds ${found.length} .wasm '
+                'files; name the one to add.');
+          }
+          path = found.single.path;
+        }
+        if (!File(path).existsSync()) {
+          throw DVSourceUnresolved('There is no file at $rest.');
+        }
+        bytes = File(path).readAsBytesSync();
+        where = path;
+      }
+      final String name = p.basenameWithoutExtension(where);
+      final DVResolvedSource resolved = DVResolvedSource(
+        descriptor: rest.startsWith('https://')
+            ? 'wasm:$rest'
+            : 'wasm:${p.relative(where, from: root).replaceAll('\\', '/')}',
+        name: name,
+        version: '0.0.0',
+        directory: p.dirname(where),
+        sourceDigest: sha256.convert(bytes).toString(),
+        resolvedFrom: where,
+        dependency: '',
+      );
+      final DVWasmSurface surface = dvScanWasm(bytes, name: name);
+      return (
+        resolved,
+        (String id) => dvWasmModuleSpec(
+              id: id,
+              source: resolved.descriptor,
+              bytes: bytes,
+              surface: surface,
+              elsewhere: elsewhere,
+            ),
+      );
+    }
     if (source.startsWith('c:') || source.startsWith('cargo:')) {
       final bool rust = source.startsWith('cargo:');
       final String rest = source.substring(rust ? 6 : 2);

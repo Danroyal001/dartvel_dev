@@ -42,6 +42,26 @@ Future<int> run(String root, List<String> args) async {
 }
 
 void main() {
+  test('a .wasm file is wrapped from its own exports', () async {
+    final String root = project();
+    File(p.join(root, 'vendor', 'calc.wasm')).writeAsBytesSync(<int>[
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+      0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f,
+      0x03, 0x02, 0x01, 0x00,
+      0x07, 0x07, 0x01, 0x03, 0x61, 0x64, 0x64, 0x00, 0x00,
+      0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x6a, 0x0b,
+    ]);
+    expect(await run(root, <String>['vendor/calc.wasm']), 0);
+    final YamlMap pubspec = loadYaml(File(p.join(
+            root, 'modules', 'dv_calc_module', 'pubspec.yaml'))
+        .readAsStringSync()) as YamlMap;
+    expect(pubspec['dartvel']['module']['kind'], 'wasm');
+    expect(pubspec['dartvel']['module']['operations']['add']['native'],
+        'unavailable');
+    expect(DVModuleLock.read(root).pins['dv_calc_module']!.source,
+        'wasm:vendor/calc.wasm');
+  });
+
   test('a directory of C is wrapped, with its sources and a hook', () async {
     final String root = project();
     expect(await run(root, <String>['vendor/mathkit']), 0);
