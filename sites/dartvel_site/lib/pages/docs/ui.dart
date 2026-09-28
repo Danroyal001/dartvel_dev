@@ -65,6 +65,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               <String>['DVBox.scrollableList', 'A column that scrolls'],
               <String>['DVBox.horizontalScrollable', 'A row that scrolls'],
               <String>['DVBox.twoPane', 'Two panes, one each side of a fold'],
+              <String>['DVBox.threePane', 'Three panes, one per panel of a tri-fold'],
             ]),
             Bullets(<String>[
               'list, row and wrapLine take spacing (8 by default), align and '
@@ -134,6 +135,13 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'On a foldable, context.screen.folds says where the fold is and '
                   'posture says book or tabletop. DVBox.twoPane puts one pane '
                   'each side of it.',
+              'On a tri-fold, DVBox.threePane puts one pane on each panel and '
+                  'nothing in a crease. Across one fold the first pane has a '
+                  'side and the other two share the other, or with oneFold: '
+                  'DVThreePaneFold.lastAlone the first two share and the third '
+                  'is alone. With no fold: three columns on a desktop, two on a '
+                  'tablet, stacked on a phone. Right-to-left languages start on '
+                  'the right, and a screen reader reads first to last.',
             ]),
           ],
         ),
