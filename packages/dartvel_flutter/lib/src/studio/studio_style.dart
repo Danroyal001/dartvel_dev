@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart'
-    show Icon, IconData, Icons, Material, MaterialType, Tooltip;
+    show Icon, IconData, Icons, Material, Tooltip;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
