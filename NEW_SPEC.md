@@ -1049,6 +1049,32 @@ it, and is not read today. A model automatically generates:
 
 Generated `==`, `hashCode` and `.merge` are designed and not built.
 
+A model declares the rules its values meet, which fields no two records share,
+the indexes it asks for and who may use its data beside its fields:
+
+```dart
+@DVModel(
+  indexes: <DVIndex>[DVIndex(<String>['status', 'publishedAt'])],
+  access: DVModelAccess(view: DVAccess.anyone, create: DVAccess.team),
+)
+class const _Article({
+  required final String id,
+  @DVModel.validate(minLength: 3, maxLength: 120)
+  required final String title,
+  @DVModel.uniqueField()
+  @DVModel.validate(pattern: '[a-z0-9-]+')
+  final String? slug,
+});
+```
+
+These are read into the model's Studio spec, which Studio and the data API
+check every write against, and they are exactly what Studio writes when a
+model designed there is written out to source (Dartvel Studio). The generated
+`save()` checks the value rules before it writes and throws
+`DVModelRuleError`; uniqueness is checked on Studio's and the data API's
+writes and by the unique index Studio asks the database for, and the
+generated `save()` does not check it itself yet.
+
 ---
 
 # Record History and Optimistic Concurrency
@@ -9215,10 +9241,24 @@ Studio provides:
 The open-source Studio is `DVStudioScreen` in `dartvel_flutter`. It is a
 Flutter widget with a dark navigation rail of sections:
 
-- **Pages** opens on a site overview. It has the page list with a new-page
-  field, counts of stored pages, open windows, installed sections and the last
-  publish, and a thumbnail card per stored page drawn by the application's own
-  renderer. Opening a page brings up the editor described below.
+- **Pages** opens on a site overview. It lists **every route the application
+  answers**, not only what Studio stored: the compiled routes -- from the
+  generated route manifest (`dartvelRouteManifest`) when Studio runs inside
+  the application, or from the project graph a build writes beside a served
+  Studio -- and the pages stored in Studio, merged by one function
+  (`dvStudioSitePages`) and each marked **Code**, **Studio** or **Override**.
+  A dynamic route is listed as the pattern it is, with its parameters. The
+  overview counts them (how many in code, made in Studio, overridden), with a
+  card per page: a stored page's thumbnail drawn by the application's own
+  renderer, a compiled page's file and parameters.
+- A **compiled page opens as what it is made of**, read-only: inside the
+  application, as its route draws it (`dartvelPagePreview`); on a served
+  Studio, as the structure the build's semantics capture recorded
+  (`<mount>/api/site/structure`). **Edit this page** turns that structure into
+  a page document on the canvas, and deploying it stores an override that
+  takes the route over. **Restore compiled page** deletes the override and
+  the compiled page serves again. A dynamic route cannot be overridden as a
+  whole; its banner says so.
 - **Flags** appears when `DVStudioScreen(flags:)` is given, and is described in
   Feature Flags and Staged Rollout.
 - **Operations** appears when `alerting:` or `incidents:` is given, and shows
@@ -9240,7 +9280,12 @@ functions through the Studio API, since a browser has no database of its
 own.
 
 `dartvel admin generate` writes `lib/pages/_dartvel_admin/studio.page.dart`,
-which opens `DVStudioScreen` behind the `viewAdmin` policy. When the backend
+which opens `DVStudioInApp` behind the `viewAdmin` policy, over the
+application's own `dartvelRouteManifest`, `dartvelStudioModels` and
+`dartvelPagePreview`. It reads through the same `DVStudioApi` a server
+answers with, in the same process over `DV.Database`, so a phone, a desktop
+and a served Studio list and edit pages and data the same way and differ
+only in where things are stored. When the backend
 serves the admin mount (see Admin, Devtools, and Scaffolding), the client
 stops compiling those generated pages and compiles Studio on its own
 instead: `dartvel build web-server` builds `DVStudioApp` into the admin root,
@@ -9602,6 +9647,36 @@ nothing of the application. It reads through the mount:
   names one is refused. The generated backend learns each model's table, key
   and fields from `dartvelStudioModels`, written beside the public page specs.
 - `<mount>/api/pages`: the page builder's documents, in `dartvel_pages`.
+- `<mount>/api/site`: every route, compiled and stored, each marked `code`,
+  `stored` or `override`, with its page, file and parameters; and
+  `<mount>/api/site/structure?route=` the structure the build captured for a
+  compiled page (`dartvel build` copies each route's semantics tree into
+  `<admin root>/structure`; a development server reads
+  `.dart_tool/dartvel_semantics` directly).
+- `<mount>/api/models/<Model>` (`PUT`, `DELETE`): a data model **designed in
+  Studio** -- its key, fields and their types, rules (`min`, `max`,
+  `minLength`, `maxLength`, `pattern`, `unique`), relations, indexes and
+  access -- stored as a definition in `dartvel_models` and served without a
+  rebuild, its records in the table its `@DVModel` would have
+  (`Article` in `articles`). A stored definition never shadows a compiled
+  model. Deleting one keeps its records. `POST <mount>/api/models/<Model>/source`
+  writes it to `lib/models/<model>.dart` as the `@DVModel` that compiles back
+  to the same spec, only where the server has a source tree (`dartvel dev`),
+  and never over a file somebody wrote by hand.
+
+One description of a model serves both: the generator reads
+`@DVModel.validate(...)`, `@DVModel.uniqueField()`, `@DVModel(indexes:,
+access:)` into the same `DVStudioModelSpec` Studio stores for a designed model,
+and every write through Studio or the data API is checked against it.
+
+A model designed in Studio has a **data API** at `/_dartvel/data/<Model>`
+(list and create), `/_dartvel/data/<Model>/<key>` (read, change, delete) and
+`/_dartvel/data/<Model>/schema`. Who may do each is the model's access --
+`anyone`, `signedIn`, `team` (Studio.access) or `nobody` -- unless the
+application registered a policy for `<Model>.<action>`, which is asked
+instead. A refused read answers as a path that does not exist; a write needs
+the `x-dartvel-csrf-token` header. A model written in code is read and
+written through its generated class and is not served here.
 - `<mount>/api/grants`: who holds a Studio grant.
 - `<mount>/graph.json`: the project graph captured at build time, for the
   Site map, Backend and Tasks sections.
