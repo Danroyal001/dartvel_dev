@@ -1,3 +1,18 @@
+## 0.9.0
+
+- **Placement follows call sites: every module source reaches more platforms.**
+  A Dart package that needs `dart:io` carries its asynchronous calls from the
+  browser to a generated backend route, behind the policy the application
+  names in `dartvel.modules.<id>.backendPolicy` (DV-MODULE-021 without one).
+  C and Rust compile to WebAssembly for the browser when the module is
+  generated, and functions of numbers are real there. npm packages and
+  WebAssembly binaries run on the Linux, macOS and Windows desktops in the Node
+  `dartvel build` copies into the bundle. A Swift package that imports no
+  Apple framework runs on Linux, Windows and the backend; one that does names
+  the import. `--elsewhere` still opts out.
+
+- Generated modules depend on `dartvel_core ^0.9.0`.
+
 ## 0.8.0
 
 - **`dartvel add pub:`, `git:` and `path:` wrap a Dart package as a module.**

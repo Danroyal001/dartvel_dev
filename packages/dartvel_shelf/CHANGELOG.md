@@ -1,3 +1,7 @@
+## 0.9.0
+
+- Accepts dartvel_core 0.9.0. No changes in this package.
+
 ## 0.8.1
 
 - Accepts dartvel_core 0.8.0. No changes in this package.

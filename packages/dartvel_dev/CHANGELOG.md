@@ -1,3 +1,9 @@
+## 0.9.0
+
+- Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.0: module
+  sources reach more platforms through a carrier per target, and
+  `DVBox.threePane`. The constraints on its siblings move with them.
+
 ## 0.8.0
 
 - Released with dartvel_core, dartvel_flutter and dartvel_cli 0.8.0: links to

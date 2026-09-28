@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.9.0 — 2026-09-28
+
+**Placement follows call sites: a module source reaches more of the
+platforms Dartvel builds for, through a carrier per target.** The placement
+matrix is in NEW_SPEC.md. A Dart package that needs `dart:io` no longer
+throws in the browser: its asynchronous calls cross to a generated backend
+route, which runs them behind the policy the application names in
+`dartvel.modules.<id>.backendPolicy` -- the call runs with the server's
+authority, so the build refuses one with no policy (DV-MODULE-021). C and
+Rust compile to WebAssembly for the browser when the module is generated;
+functions of numbers are real there and stay synchronous. npm packages and
+WebAssembly binaries run on the Linux, macOS and Windows desktops in the
+Node `dartvel build` copies into the bundle. A Swift package that imports no
+Apple framework runs on Linux, Windows and the backend; one that does names
+the import that blocks it. Also **`DVBox.threePane`**, one pane per panel of
+a tri-fold, with a live demo on the UI page.
+
+dartvel_core, dartvel_flutter, dartvel_cli, dartvel_dev and dartvel_shelf go
+to 0.9.0 and dartvel_generator to 1.4.2. To migrate: a module regenerated
+with `dartvel add --refresh` depends on `dartvel_core ^0.9.0`, and one that
+carries a call to the backend needs `backendPolicy:` under its mount.
+
 ## 0.8.0 — 2026-09-28
 
 Three things that were impossible or missing. **`dartvel add` wraps a package

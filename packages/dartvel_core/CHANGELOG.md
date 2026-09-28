@@ -1,3 +1,10 @@
+## 0.9.0
+
+- `DVModuleRpc` and `DVModuleRpcRefused`: a module operation carried to the
+  backend over generated RPC -- the client half a generated module calls,
+  the transport the generated client installs, and bytes across JSON.
+  `DVModuleOutcome.parse` reads `{compat: backend}`.
+
 ## 0.8.0
 
 - `dvHeadingSlug` and `dvHeadingIds`: the id a link to a heading names, a

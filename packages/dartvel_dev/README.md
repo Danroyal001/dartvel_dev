@@ -96,8 +96,8 @@ Depend on the individual packages when:
 Depend on `dartvel_dev` when you want one line that moves every Dartvel
 package together, for a Flutter application or a Flutter package built on
 Dartvel. Each release of `dartvel_dev` constrains its siblings to the
-versions published beside it (0.8.0 takes `dartvel_core`, `dartvel_flutter`
-and `dartvel_cli` ^0.8.0 and `dartvel_shelf` ^0.8.1), so raising that one
+versions published beside it (0.9.0 takes `dartvel_core`, `dartvel_flutter`
+and `dartvel_cli` ^0.9.0 and `dartvel_shelf` ^0.9.0), so raising that one
 constraint moves the whole set.
 
 In an application, keep backend functions importing
@@ -111,12 +111,12 @@ quiet:
 dependencies:
   flutter:
     sdk: flutter
-  dartvel_dev: ^0.8.0
+  dartvel_dev: ^0.9.0
   dartvel_core: any       # the umbrella decides the version
   dartvel_flutter: any
 
 dev_dependencies:
-  dartvel_cli: ^0.8.0     # to run the CLI with `dart run dartvel_cli:dartvel`
+  dartvel_cli: ^0.9.0     # to run the CLI with `dart run dartvel_cli:dartvel`
 ```
 
 `dart run <package>:<executable>` is for packages the project depends on
