@@ -765,7 +765,8 @@ class BuildCommand extends Command<void> {
 
     // A call the build can see reaching a module operation declared
     // unavailable, or declaring nothing, where this build runs.
-    final DVModuleCallCheck moduleCalls = DVModuleCallCheck.run(root, <DVModuleEnvironment>{
+    final DVModuleCallCheck moduleCalls =
+        DVModuleCallCheck.run(root, platforms: platforms.toSet(), <DVModuleEnvironment>{
       for (final String platform in platforms)
         platform == 'web'
             ? DVModuleEnvironment.web

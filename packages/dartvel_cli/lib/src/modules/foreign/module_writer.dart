@@ -72,7 +72,12 @@ class DVForeignModuleSpec {
     this.extraFiles = const <String, String>{},
     this.noopValues = const <String, String>{},
     this.pubspecExtra = '',
+    this.targets = const <String>[],
   });
+
+  /// The targets a native carrier reaches, when it reaches only some: a JVM
+  /// library is `android` alone. Empty for every target.
+  final List<String> targets;
 
   /// Top-level pubspec sections a kind needs besides the module block: the
   /// assets an npm module serves to the browser.
@@ -259,6 +264,7 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('    kind: ${spec.kind}')
     ..writeln('    source: ${dvYamlScalar(spec.source)}')
     ..writeln('    surface: ${spec.surfaceClass}')
+    ..write(spec.targets.isEmpty ? '' : '    targets: [${spec.targets.join(', ')}]\n')
     ..writeln('    operations:');
   for (final DVModuleOperation op in spec.operations) {
     out.writeln('      ${op.name}:');

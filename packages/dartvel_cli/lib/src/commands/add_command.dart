@@ -34,6 +34,8 @@ import '../modules/foreign/dart_package_module.dart';
 import '../modules/foreign/dart_surface.dart';
 import '../modules/foreign/ffi_module.dart';
 import '../modules/foreign/ffi_surface.dart';
+import '../modules/foreign/jvm_module.dart';
+import '../modules/foreign/jvm_surface.dart';
 import '../modules/foreign/module_writer.dart';
 import '../modules/foreign/npm_module.dart';
 import '../modules/foreign/npm_surface.dart';
@@ -155,6 +157,9 @@ class AddCommand extends Command<void> {
           defaultsTo: 'unavailable',
           help: 'What an operation does in an environment the source cannot '
               'run in. Written into the module per operation.')
+      ..addMultiOption('class',
+          help: 'For a JVM library: a class whose static methods the module '
+              'exposes, dotted. Repeat it for more than one.')
       ..addOption('as', help: 'The id the parent knows the module by.')
       ..addOption('mount', help: 'Where the parent serves it.')
       ..addOption('url',
@@ -195,7 +200,8 @@ class AddCommand extends Command<void> {
             elsewhere: argResults?['elsewhere'] == 'noop'
                 ? DVModuleOutcome.noop
                 : DVModuleOutcome.unavailable,
-            fetcher: fetcher)
+            fetcher: fetcher,
+            classes: (argResults?['class'] as List<String>?) ?? const <String>[])
         : planFor(target, source,
             id: argResults?['as'] as String?,
             mount: argResults?['mount'] as String?,
@@ -225,6 +231,8 @@ class AddCommand extends Command<void> {
     'c:',
     'cargo:',
     'wasm:',
+    'maven:',
+    'jar:',
   ];
 
   /// Whether [source] names a foreign source this command generates a
@@ -238,6 +246,9 @@ class AddCommand extends Command<void> {
     if (isForeign(source) || source.contains(':')) return source;
     if (source.endsWith('.wasm') && File(p.join(root, source)).existsSync()) {
       return 'wasm:$source';
+    }
+    if (source.endsWith('.jar') && File(p.join(root, source)).existsSync()) {
+      return 'jar:$source';
     }
     final DVDetectedSource found =
         dvDetectSource(p.join(root, source));
@@ -262,12 +273,14 @@ class AddCommand extends Command<void> {
     String? mount,
     DVModuleOutcome elsewhere = DVModuleOutcome.unavailable,
     DVSourceFetcher fetcher = const DVSourceFetcher(),
+    List<String> classes = const <String>[],
   }) async {
     final DVResolvedSource resolved;
     final DVForeignModuleSpec Function(String id) specFor;
     try {
       (resolved, specFor) =
-          await _resolveForeign(root, source, elsewhere, fetcher);
+          await _resolveForeign(root, source, elsewhere, fetcher,
+              classes: classes);
     } on DVSourceUnresolved catch (e) {
       throw DVAddRefused(e.message);
     } on DVDartSurfaceRefused catch (e) {
@@ -330,7 +343,43 @@ class AddCommand extends Command<void> {
   /// module spec once its id is known.
   static Future<(DVResolvedSource, DVForeignModuleSpec Function(String))>
       _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
-          DVSourceFetcher fetcher) async {
+          DVSourceFetcher fetcher,
+          {List<String> classes = const <String>[]}) async {
+    if (source.startsWith('maven:') || source.startsWith('jar:')) {
+      final bool maven = source.startsWith('maven:');
+      final DVResolvedSource resolved = maven
+          ? await dvResolveMaven(root, source.substring(6), fetcher: fetcher)
+          : () {
+              final String path = p.normalize(p.join(root, source.substring(4)));
+              if (!File(path).existsSync()) {
+                throw DVSourceUnresolved('There is no jar at ${source.substring(4)}.');
+              }
+              return DVResolvedSource(
+                descriptor: 'jar:${p.relative(path, from: root).replaceAll('\\', '/')}',
+                name: p.basenameWithoutExtension(path),
+                version: '0.0.0',
+                directory: path,
+                sourceDigest: sha256.convert(File(path).readAsBytesSync()).toString(),
+                resolvedFrom: path,
+                dependency: '',
+              );
+            }();
+      final DVJvmSurface surface = dvScanJar(resolved.directory, only: classes);
+      final DVJvmArtifact artifact = maven
+          ? DVMavenArtifact(resolved.dependency)
+          : DVJarArtifact(p.basename(resolved.directory),
+              File(resolved.directory).readAsBytesSync());
+      return (
+        resolved,
+        (String id) => dvJvmModuleSpec(
+              id: id,
+              source: resolved.descriptor,
+              surface: surface,
+              artifact: artifact,
+              elsewhere: elsewhere,
+            ),
+      );
+    }
     if (source.startsWith('wasm:')) {
       final String rest = source.substring(5);
       final Uint8List bytes;
@@ -689,9 +738,17 @@ class AddCommand extends Command<void> {
     final DVGeneratedModule? module = plan.generated;
     if (module == null) return;
     for (final MapEntry<String, String> file in module.files.entries) {
-      final File out = File(p.join(root, plan.path, file.key));
+      // A binary travels as base64 under its name plus .base64, and is
+      // written as the bytes it stands for.
+      final bool binary = file.key.endsWith('.base64');
+      final File out = File(p.join(root, plan.path,
+          binary ? file.key.substring(0, file.key.length - 7) : file.key));
       out.parent.createSync(recursive: true);
-      out.writeAsStringSync(file.value);
+      if (binary) {
+        out.writeAsBytesSync(base64Decode(file.value));
+      } else {
+        out.writeAsStringSync(file.value);
+      }
     }
   }
 

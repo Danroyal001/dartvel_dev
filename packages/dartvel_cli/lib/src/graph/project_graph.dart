@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import '../module_trust/module_lock.dart';
 import '../modules/foreign/module_writer.dart' show dvWrapperHash;
@@ -340,10 +341,21 @@ class DartvelProjectGraph {
     return <String, String>{
       for (final FileSystemEntity f in d.listSync(recursive: true))
         if (f is File &&
-            !p.split(p.relative(f.path, from: dir)).first.startsWith('.') &&
+            !p.split(p.relative(f.path, from: dir)).any((String s) =>
+                s.startsWith('.') || s == 'build') &&
             p.relative(f.path, from: dir) != 'pubspec.lock')
-          p.relative(f.path, from: dir).replaceAll('\\', '/'):
-              f.readAsStringSync(),
+          ...(() {
+            final String rel =
+                p.relative(f.path, from: dir).replaceAll('\\', '/');
+            try {
+              return <String, String>{rel: f.readAsStringSync()};
+            } on FileSystemException {
+              // A binary the module carries was generated as base64.
+              return <String, String>{
+                '$rel.base64': base64Encode(f.readAsBytesSync()),
+              };
+            }
+          })(),
     };
   }
 
