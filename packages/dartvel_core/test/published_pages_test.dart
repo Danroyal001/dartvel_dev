@@ -79,4 +79,16 @@ void main() {
       isNull,
     );
   });
+
+  // The web server answers a path no route serves with a 404, and a Studio
+  // page is a route the manifest does not list: it asks here first, so a
+  // published page is not reported missing to a crawler.
+  test('names the routes it holds, and none before anything is published',
+      () async {
+    expect(await pages.routes(), isEmpty);
+
+    await publish('/menu', 'Menu');
+
+    expect(await pages.routes(), <String>{'/menu'});
+  });
 }
