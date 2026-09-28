@@ -190,6 +190,8 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
       _DVStudioIndexDraft(fields: index.fields.join(', '), unique: index.unique),
   ];
   late DVModelAccess _access = widget.model?.access ?? const DVModelAccess();
+  late bool _versioned = widget.model?.versioned ?? true;
+  late bool _softDelete = widget.model?.softDelete ?? false;
   bool _busy = false;
   List<String> _problems = const <String>[];
   String? _notice;
@@ -210,8 +212,8 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
             for (final _DVStudioIndexDraft index in _indexes) index.toJson(),
           ],
         'access': _access.toJson(),
-        'versioned': widget.model?.versioned ?? true,
-        'softDelete': widget.model?.softDelete ?? false,
+        'versioned': _versioned,
+        'softDelete': _softDelete,
       };
 
   Future<void> _save() async {
@@ -409,6 +411,25 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                             enabled: true, icon: Icons.add),
                       ),
                     ),
+                ]),
+                _section('Keeping records safe', <Widget>[
+                  _toggle(
+                    'dv-studio-model-versioned',
+                    'Refuse an edit made to an out-of-date copy',
+                    _versioned,
+                    (bool value) => setState(() => _versioned = value),
+                  ),
+                  DVStudioStyle.caption(
+                    'Two people editing one record at once: the second save '
+                    'is refused rather than silently replacing the first.',
+                    color: DVStudioStyle.faint,
+                  ),
+                  _toggle(
+                    'dv-studio-model-soft-delete',
+                    'Keep deleted records, so they can be restored',
+                    _softDelete,
+                    (bool value) => setState(() => _softDelete = value),
+                  ),
                 ]),
                 _section('Who may use the data', <Widget>[
                   DVStudioStyle.caption(

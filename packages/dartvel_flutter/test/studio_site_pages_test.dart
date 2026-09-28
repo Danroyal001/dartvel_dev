@@ -140,6 +140,9 @@ void main() {
     expect(_key('dv-studio-live-page'), findsOneWidget);
     expect(find.text('We roast on Tuesdays.'), findsOneWidget);
     expect(find.text('Written in code'), findsOneWidget);
+    // Nothing is offered for inserting into a page only being looked at.
+    expect(find.text('Insert'), findsNothing);
+    expect(find.text('Layers'), findsOneWidget);
     expect(
       find.descendant(
           of: _key('dv-studio-page-kind'), matching: find.text('Code')),
@@ -156,6 +159,7 @@ void main() {
     expect(_key('dv-studio-live-page'), findsNothing,
         reason: 'the override is edited on the canvas');
     expect(find.text('Editing a copy'), findsOneWidget);
+    expect(find.text('Insert'), findsOneWidget);
 
     await tester.tap(_key('dv-studio-publish'));
     await tester.pumpAndSettle();

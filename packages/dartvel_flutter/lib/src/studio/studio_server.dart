@@ -1073,6 +1073,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       _editing = null;
       _error = null;
       _designing = false;
+      _query = '';
     });
     if (userChose) setState(() => _phoneDetail = true);
     try {
@@ -1198,6 +1199,9 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   /// On a phone, whether the chosen model is on screen rather than the list.
   bool _phoneDetail = false;
 
+  /// What the records are searched for.
+  String _query = '';
+
   Widget _detail() {
     final DVStudioModel? model = _model;
     if (model == null) return DVStudioStyle.placeholder('Choose a model.');
@@ -1211,7 +1215,11 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: model.model,
-          subtitle: records == null ? null : '${records.length} records',
+          subtitle: records == null
+              ? null
+              : records.length == 1
+                  ? '1 record'
+                  : '${records.length} records',
           actions: <Widget>[
             GestureDetector(
               key: const ValueKey<String>('dv-studio-model-design'),
@@ -1255,31 +1263,67 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                           )
                         : SingleChildScrollView(
                             padding: const .all(DVStudioStyle.space5),
-                            child: _DVStudioTable(
-                              headers: <String>[
-                                for (final DVStudioField f in fields) _fieldLabel(f.name),
-                              ],
-                              rows: <List<String>>[
+                            child: Builder(builder: (BuildContext context) {
+                              // The records any of whose values contain what
+                              // is typed in the search, as the table shows
+                              // them.
+                              final String query = _query.trim().toLowerCase();
+                              final List<DVStudioRecordData> shown =
+                                  <DVStudioRecordData>[
                                 for (final DVStudioRecordData record in records)
-                                  <String>[
-                                    for (final DVStudioField f in fields)
-                                      _cellText(
-                                          f, record.values[f.name]),
+                                  if (query.isEmpty ||
+                                      fields.any((DVStudioField f) =>
+                                          _cellText(f, record.values[f.name])
+                                              .toLowerCase()
+                                              .contains(query)))
+                                    record,
+                              ];
+                              return Column(
+                                crossAxisAlignment: .stretch,
+                                children: <Widget>[
+                                  if (records.length > 1) ...<Widget>[
+                                    DVStudioTextInput(
+                                      key: const ValueKey<String>(
+                                          'dv-studio-records-search'),
+                                      value: _query,
+                                      placeholder:
+                                          'Search ${records.length} records',
+                                      icon: Icons.search,
+                                      onChanged: (String value) =>
+                                          setState(() => _query = value),
+                                    ),
+                                    const SizedBox(height: DVStudioStyle.space3),
                                   ],
-                              ],
-                              rowKeys: <Key>[
-                                for (final DVStudioRecordData record in records)
-                                  ValueKey<String>(
-                                      'dv-studio-record-${record.key}'),
-                              ],
-                              selected: editing == null
-                                  ? null
-                                  : records.indexWhere(
-                                      (DVStudioRecordData r) =>
-                                          r.key == editing.key),
-                              onTap: (int index) =>
-                                  setState(() => _editing = records[index]),
-                            ),
+                                  _DVStudioTable(
+                                    headers: <String>[
+                                      for (final DVStudioField f in fields)
+                                        _fieldLabel(f.name),
+                                    ],
+                                    rows: <List<String>>[
+                                      for (final DVStudioRecordData record
+                                          in shown)
+                                        <String>[
+                                          for (final DVStudioField f in fields)
+                                            _cellText(f, record.values[f.name]),
+                                        ],
+                                    ],
+                                    rowKeys: <Key>[
+                                      for (final DVStudioRecordData record
+                                          in shown)
+                                        ValueKey<String>(
+                                            'dv-studio-record-${record.key}'),
+                                    ],
+                                    selected: editing == null
+                                        ? null
+                                        : shown.indexWhere(
+                                            (DVStudioRecordData r) =>
+                                                r.key == editing.key),
+                                    onTap: (int index) => setState(
+                                        () => _editing = shown[index]),
+                                  ),
+                                ],
+                              );
+                            }),
                           ),
               ),
               if (editing != null)
@@ -1537,7 +1581,10 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                         ],
                         Flexible(
                           child: Text(
-                            field.type,
+                            // What the field holds, as the designer names it:
+                            // Text, Whole number, Choice. A person who never
+                            // wrote a type reads "String?" as a typo.
+                            _dvStudioFieldCaption(field),
                             maxLines: 1,
                             softWrap: false,
                             overflow: .ellipsis,
@@ -1698,6 +1745,17 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
         ),
         child: DVStudioStyle.body(text, color: DVStudioStyle.muted),
       );
+}
+
+/// What [field] holds, in the words the designer offers it in, and
+/// whether it may be left empty.
+String _dvStudioFieldCaption(DVStudioField field) {
+  final String kind = field.options != null
+      ? 'Choice'
+      : field.relation != null
+          ? 'Refers to ${field.relation}'
+          : _dvStudioKindLabel(field.baseType);
+  return field.nullable ? '$kind, optional' : kind;
 }
 
 /// A value the form could not turn into what the field holds.
