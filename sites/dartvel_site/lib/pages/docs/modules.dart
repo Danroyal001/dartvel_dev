@@ -209,15 +209,58 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'nothing. Everything is generated before anything is '
                   'written, so a document add cannot read stops the command '
                   'with an empty modules directory.',
-              'A Maven artifact, a Rust crate, an npm package, a Swift '
-                  'package, a WASM binary and a .proto are each named and '
-                  'refused today. They are specified and not built.',
+              'A Dart package from pub.dev, git or a path is wrapped: see '
+                  'the next section. A Maven artifact, a Rust crate, an npm '
+                  'package, a Swift package, a WASM binary and a .proto are '
+                  'each named and refused today.',
             ]),
-            DocsNote('Three sources of the ten work today',
-                'A Dartvel project, a local OpenAPI document and a local '
-                'GraphQL schema. The lockfile pins a foreign source and '
+            DocsNote('Four kinds of source work today',
+                'A Dartvel project, a local OpenAPI document, a local '
+                'GraphQL schema and a Dart package. The lockfile pins a foreign source and '
                 'detection names all of them, so the rest refuse by name '
                 'instead of pretending not to recognise what is there.'),
+          ],
+        ),
+        DocsSection(
+          id: 'dart-packages',
+          title: 'Wrap a Dart package as a module',
+          children: <Widget>[
+            DocsText('A package from pub.dev, from a git repository or from a '
+                'directory becomes a module you call as DV.Modules.<id>. The '
+                'module says what each call does on a device, in a browser '
+                'and on the backend, and the build checks your calls against '
+                'it.'),
+            DocsShell(<String>[
+              'dartvel add pub:slugify@^2.0.0',
+              'dartvel add git:https://github.com/acme/textkit.git#v1.4.0',
+              'dartvel add path:vendor/textkit --as text',
+              'dartvel add pub:slugify --dry-run',
+              'dartvel inspect modules',
+            ]),
+            DocsCode('modules-dart-package'),
+            Bullets(<String>[
+              'pub: takes the newest version the constraint allows and checks '
+                  'the archive against the sha256 pub.dev publishes. git: '
+                  'pins the commit. A bare path to a plain Dart package still '
+                  'points you at dart pub add; path: says you want a module.',
+              'The module exposes the package\'s public functions that every '
+                  'environment can call. A function that takes a callback, '
+                  'is generic or uses a type only the package defines is '
+                  'listed in the module\'s README with the reason, and you '
+                  'import the package to reach it.',
+              'A package that imports dart:io runs on devices and the '
+                  'backend. In a browser its calls throw DVModuleUnavailable '
+                  'naming the module, the call and the environment, and the '
+                  'package never reaches the web build. --elsewhere noop '
+                  'makes those calls do nothing instead.',
+              'dartvel build web refuses a page that calls one of those '
+                  '(DV-MODULE-013), and a call to an operation that declares '
+                  'nothing for the target (DV-MODULE-014).',
+              'dartvel.module.lock pins the source, its digest, the hash of '
+                  'the generated module and the generator version. dartvel '
+                  'inspect modules reports a module edited by hand '
+                  '(DV-MODULE-016), because the next refresh replaces it.',
+            ]),
           ],
         ),
         DocsSection(
@@ -234,9 +277,6 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'Tree-shaking per environment, so a module with a heavy native '
                   'library costs a web build nothing until a web page calls '
                   'it.',
-              'A declared outcome for each environment a module is called '
-                  'from: real, compat, noop or unavailable, with no default, '
-                  'and DV-MODULE-013, 014 and 017.',
               'Ambient requirements: a module declaring the app lifecycle '
                   'hooks, background work and push registration an SDK such '
                   'as Firebase needs, wired into the target\'s entry points, '
