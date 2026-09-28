@@ -33,7 +33,7 @@ class _DVOutboxAdminState extends State<DVOutboxAdmin> {
     final notifications = widget.notifications;
     return DVBox.scrollableList(<Widget>[
       const DVText('Outbox')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       GestureDetector(
         key: const ValueKey<String>('dv-outbox-refresh'),
         onTap: _refresh,
@@ -52,7 +52,7 @@ class _DVOutboxAdminState extends State<DVOutboxAdmin> {
   Widget _mailSection(DVMemoryMailProvider mail) {
     return DVBox.list(<Widget>[
       DVText('Mail (${mail.sent.length})')
-          .modifier(const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(18).fontWeight(.bold)),
       if (mail.sent.isEmpty) const DVText('No mail sent.'),
       for (final message in mail.sent)
         DVBox.list(<Widget>[
@@ -65,7 +65,7 @@ class _DVOutboxAdminState extends State<DVOutboxAdmin> {
   Widget _notificationSection(DVMemoryNotificationProvider provider) {
     return DVBox.list(<Widget>[
       DVText('Notifications (${provider.sent.length})')
-          .modifier(const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(18).fontWeight(.bold)),
       if (provider.sent.isEmpty) const DVText('No notifications sent.'),
       for (final notification in provider.sent)
         DVBox.list(<Widget>[

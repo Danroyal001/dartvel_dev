@@ -87,7 +87,7 @@ class const ShopTabs({super.key, required super.shell})
                 ? NavigationRailLabelType.none
                 : NavigationRailLabelType.all,
             leading: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 20, 8, 28),
+              padding: const .fromLTRB(8, 20, 8, 28),
               child: Wordmark(compact: !extended),
             ),
             destinations: <NavigationRailDestination>[
@@ -96,7 +96,7 @@ class const ShopTabs({super.key, required super.shell})
                   icon: icon(i, selected: false),
                   selectedIcon: icon(i, selected: true),
                   label: Text(destinations[i].$1),
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const .symmetric(vertical: 2),
                 ),
             ],
           ),

@@ -554,7 +554,7 @@ abstract base class MemorySlice<T extends Object> {
         for (; i < end; i++) {
           v[i] = f(v[i]);
         }
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
       }
     }
   }

@@ -56,7 +56,7 @@ class _ProbeState extends State<_Probe> {
 
   @override
   Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           TextField(controller: text),
           SizedBox(

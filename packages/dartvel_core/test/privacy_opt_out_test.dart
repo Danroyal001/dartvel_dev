@@ -82,7 +82,7 @@ void main() {
       // somebody else's opt-out. That is the bug the tenant scope was written
       // against, and it would be this one too.
       final bool after = await dvWithPrivacyOptOut(true, () async {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         return dvPrivacyOptOut;
       });
       expect(after, isTrue);

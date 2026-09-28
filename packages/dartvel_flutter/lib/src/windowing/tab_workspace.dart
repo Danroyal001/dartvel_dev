@@ -480,7 +480,7 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
     final bool focused = horizontal && index == _focused;
     return GestureDetector(
       key: ValueKey<String>('dv-tab-tile-$index'),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => _controller.activate(index),
       onLongPress: () => setState(() => _actionsFor = index),
       child: DVText(tab.title).modifier(
@@ -501,7 +501,7 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
         _controller.moveDestinations;
     Widget action(String key, String label, VoidCallback? onTap) => GestureDetector(
           key: ValueKey<String>(key),
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: onTap,
           child: DVText(label).modifier(const DVModifier().padding(10)),
         );

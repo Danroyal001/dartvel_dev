@@ -65,7 +65,7 @@ void main() {
           find.byKey(const ValueKey<String>('dv-auth-email')), 'ada@example.com');
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-auth-password')), 'correct horse');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.testTextInput.receiveAction(.done);
       await tester.pumpAndSettle();
 
       expect(DV.Auth.currentUser?.email, 'ada@example.com');
@@ -108,7 +108,7 @@ void main() {
           find.byKey(const ValueKey<String>('dv-signup-email')), 'grace@example.com');
       await tester.enterText(find.byKey(const ValueKey<String>('dv-signup-password')),
           'a long enough passphrase');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.testTextInput.receiveAction(.done);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey<String>('dv-signup-done')), findsOneWidget);

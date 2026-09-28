@@ -393,7 +393,7 @@ class DVStudioApp extends StatelessWidget {
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF8E74F8),
-          brightness: Brightness.dark,
+          brightness: .dark,
         ),
         scaffoldBackgroundColor: DVStudioStyle.canvas,
         canvasColor: DVStudioStyle.canvas,
@@ -652,7 +652,7 @@ class _DVStudioTable extends StatelessWidget {
         }
         return Scrollbar(
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+            scrollDirection: .horizontal,
             child: SizedBox(width: needed, child: _table()),
           ),
         );
@@ -662,27 +662,27 @@ class _DVStudioTable extends StatelessWidget {
 
   Widget _table() {
     Widget cell(String text, {bool header = false}) => Padding(
-          padding: const EdgeInsets.symmetric(
+          padding: const .symmetric(
               horizontal: DVStudioStyle.space3, vertical: 9),
           // One line, both kinds: a heading that wraps breaks a word in two.
           child: Text(
             header ? text.toUpperCase() : text,
             maxLines: 1,
             softWrap: false,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
             style: header
                 ? const TextStyle(
                     fontSize: 11,
                     color: DVStudioStyle.muted,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: .w600,
                   )
                 : const TextStyle(fontSize: 13, color: DVStudioStyle.ink),
           ),
         );
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
             decoration: const BoxDecoration(
@@ -705,7 +705,7 @@ class _DVStudioTable extends StatelessWidget {
                   : SystemMouseCursors.click,
               child: GestureDetector(
                 key: rowKeys?[i],
-                behavior: HitTestBehavior.opaque,
+                behavior: .opaque,
                 onTap: onTap == null ? null : () => onTap!(i),
                 child: Container(
                   decoration: BoxDecoration(
@@ -720,7 +720,7 @@ class _DVStudioTable extends StatelessWidget {
                       Expanded(child: cell(value)),
                     if (trailing != null)
                       Padding(
-                        padding: const EdgeInsets.only(
+                        padding: const .only(
                             right: DVStudioStyle.space2),
                         child: SizedBox(
                           width: trailingWidth,
@@ -813,7 +813,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     return DVStudioStyle.panes(
       listWidth: 220,
       list: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
               title: 'Data', subtitle: '${models.length}'),
@@ -843,7 +843,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     final DVStudioRecordData? editing = _editing;
     final List<DVStudioField> fields = model.visibleFields;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: model.model,
@@ -860,7 +860,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
         ),
         Expanded(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               Expanded(
                 child: records == null
@@ -878,7 +878,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                             message: 'New record adds the first one.',
                           )
                         : SingleChildScrollView(
-                            padding: const EdgeInsets.all(DVStudioStyle.space5),
+                            padding: const .all(DVStudioStyle.space5),
                             child: _DVStudioTable(
                               headers: <String>[
                                 for (final DVStudioField f in fields) _fieldLabel(f.name),
@@ -1102,7 +1102,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: _isNew ? 'New ${widget.model.model}' : widget.record.key,
@@ -1117,13 +1117,13 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(DVStudioStyle.space4),
+            padding: const .all(DVStudioStyle.space4),
             children: <Widget>[
               for (final DVStudioField field in widget.model.visibleFields)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: DVStudioStyle.space3),
+                  padding: const .only(bottom: DVStudioStyle.space3),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: .stretch,
                     children: <Widget>[
                       Row(children: <Widget>[
                         Expanded(child: DVStudioStyle.overline(_fieldLabel(field.name))),
@@ -1164,7 +1164,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                             field.type,
                             maxLines: 1,
                             softWrap: false,
-                            overflow: TextOverflow.ellipsis,
+                            overflow: .ellipsis,
                             style: const TextStyle(
                                 fontSize: 12, color: DVStudioStyle.faint),
                           ),
@@ -1185,7 +1185,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                 DVStudioStyle.body(_error!, color: DVStudioStyle.danger),
                 if (_conflict)
                   Padding(
-                    padding: const EdgeInsets.only(top: DVStudioStyle.space2),
+                    padding: const .only(top: DVStudioStyle.space2),
                     child: GestureDetector(
                       onTap: widget.onReload,
                       child: DVStudioStyle.control('Reload records',
@@ -1197,7 +1197,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           ),
         ),
         Container(
-          padding: const EdgeInsets.all(DVStudioStyle.space3),
+          padding: const .all(DVStudioStyle.space3),
           decoration: const BoxDecoration(
             border: Border(top: BorderSide(color: DVStudioStyle.line)),
           ),
@@ -1236,7 +1236,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
     }
     if (field.baseType == 'bool' && !locked) {
       return Align(
-        alignment: Alignment.centerLeft,
+        alignment: .centerLeft,
         child: Switch(
           key: key,
           value: _draft[field.name] == true,
@@ -1286,9 +1286,9 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           decoration: InputDecoration(
             isDense: true,
             hintText: field.baseType.startsWith('Map') ? '{ }' : '[ ]',
-            contentPadding: const EdgeInsets.all(10),
+            contentPadding: const .all(10),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+              borderRadius: .circular(DVStudioStyle.radiusSmall),
               borderSide: const BorderSide(color: DVStudioStyle.lineStrong),
             ),
           ),
@@ -1313,12 +1313,12 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   Widget _readOnly(Key key, String text) => Container(
         key: key,
         height: 32,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: .centerLeft,
+        padding: const .symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: DVStudioStyle.canvas,
           border: Border.all(color: DVStudioStyle.line),
-          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+          borderRadius: .circular(DVStudioStyle.radiusSmall),
         ),
         child: DVStudioStyle.body(text, color: DVStudioStyle.muted),
       );
@@ -1374,11 +1374,11 @@ class _DVStudioSelect extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: Container(
           height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const .symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border.all(color: DVStudioStyle.lineStrong),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+            borderRadius: .circular(DVStudioStyle.radiusSmall),
           ),
           child: Row(
             children: <Widget>[
@@ -1499,7 +1499,7 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
           if (row is Map) row.cast<String, Object?>(),
       ];
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
             title: widget.title,
@@ -1512,7 +1512,7 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
                     title: 'No ${widget.title.toLowerCase()} in this build',
                   )
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.all(DVStudioStyle.space5),
+                    padding: const .all(DVStudioStyle.space5),
                     child: _DVStudioTable(
                       headers: <String>[
                         for (final List<String> c in widget.columns) c[1],
@@ -1626,7 +1626,7 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
     return DVStudioStyle.panes(
       listWidth: 220,
       list: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
               title: 'Queue', subtitle: '${queues.length}'),
@@ -1656,7 +1656,7 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
     final List<Map<String, Object?>> pending = _jobs(queue, 'pending');
     final List<Map<String, Object?>> dead = _jobs(queue, 'deadLetters');
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: '${queue['name']}',
@@ -1672,9 +1672,9 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(DVStudioStyle.space5),
+            padding: const .all(DVStudioStyle.space5),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 if (queue['unreadable'] != null) ...<Widget>[
                   DVStudioStyle.body(
@@ -1733,7 +1733,7 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
     final String id = '${job['id']}';
     return DVStudioStyle.card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -1742,7 +1742,7 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
               const SizedBox(width: DVStudioStyle.space2),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     DVStudioStyle.body(id),
                     DVStudioStyle.caption(
@@ -1839,7 +1839,7 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
   Widget build(BuildContext context) {
     final List<Map<String, Object?>>? tags = _tags;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: 'Cache tags',
@@ -1863,9 +1863,9 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
                       message: '$_error',
                     ))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(DVStudioStyle.space5),
+                  padding: const .all(DVStudioStyle.space5),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: .stretch,
                     children: <Widget>[
                       if (_notice != null) ...<Widget>[
                         DVStudioStyle.body(_notice!,
@@ -1990,7 +1990,7 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
     final ({String userId, String tenant, String message})? confirming =
         _confirming;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: 'Team',
@@ -2000,9 +2000,9 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
           child: _loading<List<Map<String, Object?>>>(_grants,
               (List<Map<String, Object?>> grants) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(DVStudioStyle.space5),
+              padding: const .all(DVStudioStyle.space5),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: .stretch,
                 children: <Widget>[
                   DVStudioStyle.overline('Grant access'),
                   const SizedBox(height: DVStudioStyle.space2),
@@ -2042,7 +2042,7 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                   if (confirming != null) ...<Widget>[
                     const SizedBox(height: DVStudioStyle.space4),
                     Container(
-                      padding: const EdgeInsets.all(DVStudioStyle.space3),
+                      padding: const .all(DVStudioStyle.space3),
                       decoration: BoxDecoration(
                         color: Color.alphaBlend(
                           DVStudioStyle.warning.withValues(alpha: 0.1),

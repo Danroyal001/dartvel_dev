@@ -51,7 +51,7 @@ void main() {
           serialised.record(meter, 60, idempotencyKey: 'a');
       await gated.writing.future;
       final Future<DVMeterOutcome> check = serialised.admits(meter, 41);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       gated.release();
       await recording;
       final DVMeterOutcome outcome = await check;

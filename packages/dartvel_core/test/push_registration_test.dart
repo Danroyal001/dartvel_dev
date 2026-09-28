@@ -37,7 +37,7 @@ void main() {
     addTearDown(subscription.cancel);
 
     provider.simulateMessage(PushNotification(id: '1', title: 'Shipped'));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(received, <String>['Shipped']);
   });

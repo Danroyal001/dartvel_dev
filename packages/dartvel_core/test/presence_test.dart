@@ -60,7 +60,7 @@ void main() {
     await DVPresence.join('room:1', DVPresenceMember(id: 'ada'));
     await DVPresence.join('room:1', DVPresenceMember(id: 'ada'));
     await DVPresence.leave('room:1', 'ada');
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(kinds, <DVPresenceEventKind>[
       DVPresenceEventKind.joined,
@@ -115,7 +115,7 @@ void main() {
     await DVPresence.join('room:1', DVPresenceMember(id: 'grace'));
     await Future<void>.delayed(const Duration(milliseconds: 60));
     await DVPresence.sweep();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(left, unorderedEquals(<String>['ada', 'grace']));
     await subscription.cancel();
@@ -158,7 +158,7 @@ void main() {
         'channel': 'room:1',
         'member': DVPresenceMember(id: 'remote').toJson(),
       });
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(
         DVPresence.members('room:1').map((m) => m.id),
@@ -177,7 +177,7 @@ void main() {
         'channel': 'room:1',
         'member': DVPresenceMember(id: 'remote').toJson(),
       });
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(transport.sent, isEmpty);
     });
@@ -204,7 +204,7 @@ void main() {
       DVPresence.useTransport(transport);
 
       transport.deliver(<String, Object?>{'op': 'join'});
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       // Still usable afterwards.
       await DVPresence.join('room:1', DVPresenceMember(id: 'ada'));

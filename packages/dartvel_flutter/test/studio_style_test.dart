@@ -23,7 +23,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: SizedBox(
           width: 800,
           height: 600,
@@ -54,7 +54,7 @@ void main() {
       (WidgetTester tester) async {
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: SizedBox(
           width: 800,
           height: 600,
@@ -89,7 +89,7 @@ void main() {
     // identical to one that works is the whole problem.
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Column(
           children: <Widget>[
             DVStudioStyle.control('Undo', enabled: false),
@@ -135,7 +135,7 @@ void main() {
     const String label = 'A label longer than its box';
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Center(
           child: SizedBox(
             width: 90,
@@ -163,7 +163,7 @@ void main() {
     // is wider than that at 14px semibold: the header threw an overflow.
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Center(
           child: SizedBox(
             width: 140,
@@ -191,7 +191,7 @@ void main() {
     // is 91 pixels wide when nothing cuts it.
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Center(
           child: DVStudioStyle.control(
             'Publish',
@@ -217,7 +217,7 @@ void main() {
         'edit how it looks and behaves.';
     await tester.pumpWidget(
       Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Center(
           child: SizedBox(
             width: 300,

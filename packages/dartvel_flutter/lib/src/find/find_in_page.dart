@@ -270,7 +270,7 @@ class _DVFindHighlightState extends State<_DVFindHighlight>
         child: const DecoratedBox(
           decoration: BoxDecoration(
             color: Color(0x55FFC83D),
-            borderRadius: BorderRadius.all(Radius.circular(6)),
+            borderRadius: .all(Radius.circular(6)),
             border: Border.fromBorderSide(
               BorderSide(color: Color(0xCCFFB300), width: 2),
             ),

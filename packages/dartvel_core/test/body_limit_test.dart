@@ -79,7 +79,7 @@ void main() {
         while (true) {
           delivered++;
           yield Uint8List(64);
-          await Future<void>.delayed(Duration.zero);
+          await Future<void>.delayed(.zero);
         }
       }
 

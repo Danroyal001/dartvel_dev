@@ -289,7 +289,7 @@ Widget _codeSample(BuildContext context, List<String> lines) {
       ),
       DVBox(
         CopyButton(source, copied),
-        const DVModifier().align(Alignment.topRight),
+        const DVModifier().align(.topRight),
       ),
       ]);
     }),
@@ -316,7 +316,7 @@ Widget _copyButton(BuildContext context, String source, DVSignal<bool> copied) {
     DVText(done ? 'Copied' : 'Copy').modifier(
       const DVModifier()
           .fontSize(12)
-          .fontWeight(FontWeight.w600)
+          .fontWeight(.w600)
           .color(done ? const Color(0xFF9ECE6A) : const Color(0xFF7080A8)),
     ),
     const DVModifier()

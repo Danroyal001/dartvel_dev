@@ -212,7 +212,7 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const .all(16),
           child: DVBox.list(<Widget>[
             const DVText('Your privacy choices'),
             DVText('This application would like your permission for: '
@@ -337,9 +337,9 @@ class _DVConsentSettingsPageState extends State<DVConsentSettingsPage> {
       return const Center(child: DVText('Loading your privacy choices…'));
     }
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         children: <Widget>[
           DVBox.list(<Widget>[
             const DVText('Choose what this application may collect. Nothing '
