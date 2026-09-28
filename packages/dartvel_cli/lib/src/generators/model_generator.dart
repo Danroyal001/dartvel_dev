@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVStudioFieldSpec, DVStudioModelSpec;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVModelAccess,
+        DVStudioFieldSpec,
+        DVStudioIndexSpec,
+        DVStudioModelSpec;
 import 'package:yaml/yaml.dart';
 import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'model_rules.dart';
 import 'policy_classes.dart';
 import 'primary_constructors.dart';
 import 'public_pages.dart';
@@ -403,6 +409,15 @@ class ModelGenerator {
         // Fields marked @DVModel.sensitiveField(...): excluded from public
         // serialization and generated display by default. The deprecated
         // @DVSensitiveModelField spelling is still accepted.
+        // What each value has to meet, which fields no two records share,
+        // the indexes and who may use the data: the rules Studio and the
+        // data API check writes against, from the same annotations Studio
+        // writes a designed model out with.
+        final Map<String, Map<String, Object?>> fieldRules =
+            dvModelFieldRules(content);
+        final List<({List<String> fields, bool unique})> modelIndexes =
+            dvModelIndexes(modelArgs);
+        final Map<String, String>? modelAccess = dvModelAccess(modelArgs);
         final sensitiveFieldNames = <String>{};
         // Fields opted back into generated forms with
         // @DVModel.sensitiveField(showInForms: true).
@@ -1350,6 +1365,26 @@ class ModelGenerator {
           sb.writeln('  /// replace. Pass [onConflict] to decide otherwise at the');
           sb.writeln('  /// call, such as DVConflict.lastWriteWins to replace it.');
           sb.writeln('  static Future<$className> save($className model, {DVConflict onConflict = DVConflict.ask}) async {');
+          // The rules the model declares, checked before anything is
+          // written: the same check Studio and the data API make.
+          final List<Map<String, String>> ruled = <Map<String, String>>[
+            for (final Map<String, String> f in fields)
+              if ((fieldRules[f['name']] ?? const <String, Object?>{})
+                  .keys
+                  .any((String k) => k != 'unique'))
+                f,
+          ];
+          if (ruled.isNotEmpty) {
+            sb.writeln("    dvCheckModelRules('$className', const <DVStudioFieldSpec>[");
+            for (final Map<String, String> f in ruled) {
+              sb.writeln("      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${dvStudioFieldRulesSource(fieldRules[f['name']])}),");
+            }
+            sb.writeln('    ], <String, Object?>{');
+            for (final Map<String, String> f in ruled) {
+              sb.writeln("      '${f['name']}': model.${f['name']},");
+            }
+            sb.writeln('    });');
+          }
           sb.writeln('    final read = _dvRead[model];');
           sb.writeln('    final written = await _dvRecords().write(');
           sb.writeln('      <String, Object?>{');
@@ -2052,19 +2087,31 @@ class ModelGenerator {
             capture: capture,
             fields: <DVStudioFieldSpec>[
               for (final Map<String, String> f in fields)
-                DVStudioFieldSpec(
-                  name: f['name']!,
-                  type: f['type']!,
-                  sensitive: sensitiveFieldNames.contains(f['name']),
-                  options: studioEnums[f['type']!.replaceAll('?', '').trim()],
-                  relation: dvStudioRelationOf(
-                    f['name']!,
-                    f['type']!.replaceAll('?', '').trim(),
-                    studioModelNames,
-                    className,
-                  ),
-                ),
+                DVStudioFieldSpec.fromJson(<String, Object?>{
+                  ...?fieldRules[f['name']],
+                  ...DVStudioFieldSpec(
+                    name: f['name']!,
+                    type: f['type']!,
+                    sensitive: sensitiveFieldNames.contains(f['name']),
+                    options:
+                        studioEnums[f['type']!.replaceAll('?', '').trim()],
+                    relation: dvStudioRelationOf(
+                      f['name']!,
+                      f['type']!.replaceAll('?', '').trim(),
+                      studioModelNames,
+                      className,
+                    ),
+                  ).toJson(),
+                }),
             ],
+            indexes: <DVStudioIndexSpec>[
+              for (final ({List<String> fields, bool unique}) index
+                  in modelIndexes)
+                DVStudioIndexSpec(fields: index.fields, unique: index.unique),
+            ],
+            access: modelAccess == null
+                ? null
+                : DVModelAccess.fromJson(modelAccess),
           ).toManifest());
         }
         if (keyField != null) {
@@ -2074,7 +2121,7 @@ class ModelGenerator {
             "    table: '$tableName',\n"
             "    key: '$keyField',\n"
             '    fields: <DVStudioFieldSpec>[\n'
-            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}),\n").join()}'
+            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}${dvStudioFieldRulesSource(fieldRules[f['name']])}),\n").join()}'
             '    ],\n'
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
@@ -2087,6 +2134,8 @@ class ModelGenerator {
             // writes builds its registry from these, and a spec that
             // defaulted to a strategy would put every model in it.
             '${offlineStrategy == null ? '' : '    offline: DVConflict.$offlineStrategy,\n'}'
+            '${modelIndexes.isEmpty ? '' : '    indexes: <DVStudioIndexSpec>[${modelIndexes.map((({List<String> fields, bool unique}) i) => "DVStudioIndexSpec(fields: <String>[${i.fields.map((String f) => "'$f'").join(', ')}]${i.unique ? ', unique: true' : ''})").join(', ')}],\n'}'
+            '${modelAccess == null ? '' : '    access: DVModelAccess(${modelAccess.entries.map((MapEntry<String, String> e) => '${e.key}: DVAccess.${e.value}').join(', ')}),\n'}'
             '${ownModuleId == null ? '' : "    module: '$ownModuleId',\n    data: _dvModule,\n"}'
             '  ),',
           );
@@ -2220,6 +2269,7 @@ class ModelGenerator {
             name: name,
             className: className,
             sequenced: true,
+            enums: studioEnums,
           );
           sb.writeln('      $name: $name ?? $defaultValue,');
         }
@@ -2362,6 +2412,7 @@ class ModelGenerator {
             type: type,
             name: name,
             className: className,
+            enums: studioEnums,
           );
           sb.writeln('    $name: $defaultValue,');
         }
@@ -2464,6 +2515,7 @@ class ModelGenerator {
                 type: type,
                 name: name,
                 className: className,
+                enums: studioEnums,
               );
               return '$name: $fallback';
             }
@@ -3132,6 +3184,9 @@ class ModelGenerator {
       // A field spec is only named inside a model's spec, and a shown name
       // nothing uses is an analyzer warning in the application.
       "${studioSpecs.isEmpty ? '' : ', DVStudioFieldSpec'}, DVStudioModelSpec"
+      // The rules a model declares, named only where one declares them.
+      "${studioSpecs.any((String spec) => spec.contains('DVStudioIndexSpec(')) ? ', DVStudioIndexSpec' : ''}"
+      "${studioSpecs.any((String spec) => spec.contains('DVModelAccess(')) ? ', DVAccess, DVModelAccess' : ''}"
       // Named only by a model that declared offline:, and this file is
       // excluded from an application's own analyze, so a missing name here
       // surfaces as a failure to compile the suite rather than as an error
@@ -3181,11 +3236,19 @@ class ModelGenerator {
     required String name,
     required String className,
     bool sequenced = false,
+    Map<String, List<String>> enums = const <String, List<String>>{},
   }) {
     final String seq = sequenced ? r'$n' : '1';
     final baseType = type.replaceAll('?', '');
     final lowerName = name.toLowerCase();
     if (type.endsWith('?')) return 'null';
+    // A choice the project declares as an enum: its first value, which every
+    // enum has. A model with a required choice -- the shape Studio writes a
+    // designed model's choices in -- otherwise stopped the build here.
+    final List<String>? values = enums[baseType.trim()];
+    if (values != null && values.isNotEmpty) {
+      return '${baseType.trim()}.${values.first}';
+    }
     if (baseType == 'String') {
       // Identifying and unique fields carry the sequence; descriptive ones do
       // not. An email has a unique constraint in most schemas, so two records
