@@ -47,7 +47,13 @@ enum DVModuleOutcome {
 
   /// The outcome a pubspec names, or null for anything else: a word that is
   /// not one of the four is refused rather than read as the nearest one.
+  ///
+  /// `compat` is written with where the call goes -- `{compat: backend}` --
+  /// and backend is the one place a generated path reaches today.
   static DVModuleOutcome? parse(Object? word) {
+    if (word is Map) {
+      return word.length == 1 && word['compat'] == 'backend' ? compat : null;
+    }
     for (final DVModuleOutcome outcome in values) {
       if (outcome.name == word) return outcome;
     }
