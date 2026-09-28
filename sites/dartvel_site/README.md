@@ -20,10 +20,14 @@ On the server:
 | Data | `/srv/dartvel.dev/data` (`DARTVEL_DATA_DIR`): `data.db` holds the Studio account and its grant |
 | Environment | `/srv/dartvel.dev/env` (mode 600), read by the unit |
 
+The nginx server block and the systemd unit are in `deploy/`.
+
 Studio is at `/__studio`. `dartvel.admin.enabled: true` in `pubspec.yaml` puts
 it in the release build, and it opens only for a signed-in person granted
 `Studio.access`. Everybody else gets the same 404 as any path the site does not
-serve, so the path does not confirm that Studio exists. The site's one account
+serve. On dartvel.dev nginx sends a request with no session cookie at all to
+`/login?from=/__studio` instead, and the sign-in page loads Studio from the
+server once it succeeds. The site's one account
 page is the sign-in at `/login`; there is no sign-up page, and nginx refuses
 `/api/auth/sign-up`, so nobody else can make an account here.
 
