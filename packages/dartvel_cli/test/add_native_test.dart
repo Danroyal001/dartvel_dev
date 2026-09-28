@@ -56,8 +56,9 @@ void main() {
             root, 'modules', 'dv_calc_module', 'pubspec.yaml'))
         .readAsStringSync()) as YamlMap;
     expect(pubspec['dartvel']['module']['kind'], 'wasm');
-    expect(pubspec['dartvel']['module']['operations']['add']['native'],
-        'unavailable');
+    // The desktops run it in the Node dartvel build bundles.
+    expect(pubspec['dartvel']['module']['operations']['add']['native'], 'real');
+    expect(pubspec['dartvel']['module']['targets'], <String>['linux', 'macos', 'windows']);
     expect(DVModuleLock.read(root).pins['dv_calc_module']!.source,
         'wasm:vendor/calc.wasm');
   });
@@ -72,7 +73,8 @@ void main() {
     final YamlMap pubspec =
         loadYaml(File(p.join(module, 'pubspec.yaml')).readAsStringSync()) as YamlMap;
     expect(pubspec['dartvel']['module']['kind'], 'ffi');
-    expect(pubspec['dartvel']['module']['operations']['mkAdd']['web'], 'unavailable');
+    // Compiled to WebAssembly for the browser, a function of numbers.
+    expect(pubspec['dartvel']['module']['operations']['mkAdd']['web'], 'real');
     expect(DVModuleLock.read(root).pins['dv_mathkit_module']!.source,
         'c:vendor/mathkit');
   });
