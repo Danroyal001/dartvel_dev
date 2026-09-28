@@ -578,6 +578,29 @@ void main() {
       );
     });
 
+    test('opens a compiled page as its own content, not the layout around '
+        'it', () async {
+      // What every captured page shares, identically, is the site's header
+      // and navigation: an override of one page drawing it again inside the
+      // layout that already draws it would show it twice.
+      Map<String, Object?> node(String label, [List<Object?> children = const <Object?>[]]) =>
+          <String, Object?>{'role': null, 'level': null, 'label': label, 'href': null, 'children': children};
+      final Map<String, Object?> nav = <String, Object?>{
+        'role': 'link', 'level': null, 'label': 'Docs', 'href': '/docs', 'children': <Object?>[],
+      };
+      Directory('${root.path}/structure').createSync();
+      for (final String page in <String>['one', 'two', 'three']) {
+        File('${root.path}/structure/$page.json').writeAsStringSync(jsonEncode(<Object?>[
+          node('', <Object?>[nav, node('Page $page', <Object?>[node('Only on $page')])]),
+        ]));
+      }
+      final Response structure = await send('GET', 'site/structure?route=%2Ftwo');
+      final String tree = jsonEncode((await _json(structure))['structure']);
+      expect(tree, contains('Page two'));
+      expect(tree, contains('Only on two'));
+      expect(tree, isNot(contains('/docs')), reason: 'the navigation is layout');
+    });
+
     test('with no graph is the stored pages alone', () async {
       await send(
         'PUT',

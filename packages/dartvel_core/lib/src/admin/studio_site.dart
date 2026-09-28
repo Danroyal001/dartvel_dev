@@ -161,6 +161,65 @@ Object? dvStudioStructureIn(String? directory, String route) {
   }
 }
 
+/// The structure captured for [route] in [directory], without the layout
+/// around it: every part that at least half of the captured pages share,
+/// identically, is the site's header, navigation or footer rather than this
+/// page's own content, and an override of the page would otherwise draw it a
+/// second time inside the layout that already does. Null when nothing was
+/// captured for [route].
+Object? dvStudioPageContentIn(String? directory, String route) {
+  final Object? tree = dvStudioStructureIn(directory, route);
+  if (tree is! List || directory == null) return tree;
+  final List<Object?> pages = <Object?>[];
+  try {
+    for (final FileSystemEntity entity in Directory(directory).listSync()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      if (entity.path.endsWith('.images.json')) continue;
+      try {
+        pages.add(jsonDecode(entity.readAsStringSync()));
+      } on FormatException {
+        // Skipped: one unreadable capture does not decide what is shared.
+      }
+    }
+  } on FileSystemException {
+    return tree;
+  }
+  // Too few pages to tell a layout from a coincidence.
+  if (pages.length < 3) return tree;
+  final Map<String, int> shared = <String, int>{};
+  for (final Object? page in pages) {
+    final Set<String> seen = <String>{};
+    void count(Object? node) {
+      if (node is! Map) return;
+      final String signature = jsonEncode(node);
+      if (seen.add(signature)) shared[signature] = (shared[signature] ?? 0) + 1;
+      for (final Object? child in (node['children'] as List?) ?? const <Object?>[]) {
+        count(child);
+      }
+    }
+
+    if (page is List) page.forEach(count);
+  }
+  final int threshold = (pages.length / 2).ceil();
+  Object? strip(Object? node) {
+    if (node is! Map) return node;
+    return <String, Object?>{
+      ...node.cast<String, Object?>(),
+      'children': <Object?>[
+        for (final Object? child in (node['children'] as List?) ?? const <Object?>[])
+          if (child is! Map || (shared[jsonEncode(child)] ?? 0) < threshold)
+            strip(child),
+      ],
+    };
+  }
+
+  return <Object?>[
+    for (final Object? node in tree)
+      if (node is! Map || (shared[jsonEncode(node)] ?? 0) < threshold)
+        strip(node),
+  ];
+}
+
 /// Whether a structure was captured for [route] in [directory].
 bool dvStudioHasStructure(String? directory, String route) {
   final String? name = dvStudioStructureName(route);
