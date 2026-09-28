@@ -1888,7 +1888,7 @@ class DVBox<T> extends StatelessWidget {
         _itemBuilder = null,
         _oneFold = DVThreePaneFold.firstAlone;
 
-    /// Two panes, one each side of the fold on a foldable.
+  /// Two panes, one each side of the fold on a foldable.
   ///
   /// Across a book-style hinge the first pane takes the left side and the
   /// second the right; across a fold the phone lies open on a table, the
