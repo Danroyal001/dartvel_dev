@@ -1,5 +1,9 @@
 # dartvel.dev, built, checked and packaged on a runner.
 #
+# dartvel.dev itself runs on the web-server binary (see the web-server job
+# below and sites/dartvel_site/README.md); the static bundle built here is
+# checked, photographed and published to GitHub Pages as a copy.
+#
 # The site zip used to be built, staged and photographed on the development
 # machine, which is a 32 GB disk that fills. Everything heavy happens here
 # instead, and what comes back is the finished zip and small contact sheets:
@@ -193,3 +197,41 @@ jobs:
     steps:
       - id: deploy
         uses: actions/deploy-pages@v5
+
+  # dartvel.dev is served by the web-server binary, not by the static bundle
+  # above, so the binary is built and asked too: every sitemap page rendered
+  # on the server with its title, description and crawler text, HEAD / a
+  # 200, a signed-out /__studio sent to /__studio/login, and the
+  # image endpoint resizing. The deploy itself runs on the server with
+  # tool/deploy_site_server.sh, which runs the same check.
+  web-server:
+    name: build the web-server binary, and check what it serves
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+
+      - name: Build the site as a web-server binary
+        working-directory: sites/dartvel_site
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart run dartvel_cli:dartvel build web-server
+
+      - name: Start it, and check every page it serves
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/site-server
+          cp sites/dartvel_site/build/server /tmp/site-server/server
+          (cd /tmp/site-server && DARTVEL_PORT=8099 ./server > server.log 2>&1 &)
+          for i in $(seq 1 90); do
+            curl -sf -o /dev/null http://127.0.0.1:8099/sitemap.xml && break
+            sleep 1
+          done
+          dart tool/ci/server_pages_check.dart http://127.0.0.1:8099
+
+      - name: The server's own output, when something went wrong
+        if: failure()
+        run: tail -100 /tmp/site-server/server.log || true

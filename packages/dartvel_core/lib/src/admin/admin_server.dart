@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../../dartvel.dart' show DVAuthAuthorization;
+import '../../dartvel.dart' show DVAuthAuthorization, DVAuthEndpoints;
 import '../auth/auth.dart' show DVAccountDirectory;
 import '../auth/first_run_owner.dart';
 import '../auth/session_authentication.dart';
@@ -284,6 +284,78 @@ class DVAdminServer {
   /// browser that opened the grant's link, and nobody else.
   final DVStudioDevGrant? devGrant;
 
+  /// What the Studio app needs, signed out, to sign somebody in; null for
+  /// everything else.
+  Future<Response?> _signIn(
+      Request request, String path, bool readable, String login) async {
+    final String api = '${mount.path}/api/';
+    if (request.method == 'POST' &&
+        (path == '${api}auth/sign-in' || path == '${api}auth/second-factor')) {
+      // A cross-site form cannot set a header; a request without one is not
+      // Studio's.
+      final String token = request.headers.get('x-dartvel-csrf-token') ?? '';
+      if (token.length < 16) {
+        return Response(403,
+            headers: Headers(const <String, String>{
+              'content-type': 'application/json',
+              'cache-control': 'no-store',
+            }),
+            body: Stream<List<int>>.value(utf8.encode(jsonEncode(
+                <String, Object?>{'error': 'csrf', 'message': 'Missing CSRF header.'}))));
+      }
+      return path.endsWith('sign-in')
+          ? DVAuthEndpoints.signIn(request)
+          : DVAuthEndpoints.secondFactor(request);
+    }
+    if (!readable) return null;
+    if (path == '${api}access') {
+      final bool granted = await _authenticated(request);
+      return Response(200,
+          headers: Headers(const <String, String>{
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          }),
+          body: Stream<List<int>>.value(
+              utf8.encode(jsonEncode(<String, Object?>{'granted': granted}))));
+    }
+    if (path.startsWith(api) || path == '${mount.path}/api') return null;
+    if (path == login) {
+      final DVAdminAsset? shell = dvAdminAsset(root, mount, mount.path);
+      if (shell == null) return null;
+      return _asset(request, shell, noStore: true);
+    }
+    // The app's own files, but never the project's graph.
+    final String last = path.split('/').last;
+    if (last.contains('.') && last != 'graph.json') {
+      final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
+      if (asset == null) return null;
+      return _asset(request, asset);
+    }
+    return null;
+  }
+
+  Response _asset(Request request, DVAdminAsset asset, {bool noStore = false}) {
+    final Map<String, String> headers = <String, String>{...asset.headers};
+    if (noStore) headers['cache-control'] = 'no-store';
+    return Response(
+      200,
+      headers: Headers(headers),
+      body: request.method == 'HEAD'
+          ? const Stream<List<int>>.empty()
+          : Stream<List<int>>.value(asset.bytes),
+    );
+  }
+
+  /// Whether [path] under the mount is a page a person navigates to, rather
+  /// than one of the dashboard's files or its API.
+  bool _isPage(String path) {
+    if (path.startsWith('${mount.path}/api/') || path == '${mount.path}/api') {
+      return false;
+    }
+    final String last = path.split('/').last;
+    return !last.contains('.');
+  }
+
   /// Studio's data, under `<mount>/api/`: a model's records, the page
   /// builder's documents and the grants, for exactly the callers the
   /// dashboard's files are served to.
@@ -330,12 +402,42 @@ class DVAdminServer {
             dvFirstRunScreen(mount: mount.path, api: apiBasePath))),
       );
     }
+    // Studio's sign-in is a page of the Studio app, at <mount>/login. What
+    // the server does for somebody signed out is only what the app needs to
+    // reach that page: its shell and its code (the same framework code for
+    // every application), the application's own sign-in and second factor
+    // answered at the mount, and whether this caller may open Studio. The
+    // project's graph and Studio's data stay behind the grant.
+    final bool readable = request.method == 'GET' || request.method == 'HEAD';
+    final String login = '${mount.path}/login';
+    if (devGrant == null && mount.enabled && mount.requiresAuth) {
+      final Response? signIn = await _signIn(request, path, readable, login);
+      if (signIn != null) return signIn;
+    }
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
       mount,
       authenticated: mount.requiresAuth && await _authenticated(request),
     );
+    if (decision == DVAdminRequest.hidden &&
+        devGrant == null &&
+        mount.enabled &&
+        mount.requiresAuth &&
+        readable &&
+        _isPage(path)) {
+      // A person arriving at a Studio page is sent to Studio's sign-in, and
+      // back here once signed in. Its files and its API are not pages: a
+      // script asking for them gets what a path nobody serves gets.
+      return Response(
+        302,
+        headers: Headers(<String, String>{
+          'location': '$login?from=${Uri.encodeQueryComponent(path)}',
+          'cache-control': 'no-store',
+        }),
+        body: const Stream<List<int>>.empty(),
+      );
+    }
     if (decision != DVAdminRequest.serve) return null;
     final String apiPrefix = '${mount.path}/api/';
     if (path.startsWith(apiPrefix)) {
