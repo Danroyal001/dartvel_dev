@@ -35,6 +35,7 @@ import '../modules/foreign/apple_surface.dart';
 import '../modules/foreign/dart_package_module.dart';
 import '../modules/foreign/dart_surface.dart';
 import '../modules/foreign/ffi_module.dart';
+import '../modules/foreign/ffi_wasm.dart';
 import '../modules/foreign/ffi_surface.dart';
 import '../modules/foreign/jvm_module.dart';
 import '../modules/foreign/jvm_surface.dart';
@@ -156,9 +157,9 @@ class AddCommand extends Command<void> {
     argParser
       ..addOption('elsewhere',
           allowed: <String>['unavailable', 'noop'],
-          defaultsTo: 'unavailable',
           help: 'What an operation does in an environment the source cannot '
-              'run in. Written into the module per operation.')
+              'run in, instead of crossing to the backend where it can. '
+              'Written into the module per operation.')
       ..addMultiOption('class',
           help: 'For a JVM library: a class whose static methods the module '
               'exposes, dotted. Repeat it for more than one.')
@@ -199,9 +200,11 @@ class AddCommand extends Command<void> {
         ? await planForeign(target, source,
             id: argResults?['as'] as String?,
             mount: argResults?['mount'] as String?,
-            elsewhere: argResults?['elsewhere'] == 'noop'
-                ? DVModuleOutcome.noop
-                : DVModuleOutcome.unavailable,
+            elsewhere: switch (argResults?['elsewhere']) {
+              'noop' => DVModuleOutcome.noop,
+              'unavailable' => DVModuleOutcome.unavailable,
+              _ => null,
+            },
             fetcher: fetcher,
             classes: (argResults?['class'] as List<String>?) ?? const <String>[])
         : planFor(target, source,
@@ -276,7 +279,7 @@ class AddCommand extends Command<void> {
     String source, {
     String? id,
     String? mount,
-    DVModuleOutcome elsewhere = DVModuleOutcome.unavailable,
+    DVModuleOutcome? elsewhere,
     DVSourceFetcher fetcher = const DVSourceFetcher(),
     List<String> classes = const <String>[],
   }) async {
@@ -347,7 +350,7 @@ class AddCommand extends Command<void> {
   /// Stages 1 to 9 for one scheme: the fetched source, and how to make the
   /// module spec once its id is known.
   static Future<(DVResolvedSource, DVForeignModuleSpec Function(String))>
-      _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
+      _resolveForeign(String root, String source, DVModuleOutcome? elsewhere,
           DVSourceFetcher fetcher,
           {List<String> classes = const <String>[]}) async {
     if (source.startsWith('swift:') || source.startsWith('pod:')) {
@@ -366,7 +369,7 @@ class AddCommand extends Command<void> {
                 id: id,
                 source: pod.source.descriptor,
                 surface: surface,
-                elsewhere: elsewhere,
+                elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
               ),
         );
       }
@@ -394,7 +397,7 @@ class AddCommand extends Command<void> {
               id: id,
               source: resolved.descriptor,
               surface: surface,
-              elsewhere: elsewhere,
+              elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
             ),
       );
     }
@@ -429,7 +432,7 @@ class AddCommand extends Command<void> {
               source: resolved.descriptor,
               surface: surface,
               artifact: artifact,
-              elsewhere: elsewhere,
+              elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
             ),
       );
     }
@@ -480,7 +483,7 @@ class AddCommand extends Command<void> {
               source: resolved.descriptor,
               bytes: bytes,
               surface: surface,
-              elsewhere: elsewhere,
+              elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
             ),
       );
     }
@@ -493,13 +496,16 @@ class AddCommand extends Command<void> {
               : dvResolveLocalSource(root, rust ? 'cargo' : 'c', rest);
       final DVFfiSurface surface =
           rust ? dvScanRust(resolved.directory) : dvScanC(resolved.directory);
+      // The browser's carrier: the same sources, compiled for wasm32.
+      final DVFfiWasm wasm = await dvCompileFfiToWasm(surface);
       return (
         resolved,
         (String id) => dvFfiModuleSpec(
               id: id,
               source: resolved.descriptor,
               surface: surface,
-              elsewhere: elsewhere,
+              wasm: wasm,
+              elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
             ),
       );
     }
@@ -515,7 +521,7 @@ class AddCommand extends Command<void> {
               source: resolved.descriptor,
               surface: surface,
               bundles: bundles,
-              elsewhere: elsewhere,
+              elsewhere: elsewhere ?? DVModuleOutcome.unavailable,
             ),
       );
     }

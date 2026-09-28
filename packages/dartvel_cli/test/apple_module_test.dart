@@ -135,7 +135,8 @@ void main() {
       source: 'swift:TextKit',
       surface: dvScanSwiftPackage(swiftPackage(root).path),
     ));
-    expect(module.files['pubspec.yaml'], contains('targets: [ios, macos]'));
+    expect(module.files['pubspec.yaml'],
+        contains('targets: [ios, macos, linux, windows]'));
     final Directory into = Directory(p.join(root.path, module.packageName));
     for (final MapEntry<String, String> e in module.files.entries) {
       File(p.join(into.path, e.key))
