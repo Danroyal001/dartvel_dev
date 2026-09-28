@@ -132,11 +132,11 @@ class _DVKioskHostState extends State<DVKioskHost> {
       mouseConnected: WidgetsBinding.instance.mouseTracker.mouseIsConnected,
     );
     final Widget body = Listener(
-      behavior: HitTestBehavior.translucent,
+      behavior: .translucent,
       onPointerDown: (_) => widget.runtime.touch(),
       onPointerMove: (_) => widget.runtime.touch(),
       child: Stack(
-        fit: StackFit.expand,
+        fit: .expand,
         children: <Widget>[
           widget.child,
           if (left != null)
@@ -161,7 +161,7 @@ class _DVKioskHostState extends State<DVKioskHost> {
                 // "buy the thing that happens to be under my finger" -- and
                 // they cannot see what is under their finger, which is the
                 // whole problem with letting it through.
-                behavior: HitTestBehavior.opaque,
+                behavior: .opaque,
                 onTap: widget.runtime.touch,
                 child: const ColoredBox(color: Color(0xE6000000)),
               ),
@@ -190,10 +190,10 @@ class _DVKioskCountdown extends StatelessWidget {
       key: const ValueKey<String>('dv-kiosk-countdown'),
       color: Theme.of(context).colorScheme.inverseSurface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         child: Text(
           'Still there? Starting over in $seconds s.',
-          textAlign: TextAlign.center,
+          textAlign: .center,
           style: TextStyle(color: Theme.of(context).colorScheme.onInverseSurface, fontSize: 18),
         ),
       ),
@@ -212,10 +212,10 @@ class DVKioskDiagnosticsScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         key: const ValueKey<String>('dv-kiosk-diagnostics'),
         body: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const .all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: .start,
+            mainAxisAlignment: .center,
             children: <Widget>[
               Text('This kiosk keeps restarting', style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 12),

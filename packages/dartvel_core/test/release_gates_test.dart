@@ -375,7 +375,7 @@ void main() {
         'histogram as evidence', () async {
       final DVGateOutcome outcome = await DVProtocolReleaseGate(
         lock: lock(5),
-        window: const DVProtocolWindow(versions: 1, minimumAge: Duration.zero),
+        window: const DVProtocolWindow(versions: 1, minimumAge: .zero),
         samples: () => <DVProtocolSessionSample>[
           DVProtocolSessionSample(protocol: 1, day: t0, sessions: 500),
           DVProtocolSessionSample(protocol: 5, day: t0, sessions: 500),

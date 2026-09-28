@@ -243,7 +243,7 @@ class _DVSceneViewportState extends State<DVSceneViewport> {
           builder: (BuildContext context, BoxConstraints constraints) {
             final Size size = constraints.biggest;
             return GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTapUp: (TapUpDetails details) =>
                   _tap(runtime, details.localPosition, size),
               onScaleStart: _controls ? (ScaleStartDetails _) => _lastScale = 1 : null,
@@ -304,7 +304,7 @@ class _DVSceneViewportState extends State<DVSceneViewport> {
             // Never a hole: with no poster, a neutral surface of the right
             // size, which the label above still describes.
             ? const ColoredBox(color: Color(0xFFE6E6EA))
-            : DVImageRender(poster, fit: BoxFit.cover),
+            : DVImageRender(poster, fit: .cover),
       ),
     );
   }

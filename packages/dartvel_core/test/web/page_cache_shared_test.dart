@@ -111,7 +111,7 @@ void main() {
     now = 11;
 
     expect((await cache().resolve(request, resolver, DVPageDataMode.staleWhileRevalidate))!.title, 'Product 1');
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect((await cache().resolve(request, resolver, DVPageDataMode.staleWhileRevalidate))!.title, 'Product 2');
   });
 
@@ -169,7 +169,7 @@ void unkeepable() {
     }
 
     final DVPageDataCache cache =
-        DVPageDataCache(ttl: Duration.zero, staleFor: Duration.zero, shared: store);
+        DVPageDataCache(ttl: .zero, staleFor: .zero, shared: store);
     await cache.resolve(request, resolver, DVPageDataMode.cache);
 
     expect(store.written, isEmpty);

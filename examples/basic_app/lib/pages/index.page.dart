@@ -12,7 +12,7 @@ Widget _indexPage(BuildContext context) => DVBox.list([
       ),
       DVBox.wrapLine([Button('Docs', () {}), Button('GitHub', () {})],
           spacing: 12),
-    ]).modifier(const DVModifier().padding(24).align(Alignment.center));
+    ]).modifier(const DVModifier().padding(24).align(.center));
 
 final titleStyle = const DVModifier()
     .color(const Color(0xFF111827))

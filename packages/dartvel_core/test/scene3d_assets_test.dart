@@ -209,7 +209,7 @@ void main() {
           l.changes.listen((DVSceneAssetChange c) => seen.add(c.state.status));
       expect(l.stateOf('kart').status, DVSceneAssetStatus.pending);
       await l.load('kart', _stored('tenants/acme/kart.glb', kart));
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       await sub.cancel();
       expect(seen, <DVSceneAssetStatus>[DVSceneAssetStatus.loading, DVSceneAssetStatus.ready]);
     });

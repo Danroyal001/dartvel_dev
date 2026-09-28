@@ -272,16 +272,16 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     return DVStudioSurface(
       color: DVStudioStyle.canvas,
       child: Padding(
-        padding: const EdgeInsets.all(DVStudioStyle.space6),
+        padding: const .all(DVStudioStyle.space6),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: <Widget>[
             DVStudioStyle.title('${fn['name']}'),
             const SizedBox(height: DVStudioStyle.space2),
             for (final String field in const <String>['method', 'path', 'source'])
               if (fn[field] != null && '${fn[field]}'.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: DVStudioStyle.space1),
+                  padding: const .only(bottom: DVStudioStyle.space1),
                   child: DVStudioStyle.caption('${fn[field]}'),
                 ),
             const SizedBox(height: DVStudioStyle.space4),
@@ -314,7 +314,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
   Widget _workflowList() {
     final String? open = _controller?.document.name;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: _kind,
@@ -323,9 +323,9 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
         // Creating comes first, above the list: a new workflow is the
         // commonest thing to do here, and the field is where the eye lands.
         Padding(
-          padding: const EdgeInsets.all(DVStudioStyle.space3),
+          padding: const .all(DVStudioStyle.space3),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               DVStudioTextInput(
                 icon: DVStudioIcons.add,
@@ -363,11 +363,11 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: DVStudioStyle.space2),
+            padding: const .symmetric(vertical: DVStudioStyle.space2),
             children: <Widget>[
               if (_error != null)
                 Padding(
-                  padding: const EdgeInsets.all(DVStudioStyle.space3),
+                  padding: const .all(DVStudioStyle.space3),
                   child: DVStudioStyle.banner(
                     tone: DVStudioStyle.danger,
                     icon: Icons.error_outline,
@@ -385,7 +385,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 ),
               if (_names.isEmpty && _error == null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: const .symmetric(
                     horizontal: DVStudioStyle.space4,
                     vertical: DVStudioStyle.space3,
                   ),
@@ -393,7 +393,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 ),
               if (_written.isNotEmpty) ...<Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(DVStudioStyle.space4,
+                  padding: const .fromLTRB(DVStudioStyle.space4,
                       DVStudioStyle.space4, DVStudioStyle.space4, 0),
                   child: DVStudioStyle.overline('In your code'),
                 ),
@@ -426,14 +426,14 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     return ListenableBuilder(
       listenable: controller,
       builder: (BuildContext context, Widget? _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           _toolbar(controller),
           if (_problem != null)
             Container(
               key: const ValueKey<String>('dv-studio-function-problem'),
               color: DVStudioStyle.danger.withValues(alpha: 0.08),
-              padding: const EdgeInsets.symmetric(
+              padding: const .symmetric(
                   horizontal: DVStudioStyle.space4, vertical: DVStudioStyle.space2),
               child: DVStudioStyle.caption(_problem!, color: DVStudioStyle.danger),
             ),
@@ -454,7 +454,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(DVStudioStyle.space3),
+            padding: const .all(DVStudioStyle.space3),
             child: DVWorkflowPalette(items: widget.palette),
           ),
         );
@@ -474,7 +474,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
         // window squeeze the canvas to nothing before they give up a pixel.
         final bool wide = constraints.maxWidth >= 900;
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: wide
               ? <Widget>[
                   SizedBox(width: 220, child: palette),
@@ -504,7 +504,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     return Container(
       color: const Color(0xFF15151C),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(DVStudioStyle.space5),
+        padding: const .all(DVStudioStyle.space5),
         child: Text(
           _source(controller),
           style: const TextStyle(
@@ -521,7 +521,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
   Widget _toolbar(DVWorkflowEditorController controller) {
     return Container(
       height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space3),
+      padding: const .symmetric(horizontal: DVStudioStyle.space3),
       decoration: const BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -535,10 +535,10 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
             child: Text(
               controller.document.name,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: const TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontWeight: .w600,
                 color: DVStudioStyle.ink,
               ),
             ),

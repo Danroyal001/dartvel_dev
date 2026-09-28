@@ -269,15 +269,15 @@ class DVWorkflowPalette extends StatelessWidget {
           for (final DVWorkflowPaletteItem item in entries) _tile(item),
         ];
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .stretch,
+          mainAxisSize: .min,
           children: <Widget>[
             DVStudioStyle.overline('Steps'),
             const SizedBox(height: DVStudioStyle.space3),
             if (twoUp)
               for (int i = 0; i < tiles.length; i += 2)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: DVStudioStyle.space2),
+                  padding: const .only(bottom: DVStudioStyle.space2),
                   child: Row(
                     children: <Widget>[
                       Expanded(child: tiles[i]),
@@ -293,7 +293,7 @@ class DVWorkflowPalette extends StatelessWidget {
             else
               for (final Widget tile in tiles)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: DVStudioStyle.space2),
+                  padding: const .only(bottom: DVStudioStyle.space2),
                   child: tile,
                 ),
           ],
@@ -338,13 +338,13 @@ class _DVWorkflowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      padding: const .symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border.all(
           color: lifted ? DVStudioStyle.accent : DVStudioStyle.lineStrong,
         ),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
         boxShadow: lifted ? DVStudioStyle.shadowLarge : null,
       ),
       child: Row(
@@ -354,7 +354,7 @@ class _DVWorkflowTile extends StatelessWidget {
             height: 22,
             decoration: BoxDecoration(
               color: kind.tone.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+              borderRadius: .circular(DVStudioStyle.radiusSmall),
             ),
             child: Icon(kind.icon, size: 13, color: kind.tone),
           ),
@@ -363,10 +363,10 @@ class _DVWorkflowTile extends StatelessWidget {
             child: Text(
               label,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: const TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontWeight: .w500,
                 color: DVStudioStyle.ink,
               ),
             ),
@@ -426,20 +426,20 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
           const Positioned.fill(child: CustomPaint(painter: _DVDotGrid())),
           Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
+              padding: const .symmetric(
                 vertical: DVStudioStyle.space6,
                 horizontal: DVStudioStyle.space4,
               ),
               child: Align(
-                alignment: Alignment.topCenter,
+                alignment: .topCenter,
                 // Scaled down rather than scrolled sideways when a deeply
                 // branched workflow is wider than the pane: a sideways scroll
                 // view would compete with dragging a card for the same gesture.
                 child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topCenter,
+                  fit: .scaleDown,
+                  alignment: .topCenter,
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: <Widget>[
                       _start(),
                       _connector(),
@@ -461,14 +461,14 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
 
   Widget _start() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const .symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: DVStudioStyle.ink,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: .circular(999),
         boxShadow: DVStudioStyle.shadow,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           const Icon(Icons.play_arrow_rounded,
               size: 14, color: Color(0xFFFFFFFF)),
@@ -477,7 +477,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
             'When ${widget.controller.document.name} runs',
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: .w600,
               color: Color(0xFFFFFFFF),
             ),
           ),
@@ -514,7 +514,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
       parent: parent,
       controller: widget.controller,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           for (int i = 0; i < steps.length; i++) ...<Widget>[
             if (i > 0) _connector(),
@@ -541,7 +541,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
               child: Text(
                 'drop here: $parent',
                 maxLines: 1,
-                overflow: TextOverflow.clip,
+                overflow: .clip,
               ),
             ),
           ),
@@ -551,27 +551,27 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
           // the connector it hangs from.
           Container(
             width: double.infinity,
-            padding: EdgeInsets.symmetric(
+            padding: .symmetric(
               vertical: root ? 26 : 16,
               horizontal: DVStudioStyle.space3,
             ),
             decoration: BoxDecoration(
               color: DVStudioStyle.surface.withValues(alpha: 0.75),
-              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+              borderRadius: .circular(DVStudioStyle.radius),
               border: Border.all(color: DVStudioStyle.lineStrong),
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: <Widget>[
                 const Icon(Icons.add_circle_outline,
                     size: 18, color: DVStudioStyle.faint),
                 const SizedBox(height: 6),
                 const Text(
                   'Drop a step here',
-                  textAlign: TextAlign.center,
+                  textAlign: .center,
                   style: TextStyle(
                     fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: .w500,
                     color: DVStudioStyle.muted,
                   ),
                 ),
@@ -579,7 +579,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
                   const SizedBox(height: 2),
                   const Text(
                     'Drag one in from Steps',
-                    textAlign: TextAlign.center,
+                    textAlign: .center,
                     style: TextStyle(fontSize: 11.5, color: DVStudioStyle.faint),
                   ),
                 ],
@@ -597,7 +597,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
     final Widget card = _ports(_card(step, kind, selected: selected), kind);
 
     final Widget tappable = GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => widget.controller.select(step.id),
       child: MouseRegion(cursor: SystemMouseCursors.click, child: card),
     );
@@ -619,20 +619,20 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
     // A condition's branches are their own drop zones, so a step can be
     // dragged into the arm it belongs to.
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         draggable,
         _connector(),
         Container(
-          padding: const EdgeInsets.all(DVStudioStyle.space3),
+          padding: const .all(DVStudioStyle.space3),
           decoration: BoxDecoration(
             color: DVStudioStyle.surface.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+            borderRadius: .circular(DVStudioStyle.radiusLarge),
             border: Border.all(color: DVStudioStyle.line),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: .start,
+            mainAxisSize: .min,
             children: <Widget>[
               _arm(step, 'then', DVStudioStyle.success),
               const SizedBox(width: DVStudioStyle.space4),
@@ -646,7 +646,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
 
   Widget _arm(DVWorkflowStep step, String name, Color tone) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         DVStudioStyle.badge(name, tone: tone),
         const SizedBox(height: DVStudioStyle.space2),
@@ -668,7 +668,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
       width: 248,
       decoration: BoxDecoration(
         color: DVStudioStyle.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: .circular(10),
         border: Border.all(
           color: selected ? DVStudioStyle.accent : DVStudioStyle.line,
           width: selected ? 2 : 1,
@@ -676,20 +676,20 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
         boxShadow: selected ? DVStudioStyle.shadowLarge : DVStudioStyle.shadow,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: .circular(9),
         child: IntrinsicHeight(
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               // The type stripe: which kind of step this is, readable before
               // any of the text on the card is.
               Container(width: 4, color: kind.tone),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 9, 12, 10),
+                  padding: const .fromLTRB(10, 9, 12, 10),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: .start,
+                    mainAxisSize: .min,
                     children: <Widget>[
                       Row(
                         children: <Widget>[
@@ -699,7 +699,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
                             kind.label,
                             style: TextStyle(
                               fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: .w700,
                               letterSpacing: 0.6,
                               color: kind.tone,
                             ),
@@ -710,10 +710,10 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
                       Text(
                         _label(step),
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        overflow: .ellipsis,
                         style: const TextStyle(
                           fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: .w600,
                           color: DVStudioStyle.ink,
                         ),
                       ),
@@ -722,7 +722,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
                         Text(
                           detail,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow: .ellipsis,
                           style: const TextStyle(
                               fontSize: 12, color: DVStudioStyle.muted),
                         ),
@@ -750,7 +750,7 @@ class _DVWorkflowCanvasState extends State<DVWorkflowCanvas> {
           ),
         );
     return Stack(
-      clipBehavior: Clip.none,
+      clipBehavior: .none,
       children: <Widget>[
         card,
         Positioned(top: -4, left: 0, right: 0, child: Center(child: port())),
@@ -836,7 +836,7 @@ class _DVWorkflowDropZone extends StatelessWidget {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: DVStudioStyle.accentSoft.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+            borderRadius: .circular(DVStudioStyle.radiusLarge),
             border: Border.all(color: DVStudioStyle.accent, width: 1.5),
           ),
           child: child,
@@ -861,10 +861,10 @@ class DVWorkflowInspector extends StatelessWidget {
         if (step == null) return _DVWorkflowSignature(controller: controller);
         final _DVWorkflowKind kind = _DVWorkflowKind.of(step.type);
         return ListView(
-          padding: EdgeInsets.zero,
+          padding: .zero,
           children: <Widget>[
             Container(
-              padding: const EdgeInsets.all(DVStudioStyle.space4),
+              padding: const .all(DVStudioStyle.space4),
               decoration: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
               ),
@@ -883,8 +883,8 @@ class DVWorkflowInspector extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: .start,
+                      mainAxisSize: .min,
                       children: <Widget>[
                         DVStudioStyle.heading('${kind.title} step'),
                         DVStudioStyle.caption(kind.hint,
@@ -967,8 +967,8 @@ class DVWorkflowInspector extends StatelessWidget {
     String? placeholder,
   }) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: .stretch,
+      mainAxisSize: .min,
       children: <Widget>[
         DVStudioStyle.caption(label),
         const SizedBox(height: DVStudioStyle.space1),
@@ -999,10 +999,10 @@ class _DVWorkflowSignature extends StatelessWidget {
 
   Widget _box(Widget child) => Container(
     height: 34,
-    padding: const EdgeInsets.symmetric(horizontal: 10),
+    padding: const .symmetric(horizontal: 10),
     decoration: BoxDecoration(
       border: Border.all(color: DVStudioStyle.line),
-      borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+      borderRadius: .circular(DVStudioStyle.radiusSmall),
     ),
     child: DropdownButtonHideUnderline(child: child),
   );
@@ -1010,9 +1010,9 @@ class _DVWorkflowSignature extends StatelessWidget {
   Widget _input(int index, DVWorkflowParameter input) {
     return Padding(
       key: ValueKey<String>('dv-workflow-input-$index'),
-      padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+      padding: const .only(bottom: DVStudioStyle.space4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -1066,7 +1066,7 @@ class _DVWorkflowSignature extends StatelessWidget {
           ),
           const SizedBox(height: DVStudioStyle.space1),
           GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             onTap: () => controller.setInput(
               index,
               input.copyWith(optional: !input.optional),
@@ -1098,9 +1098,9 @@ class _DVWorkflowSignature extends StatelessWidget {
     // Its own Material, for the dropdowns: the inspector is not always
     // placed under one.
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: ListView(
-        padding: const EdgeInsets.all(DVStudioStyle.space4),
+        padding: const .all(DVStudioStyle.space4),
         children: <Widget>[
           DVStudioStyle.heading(document.name),
           const SizedBox(height: 2),

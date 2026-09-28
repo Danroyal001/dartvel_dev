@@ -257,7 +257,7 @@ void main() {
       Future<void> ticker() async {
         while (running) {
           ticks++;
-          await Future<void>.delayed(Duration.zero);
+          await Future<void>.delayed(.zero);
         }
       }
 
@@ -322,7 +322,7 @@ void main() {
           (double v) => 99.0,
           batch: 100,
         );
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         m.reset();
         final MemorySlice<double> next = m.doubleList(20000);
         await expectLater(running, throwsStateError);

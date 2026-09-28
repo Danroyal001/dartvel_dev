@@ -40,12 +40,12 @@ void main() {
 
     current = const DVTerminalSize(columns: 200, rows: 50);
     resizes.add(null);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(seen, <DVTerminalSize>[const DVTerminalSize(columns: 200, rows: 50)]);
 
     // The same size again is not a change.
     resizes.add(null);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(seen, hasLength(1));
     await resizes.close();
   });

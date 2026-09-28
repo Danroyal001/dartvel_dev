@@ -40,7 +40,7 @@ class const ShopScroll({
     final double width = MediaQuery.sizeOf(context).width;
     final double side = width < 600 ? 16 : 32;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(side, width < 600 ? 12 : 32, side, 40),
+      padding: .fromLTRB(side, width < 600 ? 12 : 32, side, 40),
       child: Center(
         child: DVBox.list(
           children,
@@ -169,14 +169,14 @@ class const BagArt(
                 ).modifier(
                   const DVModifier()
                       .fontSize(large ? 12 : 10)
-                      .fontWeight(FontWeight.w700)
+                      .fontWeight(.w700)
                       .letterSpacing(1.4)
                       .color(label.withValues(alpha: 0.82)),
                 ),
                 DVText(coffee.name).modifier(
                   const DVModifier()
                       .fontSize(large ? 34 : 19)
-                      .fontWeight(FontWeight.w700)
+                      .fontWeight(.w700)
                       .letterSpacing(-0.4)
                       .lineHeight(1.1)
                       .maxLines(2)
@@ -224,11 +224,11 @@ class const CoffeeCard(
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: InkWell(
         key: Key('coffee-${coffee.slug}'),
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: .circular(18),
         child: DVBox.list([
           BagArt(coffee),
           DVBox.list([
@@ -342,14 +342,14 @@ class const EmptyState({
               .height(64)
               .rounded(32)
               .backgroundColor(p.accentSoft)
-              .align(Alignment.center),
+              .align(.center),
         ),
         DVText(title).modifier(p.title.semanticHeading(2)),
         DVText(message).modifier(p.muted.maxWidth(360)),
         if (action != null) action!,
       ],
       spacing: 12,
-      crossAlign: DVCrossAlign.center,
+      crossAlign: .center,
     ).modifier(cardStyle(p, padding: 36));
   }
 }
@@ -386,7 +386,7 @@ class const QuantityStepper({
         ),
       ],
       spacing: 2,
-      crossAlign: DVCrossAlign.center,
+      crossAlign: .center,
     ).modifier(const DVModifier().rounded(12).backgroundColor(p.sunken));
   }
 }
@@ -411,7 +411,7 @@ class const StatusTracker(final String status, {super.key})
                   .width(22)
                   .height(22)
                   .rounded(11)
-                  .align(Alignment.center)
+                  .align(.center)
                   .backgroundColor(i <= at ? p.accent : p.sunken)
                   .border(
                     Border.all(
@@ -436,7 +436,7 @@ class const StatusTracker(final String status, {super.key})
               ),
           ],
           spacing: 14,
-          crossAlign: DVCrossAlign.center,
+          crossAlign: .center,
         ),
     ], spacing: 18);
   }
@@ -477,10 +477,10 @@ class const ListRow({
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
         child:
             DVBox.row(
               [
@@ -489,7 +489,7 @@ class const ListRow({
                       .width(38)
                       .height(38)
                       .rounded(10)
-                      .align(Alignment.center)
+                      .align(.center)
                       .backgroundColor(p.sunken),
                 ),
                 Expanded(
@@ -507,7 +507,7 @@ class const ListRow({
                         : Icon(Icons.chevron_right, color: p.inkFaint)),
               ],
               spacing: 14,
-              crossAlign: DVCrossAlign.center,
+              crossAlign: .center,
             ).modifier(
               const DVModifier().paddingSymmetric(horizontal: 8, vertical: 10),
             ),
@@ -580,7 +580,7 @@ class const Wordmark({super.key, final bool compact = false})
               .width(34)
               .height(34)
               .rounded(10)
-              .align(Alignment.center)
+              .align(.center)
               .backgroundColor(p.accent),
         );
     if (compact) return Semantics(label: 'Oakline Coffee', child: mark);
@@ -589,7 +589,7 @@ class const Wordmark({super.key, final bool compact = false})
       const DVText('Oakline').modifier(
         const DVModifier()
             .fontSize(19)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .letterSpacing(-0.3)
             .color(p.ink),
       ),
@@ -616,7 +616,7 @@ class const ShopTopBar({
           key: const Key('link-about'),
           to: DVRoutes.about,
           semanticLabel: 'Under the hood',
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const .symmetric(horizontal: 12, vertical: 12),
           // A phone has room for the icon; the name is still what a screen
           // reader announces.
           child: MediaQuery.sizeOf(context).width < 520
@@ -625,7 +625,7 @@ class const ShopTopBar({
                   Icon(Icons.code, size: 18, color: p.inkMuted),
                   const DVText(
                     'Under the hood',
-                  ).modifier(p.muted.fontWeight(FontWeight.w600)),
+                  ).modifier(p.muted.fontWeight(.w600)),
                 ], spacing: 6),
         ),
         IconButton(
@@ -642,20 +642,20 @@ class const ShopTopBar({
         ),
       ],
       spacing: 4,
-      crossAlign: DVCrossAlign.center,
+      crossAlign: .center,
     );
     if (wide) {
       return DVBox.row(
         [Expanded(child: heading), actions],
         spacing: 24,
-        crossAlign: DVCrossAlign.start,
+        crossAlign: .start,
       );
     }
     return DVBox.list([
       DVBox.row([
         const Expanded(child: Wordmark()),
         actions,
-      ], crossAlign: DVCrossAlign.center),
+      ], crossAlign: .center),
       heading,
     ], spacing: 20);
   }
@@ -670,7 +670,7 @@ class const CoffeeClubBanner({super.key}) extends StatelessWidget {
       key: const Key('link-pricing'),
       to: DVRoutes.pricing,
       semanticLabel: 'Coffee Club: see plans',
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child:
           DVBox.row(
             [
@@ -681,7 +681,7 @@ class const CoffeeClubBanner({super.key}) extends StatelessWidget {
                     .width(44)
                     .height(44)
                     .rounded(12)
-                    .align(Alignment.center)
+                    .align(.center)
                     .backgroundColor(p.surface),
               ),
               Expanded(
@@ -699,7 +699,7 @@ class const CoffeeClubBanner({super.key}) extends StatelessWidget {
               Icon(Icons.arrow_forward, size: 18, color: p.accent),
             ],
             spacing: 14,
-            crossAlign: DVCrossAlign.center,
+            crossAlign: .center,
           ).modifier(
             const DVModifier()
                 .padding(14)
@@ -722,7 +722,7 @@ class const CoffeeFact(final String label, final String value, {super.key})
         DVText(value).modifier(p.headline.fontSize(15)),
       ],
       spacing: 4,
-      crossAlign: DVCrossAlign.start,
+      crossAlign: .start,
     ).modifier(
       const DVModifier()
           .paddingSymmetric(horizontal: 14, vertical: 10)
@@ -768,7 +768,7 @@ class const StatusPill(final String status, {super.key})
       DVText(statusLabel(status)).modifier(
         const DVModifier()
             .fontSize(12)
-            .fontWeight(FontWeight.w600)
+            .fontWeight(.w600)
             .color(done ? p.success : p.accent)
             .paddingSymmetric(horizontal: 10, vertical: 4)
             .rounded(999)
@@ -797,7 +797,7 @@ class const LiveDot({super.key}) extends StatelessWidget {
         const DVText('Live').modifier(p.overline.color(p.success)),
       ],
       spacing: 6,
-      crossAlign: DVCrossAlign.center,
+      crossAlign: .center,
     );
   }
 }
@@ -808,16 +808,16 @@ class const BackToShop({super.key}) extends StatelessWidget {
   Widget build(BuildContext context) {
     final Palette p = Palette.of(context);
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: .centerLeft,
       child: DVNavLink(
         key: const Key('back-to-shop'),
         to: DVRoutes.index,
         semanticLabel: 'Back to the shop',
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        padding: const .symmetric(horizontal: 4, vertical: 10),
         child: DVBox.row(
           [Icon(Icons.arrow_back, size: 20, color: p.ink), const Wordmark()],
           spacing: 12,
-          crossAlign: DVCrossAlign.center,
+          crossAlign: .center,
         ),
       ),
     );
@@ -834,7 +834,7 @@ class const BagThumb(final Product coffee, {super.key, final double size = 56})
           DVText(coffee.name.characters.first).modifier(
             const DVModifier()
                 .fontSize(22)
-                .fontWeight(FontWeight.w700)
+                .fontWeight(.w700)
                 .color(const Color(0xFFFFFBF6)),
           ),
         ).modifier(
@@ -842,7 +842,7 @@ class const BagThumb(final Product coffee, {super.key, final double size = 56})
               .width(size)
               .height(size)
               .rounded(14)
-              .align(Alignment.center)
+              .align(.center)
               .backgroundColor(
                 bagColorFor(coffee.slug, Theme.of(context).brightness),
               ),

@@ -134,7 +134,7 @@ Future<DVRollbackPlan> plan(
   function: function,
   schema: live(schema),
   lock: lock,
-  window: const DVProtocolWindow(versions: 0, minimumAge: Duration.zero),
+  window: const DVProtocolWindow(versions: 0, minimumAge: .zero),
   samples: samples == null ? null : () => samples,
   protocolOverride: protocolOverride,
   now: t0.add(day * 3),
@@ -515,7 +515,7 @@ void main() {
           migration: migration,
           drops: const <DVContractDrop>[DVContractDrop.field('Order', 'total')],
           lock: lock,
-          window: const DVProtocolWindow(versions: 1, minimumAge: Duration.zero),
+          window: const DVProtocolWindow(versions: 1, minimumAge: .zero),
           onDiagnostic: (d ?? _Diagnostics()).call,
         );
 
@@ -585,7 +585,7 @@ void main() {
         migration: migration,
         drops: const <DVContractDrop>[DVContractDrop.model('Order')],
         lock: lockUpTo(5, readsTotalUntil: 3),
-        window: const DVProtocolWindow(versions: 1, minimumAge: Duration.zero),
+        window: const DVProtocolWindow(versions: 1, minimumAge: .zero),
         onDiagnostic: (_, _) {},
       ).evaluate(contracting());
       expect(outcome.verdict, DVGateVerdict.hold);

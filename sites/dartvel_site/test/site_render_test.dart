@@ -111,7 +111,7 @@ void main() {
     // identical" and is really "the theme never changed".
     await tester.pumpWidget(MaterialApp(
       key: const ValueKey<String>('light'),
-      theme: ThemeData(brightness: Brightness.light),
+      theme: ThemeData(brightness: .light),
       home: Builder(builder: (BuildContext context) {
         light = Palette.of(context);
         return const SizedBox.shrink();
@@ -119,7 +119,7 @@ void main() {
     ));
     await tester.pumpWidget(MaterialApp(
       key: const ValueKey<String>('dark'),
-      theme: ThemeData(brightness: Brightness.dark),
+      theme: ThemeData(brightness: .dark),
       home: Builder(builder: (BuildContext context) {
         dark = Palette.of(context);
         return const SizedBox.shrink();

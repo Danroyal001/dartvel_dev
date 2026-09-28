@@ -27,7 +27,7 @@ import '../../dartvel_flutter.dart';
 const DVHealthReport opsNoChecks = DVHealthReport(
   status: DVHealthStatus.up,
   checks: <String, DVHealthResult>{},
-  uptime: Duration.zero,
+  uptime: .zero,
 );
 
 /// One line of text that is cut with an ellipsis rather than overflowing.
@@ -41,7 +41,7 @@ Widget opsText(
 }) => Text(
   text,
   maxLines: maxLines,
-  overflow: TextOverflow.ellipsis,
+  overflow: .ellipsis,
   textAlign: align,
   style: TextStyle(
     fontSize: size,
@@ -55,12 +55,12 @@ Widget opsText(
 Widget opsBadge(String text, {Color tone = DVStudioStyle.accent, Key? key}) {
   return Container(
     key: key,
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    padding: const .symmetric(horizontal: 7, vertical: 2),
     decoration: BoxDecoration(
       color: tone.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: .circular(999),
     ),
-    child: opsText(text, size: 11, color: tone, weight: FontWeight.w600),
+    child: opsText(text, size: 11, color: tone, weight: .w600),
   );
 }
 
@@ -74,22 +74,22 @@ Widget opsNote({
 }) {
   return Container(
     key: key,
-    padding: const EdgeInsets.all(DVStudioStyle.space3),
+    padding: const .all(DVStudioStyle.space3),
     decoration: BoxDecoration(
       color: tone.withValues(alpha: 0.08),
       border: Border.all(color: tone.withValues(alpha: 0.3)),
-      borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+      borderRadius: .circular(DVStudioStyle.radius),
     ),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         Icon(icon, size: 16, color: tone),
         const SizedBox(width: DVStudioStyle.space2),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
-              opsText(title, size: 12.5, weight: FontWeight.w600, maxLines: 2),
+              opsText(title, size: 12.5, weight: .w600, maxLines: 2),
               const SizedBox(height: 3),
               opsText(body, size: 12, color: DVStudioStyle.muted, maxLines: 6),
             ],
@@ -108,22 +108,22 @@ Widget opsCardHeader(
   IconData? icon,
 }) {
   return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+    padding: const .fromLTRB(16, 14, 16, 12),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         if (icon != null) ...<Widget>[
           Padding(
-            padding: const EdgeInsets.only(top: 1),
+            padding: const .only(top: 1),
             child: Icon(icon, size: 16, color: DVStudioStyle.accent),
           ),
           const SizedBox(width: DVStudioStyle.space2),
         ],
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
-              opsText(title, size: 14, weight: FontWeight.w600),
+              opsText(title, size: 14, weight: .w600),
               if (subtitle != null) ...<Widget>[
                 const SizedBox(height: 2),
                 opsText(
@@ -161,17 +161,17 @@ Widget opsFact(
     key: key,
     constraints: BoxConstraints(minWidth: minWidth, maxWidth: maxWidth),
     child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: .min,
+      crossAxisAlignment: .start,
       children: <Widget>[
         opsText(
           label.toUpperCase(),
           size: 10.5,
           color: DVStudioStyle.muted,
-          weight: FontWeight.w600,
+          weight: .w600,
         ),
         const SizedBox(height: 4),
-        opsText(value, size: size, color: tone, weight: FontWeight.w600),
+        opsText(value, size: size, color: tone, weight: .w600),
         if (detail != null) ...<Widget>[
           const SizedBox(height: 2),
           opsText(detail, size: 11.5, color: DVStudioStyle.faint, maxLines: 2),
@@ -198,16 +198,16 @@ Widget opsChoice({
           : SystemMouseCursors.click,
       child: Container(
         height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const .symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: selected ? DVStudioStyle.accentSoft : DVStudioStyle.canvas,
           border: Border.all(
             color: selected ? DVStudioStyle.accent : DVStudioStyle.line,
           ),
-          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+          borderRadius: .circular(DVStudioStyle.radiusSmall),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: <Widget>[
             if (icon != null) ...<Widget>[
               Icon(
@@ -383,30 +383,30 @@ class OpsPublicIncidentView extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFFFFF),
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
             height: 3,
             decoration: BoxDecoration(
               color: tone,
-              borderRadius: const BorderRadius.vertical(
+              borderRadius: const .vertical(
                 top: Radius.circular(DVStudioStyle.radius),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const .fromLTRB(16, 12, 16, 4),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 Expanded(
                   child: opsText(
                     incident.title,
                     size: 15,
-                    weight: FontWeight.w700,
+                    weight: .w700,
                     maxLines: 2,
                   ),
                 ),
@@ -422,7 +422,7 @@ class OpsPublicIncidentView extends StatelessWidget {
           ),
           if (incident.components.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              padding: const .fromLTRB(16, 0, 16, 4),
               child: opsText(
                 'Affects ${incident.components.join(', ')}',
                 size: 12,
@@ -432,7 +432,7 @@ class OpsPublicIncidentView extends StatelessWidget {
             ),
           for (int i = 0; i < updates.length; i++)
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              padding: const .fromLTRB(16, 10, 16, 10),
               decoration: BoxDecoration(
                 color: highlightLatest && i == 0
                     ? DVStudioStyle.accent.withValues(alpha: 0.06)
@@ -442,7 +442,7 @@ class OpsPublicIncidentView extends StatelessWidget {
                 ),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: <Widget>[
                   Row(
                     children: <Widget>[
@@ -451,7 +451,7 @@ class OpsPublicIncidentView extends StatelessWidget {
                           child: opsText(
                             opsIncidentLabel(updates[i].status!),
                             size: 12.5,
-                            weight: FontWeight.w700,
+                            weight: .w700,
                             color: opsIncidentTone(updates[i].status!),
                           ),
                         ),

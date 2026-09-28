@@ -174,10 +174,10 @@ void main() {
       final DVMemoryCacheAdapter cache = DVMemoryCacheAdapter();
       final DVCountingCacheAdapter counter = cache as DVCountingCacheAdapter;
 
-      await counter.increment('hits', ttl: Duration.zero);
+      await counter.increment('hits', ttl: .zero);
       // Expired, so the next hit starts again rather than adding to a count
       // from a window that has passed.
-      expect(await counter.increment('hits', ttl: Duration.zero), 1);
+      expect(await counter.increment('hits', ttl: .zero), 1);
     });
   });
 }

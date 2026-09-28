@@ -125,13 +125,13 @@ Widget _studioSectionShot(
       StudioShot(asset, alt),
       Prose(label, const DVModifier()
           .fontSize(17)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(Palette.of(context).ink)),
       Prose(summary, const DVModifier()
           .fontSize(14)
           .color(Palette.of(context).muted)
           .lineHeight(1.55)),
-    ], spacing: 8, crossAlign: DVCrossAlign.start);
+    ], spacing: 8, crossAlign: .start);
 
 /// Every section, one after another.
 ///
@@ -147,4 +147,4 @@ Widget _studioSectionGallery(BuildContext context) => DVBox.list(<Widget>[
           section.summary,
           section.alt,
         ),
-    ], spacing: 36, crossAlign: DVCrossAlign.start);
+    ], spacing: 36, crossAlign: .start);

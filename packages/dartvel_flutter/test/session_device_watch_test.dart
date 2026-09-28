@@ -41,7 +41,7 @@ class _Watcher extends StatelessWidget {
     final String? id = DV.Session.watch(context)?.id;
     builds.add(id);
     return Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
       child: DVText(id ?? 'signed out'),
     );
   }

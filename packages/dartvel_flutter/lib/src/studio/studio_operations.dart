@@ -195,7 +195,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     return Container(
       color: DVStudioStyle.canvas,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           _header(firing: firing, open: open),
           if (_loadError != null)
@@ -240,7 +240,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
   Widget _header({required int firing, required int open}) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space5),
+      padding: const .symmetric(horizontal: DVStudioStyle.space5),
       decoration: const BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -252,7 +252,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             height: 30,
             decoration: BoxDecoration(
               color: DVStudioStyle.accentSoft,
-              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+              borderRadius: .circular(DVStudioStyle.radius),
             ),
             child: const Icon(
               DVStudioIcons.operations,
@@ -264,10 +264,10 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
           Flexible(
             flex: 2,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
               children: <Widget>[
-                opsText('Operations', size: 15, weight: FontWeight.w700),
+                opsText('Operations', size: 15, weight: .w700),
                 opsText(
                   _loadedAt == null
                       ? 'Reading…'
@@ -282,12 +282,12 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
           Flexible(
             flex: 5,
             child: Align(
-              alignment: Alignment.centerRight,
+              alignment: .centerRight,
               child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
+                fit: .scaleDown,
+                alignment: .centerRight,
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: .min,
                   children: <Widget>[
                     _tabButton(
                       StudioOpsTab.overview,
@@ -345,14 +345,14 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         cursor: SystemMouseCursors.click,
         child: Container(
           height: 32,
-          margin: const EdgeInsets.only(left: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          margin: const .only(left: 2),
+          padding: const .symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: selected ? DVStudioStyle.selected : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+            borderRadius: .circular(DVStudioStyle.radiusSmall),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               Icon(
                 icon,
@@ -371,20 +371,20 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               if (count > 0) ...<Widget>[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: const .symmetric(
                     horizontal: 6,
                     vertical: 1,
                   ),
                   decoration: BoxDecoration(
                     color: tone,
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: .circular(99),
                   ),
                   child: Text(
                     '$count',
                     style: const TextStyle(
                       fontSize: 11,
                       color: Color(0xFFFFFFFF),
-                      fontWeight: FontWeight.w700,
+                      fontWeight: .w700,
                     ),
                   ),
                 ),
@@ -407,13 +407,13 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ? DVStudioStyle.space4
             : DVStudioStyle.space6;
         return SingleChildScrollView(
-          padding: EdgeInsets.all(pad),
+          padding: .all(pad),
           child: Align(
-            alignment: Alignment.topCenter,
+            alignment: .topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1240),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: .stretch,
                 children: <Widget>[
                   _stats(rules, levels, now),
                   const SizedBox(height: DVStudioStyle.space6),
@@ -570,8 +570,8 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       key: ValueKey<String>(key),
       child: DVStudioStyle.card(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .start,
+          mainAxisSize: .min,
           children: <Widget>[
             Row(
               children: <Widget>[
@@ -580,7 +580,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                   height: 28,
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(
+                    borderRadius: .circular(
                       DVStudioStyle.radiusSmall,
                     ),
                   ),
@@ -594,15 +594,15 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
             const SizedBox(height: DVStudioStyle.space3),
             FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
+              fit: .scaleDown,
+              alignment: .centerLeft,
               child: Text(
                 value,
                 style: TextStyle(
                   fontSize: 24,
                   height: 1.2,
                   color: valueTone,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: .w700,
                 ),
               ),
             ),
@@ -619,16 +619,16 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       return KeyedSubtree(
         key: const ValueKey<String>('dv-studio-ops-no-service-levels'),
         child: DVStudioStyle.card(
-          padding: const EdgeInsets.all(DVStudioStyle.space5),
+          padding: const .all(DVStudioStyle.space5),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Container(
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
                   color: DVStudioStyle.accentSoft,
-                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                  borderRadius: .circular(DVStudioStyle.radius),
                 ),
                 child: const Icon(
                   Icons.speed,
@@ -639,12 +639,12 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     opsText(
                       'No service levels',
                       size: 14,
-                      weight: FontWeight.w600,
+                      weight: .w600,
                     ),
                     const SizedBox(height: 2),
                     opsText(
@@ -669,9 +669,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       );
     }
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
-        opsText('Service levels', size: 15, weight: FontWeight.w700),
+        opsText('Service levels', size: 15, weight: .w700),
         const SizedBox(height: 2),
         opsText(
           'Burn rate is how many times faster than its objective allows a '
@@ -764,22 +764,22 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       decoration: BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+        borderRadius: .circular(DVStudioStyle.radiusLarge),
         boxShadow: DVStudioStyle.shadow,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            padding: const .fromLTRB(16, 14, 16, 0),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
                     children: <Widget>[
-                      opsText(level.name, size: 14, weight: FontWeight.w700),
+                      opsText(level.name, size: 14, weight: .w700),
                       const SizedBox(height: 2),
                       opsText(
                         _applies(level),
@@ -800,7 +800,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const .fromLTRB(16, 8, 16, 0),
             child: Row(
               children: <Widget>[
                 const Icon(
@@ -814,7 +814,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                     '${opsTarget(level.objective.target)} over '
                     '${opsLong(level.objective.over)}',
                     size: 12.5,
-                    weight: FontWeight.w500,
+                    weight: .w500,
                   ),
                 ),
               ],
@@ -822,9 +822,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
           ),
           Padding(
             key: ValueKey<String>('$k-budget'),
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            padding: const .fromLTRB(16, 14, 16, 0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 Row(
                   children: <Widget>[
@@ -833,7 +833,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                         'ERROR BUDGET',
                         size: 10.5,
                         color: DVStudioStyle.muted,
-                        weight: FontWeight.w600,
+                        weight: .w600,
                       ),
                     ),
                     opsTrailing(
@@ -843,19 +843,19 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                         color: status.exhausted
                             ? DVStudioStyle.danger
                             : DVStudioStyle.ink,
-                        weight: FontWeight.w700,
-                        align: TextAlign.right,
+                        weight: .w700,
+                        align: .right,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(99),
+                  borderRadius: .circular(99),
                   child: Container(
                     height: 8,
                     color: DVStudioStyle.canvas,
-                    alignment: Alignment.centerLeft,
+                    alignment: .centerLeft,
                     child: FractionallySizedBox(
                       widthFactor: (remaining ?? 0).clamp(0.0, 1.0),
                       child: Container(color: budgetTone),
@@ -879,7 +879,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: const .fromLTRB(16, 14, 16, 14),
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints box) {
                 const double gap = DVStudioStyle.space3;
@@ -950,11 +950,11 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            padding: const .fromLTRB(16, 10, 16, 12),
             decoration: const BoxDecoration(
               color: DVStudioStyle.canvas,
               border: Border(top: BorderSide(color: DVStudioStyle.line)),
-              borderRadius: BorderRadius.vertical(
+              borderRadius: .vertical(
                 bottom: Radius.circular(DVStudioStyle.radiusLarge),
               ),
             ),
@@ -1067,9 +1067,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         .toList();
 
     final Widget alerts = DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Firing now',
@@ -1105,9 +1105,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       ),
     );
     final Widget incidents = DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Open incidents',
@@ -1141,7 +1141,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
       builder: (BuildContext context, BoxConstraints box) {
         if (box.maxWidth < 860) {
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               alerts,
               const SizedBox(height: DVStudioStyle.space4),
@@ -1150,7 +1150,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
           );
         }
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: <Widget>[
             Expanded(child: alerts),
             const SizedBox(width: DVStudioStyle.space4),
@@ -1162,7 +1162,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
   }
 
   Widget _cardNote(String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    padding: const .fromLTRB(16, 0, 16, 16),
     child: opsText(text, size: 12.5, color: DVStudioStyle.muted),
   );
 
@@ -1176,12 +1176,12 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
   }) {
     return GestureDetector(
       key: ValueKey<String>(key),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          padding: const .fromLTRB(16, 10, 12, 10),
           decoration: const BoxDecoration(
             border: Border(top: BorderSide(color: DVStudioStyle.line)),
           ),
@@ -1191,9 +1191,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
-                    opsText(title, size: 13, weight: FontWeight.w600),
+                    opsText(title, size: 13, weight: .w600),
                     opsText(subtitle, size: 12, color: DVStudioStyle.muted),
                   ],
                 ),
@@ -1256,11 +1256,11 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
   ) {
     final int warnings = _findings.length;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space4),
+          padding: const .symmetric(horizontal: DVStudioStyle.space4),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
           ),
@@ -1270,7 +1270,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                 child: opsText(
                   'Alert rules',
                   size: 14,
-                  weight: FontWeight.w600,
+                  weight: .w600,
                 ),
               ),
               opsTrailing(
@@ -1293,9 +1293,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const .symmetric(vertical: 6),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 for (final DVAlertRule rule in rules)
                   _ruleRow(
@@ -1327,22 +1327,22 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         state.status == DVAlertStatus.firing && state.missed.isNotEmpty;
     return GestureDetector(
       key: ValueKey<String>(k),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => setState(() => _rule = rule.name),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          margin: const EdgeInsets.symmetric(
+          margin: const .symmetric(
             horizontal: DVStudioStyle.space2,
             vertical: 1,
           ),
-          padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+          padding: const .fromLTRB(10, 9, 10, 10),
           decoration: BoxDecoration(
             color: selected ? DVStudioStyle.selected : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Row(
                 children: <Widget>[
@@ -1352,7 +1352,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                     child: opsText(
                       rule.name,
                       size: 13,
-                      weight: FontWeight.w600,
+                      weight: .w600,
                       color: selected
                           ? DVStudioStyle.accent
                           : DVStudioStyle.ink,
@@ -1372,7 +1372,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               ),
               const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 15),
+                padding: const .only(left: 15),
                 child: opsText(
                   '${rule.signal} ${_condition(rule)}',
                   size: 12,
@@ -1381,7 +1381,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               ),
               if (missed || findings > 0 || pendingResolves > 0)
                 Padding(
-                  padding: const EdgeInsets.only(left: 15, top: 6),
+                  padding: const .only(left: 15, top: 6),
                   child: Wrap(
                     spacing: 4,
                     runSpacing: 4,
@@ -1444,11 +1444,11 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     final int targets = state.deliveredTo.length + state.missed.length;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space5),
+          padding: const .symmetric(horizontal: DVStudioStyle.space5),
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -1460,7 +1460,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
                 height: 30,
                 decoration: BoxDecoration(
                   color: opsAlertTone(state).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                  borderRadius: .circular(DVStudioStyle.radius),
                 ),
                 child: Icon(
                   Icons.notifications_outlined,
@@ -1471,10 +1471,10 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
-                    opsText(rule.name, size: 15, weight: FontWeight.w700),
+                    opsText(rule.name, size: 15, weight: .w700),
                     const SizedBox(height: 2),
                     opsText(
                       'Reads ${rule.signal} · '
@@ -1541,15 +1541,15 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
               final Widget delivery = _delivery(rule, state, now);
               final Widget episode = _episode(state, episodes, now);
               return SingleChildScrollView(
-                padding: EdgeInsets.all(pad),
+                padding: .all(pad),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     _signal(rule, state, reading, now),
                     const SizedBox(height: DVStudioStyle.space4),
                     if (wide)
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: <Widget>[
                           Expanded(flex: 3, child: delivery),
                           const SizedBox(width: DVStudioStyle.space4),
@@ -1611,9 +1611,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             : 'Since ${opsAgo(state.firingSince!, now)}',
     };
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Signal',
@@ -1622,7 +1622,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             icon: Icons.show_chart,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const .fromLTRB(16, 0, 16, 16),
             child: Wrap(
               spacing: DVStudioStyle.space6,
               runSpacing: DVStudioStyle.space3,
@@ -1685,9 +1685,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     return KeyedSubtree(
       key: const ValueKey<String>('dv-studio-alert-delivery'),
       child: DVStudioStyle.card(
-        padding: EdgeInsets.zero,
+        padding: .zero,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             opsCardHeader(
               'Delivery',
@@ -1702,7 +1702,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
             if (rule.notify.isEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const .fromLTRB(16, 0, 16, 16),
                 child: opsNote(
                   tone: DVStudioStyle.danger,
                   icon: Icons.notifications_off_outlined,
@@ -1755,7 +1755,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
           };
     return Container(
       key: ValueKey<String>('dv-studio-alert-delivery-$key'),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      padding: const .fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
         color: reason != null
             ? DVStudioStyle.danger.withValues(alpha: 0.04)
@@ -1763,22 +1763,22 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
         border: const Border(top: BorderSide(color: DVStudioStyle.line)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.only(top: 1),
+            padding: const .only(top: 1),
             child: Icon(icon, size: 16, color: DVStudioStyle.muted),
           ),
           const SizedBox(width: 10),
           Expanded(
             flex: 3,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 Row(
                   children: <Widget>[
                     Flexible(
-                      child: opsText(name, size: 13, weight: FontWeight.w600),
+                      child: opsText(name, size: 13, weight: .w600),
                     ),
                     const SizedBox(width: 6),
                     Flexible(
@@ -1831,9 +1831,9 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
     return KeyedSubtree(
       key: const ValueKey<String>('dv-studio-alert-last-episode'),
       child: DVStudioStyle.card(
-        padding: EdgeInsets.zero,
+        padding: .zero,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             opsCardHeader(
               'Last episode',
@@ -1845,7 +1845,7 @@ class _StudioOperationsSectionState extends State<StudioOperationsSection> {
             ),
             if (last != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const .fromLTRB(16, 0, 16, 16),
                 child: Wrap(
                   spacing: DVStudioStyle.space6,
                   runSpacing: DVStudioStyle.space3,

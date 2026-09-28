@@ -81,7 +81,7 @@ void main() {
   testWidgets('right to left, the first pane is on the right',
       (WidgetTester tester) async {
     await tester.pumpWidget(window(panes(),
-        direction: TextDirection.rtl,
+        direction: .rtl,
         features: <ui.DisplayFeature>[vFold(400), vFold(800)]));
     expect(at(tester, 'first').left, 800);
     expect(at(tester, 'third').left, 0);
@@ -91,7 +91,7 @@ void main() {
       (WidgetTester tester) async {
     final SemanticsHandle semantics = tester.ensureSemantics();
     await tester.pumpWidget(window(panes(),
-        direction: TextDirection.rtl,
+        direction: .rtl,
         features: <ui.DisplayFeature>[vFold(400), vFold(800)]));
     final List<String> order = <String>[];
     void walk(SemanticsNode node) {
