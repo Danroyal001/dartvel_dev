@@ -53,7 +53,7 @@ class _FoldDemoState extends State<FoldDemo> {
             DVText(label).modifier(const DVModifier().fontWeight(.w600)),
             DVText(body).modifier(const DVModifier().fontSize(13)),
           ], spacing: 4),
-          const DVModifier().padding(12).backgroundColor(tint).rounded(8),
+          const DVModifier().padding(12).backgroundColor(tint).rounded(10),
         ),
       );
 
@@ -132,7 +132,7 @@ class _FoldDemoState extends State<FoldDemo> {
           ),
         ),
         DVText(code).modifier(const DVModifier()
-            .fontFamily('monospace')
+            .fontFamily('JetBrainsMono')
             .fontSize(13)
             .color(palette.muted)),
       ], spacing: 8),
