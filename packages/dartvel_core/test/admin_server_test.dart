@@ -5,10 +5,11 @@
 // share: which file a request under the mount gets, with what content type,
 // and whether the caller may have it at all.
 //
-// The backend's answer for a caller who may not see the admin is "nothing
-// here": null, so the request carries on to whatever the application answers
-// for a path it does not serve. A 404 of its own would be an oracle on a
-// server whose unknown routes answer with the site's shell.
+// A person arriving signed out at a Studio page is sent to Studio's own
+// sign-in at <mount>/login. For the dashboard's files and its API the answer
+// to a caller who may not see the admin is "nothing here": null, so the
+// request carries on to whatever the application answers for a path it does
+// not serve.
 import 'dart:convert';
 import 'dart:io';
 
@@ -31,6 +32,15 @@ const DVAdminMount _open =
     DVAdminMount(path: '/__studio', enabled: true, requiresAuth: false);
 const DVAdminMount _guarded =
     DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true);
+
+/// Not served Studio: either nothing, for the application to answer, or
+/// sent to Studio's own sign-in.
+final Matcher _refused = predicate<Response?>(
+    (Response? r) =>
+        r == null ||
+        (r.status == 302 &&
+            (r.headers.get('location') ?? '').startsWith('/__studio/login')),
+    'refused: nothing, or a redirect to /__studio/login');
 
 void main() {
   setUp(() {
@@ -114,7 +124,7 @@ void main() {
           expect(await _body(response), isNot(contains('password')),
               reason: path);
         }
-        expect(response, isNull, reason: path);
+        expect(response, _refused, reason: path);
       }
     });
   });
@@ -123,7 +133,7 @@ void main() {
     test('every path that is not the mount', () async {
       final DVAdminServer server = DVAdminServer(mount: _open, root: _root.path);
       for (final String path in <String>['/', '/__studiox', '/api/health']) {
-        expect(await server.respond(_get(path)), isNull, reason: path);
+        expect(await server.respond(_get(path)), _refused, reason: path);
       }
     });
 
@@ -133,7 +143,83 @@ void main() {
       expect(
           await DVAdminServer(mount: off, root: _root.path)
               .respond(_get('/__studio/')),
-          isNull);
+          _refused);
+    });
+  });
+
+  group("Studio's own sign-in", () {
+    // Studio signs people in at its own mount, as wp-admin does, so it does
+    // not depend on the application serving /login: an application can turn
+    // its account pages off, or move them, and Studio still opens.
+    test('a signed-out visit to a Studio page goes to <mount>/login, with where '
+        'it was going', () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      for (final String path in <String>['/__studio', '/__studio/', '/__studio/pages']) {
+        final Response? r = await server.respond(_get(path));
+        expect(r?.status, 302, reason: path);
+        expect(r!.headers.get('location'),
+            '/__studio/login?from=${Uri.encodeQueryComponent(path)}');
+        expect(r.headers.get('cache-control'), 'no-store');
+      }
+    });
+
+    test('follows a moved mount', () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      const DVAdminMount moved =
+          DVAdminMount(path: '/ops/desk', enabled: true, requiresAuth: true);
+      final DVAdminServer server = DVAdminServer(mount: moved, root: _root.path);
+      final Response? r = await server.respond(_get('/ops/desk/'));
+      expect(r!.headers.get('location'), startsWith('/ops/desk/login?from='));
+      final Response? page = await server.respond(_get('/ops/desk/login'));
+      expect(page?.status, 200);
+      expect(await _body(page!), contains('/ops/desk'));
+    });
+
+    test("the sign-in page is served to anybody, and posts to the application's "
+        'own sign-in endpoint', () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final DVAdminServer server = DVAdminServer(
+          mount: _guarded, root: _root.path, apiBasePath: '/backend');
+      final Response? r = await server.respond(_get('/__studio/login?from=/__studio/data'));
+      expect(r?.status, 200);
+      expect(r!.headers.get('content-type'), startsWith('text/html'));
+      expect(r.headers.get('cache-control'), 'no-store');
+      expect(r.headers.get('x-frame-options'), 'DENY');
+      final String html = await _body(r);
+      expect(html, contains('/backend'));
+      expect(html, contains('/auth/sign-in'));
+      expect(html, contains('/auth/second-factor'));
+      expect(html, contains('noindex'));
+      // Nothing about the application or its data.
+      expect(html, isNot(contains('graph.json')));
+    });
+
+    test("Studio's files and API stay hidden from a stranger", () async {
+      // A redirect is for a person arriving at a page. A script asking for
+      // the dashboard's files or data gets what a path nobody serves gets.
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      expect(await server.respond(_get('/__studio/graph.json')), isNull);
+      expect(await server.respond(_get('/__studio/admin.js')), isNull);
+      expect(await server.respond(_get('/__studio/api/grants')), isNull);
+      final Request post = Request(
+        method: 'POST',
+        url: Uri.parse('http://localhost:8080/__studio/'),
+        headers: Headers(),
+        bodyStream: const Stream<List<int>>.empty(),
+      );
+      expect(await server.respond(post), isNull);
+    });
+
+    test('a turned-off admin has no sign-in page either', () async {
+      const DVAdminMount off =
+          DVAdminMount(path: '/__studio', enabled: false, requiresAuth: true);
+      final DVAdminServer server = DVAdminServer(mount: off, root: _root.path);
+      expect(await server.respond(_get('/__studio/login')), isNull);
+      expect(await server.respond(_get('/__studio/')), isNull);
     });
   });
 
@@ -142,8 +228,8 @@ void main() {
       DVSessionAuthentication.install(sessions: DVSessions());
       final DVAdminServer server =
           DVAdminServer(mount: _guarded, root: _root.path);
-      expect(await server.respond(_get('/__studio/')), isNull);
-      expect(await server.respond(_get('/__studio/graph.json')), isNull);
+      expect(await server.respond(_get('/__studio/')), _refused);
+      expect(await server.respond(_get('/__studio/graph.json')), _refused);
     });
 
     test('answers nothing to a session token that is not a live session',
@@ -155,7 +241,7 @@ void main() {
           await server.respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${DVSessions.tokenPrefix}forged',
           })),
-          isNull);
+          _refused);
     });
 
     test('answers nothing to a signed-in person nobody granted Studio',
@@ -174,13 +260,13 @@ void main() {
           await server.respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${customer.token}',
           })),
-          isNull);
+          _refused);
       expect(
           await server.respond(_get('/__studio/graph.json',
               headers: <String, String>{
                 'authorization': 'Bearer ${customer.token}',
               })),
-          isNull);
+          _refused);
     });
 
     test('answers nothing to a signed-in person when no policy is registered',
@@ -195,7 +281,7 @@ void main() {
               .respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${issued.token}',
           })),
-          isNull);
+          _refused);
     });
 
     test('serves a person granted Studio, and stops when the grant goes',
@@ -246,7 +332,7 @@ void main() {
           'cookie':
               '${cookie.cookieName(development: true)}=${issued.token}',
         })),
-        isNull,
+        _refused,
       );
       // The grant is taken away: nothing again, on the same live session.
       expect(await grants.revoke('u-operator'), isTrue);
@@ -254,7 +340,7 @@ void main() {
           await server.respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${issued.token}',
           })),
-          isNull);
+          _refused);
 
       // Granted again, and the session revoked: nothing either.
       await grants.grant('u-operator');
@@ -263,7 +349,7 @@ void main() {
           await server.respond(_get('/__studio/', headers: <String, String>{
             'authorization': 'Bearer ${issued.token}',
           })),
-          isNull);
+          _refused);
     });
 
     test('a grant on one tenant opens nothing on another', () async {
@@ -298,7 +384,7 @@ void main() {
       }
 
       expect((await as('u-owner'))?.status, 200);
-      expect(await as('u-customer'), isNull);
+      expect(await as('u-customer'), _refused);
     });
   });
 }

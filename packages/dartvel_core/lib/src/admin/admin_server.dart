@@ -26,6 +26,7 @@ import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
 import 'first_run_screen.dart';
+import 'studio_sign_in_screen.dart';
 import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
@@ -284,6 +285,16 @@ class DVAdminServer {
   /// browser that opened the grant's link, and nobody else.
   final DVStudioDevGrant? devGrant;
 
+  /// Whether [path] under the mount is a page a person navigates to, rather
+  /// than one of the dashboard's files or its API.
+  bool _isPage(String path) {
+    if (path.startsWith('${mount.path}/api/') || path == '${mount.path}/api') {
+      return false;
+    }
+    final String last = path.split('/').last;
+    return !last.contains('.');
+  }
+
   /// Studio's data, under `<mount>/api/`: a model's records, the page
   /// builder's documents and the grants, for exactly the callers the
   /// dashboard's files are served to.
@@ -330,12 +341,53 @@ class DVAdminServer {
             dvFirstRunScreen(mount: mount.path, api: apiBasePath))),
       );
     }
+    // Studio's own sign-in, at <mount>/login, served to anybody: signing in
+    // is what it is for. It names nobody and carries no data.
+    final bool readable = request.method == 'GET' || request.method == 'HEAD';
+    final String login = '${mount.path}/login';
+    if (devGrant == null &&
+        mount.enabled &&
+        mount.requiresAuth &&
+        readable &&
+        path == login) {
+      return Response(
+        200,
+        headers: Headers(const <String, String>{
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-frame-options': 'DENY',
+          'referrer-policy': 'no-referrer',
+        }),
+        body: request.method == 'HEAD'
+            ? const Stream<List<int>>.empty()
+            : Stream<List<int>>.value(utf8.encode(
+                dvStudioSignInScreen(mount: mount.path, api: apiBasePath))),
+      );
+    }
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
       mount,
       authenticated: mount.requiresAuth && await _authenticated(request),
     );
+    if (decision == DVAdminRequest.hidden &&
+        devGrant == null &&
+        mount.enabled &&
+        mount.requiresAuth &&
+        readable &&
+        _isPage(path)) {
+      // A person arriving at a Studio page is sent to Studio's sign-in, and
+      // back here once signed in. Its files and its API are not pages: a
+      // script asking for them gets what a path nobody serves gets.
+      return Response(
+        302,
+        headers: Headers(<String, String>{
+          'location': '$login?from=${Uri.encodeQueryComponent(path)}',
+          'cache-control': 'no-store',
+        }),
+        body: const Stream<List<int>>.empty(),
+      );
+    }
     if (decision != DVAdminRequest.serve) return null;
     final String apiPrefix = '${mount.path}/api/';
     if (path.startsWith(apiPrefix)) {
