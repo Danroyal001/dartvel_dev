@@ -1,4 +1,5 @@
-// Every page a running web-server binary serves says something to a crawler,
+if (loginStatus != 200 || !loginPage.contains('<title>Studio')) {
+    problems.add('/__studio/login answered $loginStatus without the Studio app');// Every page a running web-server binary serves says something to a crawler,
 // and Studio refuses a stranger.
 //
 // dartvel.dev is served by `dartvel build web-server`, which renders each page
