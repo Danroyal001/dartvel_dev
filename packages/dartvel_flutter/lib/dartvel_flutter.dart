@@ -59,6 +59,7 @@ import 'src/platform/terminal_size_web.dart'
     if (dart.library.io) 'src/platform/terminal_size_io.dart' as terminal_size;
 // DV.Updates.applyPages installs page bundles, which are these types.
 import 'src/pwa/install_prompt.dart';
+import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
@@ -9343,24 +9344,8 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
       child: AdaptiveTextSelectionToolbar.buttonItems(
         anchors: anchors,
         buttonItems: <ContextMenuButtonItem>[
-          if (link != null) ...<ContextMenuButtonItem>[
-            ContextMenuButtonItem(
-              label: 'Open in a new tab',
-              onPressed: () {
-                selection.hideToolbar();
-                DVPressedLinkTarget.clear();
-                DVLinkOpener.open(link, newTab: true);
-              },
-            ),
-            ContextMenuButtonItem(
-              label: 'Copy link address',
-              onPressed: () {
-                selection.hideToolbar();
-                DVPressedLinkTarget.clear();
-                unawaited(Clipboard.setData(ClipboardData(text: link)));
-              },
-            ),
-          ],
+          if (link != null)
+            ...dvLinkMenuItems(link, close: selection.hideToolbar),
           for (final ContextMenuButtonItem item
               in selection.contextMenuButtonItems)
             if (item.type == ContextMenuButtonType.copy && selected.isNotEmpty)
@@ -9544,7 +9529,10 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
               // Esc handled and keeps it from the browser. See page_escape.dart.
               child: Actions(
                 actions: <Type, Action<Intent>>{DismissIntent: _dismiss},
-                child: reachable,
+                // This selection menu offers the link items, so a link
+                // under it leaves the menu to it rather than opening one
+                // of its own over it.
+                child: DVLinkMenuScope(child: reachable),
               ),
             ),
           )
