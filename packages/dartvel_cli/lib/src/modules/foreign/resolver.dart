@@ -354,3 +354,95 @@ VersionConstraint _npmRange(String range) {
         'exact version, ^, ~ or a pair such as ">=1.2.0 <2.0.0".');
   }
 }
+
+/// Resolves a local directory as it is: a C library, a crate, a package.
+///
+/// Nothing is fetched, so the digest is of the tree, and the pin catches a
+/// change to it the way it catches a changed archive.
+DVResolvedSource dvResolveLocalSource(String root, String scheme, String path) {
+  final Directory dir = Directory(p.normalize(p.join(root, path)));
+  if (!dir.existsSync()) {
+    throw DVSourceUnresolved('There is no directory at $path.');
+  }
+  return DVResolvedSource(
+    descriptor: '$scheme:${p.relative(dir.path, from: root).replaceAll('\\', '/')}',
+    name: p.basename(dir.path),
+    version: '0.0.0',
+    directory: dir.path,
+    sourceDigest: dvModulePackageDigest(dir.path),
+    resolvedFrom: dir.path,
+    dependency: '',
+  );
+}
+
+/// Resolves `cargo:<crate>[@<version>]` from crates.io, checked against the
+/// sha256 the index publishes.
+Future<DVResolvedSource> dvResolveCrate(
+  String root,
+  String spec, {
+  DVSourceFetcher fetcher = const DVSourceFetcher(),
+}) async {
+  final int at = spec.indexOf('@');
+  final String name = at < 0 ? spec : spec.substring(0, at);
+  final String? wanted = at < 0 ? null : spec.substring(at + 1);
+  if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(name)) {
+    throw DVSourceUnresolved('"$name" is not a crate name.');
+  }
+  final Map<String, Object?> info = jsonDecode(await fetcher
+          .getText(Uri.parse('https://crates.io/api/v1/crates/$name')))
+      as Map<String, Object?>;
+  final List<Map<String, Object?>> versions = <Map<String, Object?>>[
+    for (final Object? v in info['versions'] as List<Object?>? ?? <Object?>[])
+      (v! as Map).cast<String, Object?>(),
+  ];
+  final VersionConstraint constraint =
+      wanted == null ? VersionConstraint.any : _npmRange(wanted);
+  Map<String, Object?>? chosen;
+  Version? best;
+  for (final Map<String, Object?> v in versions) {
+    if (v['yanked'] == true) continue;
+    final Version version;
+    try {
+      version = Version.parse('${v['num']}');
+    } on FormatException {
+      continue;
+    }
+    if (!constraint.allows(version)) continue;
+    if (version.isPreRelease && wanted != '${v['num']}') continue;
+    if (best == null || version > best) {
+      best = version;
+      chosen = v;
+    }
+  }
+  if (chosen == null) {
+    throw DVSourceUnresolved('crates.io has no version of $name matching '
+        '${wanted ?? 'any'}.');
+  }
+  final String url = 'https://static.crates.io/crates/$name/$name-$best.crate';
+  final List<int> archive = await fetcher.getBytes(Uri.parse(url));
+  final String digest = sha256.convert(archive).toString();
+  final String? expected = chosen['checksum'] as String?;
+  if (expected != null && expected != digest) {
+    throw DVSourceUnresolved('The crate $name $best has sha256 $digest, and '
+        'crates.io says $expected. Nothing was written (DV-MODULE-004).');
+  }
+  final Directory into =
+      Directory(p.join(root, '.dartvel', 'sources', 'cargo', '$name-$best'));
+  if (into.existsSync()) into.deleteSync(recursive: true);
+  into.createSync(recursive: true);
+  final File file = File('${into.path}.crate')..writeAsBytesSync(archive);
+  try {
+    await fetcher.run('tar', <String>['-xzf', file.path, '-C', into.path]);
+  } finally {
+    if (file.existsSync()) file.deleteSync();
+  }
+  return DVResolvedSource(
+    descriptor: 'cargo:$name@$best',
+    name: name,
+    version: '$best',
+    directory: p.join(into.path, '$name-$best'),
+    sourceDigest: digest,
+    resolvedFrom: url,
+    dependency: '',
+  );
+}
