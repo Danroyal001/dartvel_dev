@@ -1,3 +1,14 @@
+## Unreleased
+
+- **A link to a heading opens the page at that heading.** An address ending
+  in `#heading-id` scrolls a `DVPageShell` page to that heading on its first
+  frame and whenever the address changes, on the web and in native apps.
+  Every heading gets an id from its words with `dvHeadingSlug` (a repeated
+  heading is numbered from 2), and on the web the document copy of the page
+  carries the same ids. A page that loads its content later is looked at
+  again for a few frames. Text fragments (`#:~:text=`) and hash-strategy
+  routes are left alone. Nothing to add to a page.
+
 ## 0.7.1
 
 - **Fixed: Esc on a page is left to the browser when the page has nothing

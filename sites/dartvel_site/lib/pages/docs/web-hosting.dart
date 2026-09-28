@@ -151,5 +151,30 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                 kFindInPageProposalUrl),
           ],
         ),
+        DocsSection(
+          id: 'heading-links',
+          title: 'Link to a heading',
+          children: <Widget>[
+            DocsText('An address ending in #heading-id opens the page at that '
+                'heading, on the web and in a native app, as it does on any '
+                'other web page. Flutter ignores the part after #, so a '
+                'Dartvel page does this itself.'),
+            Bullets(<String>[
+              'Every heading gets an id from its words: lower case, '
+                  'punctuation dropped, spaces as hyphens. "Find text with '
+                  'Ctrl+F" is #find-text-with-ctrlf.',
+              'A heading that repeats an earlier one is numbered from 2: the '
+                  'second "Setup" is #setup-2.',
+              'Headings are the text a page marks with semanticHeading(n). '
+                  'There is nothing to add to a page.',
+              'A page that loads its content later still opens at the '
+                  'heading: Dartvel looks for it again as the page draws.',
+            ]),
+            DocsText('Try it: this button goes to '
+                '/docs/web-hosting#find-text-with-ctrlf.'),
+            GhostLink('Go to "Find text with Ctrl+F"',
+                '/docs/web-hosting#find-text-with-ctrlf'),
+          ],
+        ),
       ],
     );
