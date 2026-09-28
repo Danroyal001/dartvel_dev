@@ -37,6 +37,7 @@ Future<String> generateParent({
   String mount = '/store',
   String deployment = 'embedded',
   String? kind,
+  String? surface,
 }) async {
   final Directory root = Directory.systemTemp.createTempSync('dartvel_module_router_');
   lastParent = root;
@@ -62,7 +63,7 @@ flutter:
     - assets/logo.png
 dartvel:
   module:
-    id: store${kind == null ? '' : '\n    kind: $kind'}
+    id: store${kind == null ? '' : '\n    kind: $kind'}${surface == null ? '' : '\n    surface: $surface'}
 ''');
   File(p.join(module.path, 'lib', 'pages', 'products', '[id].page.dart'))
     ..createSync(recursive: true)
@@ -228,6 +229,19 @@ void main() {
       // types after their domain, and one of those colliding with a model
       // would be an ambiguous import in every page.
       expect(generated, isNot(contains("export 'package:store/store.dart'")));
+    });
+
+    test('a wrapped foreign source is reached as its surface class', () async {
+      // dartvel add pub:textkit writes a module whose pubspec names the
+      // class the application calls: DV.Modules.store.slug(...), with the
+      // environment chosen inside the module when the app is compiled.
+      await generateParent(kind: 'dartPackage', surface: 'StoreModule');
+      final String generated = modulesFile();
+
+      expect(generated, contains("import 'package:store/store.dart'"));
+      expect(generated,
+          contains('StoreModule get store => const StoreModule();'));
+      expect(generated, isNot(contains('DVModule get store =>')));
     });
   });
 }

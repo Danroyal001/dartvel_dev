@@ -860,6 +860,14 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '/// This is all the parent calls. It cannot tell a crate is underneath.',
     'int paymentFee(int amountMinor) => _paymentsFee(amountMinor);',
   ],
+  'modules-dart-package': <String>[
+    '// dartvel add pub:slugify wrote modules/dv_slugify_module, and the',
+    '// parent calls it through the one surface it already has.',
+    'Future<void> publish(Article article) async {',
+    '  final String slug = DV.Modules.slugify.slugify(article.title);',
+    '  await article.copyWith(slug: slug).save();',
+    '}',
+  ],
   'monitoring-log': <String>[
     '// One line, with whatever belongs beside it. DV.log and',
     '// DV.ObservabilityAndLogging are the surface; there is no second logger to',

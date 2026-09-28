@@ -1,3 +1,33 @@
+## Unreleased
+
+- **`dartvel add pub:`, `git:` and `path:` wrap a Dart package as a module.**
+  The package's public functions that every environment can call become
+  `DV.Modules.<id>`, with the outcome of each on native, web and backend
+  declared in the generated pubspec and a carrier per environment chosen at
+  compile time, so a package needing `dart:io` still compiles for the web and
+  throws `DVModuleUnavailable` there. The archive is checked against the
+  sha256 pub.dev publishes, the source and the generated wrapper are pinned
+  in `dartvel.module.lock`, and `--elsewhere noop` makes the calls that
+  cannot run do nothing instead.
+- **`dartvel add` wraps an npm package, a C library, a Rust crate, a
+  WebAssembly binary, a JVM library and a Swift package or CocoaPod.**
+  `npm:` runs in a browser through a dynamic `import()` and on the backend
+  in Node; `c:` and `cargo:` are built for the target by the module's own
+  hook and bound with `@Native`; `wasm:` is instantiated by the browser or by
+  Node, 64-bit integers crossing as BigInt; `maven:` and `jar:` are called
+  over JNI through `package:jni` on Android; `swift:` and `pod:` are exported
+  to the C ABI by a generated shim and built with Xcode's toolchain for iOS
+  and macOS. Each download is checked against its registry's digest. What
+  cannot cross -- a callback, a generic, an instance method, a pointer whose
+  owner nobody named (DV-BIND-003) -- is listed with the reason. A module for
+  some targets declares them, and the build refuses a call from another
+  (DV-MODULE-014, now per platform).
+- **`dartvel build` refuses a module call it can see cannot run there**
+  (DV-MODULE-013), and one to an operation that declares nothing for the
+  target (DV-MODULE-014).
+- **`dartvel inspect modules [--json]`** reports each module's kind,
+  surface, operations and pin, and a hand-edited wrapper as DV-MODULE-016.
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no
