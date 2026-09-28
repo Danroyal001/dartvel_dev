@@ -11,6 +11,8 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/web_server.dart';
+import 'package:dartvel_core/dartvel.dart'
+    show DVPublishedPages, MemoryDVDatabaseAdapter, dvStudioPagesTable;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:test/test.dart';
@@ -104,6 +106,29 @@ void main() {
     expect(await get('/main.dart.js'), contains('console.log(1)'));
   });
 
+  Future<int> status(String path) async {
+    final client = HttpClient();
+    try {
+      final response = await (await client.getUrl(Uri.parse('$base$path')))
+          .close();
+      await response.drain<void>();
+      return response.statusCode;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  test('a route the manifest lists answers 200', () async {
+    expect(await status('/docs'), 200);
+    expect(await status('/post/hello-world'), 200);
+  });
+
+  test('an unknown path answers 404, not a soft 200', () async {
+    // The shell is still the body, so the app draws its not-found page; the
+    // status is what tells a crawler there is nothing here to index.
+    expect(await status('/nothing-here'), 404);
+  });
+
   test('an unknown path still returns the application shell', () async {
     // A single-page app owns its own 404s; returning the server's would show
     // a blank page where the app has a not-found route.
@@ -119,5 +144,29 @@ void main() {
 
     expect(body, contains('<title>App</title>'));
     expect(body, isNot(contains('<title>/nothing-here</title>')));
+  });
+
+  test('a published Studio page answers 200 though no manifest lists it',
+      () async {
+    final database = MemoryDVDatabaseAdapter();
+    await database.execute('CREATE TABLE $dvStudioPagesTable '
+        '(route TEXT, title TEXT, document TEXT)');
+    await database.execute(
+        'INSERT INTO $dvStudioPagesTable (route, title, document) '
+        'VALUES (?, ?, ?)',
+        <Object?>['/menu', 'Menu', '{"route": "/menu"}']);
+    await server.close(force: true);
+    server = await shelf_io.serve(
+      dvWebServerHandler(
+        webRoot: root.path,
+        publishedPages: DVPublishedPages(database: () => database),
+      ),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    base = 'http://${server.address.host}:${server.port}';
+
+    expect(await status('/menu'), 200);
+    expect(await status('/nothing-here'), 404);
   });
 }
