@@ -8,7 +8,7 @@
 // process: the path a phone, a desktop or a served Studio takes differs only
 // in where the database is.
 import 'package:dartvel_core/dartvel.dart'
-    show DVStudioFieldSpec, DVStudioModelSpec;
+    show DVStudioApi, DVStudioFieldSpec, DVStudioModelSpec;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,7 +145,33 @@ void main() {
     await tester.tap(_key('dv-studio-record-save'));
     await tester.pumpAndSettle();
     expect(find.text('Hello there'), findsWidgets);
-    expect(find.text('1 records'), findsOneWidget);
+    expect(find.text('1 record'), findsOneWidget);
+  });
+
+  testWidgets('a model\'s records are searched by any value they hold',
+      (WidgetTester tester) async {
+    desktop(tester);
+    final DVStudioClient client = DVStudioClient(
+        dvStudioInProcessTransport(DVStudioApi(database: database)));
+    await client.saveModel('Place', <String, Object?>{
+      'key': 'id',
+      'fields': <Object?>[
+        <String, Object?>{'name': 'id', 'type': 'String'},
+        <String, Object?>{'name': 'city', 'type': 'String'},
+      ],
+    });
+    for (final String city in <String>['Lagos', 'Lisbon', 'Uyo']) {
+      await client.create('Place', <String, Object?>{'city': city});
+    }
+    await _openData(tester);
+    await tester.tap(_key('dv-studio-model-Place'));
+    await tester.pumpAndSettle();
+    expect(find.text('Uyo'), findsOneWidget);
+
+    await _type(tester, _key('dv-studio-records-search'), 'l');
+    expect(find.text('Lagos'), findsOneWidget);
+    expect(find.text('Lisbon'), findsOneWidget);
+    expect(find.text('Uyo'), findsNothing);
   });
 
   testWidgets('a definition Studio cannot store says why',

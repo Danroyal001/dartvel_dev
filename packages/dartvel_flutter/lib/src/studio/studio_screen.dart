@@ -929,18 +929,18 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _overview() {
     if (_phone) {
-      // The page list on top, where a new page is started, and the overview
-      // under it: side by side they left the overview 34 points.
+      // Where a new page is started on top, and the overview under it, whose
+      // All pages lists every page: side by side they left the overview 34
+      // points, and a list above it in a strip showed one page of fifty.
       return Column(
         crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
-            height: 240,
             decoration: const BoxDecoration(
               color: DVStudioStyle.surface,
               border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
             ),
-            child: _pageList(),
+            child: _newPageField(),
           ),
           Expanded(child: _dashboard()),
         ],
@@ -972,35 +972,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         // The new-page field comes first: it is the one thing on this panel
         // that starts work, and it is what the tests type into.
-        Padding(
-          padding: const .all(DVStudioStyle.space3),
-          child: Column(
-            crossAxisAlignment: .stretch,
-            children: <Widget>[
-              DVStudioTextInput(
-                value: _newRoute,
-                placeholder: '/new-page',
-                icon: DVStudioIcons.page,
-                onChanged: (String value) => _newRoute = value,
-                onSubmitted: (_) => _create(),
-              ),
-              const SizedBox(height: DVStudioStyle.space2),
-              GestureDetector(
-                key: const ValueKey<String>('dv-studio-create'),
-                onTap: _create,
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: DVStudioStyle.control(
-                    'Create page',
-                    enabled: true,
-                    primary: true,
-                    icon: DVStudioIcons.add,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        _newPageField(),
         Container(height: 1, color: DVStudioStyle.line),
         Padding(
           padding: const .fromLTRB(DVStudioStyle.space4,
@@ -1042,6 +1014,37 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       ],
     );
   }
+
+  /// Where a new page is started: its address, and Create page.
+  Widget _newPageField() => Padding(
+        padding: const .all(DVStudioStyle.space3),
+        child: Column(
+          crossAxisAlignment: .stretch,
+          children: <Widget>[
+            DVStudioTextInput(
+              value: _newRoute,
+              placeholder: '/new-page',
+              icon: DVStudioIcons.page,
+              onChanged: (String value) => _newRoute = value,
+              onSubmitted: (_) => _create(),
+            ),
+            const SizedBox(height: DVStudioStyle.space2),
+            GestureDetector(
+              key: const ValueKey<String>('dv-studio-create'),
+              onTap: _create,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: DVStudioStyle.control(
+                  'Create page',
+                  enabled: true,
+                  primary: true,
+                  icon: DVStudioIcons.add,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 
   /// One row per stored page, keyed by route. The overview and the editor
   /// both show these — one at a time — so a published page appears in the
@@ -1895,26 +1898,30 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             fit: .scaleDown,
             alignment: .centerLeft,
             child: DVStudioSegmented<_DVStudioLeftPanel>(
-              segments: const <DVStudioSegment<_DVStudioLeftPanel>>[
-                DVStudioSegment<_DVStudioLeftPanel>(
-                  value: _DVStudioLeftPanel.insert,
-                  label: 'Insert',
-                  icon: DVStudioIcons.insert,
-                ),
-                DVStudioSegment<_DVStudioLeftPanel>(
+              segments: <DVStudioSegment<_DVStudioLeftPanel>>[
+                // Nothing is inserted into a page that is only being looked
+                // at: a compiled page shows what it is made of, and Edit
+                // this page is how it becomes something to insert into.
+                if (!controller.readOnly)
+                  const DVStudioSegment<_DVStudioLeftPanel>(
+                    value: _DVStudioLeftPanel.insert,
+                    label: 'Insert',
+                    icon: DVStudioIcons.insert,
+                  ),
+                const DVStudioSegment<_DVStudioLeftPanel>(
                   value: _DVStudioLeftPanel.layers,
                   label: 'Layers',
                   icon: DVStudioIcons.layers,
                 ),
               ],
-              value: _left,
+              value: controller.readOnly ? _DVStudioLeftPanel.layers : _left,
               onChanged: (_DVStudioLeftPanel panel) =>
                   setState(() => _left = panel),
             ),
           ),
         ),
         Expanded(
-          child: _left == _DVStudioLeftPanel.insert
+          child: _left == _DVStudioLeftPanel.insert && !controller.readOnly
               ? DVStudioPalette(items: widget.palette, controller: controller)
               : DVStudioLayers(controller: controller),
         ),
