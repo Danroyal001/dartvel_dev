@@ -86,9 +86,9 @@ class DVTableHeaderCell extends StatelessWidget {
       button: sortable,
       excludeSemantics: true,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const .symmetric(horizontal: 12, vertical: 10),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: <Widget>[
             // Flexible, because a header cell is Expanded: on a phone every
             // column gets an equal and small share of the width, and a label
@@ -99,7 +99,7 @@ class DVTableHeaderCell extends StatelessWidget {
               child: Text(
                 label,
                 style: theme.textTheme.labelLarge,
-                overflow: TextOverflow.ellipsis,
+                overflow: .ellipsis,
                 softWrap: false,
               ),
             ),
@@ -232,8 +232,8 @@ class DVTableState<T> extends State<DVTable<T>> {
       focusNode: _keyboard,
       onKeyEvent: _onKey,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .stretch,
+        mainAxisSize: .min,
         children: <Widget>[
           // The table's own node. Flutter asserts the hierarchy in debug --
           // every child of a table is a row, and every child of a row a cell
@@ -244,8 +244,8 @@ class DVTableState<T> extends State<DVTable<T>> {
             explicitChildNodes: true,
             role: SemanticsRole.table,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: .stretch,
+              mainAxisSize: .min,
               children: <Widget>[
                 DecoratedBox(
                   decoration: BoxDecoration(
@@ -288,7 +288,7 @@ class DVTableState<T> extends State<DVTable<T>> {
           ),
           if (rows.isEmpty)
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const .all(24),
               child: Semantics(
                 // Excluded, or the node carries the label twice -- once from
                 // here and once from the Text under it -- and a screen
@@ -317,7 +317,7 @@ class DVTableState<T> extends State<DVTable<T>> {
       child: GestureDetector(
         onTap: () => _focus(r, c),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const .symmetric(horizontal: 12, vertical: 10),
           decoration: focused
               ? BoxDecoration(
                   border: Border.all(color: Theme.of(context).focusColor),

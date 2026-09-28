@@ -37,7 +37,7 @@ DVFlagRules rulesWith(Map<String, Object?> values) =>
     });
 
 Widget host(Widget Function(BuildContext context) build) => Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
       child: Builder(builder: build),
     );
 

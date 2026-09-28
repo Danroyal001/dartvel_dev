@@ -31,7 +31,7 @@ class _DVPolicyAdminState extends State<DVPolicyAdmin> {
 
     return DVBox.scrollableList(<Widget>[
       const DVText('Policies and Sync')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       GestureDetector(
         key: const ValueKey<String>('dv-policy-refresh'),
         onTap: _refresh,
@@ -39,7 +39,7 @@ class _DVPolicyAdminState extends State<DVPolicyAdmin> {
       ),
       DVBox.list(<Widget>[
         DVText('Policies (${policies.length})').modifier(
-            const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+            const DVModifier().fontSize(18).fontWeight(.bold)),
         // An unregistered policy denies silently, so an empty list is the
         // explanation for an app where everything is forbidden.
         if (policies.isEmpty)
@@ -48,7 +48,7 @@ class _DVPolicyAdminState extends State<DVPolicyAdmin> {
       ]).modifier(const DVModifier().card().padding(16)),
       DVBox.list(<Widget>[
         DVText('Model sync channels (${synced.length})').modifier(
-            const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+            const DVModifier().fontSize(18).fontWeight(.bold)),
         if (synced.isEmpty) const DVText('No model has an open channel.'),
         for (final type in synced) DVText(type),
         DVText('Decodable wire names (${decodable.length})'),

@@ -74,7 +74,7 @@ void main() {
     device.emit(DVXRInput(DVSpatialInputEvent.ray(
         DVSpatialInputAction.grab, DVSpatialInputSource.hand,
         origin: const DVVec3(0, 1, 0), direction: const DVVec3(0, 0, -1))));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(grabbed, <String>['crate']);
     await runtime.dispose();

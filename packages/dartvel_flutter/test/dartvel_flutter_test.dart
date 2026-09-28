@@ -647,7 +647,7 @@ void main() {
     await DV.Cache.delete('answer');
     expect(await DV.Cache.get<int>('answer'), isNull);
 
-    DV.Theme.setMode(ThemeMode.dark);
+    DV.Theme.setMode(.dark);
     expect(DV.Theme.mode, ThemeMode.dark);
   });
 

@@ -131,7 +131,7 @@ void main() {
             color: const Color(0xFF000000),
           ),
         ),
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
       )..layout();
       painter.paint(canvas, Offset.zero);
       painter.dispose();

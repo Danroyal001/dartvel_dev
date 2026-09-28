@@ -47,7 +47,7 @@ void main() {
       for (final String line in text.textSpan!.toPlainText().split('\n')) {
         final TextPainter painter = TextPainter(
           text: TextSpan(text: line, style: text.style),
-          textDirection: TextDirection.ltr,
+          textDirection: .ltr,
         )..layout();
         if (painter.width > width) wrapped.add('${painter.width.toStringAsFixed(0)} > ${width.toStringAsFixed(0)}: $line');
         painter.dispose();

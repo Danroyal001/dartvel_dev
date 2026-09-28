@@ -16,7 +16,7 @@ DVPageDocument page(DVPageNode node) =>
 Widget host(DVPageDocument document, double width) => MediaQuery(
       data: MediaQueryData(size: Size(width, 800)),
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVPageDocumentRenderer(document),
       ),
     );

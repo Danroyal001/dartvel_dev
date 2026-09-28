@@ -569,7 +569,7 @@ void main() {
         // The in-process queue that held the job did not survive a restart.
         const DVQueues().useAdapter(DVInMemoryQueueAdapter());
         final DVErasureDeadlines deadlines = await DVPrivacyRuntime.current
-            .checkErasureDeadlines(staleAfter: Duration.zero);
+            .checkErasureDeadlines(staleAfter: .zero);
         expect(deadlines.results, hasLength(1));
         expect(await sessions.read('old'), isNull);
       });

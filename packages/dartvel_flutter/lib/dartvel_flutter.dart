@@ -1167,7 +1167,7 @@ class DVModifier {
   }
 
   DVModifier padding(double value) =>
-      _copyWith(paddingValue: EdgeInsets.all(value));
+      _copyWith(paddingValue: .all(value));
 
   /// Padding per axis.
   ///
@@ -1176,7 +1176,7 @@ class DVModifier {
   /// is why every band on the site reached for a Container to say two.
   DVModifier paddingSymmetric({double horizontal = 0, double vertical = 0}) =>
       _copyWith(
-        paddingValue: EdgeInsets.symmetric(
+        paddingValue: .symmetric(
           horizontal: horizontal,
           vertical: vertical,
         ),
@@ -1190,7 +1190,7 @@ class DVModifier {
     double bottom = 0,
   }) =>
       _copyWith(
-        paddingValue: EdgeInsets.only(
+        paddingValue: .only(
           left: left,
           top: top,
           right: right,
@@ -1199,10 +1199,10 @@ class DVModifier {
       );
 
   DVModifier margin(double value) =>
-      _copyWith(marginValue: EdgeInsets.all(value));
+      _copyWith(marginValue: .all(value));
 
   DVModifier rounded(double value) =>
-      _copyWith(borderRadius: BorderRadius.circular(value));
+      _copyWith(borderRadius: .circular(value));
 
   /// Corners that are not all the same.
   ///
@@ -2241,7 +2241,7 @@ class DVBox<T> extends StatelessWidget {
     final DVMediaSource? video = m?.bgVideo;
     if (video != null) {
       content = Stack(
-        fit: StackFit.passthrough,
+        fit: .passthrough,
         children: <Widget>[
           Positioned.fill(child: DVBackgroundVideo(source: video)),
           if (content != null) content,
@@ -2486,7 +2486,7 @@ class DVBox<T> extends StatelessWidget {
         break;
       case _DVBoxLayout.horizontalScrollable:
         result = SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+          scrollDirection: .horizontal,
           child: Row(children: spaced),
         );
         break;
@@ -2548,7 +2548,7 @@ class DVBox<T> extends StatelessWidget {
     final List<Widget> p = <Widget>[pane(0), pane(1), pane(2)];
     // Two stacked in one place, for a side two panes share.
     Widget pair(Widget a, Widget b) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             Expanded(child: a),
             SizedBox(height: _spacing),
@@ -2582,10 +2582,10 @@ class DVBox<T> extends StatelessWidget {
       }
       return vertical
           ? Row(
-              textDirection: TextDirection.ltr,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              textDirection: .ltr,
+              crossAxisAlignment: .stretch,
               children: out)
-          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: out);
+          : Column(crossAxisAlignment: .stretch, children: out);
     }
 
     final List<DVFold> folds = context.screen.folds;
@@ -2604,7 +2604,7 @@ class DVBox<T> extends StatelessWidget {
     }
     if (context.screen.isDesktop) {
       return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Expanded(child: p[0]),
           SizedBox(width: _spacing),
@@ -2616,7 +2616,7 @@ class DVBox<T> extends StatelessWidget {
     }
     if (context.screen.isAtLeastTablet) {
       return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Expanded(child: sides[0]),
           SizedBox(width: _spacing),
@@ -2625,8 +2625,8 @@ class DVBox<T> extends StatelessWidget {
       );
     }
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         p[0],
         SizedBox(height: _spacing),
@@ -2656,7 +2656,7 @@ class DVBox<T> extends StatelessWidget {
       final Rect crease = fold.bounds;
       if (fold.isVertical) {
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             SizedBox(width: crease.left, child: first),
             SizedBox(width: crease.width),
@@ -2665,7 +2665,7 @@ class DVBox<T> extends StatelessWidget {
         );
       }
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           SizedBox(height: crease.top, child: first),
           SizedBox(height: crease.height),
@@ -2675,7 +2675,7 @@ class DVBox<T> extends StatelessWidget {
     }
     if (context.screen.isAtLeastTablet) {
       return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Expanded(child: first),
           SizedBox(width: _spacing),
@@ -2684,8 +2684,8 @@ class DVBox<T> extends StatelessWidget {
       );
     }
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: <Widget>[first, SizedBox(height: _spacing), second],
     );
   }
@@ -2718,7 +2718,7 @@ class DVBox<T> extends StatelessWidget {
         return SizedBox(
           height: _modifier?.heightValue ?? 180,
           child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+            scrollDirection: .horizontal,
             itemCount: items.length,
             itemBuilder: (context, index) => builder(context, items[index]),
             separatorBuilder: (_, __) => SizedBox(width: _spacing),
@@ -2767,12 +2767,12 @@ class DVBox<T> extends StatelessWidget {
       columns[i % count].add(children[i]);
     }
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         for (int i = 0; i < columns.length; i++)
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: _spaced(columns[i]),
             ),
           ),
@@ -6890,7 +6890,7 @@ class _OAuthConsentPageState extends State<_OAuthConsentPage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Material(
-          type: MaterialType.transparency,
+          type: .transparency,
           child: DVBox.list(<Widget>[
             if (_loading) const DVText('Loading the request...'),
             if (error != null)
@@ -7158,7 +7158,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: Material(
-          type: MaterialType.transparency,
+          type: .transparency,
           child: _dvAutofillForm(DVBox.list([
             _dvAccountHeading('Sign in to your account'),
             if (!_awaitingCode) ...<Widget>[
@@ -7167,7 +7167,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
+                textInputAction: .next,
                 autofillHints: const <String>[
                   AutofillHints.username,
                   AutofillHints.email,
@@ -7179,7 +7179,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
                 autofillHints: const <String>[AutofillHints.password],
-                textInputAction: TextInputAction.done,
+                textInputAction: .done,
                 onSubmitted: (_) => unawaited(_submit()),
               ),
             ] else
@@ -7300,7 +7300,7 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: Material(
-          type: MaterialType.transparency,
+          type: .transparency,
           child: DVBox.list([
             DVText(_useRecovery
                 ? 'Enter one of your recovery codes.'
@@ -7378,12 +7378,12 @@ Widget _dvAccountHeading(String text) =>
 Widget _dvAccountFrame(List<Widget> children) => LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) =>
           SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
             child: Material(
-              type: MaterialType.transparency,
+              type: .transparency,
               child: DVBox.list(children),
             ),
           ),
@@ -7901,7 +7901,7 @@ class _SignUpPageState extends State<_SignUpPage> {
         controller: _email,
         decoration: const InputDecoration(labelText: 'Email'),
         keyboardType: TextInputType.emailAddress,
-        textInputAction: TextInputAction.next,
+        textInputAction: .next,
         autofillHints: const <String>[
           AutofillHints.username,
           AutofillHints.email,
@@ -7913,7 +7913,7 @@ class _SignUpPageState extends State<_SignUpPage> {
         decoration: const InputDecoration(labelText: 'Password'),
         obscureText: true,
         autofillHints: const <String>[AutofillHints.newPassword],
-        textInputAction: TextInputAction.done,
+        textInputAction: .done,
         onSubmitted: (_) => unawaited(_submit()),
       ),
       if (error != null) _dvAccountKeyed('dv-signup-error', DVText(error)),
@@ -9038,7 +9038,7 @@ class PageTransitionSpec {
   });
 
   static const none = PageTransitionSpec(
-      type: DvTransition.none, duration: Duration.zero, curve: Curves.linear);
+      type: DvTransition.none, duration: .zero, curve: Curves.linear);
 }
 
 abstract class DartvelPage extends StatelessWidget {
@@ -9427,7 +9427,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
         // those widgets look for without painting anything over the
         // Cupertino background.
         child: Material(
-          type: MaterialType.transparency,
+          type: .transparency,
           child: DefaultTextStyle(
             style: CupertinoTheme.of(context).textTheme.textStyle,
             child: _body(child),
@@ -9549,7 +9549,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // stops the pointer reaching the selection below it, and the route's own
     // detector, which sits above the page, still gets it.
     return Stack(
-      fit: StackFit.passthrough,
+      fit: .passthrough,
       children: <Widget>[
         framed,
         PositionedDirectional(
@@ -9558,7 +9558,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
           bottom: 0,
           width: dvBackSwipeEdgeWidth,
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             excludeFromSemantics: true,
           ),
         ),

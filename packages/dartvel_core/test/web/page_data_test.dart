@@ -91,7 +91,7 @@ void main() {
       await cache.resolve(request(), resolver, DVPageDataMode.staleWhileRevalidate);
       now = 11;
       expect((await cache.resolve(request(), resolver, DVPageDataMode.staleWhileRevalidate))!.title, 'v1');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect((await cache.resolve(request(), resolver, DVPageDataMode.staleWhileRevalidate))!.title, 'v2');
     });
 

@@ -22,7 +22,7 @@ void main() {
         tester,
         const DVBox.row(
           <Widget>[DVText('left'), DVText('right')],
-          align: DVAlign.spaceBetween,
+          align: .spaceBetween,
           spacing: 0,
         ),
       );
@@ -55,7 +55,7 @@ void main() {
         tester,
         const DVBox.row(
           <Widget>[DVText('mid')],
-          align: DVAlign.center,
+          align: .center,
           spacing: 0,
         ),
       );
@@ -72,7 +72,7 @@ void main() {
           height: 400,
           child: DVBox.list(
             <Widget>[DVText('top'), DVText('bottom')],
-            align: DVAlign.spaceBetween,
+            align: .spaceBetween,
             spacing: 0,
           ),
         ),
@@ -123,7 +123,7 @@ void main() {
       await show(
         tester,
         Align(
-          alignment: Alignment.topLeft,
+          alignment: .topLeft,
           child: DVBox(
             const DVText('column'),
             const DVModifier().maxWidth(400),
@@ -164,7 +164,7 @@ void main() {
           child: DVBox.list(
             <Widget>[DVText('a')],
             spacing: 0,
-            crossAlign: DVCrossAlign.start,
+            crossAlign: .start,
           ),
         ),
       );
@@ -185,7 +185,7 @@ void main() {
                 DVBox.list(
                   <Widget>[DVText(n), DVText('label $n')],
                   spacing: 0,
-                  crossAlign: DVCrossAlign.start,
+                  crossAlign: .start,
                 ),
             ],
           ),
@@ -206,7 +206,7 @@ void main() {
           child: DVBox.list(
             <Widget>[DVText('a')],
             spacing: 0,
-            crossAlign: DVCrossAlign.center,
+            crossAlign: .center,
           ),
         ),
       );

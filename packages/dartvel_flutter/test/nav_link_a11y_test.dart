@@ -61,7 +61,7 @@ String? focusedLinkPath(WidgetTester tester) {
 }
 
 Widget threeLinks() => const Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         DVNavLink(to: DVRouteTarget('/one'), child: DVText('One')),
         DVNavLink(to: DVRouteTarget('/two'), child: DVText('Two')),
@@ -143,7 +143,7 @@ void main() {
       // Tabbing onto something that does nothing is worse than not reaching
       // it: the keyboard user cannot tell it is disabled.
       await pump(tester, const Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: <Widget>[
           DVNavLink(
             to: DVRouteTarget('/one'),

@@ -35,7 +35,7 @@ void main() {
     });
 
     test('any text styling is enough to mean it', () {
-      expect(() => const DVModifier().fontWeight(FontWeight.w800).height(1.05),
+      expect(() => const DVModifier().fontWeight(.w800).height(1.05),
           throwsA(isA<AssertionError>()));
       expect(() => const DVModifier().letterSpacing(0.4).height(1.2),
           throwsA(isA<AssertionError>()));

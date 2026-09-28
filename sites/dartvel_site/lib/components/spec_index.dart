@@ -27,7 +27,7 @@ Widget _docsPlatformIndex(BuildContext context) {
         DVBox.list(<Widget>[
           DVText(group.toUpperCase()).modifier(const DVModifier()
               .fontSize(12)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .letterSpacing(1.2)
               .color(palette.faint)
               .semanticHeading(3)),
@@ -41,8 +41,8 @@ Widget _docsPlatformIndex(BuildContext context) {
                   href: covered[section]?.href,
                 ),
               ),
-        ], spacing: 4, crossAlign: DVCrossAlign.stretch),
-  ], spacing: 22, crossAlign: DVCrossAlign.stretch);
+        ], spacing: 4, crossAlign: .stretch),
+  ], spacing: 22, crossAlign: .stretch);
 }
 
 /// One section: its name, linked when a page covers it, and its status.
@@ -56,7 +56,7 @@ Widget _docsIndexRow(
   final Palette palette = Palette.of(context);
   final Widget name = Prose(section, const DVModifier()
       .fontSize(15)
-      .fontWeight(FontWeight.w500)
+      .fontWeight(.w500)
       .color(href == null ? palette.ink : palette.accent));
   return DVBox.row(<Widget>[
     Flexible(
@@ -64,18 +64,18 @@ Widget _docsIndexRow(
           ? name
           : DVNavLink(
               to: DVRouteTarget(href),
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const .symmetric(vertical: 4),
               child: name,
             ),
     ),
     DVText(shipped ? 'Shipped' : 'Partly built').modifier(const DVModifier()
         .fontSize(12)
-        .fontWeight(FontWeight.w700)
+        .fontWeight(.w700)
         .color(shipped ? palette.accent : palette.ink)
         .paddingSymmetric(horizontal: 9, vertical: 3)
         .backgroundColor(shipped
             ? palette.accent.withValues(alpha: 0.12)
             : const Color(0xFFFFC857).withValues(alpha: 0.45))
         .rounded(999)),
-  ], spacing: 12, align: DVAlign.spaceBetween, crossAlign: DVCrossAlign.center);
+  ], spacing: 12, align: .spaceBetween, crossAlign: .center);
 }

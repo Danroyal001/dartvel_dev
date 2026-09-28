@@ -88,7 +88,7 @@ void main() {
         store.changes.listen(changed.add);
         await store.save(_scene('a'));
         await store.delete('a');
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         expect(changed, <String>['a', 'a']);
       });
     });

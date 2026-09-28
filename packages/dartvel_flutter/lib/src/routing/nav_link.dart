@@ -589,7 +589,7 @@ class _DVNavLinkState extends State<DVNavLink> {
               ),
             },
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               // Everything but the mouse. Its primary button is handled on the
               // press, above, and a release that also counted as a tap would
               // follow the link twice whenever the link outlives the
@@ -611,7 +611,7 @@ class _DVNavLinkState extends State<DVNavLink> {
                 // theme's own colour so it reads in light and dark.
                 decoration: BoxDecoration(
                   color: _focused ? Theme.of(context).focusColor : null,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: .circular(4),
                 ),
                 child: Padding(padding: widget.padding, child: widget.child),
               ),
@@ -657,17 +657,17 @@ class _DVLinkPreviewCard extends StatelessWidget {
         // inside must not activate whatever it happens to be showing.
         child: Material(
           elevation: 12,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
+          borderRadius: .circular(12),
+          clipBehavior: .antiAlias,
           child: SizedBox.fromSize(
             size: _size,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 Expanded(
                   child: FittedBox(
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topLeft,
+                    fit: .cover,
+                    alignment: .topLeft,
                     child: SizedBox(
                       width: 1200,
                       height: 850,
@@ -690,7 +690,7 @@ class _DVLinkPreviewCard extends StatelessWidget {
                   child: Text(
                     path,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),

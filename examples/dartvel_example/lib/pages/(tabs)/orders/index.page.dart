@@ -67,10 +67,10 @@ Widget _ordersPage(BuildContext context) => (() {
           return DVBox.list([
             for (final Order order in mine)
               Material(
-                type: MaterialType.transparency,
+                type: .transparency,
                 child: InkWell(
                   key: Key('order-${order.id}'),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: .circular(18),
                   onTap: () =>
                       DV.Navigation.navigate(DVRoutes.ordersId(id: order.id)),
                   child: DVBox.row(
@@ -92,7 +92,7 @@ Widget _ordersPage(BuildContext context) => (() {
                       Icon(Icons.chevron_right, color: p.inkFaint),
                     ],
                     spacing: 12,
-                    crossAlign: DVCrossAlign.center,
+                    crossAlign: .center,
                   ).modifier(cardStyle(p)),
                 ),
               ),

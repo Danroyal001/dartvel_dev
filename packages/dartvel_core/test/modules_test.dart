@@ -97,7 +97,7 @@ void main() {
       store.setLifecycle(DVModuleLifecycle.loading);
       store.setLifecycle(DVModuleLifecycle.mounted);
       store.setLifecycle(DVModuleLifecycle.active);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <DVModuleLifecycle>[
         DVModuleLifecycle.loading,

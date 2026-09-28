@@ -20,7 +20,7 @@ Widget longPage({bool findable = true}) => MaterialApp(
         spec: DVPageScaffoldSpec(title: 'Policy', findable: findable),
         child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Semantics(
                 headingLevel: 1,
@@ -28,7 +28,7 @@ Widget longPage({bool findable = true}) => MaterialApp(
               ),
               for (int i = 0; i < 60; i++)
                 Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const .all(8),
                   child: Text('Paragraph $i says something about records.'),
                 ),
               const Text('Records are deleted after seven years.'),

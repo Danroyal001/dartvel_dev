@@ -65,9 +65,9 @@ abstract final class DVBrowserMenu {
         child: IgnorePointer(
           child: Material(
             color: const Color(0xE6202124),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: .circular(6),
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: .symmetric(horizontal: 10, vertical: 6),
               child: Text(hint,
                   style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13)),
             ),

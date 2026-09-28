@@ -239,11 +239,11 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
       color: DVStudioStyle.canvas,
       child: phone
           ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[body, _bottomBar(sections)],
             )
           : Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[_rail(sections), body],
             ),
     );
@@ -256,9 +256,9 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     return Container(
       key: const ValueKey<String>('dv-studio-bottom-bar'),
       color: DVStudioStyle.rail,
-      padding: EdgeInsets.only(bottom: inset),
+      padding: .only(bottom: inset),
       child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+        scrollDirection: .horizontal,
         child: Row(
           children: <Widget>[
             for (final DVStudioSection section in sections)
@@ -347,7 +347,7 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
         selected ? const Color(0xFFFFFFFF) : DVStudioStyle.railInk;
     return GestureDetector(
       key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: widget.onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -355,15 +355,15 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
         onExit: (_) => setState(() => _hover = false),
         child: Container(
           width: 64,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          margin: const .symmetric(vertical: 2),
+          padding: const .symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: selected
                 ? DVStudioStyle.railSelected
                 : _hover
                     ? const Color(0xFF1F1F29)
                     : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: .circular(10),
           ),
           child: Column(
             children: <Widget>[
@@ -374,7 +374,7 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
                   color: selected
                       ? DVStudioStyle.accent
                       : const Color(0x00000000),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: .circular(8),
                 ),
                 child: Icon(
                   widget.section.icon ?? DVStudioIcons.section,
@@ -387,7 +387,7 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
               // rail is read, and a longer one (or a larger system font) must
               // still fit the rail's width.
               FittedBox(
-                fit: BoxFit.scaleDown,
+                fit: .scaleDown,
                 child: DVText(widget.section.label).modifier(
                   const DVModifier()
                       .fontSize(10.5)
@@ -773,7 +773,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // The page list on top, where a new page is started, and the overview
       // under it: side by side they left the overview 34 points.
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
             height: 240,
@@ -788,7 +788,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       );
     }
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           width: 280,
@@ -805,7 +805,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _pageList() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: 'Pages',
@@ -814,9 +814,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         // The new-page field comes first: it is the one thing on this panel
         // that starts work, and it is what the tests type into.
         Padding(
-          padding: const EdgeInsets.all(DVStudioStyle.space3),
+          padding: const .all(DVStudioStyle.space3),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               DVStudioTextInput(
                 value: _newRoute,
@@ -844,25 +844,25 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         Container(height: 1, color: DVStudioStyle.line),
         Padding(
-          padding: const EdgeInsets.fromLTRB(DVStudioStyle.space4,
+          padding: const .fromLTRB(DVStudioStyle.space4,
               DVStudioStyle.space4, DVStudioStyle.space4, DVStudioStyle.space2),
           child: DVStudioStyle.overline('Site'),
         ),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.symmetric(
+            padding: const .symmetric(
                 horizontal: DVStudioStyle.space4, vertical: DVStudioStyle.space2),
             child: DVStudioStyle.caption('Could not read pages: $_error',
                 color: DVStudioStyle.danger),
           ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+            padding: const .only(bottom: DVStudioStyle.space4),
             children: <Widget>[
               ..._routeRows(withSubtitles: true),
               if (_routes.isEmpty && _error == null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: const .symmetric(
                       horizontal: DVStudioStyle.space4,
                       vertical: DVStudioStyle.space2),
                   child: DVStudioStyle.caption('No stored pages yet.'),
@@ -966,13 +966,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _dashboard() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(_phone ? DVStudioStyle.space4 : DVStudioStyle.space8),
+      padding: .all(_phone ? DVStudioStyle.space4 : DVStudioStyle.space8),
       child: Align(
-        alignment: Alignment.topCenter,
+        alignment: .topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1120),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               DVStudioStyle.title('Site overview'),
               const SizedBox(height: DVStudioStyle.space1),
@@ -988,7 +988,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   final Widget guide = _guideCard();
                   if (!wide) {
                     return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: .stretch,
                       children: <Widget>[
                         pages,
                         const SizedBox(height: DVStudioStyle.space4),
@@ -997,7 +997,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                     );
                   }
                   return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
                     children: <Widget>[
                       Expanded(flex: 7, child: pages),
                       const SizedBox(width: DVStudioStyle.space4),
@@ -1134,9 +1134,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _pagesCard() {
     return DVStudioStyle.card(
-      padding: const EdgeInsets.all(DVStudioStyle.space5),
+      padding: const .all(DVStudioStyle.space5),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -1202,28 +1202,28 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _guideCard() {
     Widget step(IconData icon, String title, String body) => Padding(
-          padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+          padding: const .only(bottom: DVStudioStyle.space4),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Container(
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
                   color: DVStudioStyle.accentSoft,
-                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                  borderRadius: .circular(DVStudioStyle.radius),
                 ),
                 child: Icon(icon, size: 16, color: DVStudioStyle.accent),
               ),
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     DVText(title).modifier(const DVModifier()
                         .fontSize(13)
                         .color(DVStudioStyle.ink)
-                        .fontWeight(FontWeight.w600)),
+                        .fontWeight(.w600)),
                     const SizedBox(height: 2),
                     DVStudioStyle.caption(body),
                   ],
@@ -1233,9 +1233,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           ),
         );
     return DVStudioStyle.card(
-      padding: const EdgeInsets.all(DVStudioStyle.space5),
+      padding: const .all(DVStudioStyle.space5),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.heading('How Studio works'),
           const SizedBox(height: DVStudioStyle.space4),
@@ -1327,7 +1327,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     final bool narrow = _narrow;
     final StudioReviewSession? review = _review;
     final Widget editor = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         _toolbar(controller),
         // The selected element's fields as formulas, Excel's way: pick a
@@ -1403,7 +1403,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         : DVStudioInspector(controller: controller);
     if (_phone) {
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Expanded(
             child: ColoredBox(
@@ -1422,7 +1422,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       );
     }
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           width: narrow ? 220 : 264,
@@ -1454,12 +1454,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       return Expanded(
         child: GestureDetector(
           key: ValueKey<String>('dv-studio-pane-${pane.name}'),
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: () => setState(() => _pane = pane),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const .symmetric(vertical: 8),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: <Widget>[
                 Icon(icon,
                     size: 20,
@@ -1529,10 +1529,10 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// page that has just been published should appear in the list at once.
   Widget _leftColumn(DVStudioEditorController controller) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(DVStudioStyle.space4,
+          padding: const .fromLTRB(DVStudioStyle.space4,
               DVStudioStyle.space3, DVStudioStyle.space4, DVStudioStyle.space1),
           child: DVStudioStyle.overline('Pages'),
         ),
@@ -1540,26 +1540,26 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           constraints: const BoxConstraints(maxHeight: 184),
           child: ListView(
             shrinkWrap: true,
-            padding: const EdgeInsets.only(bottom: DVStudioStyle.space2),
+            padding: const .only(bottom: DVStudioStyle.space2),
             children: _routeRows(withSubtitles: false),
           ),
         ),
         Container(
           height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space3),
+          padding: const .symmetric(horizontal: DVStudioStyle.space3),
           decoration: const BoxDecoration(
             border: Border(
               top: BorderSide(color: DVStudioStyle.line),
               bottom: BorderSide(color: DVStudioStyle.line),
             ),
           ),
-          alignment: Alignment.centerLeft,
+          alignment: .centerLeft,
           // Scaled down rather than overflowing: the panel narrows on a small
           // screen, and a label wider than it was measured for must not break
           // the layout.
           child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+            fit: .scaleDown,
+            alignment: .centerLeft,
             child: DVStudioSegmented<_DVStudioLeftPanel>(
               segments: const <DVStudioSegment<_DVStudioLeftPanel>>[
                 DVStudioSegment<_DVStudioLeftPanel>(
@@ -1593,7 +1593,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     final bool stored = _routes.contains(route);
     return Container(
       height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space3),
+      padding: const .symmetric(horizontal: DVStudioStyle.space3),
       decoration: const BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -1618,10 +1618,10 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               Flexible(
                 flex: 4,
                 child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
+                  fit: .scaleDown,
+                  alignment: .centerLeft,
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: <Widget>[
                       DVStudioStyle.heading(route),
                       const SizedBox(width: DVStudioStyle.space2),
@@ -1650,8 +1650,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               Flexible(
                 flex: 5,
                 child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
+                  fit: .scaleDown,
+                  alignment: .centerRight,
                   child: _actions(controller, compact: compact),
                 ),
               ),
@@ -1664,7 +1664,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Widget _viewportControls() {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         DVStudioSegmented<_DVStudioDevice>(
           segments: <DVStudioSegment<_DVStudioDevice>>[
@@ -1709,7 +1709,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           compact: compact, toggleCode: toggleCode);
     }
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         _keyedIcon('dv-studio-undo', DVStudioIcons.undo, 'Undo',
             controller.canUndo ? controller.undo : null),
@@ -1780,11 +1780,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         (open.state == DVContentState.approved ||
             open.state == DVContentState.scheduled);
     final Widget divider = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
+      padding: const .symmetric(horizontal: DVStudioStyle.space2),
       child: Container(width: 1, height: 24, color: DVStudioStyle.line),
     );
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         _keyedIcon('dv-studio-undo', DVStudioIcons.undo, 'Undo',
             controller.canUndo ? controller.undo : null),
@@ -1873,7 +1873,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return Container(
       color: const Color(0xFF12121C),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(DVStudioStyle.space6),
+        padding: const .all(DVStudioStyle.space6),
         child: DVText(controller.document.toDartSource()).modifier(
           const DVModifier()
               .fontSize(13)
@@ -1951,7 +1951,7 @@ class _DVStudioDeployMenu extends StatelessWidget {
       barrierDismissible: true,
       barrierLabel: 'Close',
       barrierColor: const Color(0x00000000),
-      transitionDuration: Duration.zero,
+      transitionDuration: .zero,
       pageBuilder: (BuildContext dialog, _, __) => Stack(
         children: <Widget>[
           Positioned(
@@ -1977,8 +1977,8 @@ class _DVStudioDeployMenu extends StatelessWidget {
                 return Material(
                   color: DVStudioStyle.surface,
                   elevation: 8,
-                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
-                  clipBehavior: Clip.antiAlias,
+                  borderRadius: .circular(DVStudioStyle.radius),
+                  clipBehavior: .antiAlias,
                   // Every platform is listed, which is taller than a laptop
                   // screen below the toolbar; the menu scrolls instead.
                   child: ConstrainedBox(
@@ -1987,20 +1987,20 @@ class _DVStudioDeployMenu extends StatelessWidget {
                           overlay.size.height - origin.dy - box.size.height - 16),
                     ),
                     child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const .symmetric(vertical: 8),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: .min,
+                      crossAxisAlignment: .stretch,
                       children: <Widget>[
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                          padding: const .fromLTRB(16, 4, 16, 4),
                           child: DVStudioStyle.overline('Deploy to'),
                         ),
                         // Only the targets scroll: Deploy now stays in reach.
                         Flexible(
                           child: SingleChildScrollView(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment: .stretch,
                               children: <Widget>[
                         for (final DVDeployTarget target
                             in DVDeployTarget.values)
@@ -2009,10 +2009,10 @@ class _DVStudioDeployMenu extends StatelessWidget {
                                 'dv-studio-deploy-target-${target.name}'),
                             onTap: () => toggle(target),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
+                              padding: const .symmetric(
                                   horizontal: 12, vertical: 6),
                               child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: .start,
                                 children: <Widget>[
                                   Icon(
                                     ticked.contains(target)
@@ -2054,7 +2054,7 @@ class _DVStudioDeployMenu extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const .symmetric(horizontal: 12),
                           child: _keyedControl(
                             'dv-studio-deploy-now',
                             'Deploy now',
@@ -2066,7 +2066,7 @@ class _DVStudioDeployMenu extends StatelessWidget {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                          padding: const .fromLTRB(16, 4, 16, 6),
                           child: Text(
                             count == DVDeployTarget.values.length
                                 ? 'To every target'
@@ -2082,14 +2082,14 @@ class _DVStudioDeployMenu extends StatelessWidget {
                           key: const ValueKey<String>('dv-studio-revert'),
                           onTap: () => Navigator.of(dialog).pop('restore'),
                           child: const Padding(
-                            padding: EdgeInsets.fromLTRB(16, 10, 16, 6),
+                            padding: .fromLTRB(16, 10, 16, 6),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: .start,
                               children: <Widget>[
                                 Text('Restore original page',
                                     style: TextStyle(
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: .w600,
                                         color: DVStudioStyle.ink)),
                                 Text(
                                     'Brings back the page from your last build.',
@@ -2143,9 +2143,9 @@ class _DVStudioDeployPlatformLine extends StatelessWidget {
       DVDeployStatus.notYet => DVStudioStyle.faint,
     };
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const .only(top: 4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -2156,15 +2156,15 @@ class _DVStudioDeployPlatformLine extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const .symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   border: Border.all(color: tone),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: .circular(4),
                 ),
                 child: Text(platform.status.label,
                     style: TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: .w600,
                         color: tone)),
               ),
             ],
@@ -2239,14 +2239,14 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
             color: DVStudioStyle.surface,
             border: Border.all(
                 color: _hover ? DVStudioStyle.accent : DVStudioStyle.line),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+            borderRadius: .circular(DVStudioStyle.radiusLarge),
             boxShadow: _hover ? DVStudioStyle.shadow : null,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(
+                borderRadius: const .vertical(
                     top: Radius.circular(DVStudioStyle.radiusLarge - 1)),
                 child: Container(
                   key: ValueKey<String>('dv-studio-thumbnail-$route'),
@@ -2262,7 +2262,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
               ),
               Container(height: 1, color: DVStudioStyle.line),
               Padding(
-                padding: const EdgeInsets.all(DVStudioStyle.space3),
+                padding: const .all(DVStudioStyle.space3),
                 child: Row(
                   children: <Widget>[
                     Icon(route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
@@ -2272,7 +2272,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
                       child: DVText(name).modifier(const DVModifier()
                           .fontSize(13)
                           .color(DVStudioStyle.ink)
-                          .fontWeight(FontWeight.w600)),
+                          .fontWeight(.w600)),
                     ),
                     widget.state ?? DVStudioStyle.dot(DVStudioStyle.success),
                   ],
@@ -2302,20 +2302,20 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
               (box.maxHeight.isFinite ? box.maxHeight : 150) / scale;
           return ClipRect(
             child: OverflowBox(
-              alignment: Alignment.topLeft,
+              alignment: .topLeft,
               minWidth: pageWidth,
               maxWidth: pageWidth,
               minHeight: 0,
               maxHeight: double.infinity,
               child: Transform.scale(
                 scale: scale,
-                alignment: Alignment.topLeft,
+                alignment: .topLeft,
                 child: Container(
                   key: const ValueKey<String>('dv-studio-thumbnail-sheet'),
                   width: pageWidth,
                   constraints: BoxConstraints(minHeight: pageHeight),
                   color: const Color(0xFFFFFFFF),
-                  alignment: Alignment.topLeft,
+                  alignment: .topLeft,
                   child: DVPageDocumentRenderer(document),
                 ),
               ),

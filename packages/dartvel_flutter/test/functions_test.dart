@@ -386,7 +386,7 @@ void main() {
       await store.delete('welcome');
       expect(await store.load('welcome'), isNull);
 
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(changed, <String>['welcome', 'welcome', 'welcome']);
       await subscription.cancel();
     });

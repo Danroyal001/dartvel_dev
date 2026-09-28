@@ -224,7 +224,7 @@ abstract final class DVMediaTransportKeys {
         await controller.pause();
       case DVTransportAction.stop:
         await controller.pause();
-        unawaited(controller.seek(Duration.zero));
+        unawaited(controller.seek(.zero));
       case DVTransportAction.seekForward:
         unawaited(controller.seek(controller.position.value + seekStep));
       case DVTransportAction.seekBackward:
@@ -540,7 +540,7 @@ class _DVStandardControls extends StatelessWidget {
     final Duration duration = controller.duration.value;
     final Duration position = controller.position.value;
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: Row(
         children: <Widget>[
           IconButton(

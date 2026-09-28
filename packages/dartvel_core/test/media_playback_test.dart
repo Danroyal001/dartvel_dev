@@ -11,7 +11,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
-Future<void> pump() => Future<void>.delayed(Duration.zero);
+Future<void> pump() => Future<void>.delayed(.zero);
 
 void main() {
   late DVFakeMediaPlayerBackend backend;

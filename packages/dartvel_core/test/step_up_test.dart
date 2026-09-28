@@ -126,7 +126,7 @@ void main() {
           return sent[i] == 1 ? _stepUp() : _ok;
         }),
     ];
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     presented.complete(true);
     final List<DVHttpResponse> answers = await Future.wait(calls);
     expect(challenged, 1);

@@ -60,7 +60,7 @@ Widget _cartPage(BuildContext context) => (() {
                         '${line.coffee.origin} · ${line.coffee.weightGrams} g',
                       ).modifier(p.muted.fontSize(13).maxLines(1)),
                       Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: .centerLeft,
                         child: QuantityStepper(
                           key: Key('bag-quantity-${line.coffee.slug}'),
                           value: line.quantity,
@@ -76,7 +76,7 @@ Widget _cartPage(BuildContext context) => (() {
                   DVText(formatPrice(line.totalCents)).modifier(p.headline),
                 ],
                 spacing: 14,
-                crossAlign: DVCrossAlign.start,
+                crossAlign: .start,
               ).modifier(cardStyle(p, padding: 12)),
           ], spacing: 12),
           DVBox.list([

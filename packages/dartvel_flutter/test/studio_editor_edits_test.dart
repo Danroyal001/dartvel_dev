@@ -35,7 +35,7 @@ void main() {
     c.move('a', parent: 'b', index: 0);
     c.remove('c');
 
-    return Future<void>.delayed(Duration.zero).then((_) {
+    return Future<void>.delayed(.zero).then((_) {
       expect(seen.map((DVStudioEdit e) => e.kind), <String>['insert', 'update', 'move', 'remove']);
       for (final DVStudioEdit e in seen) {
         expect(DVStudioEdit.fromJson(e.toJson()).toJson(), e.toJson());
@@ -53,7 +53,7 @@ void main() {
     here.move('a', parent: 'b', index: 0);
     here.remove('c');
     here.undo();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(there.document.toJson(), here.document.toJson());
     expect(DVPageDocumentEditor(there.document).find('c'), isNotNull,
@@ -66,7 +66,7 @@ void main() {
     c.edits.listen(seen.add);
 
     c.apply(DVStudioEdit.update('a', DVPageNode(id: 'a', type: 'text', properties: <String, Object?>{'text': 'Remote'})));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(seen, isEmpty);
     expect(c.canUndo, isFalse);

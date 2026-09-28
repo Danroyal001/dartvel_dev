@@ -19,7 +19,7 @@ double gapBetweenChildren(WidgetTester tester) {
 }
 
 Widget wrap(Widget child) => Directionality(
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
       child: Center(child: child),
     );
 

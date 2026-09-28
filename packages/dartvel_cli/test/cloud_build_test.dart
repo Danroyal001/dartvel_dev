@@ -45,7 +45,7 @@ void main() {
               'DARTVEL_CLOUD_TOKEN': 'tok_1',
             },
         log: logs.add,
-        retryDelay: Duration.zero,
+        retryDelay: .zero,
       );
 
   DVCloudBuildRequest request({String target = 'android', String? token}) =>
