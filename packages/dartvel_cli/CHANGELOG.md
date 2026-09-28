@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.2
 
 - **Adopt Dartvel without changing routers: go_router, auto_route or
   Flutter's Navigator.** The generated client has `dartvelOnGenerateRoute`

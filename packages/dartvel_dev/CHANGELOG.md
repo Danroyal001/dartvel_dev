@@ -1,3 +1,11 @@
+## 0.9.2
+
+- Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.2: the web
+  page shows its text and a loading bar before Flutter starts, a DV loading
+  bar for page loads and `DV.progress`, and Dartvel pages in a host on
+  auto_route or Flutter's Navigator. The constraints on its siblings move
+  with them.
+
 ## 0.9.1
 
 - Released with dartvel_core, dartvel_shelf, dartvel_flutter and dartvel_cli

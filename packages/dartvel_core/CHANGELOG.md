@@ -1,3 +1,8 @@
+## 0.9.2
+
+- DV-BROWNFIELD-001 to 003 are registered with the other diagnostics, as the
+  specification's new Brownfield section lists them.
+
 ## 0.9.1
 
 - Studio signs people in itself: a signed-out visit to a Studio page is sent
