@@ -222,7 +222,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
           id: 'foreign',
           title: 'Wrap a package from any ecosystem',
           children: <Widget>[
-            DocsText('dartvel add turns a Dart package, an npm package, a C '
+            DocsText('`dartvel add` turns a Dart package, an npm package, a C '
                 'library, a Rust crate, a WebAssembly binary, a Maven artifact '
                 'or jar, a Swift package or a CocoaPod into a module you call '
                 'as DV.Modules.<id>. Each operation says what it does on a '
@@ -273,14 +273,14 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'source cannot reach throw DVModuleUnavailable naming the '
                   'module, the call and the environment, instead of crossing to '
                   'the backend. --elsewhere noop makes it do nothing.',
-              'dartvel build refuses a call it can see reaching an unavailable '
+              '`dartvel build` refuses a call it can see reaching an unavailable '
                   'operation (DV-MODULE-013), and a call from a target the '
                   'module does not run on (DV-MODULE-014).',
               'dartvel.module.lock pins the source, its digest, the hash of the '
-                  'generated module and the generator version. dartvel inspect '
-                  'modules reports a module edited by hand (DV-MODULE-016).',
+                  'generated module and the generator version. `dartvel inspect '
+                  'modules` reports a module edited by hand (DV-MODULE-016).',
               'npm and WebAssembly calls on the backend need Node on the host '
-                  '(DV-MODULE-020 when it is missing); dartvel build copies Node '
+                  '(DV-MODULE-020 when it is missing); `dartvel build` copies Node '
                   'into a desktop bundle that calls one. Compiling C for the '
                   'browser needs clang and a wasm-ld (a Rust toolchain carries '
                   'one), and a crate needs the wasm32-unknown-unknown target. Building a C library needs '

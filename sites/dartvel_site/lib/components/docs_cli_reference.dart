@@ -9,10 +9,13 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     name: 'add',
     description: 'Resolve a capability source into a module the parent mounts.',
     options: <String>[
-      '    --as         The id the parent knows the module by.',
-      '    --mount      Where the parent serves it.',
-      '    --url        The endpoint a described API is called at. Required for a GraphQL schema, which names no server of its own.',
-      '    --dry-run    Print the installation plan and change nothing.',
+      '    --elsewhere    What an operation does in an environment the source cannot run in, instead of crossing to the backend where it can. Written into the module per operation.',
+      '                   [unavailable, noop]',
+      '    --class        For a JVM library: a class whose static methods the module exposes, dotted. Repeat it for more than one.',
+      '    --as           The id the parent knows the module by.',
+      '    --mount        Where the parent serves it.',
+      '    --url          The endpoint a described API is called at. Required for a GraphQL schema, which names no server of its own.',
+      '    --dry-run      Print the installation plan and change nothing.',
     ],
   ),
   DocsCliCommand(
