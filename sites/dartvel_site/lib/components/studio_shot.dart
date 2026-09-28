@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 import 'site.dart';
 
-/// [asset] is a path under assets/studio, declared in pubspec.yaml, and
+/// [asset] is a path under assets/studio_shots, declared in pubspec.yaml, and
 /// [label] is what a screen reader says in place of the picture.
 @DVFunctionalWidget()
 Widget _studioShot(

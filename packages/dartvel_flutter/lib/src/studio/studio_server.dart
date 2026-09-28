@@ -20,6 +20,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
+import 'studio_sign_in.dart';
 import 'studio_server_transport_stub.dart'
     if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
 
@@ -375,10 +376,34 @@ class DVStudioRemotePageStore extends DVPageStore {
 
 /// The whole of Studio, as a web-server binary serves it.
 class DVStudioApp extends StatelessWidget {
-  const DVStudioApp({super.key, required this.client, this.title = 'Studio'});
+  Uri get _here => location ?? Uri.base;
+
+  bool get _signingIn => _here.path.endsWith('/login');
+
+  /// The mount, from the address of its sign-in: `/__studio/login` is
+  /// `/__studio`.
+  String get _mount {
+    final String path = _here.path;
+    return path.substring(0, path.length - '/login'.length);
+  }
+
+  const DVStudioApp({
+    super.key,
+    required this.client,
+    this.title = 'Studio',
+    this.location,
+    this.open,
+  });
 
   final DVStudioClient client;
   final String title;
+
+  /// The address the app was opened at; the browser's by default. At
+  /// `<mount>/login` the app is Studio's sign-in.
+  final Uri? location;
+
+  /// Loads a path from the server as a page; a full navigation by default.
+  final void Function(String path)? open;
 
   @override
   Widget build(BuildContext context) {
@@ -411,12 +436,20 @@ class DVStudioApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: Material(
-        child: DVStudioScreen(
-          store: DVStudioRemotePageStore(client),
-          sections: dvStudioServerSections(client),
-        ),
-      ),
+      home: _signingIn
+          ? DVStudioSignInScreen(
+              client: client,
+              mount: _mount,
+              from: _here.queryParameters['from'],
+              title: title,
+              open: open ?? dvOpenUrl,
+            )
+          : Material(
+              child: DVStudioScreen(
+                store: DVStudioRemotePageStore(client),
+                sections: dvStudioServerSections(client),
+              ),
+            ),
     );
   }
 }

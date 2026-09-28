@@ -54,8 +54,11 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'With DATABASE_URL set, leave out --database. Add --tenant when '
                   'the account signs in on a tenant other than default.',
-              'Anyone without a grant gets the same answer as a page that does '
-                  'not exist.',
+              'Studio signs people in at /__studio/login, against your app\'s '
+                  'accounts, and does not need your app\'s own /login page. '
+                  'Signed in without a grant, it tells them the account may '
+                  'not open Studio; its files and API answer a stranger as a '
+                  'page that does not exist.',
               'If your app already knows who its operators are, register your '
                   'own rule instead: DV.Auth.authorization.registerAction('
                   '\'Studio.access\', (caller, _) => ...). It replaces the '

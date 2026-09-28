@@ -269,9 +269,11 @@ void reachable() {
       await DVFirstRunOwner.recordPasswordChanged('${rows.first['user_id']}');
       await DVFirstRunOwner.recordSecondFactor('${rows.first['user_id']}');
 
-      expect(await get(shut, '/__studio/'), isNull,
-          reason: 'a request from somebody not signed in is answered exactly '
-              'as a route that does not exist');
+      // Somebody not signed in is sent to Studio's own sign-in, which is
+      // not the setup screen.
+      final Response? stranger = await get(shut, '/__studio/');
+      expect(stranger?.status, 302);
+      expect(stranger!.headers.get('location'), startsWith('/__studio/login?from='));
     });
   });
 }

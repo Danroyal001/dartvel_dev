@@ -3,7 +3,7 @@ library dartvel_cli.build.structured_data;
 
 import 'dart:convert';
 
-import 'static_seo.dart' show dvStaticCanonical;
+import 'route_page.dart' show dvStaticCanonical;
 
 /// JSON-LD describing what this page is.
 ///
