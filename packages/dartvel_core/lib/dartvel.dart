@@ -212,6 +212,7 @@ export 'src/middleware/middleware.dart';
 export 'src/middleware/middleware_runtime.dart';
 export 'src/middleware/page_middleware_keys.dart';
 export 'src/modules/manifest.dart';
+export 'src/modules/module_outcome.dart';
 export 'src/modules/modules.dart';
 // The device side of push. Exported by nothing until now, so the API that
 // registers a device, requests permission and subscribes to a topic was

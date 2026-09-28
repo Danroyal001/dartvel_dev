@@ -209,15 +209,76 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'nothing. Everything is generated before anything is '
                   'written, so a document add cannot read stops the command '
                   'with an empty modules directory.',
-              'A Maven artifact, a Rust crate, an npm package, a Swift '
-                  'package, a WASM binary and a .proto are each named and '
-                  'refused today. They are specified and not built.',
+              'Every other kind of source is wrapped: see the next '
+                  'section. A .proto is the one that is named and refused.',
             ]),
-            DocsNote('Three sources of the ten work today',
-                'A Dartvel project, a local OpenAPI document and a local '
-                'GraphQL schema. The lockfile pins a foreign source and '
-                'detection names all of them, so the rest refuse by name '
-                'instead of pretending not to recognise what is there.'),
+            DocsNote('Every kind of source works but one',
+                'A .proto is named and refused; everything else in the list '
+                'above is generated into a module and pinned in the '
+                'lockfile.'),
+          ],
+        ),
+        DocsSection(
+          id: 'foreign',
+          title: 'Wrap a package from any ecosystem',
+          children: <Widget>[
+            DocsText('dartvel add turns a Dart package, an npm package, a C '
+                'library, a Rust crate, a WebAssembly binary, a Maven artifact '
+                'or jar, a Swift package or a CocoaPod into a module you call '
+                'as DV.Modules.<id>. Each operation says what it does on a '
+                'device, in a browser and on the backend, and the build checks '
+                'your calls against it.'),
+            DocsShell(<String>[
+              'dartvel add pub:slugify@^2.0.0',
+              'dartvel add git:https://github.com/acme/textkit.git#v1.4.0',
+              'dartvel add npm:@acme/text-kit@^3.0.0',
+              'dartvel add vendor/mathkit          # C headers and sources',
+              'dartvel add cargo:vendor/fastmath   # or cargo:<crate>@<version>',
+              'dartvel add wasm:vendor/engine.wasm',
+              'dartvel add maven:com.acme:scanner@4.2.0 --class com.acme.Scanner',
+              'dartvel add swift:vendor/TextKit',
+              'dartvel add pod:CalcKit@^1.0.0',
+              'dartvel inspect modules',
+            ]),
+            DocsCode('modules-dart-package'),
+            DocsTable(columns: <String>[
+              'Source',
+              'Device',
+              'Browser',
+              'Backend',
+            ], rows: <List<String>>[
+              <String>['Dart package', 'the package', 'the package, unless it needs dart:io', 'the package, unless it needs Flutter'],
+              <String>['npm package', '--elsewhere', 'dynamic import() of the bundled package', 'Node, one process per call'],
+              <String>['C library, Rust crate', '@Native, built by the module\'s hook', '--elsewhere', '@Native, built by the hook'],
+              <String>['WebAssembly binary', '--elsewhere', 'WebAssembly.instantiate', 'Node\'s WebAssembly'],
+              <String>['Maven artifact or jar', 'JNI through package:jni, Android only', '--elsewhere', '--elsewhere'],
+              <String>['Swift package or pod', 'C-ABI shim built by the hook, iOS and macOS', '--elsewhere', '--elsewhere'],
+            ]),
+            Bullets(<String>[
+              'Every download is checked against what its registry publishes: '
+                  'pub.dev\'s sha256, npm\'s sha512 integrity, crates.io\'s '
+                  'sha256, Maven Central\'s sha1. git and pod sources are '
+                  'pinned to a commit.',
+              'The module exposes what can cross every environment it runs '
+                  'in: numbers, booleans, strings, lists and maps. What cannot '
+                  'is listed in the module\'s README with the reason: a '
+                  'callback, a generic, an instance method, or a pointer whose '
+                  'owner nobody named (DV-BIND-003).',
+              '--elsewhere unavailable, the default, makes a call from an '
+                  'environment the source cannot reach throw DVModuleUnavailable '
+                  'naming the module, the call and the environment. --elsewhere '
+                  'noop makes it do nothing instead.',
+              'dartvel build refuses a call it can see reaching an unavailable '
+                  'operation (DV-MODULE-013), and a call from a target the '
+                  'module does not run on (DV-MODULE-014).',
+              'dartvel.module.lock pins the source, its digest, the hash of the '
+                  'generated module and the generator version. dartvel inspect '
+                  'modules reports a module edited by hand (DV-MODULE-016).',
+              'npm and WebAssembly calls on the backend need Node on the host '
+                  '(DV-MODULE-020 when it is missing). Building a C library needs '
+                  'a C compiler, a crate needs cargo, and a Swift package or '
+                  'pod needs Xcode.',
+            ]),
           ],
         ),
         DocsSection(
@@ -234,23 +295,19 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'Tree-shaking per environment, so a module with a heavy native '
                   'library costs a web build nothing until a web page calls '
                   'it.',
-              'A declared outcome for each environment a module is called '
-                  'from: real, compat, noop or unavailable, with no default, '
-                  'and DV-MODULE-013, 014 and 017.',
               'Ambient requirements: a module declaring the app lifecycle '
                   'hooks, background work and push registration an SDK such '
                   'as Firebase needs, wired into the target\'s entry points, '
                   'and DV-MODULE-020.',
             ]),
             DocsStatus('Module Sources', missing: <String>[
-              'Fetching and generating every source that is not a Dartvel '
-                  'project, an OpenAPI document or a GraphQL schema.',
-              'The generation pipeline, which picks the interop for each '
-                  'environment lowest cost first: pure Dart, a described '
-                  'API, FFI or JNI, WASM, then an embedded or out-of-process '
-                  'runtime.',
-              '`dartvel inspect modules --json`, and a component library '
-                  'exported with exports: components.',
+              'compat: a generated path from an environment without a '
+                  'carrier to one that has it, such as a browser calling a '
+                  'dart:io package through the backend. Declaring compat is '
+                  'refused with DV-MODULE-017; unavailable and noop work.',
+              'A .proto source, a Swift package with dependencies, and a '
+                  'backend JVM or Swift carrier.',
+              'A component library exported with exports: components.',
             ]),
             DocsStatus('Module Health'),
             DocsStatus('Module Distribution and Trust', missing: <String>[
