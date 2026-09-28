@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **`DVHostedPage`, `dvOnGenerateRoute`, `dvPageFor`**: Dartvel's routes in
+  a host on Navigator 1.0, Navigator 2.0 or auto_route, in a router of their
+  own with their guards, back through Dartvel's stack first, and the web
+  address bar following the page.
+
 - **A loading bar across the top instead of a spinner in the middle.**
   `DvDefaultLoading`, which a deferred page arriving and a page's data
   loading both show, is now the same thin bar the web page shows before its
