@@ -9,8 +9,9 @@
 //
 // For each page in the server's own sitemap.xml: a 200, a <title>, a meta
 // description, and at least [min-words] words in the crawler block. Then:
-// /__studio/ answers an anonymous request exactly as an unknown path does (a
-// 404), and the image endpoint resizes one of the site's images.
+// HEAD / is a 200; a signed-out /__studio/ is sent to /__studio/login, which
+// serves the sign-in, while Studio's files and API answer a stranger as an
+// unknown path does; and the image endpoint resizes one of the site's images.
 //
 // Usage: dart tool/ci/server_pages_check.dart <base-url> [min-words]
 import 'dart:convert';
@@ -91,11 +92,28 @@ Future<void> main(List<String> args) async {
     problems.add('HEAD / answered ${headResponse.statusCode}');
   }
 
-  // A stranger gets what a path nobody serves gets, so the answer does not
-  // say whether Studio is there. On this site an unknown path is the app's
-  // shell, which draws the not-found page, so the two are compared after
-  // taking out the path each was asked for.
-  for (final String studioPath in <String>['/__studio', '/__studio/api/grants']) {
+  // A person arriving at Studio signed out is sent to Studio's own sign-in,
+  // which is served at the mount. Studio's files and its API are not pages:
+  // a stranger asking for them gets what a path nobody serves gets, compared
+  // after taking out the path each was asked for.
+  final (int anonymous, _, _) = await _get(base.resolve('/__studio/'));
+  final HttpClientRequest studioRequest =
+      await _client.getUrl(base.resolve('/__studio/'));
+  studioRequest.followRedirects = false;
+  final HttpClientResponse studioResponse = await studioRequest.close();
+  await studioResponse.drain<void>();
+  final String location = studioResponse.headers.value('location') ?? '';
+  if (anonymous != 302 || !location.startsWith('/__studio/login?from=')) {
+    problems.add('/__studio/ answered an anonymous request $anonymous '
+        '${location.isEmpty ? '' : 'to $location '}rather than sending it to '
+        '/__studio/login');
+  }
+  final (int loginStatus, String loginPage, _) =
+      await _get(base.resolve('/__studio/login'));
+  if (loginStatus != 200 || !loginPage.contains('Sign in to Studio')) {
+    problems.add('/__studio/login answered $loginStatus without the sign-in');
+  }
+  for (final String studioPath in <String>['/__studio/api/grants', '/__studio/graph.json']) {
     final String unknownPath =
         studioPath.replaceFirst('/__studio', '/zz-no-such-page');
     final (int s, String studio, _) = await _get(base.resolve(studioPath));
@@ -107,8 +125,8 @@ Future<void> main(List<String> args) async {
         .replaceAll('zz-no-such-page', '')
         .replaceAll(RegExp(r'/"'), '"');
     if (s != u || strip(studio, studioPath) != strip(unknown, unknownPath)) {
-      problems.add(' answered an anonymous request () '
-          'differently from a path nobody serves ()');
+      problems.add('$studioPath answered an anonymous request ($s) '
+          'differently from a path nobody serves ($u)');
     }
   }
 
