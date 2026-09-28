@@ -801,33 +801,24 @@ class DVStudioApi {
     ]);
     await table.ensureSchema();
     if (done.contains(signature)) return;
-    for (final DVStudioFieldSpec field in spec.fields) {
-      try {
-        await adapter.query(
-          'SELECT ${field.name} FROM ${table.table} LIMIT 0',
-          const <Object?>[],
-        );
-      } on Object {
-        try {
-          await adapter.execute(
-            'ALTER TABLE ${table.table} ADD COLUMN ${field.name} TEXT',
-          );
-        } on Object {
-          // The engine keeps no columns to add: nothing to do.
-        }
-      }
-    }
-    for (final ({String name, List<String> fields, bool unique}) index
-        in dvStudioIndexesOf(spec)) {
-      try {
-        await adapter.execute(
-          'CREATE ${index.unique ? 'UNIQUE ' : ''}INDEX IF NOT EXISTS '
-          '${index.name} ON ${table.table} (${index.fields.join(', ')})',
-        );
-      } on Object {
-        // Checked on every write instead.
-      }
-    }
+    // Through the record layer, which knows how each engine adds a column
+    // and asks for an index: a field added to a designed model gets its
+    // column the first time its records are touched, with no migration.
+    await DVRecordAdapter.over(adapter).ensure(
+      DVRecordShape(
+        collection: table.table,
+        key: spec.key,
+        fields: <String, DVFieldType>{
+          for (final DVStudioFieldSpec field in spec.fields)
+            field.name: DVFieldType.text,
+        },
+        indexes: <DVRecordIndex>[
+          for (final ({String name, List<String> fields, bool unique}) index
+              in dvStudioIndexesOf(spec))
+            DVRecordIndex(index.fields, unique: index.unique),
+        ],
+      ),
+    );
     done.add(signature);
   }
 

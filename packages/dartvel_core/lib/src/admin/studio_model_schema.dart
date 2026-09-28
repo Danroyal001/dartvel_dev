@@ -199,10 +199,25 @@ List<String> dvStudioDefinitionProblems(
       problems.add('$label: only text has a length or a pattern.');
     }
     if (field.pattern != null) {
+      final String pattern = field.pattern!;
       try {
-        RegExp(field.pattern!);
+        RegExp(pattern);
       } on FormatException catch (error) {
         problems.add('$label: the pattern is not valid: ${error.message}');
+      }
+      // A pattern is run against whatever a caller of the data API sends.
+      // One that repeats a repetition -- (a+)+ -- can take the server
+      // exponential time on a string built to make it, so it is refused
+      // here rather than discovered there.
+      if (pattern.length > dvStudioPatternLimit) {
+        problems.add(
+          '$label: a pattern is at most $dvStudioPatternLimit characters.',
+        );
+      } else if (_nestedRepeat.hasMatch(pattern)) {
+        problems.add(
+          '$label: the pattern repeats something that already repeats, which '
+          'can take the server a very long time to check. Simplify it.',
+        );
       }
     }
   }
@@ -246,6 +261,16 @@ List<String> dvStudioDefinitionProblems(
   return problems;
 }
 
+/// The longest pattern a field designed in Studio may have.
+const int dvStudioPatternLimit = 200;
+
+/// The longest text a pattern is run against.
+const int dvStudioPatternInputLimit = 10000;
+
+/// A group holding a repetition, itself repeated: `(a+)+`, `(\w*)*`,
+/// `(x+){2,}`.
+final RegExp _nestedRepeat = RegExp(r'\([^()]*[+*][^()]*\)\s*[+*{]');
+
 /// Why [value] breaks [field]'s rules, or null. [value] is what the record
 /// layer stores: text as text, a number as a number.
 String? dvStudioValueProblem(DVStudioFieldSpec field, Object? value) {
@@ -271,6 +296,9 @@ String? dvStudioValueProblem(DVStudioFieldSpec field, Object? value) {
       return '$label has to be at most ${field.maxLength} characters.';
     }
     final String? pattern = field.pattern;
+    if (pattern != null && value.length > dvStudioPatternInputLimit) {
+      return '$label is too long to check against its pattern.';
+    }
     if (pattern != null) {
       final RegExp? expression = _pattern(pattern);
       if (expression != null) {
