@@ -726,6 +726,14 @@ final class DVDiagnostics {
       level: 'error',
     ),
     DVDiagnostic(
+      code: 'DV-MODULE-021',
+      reason:
+          'an operation is carried to the backend over RPC and the module '
+          'names no backendPolicy; at run time, a call the backend does not '
+          'carry',
+      level: 'error',
+    ),
+    DVDiagnostic(
       code: 'DV-BIND-001',
       reason:
           'a source\'s surface cannot be expressed across the chosen '
