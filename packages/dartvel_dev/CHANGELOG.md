@@ -1,3 +1,10 @@
+## 0.8.0
+
+- Released with dartvel_core, dartvel_flutter and dartvel_cli 0.8.0: links to
+  headings, password managers on the auth pages, `dartvel add` for Dart,
+  npm, C, Rust, WebAssembly, JVM and Apple sources, and the Studio formula
+  bar and command palette. The constraints on its siblings move with them.
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no

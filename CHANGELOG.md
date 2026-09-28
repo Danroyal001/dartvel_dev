@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.8.0 — 2026-09-28
+
+Three things that were impossible or missing. **`dartvel add` wraps a package
+from any ecosystem as a module:** a Dart package (`pub:`, `git:`, `path:`),
+an npm package (`npm:`), a C library or a Rust crate (`c:`, `cargo:`), a
+WebAssembly binary (`wasm:`), a JVM library (`maven:`, `jar:`) and a Swift
+package or CocoaPod (`swift:`, `pod:`), each reached as `DV.Modules.<id>`
+with what every operation does on a device, in a browser and on the backend
+declared in the module and checked by the build. On the web, **a link to a
+heading opens the page at that heading**, and **password managers save and
+fill the prebuilt sign-in and sign-up pages.** Studio gains **a formula bar,
+a command palette (Ctrl+K) and Ctrl+D**.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.8.0;
+dartvel_shelf to 0.8.1 and dartvel_generator to 1.4.1, which only accept the
+new core. Nothing to migrate. `dartvel inspect modules [--json]` is new, and
+`dartvel build` now refuses a call it can see to a module operation that
+cannot run where it is building (DV-MODULE-013, DV-MODULE-014).
+
 ## 0.7.1 — 2026-09-28
 
 A fix release. On the web, every page reported Esc handled, so the browser
