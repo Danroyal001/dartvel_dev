@@ -3,6 +3,10 @@
 - `dvHeadingSlug` and `dvHeadingIds`: the id a link to a heading names, a
   heading's words as a slug, numbered from 2 when a heading repeats.
 
+- `DVModuleEnvironment`, `DVModuleOutcome` and `DVModuleUnavailable`: the
+  environment a generated module was compiled for, the four outcomes it
+  declares, and the failure an unavailable operation throws (DV-MODULE-013).
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no

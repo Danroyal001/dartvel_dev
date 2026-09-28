@@ -96,6 +96,7 @@ class DVModuleMount {
     this.problems = const <String>[],
     this.fromPackage = false,
     this.kind,
+    this.surface,
     this.http,
   });
 
@@ -257,6 +258,10 @@ class DVModuleMount {
   /// generated module is an ordinary Dart package and nothing about it on
   /// disk says it was generated.
   final String? kind;
+
+  /// The class a module generated from a foreign source is reached as, from
+  /// `dartvel.module.surface`: `DV.Modules.<id>` is an instance of it.
+  final String? surface;
 
   /// The module's own `dartvel.http` block.
   ///
@@ -479,6 +484,9 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       fromPackage: fromPackage,
       kind: moduleDeclaration['kind'] is String
           ? moduleDeclaration['kind']! as String
+          : null,
+      surface: moduleDeclaration['surface'] is String
+          ? moduleDeclaration['surface']! as String
           : null,
       http: moduleSection['http'] is Map
           ? moduleSection['http']! as Map<Object?, Object?>

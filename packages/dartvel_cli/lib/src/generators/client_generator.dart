@@ -2936,7 +2936,8 @@ void startDartvelKiosk() {
     // not want. The specification writes DV.Modules.vendorErp.getOrder(...)
     // and this is what makes that resolve.
     final List<DVModuleMount> describedApis = modules
-        .where((DVModuleMount m) => m.kind == 'describedApi')
+        .where((DVModuleMount m) =>
+            m.kind == 'describedApi' || m.surface != null)
         .toList();
     final StringBuffer out = StringBuffer()
       ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND')
@@ -3032,6 +3033,18 @@ void startDartvelKiosk() {
       ..writeln('extension DartvelModules on DVModuleRegistry {');
     for (final DVModuleMount m in modules) {
       final String getter = _moduleGetter(m.id);
+      final String? surface = m.surface;
+      if (surface != null && m.kind != 'describedApi') {
+        out
+          ..writeln('  /// The `${m.id}` module, generated from a foreign source.')
+          ..writeln('  ///')
+          ..writeln('  /// What each operation does on a device, in a browser and on')
+          ..writeln("  /// the backend is declared in the module's own pubspec, and")
+          ..writeln('  /// the environment is chosen when the application is compiled.')
+          ..writeln('  $surface get $getter => const $surface();')
+          ..writeln();
+        continue;
+      }
       if (m.kind == 'describedApi') {
         final String api = '${dvClassName(m.id)}Api';
         out
