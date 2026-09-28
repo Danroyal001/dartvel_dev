@@ -1,3 +1,20 @@
+## Unreleased
+
+- **`dartvel add pub:`, `git:` and `path:` wrap a Dart package as a module.**
+  The package's public functions that every environment can call become
+  `DV.Modules.<id>`, with the outcome of each on native, web and backend
+  declared in the generated pubspec and a carrier per environment chosen at
+  compile time, so a package needing `dart:io` still compiles for the web and
+  throws `DVModuleUnavailable` there. The archive is checked against the
+  sha256 pub.dev publishes, the source and the generated wrapper are pinned
+  in `dartvel.module.lock`, and `--elsewhere noop` makes the calls that
+  cannot run do nothing instead.
+- **`dartvel build` refuses a module call it can see cannot run there**
+  (DV-MODULE-013), and one to an operation that declares nothing for the
+  target (DV-MODULE-014).
+- **`dartvel inspect modules [--json]`** reports each module's kind,
+  surface, operations and pin, and a hand-edited wrapper as DV-MODULE-016.
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no
