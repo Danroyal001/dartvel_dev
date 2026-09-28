@@ -677,6 +677,14 @@ String _maskStrings(String code) {
   int i = 0;
   while (i < code.length) {
     final String c = code[i];
+    // A doc comment is prose: an apostrophe in it opens no string.
+    if (code.startsWith('///', i)) {
+      final int end = code.indexOf('\n', i);
+      final String line = code.substring(i, end < 0 ? code.length : end);
+      out.write(line);
+      i += line.length;
+      continue;
+    }
     if (c == "'" || c == '"') {
       final bool triple = code.startsWith(c * 3, i);
       final String quote = triple ? c * 3 : c;
