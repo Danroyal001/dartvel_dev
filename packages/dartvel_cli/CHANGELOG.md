@@ -1,3 +1,22 @@
+## Unreleased
+
+- **Adopt Dartvel without changing routers: go_router, auto_route or
+  Flutter's Navigator.** The generated client has `dartvelOnGenerateRoute`
+  for Navigator 1.0 and `dartvelPageFor` for Navigator 2.0, and
+  `dartvelAutoRoutes` in a project that depends on auto_route. `dartvel init`
+  says which router an app uses and how to mount into it, and names any other
+  router with the three it could be.
+
+- **The web page shows its own text and a loading bar before Flutter
+  starts.** The text the build writes for crawlers is the page until the
+  first frame, over the splash colour, so the largest contentful paint is
+  that text. A thin bar across the top follows real progress (the compiled
+  app, the renderer, a font), creeps between milestones and completes on the
+  first frame; it is a `progressbar` to assistive technology and still under
+  reduced motion. On by default: `dartvel.splash.progress: false` turns it
+  off, `splash.progressColor` colours it. `main.dart.js` is preloaded from
+  the head. See docs/web-performance.md for the numbers.
+
 ## 0.9.1
 
 - The web-server build writes each route's page into its manifest, and

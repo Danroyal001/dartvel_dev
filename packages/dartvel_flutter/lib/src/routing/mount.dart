@@ -64,6 +64,10 @@ String dvMountedLocation(String path) {
   return uri.replace(path: joined).toString();
 }
 
+/// Every path pattern [routes] serve, nested routes joined to their parents.
+List<String> dvRoutePaths(List<RouteBase> routes) =>
+    <String>[for (final RouteBase route in routes) ..._paths(route, '')];
+
 Iterable<String> _paths(RouteBase route, String parent) sync* {
   if (route is GoRoute) {
     final String full = route.path.startsWith('/')

@@ -89,12 +89,18 @@ void main() {
   });
 
   test('the colour is on screen before anything has run', () async {
+    // A page with no text of its own: one that has text shows the text
+    // over the splash until the first frame.
+    html = dvWebSplashApply(
+        _shell, DVSplash(color: '#FF0000', darkColor: '#0000FF'));
     final Page page = await _open();
     expect(_centre(await page.screenshot()), <int>[255, 0, 0]);
     await page.close();
   });
 
   test('and in dark mode it is the dark one', () async {
+    html = dvWebSplashApply(
+        _shell, DVSplash(color: '#FF0000', darkColor: '#0000FF'));
     final Page page = await _open(scheme: 'dark');
     expect(_centre(await page.screenshot()), <int>[0, 0, 255]);
     await page.close();
