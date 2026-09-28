@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **The web page shows its own text and a loading bar before Flutter
+  starts.** The text the build writes for crawlers is the page until the
+  first frame, over the splash colour, so the largest contentful paint is
+  that text. A thin bar across the top follows real progress (the compiled
+  app, the renderer, a font), creeps between milestones and completes on the
+  first frame; it is a `progressbar` to assistive technology and still under
+  reduced motion. On by default: `dartvel.splash.progress: false` turns it
+  off, `splash.progressColor` colours it. `main.dart.js` is preloaded from
+  the head. See docs/web-performance.md for the numbers.
+
 - **`dartvel create <folder>` names the project the way `flutter create`
   does.** The folder is created and names the package; `--name` is gone and
   `--project-name` overrides the folder's name, refusing a name that is not a
