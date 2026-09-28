@@ -70,7 +70,7 @@ class _DVRouteAdminState extends State<DVRouteAdmin> {
       ..sort((DVRouteInfo a, DVRouteInfo b) => a.path.compareTo(b.path));
     return DVBox.scrollableList(<Widget>[
       const DVText('Routes and Pages')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       if (_error != null) DVText('Could not read stored pages: $_error'),
       DVText('${routes.length} compiled, ${_overridden.length} overridden, '
           '${_storedOnly.length} from the store only'),
@@ -85,7 +85,7 @@ class _DVRouteAdminState extends State<DVRouteAdmin> {
     final overridden = _overridden.contains(route.path);
     return DVBox.list(<Widget>[
       DVText(route.path)
-          .modifier(const DVModifier().fontSize(16).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(16).fontWeight(.bold)),
       DVText(route.page),
       DVText(route.directory),
       if (route.isDynamic) DVText('parameters: ${route.parameters.join(', ')}'),
@@ -99,7 +99,7 @@ class _DVRouteAdminState extends State<DVRouteAdmin> {
   Widget _storedRoute(String route) {
     return DVBox.list(<Widget>[
       DVText(route)
-          .modifier(const DVModifier().fontSize(16).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(16).fontWeight(.bold)),
       const DVText('added in the Studio; no compiled page'),
     ]).modifier(const DVModifier().card().padding(16));
   }

@@ -160,7 +160,7 @@ void main() {
     });
 
     test('cache: past the ttl the resolver is asked again', () async {
-      await serve(resolver: (DVPageRequest r) async => product(r), mode: DVPageDataMode.cache, cacheTtl: Duration.zero);
+      await serve(resolver: (DVPageRequest r) async => product(r), mode: DVPageDataMode.cache, cacheTtl: .zero);
       await get('/products/1');
       await get('/products/1');
       expect(asked, hasLength(2));
@@ -171,7 +171,7 @@ void main() {
       await serve(
         resolver: (DVPageRequest r) async => DVPageData(title: 'v${++version}'),
         mode: DVPageDataMode.staleWhileRevalidate,
-        cacheTtl: Duration.zero,
+        cacheTtl: .zero,
         // Stale at once, and servable stale while it is refreshed. A stale
         // window of nothing is a page that cannot be kept at all.
         staleFor: const Duration(minutes: 5),

@@ -98,13 +98,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(DVStudioCommandPalette.searchKey), query);
       await tester.pump();
-      await tester.testTextInput.receiveAction(TextInputAction.go);
+      await tester.testTextInput.receiveAction(.go);
       await tester.pumpAndSettle();
     }
 
     await command('insert text');
     await tester.enterText(find.byKey(DVStudioFormulaBar.inputKey), '"Today\'s menu"');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(DVStudioFormulaBar.fieldKey));
     await tester.pumpAndSettle();
@@ -113,14 +113,14 @@ void main() {
     await tester.tap(find.text('fontSize').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(DVStudioFormulaBar.inputKey), '=16 * 2');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(DVStudioFormulaBar.inputKey));
     await tester.pump();
     await _shoot(tester, 'formula-bar');
 
     await tester.enterText(find.byKey(DVStudioFormulaBar.inputKey), '=16 * (2');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pumpAndSettle();
     await _shoot(tester, 'formula-bar-error');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);

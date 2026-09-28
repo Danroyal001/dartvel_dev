@@ -69,7 +69,7 @@ class FakeGateway implements DVPaymentGateway {
     required String idempotencyKey,
   }) async {
     chargeCalls++;
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     if (failCharges) throw StateError('card_declined');
     return charges.putIfAbsent(
       idempotencyKey,
@@ -89,7 +89,7 @@ class FakeGateway implements DVPaymentGateway {
     required String idempotencyKey,
   }) async {
     refundCalls++;
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     if (failRefunds) throw StateError('refund failed at the gateway');
     return refunds.putIfAbsent(
       idempotencyKey,

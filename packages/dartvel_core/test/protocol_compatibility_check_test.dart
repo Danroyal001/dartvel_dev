@@ -26,7 +26,7 @@ DVProtocolLock lock([int versions = 5]) {
 final DateTime now = DateTime.utc(2026, 9, 14, 12);
 const DVProtocolWindow narrow = DVProtocolWindow(
   versions: 2,
-  minimumAge: Duration.zero,
+  minimumAge: .zero,
 );
 
 DVProtocolSessionSample sample(int protocol, int sessions, {int daysAgo = 1}) =>
@@ -87,7 +87,7 @@ void main() {
       candidate: lock(),
       window: const DVProtocolWindow(
         versions: 2,
-        minimumAge: Duration.zero,
+        minimumAge: .zero,
         strandThreshold: 0.02,
       ),
       samples: <DVProtocolSessionSample>[sample(5, 990), sample(2, 10)],

@@ -1,3 +1,8 @@
+## Unreleased
+
+- DV-MODULE-021 is registered with the other diagnostics, as the specification
+  lists it.
+
 ## 0.9.0
 
 - `DVModuleRpc` and `DVModuleRpcRefused`: a module operation carried to the

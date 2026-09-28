@@ -292,7 +292,7 @@ void main() {
     final Invoice restored = await Invoice.restore('i1');
     expect(restored.number, 'INV-1');
     expect((await Invoice.find('i1'))!.number, 'INV-1');
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(kinds, <DVModelChangeKind>[
       DVModelChangeKind.created,
       DVModelChangeKind.created,

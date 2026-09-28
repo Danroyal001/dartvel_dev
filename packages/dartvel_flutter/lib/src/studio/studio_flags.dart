@@ -301,7 +301,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints box) {
         return Stack(
-          fit: StackFit.expand,
+          fit: .expand,
           children: <Widget>[
             DVStudioStyle.panes(
               listWidth: box.maxWidth < 1000 ? 240 : 300,
@@ -328,7 +328,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     final DateTime? received = DVFlags.rulesReceivedAt;
     final DVFlagContext here = _appContext();
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           height: 48,
@@ -340,7 +340,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           child: Row(
             children: <Widget>[
               Expanded(
-                child: _text('Flags', size: 14, weight: FontWeight.w600),
+                child: _text('Flags', size: 14, weight: .w600),
               ),
               if (expired > 0)
                 KeyedSubtree(
@@ -355,7 +355,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           key: rules == null
               ? const ValueKey<String>('dv-studio-flags-no-rules')
               : null,
-          padding: const EdgeInsets.symmetric(
+          padding: const .symmetric(
             horizontal: DVStudioStyle.space4,
             vertical: 10,
           ),
@@ -384,7 +384,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const .symmetric(vertical: 6),
             children: <Widget>[
               for (final DVFeatureFlag<Object?> flag in flags)
                 _StudioFlagRow(
@@ -418,7 +418,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     final bool rulesMoved = _editing &&
         !studioSameRules(_editBase, _rulesOf(flag));
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         _detailHeader(flag),
         if (expired)
@@ -490,14 +490,14 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                   _override(flag),
               ];
               return SingleChildScrollView(
-                padding: EdgeInsets.all(pad),
+                padding: .all(pad),
                 child: wide
                     ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: <Widget>[
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment: .stretch,
                               children: main,
                             ),
                           ),
@@ -505,14 +505,14 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                           SizedBox(
                             width: 360,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment: .stretch,
                               children: side,
                             ),
                           ),
                         ],
                       )
                     : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: .stretch,
                         children: <Widget>[
                           ...main,
                           const SizedBox(height: DVStudioStyle.space4),
@@ -530,7 +530,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
   Widget _detailHeader(DVFeatureFlag<Object?> flag) {
     return Container(
       height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space5),
+      padding: const .symmetric(horizontal: DVStudioStyle.space5),
       decoration: const BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -542,7 +542,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             height: 30,
             decoration: BoxDecoration(
               color: DVStudioStyle.accentSoft,
-              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+              borderRadius: .circular(DVStudioStyle.radius),
             ),
             child: const Icon(DVStudioIcons.flags,
                 size: 16, color: DVStudioStyle.accent),
@@ -550,10 +550,10 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           const SizedBox(width: DVStudioStyle.space3),
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
               children: <Widget>[
-                _text(flag.key, size: 15, weight: FontWeight.w700),
+                _text(flag.key, size: 15, weight: .w700),
                 const SizedBox(height: 2),
                 _text(
                   '${studioFlagTypeLabel(flag)} · owned by ${flag.owner}',
@@ -620,13 +620,13 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 96, maxWidth: 200),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: <Widget>[
           _text(label.toUpperCase(),
-              size: 10.5, color: DVStudioStyle.muted, weight: FontWeight.w600),
+              size: 10.5, color: DVStudioStyle.muted, weight: .w600),
           const SizedBox(height: 4),
-          _text(value, size: 14, color: tone, weight: FontWeight.w600),
+          _text(value, size: 14, color: tone, weight: .w600),
           if (detail != null) ...<Widget>[
             const SizedBox(height: 2),
             _text(detail, size: 11.5, color: DVStudioStyle.faint),
@@ -645,9 +645,9 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     final DVFlagRules? set = DVFlags.rules;
     final List<DVFlagRule> rules = _rulesOf(flag);
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           _cardHeader(
             'Rules',
@@ -659,7 +659,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           ),
           if (set == null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const .fromLTRB(16, 0, 16, 12),
               child: _note(
                 key: const ValueKey<String>('dv-studio-flag-no-rule-set'),
                 tone: DVStudioStyle.warning,
@@ -673,14 +673,14 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             _ruleView(flag, rules[i], i, evaluated),
           Container(
             key: const ValueKey<String>('dv-studio-flag-fallthrough'),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            padding: const .fromLTRB(16, 12, 16, 14),
             decoration: BoxDecoration(
               color: evaluated != null &&
                       evaluated.rule == null &&
                       evaluated.source == DVFlagSource.defaults
                   ? DVStudioStyle.accent.withValues(alpha: 0.05)
                   : null,
-              borderRadius: const BorderRadius.vertical(
+              borderRadius: const .vertical(
                 bottom: Radius.circular(DVStudioStyle.radiusLarge),
               ),
             ),
@@ -726,24 +726,24 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     final bool readable = studioFlagAccepts(flag, rule.value);
     return Container(
       key: ValueKey<String>('dv-studio-flag-rule-$index'),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const .fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         color: decided ? DVStudioStyle.accent.withValues(alpha: 0.05) : null,
         border: const Border(top: BorderSide(color: DVStudioStyle.line)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           _index('${index + 1}', active: decided),
           const SizedBox(width: DVStudioStyle.space3),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                  crossAxisAlignment: .center,
                   children: <Widget>[
                     _text('Serve', size: 13, color: DVStudioStyle.muted),
                     _valuePill(studioFlagValueText(flag, rule.value),
@@ -767,7 +767,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                 if (rollout != null) _rolloutBar(rollout),
                 if (!readable)
                   Padding(
-                    padding: const EdgeInsets.only(top: DVStudioStyle.space2),
+                    padding: const .only(top: DVStudioStyle.space2),
                     child: _note(
                       key: ValueKey<String>(
                           'dv-studio-flag-rule-$index-wrong-type'),
@@ -798,12 +798,12 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
 
   Widget _clause(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const .only(bottom: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.only(top: 1),
+            padding: const .only(top: 1),
             child: Icon(icon, size: 14, color: DVStudioStyle.faint),
           ),
           const SizedBox(width: 6),
@@ -815,7 +815,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
 
   Widget _rolloutBar(DVFlagRollout rollout) {
     return Padding(
-      padding: const EdgeInsets.only(top: 2),
+      padding: const .only(top: 2),
       child: Row(
         children: <Widget>[
           const Icon(Icons.donut_large, size: 14, color: DVStudioStyle.faint),
@@ -823,17 +823,17 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           Flexible(
             flex: 3,
             child: _text(studioRolloutText(rollout),
-                size: 12.5, weight: FontWeight.w600),
+                size: 12.5, weight: .w600),
           ),
           const SizedBox(width: DVStudioStyle.space2),
           Expanded(
             flex: 2,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(99),
+              borderRadius: .circular(99),
               child: Container(
                 height: 6,
                 color: DVStudioStyle.canvas,
-                alignment: Alignment.centerLeft,
+                alignment: .centerLeft,
                 child: FractionallySizedBox(
                   widthFactor: rollout.basisPoints / 10000,
                   child: Container(color: DVStudioStyle.accent),
@@ -859,16 +859,16 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             ? 'Nothing has changed yet.'
             : null;
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           _cardHeader(
             'Edit rules',
             'Drafts only, until you review the change and apply it.',
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            padding: const .fromLTRB(16, 0, 16, 4),
             child: _note(
               tone: DVStudioStyle.warning,
               icon: Icons.phone_iphone,
@@ -885,10 +885,10 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
               child: _ruleEditor(flag, i),
             ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const .fromLTRB(16, 12, 16, 0),
             child: GestureDetector(
               key: const ValueKey<String>('dv-studio-flag-add-rule'),
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: () => _edit(
                 () => _drafts = <StudioRuleDraft>[
                   ..._drafts,
@@ -899,14 +899,14 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                 cursor: SystemMouseCursors.click,
                 child: Container(
                   height: 36,
-                  alignment: Alignment.center,
+                  alignment: .center,
                   decoration: BoxDecoration(
                     border: Border.all(color: DVStudioStyle.lineStrong),
-                    borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                    borderRadius: .circular(DVStudioStyle.radius),
                     color: DVStudioStyle.canvas,
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: <Widget>[
                       const Icon(DVStudioIcons.add,
                           size: 15, color: DVStudioStyle.muted),
@@ -915,7 +915,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                         child: _text('Add rule',
                             size: 13,
                             color: DVStudioStyle.muted,
-                            weight: FontWeight.w500),
+                            weight: .w500),
                       ),
                     ],
                   ),
@@ -924,18 +924,18 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             ),
           ),
           Container(
-            margin: const EdgeInsets.only(top: DVStudioStyle.space4),
-            padding: const EdgeInsets.all(DVStudioStyle.space4),
+            margin: const .only(top: DVStudioStyle.space4),
+            padding: const .all(DVStudioStyle.space4),
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: DVStudioStyle.line)),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: .end,
               children: <Widget>[
                 Wrap(
                   spacing: DVStudioStyle.space2,
                   runSpacing: DVStudioStyle.space2,
-                  alignment: WrapAlignment.end,
+                  alignment: .end,
                   children: <Widget>[
                     studioActionControl(
                       'dv-studio-flag-discard',
@@ -977,8 +977,8 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
         });
     return Container(
       key: ValueKey<String>(prefix),
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      margin: const .fromLTRB(16, 12, 16, 0),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border.all(
@@ -986,10 +986,10 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
               ? DVStudioStyle.line
               : DVStudioStyle.danger.withValues(alpha: 0.5),
         ),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -1065,7 +1065,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           Wrap(
             spacing: DVStudioStyle.space2,
             runSpacing: DVStudioStyle.space2,
-            crossAxisAlignment: WrapCrossAlignment.center,
+            crossAxisAlignment: .center,
             children: <Widget>[
               _choices(
                 const <String>['Everyone', 'Percentage'],
@@ -1102,7 +1102,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
           if (error != null)
             Padding(
               key: ValueKey<String>('$prefix-error'),
-              padding: const EdgeInsets.only(top: DVStudioStyle.space3),
+              padding: const .only(top: DVStudioStyle.space3),
               child: _errorLine(error),
             ),
         ],
@@ -1128,7 +1128,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
         ),
         Center(
           child: Padding(
-            padding: const EdgeInsets.all(DVStudioStyle.space4),
+            padding: const .all(DVStudioStyle.space4),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: 600,
@@ -1144,11 +1144,11 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                   boxShadow: DVStudioStyle.shadowLarge,
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                      padding: const .fromLTRB(20, 18, 20, 14),
                       child: Row(
                         children: <Widget>[
                           Container(
@@ -1166,11 +1166,11 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                           const SizedBox(width: DVStudioStyle.space3),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: .start,
+                              mainAxisSize: .min,
                               children: <Widget>[
                                 _text('Apply this rule change?',
-                                    size: 15, weight: FontWeight.w700),
+                                    size: 15, weight: .w700),
                                 const SizedBox(height: 2),
                                 _text(
                                   '${flag.key} · ${changes.length} '
@@ -1188,9 +1188,9 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                     Container(height: 1, color: DVStudioStyle.line),
                     Flexible(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(DVStudioStyle.space5),
+                        padding: const .all(DVStudioStyle.space5),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          crossAxisAlignment: .stretch,
                           children: <Widget>[
                             for (int n = 0; n < changes.length; n++) ...<Widget>[
                               if (n > 0)
@@ -1214,9 +1214,9 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                     ),
                     Container(height: 1, color: DVStudioStyle.line),
                     Padding(
-                      padding: const EdgeInsets.all(DVStudioStyle.space4),
+                      padding: const .all(DVStudioStyle.space4),
                       child: Wrap(
-                        alignment: WrapAlignment.end,
+                        alignment: .end,
                         spacing: DVStudioStyle.space2,
                         runSpacing: DVStudioStyle.space2,
                         children: <Widget>[
@@ -1270,20 +1270,20 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     };
     return Container(
       key: ValueKey<String>('dv-studio-flag-diff-$n'),
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
               DVStudioStyle.badge(label, tone: tone),
               const SizedBox(width: DVStudioStyle.space2),
               Expanded(
-                child: _text(title, size: 13, weight: FontWeight.w600),
+                child: _text(title, size: 13, weight: .w600),
               ),
             ],
           ),
@@ -1306,18 +1306,18 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
 
   Widget _diffLine(String sign, String text, Color tone) {
     return Container(
-      margin: const EdgeInsets.only(top: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      margin: const .only(top: 3),
+      padding: const .symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           SizedBox(
             width: 14,
-            child: _text(sign, size: 12.5, color: tone, weight: FontWeight.w700),
+            child: _text(sign, size: 12.5, color: tone, weight: .w700),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -1417,9 +1417,9 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     }
 
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           _cardHeader(
             'Who gets what',
@@ -1428,9 +1428,9 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             icon: Icons.person_search_outlined,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const .fromLTRB(16, 0, 16, 16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 _grid(<Widget>[
                   for (final String name in _evalFields)
@@ -1496,23 +1496,23 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
       DVFlagSource.defaults => DVStudioStyle.muted,
     };
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const .all(14),
       decoration: BoxDecoration(
         color: Color.alphaBlend(
             tone.withValues(alpha: 0.06), DVStudioStyle.surface),
         border: Border.all(color: tone.withValues(alpha: 0.28)),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           _text('ANSWER',
-              size: 10.5, color: DVStudioStyle.muted, weight: FontWeight.w600),
+              size: 10.5, color: DVStudioStyle.muted, weight: .w600),
           const SizedBox(height: 4),
           KeyedSubtree(
             key: const ValueKey<String>('dv-studio-flag-eval-value'),
             child: _text(studioFlagValueText(flag, r.value),
-                size: 22, weight: FontWeight.w700),
+                size: 22, weight: .w700),
           ),
           const SizedBox(height: DVStudioStyle.space2),
           Wrap(
@@ -1539,7 +1539,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
             if (rules[i].rollout case final DVFlagRollout rollout)
               if (context.subjectFor(rollout.by) case final String subject)
                 Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                  padding: const .only(top: 6),
                   child: _text(
                     'Rule ${i + 1}: ${studioSubjectSingular(rollout.by)} '
                     'bucket ${DVFlagRollout.bucket(flag.key, subject)} of '
@@ -1560,7 +1560,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                 'After applying: ${studioFlagValueText(flag, after.value)} · '
                 '${after.rule == null ? 'no rule' : 'rule ${after.rule! + 1}'}',
                 size: 12.5,
-                weight: FontWeight.w600,
+                weight: .w600,
                 maxLines: 2,
               ),
             ),
@@ -1590,28 +1590,28 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
         border: Border.all(
           color: DVStudioStyle.warning.withValues(alpha: on ? 0.7 : 0.4),
         ),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+        borderRadius: .circular(DVStudioStyle.radiusLarge),
         boxShadow: DVStudioStyle.shadow,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
             height: 4,
             decoration: BoxDecoration(
               color: DVStudioStyle.warning.withValues(alpha: on ? 1 : 0.45),
-              borderRadius: const BorderRadius.vertical(
+              borderRadius: const .vertical(
                 top: Radius.circular(DVStudioStyle.radiusLarge),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(DVStudioStyle.space4),
+            padding: const .all(DVStudioStyle.space4),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: .centerLeft,
                   child: DVStudioStyle.badge('Debug build only',
                       tone: DVStudioStyle.warning),
                 ),
@@ -1623,7 +1623,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                     const SizedBox(width: DVStudioStyle.space2),
                     Expanded(
                       child: _text('Debug override',
-                          size: 14, weight: FontWeight.w600),
+                          size: 14, weight: .w600),
                     ),
                     _Switch(
                       detectorKey: const ValueKey<String>(
@@ -1656,7 +1656,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                 if (error != null)
                   Padding(
                     key: const ValueKey<String>('dv-studio-flag-override-error'),
-                    padding: const EdgeInsets.only(top: DVStudioStyle.space2),
+                    padding: const .only(top: DVStudioStyle.space2),
                     child: _errorLine(error),
                   ),
               ],
@@ -1670,14 +1670,14 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
   Widget _overrideUnavailable() {
     return Container(
       key: const ValueKey<String>('dv-studio-flag-override-unavailable'),
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         color: DVStudioStyle.canvas,
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           const Icon(Icons.lock_outline, size: 15, color: DVStudioStyle.faint),
           const SizedBox(width: DVStudioStyle.space2),
@@ -1704,22 +1704,22 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     IconData? icon,
   }) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      padding: const .fromLTRB(16, 14, 16, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           if (icon != null) ...<Widget>[
             Padding(
-              padding: const EdgeInsets.only(top: 1),
+              padding: const .only(top: 1),
               child: Icon(icon, size: 16, color: DVStudioStyle.accent),
             ),
             const SizedBox(width: DVStudioStyle.space2),
           ],
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
-                _text(title, size: 14, weight: FontWeight.w600),
+                _text(title, size: 14, weight: .w600),
                 const SizedBox(height: 2),
                 _text(subtitle,
                     size: 12, color: DVStudioStyle.muted, maxLines: 3),
@@ -1782,7 +1782,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
               // choice of three turns into three full-width bars.
               child: Container(
                 height: 28,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const .symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: option == value
                       ? DVStudioStyle.accentSoft
@@ -1824,8 +1824,8 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     String key,
   ) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         _text(label, size: 11.5, color: DVStudioStyle.muted),
         const SizedBox(height: 4),
@@ -1861,17 +1861,17 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: const .only(bottom: 6),
         child: _text(text.toUpperCase(),
-            size: 10.5, color: DVStudioStyle.muted, weight: FontWeight.w600),
+            size: 10.5, color: DVStudioStyle.muted, weight: .w600),
       );
 
   Widget _errorLine(String message) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         const Padding(
-          padding: EdgeInsets.only(top: 1),
+          padding: .only(top: 1),
           child: Icon(Icons.error_outline,
               size: 14, color: DVStudioStyle.danger),
         ),
@@ -1893,22 +1893,22 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
   }) {
     return Container(
       key: key,
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.08),
         border: Border.all(color: tone.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Icon(icon, size: 16, color: tone),
           const SizedBox(width: DVStudioStyle.space2),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
-                _text(title, size: 12.5, weight: FontWeight.w600, maxLines: 2),
+                _text(title, size: 12.5, weight: .w600, maxLines: 2),
                 const SizedBox(height: 3),
                 _text(body, size: 12, color: DVStudioStyle.muted, maxLines: 6),
               ],
@@ -1923,7 +1923,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
     return Container(
       width: 22,
       height: 22,
-      alignment: Alignment.center,
+      alignment: .center,
       decoration: BoxDecoration(
         color: active ? DVStudioStyle.accent : DVStudioStyle.canvas,
         shape: BoxShape.circle,
@@ -1932,12 +1932,12 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
         ),
       ),
       child: FittedBox(
-        fit: BoxFit.scaleDown,
+        fit: .scaleDown,
         child: Text(
           label,
           style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w700,
+            fontWeight: .w700,
             color: active ? const Color(0xFFFFFFFF) : DVStudioStyle.muted,
           ),
         ),
@@ -1947,13 +1947,13 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
 
   Widget _valuePill(String text, {Color tone = DVStudioStyle.accent}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const .symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.10),
         border: Border.all(color: tone.withValues(alpha: 0.25)),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
       ),
-      child: _text(text, size: 12.5, color: tone, weight: FontWeight.w600),
+      child: _text(text, size: 12.5, color: tone, weight: .w600),
     );
   }
 }
@@ -1998,22 +1998,22 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: widget.onTap,
         child: Container(
-          margin: const EdgeInsets.symmetric(
+          margin: const .symmetric(
               horizontal: DVStudioStyle.space2, vertical: 1),
-          padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+          padding: const .fromLTRB(10, 9, 10, 10),
           decoration: BoxDecoration(
             color: widget.selected
                 ? DVStudioStyle.selected
                 : _hover
                     ? DVStudioStyle.hover
                     : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Row(
                 children: <Widget>[
@@ -2031,7 +2031,7 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
                     child: _text(
                       flag.key,
                       size: 13,
-                      weight: FontWeight.w600,
+                      weight: .w600,
                       color: widget.selected
                           ? DVStudioStyle.accent
                           : DVStudioStyle.ink,
@@ -2044,7 +2044,7 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
                     decoration: BoxDecoration(
                       color: DVStudioStyle.canvas,
                       border: Border.all(color: DVStudioStyle.line),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: .circular(4),
                     ),
                     child: _text(studioFlagTypeLabel(flag),
                         size: 11, color: DVStudioStyle.muted),
@@ -2053,7 +2053,7 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
               ),
               const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 15),
+                padding: const .only(left: 15),
                 child: _text(
                   '${flag.owner} · default $defaultText'
                   '${widget.answer == defaultText ? '' : ' · now ${widget.answer}'}',
@@ -2063,7 +2063,7 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
               ),
               const SizedBox(height: 6),
               Padding(
-                padding: const EdgeInsets.only(left: 15),
+                padding: const .only(left: 15),
                 child: Wrap(
                   spacing: 4,
                   runSpacing: 4,
@@ -2135,11 +2135,11 @@ class _Switch extends StatelessWidget {
           duration: const Duration(milliseconds: 120),
           width: 36,
           height: 20,
-          padding: const EdgeInsets.all(2),
+          padding: const .all(2),
           alignment: on ? Alignment.centerRight : Alignment.centerLeft,
           decoration: BoxDecoration(
             color: track,
-            borderRadius: BorderRadius.circular(99),
+            borderRadius: .circular(99),
           ),
           child: Container(
             width: 16,
@@ -2166,7 +2166,7 @@ Widget _text(
     Text(
       text,
       maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
+      overflow: .ellipsis,
       style: TextStyle(
         fontSize: size,
         color: color,

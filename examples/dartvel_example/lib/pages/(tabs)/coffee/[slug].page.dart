@@ -98,7 +98,7 @@ Widget _coffeePage(BuildContext context) => (() {
             ),
           ],
           spacing: 12,
-          crossAlign: DVCrossAlign.center,
+          crossAlign: .center,
         ),
         OutlinedButton.icon(
           key: const Key('save-coffee'),
@@ -120,7 +120,7 @@ Widget _coffeePage(BuildContext context) => (() {
                 Expanded(child: details),
               ],
               spacing: 40,
-              crossAlign: DVCrossAlign.start,
+              crossAlign: .start,
             )
           else ...<Widget>[BagArt(coffee, height: 220, large: true), details],
         ],

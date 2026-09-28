@@ -75,8 +75,8 @@ class const DartvelMarkPainter(final Color? color) extends CustomPainter {
       paint.color = color!;
     } else {
       paint.shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        begin: .topLeft,
+        end: .bottomRight,
         colors: <Color>[
           Color(0xFF7A3BFF),
           Color(0xFF2F6BFF),

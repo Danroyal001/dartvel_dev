@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+### Fixed
+
+- **Every Dartvel link has its right-click menu, wherever it is.** The menu
+  (Open in a new tab, Copy link address, More) belonged to the page shell's
+  selection area, so a link with none above it -- the default 404 page's
+  "Go to the home page", a page with `selectable: false`, a kiosk with
+  selection off -- showed its hover preview and no menu at all, the browser's
+  own being off. `DVNavLink` now opens the same menu itself when no page menu
+  covers it. (dartvel_flutter)
+- **The web server answers a path no route serves with a 404.** It returned
+  the application shell with a 200, a soft 404 a crawler indexed as a page.
+  The shell is still the body, so the app draws its not-found page, and a
+  page published from Studio still answers 200. (dartvel_shelf, dartvel_cli,
+  dartvel_core)
+
 ## 0.9.0 — 2026-09-28
 
 **Placement follows call sites: a module source reaches more of the

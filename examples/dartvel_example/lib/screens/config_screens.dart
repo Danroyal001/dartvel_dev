@@ -62,9 +62,9 @@ class const SettingsScreen({super.key, final String? tab})
         DVText('Showing $current settings').modifier(p.muted),
         Material(
           color: p.surface,
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: .antiAlias,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: .circular(18),
             side: BorderSide(color: p.line),
           ),
           child: DVBox.list([
@@ -180,7 +180,7 @@ class const TeamMemberScreen({super.key, required final String member})
                   .width(72)
                   .height(72)
                   .rounded(36)
-                  .align(Alignment.center)
+                  .align(.center)
                   .backgroundColor(p.accent),
             ),
             Expanded(
@@ -191,7 +191,7 @@ class const TeamMemberScreen({super.key, required final String member})
             ),
           ],
           spacing: 18,
-          crossAlign: DVCrossAlign.center,
+          crossAlign: .center,
         ),
         DVText(
           'Ask $name anything about the coffee: hello@oakline.coffee',
@@ -319,7 +319,7 @@ class const ReportsScreen({super.key}) extends StatelessWidget {
                 // scrolls sideways rather than wrapping every cell.
                 DVBox(
                   SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                    scrollDirection: .horizontal,
                     child: SizedBox(width: 980, child: Order.Table(orders)),
                   ),
                 ).modifier(cardStyle(p, padding: 8)),

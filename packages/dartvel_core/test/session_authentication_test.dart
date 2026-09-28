@@ -334,7 +334,7 @@ void main() {
       expect(DVSessionPrincipal.current, isNull);
       expect(DVContext().session, isNull);
       await DVSessionPrincipal.actingAs(principal, () async {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         expect(DVSessionPrincipal.current, same(principal));
         final DVContext context = DVContext();
         expect(context.session, same(principal));

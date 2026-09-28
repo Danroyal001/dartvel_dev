@@ -2216,9 +2216,9 @@ class _DVNotFoundPage extends StatelessWidget {
     return Material(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const .all(24),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               Text('404', style: text.displaySmall),
               const SizedBox(height: 8),

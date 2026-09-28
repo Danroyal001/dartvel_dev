@@ -30,6 +30,7 @@ Future<Response> handleSsrFallback(
   DVPageDataResolver? pageData,
   DVPageDataCache? cache,
   DVCacheAdapter? pageStore,
+  Future<Set<String>> Function()? publishedRoutes,
 }) =>
     dvWithRequestTenant(
       req,
@@ -39,6 +40,7 @@ Future<Response> handleSsrFallback(
         pageData: pageData,
         cache: cache,
         pageStore: pageStore,
+        publishedRoutes: publishedRoutes,
       ),
     );
 
@@ -48,6 +50,7 @@ Future<Response> _handleSsrFallback(
   DVPageDataResolver? pageData,
   DVPageDataCache? cache,
   DVCacheAdapter? pageStore,
+  Future<Set<String>> Function()? publishedRoutes,
 }) async {
   final indexFile = File(p.join(spaRoot, 'index.html'));
   if (!await indexFile.exists()) {
@@ -61,7 +64,7 @@ Future<Response> _handleSsrFallback(
   // the backend was started with, by the declared mode.
   final manifestFile = File(p.join(spaRoot, 'dartvel_routes.json'));
   if (await manifestFile.exists()) {
-    return _fromManifest(req, html, manifestFile, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore);
+    return _fromManifest(req, html, manifestFile, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
   }
 
   // Check for prerendered metadata
@@ -147,6 +150,7 @@ Future<Response> _fromManifest(
   required DVPageDataResolver? pageData,
   required DVPageDataCache? cache,
   required DVCacheAdapter? pageStore,
+  required Future<Set<String>> Function()? publishedRoutes,
 }) async {
   Map<String, Object?> manifest;
   try {
@@ -236,7 +240,15 @@ Future<Response> _fromManifest(
   final String page = data == null
       ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image)
       : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: site.description, image: site.image);
-  return _html(dvWithPreloads(page, preloads), streaming: settings.streaming);
+  // A path nothing serves is a 404, with the shell still the body so the app
+  // draws its not-found page. A 200 here was a soft 404 a crawler indexed as
+  // a page. A Studio page is a route the manifest does not list, so the
+  // published ones are asked first; a manifest listing no routes says
+  // nothing about what is missing.
+  final bool missing = matched == null &&
+      routeMap.isNotEmpty &&
+      !(await publishedRoutes?.call() ?? const <String>{}).contains(path);
+  return _html(dvWithPreloads(page, preloads), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
 /// The page for [path] as three writes, the first before the data: the

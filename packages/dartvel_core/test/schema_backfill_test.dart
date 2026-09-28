@@ -386,7 +386,7 @@ void main() {
         // Overloaded after the first chunk, quiet after the second.
         load: () => measured++ == 0
             ? const DVBackfillLoad(replicaLag: Duration(seconds: 30))
-            : const DVBackfillLoad(replicaLag: Duration.zero),
+            : const DVBackfillLoad(replicaLag: .zero),
         sleep: (Duration d) async => slept.add(d),
       );
 

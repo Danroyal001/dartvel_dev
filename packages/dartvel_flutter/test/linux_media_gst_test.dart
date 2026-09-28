@@ -121,7 +121,7 @@ void main() {
           backend.events.listen(events.add);
       addTearDown(sub.cancel);
       await backend.open(DVMediaSource.file('${dir.path}/any.ogg'));
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(
           events.whereType<DVMediaFailed>().map((DVMediaFailed e) => e.message),
           <Matcher>[contains('dvnosuchvideosink')]);
@@ -145,7 +145,7 @@ void main() {
       await backend.start(
           const DVCaptureRequest.audio(audioFormat: DVAudioFormat.opus),
           '${dir.path}/never.ogg');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(
           events
               .whereType<DVCaptureFailed>()
