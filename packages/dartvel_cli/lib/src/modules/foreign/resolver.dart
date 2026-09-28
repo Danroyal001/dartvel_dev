@@ -446,3 +446,79 @@ Future<DVResolvedSource> dvResolveCrate(
     dependency: '',
   );
 }
+
+/// Resolves `maven:<group>:<artifact>[@<version>]` from Maven Central: the
+/// jar, or the aar when the artifact is an Android library, checked against
+/// the sha1 Central publishes beside it. The newest release when no version
+/// is given, read from the artifact's maven-metadata.xml.
+Future<DVResolvedSource> dvResolveMaven(
+  String root,
+  String spec, {
+  DVSourceFetcher fetcher = const DVSourceFetcher(),
+}) async {
+  final int at = spec.indexOf('@');
+  final String coordinate = at < 0 ? spec : spec.substring(0, at);
+  final List<String> parts = coordinate.split(':');
+  if (parts.length != 2 || parts.any((String s) => s.isEmpty)) {
+    throw DVSourceUnresolved('"$coordinate" is not group:artifact.');
+  }
+  final String group = parts[0];
+  final String artifact = parts[1];
+  final String base =
+      'https://repo1.maven.org/maven2/${group.replaceAll('.', '/')}/$artifact';
+  String? version = at < 0 ? null : spec.substring(at + 1);
+  if (version == null) {
+    final String metadata =
+        await fetcher.getText(Uri.parse('$base/maven-metadata.xml'));
+    version = RegExp(r'<release>([^<]+)</release>').firstMatch(metadata)?.group(1) ??
+        RegExp(r'<latest>([^<]+)</latest>').firstMatch(metadata)?.group(1);
+    if (version == null) {
+      throw DVSourceUnresolved('Maven Central names no release of $coordinate.');
+    }
+  }
+  List<int>? bytes;
+  String? url;
+  for (final String ext in <String>['jar', 'aar']) {
+    final String candidate = '$base/$version/$artifact-$version.$ext';
+    try {
+      bytes = await fetcher.getBytes(Uri.parse(candidate));
+      url = candidate;
+      break;
+    } on DVSourceUnresolved {
+      continue;
+    }
+  }
+  if (bytes == null || url == null) {
+    throw DVSourceUnresolved('Maven Central has no jar or aar for '
+        '$coordinate $version.');
+  }
+  final String sha1Text = (await fetcher.getText(Uri.parse('$url.sha1'))).trim();
+  final String actual = sha1.convert(bytes).toString();
+  if (sha1Text.split(RegExp(r'\s+')).first != actual) {
+    throw DVSourceUnresolved('The artifact $coordinate $version has sha1 '
+        '$actual, and Maven Central says $sha1Text. Nothing was written '
+        '(DV-MODULE-004).');
+  }
+  final Directory into = Directory(
+      p.join(root, '.dartvel', 'sources', 'maven', '$group.$artifact-$version'));
+  if (into.existsSync()) into.deleteSync(recursive: true);
+  into.createSync(recursive: true);
+  String jar = p.join(into.path, '$artifact-$version.jar');
+  if (url.endsWith('.aar')) {
+    final String aar = p.join(into.path, '$artifact-$version.aar');
+    File(aar).writeAsBytesSync(bytes);
+    await fetcher.run('unzip', <String>['-q', '-o', aar, 'classes.jar', '-d', into.path]);
+    jar = p.join(into.path, 'classes.jar');
+  } else {
+    File(jar).writeAsBytesSync(bytes);
+  }
+  return DVResolvedSource(
+    descriptor: 'maven:$coordinate@$version',
+    name: artifact,
+    version: version,
+    directory: jar,
+    sourceDigest: sha256.convert(bytes).toString(),
+    resolvedFrom: url,
+    dependency: '$coordinate:$version',
+  );
+}

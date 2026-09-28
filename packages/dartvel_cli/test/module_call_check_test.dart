@@ -101,6 +101,42 @@ void main() {
         isTrue);
   });
 
+  test('a module for some targets is refused on the others', () {
+    final String root = project(page: 'final x = DV.Modules.scanner.scan(1);\n');
+    File(p.join(root, 'pubspec.yaml')).writeAsStringSync('''
+name: shop
+dartvel:
+  modules:
+    scanner:
+      source: { path: modules/dv_scanner_module }
+''');
+    File(p.join(root, 'modules', 'dv_scanner_module', 'pubspec.yaml'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('''
+name: dv_scanner_module
+dartvel:
+  module:
+    id: scanner
+    kind: jvm
+    surface: ScannerModule
+    targets: [android]
+    operations:
+      scan:
+        native: real
+        web: unavailable
+        backend: unavailable
+''');
+    final DVModuleCallCheck ios = DVModuleCallCheck.run(
+        root, <DVModuleEnvironment>{DVModuleEnvironment.native},
+        platforms: <String>{'ios'});
+    expect(ios.ok, isFalse);
+    expect(ios.lines.join('\n'), allOf(contains('DV-MODULE-014'), contains('ios')));
+    expect(
+        DVModuleCallCheck.run(root, <DVModuleEnvironment>{DVModuleEnvironment.native},
+            platforms: <String>{'android'}).ok,
+        isTrue);
+  });
+
   test('a comment is not a call', () {
     final String root =
         project(page: '// DV.Modules.paths.separator() is not for the web\n');

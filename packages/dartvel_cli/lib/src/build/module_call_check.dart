@@ -35,13 +35,17 @@ class DVModuleCallCheck {
     String root,
     Set<DVModuleEnvironment> environments, {
     String backendDir = 'lib/backend',
+    Set<String> platforms = const <String>{},
   }) {
     final Map<String, Map<String, Map<String, String>>> declared =
         <String, Map<String, Map<String, String>>>{};
+    final Map<String, List<String>> targets = <String, List<String>>{};
     for (final DVModuleMount mount in dvDiscoverModuleMounts(root)) {
       if (mount.surface == null) continue;
       final Map<String, Map<String, String>>? ops = _operations(root, mount);
       if (ops != null) declared[mount.id] = ops;
+      final List<String> only = _targets(root, mount);
+      if (only.isNotEmpty) targets[mount.id] = only;
     }
     if (declared.isEmpty) return const DVModuleCallCheck(<String>[]);
 
@@ -76,6 +80,15 @@ class DVModuleCallCheck {
           for (final DVModuleEnvironment env in here) {
             final String where =
                 '${p.relative(file.path, from: root).replaceAll('\\', '/')}:${i + 1}';
+            final List<String>? only = targets[m.group(1)];
+            if (env == DVModuleEnvironment.native && only != null) {
+              for (final String platform in platforms) {
+                if (platform == 'web' || only.contains(platform)) continue;
+                lines.add('   DV-MODULE-014 $where calls '
+                    '${m.group(1)}.${m.group(2)}, which runs on '
+                    '${only.join(', ')} and not on $platform.');
+              }
+            }
             final DVModuleOutcome? outcome = DVModuleOutcome.parse(op[env.name]);
             if (outcome == null) {
               lines.add('   DV-MODULE-014 $where calls '
@@ -114,6 +127,19 @@ class DVModuleCallCheck {
               '${o.key}': '${o.value}',
         },
     };
+  }
+
+  static List<String> _targets(String root, DVModuleMount mount) {
+    final File pubspec = File(p.join(root, mount.sourcePath, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const <String>[];
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    if (doc is Map && doc['dartvel'] is Map) {
+      final Object? module = (doc['dartvel'] as Map)['module'];
+      if (module is Map && module['targets'] is List) {
+        return <String>[for (final Object? t in module['targets'] as List) '$t'];
+      }
+    }
+    return const <String>[];
   }
 
   static String _withoutComments(String code) => code
