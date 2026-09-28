@@ -30,6 +30,26 @@ class DVPublishedPages {
 
   final DVDatabaseAdapter? Function() _database;
 
+  /// The routes a document is published for.
+  ///
+  /// A Studio page is a route no manifest lists, so the web server asks here
+  /// before it answers a path with a 404.
+  Future<Set<String>> routes() async {
+    final DVDatabaseAdapter? database = _database();
+    if (database == null) return const <String>{};
+    try {
+      final List<Map<String, Object?>> rows =
+          await DVRecordAdapter.over(database)
+              .find(dvStudioPagesTable, fields: const <String>['route']);
+      return <String>{
+        for (final Map<String, Object?> row in rows) '${row['route']}',
+      };
+    } on Object {
+      // No table yet: nothing has been published.
+      return const <String>{};
+    }
+  }
+
   /// The documents, or null for a request that is not for them.
   Future<Response?> respond(Request request) async {
     if (request.url.path != dvPublishedPagesPath) return null;
