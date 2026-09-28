@@ -29,6 +29,8 @@ dev_dependencies:
   # Read by the typeface test, which checks that every font family the site
   # names is declared under flutter.fonts with a file that exists.
   yaml: ^3.1.2
+  # The Studio screenshots test compares what the image files hold.
+  crypto: ^3.0.0
   # The CLI reference is generated from the command table; see
   # tool/cli_reference.dart.
   args: ^2.5.0
@@ -58,14 +60,15 @@ flutter:
   uses-material-design: true
   # Screenshots of the real Studio, shown on /studio and the home page.
   assets:
-    - assets/studio/
-    - assets/studio/sections/
+    - assets/studio_shots/
+    - assets/studio_shots/sections/
     # The film-grain tile the hero band is textured with. Written by
     # tool/grain.dart, deterministically, so the file here can be reproduced.
     - assets/texture/
 
 dartvel:
-  backendHost: 0.0.0.0
+  # Behind nginx on dartvel.dev, so the binary listens on loopback only.
+  backendHost: 127.0.0.1
   backendPort: 3000
   devBackendHost: http://localhost:3000
   prodBackendHost: https://api.dartvel-site.com
@@ -77,9 +80,16 @@ dartvel:
   webPrerender: false
   ota: false
 
-  # A static site with no sign-in: no /login, /sign-up or /account pages.
+  # No account pages: no /login, /sign-up or /account. Studio signs its one
+  # granted person in at its own /__studio/login.
   auth:
     pages: false
+
+  # Studio at /__studio, in the release build, with its own sign-in at
+  # /__studio/login. It opens only for a person granted Studio.access with
+  # `dartvel admin grant`.
+  admin:
+    enabled: true
 
   transitions:
     default: fade
@@ -100,7 +110,7 @@ dartvel:
     # keeps its own priority and its own frequency.
     sitemap:
       enabled: true
-      exclude: [/__admin/**]
+      exclude: [/__admin/**, /__studio/**]
       defaults:
         priority: 0.5
         changeFrequency: monthly

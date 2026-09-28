@@ -14,7 +14,7 @@ class const StudioSection({
   /// What the rail calls it.
   required final String label,
 
-  /// The picture, under assets/studio/sections.
+  /// The picture, under assets/studio_shots/sections.
   required final String asset,
 
   /// One line about what it is for.
@@ -28,7 +28,7 @@ class const StudioSection({
 const List<StudioSection> kStudioSections = <StudioSection>[
   StudioSection(
     label: 'Pages',
-    asset: 'assets/studio/sections/pages.png',
+    asset: 'assets/studio_shots/sections/pages.png',
     summary: 'Every page you have built, and an overview of the app: how many '
         'pages are stored, which sections Studio has, and when it last '
         'deployed.',
@@ -37,7 +37,7 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Data',
-    asset: 'assets/studio/sections/data.png',
+    asset: 'assets/studio_shots/sections/data.png',
     summary: 'Every data model in the app with its field count, and the '
         'records in each one. A module\'s models are listed under the module '
         'they came from.',
@@ -46,7 +46,7 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Site map',
-    asset: 'assets/studio/sections/site-map.png',
+    asset: 'assets/studio_shots/sections/site-map.png',
     summary: 'Every address the app answers, the page that answers it and the '
         'file it is declared in, including the pages a mounted module brings.',
     alt: 'The Site map section: a table of addresses, pages and the file each '
@@ -54,7 +54,7 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Frontend',
-    asset: 'assets/studio/sections/frontend.png',
+    asset: 'assets/studio_shots/sections/frontend.png',
     summary: 'The frontend function builder, and the frontend functions this '
         'app has. What a button does, built from steps; the Backend picture '
         'below shows one open. Free, in the Studio your own binary serves.',
@@ -63,7 +63,7 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Backend',
-    asset: 'assets/studio/sections/backend.png',
+    asset: 'assets/studio_shots/sections/backend.png',
     summary: 'The backend function builder, and the backend functions your '
         'code already declares listed by the address each answers. Also free.',
     alt: 'The Backend section with the function builder and the functions the '
@@ -71,7 +71,7 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Modules',
-    asset: 'assets/studio/sections/modules.png',
+    asset: 'assets/studio_shots/sections/modules.png',
     summary: 'The modules this app mounts: where each is served, where it came '
         'from, how many pages it brings and whose tables it uses. One that '
         'failed to mount says so, with the reason.',
@@ -80,27 +80,27 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   ),
   StudioSection(
     label: 'Tasks',
-    asset: 'assets/studio/sections/tasks.png',
+    asset: 'assets/studio_shots/sections/tasks.png',
     summary: 'The background tasks the build found, the queue each runs on and '
         'the file it is declared in.',
     alt: 'The Tasks section listing background tasks with their queues',
   ),
   StudioSection(
     label: 'Queue',
-    asset: 'assets/studio/sections/queue.png',
+    asset: 'assets/studio_shots/sections/queue.png',
     summary: 'What is waiting, what is running and what failed, per queue.',
     alt: 'The Queue section of Studio',
   ),
   StudioSection(
     label: 'Cache',
-    asset: 'assets/studio/sections/cache.png',
+    asset: 'assets/studio_shots/sections/cache.png',
     summary: 'The cache tags on this server and the keys under each, with a '
         'button that revalidates one and says how many keys it dropped.',
     alt: 'The Cache section listing cache tags and the keys under them',
   ),
   StudioSection(
     label: 'Team',
-    asset: 'assets/studio/sections/team.png',
+    asset: 'assets/studio_shots/sections/team.png',
     summary: 'Who may open Studio. Signing up to your app is not signing up to '
         'its admin, so every grant is made here by address.',
     alt: 'The Team section of Studio, listing the accounts granted access',

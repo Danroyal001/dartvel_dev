@@ -64,6 +64,7 @@ import 'src/routing/link_menu.dart' show DVLinkMenuScope, dvLinkMenuItems;
 import 'src/routing/mount.dart' show dvMountedLocation;
 import 'src/routing/nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;
 import 'src/routing/page_mfa.dart' show DVPageMfa;
+import 'src/routing/url_strategy.dart' show dvOpenUrl;
 import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
@@ -7122,7 +7123,7 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
       if (!_awaitingCode &&
           router != null &&
           (from != null || !_deletionCancelled)) {
-        router.go(DVPageMfa.safeReturn(from));
+        DVNavigation.goOrLoad(router, DVPageMfa.safeReturn(from));
       }
     } on DVMfaRequired {
       // The password was right; the second factor is a separate question.
@@ -8869,6 +8870,29 @@ class DVNavigation {
   /// call this in teardown so one test cannot navigate another's.
   static void detach() {
     _router = null;
+  }
+
+  /// Stands in for a full page load in tests, where there is no browser.
+  @visibleForTesting
+  static void Function(String path)? debugLoadFromServer;
+
+  /// Goes to [path], a path on this origin: through the router when it
+  /// serves one there, and as a page load from the server when it does not.
+  /// Studio at its mount is the server's, not the router's, and asking the
+  /// router for it draws the application's own not-found page.
+  static void goOrLoad(GoRouter router, String path) {
+    if (router.configuration.findMatch(Uri.parse(path)).isNotEmpty) {
+      router.go(path);
+      return;
+    }
+    final void Function(String)? load = debugLoadFromServer;
+    if (load != null) {
+      load(path);
+    } else if (kIsWeb) {
+      dvOpenUrl(path);
+    } else {
+      router.go(path);
+    }
   }
 
   static GoRouter get _active {

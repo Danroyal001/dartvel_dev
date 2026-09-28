@@ -7,8 +7,44 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+### Added
+
+- **Studio signs people in itself, at `<admin.path>/login`.** It used to answer
+  a signed-out visitor as a path nobody serves and leave signing in to the
+  application's `/login`, which an application can turn off or replace and
+  whose router does not know the mount exists. The sign-in is a Flutter page
+  of the Studio app, in Studio's own style, light and dark, phone to desktop:
+  it signs in against the application's accounts at `<mount>/api/auth/*`,
+  asks for the second factor when the account has one, and then loads Studio
+  from the server, which still decides on the `Studio.access` grant. A
+  signed-out visit to a Studio page is sent there; Studio's data and API
+  still answer a stranger as a path nobody serves. (dartvel_core,
+  dartvel_flutter)
+
 ### Fixed
 
+- **`dartvel build web` and the web-server binary render a page with one
+  function.** The binary rendered routes from plain lines guessed out of the
+  page source and never minified them, so a crawler or a reader with
+  scripting off got no links, headings or code blocks, and the home page was
+  250 lines where the static build wrote 32. Both now render with
+  `dvRenderRoutePage` in dartvel_core: the static build for every route at
+  build time, the binary on request from the page the build wrote into its
+  manifest, `dartvel preview` likewise. The minifier, the static page head
+  and the structured data moved into dartvel_core for it. (dartvel_core,
+  dartvel_shelf, dartvel_cli)
+- **The semantics capture waits out a slow first paint.** One route missing
+  puppeteer's 30-second navigation timeout on a loaded machine failed the
+  whole build; each route now has 120 seconds and three tries. (dartvel_cli)
+- **HEAD on a server-rendered page answers as GET does.** It answered 404
+  while GET answered 200, so an uptime monitor or a crawler that asks HEAD
+  first saw no pages. (dartvel_shelf)
+- **The PWA service worker leaves Studio and API reads to the browser.** It
+  served every same-origin GET cache-first until the next deploy, Studio's
+  API included, so Studio showed stale records. (dartvel_cli)
+- **Signing in with `from=` a path the router does not serve loads it from the
+  server** instead of drawing the application's not-found page.
+  (dartvel_flutter)
 - **Every Dartvel link has its right-click menu, wherever it is.** The menu
   (Open in a new tab, Copy link address, More) belonged to the page shell's
   selection area, so a link with none above it -- the default 404 page's

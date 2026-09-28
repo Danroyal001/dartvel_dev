@@ -43,7 +43,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'backend functions built from steps and exported as plain Dart.',
         ]),
         StudioShot(
-          'assets/studio/page-builder.png',
+          'assets/studio_shots/page-builder.png',
           'Dartvel Studio page builder with the Layers tree, a selected '
               'heading on the canvas and the inspector',
           caption: 'The page builder served by a web-server binary: Layers on '
@@ -65,18 +65,19 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           '',
           r'$ dartvel build web-server',
           r'$ dartvel admin grant <user-id> --database dartvel_data/data.db',
-          '# sign in to your app, then open https://your-host/__studio',
+          '# open https://your-host/__studio and sign in there',
         ]),
         Bullets(<String>[
-          'Only people you grant can open it. A visitor who is not signed in '
-              'gets the same answer as a page that does not exist.',
+          'Only people you grant can open it. Studio has its own sign-in at '
+              '/__studio/login, so it opens even with your app\'s account '
+              'pages turned off.',
           'Edit model records in a form. An edit made against a row that '
               'changed after you opened it is refused.',
           'Studio fits a phone: sections move to a bar along the bottom, and '
               'the editor shows Elements, Page or Style one at a time.',
         ]),
         StudioShot(
-          'assets/studio/model-records.png',
+          'assets/studio_shots/model-records.png',
           'Dartvel Studio Data section listing Product records with one '
               'open in an edit form',
           caption: 'Data: each record of a model, and a form typed from its '
@@ -99,7 +100,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'ones you tick.',
         ]),
         StudioShot(
-          'assets/studio/deploy-menu.png',
+          'assets/studio_shots/deploy-menu.png',
           'The Deploy button open on its menu: Deploy now, and Restore '
               'original page',
           caption: 'Deploy puts the page live. Its menu also restores the page '
@@ -136,14 +137,15 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'the selected element, and Ctrl+/ lists every shortcut.',
         ]),
         StudioShot(
-          'assets/studio/formula-bar.png',
+          'assets/studio_shots/formula-bar.png',
           'The Studio page editor with the formula bar across the top: the '
-              'fontSize field selected and an unclosed bracket refused',
+              'fontSize field picked in the name box and 12 * 3 + 12 being '
+              'typed for the selected heading',
           caption: 'The formula bar: fontSize picked in the name box, and a '
-              'formula missing its bracket refused where it goes wrong.',
+              'formula typed for the selected heading.',
         ),
         StudioShot(
-          'assets/studio/command-palette.png',
+          'assets/studio_shots/command-palette.png',
           'The Studio command palette open over the editor, filtered to '
               'insert commands',
           caption: 'Ctrl+K: three letters narrow it to what can be inserted.',
@@ -253,16 +255,17 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'Export writes ordinary Dart, so you can drop the builder.',
         ]),
         StudioShot(
-          'assets/studio/frontend-function.png',
+          'assets/studio_shots/frontend-function.png',
           'The Frontend section of Studio with the orderAhead function open: '
-              'Set, Call, Condition and Return steps on the canvas, and its '
-              'typed inputs on the right',
+              'Call, Condition and Return steps on the canvas, and the '
+              'selected Condition step\'s argument on the right',
           caption: 'A frontend function: what a button does, built from '
-              'steps, with its inputs typed.',
+              'steps that branch on a value.',
         ),
         StudioShot(
-          'assets/studio/backend-function.png',
-          'The Backend section with the placeOrder function open, and the '
+          'assets/studio_shots/backend-function.png',
+          'The Backend section with the placeOrder function open and a Call '
+              'step selected, and the '
               'backend functions the project wrote in code listed underneath '
               'by the address each answers',
           caption: 'The Backend section builds one and lists the ones your '

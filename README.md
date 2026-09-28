@@ -457,8 +457,15 @@ dartvel:
     enabled: true
 ```
 
-Even then it opens only for a signed-in person allowed the `Studio.access`
-action, and by default nobody is. Grants live in the application's own
+Studio signs people in itself, at `/__studio/login` (under `dartvel.admin.path`
+when that moves it), against the application's own accounts: a signed-out
+visit to a Studio page is sent there and comes back once signed in, with the
+second factor asked for when the account has one. It does not use the
+application's `/login`, so it works with `dartvel.auth.pages` turned off.
+Studio's files and its API still answer a stranger as a path nobody serves.
+
+Signing in is not enough: it opens only for a person allowed the
+`Studio.access` action, and by default nobody is. Grants live in the application's own
 database, so you give them on the server:
 
 ```bash
@@ -466,6 +473,10 @@ dartvel admin grant user_123 --database dartvel_data/data.db
 dartvel admin list --database dartvel_data/data.db
 dartvel admin revoke user_123 --database dartvel_data/data.db
 ```
+
+dartvel.dev itself runs this way: one binary behind nginx, with Studio
+enabled and granted to its owner. `sites/dartvel_site/README.md` has the
+service, the deploy script and the rollback.
 
 Hosts: `dartvel_shelf` ships its native library for linux-x64, linux-arm64,
 macos-arm64, macos-x64, windows-x64 and windows-arm64, and CI builds the binary

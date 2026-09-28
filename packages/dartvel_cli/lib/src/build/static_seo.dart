@@ -13,9 +13,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'structured_data.dart';
+import 'package:dartvel_core/dartvel.dart' show dvStaticCanonical;
 
-import 'seo_head.dart';
+export 'package:dartvel_core/dartvel.dart' show dvStaticCanonical, dvStaticPage, dvStructuredData, dvRenderRoutePage, DVRoutePage;
+
 
 /// Where a route's HTML file goes, relative to the build output.
 ///
@@ -31,109 +32,6 @@ String? dvStaticRoutePath(String route) {
   final trimmed = route.replaceAll(RegExp(r'/+$'), '');
   if (trimmed.isEmpty) return 'index.html';
   return '${trimmed.substring(1)}/index.html';
-}
-
-/// The absolute URL for a route.
-String dvStaticCanonical(String siteUrl, String route) {
-  final base = siteUrl.replaceAll(RegExp(r'/+$'), '');
-  final trimmed = route.replaceAll(RegExp(r'/+$'), '');
-  return trimmed.isEmpty ? base : '$base$trimmed';
-}
-
-/// A route's own HTML: the app shell with this page's head tags and, where
-/// prerendering captured it, this page's text.
-String dvStaticPage({
-  required String shell,
-  required String route,
-  required String title,
-  String? description,
-  String? content,
-  String? siteUrl,
-  String? image,
-  String? siteName,
-  Map<String, String> alternates = const <String, String>{},
-  String? defaultAlternate,
-  String? favicon,
-  String? schemaType,
-}) {
-  final canonical =
-      siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
-
-  // What the page *is*, which OpenGraph cannot say: og:type is "website" for
-  // every page on every site. This is what produces a site name in a result
-  // and a breadcrumb trail under a link.
-  //
-  // Folded into the one head application rather than applied after it.
-  // dvSeoApply writes into a marked region, so a second call replaces the
-  // first call's tags -- which took the title and the canonical with it.
-  final String jsonLd = dvStructuredData(
-    route: route,
-    title: title,
-    siteName: siteName ?? title,
-    description: description,
-    siteUrl: siteUrl,
-    image: dvAbsoluteAsset(image, siteUrl),
-    schemaType: schemaType,
-  );
-
-  var html = dvSeoApply(
-    shell,
-    dvSeoHead(
-      title: title,
-      description: description,
-      // Its own URL, not the site root. Every page canonicalising to `/` tells
-      // a crawler they are the same page, which is worse than no canonical.
-      siteUrl: canonical,
-      // Resolved against the site root here, because dvSeoHead resolves a
-      // relative image against whatever it is given as siteUrl -- and that is
-      // the page's canonical URL, which is what the canonical link and og:url
-      // need. Passing both through one argument put the route into the image:
-      // /docs asked for https://example.com/docs/icons/Icon-512.png, which
-      // does not exist. A broken og:image is invisible until someone shares
-      // the link.
-      image: dvAbsoluteAsset(image, siteUrl),
-      siteName: siteName,
-      alternates: alternates,
-      defaultAlternate: defaultAlternate,
-    ) + (jsonLd.isEmpty ? '' : '\n$jsonLd'),
-  );
-
-  // Outside the marked region deliberately. dvSeoApply rewrites what is
-  // between its markers, and the shell's icon link is not in there -- it is a
-  // tag Flutter wrote, and replacing it is the only way a page gets its own
-  // icon rather than a second one next to the application's.
-  html = dvApplyFavicon(html, favicon);
-
-  if (content != null && content.trim().isNotEmpty) {
-    html = _injectContent(html, content);
-  }
-  return html;
-}
-
-/// Markers so a rebuild replaces the block rather than adding another.
-const String _openBody = '<!-- dartvel:prerendered -->';
-const String _closeBody = '<!-- /dartvel:prerendered -->';
-
-/// Put the prerendered text in the body.
-///
-/// The body is empty until JavaScript runs, so without this a crawler sees
-/// nothing. The text comes from the rendered page, which renders whatever is
-/// in the database, so it is escaped like any other untrusted value.
-String _injectContent(String html, String content) {
-  final cleaned = html.replaceAll(
-      RegExp('$_openBody.*?$_closeBody\n?', dotAll: true), '');
-  final at = cleaned.indexOf('</body>');
-  if (at < 0) return cleaned;
-
-  // Off-screen rather than hidden: `display: none` is ignored by some
-  // crawlers and treated as cloaking by others, while a positioned element is
-  // read normally and never seen.
-  final block = '$_openBody\n'
-      '<div id="dartvel-prerendered" style="position:absolute;left:-9999px;'
-      'top:auto;width:1px;height:1px;overflow:hidden;">'
-      '${const HtmlEscape(HtmlEscapeMode.element).convert(content)}'
-      '</div>\n$_closeBody\n';
-  return '${cleaned.substring(0, at)}$block${cleaned.substring(at)}';
 }
 
 /// The routes a generated router guards, read back out of its source.
