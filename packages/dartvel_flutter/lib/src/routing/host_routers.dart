@@ -27,8 +27,11 @@ import 'mount.dart' show dvRoutePaths;
 
 /// The Dartvel path a host [location] names under [at], or null when it is
 /// not one of [routes]: the host's own route, which the host handles.
-String? dvHostedLocation(String location, List<RouteBase> routes,
-    {String at = '/'}) {
+String? dvHostedLocation(
+  String location,
+  List<RouteBase> routes, {
+  String at = '/',
+}) {
   final Uri uri = Uri.parse(location);
   String path = uri.path.isEmpty ? '/' : uri.path;
   if (at != '/') {
@@ -40,8 +43,8 @@ String? dvHostedLocation(String location, List<RouteBase> routes,
       return null;
     }
   }
-  final bool ours =
-      dvRoutePaths(routes).any((String pattern) => dvRoutesOverlap(path, pattern));
+  final bool ours = dvRoutePaths(routes)
+      .any((String pattern) => dvRoutesOverlap(path, pattern));
   if (!ours) return null;
   return uri.replace(path: path).toString();
 }
@@ -54,9 +57,15 @@ String dvHostedPath(String path, {String at = '/'}) =>
 /// For Navigator 1.0: a route for [settings] when it names a Dartvel page
 /// under [at], else null for the host's own `onGenerateRoute` to answer.
 Route<Object?>? dvOnGenerateRoute(
-    RouteSettings settings, List<RouteBase> routes, {String at = '/'}) {
-  final String? location =
-      dvHostedLocation(settings.name ?? '/', routes, at: at);
+  RouteSettings settings,
+  List<RouteBase> routes, {
+  String at = '/',
+}) {
+  final String? location = dvHostedLocation(
+    settings.name ?? '/',
+    routes,
+    at: at,
+  );
   if (location == null) return null;
   return MaterialPageRoute<Object?>(
     settings: settings,
@@ -102,7 +111,6 @@ class _DVHostedPageState extends State<DVHostedPage> {
     routes: widget.routes,
     initialLocation: widget.location,
   );
-  bool _canPop = false;
 
   @override
   void initState() {
@@ -113,14 +121,20 @@ class _DVHostedPageState extends State<DVHostedPage> {
   }
 
   void _changed() {
-    final bool canPop = _router.canPop();
-    if (canPop != _canPop) setState(() => _canPop = canPop);
+    // Whether Dartvel's stack can pop is known once its navigator has
+    // rebuilt with the new page, a frame after the router says it changed.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
     // The address bar follows the Dartvel route, under the host's mount.
     if (kIsWeb) {
-      final String location =
-          _router.routerDelegate.currentConfiguration.uri.toString();
-      unawaited(SystemNavigator.routeInformationUpdated(
-          uri: Uri.parse(dvHostedPath(location, at: widget.at))));
+      final String location = _router.routerDelegate.currentConfiguration.uri
+          .toString();
+      unawaited(
+        SystemNavigator.routeInformationUpdated(
+          uri: Uri.parse(dvHostedPath(location, at: widget.at)),
+        ),
+      );
     }
   }
 
@@ -133,12 +147,20 @@ class _DVHostedPageState extends State<DVHostedPage> {
 
   @override
   Widget build(BuildContext context) => PopScope<Object?>(
-        // Back goes to Dartvel's own stack first, and to the host's once
-        // there is nothing left in it.
-        canPop: !_canPop,
-        onPopInvokedWithResult: (bool didPop, Object? _) {
-          if (!didPop && _router.canPop()) _router.pop();
-        },
-        child: Router<Object>.withConfig(config: _router),
-      );
+    // Back goes to Dartvel's own stack first, and to the host's once
+    // there is nothing left in it.
+    canPop: !_router.canPop(),
+    onPopInvokedWithResult: (bool didPop, Object? _) {
+      if (!didPop && _router.canPop()) _router.pop();
+    },
+    // No back button dispatcher of its own: the system back goes to the
+    // host, whose route asks the PopScope above, which pops this stack
+    // first. A second root dispatcher here answered back before the host
+    // and took the whole page with it.
+    child: Router<Object>(
+      routerDelegate: _router.routerDelegate,
+      routeInformationParser: _router.routeInformationParser,
+      routeInformationProvider: _router.routeInformationProvider,
+    ),
+  );
 }
