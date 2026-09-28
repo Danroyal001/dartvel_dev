@@ -57,6 +57,13 @@ class _FakeServer {
   };
   final Map<String, Map<String, Object?>> pages =
       <String, Map<String, Object?>>{};
+  final List<Map<String, Object?>> routes = <Map<String, Object?>>[
+    <String, Object?>{
+      'path': '/menu',
+      'page': 'MenuPage',
+      'source': 'lib/pages/menu.page.dart',
+    },
+  ];
   final List<String> deadLetters = <String>['job-1'];
   final Map<String, List<String>> tags = <String, List<String>>{
     'products': <String>['product:ethiopia', 'product:colombia'],
@@ -250,16 +257,26 @@ class _FakeServer {
       final List<String> dropped = tags.remove(tag) ?? <String>[];
       return reply(200, <String, Object?>{'tag': tag, 'dropped': dropped});
     }
+    // The site: the compiled routes the build's graph lists, with the pages
+    // Studio stored, merged as the admin API merges them.
+    if (method == 'GET' && path == 'api/site') {
+      return reply(200, <String, Object?>{
+        'pages': <Object?>[
+          for (final DVStudioSitePage page in dvStudioSitePages(
+            compiled: routes,
+            stored: <String, String?>{
+              for (final Map<String, Object?> page in pages.values)
+                '${page['route']}': page['title'] as String?,
+            },
+          ))
+            page.toJson(),
+        ],
+      });
+    }
     if (method == 'GET' && path == 'graph.json') {
       return reply(200, <String, Object?>{
         'models': <Object?>[],
-        'routes': <Object?>[
-          <String, Object?>{
-            'path': '/menu',
-            'page': 'MenuPage',
-            'source': 'lib/pages/menu.page.dart',
-          },
-        ],
+        'routes': routes,
         'functions': <Object?>[
           <String, Object?>{
             'name': 'placeOrder',
