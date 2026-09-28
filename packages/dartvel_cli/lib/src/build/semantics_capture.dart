@@ -199,7 +199,17 @@ Future<DVCaptureRun> dvCaptureSemantics({
         page.onRequestFailed.listen((Object? _) => flight.ended()),
       ];
       try {
-        await page.goto('$base$route', wait: Until.networkIdle);
+        // A generous timeout, and a second try: on a machine under load the
+        // default 30 seconds failed whole builds on one slow first paint.
+        for (int attempt = 1; ; attempt++) {
+          try {
+            await page.goto('$base$route',
+                wait: Until.networkIdle, timeout: const Duration(seconds: 120));
+            break;
+          } on TimeoutException {
+            if (attempt >= 3) rethrow;
+          }
+        }
 
         // Flutter web builds no semantics tree until something asks for one.
         // It renders a hidden placeholder labelled "Enable accessibility" and
