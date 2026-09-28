@@ -29,6 +29,8 @@ dev_dependencies:
   # Read by the typeface test, which checks that every font family the site
   # names is declared under flutter.fonts with a file that exists.
   yaml: ^3.1.2
+  # The Studio screenshots test compares what the image files hold.
+  crypto: ^3.0.0
   # The CLI reference is generated from the command table; see
   # tool/cli_reference.dart.
   args: ^2.5.0
@@ -58,8 +60,8 @@ flutter:
   uses-material-design: true
   # Screenshots of the real Studio, shown on /studio and the home page.
   assets:
-    - assets/studio/
-    - assets/studio/sections/
+    - assets/studio_shots/
+    - assets/studio_shots/sections/
     # The film-grain tile the hero band is textured with. Written by
     # tool/grain.dart, deterministically, so the file here can be reproduced.
     - assets/texture/

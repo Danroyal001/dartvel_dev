@@ -362,7 +362,7 @@ Widget _studioProof(BuildContext context) => const Section(
           'with Dartvel Cloud, adds Figma import and team review.',
     ]),
     StudioShot(
-      'assets/studio/page-builder.png',
+      'assets/studio_shots/page-builder.png',
       'Dartvel Studio page builder with the Layers tree, a selected heading '
           'on the canvas and the inspector',
     ),
