@@ -342,7 +342,7 @@ String _carrier(DVForeignModuleSpec spec, DVModuleEnvironment env) {
     }
     out.writeln();
   }
-  return out.toString().trimRight() + '\n';
+  return '${out.toString().trimRight()}\n';
 }
 
 String _noop(DVModuleOperation op, String head, String? value) {
