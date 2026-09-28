@@ -2883,12 +2883,32 @@ class BuildCommand extends Command<void> {
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
         backgroundSync: settings['backgroundSync'] != false,
+        // Studio and the API are left to the browser: Studio is its own
+        // application, and an API answer is not an asset to keep until the
+        // next deploy.
+        adminPath: _serviceWorkerAdminPath(root),
+        apiBasePath: _serviceWorkerApiBase(root),
       ),
     );
 
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
         'precached, with an offline page.');
+  }
+
+  /// The admin mount the worker leaves alone, when this build serves one.
+  String? _serviceWorkerAdminPath(String root) {
+    final DVAdminMount admin =
+        dvAdminMount(_dartvelSection(root), release: _isReleaseBuild());
+    return admin.enabled ? admin.path : null;
+  }
+
+  /// The API base path the worker lets GETs through to.
+  String _serviceWorkerApiBase(String root) {
+    final Object? declared = _dartvelSection(root)['apiBasePath'];
+    return declared is String && declared.trim().startsWith('/')
+        ? declared.trim()
+        : '/api';
   }
 
   /// Write the SEO head tags into a finished web build.

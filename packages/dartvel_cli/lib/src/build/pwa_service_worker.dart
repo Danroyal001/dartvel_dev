@@ -19,6 +19,8 @@ String dvServiceWorker({
   required List<String> precache,
   String? offlinePath,
   bool backgroundSync = true,
+  String? adminPath,
+  String? apiBasePath,
 }) {
   final List<String> assets = <String>[
     ...precache,
@@ -28,6 +30,8 @@ String dvServiceWorker({
   ];
 
   return _template
+      .replaceAll('__ADMIN__', _pathOrNull(adminPath))
+      .replaceAll('__API__', _pathOrNull(apiBasePath))
       .replaceAll('__BUILD_ID__', buildId)
       .replaceAll('__PRECACHE__', jsonEncode(assets))
       .replaceAll('__OFFLINE__',
@@ -38,6 +42,16 @@ String dvServiceWorker({
       .replaceAll('__OUTBOX__', backgroundSync ? _outbox : '')
       .replaceAll('__QUEUE_ON_FAILURE__',
           backgroundSync ? _queueOnFailure : _noQueue);
+}
+
+/// A path as a JS string literal, without a trailing slash, or `null`.
+String _pathOrNull(String? path) {
+  if (path == null) return 'null';
+  String value = path.trim();
+  while (value.length > 1 && value.endsWith('/')) {
+    value = value.substring(0, value.length - 1);
+  }
+  return value.isEmpty || value == '/' ? 'null' : jsonEncode(value);
 }
 
 /// What a non-GET does when the network refuses it.
@@ -234,6 +248,11 @@ const String _template = r'''
 const CACHE = 'dartvel-__BUILD_ID__';
 const PRECACHE = __PRECACHE__;
 const OFFLINE = __OFFLINE__;
+// Studio's mount and the API base path. Studio is its own application with
+// its own session, and an API answer is data, not an asset: neither belongs
+// in a cache that only a deploy empties.
+const ADMIN = __ADMIN__;
+const API = __API__;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -263,8 +282,12 @@ self.addEventListener('fetch', (event) => {
   // the worker can neither inspect nor invalidate.
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (ADMIN && (url.pathname === ADMIN || url.pathname.startsWith(ADMIN + "/"))) return;
 
 __QUEUE_ON_FAILURE__
+
+  // A GET to the API is an answer that changes; the browser fetches it.
+  if (API && request.method === "GET" && (url.pathname === API || url.pathname.startsWith(API + "/"))) return;
 
   // Network first for documents. Cache-first on a navigation is the failure
   // that bricks a PWA: the worker serves an index.html naming bundles that no
