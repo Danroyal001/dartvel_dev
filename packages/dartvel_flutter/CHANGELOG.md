@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.0
 
 - **`DVBox.threePane`: three panes, one per panel of a tri-fold.** Each pane
   fills a panel between two folds or hinges, left to right, right to left
