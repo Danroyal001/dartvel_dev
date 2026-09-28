@@ -9,7 +9,7 @@ need no generated code, in a plain Flutter app.
 
 ```sh
 dart pub global activate dartvel_dev
-dartvel create --name shop
+dartvel create shop
 cd shop
 ```
 

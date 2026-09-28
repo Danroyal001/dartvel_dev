@@ -41,10 +41,17 @@ class AdoptCommand extends Command<void> {
       'key, nothing else.';
 
   @override
-  String get invocation => 'dartvel init [--dry-run] [--yes]';
+  String get invocation => 'dartvel init [<folder>] [--dry-run] [--yes]';
 
   @override
   Future<void> run() async {
+    // With no project here, there is nothing to add Dartvel to: `init` makes
+    // one, exactly as `create` does, asking first whether this folder is it.
+    if (argResults!.rest.isNotEmpty ||
+        dvInitCreatesProject(Directory.current.path)) {
+      await runner!.run(['create', ...argResults!.rest]);
+      return;
+    }
     final int code = await dvRunInit(
       Directory.current.path,
       dryRun: argResults!['dry-run'] as bool,
@@ -66,6 +73,11 @@ class AdoptCommand extends Command<void> {
 ///
 /// Exit codes: 0 applied, dry run, or nothing to do; 1 refused or blocked;
 /// 2 not applied because nobody confirmed.
+/// Whether `dartvel init` in [root] creates a project rather than adding
+/// Dartvel to one: true when there is no `pubspec.yaml` there.
+bool dvInitCreatesProject(String root) =>
+    !File('$root${Platform.pathSeparator}pubspec.yaml').existsSync();
+
 Future<int> dvRunInit(
   String root, {
   required bool dryRun,
