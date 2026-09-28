@@ -1110,8 +1110,13 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
     // By line rather than by URI, because two aliases for one library are
     // two different imports and both are wanted. A Set keeps insertion
     // order, so the header stays at the top.
+    // A host on auto_route mounts this application's pages through
+    // dartvelAutoRoutes, generated only when the project depends on it.
+    // Prefixed: auto_route and go_router both export a RouteMatch.
+    final bool autoRoute = _dependsOn(root, 'auto_route');
     final imports = <String>{
       "import 'dart:async';",
+      if (autoRoute) "import 'package:auto_route/auto_route.dart' as auto_route;",
       "import 'package:flutter/material.dart';",
       "import 'package:go_router/go_router.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart';",
@@ -1837,6 +1842,31 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
     sbRedirect.writeln('  return null;');
     sbRedirect.writeln('}');
 
+    final String autoRouteSource = autoRoute
+        ? r'''
+
+/// This application's pages for a host on auto_route:
+/// `routes: [...hostRoutes, ...dartvelAutoRoutes(at: '/app')]`. Dartvel's
+/// routes run in a router of their own under [at], with their own guards;
+/// `context.router.pushPath(dvHostedPath(DVRoutes.about.path, at: '/app'))`
+/// opens one by its typed route.
+List<auto_route.AutoRoute> dartvelAutoRoutes(
+    {String at = '/app', List<String> arguments = const <String>[]}) {
+  final List<RouteBase> routes = _dartvelHosted(arguments);
+  final auto_route.PageInfo page = auto_route.PageInfo(
+    'DartvelHostedPage',
+    builder: (auto_route.RouteData data) => DVHostedPage(
+      location: dvHostedLocation(data.match, routes, at: at) ?? '/',
+      routes: routes,
+      at: at,
+    ),
+  );
+  return <auto_route.AutoRoute>[
+    auto_route.AutoRoute(page: page, path: at),
+    auto_route.AutoRoute(page: page, path: '$at/*'),
+  ];
+}'''
+        : '';
     final router = '''
 // GENERATED – do not edit.
 // ignore_for_file: unnecessary_import, unused_import, prefer_const_constructors
@@ -1915,6 +1945,35 @@ List<RouteBase> dartvelRoutes({String at = '/', List<String> arguments = const <
   _dartvelSetUp(arguments);
   return dvMountRoutes(_dartvelRouteList(), at: at);
 }
+
+bool _dartvelHostSetUp = false;
+List<RouteBase>? _dartvelHostRoutes;
+
+/// This application's routes for a host that routes some other way, set up
+/// once however many of its pages the host builds.
+List<RouteBase> _dartvelHosted(List<String> arguments) {
+  if (!_dartvelHostSetUp) {
+    _dartvelHostSetUp = true;
+    _dartvelSetUp(arguments);
+  }
+  return _dartvelHostRoutes ??= _dartvelRouteList();
+}
+
+/// This application's pages for a host on Navigator 1.0:
+/// `onGenerateRoute: (s) => dartvelOnGenerateRoute(s, at: '/app') ?? hostRoute(s)`.
+/// Null for a name that is not one of these pages under [at], so the host
+/// answers its own. `Navigator.pushNamed(context, dvHostedPath(DVRoutes.about.path, at: '/app'))`
+/// opens one by its typed route.
+Route<Object?>? dartvelOnGenerateRoute(RouteSettings settings,
+        {String at = '/', List<String> arguments = const <String>[]}) =>
+    dvOnGenerateRoute(settings, _dartvelHosted(arguments), at: at);
+
+/// The page for [uri] for a host on Navigator 2.0, to put in its
+/// navigator's `pages`; null when [uri] is not one of these pages under [at].
+Page<Object?>? dartvelPageFor(Uri uri,
+        {String at = '/', List<String> arguments = const <String>[]}) =>
+    dvPageFor(uri, _dartvelHosted(arguments), at: at);
+$autoRouteSource
 
 GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   _dartvelSetUp(arguments);
@@ -4522,4 +4581,14 @@ _TabsShell _tabsShell(
 bool _declaresCompanionClass(File file) {
   final String source = file.readAsStringSync();
   return RegExp(r'^\s*class\s+[A-Za-z_]', multiLine: true).hasMatch(source);
+}
+
+/// Whether the project at [root] depends on [package].
+bool _dependsOn(String root, String package) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return false;
+  final Object? doc = loadYaml(pubspec.readAsStringSync());
+  if (doc is! Map) return false;
+  return <String>['dependencies', 'dev_dependencies'].any(
+      (String section) => doc[section] is Map && (doc[section] as Map).containsKey(package));
 }

@@ -1,3 +1,18 @@
+## Unreleased
+
+- **`DVHostedPage`, `dvOnGenerateRoute`, `dvPageFor`**: Dartvel's routes in
+  a host on Navigator 1.0, Navigator 2.0 or auto_route, in a router of their
+  own with their guards, back through Dartvel's stack first, and the web
+  address bar following the page.
+
+- **A loading bar across the top instead of a spinner in the middle.**
+  `DvDefaultLoading`, which a deferred page arriving and a page's data
+  loading both show, is now the same thin bar the web page shows before its
+  first frame, on every platform. `DV.progress.track(future)` and
+  `DV.progress.start()` show it for an application's own work;
+  `DV.progress.color` and `DV.progress.enabled` theme and turn it off.
+  Themed from the colour scheme, still under reduced motion.
+
 ## 0.9.1
 
 - Studio's sign-in is a Flutter page of the Studio app, `DVStudioSignInScreen`,
