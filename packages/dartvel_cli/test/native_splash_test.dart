@@ -349,12 +349,21 @@ dartvel:
       expect(dvWebSplashApply(_webIndex, splash), contains('flutter-first-frame'));
     });
 
+    test('the compiled app starts downloading while the page is parsed', () {
+      // flutter_bootstrap.js asks for main.dart.js only once it has run;
+      // a preload in the head starts that download with the HTML.
+      final String html = dvWebSplashApply(_webIndex, splash);
+      expect(html, contains('<link rel="preload" href="main.dart.js" as="script">'));
+      expect(dvWebSplashApply(html, splash).split('rel="preload"').length, 2);
+    });
+
     test('never covers the page a reader without scripting gets', () {
       // The prerendered text is a noscript block. Without scripting the
       // first-frame event never comes, so a splash left in place would sit
       // over the only content that page has.
       expect(dvWebSplashApply(_webIndex, splash),
-          contains('<noscript><style>#dartvel-splash{display:none}</style></noscript>'));
+          contains('<noscript><style>#dartvel-splash,#dartvel-progress{display:none}'
+              '</style></noscript>'));
     });
 
     test('applying twice is applying once, and a new colour replaces the old',
@@ -397,13 +406,24 @@ dartvel:
       expect(_read('build/web/index.html'), contains('width:100px'));
     });
 
-    test('disabled leaves the page alone', () {
+    test('disabled, with the loading bar off too, leaves the page alone', () {
+      _write('build/web/index.html', _webIndex);
+      dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')),
+          _splash(const <String, Object?>{
+            'splash': <String, Object?>{'enabled': false, 'progress': false},
+          }));
+      expect(_read('build/web/index.html'), _webIndex);
+    });
+
+    test('disabled, the loading bar is still there', () {
       _write('build/web/index.html', _webIndex);
       dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')),
           _splash(const <String, Object?>{
             'splash': <String, Object?>{'enabled': false},
           }));
-      expect(_read('build/web/index.html'), _webIndex);
+      final String html = _read('build/web/index.html');
+      expect(html, contains('id="dartvel-progress"'));
+      expect(html, isNot(contains('id="dartvel-splash"')));
     });
   });
 
