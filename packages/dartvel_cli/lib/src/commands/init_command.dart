@@ -66,6 +66,71 @@ Future<String?> dvLocalPackagesDir() async {
   }
 }
 
+/// Where `dartvel create` will scaffold, and the package name it will use.
+class DVCreateTarget {
+  const DVCreateTarget(this.root, this.projectName, {required this.createsFolder});
+
+  final String root;
+  final String projectName;
+
+  /// False when the project goes into the folder the command was run in.
+  final bool createsFolder;
+}
+
+final RegExp _packageName = RegExp(r'^[a-z][a-z0-9_]*$');
+
+/// Resolves the folder and package name the way `flutter create` does.
+///
+/// A [folder] on the command line is created (`.` is the current folder) and
+/// names the package unless [projectName] overrides it. With no folder, an
+/// interactive reader is asked whether the current folder is the one: Enter
+/// or "y" uses it, "n" asks for a folder name, and anything else typed is the
+/// folder to create. With nobody to ask, the current folder is used.
+DVCreateTarget dvResolveCreateTarget({
+  required String cwd,
+  String? folder,
+  String? projectName,
+  bool interactive = false,
+  String? Function(String question)? ask,
+}) {
+  if (folder == null && interactive && ask != null) {
+    final String answer = (ask(
+              'Create the project in the current folder '
+              '(${p.basename(cwd)})? [Y/n, or type a folder name] ',
+            ) ??
+            '')
+        .trim();
+    final String lower = answer.toLowerCase();
+    if (lower == 'n' || lower == 'no') {
+      String name = '';
+      while (name.isEmpty) {
+        name = (ask('Folder name: ') ?? '').trim();
+      }
+      folder = name;
+    } else if (answer.isNotEmpty && lower != 'y' && lower != 'yes') {
+      folder = answer;
+    }
+  }
+
+  final bool here = folder == null || folder == '.';
+  final String root = here ? cwd : p.normalize(p.join(cwd, folder));
+  final String name = projectName ?? p.basename(root);
+  if (!_packageName.hasMatch(name)) {
+    final String suggestion = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_]+'), '_')
+        .replaceAll(RegExp(r'^[^a-z]+'), '');
+    throw UsageException(
+      '"$name" is not a valid Dart package name: use lowercase letters, '
+      'digits and underscores, starting with a letter. Name the folder '
+      '${suggestion.isEmpty ? 'that way' : '"$suggestion"'}, or keep the '
+      'folder and pass --project-name ${suggestion.isEmpty ? '<name>' : suggestion}.',
+      'dartvel create [<folder>] [--project-name <name>]',
+    );
+  }
+  return DVCreateTarget(root, name, createsFolder: !here);
+}
+
 class InitCommand extends Command<void> {
   @override
   final String name = 'create';
@@ -79,53 +144,47 @@ class InitCommand extends Command<void> {
   // the adopting project's pubspec with the scaffold template.
   @override
   final List<String> aliases = ['new'];
+
+  @override
+  String get invocation => 'dartvel create [<folder>] [--project-name <name>]';
   InitCommand() {
     argParser
       ..addFlag('web', defaultsTo: true, help: 'Include web platform')
       ..addFlag('mobile', defaultsTo: true, help: 'Include mobile platforms')
       ..addFlag('desktop', defaultsTo: false, help: 'Include desktop platforms')
       ..addFlag('ssr', defaultsTo: false, help: 'Enable SSR/SSG features')
-      ..addOption('name', abbr: 'n', help: 'Project name')
+      ..addOption('project-name',
+          help: 'The package name, when it should differ from the folder\'s. '
+              'Lowercase with underscores, as `flutter create` requires.')
       ..addOption('org',
           abbr: 'o', defaultsTo: 'com.example', help: 'Organization domain');
   }
 
   @override
   Future<void> run() async {
-    var root = Directory.current.path;
-    String? projectName;
-    String? targetDir;
+    final DVCreateTarget target = dvResolveCreateTarget(
+      cwd: Directory.current.path,
+      folder: argResults!.rest.isEmpty ? null : argResults!.rest.first,
+      projectName: argResults!['project-name'] as String?,
+      interactive: stdin.hasTerminal,
+      ask: (String question) {
+        stdout.write(question);
+        return stdin.readLineSync();
+      },
+    );
+    final String root = target.root;
+    final String projectName = target.projectName;
 
-    // Check for positional argument
-    if (argResults!.rest.isNotEmpty) {
-      targetDir = argResults!.rest.first;
-    } else {
-      // Prompt user if no argument provided
-      stdout.write('Project name (leave blank for current directory): ');
-      final input = stdin.readLineSync()?.trim();
-      if (input != null && input.isNotEmpty) {
-        targetDir = input;
-      }
-    }
-
-    // Handle target directory
-    if (targetDir != null && targetDir != '.') {
-      if (p.isAbsolute(targetDir)) {
-        root = targetDir;
-      } else {
-        root = p.join(root, targetDir);
-      }
-
+    if (target.createsFolder) {
       final dir = Directory(root);
       if (!dir.existsSync()) {
         dir.createSync(recursive: true);
-        Logger.log('Created project directory: $targetDir');
+        Logger.log('Created project directory: ${p.relative(root)}');
       }
     } else {
       Logger.log('Initializing in current directory: $root');
     }
 
-    projectName ??= argResults?['name'] as String? ?? p.basename(root);
     final org = argResults?['org'] as String;
     final web = argResults?['web'] as bool;
     final mobile = argResults?['mobile'] as bool;
@@ -141,7 +200,7 @@ class InitCommand extends Command<void> {
       Logger.log(refusal);
       throw UsageException(
         'refusing to scaffold over a project Dartvel did not create',
-        'dartvel create [<new-directory>]',
+        'dartvel create [<folder>]',
       );
     }
 
