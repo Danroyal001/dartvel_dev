@@ -33,7 +33,7 @@ What the numbers say:
 - **Nothing said the page was alive.** A still splash for 30 seconds on a
   phone reads as a page that died.
 
-## What changed (0.10.0)
+## What changed (0.9.1)
 
 Written into every page's HTML by `dartvel build web`, before any Dart runs:
 
@@ -56,7 +56,7 @@ application's own work.
 
 ## After
 
-Measured after the 0.10.0 deploy; see the rows added below.
+Measured after the 0.9.1 deploy; see the rows added below.
 
 ## Still to do
 
