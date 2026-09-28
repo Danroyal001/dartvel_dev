@@ -37,6 +37,10 @@ const String dvSplashDefaultColor = '#FFFFFF';
 /// surface, so a phone in dark mode does not open on a white page.
 const String dvSplashDefaultDarkColor = '#121212';
 
+/// The loading bar's colour when a project names none: a blue that reads on
+/// a light splash and a dark one.
+const String dvProgressDefaultColor = '#2F6BFF';
+
 /// What a project's splash is.
 class DVSplash {
   DVSplash({
@@ -50,7 +54,17 @@ class DVSplash {
     this.imageIsIcon = false,
     this.overwrite = false,
     this.problems = const <String>[],
+    this.progress = true,
+    this.progressColor = dvProgressDefaultColor,
   });
+
+  /// Whether the web page shows a loading bar across the top until its
+  /// first frame. On unless `splash.progress: false`.
+  final bool progress;
+
+  /// The loading bar's colour: `splash.progressColor`, else
+  /// [dvProgressDefaultColor].
+  final String progressColor;
 
   /// From the `dartvel:` section of a pubspec, with files resolved against
   /// [root].
@@ -120,6 +134,9 @@ class DVSplash {
       imageIsIcon: isIcon,
       overwrite: splash['overwrite'] == true,
       problems: problems,
+      progress: splash['progress'] != false,
+      progressColor: colour(splash['progressColor'], 'splash.progressColor') ??
+          dvProgressDefaultColor,
     );
   }
 
@@ -310,22 +327,57 @@ String dvWebSplashApply(
   // structure around somebody's template.
   if (head < 0 || body == null || body.start < head) return clean;
 
-  final StringBuffer style = StringBuffer()
-    ..write('#dartvel-splash{position:fixed;top:0;right:0;bottom:0;left:0;'
+  final StringBuffer style = StringBuffer();
+  if (splash.enabled) {
+    style.write('#dartvel-splash{position:fixed;top:0;right:0;bottom:0;left:0;'
         'display:flex;align-items:center;justify-content:center;'
         'background:${splash.color}}');
-  if (imageUrl != null) {
-    style.write('#dartvel-splash img{width:${imageWidth ?? 96}px;'
-        'max-width:60vw;height:auto}');
+    if (imageUrl != null) {
+      style.write('#dartvel-splash img{width:${imageWidth ?? 96}px;'
+          'max-width:60vw;height:auto}');
+    }
+    if (splash.darkColor != splash.color) {
+      style.write('@media (prefers-color-scheme:dark){'
+          '#dartvel-splash{background:${splash.darkColor}}}');
+    }
   }
-  if (splash.darkColor != splash.color) {
-    style.write('@media (prefers-color-scheme:dark){'
-        '#dartvel-splash{background:${splash.darkColor}}}');
+  if (splash.progress) {
+    // After the splash in the document and with no z-index, so it paints
+    // over the splash and under the Flutter view the engine appends: a page
+    // whose inline script is blocked is covered by the app, not by a bar
+    // stuck at eight percent.
+    style.write('#dartvel-progress{position:fixed;top:0;left:0;right:0;'
+        'height:3px;pointer-events:none}'
+        '#dartvel-progress>div{height:100%;background:${splash.progressColor};'
+        'transform-origin:0 50%;transform:scaleX(.08);'
+        'transition:transform .25s ease-out}'
+        '@media (prefers-reduced-motion:reduce){'
+        '#dartvel-progress>div{transition:none}}');
   }
 
+  // The page's own text, which the build writes for crawlers and keeps
+  // off the screen, is the page until the first frame: a reader sees what
+  // they came for rather than a splash, and the largest contentful paint is
+  // that text. Over the splash (later in the document, and positioned), in
+  // its reading column, and handed back to the app on the first frame.
+  style.write('@media screen{html.dv-booting .dv-fallback{position:relative;'
+      'width:auto;height:auto;max-width:44rem;margin:0 auto;'
+      'padding:2rem 1.25rem;overflow:visible;clip-path:none;'
+      'pointer-events:auto}'
+      'html.dv-booting #dartvel-progress{z-index:1}'
+      'html.dv-booting .dv-fallback [data-dv-anchor]{display:block;'
+      'content-visibility:visible}}');
+
   final String headBlock = '$_headOpen\n'
+      // The compiled app, fetched while the page is parsed rather than once
+      // flutter_bootstrap.js has run and asked for it.
+      '<link rel="preload" href="main.dart.js" as="script">\n'
       '<style id="dartvel-splash-style">$style</style>\n'
-      '<noscript><style>#dartvel-splash{display:none}</style></noscript>\n'
+      '<script>document.documentElement.classList.add("dv-booting")</script>\n'
+      '<noscript><style>${<String>[
+        if (splash.enabled) '#dartvel-splash',
+        if (splash.progress) '#dartvel-progress',
+      ].join(',')}{display:none}</style></noscript>\n'
       '$_headClose\n';
 
   final StringBuffer picture = StringBuffer();
@@ -338,9 +390,14 @@ String dvWebSplashApply(
     picture.write('<img src="$imageUrl" alt=""></picture>');
   }
   final String bodyBlock = '\n$_bodyOpen\n'
-      '<div id="dartvel-splash" aria-hidden="true">$picture</div>\n'
+      '${splash.enabled ? '<div id="dartvel-splash" aria-hidden="true">$picture</div>\n' : ''}'
+      '${splash.progress ? '<div id="dartvel-progress" role="progressbar" '
+          'aria-label="Loading" aria-valuemin="0" aria-valuemax="100" '
+          'aria-valuenow="8"><div></div></div>\n'
+          '<script>$_progressScript</script>\n' : ''}'
       '<script>addEventListener("flutter-first-frame",function(){'
       'var s=document.getElementById("dartvel-splash");if(s)s.remove();'
+      'document.documentElement.classList.remove("dv-booting");'
       'var t=document.getElementById("dartvel-splash-style");if(t)t.remove()'
       '},{once:true})</script>\n'
       '$_bodyClose';
@@ -355,7 +412,9 @@ String dvWebSplashApply(
 DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
   final DVSplashResult result = DVSplashResult();
   final File index = File(p.join(web.path, 'index.html'));
-  if (!splash.enabled || !index.existsSync()) return result;
+  if ((!splash.enabled && !splash.progress) || !index.existsSync()) {
+    return result;
+  }
   final String root = p.dirname(p.dirname(web.path));
 
   String? imageUrl;
@@ -976,3 +1035,35 @@ DVSplashResult dvWriteNativeSplash(
   }
   return DVSplashResult();
 }
+/// The loading bar's script: real milestones, a creep between them, done on
+/// the first frame.
+///
+/// Flutter gives a page no byte counts for what it loads, but the browser
+/// reports each resource as it finishes, so the bar moves to a milestone when
+/// the compiled app, the renderer and a font have each arrived. Between
+/// milestones it creeps toward the next one and never reaches it, which is
+/// what keeps a slow connection from looking like a dead page. With reduced
+/// motion it steps and does not creep.
+const String _progressScript = '(function(){'
+    'var d=document,h=d.documentElement,b=d.getElementById("dartvel-progress");'
+    'if(!b)return;var f=b.firstChild,v=0,cap=15,'
+    'rm=matchMedia("(prefers-reduced-motion: reduce)").matches;'
+    'h.setAttribute("aria-busy","true");'
+    'function set(n){n=Math.min(n,100);if(n<=v)return;v=n;'
+    'f.style.transform="scaleX("+v/100+")";'
+    'b.setAttribute("aria-valuenow",String(Math.round(v)))}'
+    'function seen(u){var c=cap;'
+    'if(/main\\.dart\\.(js|mjs|wasm)(\\?|\$)/.test(u))c=Math.max(c,45);'
+    'else if(/(canvaskit|skwasm)[^/]*\\.wasm/.test(u))c=Math.max(c,75);'
+    'else if(/\\.(woff2?|ttf|otf)(\\?|\$)/.test(u))c=Math.max(c,85);'
+    'if(c>cap){cap=c;set(cap)}}'
+    'set(8);'
+    'try{new PerformanceObserver(function(l){l.getEntries().forEach('
+    'function(e){seen(e.name)})}).observe({type:"resource",buffered:true})}'
+    'catch(e){}'
+    'var t=rm?0:setInterval(function(){'
+    'var n=cap<45?45:cap<75?75:cap<85?85:95;set(v+(n-v)*0.06)},250);'
+    'addEventListener("flutter-first-frame",function(){'
+    'if(t)clearInterval(t);set(100);h.removeAttribute("aria-busy");'
+    'setTimeout(function(){b.remove()},rm?0:350)},{once:true})'
+    '})()';
