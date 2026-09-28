@@ -82,6 +82,15 @@ Future<void> main(List<String> args) async {
     if (count < minimum) problems.add('$route says $count words to a crawler');
   }
 
+  // HEAD answers as GET does: a monitor or a crawler that asks HEAD first
+  // must not be told the home page is not there.
+  final HttpClientRequest head = await _client.openUrl('HEAD', base.resolve('/'));
+  final HttpClientResponse headResponse = await head.close();
+  await headResponse.drain<void>();
+  if (headResponse.statusCode != 200) {
+    problems.add('HEAD / answered ${headResponse.statusCode}');
+  }
+
   // A stranger gets what a path nobody serves gets, so the answer does not
   // say whether Studio is there. On this site an unknown path is the app's
   // shell, which draws the not-found page, so the two are compared after
