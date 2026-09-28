@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.9.2 — 2026-09-28
+
+**A web page shows something to read, and how far it has got, before
+Flutter starts.** The page text the build already writes for crawlers is
+the page until the first frame, so the largest contentful paint is text
+rather than the splash; a thin bar across the top follows the compiled app,
+the renderer and the fonts as they arrive and completes on the first frame;
+and `main.dart.js` is preloaded from the head. After the first frame the same
+bar is `DvDefaultLoading` on every platform, and **`DV.progress`** shows it
+for an application's own work. **Adopting Dartvel keeps the router an app
+has:** besides go_router, the generated client mounts into auto_route
+(`dartvelAutoRoutes`) and Flutter's Navigator 1.0 (`dartvelOnGenerateRoute`)
+and 2.0 (`dartvelPageFor`), and `dartvel init` names any other router with
+those three. The specification gains a **Brownfield** section: Dartvel
+inside an existing native app, measured against Expo's. Numbers before the
+change are in docs/web-performance.md.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.9.2;
+dartvel_shelf 0.9.1 and dartvel_generator 1.4.2 are unchanged. Nothing to
+migrate: a page that wants the old spinner passes its own `loading:`.
+
 ## 0.9.1 — 2026-09-28
 
 **Studio signs people in itself, and the web-server binary serves the page

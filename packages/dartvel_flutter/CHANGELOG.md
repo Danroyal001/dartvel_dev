@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.2
 
 - **`DVHostedPage`, `dvOnGenerateRoute`, `dvPageFor`**: Dartvel's routes in
   a host on Navigator 1.0, Navigator 2.0 or auto_route, in a router of their
