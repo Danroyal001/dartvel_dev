@@ -174,44 +174,101 @@ void main() {
       expect(r!.headers.get('location'), startsWith('/ops/desk/login?from='));
       final Response? page = await server.respond(_get('/ops/desk/login'));
       expect(page?.status, 200);
-      expect(await _body(page!), contains('/ops/desk'));
     });
 
-    test("the sign-in page is served to anybody, and posts to the application's "
-        'own sign-in endpoint', () async {
-      DVSessionAuthentication.install(sessions: DVSessions());
-      final DVAdminServer server = DVAdminServer(
-          mount: _guarded, root: _root.path, apiBasePath: '/backend');
-      final Response? r = await server.respond(_get('/__studio/login?from=/__studio/data'));
-      expect(r?.status, 200);
-      expect(r!.headers.get('content-type'), startsWith('text/html'));
-      expect(r.headers.get('cache-control'), 'no-store');
-      expect(r.headers.get('x-frame-options'), 'DENY');
-      final String html = await _body(r);
-      expect(html, contains('/backend'));
-      expect(html, contains('/auth/sign-in'));
-      expect(html, contains('/auth/second-factor'));
-      expect(html, contains('noindex'));
-      // Nothing about the application or its data.
-      expect(html, isNot(contains('graph.json')));
-    });
-
-    test("Studio's files and API stay hidden from a stranger", () async {
-      // A redirect is for a person arriving at a page. A script asking for
-      // the dashboard's files or data gets what a path nobody serves gets.
+    test('the sign-in is a page of the Studio app: <mount>/login serves its '
+        'shell to anybody', () async {
+      // Studio is a Flutter application, and its sign-in is one of its
+      // pages. The server serves the same shell it serves a granted person,
+      // and the app draws the sign-in; there is no page of the server's own.
       DVSessionAuthentication.install(sessions: DVSessions());
       final DVAdminServer server =
           DVAdminServer(mount: _guarded, root: _root.path);
+      final Response? r =
+          await server.respond(_get('/__studio/login?from=/__studio/data'));
+      expect(r?.status, 200);
+      expect(r!.headers.get('content-type'), startsWith('text/html'));
+      expect(r.headers.get('cache-control'), 'no-store');
+      expect(await _body(r), '<html><title>Studio</title></html>');
+    });
+
+    test("the app's code is served to anybody, so the sign-in can run; the "
+        "project's graph and Studio's data are not", () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      final Response? js = await server.respond(_get('/__studio/admin.js'));
+      expect(js?.status, 200);
+      expect(await _body(js!), '// admin');
+      expect((await server.respond(_get('/__studio/admin.css')))?.status, 200);
       expect(await server.respond(_get('/__studio/graph.json')), isNull);
-      expect(await server.respond(_get('/__studio/admin.js')), isNull);
       expect(await server.respond(_get('/__studio/api/grants')), isNull);
-      final Request post = Request(
-        method: 'POST',
-        url: Uri.parse('http://localhost:8080/__studio/'),
-        headers: Headers(),
-        bodyStream: const Stream<List<int>>.empty(),
-      );
-      expect(await server.respond(post), isNull);
+      expect(await server.respond(_get('/__studio/api/models')), isNull);
+    });
+
+    test('signs in through the application\'s own accounts, at the mount, '
+        'with the CSRF header required', () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      final LocalAuthProvider accounts = LocalAuthProvider();
+      await accounts.signUp('ops@example.com', 'a-long-enough-password-1');
+      DVAuthEndpoints.install(
+          credentials: DVCredentialGuard(provider: accounts, refusalFloor: .zero));
+      addTearDown(DVAuthEndpoints.uninstall);
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      Request post(String path, Map<String, Object?> body, {bool csrf = true}) =>
+          Request(
+            method: 'POST',
+            url: Uri.parse('http://localhost:8080$path'),
+            headers: Headers(<String, String>{
+              'content-type': 'application/json',
+              if (csrf) 'x-dartvel-csrf-token': 'c' * 32,
+            }),
+            bodyStream: Stream<List<int>>.value(utf8.encode(jsonEncode(body))),
+          );
+      final Map<String, Object?> good = <String, Object?>{
+        'email': 'ops@example.com',
+        'password': 'a-long-enough-password-1',
+      };
+      final Response? noCsrf = await server
+          .respond(post('/__studio/api/auth/sign-in', good, csrf: false));
+      expect(noCsrf?.status, 403);
+      final Response? wrong = await server.respond(post(
+          '/__studio/api/auth/sign-in',
+          <String, Object?>{'email': 'ops@example.com', 'password': 'nope-nope-nope'}));
+      expect(wrong?.status, 400);
+      final Response? ok =
+          await server.respond(post('/__studio/api/auth/sign-in', good));
+      expect(ok?.status, 200);
+      expect(ok!.headers.get('set-cookie'), contains('dv_session='));
+    });
+
+    test('<mount>/api/access says whether this caller may open Studio, and '
+        'nothing else', () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      final DVStudioGrants grants =
+          DVStudioGrants(SqliteDVDatabaseAdapter.memory())..install();
+      final DVIssuedSession issued = await sessions.create('u-operator');
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      Future<Object?> access(Map<String, String> headers) async {
+        final Response? r =
+            await server.respond(_get('/__studio/api/access', headers: headers));
+        expect(r?.status, 200);
+        expect(r!.headers.get('cache-control'), 'no-store');
+        return jsonDecode(await _body(r));
+      }
+
+      expect(await access(const <String, String>{}),
+          <String, Object?>{'granted': false});
+      final Map<String, String> bearer = <String, String>{
+        'authorization': 'Bearer ${issued.token}',
+      };
+      expect(await access(bearer), <String, Object?>{'granted': false});
+      await grants.grant('u-operator');
+      expect(await access(bearer), <String, Object?>{'granted': true});
     });
 
     test('a turned-off admin has no sign-in page either', () async {
