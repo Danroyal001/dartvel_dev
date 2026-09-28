@@ -1,3 +1,8 @@
+## Unreleased
+
+- `dvHeadingSlug` and `dvHeadingIds`: the id a link to a heading names, a
+  heading's words as a slug, numbered from 2 when a heading repeats.
+
 ## 0.7.1
 
 - Released with dartvel_flutter 0.7.1, which fixes Esc on a web page; no

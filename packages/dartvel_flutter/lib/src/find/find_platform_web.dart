@@ -20,7 +20,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvFindAnchorAttribute,
         dvFindMirrorBlocks,
         dvFindMissing,
-        dvFindRuntimeAnchor;
+        dvFindRuntimeAnchor,
+        dvHeadingIds;
 import 'package:flutter/scheduler.dart';
 import 'package:web/web.dart' as web;
 
@@ -171,10 +172,14 @@ void _writeExtra(web.Element block, List<DVFindBlock> blocks) {
   extra ??= web.document.createElement('div')
     ..setAttribute(_extraAttribute, '');
   if (!extra.isConnected) block.append(extra);
-  _fill(extra, <int, DVFindBlock>{
-    for (int i = 0; i < blocks.length; i++)
-      if (missing.contains(blocks[i])) i: blocks[i],
-  });
+  _fill(
+    extra,
+    <int, DVFindBlock>{
+      for (int i = 0; i < blocks.length; i++)
+        if (missing.contains(blocks[i])) i: blocks[i],
+    },
+    dvHeadingIds(blocks),
+  );
   _hideFromAssistiveTech(block);
 }
 
@@ -188,19 +193,24 @@ void _writeMirror(web.Element? block, List<DVFindBlock> blocks, String path) {
   target
     ..setAttribute('data-dv-path', path)
     ..setAttribute(_runtimeAttribute, '');
-  _fill(target, <int, DVFindBlock>{
-    for (int i = 0; i < blocks.length; i++) i: blocks[i],
-  });
+  _fill(
+    target,
+    <int, DVFindBlock>{for (int i = 0; i < blocks.length; i++) i: blocks[i]},
+    dvHeadingIds(blocks),
+  );
   _hideFromAssistiveTech(target);
 }
 
 /// Replace [parent]'s children with one until-found section per block, each
-/// anchored with the index it was read at.
+/// anchored with the index it was read at. A heading carries its id from
+/// [dvHeadingIds], the one a link to it names, so the browser has an element
+/// to go to as well as the page.
 ///
 /// Built as elements with text content, never as markup: the text is
 /// whatever the page drew, and a paragraph that reads `<img onerror=...>` is
 /// a paragraph, not an image.
-void _fill(web.Element parent, Map<int, DVFindBlock> blocks) {
+void _fill(
+    web.Element parent, Map<int, DVFindBlock> blocks, List<String?> ids) {
   while (parent.firstChild != null) {
     parent.removeChild(parent.firstChild!);
   }
@@ -208,8 +218,15 @@ void _fill(web.Element parent, Map<int, DVFindBlock> blocks) {
     final web.Element section = web.document.createElement('section')
       ..setAttribute('hidden', 'until-found')
       ..setAttribute(dvFindAnchorAttribute, 'r${entry.key}');
-    section.append(
-        web.document.createElement(entry.value.tag)..textContent = entry.value.text);
+    final web.Element element = web.document.createElement(entry.value.tag)
+      ..textContent = entry.value.text;
+    final String? id = entry.key < ids.length ? ids[entry.key] : null;
+    // Only where the document has no element by that id already: the
+    // build's copy, or the application's own page, may have one.
+    if (id != null && web.document.getElementById(id) == null) {
+      element.id = id;
+    }
+    section.append(element);
     parent.append(section);
   }
 }

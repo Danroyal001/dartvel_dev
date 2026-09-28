@@ -9049,6 +9049,56 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     DVBrowserMenu.install();
     DVFindInPage.register(this);
     find_platform.dvFindInstall();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _followAddress());
+  }
+
+  /// The router whose address this page follows for a heading id, if any.
+  GoRouter? _addressed;
+
+  /// The heading id last scrolled to, so the same address is not followed
+  /// twice.
+  String? _followed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final GoRouter? router = GoRouter.maybeOf(context);
+    if (identical(router, _addressed)) return;
+    _addressed?.routeInformationProvider.removeListener(_followAddress);
+    _addressed = router;
+    router?.routeInformationProvider.addListener(_followAddress);
+  }
+
+  /// Scrolls to the heading the address names after `#`, if it names one.
+  ///
+  /// On the page's first frame and whenever the address changes, as a
+  /// browser does with a link to an element. The page may still be drawing
+  /// what its data brought, so a heading that is not there yet is looked for
+  /// again on the next frames, for a while, rather than given up on. A text
+  /// fragment (`#:~:text=`) is the browser's and find's, and `#/...` is a
+  /// route under the hash URL strategy; neither is a heading.
+  void _followAddress() {
+    if (!mounted || !_onTop) return;
+    final Uri address =
+        _addressed?.routeInformationProvider.value.uri ?? Uri.base;
+    final String id = Uri.decodeComponent(address.fragment);
+    if (id.isEmpty || id.startsWith(':~:') || id.startsWith('/')) {
+      _followed = null;
+      return;
+    }
+    if (id == _followed) return;
+    _followed = id;
+    _revealHeading(id, 30);
+  }
+
+  void _revealHeading(String id, int frames) {
+    if (!mounted || _followed != id) return;
+    unawaited(DVFindInPage.revealHeading(id).then((bool found) {
+      if (found || frames <= 0) return;
+      WidgetsBinding.instance
+        ..addPostFrameCallback((_) => _revealHeading(id, frames - 1))
+        ..scheduleFrame();
+    }));
   }
 
   /// What is selected, kept as it changes so the menu can copy it.
@@ -9129,6 +9179,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   @override
   void dispose() {
     DVFindInPage.unregister(this);
+    _addressed?.routeInformationProvider.removeListener(_followAddress);
     _selectionFocusNode.dispose();
     super.dispose();
   }
