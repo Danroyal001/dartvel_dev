@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../components/fold_demo.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
@@ -143,6 +144,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
                   'tablet, stacked on a phone. Right-to-left languages start on '
                   'the right, and a screen reader reads first to last.',
             ]),
+            FoldDemo(),
           ],
         ),
         DocsSection(
