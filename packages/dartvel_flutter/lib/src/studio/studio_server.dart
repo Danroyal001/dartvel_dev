@@ -17,12 +17,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:dartvel_core/dartvel.dart' as core
+    show DVDatabase, DVStudioApi, DVStudioModelSpec, Headers, Request, Response;
+import 'package:dartvel_core/dartvel.dart'
+    show
+        DVAccess,
+        DVModelAccess,
+        DVStudioFieldSpec,
+        DVStudioIndexSpec,
+        DVStudioModelOrigin;
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
 import 'studio_sign_in.dart';
 import 'studio_server_transport_stub.dart'
     if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
+
+part 'studio_model_designer.dart';
 
 /// What the backend answered: a status and the decoded JSON body.
 class DVStudioReply {
@@ -91,9 +102,25 @@ class DVStudioField {
     this.sensitive = false,
     this.options,
     this.relation,
-  });
+    DVStudioFieldSpec? spec,
+  }) : _spec = spec;
+
+  final DVStudioFieldSpec? _spec;
+
+  /// The field as the backend describes it, rules included: the same
+  /// description a compiled model and a designed one both have.
+  DVStudioFieldSpec get spec =>
+      _spec ??
+      DVStudioFieldSpec(
+        name: name,
+        type: type,
+        sensitive: sensitive,
+        options: options,
+        relation: relation,
+      );
 
   factory DVStudioField.fromJson(Map<String, Object?> json) => DVStudioField(
+        spec: DVStudioFieldSpec.fromJson(json),
         name: '${json['name']}',
         type: '${json['type']}',
         sensitive: json['sensitive'] == true,
@@ -146,6 +173,10 @@ class DVStudioModel {
     required this.fields,
     this.versioned = true,
     this.module,
+    this.origin = DVStudioModelOrigin.code,
+    this.softDelete = false,
+    this.indexes = const <DVStudioIndexSpec>[],
+    this.access,
   });
 
   factory DVStudioModel.fromJson(Map<String, Object?> json) => DVStudioModel(
@@ -153,11 +184,55 @@ class DVStudioModel {
         module: json['module'] is String ? json['module']! as String : null,
         key: '${json['key']}',
         versioned: json['versioned'] != false,
+        softDelete: json['softDelete'] == true,
+        origin: json['origin'] == DVStudioModelOrigin.studio.name
+            ? DVStudioModelOrigin.studio
+            : DVStudioModelOrigin.code,
         fields: <DVStudioField>[
           for (final Object? field in (json['fields'] as List?) ?? const <Object?>[])
             DVStudioField.fromJson((field! as Map).cast<String, Object?>()),
         ],
+        indexes: <DVStudioIndexSpec>[
+          for (final Object? index in (json['indexes'] as List?) ?? const <Object?>[])
+            if (index is Map) DVStudioIndexSpec.fromJson(index),
+        ],
+        access: json['access'] is Map
+            ? DVModelAccess.fromJson(json['access']! as Map)
+            : null,
       );
+
+  /// Where the model is defined: in code, or designed in Studio.
+  final DVStudioModelOrigin origin;
+
+  /// Whether deleting a record marks it rather than removing it.
+  final bool softDelete;
+
+  /// The indexes the model asks its database for.
+  final List<DVStudioIndexSpec> indexes;
+
+  /// Who may do what through the model's data API, or null for a model
+  /// whose policies are written in code.
+  final DVModelAccess? access;
+
+  /// Whether Studio designs this model, rather than showing one written in
+  /// code.
+  bool get designed => origin == DVStudioModelOrigin.studio;
+
+  /// The model as its designer sends it back: key, fields with their rules,
+  /// indexes and access.
+  Map<String, Object?> get definition => <String, Object?>{
+        'key': key,
+        'fields': <Object?>[
+          for (final DVStudioField field in fields) field.spec.toJson(),
+        ],
+        'versioned': versioned,
+        'softDelete': softDelete,
+        if (indexes.isNotEmpty)
+          'indexes': <Object?>[
+            for (final DVStudioIndexSpec index in indexes) index.toJson(),
+          ],
+        if (access != null) 'access': access!.toJson(),
+      };
 
   /// The name the backend addresses the model by: `notes.Memo` for a
   /// mounted module's.
@@ -227,11 +302,66 @@ class DVStudioClient {
 
   static String _segment(String value) => Uri.encodeComponent(value);
 
-  Future<List<DVStudioModel>> models() async => <DVStudioModel>[
-        for (final Map<String, Object?> model
-            in _list(await _send('GET', 'api/models'), 'models'))
+  Future<List<DVStudioModel>> models() async =>
+      (await modelCatalog()).models;
+
+  /// Every data model, and whether one designed here can also be written to
+  /// the project's source -- true only on a development server.
+  Future<({List<DVStudioModel> models, bool sourceWritable})>
+      modelCatalog() async {
+    final Map<String, Object?> body = _map(await _send('GET', 'api/models'));
+    return (
+      models: <DVStudioModel>[
+        for (final Map<String, Object?> model in _list(body, 'models'))
           DVStudioModel.fromJson(model),
+      ],
+      sourceWritable: body['sourceWritable'] == true,
+    );
+  }
+
+  /// Stores [definition] as the model [name], designed in Studio: its key,
+  /// fields and their rules, indexes and access. Answers the model as it
+  /// was stored.
+  Future<DVStudioModel> saveModel(
+    String name,
+    Map<String, Object?> definition,
+  ) async =>
+      DVStudioModel.fromJson(_map(await _send(
+        'PUT',
+        'api/models/${_segment(name)}',
+        body: <String, Object?>{'definition': definition},
+      )));
+
+  /// Removes the model [name] designed in Studio. Its records are kept.
+  Future<void> deleteModel(String name) =>
+      _send('DELETE', 'api/models/${_segment(name)}');
+
+  /// Writes the model [name] to the project's source, and answers the file.
+  Future<String> writeModelSource(String name) async => '${_map(await _send(
+        'POST',
+        'api/models/${_segment(name)}/source',
+      ))['source']}';
+
+  /// Every route the site answers, compiled and stored, each marked.
+  Future<List<DVStudioSitePage>> site() async => <DVStudioSitePage>[
+        for (final Map<String, Object?> page
+            in _list(await _send('GET', 'api/site'), 'pages'))
+          DVStudioSitePage.fromJson(page),
       ];
+
+  /// The structure the build captured for the compiled page at [route], or
+  /// null when it captured none.
+  Future<Object?> structure(String route) async {
+    try {
+      return _map(await _send(
+        'GET',
+        'api/site/structure?route=${Uri.encodeQueryComponent(route)}',
+      ))['structure'];
+    } on DVStudioRemoteError catch (error) {
+      if (error.status == 404) return null;
+      rethrow;
+    }
+  }
 
   Future<List<DVStudioRecordData>> records(String model) async =>
       <DVStudioRecordData>[
@@ -447,6 +577,10 @@ class DVStudioApp extends StatelessWidget {
           : Material(
               child: DVStudioScreen(
                 store: DVStudioRemotePageStore(client),
+                site: DVStudioSiteSource(
+                  pages: client.site,
+                  structure: client.structure,
+                ),
                 sections: dvStudioServerSections(client),
               ),
             ),
@@ -498,27 +632,8 @@ class DVStudioRemoteFunctionStore implements DVFunctionStore {
 /// may open Studio.
 List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
     <DVStudioSection>[
-      DVStudioSection(
-        id: 'models',
-        label: 'Data',
-        icon: Icons.table_chart_outlined,
-        build: (BuildContext context) => DVStudioModelsSection(client: client),
-      ),
-      DVStudioSection(
-        id: 'routes',
-        label: 'Site map',
-        icon: Icons.alt_route,
-        build: (BuildContext context) => _DVStudioManifestSection(
-          client: client,
-          kind: 'routes',
-          title: 'Site map',
-          columns: const <List<String>>[
-            <String>['path', 'Address'],
-            <String>['page', 'Page'],
-            <String>['source', 'File'],
-          ],
-        ),
-      ),
+      dvStudioDataSection(client),
+      dvStudioSiteMapSection(client),
       // The builders, not a list: a page is of little use if a button
       // cannot be made to do anything. A backend function written in code
       // is in the site map's own listing.
@@ -574,6 +689,126 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
         build: (BuildContext context) => _DVStudioAccessSection(client: client),
       ),
     ];
+
+/// Data: every data model, compiled or designed in Studio, its records, and
+/// the designer that makes and changes one.
+DVStudioSection dvStudioDataSection(DVStudioClient client) => DVStudioSection(
+      id: 'models',
+      label: 'Data',
+      icon: Icons.table_chart_outlined,
+      build: (BuildContext context) => DVStudioModelsSection(client: client),
+    );
+
+/// Site map: every route the site answers, compiled and stored -- the list
+/// Pages opens them from.
+DVStudioSection dvStudioSiteMapSection(DVStudioClient client) =>
+    DVStudioSection(
+      id: 'routes',
+      label: 'Site map',
+      icon: Icons.alt_route,
+      build: (BuildContext context) => _DVStudioSiteMapSection(client: client),
+    );
+
+/// A transport that answers from a [core.DVStudioApi] in this process: the
+/// Studio an application carries inside itself, on a phone, a desktop, a TV
+/// or the web, reading and writing its own database through the same API a
+/// server answers Studio with.
+DVStudioTransport dvStudioInProcessTransport(core.DVStudioApi api) {
+  const String csrf = 'in-process-studio-request';
+  return (String method, String path, {Object? body}) async {
+    final Uri uri = Uri.parse('http://studio.invalid/$path');
+    if (!uri.path.startsWith('/api/')) {
+      return const DVStudioReply(404, <String, Object?>{
+        'error': 'not_found',
+        'message': 'This Studio runs inside the application, which has no '
+            'build manifest beside it.',
+      });
+    }
+    final core.Response response = await api.respond(
+      core.Request(
+        method: method,
+        url: uri,
+        headers: core.Headers(<String, String>{
+          'x-dartvel-csrf-token': csrf,
+          if (body != null) 'content-type': 'application/json',
+        }),
+        bodyStream: body == null
+            ? const Stream<List<int>>.empty()
+            : Stream<List<int>>.value(utf8.encode(jsonEncode(body))),
+      ),
+      uri.path.substring('/api/'.length),
+    );
+    final List<int> bytes = await response.body?.bytes() ?? const <int>[];
+    Object? decoded;
+    try {
+      decoded = bytes.isEmpty ? null : jsonDecode(utf8.decode(bytes));
+    } on FormatException {
+      decoded = null;
+    }
+    return DVStudioReply(response.status, decoded);
+  };
+}
+
+/// Studio inside the application it manages, on whatever it runs on.
+///
+/// `dartvel admin generate` opens this behind the `viewAdmin` policy. The
+/// pages are the application's own: [routes] is the generated route
+/// manifest, so every compiled page is listed and a page added later is
+/// listed the next build, and [preview] draws a compiled page as its route
+/// draws it. The data models are [models], the generated specs, with any
+/// model designed in Studio beside them. Both are read through
+/// [core.DVStudioApi] in this process over `DV.Database`, the same API and
+/// the same merge a server answers Studio with -- only where things are
+/// stored differs.
+class DVStudioInApp extends StatelessWidget {
+  const DVStudioInApp({
+    super.key,
+    this.routes = const <DVRouteInfo>[],
+    this.models = const <core.DVStudioModelSpec>[],
+    this.store = const DVPageStore(),
+    this.preview,
+  });
+
+  /// The generated route manifest, `dartvelRouteManifest`.
+  final List<DVRouteInfo> routes;
+
+  /// The generated model specs, `dartvelStudioModels`.
+  final List<core.DVStudioModelSpec> models;
+
+  /// Where page documents are read from and published to.
+  final DVPageStore store;
+
+  /// A compiled page as its route builds it, `dartvelPagePreview`.
+  final Widget? Function(String path)? preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final core.DVStudioApi api = core.DVStudioApi(
+      models: models,
+      // Null when the application configured none: Pages still lists every
+      // compiled route, and Data says there is nothing to read.
+      database: const core.DVDatabase().configuredAdapter,
+      compiledRoutes: () => <Map<String, Object?>>[
+        for (final DVRouteInfo route in routes)
+          if (route.isLocal) dvStudioRouteInfoJson(route),
+      ],
+    );
+    final DVStudioClient client =
+        DVStudioClient(dvStudioInProcessTransport(api));
+    return DVStudioScreen(
+      store: store,
+      site: DVStudioSiteSource(
+        pages: client.site,
+        structure: client.structure,
+        preview: preview,
+      ),
+      sections: <DVStudioSection>[
+        dvStudioDataSection(client),
+        dvStudioSiteMapSection(client),
+      ],
+    );
+  }
+}
 
 /// Something loaded from the server, drawn when it arrives.
 Widget _loading<T>(
@@ -786,6 +1021,14 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   List<DVStudioRecordData>? _records;
   Object? _error;
 
+  /// Whether a model designed here can also be written to the project's
+  /// source: only on a development server.
+  bool _sourceWritable = false;
+
+  /// The designer is open: on [_model], or on a new model when that is
+  /// null.
+  bool _designing = false;
+
   /// The record open in the form, or null. A record with an empty key is a
   /// new one.
   DVStudioRecordData? _editing;
@@ -796,24 +1039,42 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     unawaited(_loadModels());
   }
 
-  Future<void> _loadModels() async {
+  Future<void> _loadModels({String? select}) async {
     try {
-      final List<DVStudioModel> models = await widget.client.models();
+      final ({List<DVStudioModel> models, bool sourceWritable}) catalog =
+          await widget.client.modelCatalog();
       if (!mounted) return;
-      setState(() => _models = models);
-      if (models.isNotEmpty) await _open(models.first);
+      final List<DVStudioModel> models = catalog.models;
+      setState(() {
+        _models = models;
+        _sourceWritable = catalog.sourceWritable;
+      });
+      final DVStudioModel? chosen = models
+              .where((DVStudioModel m) => m.model == (select ?? _model?.model))
+              .firstOrNull ??
+          models.firstOrNull;
+      if (chosen != null) await _open(chosen);
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
   }
 
-  Future<void> _open(DVStudioModel model) async {
+  void _design({required bool fresh}) => setState(() {
+        _designing = true;
+        _phoneDetail = true;
+        _editing = null;
+        if (fresh) _model = null;
+      });
+
+  Future<void> _open(DVStudioModel model, {bool userChose = false}) async {
     setState(() {
       _model = model;
       _records = null;
       _editing = null;
       _error = null;
+      _designing = false;
     });
+    if (userChose) setState(() => _phoneDetail = true);
     try {
       final List<DVStudioRecordData> records =
           await widget.client.records(model.model);
@@ -835,21 +1096,42 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
               message: '$_error',
             );
     }
-    if (models.isEmpty) {
-      return DVStudioStyle.emptyState(
-        icon: Icons.table_chart_outlined,
-        title: 'No data models',
-        message: 'Declare a @DVModel in lib/models and rebuild, and its '
-            'records are listed here.',
+    if (models.isEmpty && !_designing) {
+      return Column(
+        mainAxisAlignment: .center,
+        children: <Widget>[
+          DVStudioStyle.emptyState(
+            icon: Icons.table_chart_outlined,
+            title: 'No data models yet',
+            message: 'A data model is a kind of record: articles, products, '
+                'bookings. Make one here, with its fields and rules, and add '
+                'records to it straight away.',
+          ),
+          const SizedBox(height: DVStudioStyle.space4),
+          GestureDetector(
+            key: const ValueKey<String>('dv-studio-model-new'),
+            onTap: () => _design(fresh: true),
+            child: DVStudioStyle.control('New data model',
+                enabled: true, primary: true, icon: Icons.add),
+          ),
+        ],
       );
     }
-    return DVStudioStyle.panes(
-      listWidth: 220,
-      list: Column(
+    final Widget list = Column(
         crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
-              title: 'Data', subtitle: '${models.length}'),
+            title: 'Data',
+            subtitle: '${models.length}',
+            actions: <Widget>[
+              DVStudioIconButton(
+                key: const ValueKey<String>('dv-studio-model-new'),
+                icon: Icons.add,
+                tooltip: 'New data model',
+                onTap: () => _design(fresh: true),
+              ),
+            ],
+          ),
           const SizedBox(height: DVStudioStyle.space2),
           for (final DVStudioModel model in models)
             DVStudioListRow(
@@ -860,14 +1142,61 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                   : '${model.module} module · '
                       '${model.visibleFields.length} fields',
               icon: Icons.table_rows_outlined,
-              selected: model == _model,
-              onTap: () => unawaited(_open(model)),
+              selected: model == _model && !(_designing && _model == null),
+              trailing: DVStudioStyle.badge(
+                model.designed ? 'Studio' : 'Code',
+                tone: model.designed
+                    ? DVStudioStyle.success
+                    : DVStudioStyle.muted,
+              ),
+              onTap: () => unawaited(_open(model, userChose: true)),
             ),
         ],
-      ),
-      detail: _detail(),
-    );
+      );
+    final Widget detail = _designing
+          ? _DVStudioModelDesigner(
+              key: ValueKey<String>('dv-studio-designer-${_model?.model}'),
+              client: widget.client,
+              model: _model,
+              models: models,
+              sourceWritable: _sourceWritable,
+              onClose: () => setState(() => _designing = false),
+              onSaved: (DVStudioModel saved) =>
+                  unawaited(_loadModels(select: saved.model)),
+              onDeleted: (String name) {
+                setState(() => _model = null);
+                unawaited(_loadModels());
+              },
+            )
+          : _detail();
+    // On a phone the list beside the records left them a strip too narrow
+    // to read, so the section shows one at a time: the models, then the one
+    // chosen, with the way back above it.
+    final bool phone =
+        (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < dvStudioPhoneWidth;
+    if (phone) {
+      if (!_phoneDetail) return SingleChildScrollView(child: list);
+      return Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          DVStudioListRow(
+            key: const ValueKey<String>('dv-studio-models-back'),
+            title: 'All data models',
+            icon: Icons.arrow_back,
+            onTap: () => setState(() {
+              _phoneDetail = false;
+              _designing = false;
+            }),
+          ),
+          Expanded(child: detail),
+        ],
+      );
+    }
+    return DVStudioStyle.panes(listWidth: 220, list: list, detail: detail);
   }
+
+  /// On a phone, whether the chosen model is on screen rather than the list.
+  bool _phoneDetail = false;
 
   Widget _detail() {
     final DVStudioModel? model = _model;
@@ -875,6 +1204,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     final List<DVStudioRecordData>? records = _records;
     final DVStudioRecordData? editing = _editing;
     final List<DVStudioField> fields = model.visibleFields;
+    final bool phone =
+        (MediaQuery.maybeSizeOf(context)?.width ?? 1440) < dvStudioPhoneWidth;
     return Column(
       crossAxisAlignment: .stretch,
       children: <Widget>[
@@ -882,6 +1213,16 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
           title: model.model,
           subtitle: records == null ? null : '${records.length} records',
           actions: <Widget>[
+            GestureDetector(
+              key: const ValueKey<String>('dv-studio-model-design'),
+              onTap: () => _design(fresh: false),
+              child: DVStudioStyle.control(
+                model.designed ? 'Design' : 'Fields',
+                enabled: true,
+                icon: Icons.schema_outlined,
+              ),
+            ),
+            const SizedBox(width: DVStudioStyle.space2),
             GestureDetector(
               key: const ValueKey<String>('dv-studio-record-new'),
               onTap: () => setState(() => _editing = const DVStudioRecordData(
@@ -895,6 +1236,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
           child: Row(
             crossAxisAlignment: .stretch,
             children: <Widget>[
+              // On a phone the form takes the width the table had.
+              if (editing == null || !phone)
               Expanded(
                 child: records == null
                     ? (_error == null
@@ -941,7 +1284,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
               ),
               if (editing != null)
                 Container(
-                  width: 360,
+                  width: phone ? MediaQuery.sizeOf(context).width : 360,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
                     border:
@@ -1563,6 +1906,74 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
         ],
       );
     }, waiting: 'Loading the build manifest…');
+  }
+}
+
+/// Every route the site answers, compiled and stored, as a table.
+class _DVStudioSiteMapSection extends StatefulWidget {
+  const _DVStudioSiteMapSection({required this.client});
+
+  final DVStudioClient client;
+
+  @override
+  State<_DVStudioSiteMapSection> createState() =>
+      _DVStudioSiteMapSectionState();
+}
+
+class _DVStudioSiteMapSectionState extends State<_DVStudioSiteMapSection> {
+  late final Future<List<DVStudioSitePage>> _site = widget.client.site();
+
+  @override
+  Widget build(BuildContext context) {
+    return _loading<List<DVStudioSitePage>>(_site,
+        (List<DVStudioSitePage> pages) {
+      final int compiled =
+          pages.where((DVStudioSitePage p) => p.isCompiled).length;
+      return Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          DVStudioStyle.panelHeader(
+            title: 'Site map',
+            subtitle: pages.length == 1
+                ? '1 page'
+                : '${pages.length} pages · $compiled in code',
+          ),
+          Expanded(
+            child: pages.isEmpty
+                ? DVStudioStyle.emptyState(
+                    icon: Icons.inbox_outlined,
+                    title: 'No pages yet',
+                    message: 'A page written in lib/pages, or one made in '
+                        'Pages, is listed here.',
+                  )
+                : SingleChildScrollView(
+                    padding: const .all(DVStudioStyle.space5),
+                    child: _DVStudioTable(
+                      headers: const <String>[
+                        'Address',
+                        'Kind',
+                        'Page',
+                        'File',
+                      ],
+                      rowKeys: <Key>[
+                        for (final DVStudioSitePage page in pages)
+                          ValueKey<String>('dv-studio-sitemap-${page.path}'),
+                      ],
+                      rows: <List<String>>[
+                        for (final DVStudioSitePage page in pages)
+                          <String>[
+                            page.path,
+                            dvStudioPageKindLabel(page),
+                            page.title ?? page.page ?? '—',
+                            page.source ?? 'Stored in Studio',
+                          ],
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      );
+    }, waiting: 'Loading the site…');
   }
 }
 

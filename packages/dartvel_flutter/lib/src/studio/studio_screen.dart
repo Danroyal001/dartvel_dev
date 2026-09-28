@@ -28,6 +28,11 @@ class DVStudioScreen extends StatefulWidget {
   /// The store page documents are read from and published to.
   final DVPageStore store;
 
+  /// Where the site's routes come from: the application's compiled routes
+  /// and the pages [store] holds, each marked for what it is. Without it
+  /// Pages lists what [store] holds and nothing it did not publish.
+  final DVStudioSiteSource? site;
+
   /// Widget palette entries, defaulting to the Dartvel primitives.
   final List<DVStudioPaletteItem> palette;
 
@@ -71,6 +76,7 @@ class DVStudioScreen extends StatefulWidget {
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
+    this.site,
     this.palette = const <DVStudioPaletteItem>[],
     this.sections = const <DVStudioSection>[],
     this.editorHooks = const <DVStudioEditorHook>[],
@@ -129,6 +135,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
           build: (BuildContext context) => _DVStudioPagesSection(
             key: const ValueKey<String>('dv-studio-pages'),
             store: widget.store,
+            site: widget.site,
             palette: widget.palette,
             editorHooks: widget.editorHooks,
             content: widget.content,
@@ -421,6 +428,7 @@ enum _DVStudioDevice {
 /// Page management: an overview of the site, and the editor for one page.
 class _DVStudioPagesSection extends StatefulWidget {
   final DVPageStore store;
+  final DVStudioSiteSource? site;
   final List<DVStudioPaletteItem> palette;
   final List<DVStudioEditorHook> editorHooks;
 
@@ -434,6 +442,7 @@ class _DVStudioPagesSection extends StatefulWidget {
   const _DVStudioPagesSection({
     super.key,
     required this.store,
+    this.site,
     required this.palette,
     required this.editorHooks,
     required this.attached,
@@ -447,7 +456,34 @@ class _DVStudioPagesSection extends StatefulWidget {
 }
 
 class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
+  /// The routes a stored document serves: published from Studio, over a
+  /// compiled page or at a route of its own.
   List<String> _routes = <String>[];
+
+  /// Every route the site answers, compiled and stored, each marked.
+  List<DVStudioSitePage> _site = <DVStudioSitePage>[];
+
+  /// The compiled page open in the editor, overridden or not, or null for a
+  /// page only Studio serves.
+  DVStudioSitePage? _compiled;
+
+  /// The compiled page drawn as the application draws it, where Studio runs
+  /// inside the application. Shown until an override of it is started.
+  Widget? _live;
+  final GlobalKey _liveKey = GlobalKey(debugLabel: 'dv-studio-live-page');
+
+  /// Whether the open compiled page is being edited into an override.
+  bool _overriding = false;
+
+  /// The site's route list could not be read; the stored pages are shown.
+  String? _siteError;
+
+  DVStudioSitePage? _pageAt(String route) {
+    for (final DVStudioSitePage page in _site) {
+      if (page.path == route) return page;
+    }
+    return null;
+  }
   final Map<String, DVPageDocument> _documents = <String, DVPageDocument>{};
 
   /// Each route's versions, when the content workflow is attached, for the
@@ -567,9 +603,39 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           // Listed without a thumbnail.
         }
       }
+      // Every route the site answers. A draft the workflow holds for a route
+      // nothing serves yet is a Studio page all the same.
+      List<DVStudioSitePage> site = <DVStudioSitePage>[];
+      String? siteError;
+      final DVStudioSiteSource? source = widget.site;
+      if (source != null) {
+        try {
+          site = await source.pages();
+        } catch (error) {
+          siteError = '$error';
+        }
+      }
+      final Set<String> listed = <String>{
+        for (final DVStudioSitePage page in site) page.path,
+      };
+      site = <DVStudioSitePage>[
+        ...site,
+        for (final String route in routes)
+          if (!listed.contains(route))
+            DVStudioSitePage(
+              path: route,
+              kind: DVStudioPageKind.stored,
+              title: documents[route]?.title,
+            ),
+      ]..sort((DVStudioSitePage a, DVStudioSitePage b) =>
+          a.path.compareTo(b.path));
       if (!mounted) return;
       setState(() {
         _routes = routes;
+        _site = site;
+        _siteError = siteError;
+        final DVStudioSitePage? compiled = _compiled;
+        if (compiled != null) _compiled = _pageAt(compiled.path) ?? compiled;
         _documents
           ..clear()
           ..addAll(documents);
@@ -591,11 +657,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   Future<void> _open(String route) async {
+    final DVStudioSitePage? page = _pageAt(route);
+    if (page != null && page.kind == DVStudioPageKind.code) {
+      await _openCompiled(page);
+      return;
+    }
+    // A stored document over a compiled page is still that page's override:
+    // the editor says so, and deleting it brings the compiled one back.
+    final DVStudioSitePage? compiled =
+        page != null && page.isCompiled ? page : null;
     final DVStudioContent? content = widget.content;
     if (content == null) {
       final DVPageDocument? document = await widget.store.load(route);
       if (!mounted || document == null) return;
-      _select(document);
+      _select(document, compiled: compiled);
       return;
     }
     try {
@@ -608,26 +683,100 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               await widget.store.load(route) ??
               studioPublishedVersion(versions)?.document;
       if (!mounted || document == null) return;
-      _select(document);
+      _select(document, compiled: compiled);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     }
   }
 
-  void _select(DVPageDocument document, {bool keepPanels = false}) {
+  /// Opens a compiled page: its structure on the artboard, or the page
+  /// itself where Studio runs inside the application, read-only until an
+  /// override of it is started.
+  Future<void> _openCompiled(DVStudioSitePage page) async {
+    final DVStudioSiteSource? source = widget.site;
+    final Widget? live =
+        page.isDynamic ? null : source?.preview?.call(page.path);
+    Object? tree;
+    final Future<Object?> Function(String route)? structure =
+        source?.structure;
+    if (live == null && page.structure && structure != null) {
+      try {
+        tree = await structure(page.path);
+      } catch (_) {
+        // Opened without it: the banner says what the page is.
+      }
+    }
+    if (!mounted) return;
+    _select(
+      dvStudioDocumentFromStructure(page.path, tree, title: page.title),
+      compiled: page,
+      live: live,
+    );
+    if (live != null) {
+      // The page's structure, read off it once it has drawn, so Layers shows
+      // what it is made of.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final DVPageDocument? captured = _captureLive(page);
+        if (captured == null || _overriding) return;
+        _select(captured, compiled: page, live: live, reload: false);
+      });
+    }
+  }
+
+  /// The compiled page on the artboard, as a page document, or null when it
+  /// is not drawn.
+  DVPageDocument? _captureLive(DVStudioSitePage page) {
+    final BuildContext? context = _liveKey.currentContext;
+    if (!mounted || context == null || _compiled?.path != page.path) {
+      return null;
+    }
+    return dvStudioDocumentFromStructure(
+      page.path,
+      dvStudioStructureOf(context),
+      title: page.title,
+    );
+  }
+
+  /// Starts an override of the open compiled page: the page's structure,
+  /// editable. It takes over the route when it is deployed.
+  void _startOverride() {
+    final DVStudioSitePage? page = _compiled;
+    final DVStudioEditorController? controller = _controller;
+    if (page == null || controller == null) return;
+    final DVPageDocument document =
+        _captureLive(page) ?? controller.document;
+    _select(document, compiled: page, live: _live, overriding: true);
+  }
+
+  void _select(
+    DVPageDocument document, {
+    bool keepPanels = false,
+    DVStudioSitePage? compiled,
+    Widget? live,
+    bool overriding = false,
+    bool reload = true,
+  }) {
     final bool review = _reviewOpen;
     final bool history = _historyOpen;
+    // A compiled page nobody has overridden is looked at, not edited: an
+    // edit starts an override, on purpose.
+    final bool readOnly = compiled != null &&
+        compiled.kind == DVStudioPageKind.code &&
+        !overriding;
     setState(() {
       _closeEditor();
+      _compiled = compiled;
+      _live = live;
+      _overriding = overriding;
       final DVStudioEditorController controller =
-          DVStudioEditorController(document);
+          DVStudioEditorController(document, readOnly: readOnly);
       _controller = controller;
       // Publish goes to the store this screen was given. Left to the
       // controller's default it went to DV.Database, so Studio served by a
       // web-server binary published nowhere the server could read.
       controller.publisher = widget.store.save;
       final DVStudioContent? content = widget.content;
-      if (content != null) {
+      if (content != null && !readOnly) {
         // Before the hooks, so a hook can still take the publisher over.
         content.attach(controller, as: widget.actor);
         final StudioReviewSession session = StudioReviewSession(
@@ -659,15 +808,15 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     });
     // What is stored may have changed since the overview read it: another
     // person publishing, or this Studio in another tab.
-    unawaited(_loadRoutes());
+    if (reload) unawaited(_loadRoutes());
   }
 
   void _create() {
     final String route = _newRoute.trim();
     if (route.isEmpty) return;
-    // Editing a route that already has a document would otherwise start from
-    // a blank page and overwrite it on the first save.
-    if (_routes.contains(route)) {
+    // Editing a route that already has a page would otherwise start from a
+    // blank one and overwrite it on the first save.
+    if (_routes.contains(route) || _pageAt(route) != null) {
       unawaited(_open(route));
       return;
     }
@@ -676,7 +825,8 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   Future<void> _publish() async {
     final DVStudioEditorController? controller = _controller;
-    if (controller == null || _saving) return;
+    // A compiled page is deployed only once somebody has chosen to edit it.
+    if (controller == null || _saving || controller.readOnly) return;
     final StudioReviewSession? review = _review;
     if (review != null) {
       // Opens or edits a draft; the session shows a refusal where it happened.
@@ -716,10 +866,19 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       }
       return;
     }
-    await widget.store.delete(controller.document.route);
+    final String route = controller.document.route;
+    final DVStudioSitePage? compiled = _compiled;
+    await widget.store.delete(route);
     if (!mounted) return;
-    setState(_closeEditor);
     await _loadRoutes();
+    if (!mounted) return;
+    // An override deleted is the compiled page back, so that is what opens.
+    final DVStudioSitePage? restored = compiled == null ? null : _pageAt(route);
+    if (restored != null && restored.kind == DVStudioPageKind.code) {
+      await _openCompiled(restored);
+    } else {
+      setState(_closeEditor);
+    }
   }
 
   @override
@@ -809,7 +968,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: 'Pages',
-          subtitle: '${_routes.length}',
+          subtitle: '${_site.length}',
         ),
         // The new-page field comes first: it is the one thing on this panel
         // that starts work, and it is what the tests type into.
@@ -855,17 +1014,27 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             child: DVStudioStyle.caption('Could not read pages: $_error',
                 color: DVStudioStyle.danger),
           ),
+        if (_siteError != null)
+          Padding(
+            key: const ValueKey<String>('dv-studio-site-error'),
+            padding: const .symmetric(
+                horizontal: DVStudioStyle.space4, vertical: DVStudioStyle.space2),
+            child: DVStudioStyle.caption(
+                'Could not read the compiled pages, so only the pages '
+                'stored in Studio are listed: $_siteError',
+                color: DVStudioStyle.danger),
+          ),
         Expanded(
           child: ListView(
             padding: const .only(bottom: DVStudioStyle.space4),
             children: <Widget>[
               ..._routeRows(withSubtitles: true),
-              if (_routes.isEmpty && _error == null)
+              if (_site.isEmpty && _error == null)
                 Padding(
                   padding: const .symmetric(
                       horizontal: DVStudioStyle.space4,
                       vertical: DVStudioStyle.space2),
-                  child: DVStudioStyle.caption('No stored pages yet.'),
+                  child: DVStudioStyle.caption('No pages yet.'),
                 ),
             ],
           ),
@@ -882,39 +1051,73 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     // The page on the canvas is listed even before its first publish: a list
     // that leaves out the page being edited reads as if it were somewhere
     // else, and highlights nothing.
+    final List<String> every = <String>[
+      for (final DVStudioSitePage page in _site) page.path,
+    ];
     final bool openUnsaved =
-        open != null && open.isNotEmpty && !_routes.contains(open);
+        open != null && open.isNotEmpty && !every.contains(open);
     final List<String> routes =
-        openUnsaved ? (<String>[..._routes, open]..sort()) : _routes;
+        openUnsaved ? (<String>[...every, open]..sort()) : every;
     return <Widget>[
       for (final String route in routes)
         DVStudioListRow(
           key: ValueKey<String>('dv-studio-route-$route'),
           title: route,
           subtitle: withSubtitles ? _subtitleFor(route) : null,
-          icon: route == '/' ? DVStudioIcons.home : DVStudioIcons.page,
+          icon: route == '/'
+              ? DVStudioIcons.home
+              : _pageAt(route)?.kind == DVStudioPageKind.code
+                  ? DVStudioIcons.code
+                  : DVStudioIcons.page,
           selected: route == open,
-          trailing: openUnsaved && route == open
-              // A ring, not the green dot: nothing is published here yet.
-              ? Container(
-                  key: const ValueKey<String>('dv-studio-route-unsaved'),
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: DVStudioStyle.faint, width: 1.5),
-                  ),
-                )
-              : widget.content == null
-                  ? DVStudioStyle.dot(DVStudioStyle.success)
-                  : _stateMarker(
-                      route,
-                      key: 'dv-studio-route-state-$route',
-                      badge: withSubtitles,
-                    ),
+          trailing: _rowTrailing(
+            route,
+            unsaved: openUnsaved && route == open,
+            withSubtitles: withSubtitles,
+          ),
           onTap: () => unawaited(_open(route)),
         ),
     ];
+  }
+
+  /// What a page's row ends with: a ring for the page on the canvas that
+  /// nothing serves yet; the kind of a compiled page, overridden or not; a
+  /// stored page's workflow state, or the green dot of a page that is live.
+  Widget _rowTrailing(
+    String route, {
+    required bool unsaved,
+    required bool withSubtitles,
+  }) {
+    if (unsaved) {
+      // A ring, not the green dot: nothing is published here yet.
+      return Container(
+        key: const ValueKey<String>('dv-studio-route-unsaved'),
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: DVStudioStyle.faint, width: 1.5),
+        ),
+      );
+    }
+    final DVStudioSitePage? page = _pageAt(route);
+    if (page != null && page.isCompiled) {
+      return KeyedSubtree(
+        key: ValueKey<String>('dv-studio-route-kind-$route'),
+        child: withSubtitles
+            ? DVStudioStyle.badge(dvStudioPageKindLabel(page),
+                tone: dvStudioPageKindTone(page))
+            : DVStudioStyle.tooltip(dvStudioPageKindLabel(page),
+                DVStudioStyle.dot(dvStudioPageKindTone(page))),
+      );
+    }
+    return widget.content == null
+        ? DVStudioStyle.dot(DVStudioStyle.success)
+        : _stateMarker(
+            route,
+            key: 'dv-studio-route-state-$route',
+            badge: withSubtitles,
+          );
   }
 
   /// The version a page's badge describes: the one being written, else the
@@ -957,11 +1160,31 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     );
   }
 
-  /// A page's title beside its route, when it has one of its own.
+  /// A page's title beside its route, when it has one of its own; for a
+  /// compiled page, the file it is written in, and the parameters a dynamic
+  /// route takes.
   String? _subtitleFor(String route) {
-    final String? title = _documents[route]?.title;
-    if (title == null || title.isEmpty || title == route) return null;
-    return title;
+    final DVStudioSitePage? page = _pageAt(route);
+    final String? title = _documents[route]?.title ?? page?.title;
+    final List<String> parts = <String>[
+      if (title != null && title.isNotEmpty && title != route) title,
+      if (page != null && page.isDynamic)
+        'One page per ${page.params.join(', ')}',
+      if (page != null &&
+          page.kind == DVStudioPageKind.code &&
+          page.source != null)
+        _fileOf(page.source!),
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  /// `lib/pages/docs/cli.dart:5` is `docs/cli.dart`: the part of a compiled
+  /// page's location somebody recognises it by.
+  static String _fileOf(String source) {
+    final String file = source.replaceFirst(RegExp(r':\d+$'), '');
+    return file.startsWith('lib/pages/')
+        ? file.substring('lib/pages/'.length)
+        : file;
   }
 
   Widget _dashboard() {
@@ -1017,11 +1240,14 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// installed, and when this session last deployed. No invented traffic figures on a builder's front page.
   Widget _stats() {
     final List<Widget> cards = <Widget>[
-      DVStudioStyle.statCard(
-        label: 'Pages',
-        value: '${_routes.length}',
-        icon: DVStudioIcons.pages,
-        detail: 'Stored in Studio',
+      KeyedSubtree(
+        key: const ValueKey<String>('dv-studio-stat-pages'),
+        child: DVStudioStyle.statCard(
+          label: 'Pages',
+          value: '${_site.length}',
+          icon: DVStudioIcons.pages,
+          detail: _pagesDetail(),
+        ),
       ),
       if (widget.content == null)
         DVStudioStyle.statCard(
@@ -1067,6 +1293,31 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         );
       },
     );
+  }
+
+  /// What the site's pages are: how many are compiled, how many Studio
+  /// serves on its own, and how many compiled ones Studio has overridden.
+  String _pagesDetail() {
+    int compiled = 0;
+    int stored = 0;
+    int overridden = 0;
+    for (final DVStudioSitePage page in _site) {
+      switch (page.kind) {
+        case DVStudioPageKind.code:
+          compiled++;
+        case DVStudioPageKind.stored:
+          stored++;
+        case DVStudioPageKind.override:
+          compiled++;
+          overridden++;
+      }
+    }
+    if (_site.isEmpty) return 'None yet';
+    return <String>[
+      if (compiled > 0) '$compiled in code',
+      if (stored > 0) '$stored made in Studio',
+      if (overridden > 0) '$overridden overridden',
+    ].join(' · ');
   }
 
   /// How many pages wait on a reviewer, and how many are scheduled: the two
@@ -1142,13 +1393,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             children: <Widget>[
               Expanded(child: DVStudioStyle.heading('All pages')),
               DVStudioStyle.badge(
-                '${_routes.length} stored',
+                _site.length == 1 ? '1 page' : '${_site.length} pages',
                 tone: DVStudioStyle.muted,
               ),
             ],
           ),
           const SizedBox(height: DVStudioStyle.space4),
-          if (_routes.isEmpty)
+          if (_site.isEmpty)
             // At least 220, not exactly: on a narrow phone the message wraps
             // to more lines than a fixed box holds.
             ConstrainedBox(
@@ -1175,20 +1426,26 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   spacing: DVStudioStyle.space4,
                   runSpacing: DVStudioStyle.space4,
                   children: <Widget>[
-                    for (final String route in _routes)
+                    for (final DVStudioSitePage page in _site)
                       SizedBox(
                         width: width,
                         child: _DVStudioPageCard(
-                          route: route,
-                          document: _documents[route],
-                          onOpen: () => unawaited(_open(route)),
-                          state: widget.content == null
-                              ? null
-                              : _stateMarker(
-                                  route,
-                                  key: 'dv-studio-card-state-$route',
-                                  badge: true,
-                                ),
+                          route: page.path,
+                          page: page,
+                          document: _documents[page.path],
+                          onOpen: () => unawaited(_open(page.path)),
+                          state: page.isCompiled
+                              ? DVStudioStyle.badge(
+                                  dvStudioPageKindLabel(page),
+                                  tone: dvStudioPageKindTone(page),
+                                )
+                              : widget.content == null
+                                  ? null
+                                  : _stateMarker(
+                                      page.path,
+                                      key: 'dv-studio-card-state-${page.path}',
+                                      badge: true,
+                                    ),
                         ),
                       ),
                   ],
@@ -1243,10 +1500,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               'Text, images, buttons and layouts, from the Insert panel.'),
           step(DVStudioIcons.design, 'Style what you select',
               'Every property the renderer honours is in the inspector.'),
+          step(DVStudioIcons.code, 'Edit any page',
+              'Every page the app has is here. Editing one written in code '
+                  'makes a Studio override of it.'),
           step(DVStudioIcons.publish, 'Deploy to go live',
               'Stored pages take over their routes without a rebuild.'),
           step(DVStudioIcons.revert, 'Revert any time',
-              'Deleting a stored page brings the compiled one back.'),
+              'Deleting an override brings the compiled page back.'),
         ],
       ),
     );
@@ -1269,13 +1529,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
     walk(document.root);
     return <DVStudioCommand>[
-      for (final String route in _routes)
-        if (route != document.route)
+      for (final DVStudioSitePage page in _site)
+        if (page.path != document.route)
           DVStudioCommand(
-            id: 'open-$route',
-            title: 'Open page $route',
+            id: 'open-${page.path}',
+            title: 'Open page ${page.path}',
             group: 'Page',
-            run: () => unawaited(_open(route)),
+            run: () => unawaited(_open(page.path)),
           ),
       if (editable && controller.canUndo)
         DVStudioCommand(
@@ -1336,8 +1596,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         if (!_showingCode)
           DVStudioFormulaBar(
             controller: controller,
-            vocabulary: DVFormulaVocabulary(routes: _routes),
+            vocabulary: DVFormulaVocabulary(routes: <String>[
+              for (final DVStudioSitePage page in _site)
+                if (!page.isDynamic) page.path,
+            ]),
           ),
+        ?_compiledBanner(controller),
         if (review != null) ..._banners(review),
         Expanded(
           child: _showingCode
@@ -1384,6 +1648,15 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         final double fit =
             ((box.maxWidth - (_phone ? 24 : 96)) / _device.width)
                 .clamp(0.25, 1.0);
+        final Widget? live = _live;
+        if (live != null && !_overriding) {
+          return DVStudioLivePage(
+            page: live,
+            width: _device.width,
+            zoom: _zoom,
+            captureKey: _liveKey,
+          );
+        }
         return DVStudioCanvas(
           controller: controller,
           viewportWidth: _device.width,
@@ -1487,6 +1760,67 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         item(_DVStudioPane.page, DVStudioIcons.page, 'Page'),
         item(_DVStudioPane.style, DVStudioIcons.design, 'Style'),
       ]),
+    );
+  }
+
+  /// What the open compiled page is, and the one thing to do with it: start
+  /// an override, or delete the override to bring the compiled page back.
+  Widget? _compiledBanner(DVStudioEditorController controller) {
+    final DVStudioSitePage? page = _compiled;
+    if (page == null) return null;
+    final String where = page.source == null ? 'code' : _fileOf(page.source!);
+    if (page.kind == DVStudioPageKind.code && !_overriding) {
+      if (page.isDynamic) {
+        return studioBanner(
+          key: const ValueKey<String>('dv-studio-compiled-banner'),
+          tone: DVStudioStyle.muted,
+          icon: DVStudioIcons.code,
+          title: 'A page for every ${page.params.join(', ')}',
+          detail: '${page.path} is written in $where and draws a different '
+              'page for each ${page.params.join(', ')}. Edit it there, or '
+              'make a page at one address from Studio.',
+        );
+      }
+      return studioBanner(
+        key: const ValueKey<String>('dv-studio-compiled-banner'),
+        tone: DVStudioStyle.accent,
+        icon: DVStudioIcons.code,
+        title: 'Written in code',
+        detail: _live != null
+            ? '${page.path} comes from $where, drawn here as the app draws '
+                'it. Editing it makes a Studio copy that takes over '
+                '${page.path} when you deploy it.'
+            : '${page.path} comes from $where. This is its structure. '
+                'Editing it makes a Studio copy that takes over ${page.path} '
+                'when you deploy it.',
+        action: studioActionControl(
+          'dv-studio-override',
+          'Edit this page',
+          _startOverride,
+          icon: DVStudioIcons.design,
+          primary: true,
+        ),
+      );
+    }
+    final bool deployed = page.kind == DVStudioPageKind.override;
+    return studioBanner(
+      key: const ValueKey<String>('dv-studio-compiled-banner'),
+      tone: DVStudioStyle.warning,
+      icon: DVStudioIcons.revert,
+      title: deployed ? 'Studio is serving this page' : 'Editing a copy',
+      detail: deployed
+          ? 'Studio\'s version of ${page.path} is live in place of the one '
+              'in $where. Restore it to serve the compiled page again.'
+          : 'Nothing changes on ${page.path} until you deploy. Deploying '
+              'puts this in place of the page in $where.',
+      action: deployed
+          ? studioActionControl(
+              'dv-studio-restore-compiled',
+              'Restore compiled page',
+              () => unawaited(_revert()),
+              icon: DVStudioIcons.revert,
+            )
+          : null,
     );
   }
 
@@ -1625,7 +1959,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                     children: <Widget>[
                       DVStudioStyle.heading(route),
                       const SizedBox(width: DVStudioStyle.space2),
-                      if (_review != null)
+                      if (_compiled case final DVStudioSitePage page)
+                        KeyedSubtree(
+                          key: const ValueKey<String>('dv-studio-page-kind'),
+                          child: _overriding || page.kind != DVStudioPageKind.code
+                              ? DVStudioStyle.badge('Override',
+                                  tone: DVStudioStyle.warning)
+                              : DVStudioStyle.badge('Code',
+                                  tone: DVStudioStyle.muted),
+                        )
+                      else if (_review != null)
                         studioStatePill(
                           _review!,
                           key: const ValueKey<String>(
@@ -1740,7 +2083,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         _keyedControl(
           'dv-studio-publish',
           _saving ? 'Deploying…' : 'Deploy',
-          _saving ? null : _publish,
+          _saving || controller.readOnly ? null : _publish,
           icon: DVStudioIcons.publish,
           primary: true,
         ),
@@ -2197,6 +2540,9 @@ Widget _keyedControl(String key, String label, VoidCallback? onTap,
 /// by the same renderer the running application uses, and its name.
 class _DVStudioPageCard extends StatefulWidget {
   final String route;
+
+  /// What the route is: compiled, stored, or a stored override.
+  final DVStudioSitePage? page;
   final DVPageDocument? document;
   final VoidCallback onOpen;
 
@@ -2206,6 +2552,7 @@ class _DVStudioPageCard extends StatefulWidget {
 
   const _DVStudioPageCard({
     required this.route,
+    this.page,
     required this.document,
     required this.onOpen,
     this.state,
@@ -2224,6 +2571,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
     final String route = widget.route;
     // Not the route verbatim: the page list beside this already shows it, and
     // one piece of text should be one widget a reader — or a test — finds.
+    final DVStudioSitePage? page = widget.page;
     final String name = document == null || document.title == route
         ? (route == '/' ? 'Home page' : route.substring(1))
         : document.title;
@@ -2253,10 +2601,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
                   height: 150,
                   color: DVStudioStyle.canvas,
                   child: document == null
-                      ? const Center(
-                          child: Icon(DVStudioIcons.page,
-                              size: 28, color: DVStudioStyle.faint),
-                        )
+                      ? _compiledFace(page)
                       : _thumbnail(document),
                 ),
               ),
@@ -2280,6 +2625,43 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// A compiled page's face on its card: nothing Studio stores draws it, so
+  /// the card says where it is written and what a dynamic route takes.
+  static Widget _compiledFace(DVStudioSitePage? page) {
+    final String? source = page?.source;
+    return Center(
+      child: Padding(
+        padding: const .all(DVStudioStyle.space3),
+        child: Column(
+          mainAxisSize: .min,
+          children: <Widget>[
+            Icon(
+              page != null && page.isCompiled
+                  ? DVStudioIcons.code
+                  : DVStudioIcons.page,
+              size: 28,
+              color: DVStudioStyle.faint,
+            ),
+            if (source != null) ...<Widget>[
+              const SizedBox(height: DVStudioStyle.space2),
+              DVStudioStyle.caption(
+                source.replaceFirst(RegExp(r':\d+$'), ''),
+                color: DVStudioStyle.muted,
+              ),
+            ],
+            if (page != null && page.isDynamic) ...<Widget>[
+              const SizedBox(height: DVStudioStyle.space1),
+              DVStudioStyle.caption(
+                'One page per ${page.params.join(', ')}',
+                color: DVStudioStyle.faint,
+              ),
+            ],
+          ],
         ),
       ),
     );

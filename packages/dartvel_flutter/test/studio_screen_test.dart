@@ -77,7 +77,7 @@ void main() {
     await tester.pumpWidget(host());
     await tester.pumpAndSettle();
 
-    expect(find.text('No stored pages yet.'), findsOneWidget);
+    expect(find.text('No pages yet.'), findsOneWidget);
   });
 
   testWidgets('opening a page shows the builder over its real widgets',
