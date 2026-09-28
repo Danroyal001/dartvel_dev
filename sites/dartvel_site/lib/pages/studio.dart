@@ -115,6 +115,44 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       ],
     ),
     Section(
+      children: <Widget>[
+        Eyebrow('FORMULA BAR AND COMMAND PALETTE'),
+        Heading('Edit what is selected in one line, and reach anything with Ctrl+K.'),
+        Bullets(<String>[
+          'The formula bar runs across the top of the editor, as in Excel or '
+              'Power Apps. Select an element and its text is there; the box on '
+              'the left picks any other field: its layout, its style, its '
+              'action.',
+          'A formula is a value of that field\'s kind: "text", 12 * 2 + 4, '
+              '#111827 or rgb(17, 24, 39), one of a choice\'s options, TRUE, '
+              'or Navigate("/pricing"). It is highlighted as you type and '
+              'offers completions: options, routes, data models and their '
+              'fields, functions.',
+          'Enter applies it and Esc puts back what was there. A formula that '
+              'is wrong says where, and nothing is written. What the bar '
+              'writes is one step in the same undo history as the canvas and '
+              'the inspector.',
+          'Ctrl+K (Cmd+K on a Mac) opens the command palette: every section, '
+              'every page, every element on the page by name, and what can be '
+              'done to it, found by typing a few letters. Ctrl+D duplicates '
+              'the selected element, and Ctrl+/ lists every shortcut.',
+        ]),
+        StudioShot(
+          'assets/studio/formula-bar.png',
+          'The Studio page editor with the formula bar across the top: the '
+              'fontSize field selected and an unclosed bracket refused',
+          caption: 'The formula bar: fontSize picked in the name box, and a '
+              'formula missing its bracket refused where it goes wrong.',
+        ),
+        StudioShot(
+          'assets/studio/command-palette.png',
+          'The Studio command palette open over the editor, filtered to '
+              'insert commands',
+          caption: 'Ctrl+K: three letters narrow it to what can be inserted.',
+        ),
+      ],
+    ),
+    Section(
       tint: true,
       children: <Widget>[
         Eyebrow('IN THE FREE STUDIO'),
