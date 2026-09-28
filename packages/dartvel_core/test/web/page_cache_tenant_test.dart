@@ -104,7 +104,7 @@ void main() {
     // Serves the stale page and refreshes behind it.
     await serve('acme', 'Orders v2');
     // Let the refresh land.
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect((await serve('acme', 'Orders v3'))?.title, 'Orders v2');
   });

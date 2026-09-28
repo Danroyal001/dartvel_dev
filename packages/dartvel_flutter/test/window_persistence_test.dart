@@ -27,7 +27,7 @@ void main() {
         backend: backend,
         spillStorage: files,
         spillThresholdBytes: 64,
-        debounce: Duration.zero,
+        debounce: .zero,
       );
     });
     tearDown(() => store.dispose());
@@ -78,7 +78,7 @@ void main() {
       final inline = DVWindowSharedStore(
         backend: NotifyingBackend(),
         spillThresholdBytes: 64,
-        debounce: Duration.zero,
+        debounce: .zero,
       );
       addTearDown(inline.dispose);
 

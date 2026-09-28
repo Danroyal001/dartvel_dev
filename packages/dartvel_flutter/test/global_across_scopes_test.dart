@@ -26,7 +26,7 @@ class _ShowsBasket extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         context.global<_Basket>().label,
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
       );
 }
 

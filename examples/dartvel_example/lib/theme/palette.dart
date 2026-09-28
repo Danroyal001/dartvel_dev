@@ -31,7 +31,7 @@ class const Palette({
   required final Color success,
 }) {
   static const Palette light = Palette(
-    brightness: Brightness.light,
+    brightness: .light,
     canvas: Color(0xFFF7F3EE),
     surface: Color(0xFFFFFFFF),
     sunken: Color(0xFFEFE8E0),
@@ -46,7 +46,7 @@ class const Palette({
   );
 
   static const Palette dark = Palette(
-    brightness: Brightness.dark,
+    brightness: .dark,
     canvas: Color(0xFF161311),
     surface: Color(0xFF211D1A),
     sunken: Color(0xFF2B2622),
@@ -69,7 +69,7 @@ extension PaletteType on Palette {
   /// A screen's name.
   DVModifier get display => const DVModifier()
       .fontSize(30)
-      .fontWeight(FontWeight.w700)
+      .fontWeight(.w700)
       .letterSpacing(-0.6)
       .lineHeight(1.15)
       .color(ink);
@@ -77,13 +77,13 @@ extension PaletteType on Palette {
   /// A section's name.
   DVModifier get title => const DVModifier()
       .fontSize(19)
-      .fontWeight(FontWeight.w600)
+      .fontWeight(.w600)
       .letterSpacing(-0.2)
       .color(ink);
 
   /// A card's name.
   DVModifier get headline =>
-      const DVModifier().fontSize(16).fontWeight(FontWeight.w600).color(ink);
+      const DVModifier().fontSize(16).fontWeight(.w600).color(ink);
 
   DVModifier get body =>
       const DVModifier().fontSize(15).lineHeight(1.45).color(ink);
@@ -94,7 +94,7 @@ extension PaletteType on Palette {
   /// Small capitals over a heading: an origin, a status.
   DVModifier get overline => const DVModifier()
       .fontSize(11)
-      .fontWeight(FontWeight.w600)
+      .fontWeight(.w600)
       .letterSpacing(1.2)
       .color(inkMuted);
 }
@@ -158,7 +158,7 @@ ThemeData shopTheme(Palette p) {
       unselectedIconTheme: IconThemeData(color: p.inkMuted),
       selectedLabelTextStyle: TextStyle(
         fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontWeight: .w600,
         color: p.ink,
       ),
       unselectedLabelTextStyle: TextStyle(fontSize: 14, color: p.inkMuted),
@@ -168,40 +168,40 @@ ThemeData shopTheme(Palette p) {
         backgroundColor: p.accent,
         foregroundColor: p.onAccent,
         minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const .symmetric(horizontal: 20),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: .w600),
+        shape: RoundedRectangleBorder(borderRadius: .circular(12)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: p.ink,
         minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
+        padding: const .symmetric(horizontal: 18),
         side: BorderSide(color: p.line),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: .w600),
+        shape: RoundedRectangleBorder(borderRadius: .circular(12)),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: p.accent,
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: .w600),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: p.surface,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
         borderSide: BorderSide(color: p.line),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
         borderSide: BorderSide(color: p.line),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: .circular(12),
         borderSide: BorderSide(color: p.accent, width: 1.5),
       ),
     ),
@@ -209,7 +209,7 @@ ThemeData shopTheme(Palette p) {
       behavior: SnackBarBehavior.floating,
       backgroundColor: p.ink,
       contentTextStyle: TextStyle(color: p.canvas, fontSize: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: .circular(12)),
     ),
     dividerTheme: DividerThemeData(color: p.line, space: 1, thickness: 1),
   );

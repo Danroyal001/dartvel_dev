@@ -76,7 +76,7 @@ void copyButtonTests() {
         home: Scaffold(
           body: SingleChildScrollView(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 22),
+              padding: .symmetric(horizontal: 22),
               child: CodeBlock(<String>[
                 '@DVModel(generatePublicPages: true) and a line long enough '
                     'to reach the right edge of any block on any screen',

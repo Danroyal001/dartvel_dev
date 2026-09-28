@@ -27,9 +27,9 @@ double? recorded(String src) => globalContext
 Widget slot(double width, DVImage image) => MediaQuery(
       data: const MediaQueryData(),
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Align(
-          alignment: Alignment.topLeft,
+          alignment: .topLeft,
           child: SizedBox(width: width, child: DVImageView(image)),
         ),
       ),

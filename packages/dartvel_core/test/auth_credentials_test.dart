@@ -321,7 +321,7 @@ void main() {
       await auth.signUp('ada@example.com', 'lovelace-1843');
       await auth.signOut();
       await auth.signIn('ada@example.com', 'lovelace-1843');
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, <String?>['ada@example.com', null, 'ada@example.com']);
     });

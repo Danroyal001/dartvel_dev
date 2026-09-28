@@ -120,7 +120,7 @@ Widget buildIndexPage(BuildContext context) {
   return DVBox.list([
       const DVText('Welcome to Dartvel'),
       const DVText('DARTVEL').modifier(
-        DVModifier().fontSize(28).fontWeight(FontWeight.w800),
+        DVModifier().fontSize(28).fontWeight(.w800),
       ),
       const DVText('Your Dartvel app is ready!').modifier(
         DVModifier().color(Color(0xFF111827)).padding(8),
@@ -131,7 +131,7 @@ Widget buildIndexPage(BuildContext context) {
         const DVText('GitHub').modifier(DVModifier().padding(12).rounded(8)),
       ], spacing: 12),
     ]).modifier(
-      const DVModifier().padding(24).align(Alignment.center),
+      const DVModifier().padding(24).align(.center),
     );
 }
 ''';
@@ -164,7 +164,7 @@ import '../dartvel_client/dartvel_client.dart';
 @DVFunctionalWidget()
 Widget ${_inputName(className)}(BuildContext context) => DVBox.list(<Widget>[
       const DVText('Something went wrong').modifier(
-        const DVModifier().fontSize(24).fontWeight(FontWeight.w800),
+        const DVModifier().fontSize(24).fontWeight(.w800),
       ),
       const DVText('The page could not load its data.'),
       const DVText('Go back').modifier(
@@ -176,7 +176,7 @@ Widget ${_inputName(className)}(BuildContext context) => DVBox.list(<Widget>[
             .onPressed(() => Navigator.of(context).pop()),
       ),
     ]).modifier(
-      const DVModifier().align(Alignment.center),
+      const DVModifier().align(.center),
     );
 ''';
 

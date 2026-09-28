@@ -48,7 +48,7 @@ Widget _aboutPage(BuildContext context) => (() {
               ])
             DVNavLink(
               to: to,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const .symmetric(horizontal: 14, vertical: 10),
               child: DVText(label).modifier(p.headline.fontSize(14)),
             ),
         ], spacing: 8),
@@ -146,7 +146,7 @@ class const HoodCard(final HoodPiece piece, {super.key})
                   .width(38)
                   .height(38)
                   .rounded(10)
-                  .align(Alignment.center)
+                  .align(.center)
                   .backgroundColor(p.accentSoft),
             ),
             Expanded(
@@ -156,7 +156,7 @@ class const HoodCard(final HoodPiece piece, {super.key})
             ),
           ],
           spacing: 12,
-          crossAlign: DVCrossAlign.center,
+          crossAlign: .center,
         ),
         DVText(piece.body).modifier(p.muted),
         DVText(piece.file).modifier(
@@ -170,7 +170,7 @@ class const HoodCard(final HoodPiece piece, {super.key})
         ),
       ],
       spacing: 10,
-      crossAlign: DVCrossAlign.start,
+      crossAlign: .start,
     ).modifier(cardStyle(p, padding: 18));
   }
 }

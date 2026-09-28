@@ -50,7 +50,7 @@ Widget _heroSection(BuildContext context) {
       if (narrow) ...const <Widget>[copy, HeroTerminal()]
       else
         const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: <Widget>[
             Expanded(flex: 6, child: copy),
             SizedBox(width: 48),
@@ -79,7 +79,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
         .modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 30, desktop: 50))
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(Palette.of(context).ink)
           .lineHeight(1.08)
           // The site's one h1.
@@ -92,7 +92,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     ).modifier(
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 17, desktop: 20))
-          .fontWeight(FontWeight.w500)
+          .fontWeight(.w500)
           .color(Palette.of(context).muted)
           .lineHeight(1.5)
           .maxWidth(580),
@@ -128,7 +128,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
 /// One part of the platform, as a chip that opens its docs.
 @DVFunctionalWidget()
 Widget _heroCapability(BuildContext context, String label, DVRouteTarget to) =>
-    DVNavLink(to: to, padding: EdgeInsets.zero, child: SiteChip(label));
+    DVNavLink(to: to, padding: .zero, child: SiteChip(label));
 
 /// A terminal beside the hero, so the promise sits next to what you type.
 ///
@@ -141,7 +141,7 @@ Widget _heroTerminal(BuildContext context) {
   return Container(
     decoration: BoxDecoration(
       color: Palette.deep,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: .circular(14),
       border: Border.all(color: palette.rule),
       boxShadow: <BoxShadow>[
         BoxShadow(
@@ -152,10 +152,10 @@ Widget _heroTerminal(BuildContext context) {
       ],
     ),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const .symmetric(horizontal: 16, vertical: 11),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: Color(0xFF1B2338))),
           ),
@@ -167,7 +167,7 @@ Widget _heroTerminal(BuildContext context) {
                 const Color(0xFF28C840),
               ])
                 Padding(
-                  padding: const EdgeInsets.only(right: 7),
+                  padding: const .only(right: 7),
                   child: Container(
                     width: 11,
                     height: 11,
@@ -190,7 +190,7 @@ Widget _heroTerminal(BuildContext context) {
           ),
         ),
         const Padding(
-          padding: EdgeInsets.fromLTRB(16, 14, 16, 18),
+          padding: .fromLTRB(16, 14, 16, 18),
           // Coloured the way the terminal actually is: the prompt, what you
           // type and what it answers are three different things.
           child: Typewriter(
@@ -234,7 +234,7 @@ Widget _heroTerminal(BuildContext context) {
                 text: '[dev] restarting backend...',
                 style: TextStyle(
                   color: Color(0xFF9ECE6A),
-                  fontWeight: FontWeight.w700,
+                  fontWeight: .w700,
                 ),
               ),
             ],
@@ -575,7 +575,7 @@ Widget _honest(BuildContext context) => const Section(
     DVBox.wrapLine(<Widget>[
       PrimaryLink('Check what works today', '/features'),
       ExternalLink('Read spec-status.json', kSpecStatusUrl),
-    ], spacing: 20, crossAlign: DVCrossAlign.center),
+    ], spacing: 20, crossAlign: .center),
   ],
 );
 

@@ -120,7 +120,7 @@ void main() {
       );
     });
 
-    Future<void> settle() => Future<void>.delayed(Duration.zero);
+    Future<void> settle() => Future<void>.delayed(.zero);
 
     test('runs flutter attach in the project', () {
       expect(started.single, startsWith('flutter --show-test-device attach'));

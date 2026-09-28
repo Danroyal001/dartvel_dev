@@ -53,7 +53,7 @@ void main() {
       const _Note('n1', 'ada'),
       kind: DVModelChangeKind.created,
     );
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(received, hasLength(1));
     expect(received.single.kind, DVModelChangeKind.created);
@@ -70,7 +70,7 @@ void main() {
       await DVModelSync.publish(const _Note('n1', 'ada'));
     });
     await DVModelSync.publish(const _Note('n2', 'ada'));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     // The listener runs as the default tenant: acme's change stays invisible.
     expect(received.map((DVModelChange<_Note> c) => c.model.id), <String>['n2']);
@@ -84,7 +84,7 @@ void main() {
 
     await DVModelSync.publish(const _Note('mine', 'ada'));
     await DVModelSync.publish(const _Note('theirs', 'bob'));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(received.map((c) => c.model.id), <String>['mine']);
     await sub.cancel();
@@ -117,7 +117,7 @@ void main() {
       'tenant': 'default',
       'model': <String, Object?>{'id': 'remote', 'owner': 'ada'},
     });
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(received, hasLength(1));
     expect(received.single.model.id, 'remote');
@@ -131,7 +131,7 @@ void main() {
     DVModelSync.useTransport(transport);
 
     transport.deliver(<String, Object?>{'type': 'Ghost', 'model': <String, Object?>{}});
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     // Nothing to assert beyond "no throw": the stream stays usable.
     await DVModelSync.publish(const _Note('still-works', 'ada'));
   });
