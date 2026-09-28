@@ -491,6 +491,18 @@ Handler dvWebServerHandler({
     // deployed server writes them.
     final String served = dvWithPreloads(page, routePreloads);
 
+    // A path nothing serves is a 404, with the shell still the body so the
+    // app draws its not-found page. Answering 200 was a soft 404: a crawler
+    // indexed every mistyped address as a page. A Studio page is a route the
+    // manifest does not list, so the published ones are asked first, and a
+    // manifest with no routes at all says nothing about what is missing.
+    if (matched == null &&
+        routeMap.isNotEmpty &&
+        !(await publishedPages?.routes() ?? const <String>{})
+            .contains(cleanPath)) {
+      return Response.notFound(served, headers: htmlHeaders);
+    }
+
     if (!stream) return Response.ok(served, headers: htmlHeaders);
 
     // Streamed: the head goes out as its own chunk, the rest after it, so
