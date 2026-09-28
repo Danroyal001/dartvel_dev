@@ -30,6 +30,8 @@ import 'package:yaml/yaml.dart';
 
 import '../module_trust/module_lock.dart';
 import '../modules/described_api.dart';
+import '../modules/foreign/apple_module.dart';
+import '../modules/foreign/apple_surface.dart';
 import '../modules/foreign/dart_package_module.dart';
 import '../modules/foreign/dart_surface.dart';
 import '../modules/foreign/ffi_module.dart';
@@ -233,6 +235,8 @@ class AddCommand extends Command<void> {
     'wasm:',
     'maven:',
     'jar:',
+    'swift:',
+    'pod:',
   ];
 
   /// Whether [source] names a foreign source this command generates a
@@ -256,6 +260,7 @@ class AddCommand extends Command<void> {
       DVSourceKind.rust => 'cargo:$source',
       DVSourceKind.c => 'c:$source',
       DVSourceKind.wasm => 'wasm:$source',
+      DVSourceKind.apple => 'swift:$source',
       _ => source,
     };
   }
@@ -345,6 +350,54 @@ class AddCommand extends Command<void> {
       _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
           DVSourceFetcher fetcher,
           {List<String> classes = const <String>[]}) async {
+    if (source.startsWith('swift:') || source.startsWith('pod:')) {
+      if (source.startsWith('pod:')) {
+        final DVResolvedPod pod =
+            await dvResolvePod(root, source.substring(4), fetcher: fetcher);
+        final bool swift = pod.files.any((String f) => f.endsWith('.swift'));
+        final DVAppleSurface surface = swift
+            ? dvScanSwiftSources(pod.source.directory, pod.source.name,
+                pod.files.where((String f) => f.endsWith('.swift')).toList())
+            : dvScanObjcHeaders(pod.source.directory, pod.source.name,
+                files: pod.files);
+        return (
+          pod.source,
+          (String id) => dvAppleModuleSpec(
+                id: id,
+                source: pod.source.descriptor,
+                surface: surface,
+                elsewhere: elsewhere,
+              ),
+        );
+      }
+      final String rest = source.substring(6);
+      final DVResolvedSource resolved = rest.contains('://')
+          ? await dvResolveGitTree(
+              root,
+              'swift',
+              rest.contains('#') ? rest.substring(0, rest.lastIndexOf('#')) : rest,
+              rest.contains('#') ? rest.substring(rest.lastIndexOf('#') + 1) : null,
+              fetcher: fetcher)
+          : dvResolveLocalSource(root, 'swift', rest);
+      final DVAppleSurface surface = dvScanSwiftPackage(resolved.directory);
+      return (
+        DVResolvedSource(
+          descriptor: resolved.descriptor,
+          name: surface.name,
+          version: resolved.version,
+          directory: resolved.directory,
+          sourceDigest: resolved.sourceDigest,
+          resolvedFrom: resolved.resolvedFrom,
+          dependency: '',
+        ),
+        (String id) => dvAppleModuleSpec(
+              id: id,
+              source: resolved.descriptor,
+              surface: surface,
+              elsewhere: elsewhere,
+            ),
+      );
+    }
     if (source.startsWith('maven:') || source.startsWith('jar:')) {
       final bool maven = source.startsWith('maven:');
       final DVResolvedSource resolved = maven
