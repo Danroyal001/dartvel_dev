@@ -33,6 +33,7 @@ import '../build/graphql_options.dart';
 import '../build/server_options.dart';
 import '../updates/shorebird_config.dart';
 import '../graph/module_mounts.dart';
+import 'module_rpc_routes.dart';
 import '../utils/helpers.dart';
 import '../utils/logger.dart';
 import 'asyncapi_generator.dart';
@@ -300,6 +301,9 @@ class BackendGenerator {
     // is written: a block the runtime could not honour (DV-WEBHOOK-009) or an
     // event the AsyncAPI document could not list (DV-WEBHOOK-010) stops here.
     final DVWebhooksConfig webhooks = _dvWebhooksConfig(root, pkgName);
+    // Module calls carried to the backend, refused here when one names no
+    // policy (DV-MODULE-021), before anything is written.
+    final List<DVModuleRpcRoute> moduleRpcRoutes = dvModuleRpcRoutes(root);
     final List<String> webhookEvents = discoverWebhookEvents(
         dvMergedLibSources(root, pkgName, backendDir));
     backendOut.createSync(recursive: true);
@@ -850,6 +854,7 @@ import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBac
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies, dartvelOfflineResources;
 ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
+${dvModuleRpcImports(moduleRpcRoutes)}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
 const String _dvOpenApiJson = r\'\'\'
@@ -986,6 +991,7 @@ bool _dvValidateCsrf(dv.Request req, Object? body) {
 Future<bool> _dvAllowed(String policy, dv.Request req) =>
     core.DVBackendPolicy.allows(policy, req.url.path);
 
+$dvModuleRpcHelpers
 dv.Response _dvPolicyForbidden(String policy) => dv.Response(403,
     headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
     body: Stream<List<int>>.value(
@@ -1518,7 +1524,7 @@ $routeClose''';
     // everywhere else rather than read as a sign this route checks nothing.
     router.get(cfg.apiBasePath + '/health', (dv.Request req) => _dvStaged(req, () async => dv.Response.text('ok')));
   }
-  // Writes a device made while it could not reach this server, replayed.
+${dvModuleRpcRegistrations(moduleRpcRoutes)}  // Writes a device made while it could not reach this server, replayed.
   //
   // Behind the authentication stage like every other route, and refused
   // outright without a session: a queue belongs to somebody, and applying
@@ -2277,6 +2283,16 @@ Future<DVHttpResponse> _dvRequest(String method, Uri uri,
       body: encoded.body,
     ));
   });
+}
+
+/// Sends a module call carried to the backend: installed as
+/// DVModuleRpc.transport, so it goes through the same request path as a
+/// backend function -- session, CSRF token and step-up included.
+Future<Object?> dvModuleRpcSend(String path, Map<String, Object?> arguments) async {
+  final r = await _dvRequest('post', DartvelRuntime.api(path),
+      data: arguments, headers: <String, String>{'content-type': 'application/json'});
+  final Object? data = r.data;
+  return data is Map ? data['result'] : null;
 }
 
 Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
