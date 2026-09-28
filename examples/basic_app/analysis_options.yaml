@@ -3,10 +3,6 @@ include: package:lints/recommended.yaml
 analyzer:
   exclude:
     - ".dart_tool/**"
-    - build/**
-    - android/**
-    - ios/**
-    - web/**
 
 linter:
   rules:
