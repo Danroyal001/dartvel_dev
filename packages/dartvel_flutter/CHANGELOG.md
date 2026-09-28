@@ -1,3 +1,13 @@
+## Unreleased
+
+- **A loading bar across the top instead of a spinner in the middle.**
+  `DvDefaultLoading`, which a deferred page arriving and a page's data
+  loading both show, is now the same thin bar the web page shows before its
+  first frame, on every platform. `DV.progress.track(future)` and
+  `DV.progress.start()` show it for an application's own work;
+  `DV.progress.color` and `DV.progress.enabled` theme and turn it off.
+  Themed from the colour scheme, still under reduced motion.
+
 ## 0.9.0
 
 - **`DVBox.threePane`: three panes, one per panel of a tri-fold.** Each pane
