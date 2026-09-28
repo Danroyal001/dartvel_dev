@@ -296,3 +296,42 @@ int? dvFindRuntimeAnchor(String? anchor) {
   if (anchor == null || !anchor.startsWith('r')) return null;
   return int.tryParse(anchor.substring(1));
 }
+
+/// The id a heading gets, so a link can name it: `/docs/ui#lay-out-children`.
+///
+/// The heading's words, lower case, with everything that is not a letter, a
+/// digit or a space dropped and the spaces made hyphens -- the shape GitHub
+/// and most documentation sites give a heading, so a link somebody guesses
+/// from the words usually works. Letters outside ASCII stay: a French
+/// heading's link reads as French.
+String dvHeadingSlug(String text) {
+  final String slug = text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^\p{L}\p{N}\s-]', unicode: true), '')
+      .trim()
+      .replaceAll(RegExp(r'[\s-]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  return slug.isEmpty ? 'section' : slug;
+}
+
+/// The id of each of [blocks], in order: [dvHeadingSlug] for a heading and
+/// null for anything else.
+///
+/// A heading whose words repeat an earlier one's is numbered from 2 -- the
+/// second "Setup" on a page is `setup-2` -- so every id names one heading and
+/// a link to either lands where it was made.
+List<String?> dvHeadingIds(Iterable<DVFindBlock> blocks) {
+  final Map<String, int> seen = <String, int>{};
+  return <String?>[
+    for (final DVFindBlock block in blocks)
+      if (block.headingLevel == null)
+        null
+      else
+        () {
+          final String slug = dvHeadingSlug(block.text);
+          final int n = (seen[slug] ?? 0) + 1;
+          seen[slug] = n;
+          return n == 1 ? slug : '$slug-$n';
+        }(),
+  ];
+}
