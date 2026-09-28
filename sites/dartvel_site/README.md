@@ -72,5 +72,5 @@ dartvel dev
 `pubspec_overrides.yaml` points the Dartvel packages at this repository's
 working tree, so the site always shows what is about to ship.
 
-The Studio screenshots in `assets/studio/` are photographs of a running Studio;
+The Studio screenshots in `assets/studio_shots/` are photographs of a running Studio;
 see `.github/workflows/studio-shots.yml` and `dartvel capture studio`.
