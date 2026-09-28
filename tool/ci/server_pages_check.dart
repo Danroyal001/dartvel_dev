@@ -1,5 +1,4 @@
-if (loginStatus != 200 || !loginPage.contains('<title>Studio')) {
-    problems.add('/__studio/login answered $loginStatus without the Studio app');// Every page a running web-server binary serves says something to a crawler,
+// Every page a running web-server binary serves says something to a crawler,
 // and Studio refuses a stranger.
 //
 // dartvel.dev is served by `dartvel build web-server`, which renders each page
@@ -10,8 +9,8 @@ if (loginStatus != 200 || !loginPage.contains('<title>Studio')) {
 //
 // For each page in the server's own sitemap.xml: a 200, a <title>, a meta
 // description, and at least [min-words] words in the crawler block. Then:
-// HEAD / is a 200; a signed-out /__studio/ is sent to /__studio/login, which
-// serves the sign-in, while Studio's files and API answer a stranger as an
+// HEAD / is a 200; a signed-out /__studio/ is sent to /__studio/login, the
+// Studio app's sign-in page, while Studio's data and API answer a stranger as an
 // unknown path does; and the image endpoint resizes one of the site's images.
 //
 // Usage: dart tool/ci/server_pages_check.dart <base-url> [min-words]
@@ -111,8 +110,9 @@ Future<void> main(List<String> args) async {
   }
   final (int loginStatus, String loginPage, _) =
       await _get(base.resolve('/__studio/login'));
-  if (loginStatus != 200 || !loginPage.contains('Sign in to Studio')) {
-    problems.add('/__studio/login answered $loginStatus without the sign-in');
+  // The sign-in is a page of the Studio app, so this is the app's shell.
+  if (loginStatus != 200 || !loginPage.contains('<title>Studio')) {
+    problems.add('/__studio/login answered $loginStatus without the Studio app');
   }
   for (final String studioPath in <String>['/__studio/api/grants', '/__studio/graph.json']) {
     final String unknownPath =
