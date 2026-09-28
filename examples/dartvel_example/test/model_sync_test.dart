@@ -75,7 +75,7 @@ void main() {
     final ada = await user('ada').save();
     await ada.save();
     await ada.destroy();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(kinds, <DVModelChangeKind>[
       DVModelChangeKind.created,
@@ -121,7 +121,7 @@ void main() {
     );
 
     await user('ada').save();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(kinds, isNotEmpty);
     expect(await User.find('ada'), isNotNull);

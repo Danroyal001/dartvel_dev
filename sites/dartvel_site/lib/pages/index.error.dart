@@ -6,7 +6,7 @@ import '../dartvel_client/dartvel_client.dart';
 @DVFunctionalWidget()
 Widget _indexPageError(BuildContext context) => DVBox.list(<Widget>[
       const DVText('Something went wrong').modifier(
-        const DVModifier().fontSize(24).fontWeight(FontWeight.w700),
+        const DVModifier().fontSize(24).fontWeight(.w700),
       ),
       const DVText('The page could not load its data.'),
       const DVText('Go back').modifier(
@@ -18,5 +18,5 @@ Widget _indexPageError(BuildContext context) => DVBox.list(<Widget>[
             .onPressed(() => Navigator.of(context).pop()),
       ),
     ]).modifier(
-      const DVModifier().align(Alignment.center),
+      const DVModifier().align(.center),
     );

@@ -110,7 +110,7 @@ void main() {
 
       await window.close();
       for (int i = 0; i < 10; i++) {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
       }
 
       expect(seen, <DVWindowLifecycle>[DVWindowLifecycle.closing, DVWindowLifecycle.closed],
@@ -171,7 +171,7 @@ void main() {
 
       device.emit(const DVXRSpaceEnded());
       for (int i = 0; i < 10; i++) {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
       }
 
       expect(tour.lifecycle.value, DVWindowLifecycle.closed);
@@ -282,7 +282,7 @@ void main() {
     DVWindowSharedStore storeWith({DVAppKeyStoreSource? appKeys, bool keyed = true}) =>
         DVWindowSharedStore(
           backend: backend,
-          debounce: Duration.zero,
+          debounce: .zero,
           appKeys: appKeys ?? (keyed ? () async => keys : null),
         );
 
@@ -322,7 +322,7 @@ void main() {
       final DVMemoryFileStorageAdapter files = DVMemoryFileStorageAdapter();
       final DVWindowSharedStore shared = DVWindowSharedStore(
         backend: backend,
-        debounce: Duration.zero,
+        debounce: .zero,
         spillStorage: files,
         spillThresholdBytes: 1,
         appKeys: () async => keys,

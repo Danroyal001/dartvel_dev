@@ -33,7 +33,7 @@ void main() {
           perAccount: const DVVelocityBudget(1000, Duration(minutes: 15)),
           perSource: const DVVelocityBudget(3, Duration(minutes: 15)),
         ),
-        refusalFloor: Duration.zero,
+        refusalFloor: .zero,
       ),
     );
     final Router router = Router()

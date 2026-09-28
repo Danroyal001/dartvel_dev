@@ -219,7 +219,7 @@ void main() {
       final Stopwatch clock = Stopwatch()..start();
       while (arrived == null && clock.elapsed < const Duration(seconds: 5)) {
         DVMacosShortcuts.pump(const Duration(milliseconds: 50));
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
       }
 
       expect(arrived, 'capture');

@@ -46,7 +46,7 @@ class FakeConnect implements DVConnectedAccountProvider {
     required String idempotencyKey,
   }) async {
     transferCalls++;
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     if (failTransfers) throw StateError('transfer failed');
     return transfers.putIfAbsent(
       idempotencyKey,

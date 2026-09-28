@@ -22,7 +22,7 @@ void main() {
     lifecycle.setKiosk(DVKioskState.active);
     lifecycle.setKiosk(DVKioskState.resetting);
     lifecycle.setKiosk(DVKioskState.active);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(seen, <DVKioskState>[DVKioskState.active, DVKioskState.resetting, DVKioskState.active]);
     lifecycle.resetForTesting();
     expect(lifecycle.kiosk.value, DVKioskState.off);
@@ -49,7 +49,7 @@ void main() {
     await runtime.resume();
     await runtime.reset(DVKioskResetReason.explicit);
     await runtime.exit(const DVKioskExitRequest.pin('1234'));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(seen, <DVKioskState>[
       // Entering kiosk is itself a reset -- a supervised kiosk restarts

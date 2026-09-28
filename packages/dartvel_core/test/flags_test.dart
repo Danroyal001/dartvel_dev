@@ -217,7 +217,7 @@ void main() {
     test('overrides are scoped to the callback and do not leak', () async {
       await DVFlags.withOverrides(<String, Object?>{'newCheckout': true},
           () async {
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
         expect(DVFlags.resolve(newCheckout).value, isTrue);
       });
       expect(DVFlags.resolve(newCheckout).value, isFalse);
@@ -462,7 +462,7 @@ void main() {
       final List<void> seen = <void>[];
       final StreamSubscription<void> sub = DVFlags.changes.listen(seen.add);
       DVFlags.setRules(rules(<String, Object?>{}));
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(seen, hasLength(1));
       await sub.cancel();
     });
@@ -647,7 +647,7 @@ void main() {
       expect(read.value, isFalse);
       expect(read.source, DVFlagSource.override);
       // Not a zone: code that never ran inside a callback sees it too.
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(DVFlags.resolve(newCheckout).value, isFalse);
 
       DVFlags.clearDebugOverride(newCheckout);

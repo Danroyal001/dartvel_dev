@@ -24,7 +24,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
 import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget;
+import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'link_interception.dart' show DVPressedLink;
+import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
 import 'route_prefetch.dart' show DVRoutePrefetch;
 
 /// When a link fetches the route it points at.
@@ -200,6 +202,9 @@ class _DVNavLinkState extends State<DVNavLink> {
   @override
   void initState() {
     super.initState();
+    // Flutter's menu rather than the browser's, on a page with no shell to
+    // have turned the browser's off: the 404 page is often the first page.
+    DVBrowserMenu.install();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
       WidgetsBinding.instance
@@ -487,10 +492,19 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
     // A right-click: the page's menu opens over it, and asks what it was on.
     if (event.buttons == kSecondaryMouseButton) {
-      DVPressedLinkTarget.press(
-        widget.externalUrl ?? DVNavigation.locationOf(widget.to),
-        event.position,
-      );
+      final String link =
+          widget.externalUrl ?? DVNavigation.locationOf(widget.to);
+      DVPressedLinkTarget.press(link, event.position);
+      // A menu, not a preview: the pointer is still over the link.
+      _previewTimer?.cancel();
+      _previewPending = false;
+      _removePreview();
+      // With no page menu above to ask -- the 404 page, a page with
+      // selection off -- the link opens the menu itself, or a right-click
+      // shows nothing: the browser's own menu is off so Flutter's can show.
+      if (!DVLinkMenuScope.covers(context)) {
+        dvShowLinkMenu(context, link, event.position);
+      }
       return;
     }
     // A mouse's primary button follows the link on the press. A click is two
@@ -575,7 +589,7 @@ class _DVNavLinkState extends State<DVNavLink> {
               ),
             },
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               // Everything but the mouse. Its primary button is handled on the
               // press, above, and a release that also counted as a tap would
               // follow the link twice whenever the link outlives the
@@ -597,7 +611,7 @@ class _DVNavLinkState extends State<DVNavLink> {
                 // theme's own colour so it reads in light and dark.
                 decoration: BoxDecoration(
                   color: _focused ? Theme.of(context).focusColor : null,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: .circular(4),
                 ),
                 child: Padding(padding: widget.padding, child: widget.child),
               ),
@@ -643,17 +657,17 @@ class _DVLinkPreviewCard extends StatelessWidget {
         // inside must not activate whatever it happens to be showing.
         child: Material(
           elevation: 12,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
+          borderRadius: .circular(12),
+          clipBehavior: .antiAlias,
           child: SizedBox.fromSize(
             size: _size,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 Expanded(
                   child: FittedBox(
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topLeft,
+                    fit: .cover,
+                    alignment: .topLeft,
                     child: SizedBox(
                       width: 1200,
                       height: 850,
@@ -676,7 +690,7 @@ class _DVLinkPreviewCard extends StatelessWidget {
                   child: Text(
                     path,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),

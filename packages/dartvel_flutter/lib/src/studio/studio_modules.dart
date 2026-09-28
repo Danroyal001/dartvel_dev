@@ -132,7 +132,7 @@ class _DVStudioModulesSectionState extends State<DVStudioModulesSection> {
   Widget build(BuildContext context) {
     final List<DVStudioModule>? modules = _modules;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         DVStudioStyle.panelHeader(
           title: 'Modules',
@@ -164,9 +164,9 @@ class _DVStudioModulesSectionState extends State<DVStudioModulesSection> {
                       message: '$_error',
                     ))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(DVStudioStyle.space5),
+                  padding: const .all(DVStudioStyle.space5),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: .stretch,
                     children: <Widget>[
                       if (_adding) ...<Widget>[
                         const _DVStudioModuleImport(),
@@ -193,8 +193,8 @@ class _DVStudioModulesSectionState extends State<DVStudioModulesSection> {
 
   Widget _empty() => DVStudioStyle.card(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .start,
+          mainAxisSize: .min,
           children: <Widget>[
             DVStudioStyle.heading('No modules in this app yet'),
             const SizedBox(height: DVStudioStyle.space2),
@@ -220,8 +220,8 @@ class _DVStudioModuleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DVStudioStyle.card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -258,8 +258,8 @@ class _DVStudioModuleCard extends StatelessWidget {
   }
 
   Widget _fact(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           DVStudioStyle.caption(label),
           DVStudioStyle.body(value),
@@ -281,8 +281,8 @@ class _DVStudioModuleImport extends StatelessWidget {
   Widget build(BuildContext context) {
     return DVStudioStyle.card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           DVStudioStyle.heading('Add a module'),
           const SizedBox(height: DVStudioStyle.space2),
@@ -326,8 +326,8 @@ class _DVStudioModuleImport extends StatelessWidget {
   }
 
   Widget _snippet(String label, List<String> lines) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           DVStudioStyle.caption(label),
           const SizedBox(height: DVStudioStyle.space1),
@@ -338,7 +338,7 @@ class _DVStudioModuleImport extends StatelessWidget {
                     .fontSize(12)
                     .fontFamily('RobotoMono')
                     .color(DVStudioStyle.ink)),
-            ], spacing: 1, crossAlign: DVCrossAlign.start),
+            ], spacing: 1, crossAlign: .start),
             const DVModifier()
                 .width(double.infinity)
                 .padding(DVStudioStyle.space3)
@@ -363,8 +363,8 @@ class _DVStudioModuleMarketplace extends StatelessWidget {
   Widget build(BuildContext context) {
     return DVStudioStyle.card(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         children: <Widget>[
           Row(
             children: <Widget>[

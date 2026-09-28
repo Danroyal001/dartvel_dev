@@ -40,10 +40,10 @@ void main() {
     final subscription = DVGraphQL
         .subscribe('subscription { messageAdded(room: "general") { text } }')
         .listen(events.add);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     messages.add(<String, Object?>{'id': 1, 'text': 'hello', 'room': 'general'});
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     // Exactly the requested field, not the whole payload.
     expect(events.single['data'], <String, Object?>{
@@ -57,11 +57,11 @@ void main() {
     final subscription = DVGraphQL
         .subscribe('subscription { messageAdded(room: "general") { text } }')
         .listen(events.add);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     messages.add(<String, Object?>{'id': 1, 'text': 'wrong', 'room': 'other'});
     messages.add(<String, Object?>{'id': 2, 'text': 'right', 'room': 'general'});
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(events, hasLength(1));
     expect(
@@ -80,10 +80,10 @@ void main() {
           variables: <String, Object?>{'room': 'dart'},
         )
         .listen(events.add);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     messages.add(<String, Object?>{'id': 1, 'text': 'typed', 'room': 'dart'});
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(events, hasLength(1));
     await subscription.cancel();
@@ -94,11 +94,11 @@ void main() {
     final subscription = DVGraphQL
         .subscribe('subscription { messageAdded(room: "general") { text } }')
         .listen((_) {});
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(messages.hasListener, isTrue);
 
     await subscription.cancel();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(messages.hasListener, isFalse);
   });
@@ -108,10 +108,10 @@ void main() {
     DVGraphQL
         .subscribe('subscription { messageAdded(room: "general") { text } }')
         .listen((_) {}, onDone: () => done = true);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     await messages.close();
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     expect(done, isTrue);
   });

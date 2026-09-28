@@ -30,13 +30,13 @@ Widget _blogIdPage(BuildContext context) => (() {
                     .width(32)
                     .height(32)
                     .rounded(16)
-                    .align(Alignment.center)
+                    .align(.center)
                     .backgroundColor(p.accentSoft),
               ),
               Expanded(child: DVText(guide.steps[i]).modifier(p.body)),
             ],
             spacing: 14,
-            crossAlign: DVCrossAlign.start,
+            crossAlign: .start,
           ),
       ], spacing: 16).modifier(cardStyle(p, padding: 22).maxWidth(720)),
     ],

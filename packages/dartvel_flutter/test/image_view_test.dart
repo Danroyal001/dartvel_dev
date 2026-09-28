@@ -8,7 +8,7 @@ void main() {
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(DVImage.network('https://example.com/a.png')),
       ),
     );
@@ -23,7 +23,7 @@ void main() {
 
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(DVImage.asset('assets/a.png')),
       ),
     );
@@ -40,7 +40,7 @@ void main() {
   testWidgets('a null image renders the placeholder', (WidgetTester tester) async {
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(null, placeholder: Text('no cover')),
       ),
     );
@@ -54,7 +54,7 @@ void main() {
     final SemanticsHandle handle = tester.ensureSemantics();
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(
           DVImage.network('https://example.com/a.png', alt: 'A red bicycle'),
         ),
@@ -75,7 +75,7 @@ void main() {
     final SemanticsHandle handle = tester.ensureSemantics();
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(DVImage.network('https://example.com/a.png')),
       ),
     );
@@ -88,7 +88,7 @@ void main() {
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: DVImageView(
           DVImage.network('https://example.com/a.png', width: 120, height: 90),
         ),

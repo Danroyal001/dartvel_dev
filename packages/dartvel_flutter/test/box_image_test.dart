@@ -81,7 +81,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: const DVBox(DVText('Hero')).modifier(const DVModifier()
           .backgroundImage(_Asset.logoSmall,
-              repeat: ImageRepeat.repeat, fit: BoxFit.none, opacity: 0.06)),
+              repeat: ImageRepeat.repeat, fit: .none, opacity: 0.06)),
     ));
 
     tester.takeException();

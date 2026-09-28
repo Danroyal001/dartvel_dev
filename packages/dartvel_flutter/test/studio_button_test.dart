@@ -23,7 +23,7 @@ Future<void> _pump(WidgetTester tester, DVPageDocument document) =>
     tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Align(
-          alignment: Alignment.topLeft,
+          alignment: .topLeft,
           child: SizedBox(width: 600, child: DVPageDocumentRenderer(document)),
         ),
       ),

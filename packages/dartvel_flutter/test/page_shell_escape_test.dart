@@ -18,12 +18,12 @@ Widget longPage({Widget Function(Widget page)? around, Widget? extra}) {
     spec: const DVPageScaffoldSpec(title: 'Policy'),
     child: SingleChildScrollView(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           if (extra != null) extra,
           for (int i = 0; i < 60; i++)
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const .all(8),
               child: Text('Paragraph $i says something about records.'),
             ),
         ],

@@ -117,8 +117,8 @@ void main() async {
     // after the first is a stale one, which is what refreshing behind the
     // response is for.
     const Duration stale = Duration(minutes: 5);
-    final DVPageDataCache a = DVPageDataCache(ttl: Duration.zero, staleFor: stale, shared: storeA);
-    final DVPageDataCache b = DVPageDataCache(ttl: Duration.zero, staleFor: stale, shared: storeB);
+    final DVPageDataCache a = DVPageDataCache(ttl: .zero, staleFor: stale, shared: storeA);
+    final DVPageDataCache b = DVPageDataCache(ttl: .zero, staleFor: stale, shared: storeB);
 
     await a.resolve(request, resolver, DVPageDataMode.staleWhileRevalidate);
     // Stale at once: served as it stands while a refresh runs behind it.

@@ -32,7 +32,7 @@ void main() {
       backend: backend,
       spillStorage: files,
       spillThresholdBytes: 64,
-      debounce: Duration.zero,
+      debounce: .zero,
     );
   });
   tearDown(() => store.dispose());

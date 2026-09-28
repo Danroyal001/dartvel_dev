@@ -284,18 +284,18 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         .where((DVIncident i) => !i.isOpen)
         .toList();
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space4),
+          padding: const .symmetric(horizontal: DVStudioStyle.space4),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
           ),
           child: Row(
             children: <Widget>[
               Expanded(
-                child: opsText('Incidents', size: 14, weight: FontWeight.w600),
+                child: opsText('Incidents', size: 14, weight: .w600),
               ),
               opsTrailing(
                 child: opsBadge(
@@ -310,9 +310,9 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: DVStudioStyle.space4),
+            padding: const .only(bottom: DVStudioStyle.space4),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
                 _group('open', 'Open', open, current, now),
                 _group('monitoring', 'Monitoring', monitoring, current, now),
@@ -334,10 +334,10 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
   ) {
     return Column(
       key: ValueKey<String>('dv-studio-incidents-$key'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          padding: const .fromLTRB(16, 14, 16, 6),
           child: Row(
             children: <Widget>[
               Expanded(
@@ -345,7 +345,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                   label.toUpperCase(),
                   size: 10.5,
                   color: DVStudioStyle.muted,
-                  weight: FontWeight.w600,
+                  weight: .w600,
                 ),
               ),
               opsText('${items.length}', size: 11, color: DVStudioStyle.faint),
@@ -354,7 +354,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         ),
         if (items.isEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            padding: const .fromLTRB(16, 0, 16, 4),
             child: opsText('None', size: 12, color: DVStudioStyle.faint),
           ),
         for (final DVIncident incident in items)
@@ -368,22 +368,22 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
     final bool listed = incident.timeline.any((DVIncidentEntry e) => e.public);
     return GestureDetector(
       key: ValueKey<String>('dv-studio-incident-${incident.id}'),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => widget.onSelect(incident.id),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          margin: const EdgeInsets.symmetric(
+          margin: const .symmetric(
             horizontal: DVStudioStyle.space2,
             vertical: 1,
           ),
-          padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+          padding: const .fromLTRB(10, 9, 10, 10),
           decoration: BoxDecoration(
             color: selected ? DVStudioStyle.selected : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               Row(
                 children: <Widget>[
@@ -393,7 +393,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                     child: opsText(
                       incident.title,
                       size: 13,
-                      weight: FontWeight.w600,
+                      weight: .w600,
                       color: selected
                           ? DVStudioStyle.accent
                           : DVStudioStyle.ink,
@@ -403,7 +403,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               ),
               const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 22),
+                padding: const .only(left: 22),
                 child: Row(
                   children: <Widget>[
                     Flexible(
@@ -428,7 +428,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               ),
               if (incident.isOpen && !listed)
                 Padding(
-                  padding: const EdgeInsets.only(left: 22, top: 4),
+                  padding: const .only(left: 22, top: 4),
                   child: opsText(
                     'Not on the status page yet',
                     size: 11.5,
@@ -453,11 +453,11 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         ? 'from a crash spike'
         : 'opened by a person';
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: DVStudioStyle.space5),
+          padding: const .symmetric(horizontal: DVStudioStyle.space5),
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
@@ -469,7 +469,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: tone.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                  borderRadius: .circular(DVStudioStyle.radius),
                 ),
                 child: Icon(
                   opsIncidentIcon(incident.status),
@@ -480,10 +480,10 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
-                    opsText(incident.title, size: 15, weight: FontWeight.w700),
+                    opsText(incident.title, size: 15, weight: .w700),
                     const SizedBox(height: 2),
                     opsText(
                       '${incident.id} · opened ${opsTime(incident.openedAt)} '
@@ -532,17 +532,17 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
               final Widget rename = _renameCard(incident);
               final Widget resolve = _resolveCard(incident, now);
               return SingleChildScrollView(
-                padding: EdgeInsets.all(pad),
+                padding: .all(pad),
                 child: wide
                     ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: <Widget>[
                           Expanded(child: timeline),
                           const SizedBox(width: DVStudioStyle.space5),
                           SizedBox(
                             width: 420,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment: .stretch,
                               children: <Widget>[
                                 composer,
                                 gap,
@@ -555,7 +555,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                         ],
                       )
                     : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: .stretch,
                         children: <Widget>[
                           composer,
                           gap,
@@ -582,9 +582,9 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
       incident.openedAt,
     );
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Timeline',
@@ -596,7 +596,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                 : opsBadge('Not public yet', tone: DVStudioStyle.muted),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            padding: const .fromLTRB(16, 0, 16, 14),
             child: Wrap(
               spacing: DVStudioStyle.space6,
               runSpacing: DVStudioStyle.space3,
@@ -655,7 +655,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
     };
     return Container(
       key: ValueKey<String>('dv-studio-incident-entry-$index'),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const .fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         color: entry.public
             ? DVStudioStyle.success.withValues(alpha: 0.03)
@@ -663,7 +663,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         border: const Border(top: BorderSide(color: DVStudioStyle.line)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Container(
             width: 26,
@@ -677,14 +677,14 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           const SizedBox(width: DVStudioStyle.space3),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                  crossAxisAlignment: .center,
                   children: <Widget>[
-                    opsText(author, size: 12.5, weight: FontWeight.w600),
+                    opsText(author, size: 12.5, weight: .w600),
                     opsText(
                       opsTime(entry.at),
                       size: 12,
@@ -736,9 +736,9 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             ? 'Saving…'
             : null);
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             public ? 'Post a public update' : 'Add an internal note',
@@ -749,7 +749,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             icon: public ? Icons.campaign_outlined : Icons.edit_note,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const .symmetric(horizontal: 16),
             child: Wrap(
               spacing: 4,
               runSpacing: 4,
@@ -773,7 +773,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           ),
           const SizedBox(height: DVStudioStyle.space3),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const .symmetric(horizontal: 16),
             child: KeyedSubtree(
               key: const ValueKey<String>('dv-studio-incident-message'),
               child: _TextArea(
@@ -789,15 +789,15 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           if (askTitle) ...<Widget>[
             const SizedBox(height: DVStudioStyle.space3),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const .symmetric(horizontal: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: .stretch,
                 children: <Widget>[
                   opsText(
                     'PUBLIC TITLE',
                     size: 10.5,
                     color: DVStudioStyle.muted,
-                    weight: FontWeight.w600,
+                    weight: .w600,
                   ),
                   const SizedBox(height: 6),
                   KeyedSubtree(
@@ -830,15 +830,15 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           if (public) ...<Widget>[
             const SizedBox(height: DVStudioStyle.space3),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const .symmetric(horizontal: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: <Widget>[
                   opsText(
                     'MOVES IT TO',
                     size: 10.5,
                     color: DVStudioStyle.muted,
-                    weight: FontWeight.w600,
+                    weight: .w600,
                   ),
                   const SizedBox(height: 6),
                   Wrap(
@@ -872,7 +872,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           ],
           const SizedBox(height: DVStudioStyle.space3),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const .symmetric(horizontal: 16),
             child: opsNote(
               key: const ValueKey<String>(
                 'dv-studio-incident-internal-warning',
@@ -893,12 +893,12 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
           if (public) ...<Widget>[
             const SizedBox(height: DVStudioStyle.space3),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const .symmetric(horizontal: 16),
               child: _publicPreview(incident, now),
             ),
           ],
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const .all(16),
             child: Row(
               children: <Widget>[
                 Expanded(
@@ -979,14 +979,14 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
     }
     return Container(
       key: const ValueKey<String>('dv-studio-incident-public-preview'),
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         color: DVStudioStyle.canvas,
         border: Border.all(color: DVStudioStyle.lineStrong),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -997,7 +997,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
                   'PREVIEW · AS THE STATUS PAGE WILL SHOW IT',
                   size: 10.5,
                   color: DVStudioStyle.muted,
-                  weight: FontWeight.w600,
+                  weight: .w600,
                 ),
               ),
             ],
@@ -1036,9 +1036,9 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             ? 'Saving…'
             : null);
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Public title',
@@ -1051,7 +1051,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             icon: Icons.title,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const .fromLTRB(16, 0, 16, 16),
             child: Row(
               children: <Widget>[
                 Expanded(
@@ -1091,7 +1091,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         if (e.status == DVIncidentStatus.resolved) closing = e;
       }
       return DVStudioStyle.card(
-        padding: EdgeInsets.zero,
+        padding: .zero,
         child: opsCardHeader(
           'Resolved',
           'Resolved ${opsTime(incident.resolvedAt ?? closing?.at ?? now)}'
@@ -1104,13 +1104,13 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         widget.actor == null) {
       final bool monitoring = incident.status == DVIncidentStatus.monitoring;
       return DVStudioStyle.card(
-        padding: EdgeInsets.zero,
+        padding: .zero,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             opsCardHeader('Resolve', null, icon: Icons.task_alt),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const .fromLTRB(16, 0, 16, 16),
               child: opsNote(
                 key: const ValueKey<String>(
                   'dv-studio-incident-resolve-unavailable',
@@ -1145,9 +1145,9 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
         ? 'Saving…'
         : null;
     return DVStudioStyle.card(
-      padding: EdgeInsets.zero,
+      padding: .zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           opsCardHeader(
             'Resolve',
@@ -1157,7 +1157,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             icon: Icons.task_alt,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const .symmetric(horizontal: 16),
             child: KeyedSubtree(
               key: const ValueKey<String>('dv-studio-incident-resolve-message'),
               child: _TextArea(
@@ -1170,7 +1170,7 @@ class _StudioIncidentsViewState extends State<StudioIncidentsView> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const .all(16),
             child: Row(
               children: <Widget>[
                 Expanded(
@@ -1250,7 +1250,7 @@ class _TextAreaState extends State<_TextArea> {
       onTap: _focus.requestFocus,
       child: Container(
         constraints: const BoxConstraints(minHeight: 76),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const .symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: DVStudioStyle.surface,
           border: Border.all(
@@ -1258,7 +1258,7 @@ class _TextAreaState extends State<_TextArea> {
                 ? DVStudioStyle.accent
                 : DVStudioStyle.lineStrong,
           ),
-          borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+          borderRadius: .circular(DVStudioStyle.radiusSmall),
         ),
         child: Stack(
           children: <Widget>[
@@ -1311,7 +1311,7 @@ class StudioStatusPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         studioBanner(
           key: const ValueKey<String>('dv-studio-status-preview-mark'),
@@ -1339,9 +1339,9 @@ class StudioStatusPreview extends StatelessWidget {
                   ? DVStudioStyle.space4
                   : DVStudioStyle.space8;
               return SingleChildScrollView(
-                padding: EdgeInsets.all(pad),
+                padding: .all(pad),
                 child: Align(
-                  alignment: Alignment.topCenter,
+                  alignment: .topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 820),
                     child: _page(box.maxWidth < 600),
@@ -1370,19 +1370,19 @@ class StudioStatusPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFFFFF),
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusLarge),
+        borderRadius: .circular(DVStudioStyle.radiusLarge),
         boxShadow: DVStudioStyle.shadowLarge,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Container(
             height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const .symmetric(horizontal: 12),
             decoration: const BoxDecoration(
               color: Color(0xFFF7F7FA),
               border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
-              borderRadius: BorderRadius.vertical(
+              borderRadius: .vertical(
                 top: Radius.circular(DVStudioStyle.radiusLarge),
               ),
             ),
@@ -1400,12 +1400,12 @@ class StudioStatusPreview extends StatelessWidget {
                 Expanded(
                   child: Container(
                     height: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    alignment: Alignment.centerLeft,
+                    padding: const .symmetric(horizontal: 8),
+                    alignment: .centerLeft,
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFFFFF),
                       border: Border.all(color: DVStudioStyle.line),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: .circular(4),
                     ),
                     child: opsText(
                       'Status page · public view',
@@ -1418,11 +1418,11 @@ class StudioStatusPreview extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: EdgeInsets.all(narrow ? 16 : 28),
+            padding: .all(narrow ? 16 : 28),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: <Widget>[
-                opsText('System status', size: 22, weight: FontWeight.w700),
+                opsText('System status', size: 22, weight: .w700),
                 const SizedBox(height: 4),
                 opsText(
                   'Updated ${opsTime(snapshot.generatedAt)}',
@@ -1431,11 +1431,11 @@ class StudioStatusPreview extends StatelessWidget {
                 ),
                 const SizedBox(height: DVStudioStyle.space5),
                 Container(
-                  padding: const EdgeInsets.all(DVStudioStyle.space4),
+                  padding: const .all(DVStudioStyle.space4),
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: 0.10),
                     border: Border.all(color: tone.withValues(alpha: 0.35)),
-                    borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                    borderRadius: .circular(DVStudioStyle.radius),
                   ),
                   child: Row(
                     children: <Widget>[
@@ -1459,7 +1459,7 @@ class StudioStatusPreview extends StatelessWidget {
                             DVComponentStatus.outage => 'Major outage',
                           },
                           size: 16,
-                          weight: FontWeight.w700,
+                          weight: .w700,
                           color: tone,
                         ),
                       ),
@@ -1471,7 +1471,7 @@ class StudioStatusPreview extends StatelessWidget {
                   opsText(
                     'Active incidents',
                     size: 15,
-                    weight: FontWeight.w700,
+                    weight: .w700,
                   ),
                   const SizedBox(height: DVStudioStyle.space3),
                   for (final DVPublicIncident incident in active) ...<Widget>[
@@ -1485,7 +1485,7 @@ class StudioStatusPreview extends StatelessWidget {
                   ],
                 ],
                 section,
-                opsText('Components', size: 15, weight: FontWeight.w700),
+                opsText('Components', size: 15, weight: .w700),
                 const SizedBox(height: DVStudioStyle.space3),
                 if (snapshot.components.isEmpty)
                   opsText(
@@ -1499,15 +1499,15 @@ class StudioStatusPreview extends StatelessWidget {
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: DVStudioStyle.line),
-                      borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+                      borderRadius: .circular(DVStudioStyle.radius),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: .stretch,
                       children: <Widget>[
                         for (final MapEntry<String, DVComponentStatus> c
                             in snapshot.components.entries)
                           Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding: const .symmetric(
                               horizontal: 16,
                               vertical: 12,
                             ),
@@ -1526,13 +1526,13 @@ class StudioStatusPreview extends StatelessWidget {
                                   child: opsText(
                                     c.key,
                                     size: 13.5,
-                                    weight: FontWeight.w500,
+                                    weight: .w500,
                                   ),
                                 ),
                                 const SizedBox(width: DVStudioStyle.space2),
                                 opsTrailing(
                                   child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisSize: .min,
                                     children: <Widget>[
                                       DVStudioStyle.dot(
                                         opsComponentTone(c.value),
@@ -1543,7 +1543,7 @@ class StudioStatusPreview extends StatelessWidget {
                                         child: opsText(
                                           opsComponentLabel(c.value),
                                           size: 12.5,
-                                          weight: FontWeight.w600,
+                                          weight: .w600,
                                           color: opsComponentTone(c.value),
                                         ),
                                       ),
@@ -1557,7 +1557,7 @@ class StudioStatusPreview extends StatelessWidget {
                     ),
                   ),
                 section,
-                opsText('Past incidents', size: 15, weight: FontWeight.w700),
+                opsText('Past incidents', size: 15, weight: .w700),
                 const SizedBox(height: DVStudioStyle.space3),
                 if (past.isEmpty)
                   opsText(

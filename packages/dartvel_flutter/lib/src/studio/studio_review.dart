@@ -632,14 +632,14 @@ Widget studioStatePill(
           : SystemMouseCursors.click,
       child: Container(
         height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 9),
+        padding: const .symmetric(horizontal: 9),
         decoration: BoxDecoration(
           color: tone.withValues(alpha: 0.10),
           border: Border.all(color: tone.withValues(alpha: 0.28)),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: .circular(999),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: <Widget>[
             DVStudioStyle.dot(tone),
             const SizedBox(width: 6),
@@ -653,7 +653,7 @@ Widget studioStatePill(
                     .color(
                       tone == DVStudioStyle.faint ? DVStudioStyle.muted : tone,
                     )
-                    .fontWeight(FontWeight.w600)
+                    .fontWeight(.w600)
                     .maxLines(1),
               ),
             ),
@@ -669,7 +669,7 @@ Widget studioStatePill(
                 const DVModifier()
                     .fontSize(11)
                     .color(DVStudioStyle.success)
-                    .fontWeight(FontWeight.w600)
+                    .fontWeight(.w600)
                     .maxLines(1),
               ),
             ],
@@ -693,7 +693,7 @@ Widget studioBanner({
 }) {
   return Container(
     key: key,
-    padding: const EdgeInsets.fromLTRB(
+    padding: const .fromLTRB(
       DVStudioStyle.space4,
       10,
       DVStudioStyle.space3,
@@ -707,23 +707,23 @@ Widget studioBanner({
       border: Border(bottom: BorderSide(color: tone.withValues(alpha: 0.3))),
     ),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.only(top: 1),
+          padding: const .only(top: 1),
           child: Icon(icon, size: 17, color: tone),
         ),
         const SizedBox(width: DVStudioStyle.space3),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: .start,
+            mainAxisSize: .min,
             children: <Widget>[
               DVText(title).modifier(
                 const DVModifier()
                     .fontSize(13)
                     .color(DVStudioStyle.ink)
-                    .fontWeight(FontWeight.w600),
+                    .fontWeight(.w600),
               ),
               const SizedBox(height: 2),
               DVStudioStyle.caption(detail, color: DVStudioStyle.muted),
@@ -774,18 +774,18 @@ Widget _avatar(String? id, {double size = 22}) {
   return Container(
     width: size,
     height: size,
-    alignment: Alignment.center,
+    alignment: .center,
     decoration: BoxDecoration(
       color: tone.withValues(alpha: 0.14),
       shape: BoxShape.circle,
     ),
     child: FittedBox(
-      fit: BoxFit.scaleDown,
+      fit: .scaleDown,
       child: DVText(name.isEmpty ? '·' : name[0].toUpperCase()).modifier(
         const DVModifier()
             .fontSize(size * 0.48)
             .color(tone)
-            .fontWeight(FontWeight.w700),
+            .fontWeight(.w700),
       ),
     ),
   );
@@ -797,7 +797,7 @@ Widget _labelled(
   Color color = DVStudioStyle.ink,
 }) {
   return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: .start,
     children: <Widget>[
       SizedBox(
         width: 72,
@@ -821,26 +821,26 @@ Widget _callout({
 }) {
   return Container(
     key: key,
-    padding: const EdgeInsets.all(DVStudioStyle.space3),
+    padding: const .all(DVStudioStyle.space3),
     decoration: BoxDecoration(
       color: tone.withValues(alpha: 0.08),
       border: Border.all(color: tone.withValues(alpha: 0.3)),
-      borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+      borderRadius: .circular(DVStudioStyle.radius),
     ),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: <Widget>[
         Icon(icon, size: 16, color: tone),
         const SizedBox(width: DVStudioStyle.space2),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               DVText(title).modifier(
                 const DVModifier()
                     .fontSize(12.5)
                     .color(DVStudioStyle.ink)
-                    .fontWeight(FontWeight.w600),
+                    .fontWeight(.w600),
               ),
               const SizedBox(height: 3),
               DVStudioStyle.caption(body),
@@ -855,7 +855,7 @@ Widget _callout({
 Widget _reasonText(String? reason) => reason == null
     ? const SizedBox.shrink()
     : Padding(
-        padding: const EdgeInsets.only(top: DVStudioStyle.space1),
+        padding: const .only(top: DVStudioStyle.space1),
         child: DVStudioStyle.caption(reason, color: DVStudioStyle.faint),
       );
 
@@ -901,7 +901,7 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
       key: const ValueKey<String>('dv-studio-review-panel'),
       color: DVStudioStyle.surface,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.panelHeader(
             title: 'Review',
@@ -923,7 +923,7 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
           ),
           Expanded(
             child: ListView(
-              padding: EdgeInsets.zero,
+              padding: .zero,
               children: <Widget>[
                 _status(version),
                 if (s.open != null) _approval(s.open!),
@@ -1019,19 +1019,19 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
             )
           else
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 _avatar(approval.approvedBy, size: 28),
                 const SizedBox(width: DVStudioStyle.space2),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: .start,
                     children: <Widget>[
                       DVText('Approved by ${approval.approvedBy}').modifier(
                         const DVModifier()
                             .fontSize(13)
                             .color(DVStudioStyle.ink)
-                            .fontWeight(FontWeight.w600),
+                            .fontWeight(.w600),
                       ),
                       const SizedBox(height: 2),
                       DVStudioStyle.caption(studioStamp(approval.approvedAt)),
@@ -1103,15 +1103,15 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
-                      padding: const EdgeInsets.fromLTRB(3, 3, 9, 3),
+                      padding: const .fromLTRB(3, 3, 9, 3),
                       decoration: BoxDecoration(
                         color: _reviewer == name
                             ? DVStudioStyle.selected
                             : DVStudioStyle.canvas,
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: .circular(999),
                       ),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisSize: .min,
                         children: <Widget>[
                           _avatar(name, size: 18),
                           const SizedBox(width: 5),
@@ -1268,10 +1268,10 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
       label: 'Scheduled',
       children: <Widget>[
         Container(
-          padding: const EdgeInsets.all(DVStudioStyle.space3),
+          padding: const .all(DVStudioStyle.space3),
           decoration: BoxDecoration(
             color: DVStudioStyle.accentSoft.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Row(
             children: <Widget>[
@@ -1283,13 +1283,13 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
               const SizedBox(width: DVStudioStyle.space3),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     DVText(at == null ? 'No slot' : studioDay(at)).modifier(
                       const DVModifier()
                           .fontSize(13)
                           .color(DVStudioStyle.ink)
-                          .fontWeight(FontWeight.w600),
+                          .fontWeight(.w600),
                     ),
                     DVStudioStyle.caption(
                       at == null
@@ -1360,8 +1360,8 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
           children: <Widget>[
             Flexible(
               child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
+                fit: .scaleDown,
+                alignment: .centerLeft,
                 child: DVStudioSegmented<Duration>(
                   segments: const <DVStudioSegment<Duration>>[
                     DVStudioSegment<Duration>(
@@ -1403,11 +1403,11 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
         if (link != null) ...<Widget>[
           Container(
             height: 34,
-            padding: const EdgeInsets.only(left: 10, right: 2),
+            padding: const .only(left: 10, right: 2),
             decoration: BoxDecoration(
               color: DVStudioStyle.canvas,
               border: Border.all(color: DVStudioStyle.line),
-              borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+              borderRadius: .circular(DVStudioStyle.radiusSmall),
             ),
             child: Row(
               children: <Widget>[
@@ -1417,7 +1417,7 @@ class _StudioReviewPanelState extends State<StudioReviewPanel> {
                     child: Text(
                       '$link',
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      overflow: .ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
                         color: DVStudioStyle.ink,
@@ -1572,38 +1572,38 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
         ),
         Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(DVStudioStyle.space4),
+            padding: const .all(DVStudioStyle.space4),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Container(
                 key: const ValueKey<String>('dv-studio-schedule-dialog'),
                 decoration: BoxDecoration(
                   color: DVStudioStyle.surface,
-                  borderRadius: BorderRadius.circular(
+                  borderRadius: .circular(
                     DVStudioStyle.radiusLarge,
                   ),
                   boxShadow: DVStudioStyle.shadowLarge,
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const .fromLTRB(
                         DVStudioStyle.space5,
                         DVStudioStyle.space5,
                         DVStudioStyle.space3,
                         0,
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: .start,
                         children: <Widget>[
                           Container(
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
                               color: DVStudioStyle.accentSoft,
-                              borderRadius: BorderRadius.circular(
+                              borderRadius: .circular(
                                 DVStudioStyle.radius,
                               ),
                             ),
@@ -1616,7 +1616,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                           const SizedBox(width: DVStudioStyle.space3),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: .start,
                               children: <Widget>[
                                 DVStudioStyle.heading(
                                   _rescheduling
@@ -1641,7 +1641,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const .fromLTRB(
                         DVStudioStyle.space5,
                         DVStudioStyle.space4,
                         DVStudioStyle.space5,
@@ -1670,7 +1670,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const .fromLTRB(
                         DVStudioStyle.space5,
                         DVStudioStyle.space4,
                         DVStudioStyle.space5,
@@ -1679,7 +1679,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                       child: _calendar(today),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const .fromLTRB(
                         DVStudioStyle.space5,
                         DVStudioStyle.space3,
                         DVStudioStyle.space5,
@@ -1711,7 +1711,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const .fromLTRB(
                         DVStudioStyle.space5,
                         DVStudioStyle.space3,
                         DVStudioStyle.space5,
@@ -1738,8 +1738,8 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                             ),
                     ),
                     Container(
-                      margin: const EdgeInsets.only(top: DVStudioStyle.space4),
-                      padding: const EdgeInsets.symmetric(
+                      margin: const .only(top: DVStudioStyle.space4),
+                      padding: const .symmetric(
                         horizontal: DVStudioStyle.space5,
                         vertical: DVStudioStyle.space3,
                       ),
@@ -1820,19 +1820,19 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
           // Padding rather than a height and an alignment: a Container with
           // an alignment grows to the width it is offered, and in the Wrap
           // that made each quick pick a full-width bar.
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const .symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: active ? DVStudioStyle.selected : DVStudioStyle.surface,
             border: Border.all(
               color: active ? DVStudioStyle.accent : DVStudioStyle.lineStrong,
             ),
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: .circular(999),
           ),
           child: DVText(label).modifier(
             const DVModifier()
                 .fontSize(12)
                 .color(active ? DVStudioStyle.accent : DVStudioStyle.ink)
-                .fontWeight(FontWeight.w500)
+                .fontWeight(.w500)
                 .maxLines(1),
           ),
         ),
@@ -1849,13 +1849,13 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
       _month.month,
     ).isAfter(DateTime(today.year, today.month));
     return Container(
-      padding: const EdgeInsets.all(DVStudioStyle.space3),
+      padding: const .all(DVStudioStyle.space3),
       decoration: BoxDecoration(
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           Row(
             children: <Widget>[
@@ -1865,7 +1865,7 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
                       const DVModifier()
                           .fontSize(13)
                           .color(DVStudioStyle.ink)
-                          .fontWeight(FontWeight.w600),
+                          .fontWeight(.w600),
                     ),
               ),
               DVStudioIconButton(
@@ -1940,17 +1940,17 @@ class _StudioScheduleDialogState extends State<StudioScheduleDialog> {
         cursor: past ? SystemMouseCursors.basic : SystemMouseCursors.click,
         child: Container(
           height: 32,
-          margin: const EdgeInsets.all(1),
-          alignment: Alignment.center,
+          margin: const .all(1),
+          alignment: .center,
           decoration: BoxDecoration(
             color: selected ? DVStudioStyle.accent : const Color(0x00000000),
             border: isToday && !selected
                 ? Border.all(color: DVStudioStyle.accent.withValues(alpha: 0.5))
                 : null,
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+            borderRadius: .circular(DVStudioStyle.radiusSmall),
           ),
           child: FittedBox(
-            fit: BoxFit.scaleDown,
+            fit: .scaleDown,
             child: DVText('$day').modifier(
               const DVModifier()
                   .fontSize(12)
@@ -2005,7 +2005,7 @@ class StudioHistoryView extends StatelessWidget {
         .toList();
     return Row(
       key: const ValueKey<String>('dv-studio-history-panel'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         Container(
           width: narrow ? 240 : 300,
@@ -2014,7 +2014,7 @@ class StudioHistoryView extends StatelessWidget {
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               DVStudioStyle.panelHeader(
                 // No count as a subtitle: the header's title row does not
@@ -2037,7 +2037,7 @@ class StudioHistoryView extends StatelessWidget {
                         message: 'Saving a draft starts the history.',
                       )
                     : ListView(
-                        padding: const EdgeInsets.symmetric(
+                        padding: const .symmetric(
                           vertical: DVStudioStyle.space2,
                         ),
                         children: <Widget>[
@@ -2075,28 +2075,28 @@ class StudioHistoryView extends StatelessWidget {
     final DateTime? at = _movedAt(v);
     return GestureDetector(
       key: ValueKey<String>('dv-studio-history-version-${v.number}'),
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => session.select(v.number),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          margin: const EdgeInsets.symmetric(
+          margin: const .symmetric(
             horizontal: DVStudioStyle.space2,
             vertical: 1,
           ),
-          padding: const EdgeInsets.all(DVStudioStyle.space2 + 2),
+          padding: const .all(DVStudioStyle.space2 + 2),
           decoration: BoxDecoration(
             color: selected ? DVStudioStyle.selected : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               _avatar(v.author, size: 28),
               const SizedBox(width: DVStudioStyle.space2),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: <Widget>[
                     Row(
                       children: <Widget>[
@@ -2109,7 +2109,7 @@ class StudioHistoryView extends StatelessWidget {
                                       ? DVStudioStyle.accent
                                       : DVStudioStyle.ink,
                                 )
-                                .fontWeight(FontWeight.w600)
+                                .fontWeight(.w600)
                                 .maxLines(1),
                           ),
                         ),
@@ -2144,20 +2144,20 @@ class StudioHistoryView extends StatelessWidget {
               '(DV-CONTENT-002).'
         : null;
     return SingleChildScrollView(
-      padding: EdgeInsets.all(
+      padding: .all(
         narrow ? DVStudioStyle.space4 : DVStudioStyle.space6,
       ),
       child: Align(
-        alignment: Alignment.topCenter,
+        alignment: .topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 780),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: .stretch,
             children: <Widget>[
               DVStudioStyle.card(
-                padding: const EdgeInsets.all(DVStudioStyle.space5),
+                padding: const .all(DVStudioStyle.space5),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     Row(
                       children: <Widget>[
@@ -2181,7 +2181,7 @@ class StudioHistoryView extends StatelessWidget {
                       Wrap(
                         spacing: DVStudioStyle.space2,
                         runSpacing: DVStudioStyle.space2,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                        crossAxisAlignment: .center,
                         children: <Widget>[
                           studioActionControl(
                             'dv-studio-history-restore',
@@ -2223,9 +2223,9 @@ class StudioHistoryView extends StatelessWidget {
         if (t.versionId == v.id) t,
     ].reversed.toList();
     return DVStudioStyle.card(
-      padding: const EdgeInsets.all(DVStudioStyle.space5),
+      padding: const .all(DVStudioStyle.space5),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           DVStudioStyle.heading('Activity'),
           const SizedBox(height: DVStudioStyle.space3),
@@ -2233,7 +2233,7 @@ class StudioHistoryView extends StatelessWidget {
             DVStudioStyle.caption('Loading…', color: DVStudioStyle.faint),
           for (int i = 0; i < steps.length; i++)
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[
                 SizedBox(
                   width: 18,
@@ -2256,17 +2256,17 @@ class StudioHistoryView extends StatelessWidget {
                 const SizedBox(width: DVStudioStyle.space2),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(
+                    padding: const .only(
                       bottom: DVStudioStyle.space2,
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: .start,
                       children: <Widget>[
                         DVText(_verb(steps[i])).modifier(
                           const DVModifier()
                               .fontSize(13)
                               .color(DVStudioStyle.ink)
-                              .fontWeight(FontWeight.w500),
+                              .fontWeight(.w500),
                         ),
                         DVStudioStyle.caption(
                           '${steps[i].actor == null ? 'the scheduler' : steps[i].actor!} · ${studioStamp(steps[i].at)}',
@@ -2317,9 +2317,9 @@ class StudioHistoryView extends StatelessWidget {
     return KeyedSubtree(
       key: const ValueKey<String>('dv-studio-diff'),
       child: DVStudioStyle.card(
-        padding: const EdgeInsets.all(DVStudioStyle.space5),
+        padding: const .all(DVStudioStyle.space5),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             DVStudioStyle.heading(heading),
             if (diff != null) ...<Widget>[
@@ -2431,13 +2431,13 @@ class StudioHistoryView extends StatelessWidget {
     // IntrinsicHeight: the property rows use a LayoutBuilder, which cannot
     // report an intrinsic height.
     return Container(
-      margin: const EdgeInsets.only(top: DVStudioStyle.space2),
+      margin: const .only(top: DVStudioStyle.space2),
       decoration: BoxDecoration(
         border: Border.all(color: DVStudioStyle.line),
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+        borderRadius: .circular(DVStudioStyle.radius),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(DVStudioStyle.radius - 1),
+        borderRadius: .circular(DVStudioStyle.radius - 1),
         child: Stack(
           children: <Widget>[
             Positioned(
@@ -2447,14 +2447,14 @@ class StudioHistoryView extends StatelessWidget {
               child: Container(width: 3, color: tone),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: const .fromLTRB(
                 DVStudioStyle.space3 + 3,
                 DVStudioStyle.space3,
                 DVStudioStyle.space3,
                 DVStudioStyle.space3,
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: .stretch,
                 children: <Widget>[
                   Row(
                     children: <Widget>[
@@ -2470,7 +2470,7 @@ class StudioHistoryView extends StatelessWidget {
                               const DVModifier()
                                   .fontSize(13)
                                   .color(DVStudioStyle.ink)
-                                  .fontWeight(FontWeight.w500)
+                                  .fontWeight(.w500)
                                   .maxLines(1),
                             ),
                       ),
@@ -2496,15 +2496,15 @@ class StudioHistoryView extends StatelessWidget {
 
   Widget _propertyRow(DVPagePropertyChange p) {
     Widget value(String text, Color tone, {bool struck = false}) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const .symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: .circular(4),
       ),
       child: Text(
         text,
         maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+        overflow: .ellipsis,
         style: TextStyle(
           fontSize: 12,
           color: struck ? DVStudioStyle.muted : DVStudioStyle.ink,
@@ -2514,20 +2514,20 @@ class StudioHistoryView extends StatelessWidget {
       ),
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const .only(top: 4),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints box) {
           final Widget name = DVText(p.name).modifier(
             const DVModifier()
                 .fontSize(12)
                 .color(DVStudioStyle.muted)
-                .fontWeight(FontWeight.w500)
+                .fontWeight(.w500)
                 .maxLines(1),
           );
           final Widget change = Wrap(
             spacing: 6,
             runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
+            crossAxisAlignment: .center,
             children: <Widget>[
               value(p.fromText, DVStudioStyle.danger, struck: p.from != null),
               const Icon(
@@ -2540,17 +2540,17 @@ class StudioHistoryView extends StatelessWidget {
           );
           if (box.maxWidth < 360) {
             return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: <Widget>[name, const SizedBox(height: 2), change],
             );
           }
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: <Widget>[
               SizedBox(
                 width: 130,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
+                  padding: const .only(top: 2),
                   child: name,
                 ),
               ),

@@ -33,7 +33,7 @@ void main() {
     await stages.run(DVBuildLifecycle.compiling, () async {});
     stages.completed();
 
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(seen, <DVBuildLifecycle>[
       DVBuildLifecycle.scanning,
       DVBuildLifecycle.generating,
@@ -56,7 +56,7 @@ void main() {
       throwsStateError,
     );
 
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(dvLifecycle.build.value, DVBuildLifecycle.failed);
     expect(seen.last, DVBuildLifecycle.failed);
     expect(seen, isNot(contains(DVBuildLifecycle.completed)));
@@ -69,7 +69,7 @@ void main() {
     await stages.run(DVBuildLifecycle.validating, () async {});
     stages.failed();
 
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     expect(dvLifecycle.build.value, DVBuildLifecycle.failed);
   });
 

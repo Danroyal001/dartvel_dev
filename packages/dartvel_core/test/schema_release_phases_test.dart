@@ -372,7 +372,7 @@ void main() {
         for (int k = 0; k <= 3; k++) {
           final DVProtocolWindow protocolWindow = DVProtocolWindow(
             versions: k,
-            minimumAge: Duration.zero,
+            minimumAge: .zero,
           );
           final Set<int> clients = protocolWindow.served(lock, now: t(20));
           expect(clients, <int>{for (int p = 9 - k; p <= 9; p++) p});
@@ -441,7 +441,7 @@ void main() {
             lock: lock,
             window: const DVProtocolWindow(
               versions: 2,
-              minimumAge: Duration.zero,
+              minimumAge: .zero,
             ),
             onDiagnostic: (_, _) {},
           ).evaluate(

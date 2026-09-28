@@ -288,7 +288,7 @@ void main() {
     test('a request timeout that is not positive is refused', () async {
       await expectLater(
           serve((Request req) async => Response.text('ok'),
-              host: '127.0.0.1', port: 0, requestTimeout: Duration.zero),
+              host: '127.0.0.1', port: 0, requestTimeout: .zero),
           throwsArgumentError);
     });
   });

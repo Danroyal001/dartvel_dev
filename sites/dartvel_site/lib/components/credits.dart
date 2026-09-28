@@ -214,7 +214,7 @@ Widget _upstreamCredit(
     Prose(lead, small),
     ExternalLink(upstream.project, upstream.url, onDark: onDark),
     DVText('by ${upstream.vendor} ${upstream.licenseNote}.').modifier(small),
-  ], spacing: 2, crossAlign: DVCrossAlign.center);
+  ], spacing: 2, crossAlign: .center);
 }
 
 /// A short "Thanks to" line for a page that names several targets: each
@@ -241,11 +241,11 @@ Widget _upstreamCredits(
           ExternalLink(upstreamFor(id).project, upstreamFor(id).url,
               onDark: onDark),
           DVText('by ${upstreamFor(id).vendor}').modifier(small),
-        ], spacing: 0, crossAlign: DVCrossAlign.center),
+        ], spacing: 0, crossAlign: .center),
       if (linked)
         AcknowledgementsLink(label: 'Credits and licences', onDark: onDark),
-    ], spacing: 10, crossAlign: DVCrossAlign.center),
-  ], spacing: 4, crossAlign: DVCrossAlign.start);
+    ], spacing: 10, crossAlign: .center),
+  ], spacing: 4, crossAlign: .start);
 }
 
 /// A link to the upstream table, for the footer and the credit lines.
@@ -259,7 +259,7 @@ Widget _acknowledgementsLink(
       to: const DVRouteTarget(kAcknowledgementsHref),
       child: Prose(label, const DVModifier()
           .fontSize(14)
-          .fontWeight(FontWeight.w600)
+          .fontWeight(.w600)
           .color(onDark ? Palette.deepAccent : Palette.of(context).accent)),
     );
 
@@ -277,10 +277,10 @@ Widget _upstreamTable(BuildContext context) {
         DVBox.list(<Widget>[
           DVNavLink.external(
             upstream.url,
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const .symmetric(vertical: 4),
             child: DVText(upstream.project).modifier(const DVModifier()
                 .fontSize(15)
-                .fontWeight(FontWeight.w700)
+                .fontWeight(.w700)
                 .fontFamily('JetBrainsMono')
                 .color(palette.accent)),
           ),
@@ -292,7 +292,7 @@ Widget _upstreamTable(BuildContext context) {
           Prose('What the fork adds: ${upstream.forkAdds ?? ''}',
               line),
           ExternalLink('Dartvel\'s fork', upstream.fork ?? upstream.url),
-        ], spacing: 4, crossAlign: DVCrossAlign.start),
+        ], spacing: 4, crossAlign: .start),
         const DVModifier()
             .width(double.infinity)
             .maxWidth(680)

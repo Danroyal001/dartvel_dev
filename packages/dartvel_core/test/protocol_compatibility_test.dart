@@ -372,7 +372,7 @@ void main() {
           base(returns: 'User?'),
           base(returns: 'User?', synced: false),
         ]),
-        window: const DVProtocolWindow(versions: 0, minimumAge: Duration.zero),
+        window: const DVProtocolWindow(versions: 0, minimumAge: .zero),
         now: now,
       );
       expect(plan.versions.keys, <int>[3]);

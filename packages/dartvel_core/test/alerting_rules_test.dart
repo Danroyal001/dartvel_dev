@@ -141,7 +141,7 @@ void main() {
 
   group('declaring a rule', () {
     test('a rule that fires on a single sample is refused', () {
-      expect(() => engine().addRule(depthRule(forDuration: Duration.zero)),
+      expect(() => engine().addRule(depthRule(forDuration: .zero)),
           throwsArgumentError);
     });
 
