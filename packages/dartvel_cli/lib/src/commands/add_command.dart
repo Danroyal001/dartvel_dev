@@ -29,6 +29,8 @@ import '../module_trust/module_lock.dart';
 import '../modules/described_api.dart';
 import '../modules/foreign/dart_package_module.dart';
 import '../modules/foreign/dart_surface.dart';
+import '../modules/foreign/ffi_module.dart';
+import '../modules/foreign/ffi_surface.dart';
 import '../modules/foreign/module_writer.dart';
 import '../modules/foreign/npm_module.dart';
 import '../modules/foreign/npm_surface.dart';
@@ -181,7 +183,7 @@ class AddCommand extends Command<void> {
       throw UsageException('dartvel add takes one source.', usage);
     }
     final String target = root ?? Directory.current.path;
-    final String source = rest.single;
+    final String source = withScheme(target, rest.single);
     final DVAddPlan plan = isForeign(source)
         ? await planForeign(target, source,
             id: argResults?['as'] as String?,
@@ -216,12 +218,27 @@ class AddCommand extends Command<void> {
     'git:',
     'path:',
     'npm:',
+    'c:',
+    'cargo:',
   ];
 
   /// Whether [source] names a foreign source this command generates a
   /// module from.
   static bool isForeign(String source) =>
       foreignSchemes.any((String scheme) => source.startsWith(scheme));
+
+  /// A bare path whose contents are a native or npm source is added as the
+  /// scheme it would have been given: what is there decides.
+  static String withScheme(String root, String source) {
+    if (isForeign(source) || source.contains(':')) return source;
+    final DVDetectedSource found =
+        dvDetectSource(p.join(root, source));
+    return switch (found.kind) {
+      DVSourceKind.rust => 'cargo:$source',
+      DVSourceKind.c => 'c:$source',
+      _ => source,
+    };
+  }
 
   /// The plan for a foreign source: resolved, fetched and verified, its
   /// surface read and its module generated, before anything in the project
@@ -305,6 +322,25 @@ class AddCommand extends Command<void> {
   static Future<(DVResolvedSource, DVForeignModuleSpec Function(String))>
       _resolveForeign(String root, String source, DVModuleOutcome elsewhere,
           DVSourceFetcher fetcher) async {
+    if (source.startsWith('c:') || source.startsWith('cargo:')) {
+      final bool rust = source.startsWith('cargo:');
+      final String rest = source.substring(rust ? 6 : 2);
+      final DVResolvedSource resolved =
+          rust && !Directory(p.join(root, rest)).existsSync()
+              ? await dvResolveCrate(root, rest, fetcher: fetcher)
+              : dvResolveLocalSource(root, rust ? 'cargo' : 'c', rest);
+      final DVFfiSurface surface =
+          rust ? dvScanRust(resolved.directory) : dvScanC(resolved.directory);
+      return (
+        resolved,
+        (String id) => dvFfiModuleSpec(
+              id: id,
+              source: resolved.descriptor,
+              surface: surface,
+              elsewhere: elsewhere,
+            ),
+      );
+    }
     if (source.startsWith('npm:')) {
       final DVResolvedSource resolved =
           await dvResolveNpmSource(root, source.substring(4), fetcher: fetcher);
