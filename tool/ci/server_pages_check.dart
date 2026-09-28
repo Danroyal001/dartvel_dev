@@ -105,7 +105,7 @@ Future<void> main(List<String> args) async {
 
   // The image endpoint: one of the site's own images, at a width it serves.
   final (int image, _, ContentType? type) = await _get(base.resolve(
-      '/_dartvel/image?src=${Uri.encodeQueryComponent('assets/assets/studio/page-builder.png')}&w=640&q=75'));
+      '/_dartvel/image?src=${Uri.encodeQueryComponent('assets/assets/studio_shots/page-builder.png')}&w=640&q=75'));
   if (image != 200 || type?.primaryType != 'image') {
     problems.add('/_dartvel/image answered $image ($type)');
   }
