@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+### Added
+
+- **Studio lists every page the application has.** Pages listed only what
+  Studio had stored, so a site of fifty compiled pages opened on "0 / No
+  stored pages yet". It now lists the compiled routes -- from the generated
+  route manifest inside the application, from the build's project graph on a
+  served Studio -- with the stored pages, each marked Code, Studio or
+  Override, dynamic routes with their parameters; the overview's counts and
+  the Site map show the same list. A compiled page opens read-only, as the
+  application draws it or as its captured structure; **Edit this page** makes
+  an override that takes the route over when deployed, and **Restore compiled
+  page** deletes it. `dartvel admin generate` opens `DVStudioInApp` over the
+  project's own routes and models, and the router generates
+  `dartvelPagePreview`. (dartvel_flutter, dartvel_core, dartvel_cli)
+- **Data models are designed in Studio.** A model's name, key, fields and
+  their types, rules (smallest, largest, shortest, longest, pattern,
+  unique), relations, indexes and who may use its data are made and changed
+  in Studio's Data section, stored as a definition beside its records and
+  served at once, with records browsed, created, edited and deleted in the
+  same place. A designed model has a data API at `/_dartvel/data/<Model>`
+  governed by its access, and on `dartvel dev` it can be written to
+  `lib/models` as the `@DVModel` that compiles back to the same model.
+  `@DVModel.validate(...)`, `@DVModel.uniqueField()` and `@DVModel(indexes:,
+  access:)` declare the same rules in code. (dartvel_core, dartvel_flutter,
+  dartvel_cli)
+
 ## 0.9.2 — 2026-09-28
 
 **A web page shows something to read, and how far it has got, before
@@ -47,32 +75,6 @@ stays at 1.4.2, which already accepts it.
   signed-out visit to a Studio page is sent there; Studio's data and API
   still answer a stranger as a path nobody serves. (dartvel_core,
   dartvel_flutter)
-
-### Added
-
-- **Studio lists every page the application has.** Pages listed only what
-  Studio had stored, so a site of fifty compiled pages opened on "0 / No
-  stored pages yet". It now lists the compiled routes -- from the generated
-  route manifest inside the application, from the build's project graph on a
-  served Studio -- with the stored pages, each marked Code, Studio or
-  Override, dynamic routes with their parameters; the overview's counts and
-  the Site map show the same list. A compiled page opens read-only, as the
-  application draws it or as its captured structure; **Edit this page** makes
-  an override that takes the route over when deployed, and **Restore compiled
-  page** deletes it. `dartvel admin generate` opens `DVStudioInApp` over the
-  project's own routes and models, and the router generates
-  `dartvelPagePreview`. (dartvel_flutter, dartvel_core, dartvel_cli)
-- **Data models are designed in Studio.** A model's name, key, fields and
-  their types, rules (smallest, largest, shortest, longest, pattern,
-  unique), relations, indexes and who may use its data are made and changed
-  in Studio's Data section, stored as a definition beside its records and
-  served at once, with records browsed, created, edited and deleted in the
-  same place. A designed model has a data API at `/_dartvel/data/<Model>`
-  governed by its access, and on `dartvel dev` it can be written to
-  `lib/models` as the `@DVModel` that compiles back to the same model.
-  `@DVModel.validate(...)`, `@DVModel.uniqueField()` and `@DVModel(indexes:,
-  access:)` declare the same rules in code. (dartvel_core, dartvel_flutter,
-  dartvel_cli)
 
 ### Fixed
 
