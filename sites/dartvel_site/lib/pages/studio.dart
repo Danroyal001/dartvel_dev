@@ -127,11 +127,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               '#111827 or rgb(17, 24, 39), one of a choice\'s options, TRUE, '
               'or Navigate("/pricing"). It is highlighted as you type and '
               'offers completions: options, routes, data models and their '
-              'fields, functions.',
-          'Enter applies it and Esc puts back what was there. A formula that '
-              'is wrong says where, and nothing is written. What the bar '
-              'writes is one step in the same undo history as the canvas and '
-              'the inspector.',
+              'fields, functions. Enter applies it, Esc puts back what was '
+              'there, and a formula that is wrong says where and writes '
+              'nothing. Each edit is one step in the canvas\'s undo history.',
           'Ctrl+K (Cmd+K on a Mac) opens the command palette: every section, '
               'every page, every element on the page by name, and what can be '
               'done to it, found by typing a few letters. Ctrl+D duplicates '
