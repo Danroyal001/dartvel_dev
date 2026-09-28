@@ -29,10 +29,12 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:dartvel_core/dartvel.dart' as core
     show
         DVAdminServer,
+        DVModelDataApi,
         DVPublishedPages,
         Headers,
         Request,
         Response,
+        dvModelDataPath,
         dvPublishedPagesPath;
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
@@ -213,6 +215,8 @@ Handler dvWebServerHandler({
   // The page documents Studio published, which a web-server build's app
   // reads from /_dartvel/pages.
   core.DVPublishedPages? publishedPages,
+  // The data API of the models designed in Studio, at /_dartvel/data.
+  core.DVModelDataApi? modelData,
 }) {
   final manifestFile = File(p.join(webRoot, 'dartvel_routes.json'));
   final shellFile = File(p.join(webRoot, 'index.html'));
@@ -335,6 +339,14 @@ Handler dvWebServerHandler({
       final core.Response? pages =
           await publishedPages.respond(await _coreRequest(request));
       if (pages != null) return _shelfResponse(pages);
+    }
+
+    if (modelData != null &&
+        (path == core.dvModelDataPath ||
+            path.startsWith('${core.dvModelDataPath}/'))) {
+      final core.Response? data =
+          await modelData.respond(await _coreRequest(request));
+      if (data != null) return _shelfResponse(data);
     }
 
     if (adminServer != null) {

@@ -71,7 +71,14 @@ void main() {
           File(p.join(admin, 'studio.page.dart')).readAsStringSync();
       expect(studio, contains("path: '/_dartvel_admin/studio'"));
       // Delegating to the tested widget, not re-emitting an editor as source.
-      expect(studio, contains('const DVStudioScreen()'));
+      expect(studio, contains('const DVStudioInApp('));
+      // Over this application's own pages and data models, from what the
+      // generator wrote for it, never a list somebody keeps: a Studio that
+      // listed only what it had stored opened on "0 pages" in a site of
+      // fifty.
+      expect(studio, contains('routes: dartvelRouteManifest'));
+      expect(studio, contains('models: dartvelStudioModels'));
+      expect(studio, contains('preview: dartvelPagePreview'));
 
       final index = File(p.join(admin, 'index.page.dart')).readAsStringSync();
       expect(index, contains("'/_dartvel_admin/studio'"));
