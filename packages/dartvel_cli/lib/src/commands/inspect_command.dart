@@ -30,7 +30,7 @@ class InspectCommand extends Command<void> {
 
   @override
   String get invocation =>
-      'dartvel inspect [routes|models|model <Name>|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
+      'dartvel inspect [routes|models|model <Name>|modules|functions|function <name>|jobs|windows|kiosk|adoption] [--json] [--device-profile <id>]';
 
   /// [root] is the project; null reads the working directory when the command
   /// runs. A test passes its own, because that directory is one value shared
@@ -104,6 +104,16 @@ class InspectCommand extends Command<void> {
           graph.jobs
               .map((DVGraphJob j) => '${j.name}  queue=${j.queue}  ${j.source}'),
           'No @DVJob inputs found.',
+        );
+      case 'modules':
+        _emitList(
+          asJson,
+          graph.modules.map((DVGraphModule m) => m.toJson()).toList(),
+          graph.modules.map((DVGraphModule m) =>
+              '${m.id}  ${m.kind ?? 'dartvel'}  ${m.pin?.source ?? m.source}  '
+              '${m.operations.length} operations'
+              '${m.wrapperIntact == false ? '  DV-MODULE-016' : ''}'),
+          'This project mounts no modules.',
         );
       case 'windows':
         _emitWindows(root, graph, asJson);

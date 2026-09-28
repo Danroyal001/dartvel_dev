@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../module_trust/module_lock.dart';
+import '../modules/foreign/module_writer.dart' show dvWrapperHash;
 
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -286,6 +287,19 @@ class DartvelProjectGraph {
     final Map<String, DVModulePin> pins = DVModuleLock.read(root).pins;
     final List<DVGraphModule> found = <DVGraphModule>[
       for (final DVModuleMount mount in dvDiscoverModuleMounts(root))
+        _moduleNode(root, mount, pins[mount.packageName]),
+    ];
+    found.sort((DVGraphModule a, DVGraphModule b) => a.id.compareTo(b.id));
+    return found;
+  }
+
+  static DVGraphModule _moduleNode(
+      String root, DVModuleMount mount, DVModulePin? pinned) {
+    final String dir = p.join(root, mount.sourcePath);
+    final bool? intact = pinned?.wrapperHash == null || mount.fromPackage
+        ? null
+        : dvWrapperHash(_filesUnder(dir)) == pinned!.wrapperHash;
+    return
         DVGraphModule(
           id: mount.id,
           package: mount.packageName,
@@ -300,17 +314,58 @@ class DartvelProjectGraph {
           location: mount.location,
           backend: mount.backend,
           fromPackage: mount.fromPackage,
-          problems: mount.problems,
+          problems: <String>[
+            ...mount.problems,
+            if (intact == false)
+              'DV-MODULE-016: the generated wrapper in ${mount.sourcePath} '
+                  'was edited by hand; its hash is not the one '
+                  'dartvel.module.lock pins, and dartvel add --refresh '
+                  '${mount.id} would replace the edit.',
+          ],
           // Keyed by package, which is what the lockfile pins: a module's id
           // is what the parent calls it and two parents may call one package
           // different things.
-          pin: pins[mount.packageName] == null
-              ? null
-              : DVGraphModulePin.of(pins[mount.packageName]!),
-        ),
-    ];
-    found.sort((DVGraphModule a, DVGraphModule b) => a.id.compareTo(b.id));
-    return found;
+          pin: pinned == null ? null : DVGraphModulePin.of(pinned),
+          kind: mount.kind,
+          surface: mount.surface,
+          operations: _operationsIn(dir),
+          wrapperIntact: intact,
+        );
+  }
+
+  /// Every file under [dir], by path relative to it, for the wrapper hash.
+  static Map<String, String> _filesUnder(String dir) {
+    final Directory d = Directory(dir);
+    if (!d.existsSync()) return const <String, String>{};
+    return <String, String>{
+      for (final FileSystemEntity f in d.listSync(recursive: true))
+        if (f is File &&
+            !p.split(p.relative(f.path, from: dir)).first.startsWith('.') &&
+            p.relative(f.path, from: dir) != 'pubspec.lock')
+          p.relative(f.path, from: dir).replaceAll('\\', '/'):
+              f.readAsStringSync(),
+    };
+  }
+
+  /// The operations table a generated module's pubspec declares.
+  static Map<String, Map<String, String>> _operationsIn(String dir) {
+    final File pubspec = File(p.join(dir, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const <String, Map<String, String>>{};
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    Object? ops;
+    if (doc is Map && doc['dartvel'] is Map) {
+      final Object? module = (doc['dartvel'] as Map)['module'];
+      if (module is Map) ops = module['operations'];
+    }
+    if (ops is! Map) return const <String, Map<String, String>>{};
+    return <String, Map<String, String>>{
+      for (final MapEntry<Object?, Object?> e in ops.entries)
+        '${e.key}': <String, String>{
+          if (e.value is Map)
+            for (final MapEntry<Object?, Object?> o in (e.value as Map).entries)
+              '${o.key}': '${o.value}',
+        },
+    };
   }
 
   /// The routes mounted modules contribute, at the path the parent serves
@@ -557,7 +612,24 @@ class DVGraphModule {
     this.fromPackage = false,
     this.problems = const <String>[],
     this.pin,
+    this.kind,
+    this.surface,
+    this.operations = const <String, Map<String, String>>{},
+    this.wrapperIntact,
   });
+
+  /// What generated the module, for one generated from a source.
+  final String? kind;
+
+  /// The class `DV.Modules.<id>` is, for one generated from a foreign source.
+  final String? surface;
+
+  /// Each operation, and what it does on native, web and backend.
+  final Map<String, Map<String, String>> operations;
+
+  /// Whether the generated wrapper on disk is the one the lock pinned. Null
+  /// when there is no pinned wrapper to compare with.
+  final bool? wrapperIntact;
 
   /// What the parent knows it by: `DV.Modules.<id>`.
   final String id;
@@ -627,6 +699,10 @@ class DVGraphModule {
         if (fromPackage) 'fromPackage': true,
         if (problems.isNotEmpty) 'problems': problems,
         if (pin != null) 'pin': pin!.toJson(),
+        if (kind != null) 'kind': kind,
+        if (surface != null) 'surface': surface,
+        if (operations.isNotEmpty) 'operations': operations,
+        if (wrapperIntact != null) 'wrapperIntact': wrapperIntact,
       };
 
   /// Reads one back, for a consumer of `graph.json`.
