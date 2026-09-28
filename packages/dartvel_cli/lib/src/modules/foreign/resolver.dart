@@ -522,3 +522,135 @@ Future<DVResolvedSource> dvResolveMaven(
     dependency: '$coordinate:$version',
   );
 }
+
+/// Clones [url] at [ref] under `.dartvel/sources/<kind>/`, pinned to the
+/// commit, with git's own bookkeeping removed so the digest is of the tree.
+Future<DVResolvedSource> dvResolveGitTree(
+  String root,
+  String kind,
+  String url,
+  String? ref, {
+  DVSourceFetcher fetcher = const DVSourceFetcher(),
+}) async {
+  final String key =
+      sha256.convert(utf8.encode('$url#$ref')).toString().substring(0, 16);
+  final Directory into = Directory(p.join(root, '.dartvel', 'sources', kind, key));
+  if (into.existsSync()) into.deleteSync(recursive: true);
+  into.parent.createSync(recursive: true);
+  await fetcher.run('git', <String>['clone', '--quiet', url, into.path]);
+  if (ref != null) {
+    await fetcher.run('git', <String>['checkout', '--quiet', ref],
+        workingDirectory: into.path);
+  }
+  final String commit = await fetcher
+      .run('git', <String>['rev-parse', 'HEAD'], workingDirectory: into.path);
+  final Directory git = Directory(p.join(into.path, '.git'));
+  if (git.existsSync()) git.deleteSync(recursive: true);
+  return DVResolvedSource(
+    descriptor: '$kind:$url#$commit',
+    name: p.basenameWithoutExtension(url),
+    version: commit,
+    directory: into.path,
+    sourceDigest: dvModulePackageDigest(into.path),
+    resolvedFrom: url,
+    dependency: '',
+  );
+}
+
+/// A pod resolved from the CocoaPods CDN: its podspec, and its sources
+/// fetched from where the podspec says, at the tag it names.
+class DVResolvedPod {
+  const DVResolvedPod(this.source, this.files);
+
+  final DVResolvedSource source;
+
+  /// The files the podspec's source_files name, relative to the source.
+  final List<String> files;
+}
+
+/// Resolves `pod:<Name>[@<version or range>]` from the CocoaPods CDN.
+Future<DVResolvedPod> dvResolvePod(
+  String root,
+  String spec, {
+  DVSourceFetcher fetcher = const DVSourceFetcher(),
+}) async {
+  final int at = spec.indexOf('@');
+  final String name = at < 0 ? spec : spec.substring(0, at);
+  final String? wanted = at < 0 ? null : spec.substring(at + 1);
+  final String hash = md5.convert(utf8.encode(name)).toString();
+  final String shard = '${hash[0]}/${hash[1]}/${hash[2]}';
+  final String index = await fetcher.getText(Uri.parse(
+      'https://cdn.cocoapods.org/all_pods_versions_${shard.replaceAll('/', '_')}.txt'));
+  final String line = index
+      .split('\n')
+      .firstWhere((String l) => l.split('/').first == name, orElse: () => '');
+  if (line.isEmpty) {
+    throw DVSourceUnresolved('The CocoaPods CDN has no pod named $name.');
+  }
+  final VersionConstraint constraint =
+      wanted == null ? VersionConstraint.any : _npmRange(wanted);
+  Version? best;
+  for (final String v in line.split('/').skip(1)) {
+    final Version version;
+    try {
+      version = Version.parse(v);
+    } on FormatException {
+      continue;
+    }
+    if (!constraint.allows(version) || (version.isPreRelease && wanted != v)) {
+      continue;
+    }
+    if (best == null || version > best) best = version;
+  }
+  if (best == null) {
+    throw DVSourceUnresolved('$name has no version matching ${wanted ?? 'any'}.');
+  }
+  final Map<String, Object?> podspec = jsonDecode(await fetcher.getText(Uri.parse(
+          'https://cdn.cocoapods.org/Specs/$shard/$name/$best/$name.podspec.json')))
+      as Map<String, Object?>;
+  final Map<String, Object?> source =
+      (podspec['source'] as Map?)?.cast<String, Object?>() ?? <String, Object?>{};
+  final String? git = source['git'] as String?;
+  if (git == null) {
+    throw DVSourceUnresolved('$name $best is not published from a git '
+        'repository, which is the one pod source read here.');
+  }
+  final DVResolvedSource tree = await dvResolveGitTree(root, 'pod', git,
+      (source['tag'] ?? source['commit'])?.toString(), fetcher: fetcher);
+  final Object? patterns = podspec['source_files'];
+  final List<String> globs = patterns is List
+      ? <String>[for (final Object? g in patterns) '$g']
+      : <String>['${patterns ?? '**/*.{h,m,swift}'}'];
+  final List<String> files = <String>[];
+  for (final FileSystemEntity e in Directory(tree.directory).listSync(recursive: true)) {
+    if (e is! File) continue;
+    final String rel = p.relative(e.path, from: tree.directory).replaceAll('\\', '/');
+    if (!RegExp(r'\.(h|m|swift)$').hasMatch(rel)) continue;
+    if (globs.any((String g) => _globMatches(g, rel))) files.add(rel);
+  }
+  files.sort();
+  return DVResolvedPod(
+    DVResolvedSource(
+      descriptor: 'pod:$name@$best',
+      name: name,
+      version: '$best',
+      directory: tree.directory,
+      sourceDigest: tree.sourceDigest,
+      resolvedFrom: '$git ${source['tag'] ?? ''}'.trim(),
+      dependency: '',
+    ),
+    files,
+  );
+}
+
+/// Whether a podspec glob (`Sources/**/*.{h,m}`) matches [path].
+bool _globMatches(String glob, String path) {
+  String re = RegExp.escape(glob)
+      .replaceAll(r'\*\*/', '(?:.*/)?')
+      .replaceAll(r'\*\*', '.*')
+      .replaceAll(r'\*', '[^/]*')
+      .replaceAll(r'\?', '[^/]');
+  re = re.replaceAllMapped(RegExp(r'\\\{([^}]*)\\\}'),
+      (Match m) => '(?:${m.group(1)!.split(',').join('|')})');
+  return RegExp('^$re\$').hasMatch(path);
+}
