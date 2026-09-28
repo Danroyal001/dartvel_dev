@@ -11877,7 +11877,7 @@ Three rules make the table honest:
   generates both halves: a client carrier that sends the call to the
   application's own backend, and a route there that decodes the arguments,
   runs the real implementation and returns the result. The call site does
-  not change. The route is refused unless the operation names a `policy:`
+  not change. The route is refused unless the application names a `backendPolicy:` for the module
   -- a `DVPolicies` name, or `public` said out loud -- because the backend
   runs the operation with the server's authority, not the caller's.
 - **Refusal is the last resort, and it names what blocks it.** A module is
@@ -12240,7 +12240,7 @@ build-time wherever it can be.
 | `DV-MODULE-016` | a generated wrapper was hand-edited; changes will be lost | `warning` |
 | `DV-MODULE-017` | `compat` is declared but no compatibility path can be generated | build `error` |
 | `DV-MODULE-020` | an ambient requirement cannot be satisfied on a declared target | build `error` |
-| `DV-MODULE-021` | an operation is carried to the backend over RPC and names no `policy:` | build `error` |
+| `DV-MODULE-021` | an operation is carried to the backend over RPC and the module names no `backendPolicy`; at run time, a call the backend does not carry | build `error` |
 
 ## Deliberately absent
 
