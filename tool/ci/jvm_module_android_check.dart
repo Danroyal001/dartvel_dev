@@ -104,6 +104,10 @@ void main() {
   ));
 }
 ''');
+  // This checkout's dartvel_core, which carries what a generated module
+  // imports whether or not it has been published yet.
+  File('$app/pubspec_overrides.yaml').writeAsStringSync(
+      'dependency_overrides:\n  dartvel_core:\n    path: $repo/packages/dartvel_core\n');
   check((await run('flutter', <String>['pub', 'get'], cwd: app)).exitCode == 0,
       'pub resolved the module');
 
