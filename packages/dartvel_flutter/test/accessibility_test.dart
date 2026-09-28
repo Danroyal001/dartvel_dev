@@ -187,7 +187,7 @@ void main() {
 
       await tester.pumpWidget(
         Directionality(
-          textDirection: TextDirection.ltr,
+          textDirection: .ltr,
           child: const DVBox(DVText('Submit')).modifier(
             const DVModifier()
                 .semanticLabel('Submit order')
@@ -212,7 +212,7 @@ void main() {
 
       await tester.pumpWidget(
         Directionality(
-          textDirection: TextDirection.ltr,
+          textDirection: .ltr,
           child: const DVBox(DVText('Raw text'))
               .modifier(const DVModifier().semanticLabel('Outer label')),
         ),
@@ -229,7 +229,7 @@ void main() {
 
       await tester.pumpWidget(
         const Directionality(
-          textDirection: TextDirection.ltr,
+          textDirection: .ltr,
           child: DVBox(DVText('Raw text')),
         ),
       );

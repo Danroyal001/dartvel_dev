@@ -38,7 +38,7 @@ class _PasswordManagerDemoState extends State<PasswordManagerDemo> {
   Widget build(BuildContext context) => ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: Material(
-          type: MaterialType.transparency,
+          type: .transparency,
           child: AutofillGroup(
             onDisposeAction: AutofillContextAction.cancel,
             child: DVBox.list(<Widget>[
@@ -46,7 +46,7 @@ class _PasswordManagerDemoState extends State<PasswordManagerDemo> {
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email'),
                 keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
+                textInputAction: .next,
                 autofillHints: const <String>[
                   AutofillHints.username,
                   AutofillHints.email,
@@ -56,7 +56,7 @@ class _PasswordManagerDemoState extends State<PasswordManagerDemo> {
                 controller: _password,
                 decoration: const InputDecoration(labelText: 'Password'),
                 obscureText: true,
-                textInputAction: TextInputAction.done,
+                textInputAction: .done,
                 autofillHints: const <String>[AutofillHints.password],
                 onSubmitted: (_) => _submit(),
               ),

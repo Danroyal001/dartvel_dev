@@ -56,7 +56,7 @@ class _DVCacheAdminState extends State<DVCacheAdmin> {
   Widget build(BuildContext context) {
     return DVBox.scrollableList(<Widget>[
       const DVText('Cache Tags')
-          .modifier(const DVModifier().fontSize(24).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(24).fontWeight(.bold)),
       if (_error != null) DVText('Could not read the cache: $_error'),
       if (_notice != null) DVText(_notice!),
       GestureDetector(
@@ -74,7 +74,7 @@ class _DVCacheAdminState extends State<DVCacheAdmin> {
       ..sort();
     return DVBox.list(<Widget>[
       DVText(tag)
-          .modifier(const DVModifier().fontSize(18).fontWeight(FontWeight.bold)),
+          .modifier(const DVModifier().fontSize(18).fontWeight(.bold)),
       DVText('${keys.length} ${keys.length == 1 ? 'key' : 'keys'}'),
       for (final key in keys) DVText(key),
       GestureDetector(

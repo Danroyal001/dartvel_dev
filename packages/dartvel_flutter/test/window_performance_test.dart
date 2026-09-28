@@ -185,7 +185,7 @@ void main() {
   group('restore on launch', () {
     test('is measured, and a restore over the startup budget is a finding', () async {
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
-      final store = DVWindowSharedStore(debounce: Duration.zero);
+      final store = DVWindowSharedStore(debounce: .zero);
       addTearDown(store.dispose);
       DVWindowManager.useSharedStore(store);
       final workspace = DVTabWorkspaceController(
@@ -243,7 +243,7 @@ void main() {
   group('tear-out handover', () {
     test('is measured from the gesture to the new window being ready', () async {
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
-      final store = DVWindowSharedStore(debounce: Duration.zero);
+      final store = DVWindowSharedStore(debounce: .zero);
       addTearDown(store.dispose);
       DVWindowManager.useSharedStore(store);
       final controller = DVTabWorkspaceController(

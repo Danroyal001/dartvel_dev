@@ -320,14 +320,14 @@ String _dvStudioHumanise(String name) {
 /// reads as a thing in the hand rather than a stray label.
 Widget _dvStudioDragChip(IconData icon, String label) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: const .symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
       color: DVStudioStyle.accent,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: .circular(999),
       boxShadow: DVStudioStyle.shadow,
     ),
     child: Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: <Widget>[
         Icon(icon, size: 14, color: const Color(0xFFFFFFFF)),
         const SizedBox(width: 6),
@@ -335,7 +335,7 @@ Widget _dvStudioDragChip(IconData icon, String label) {
           const DVModifier()
               .fontSize(12)
               .color(const Color(0xFFFFFFFF))
-              .fontWeight(FontWeight.w600),
+              .fontWeight(.w600),
         ),
       ],
     ),
@@ -402,10 +402,10 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
         // side with its neighbour; one in a narrow rail.
         final int columns = constraints.maxWidth >= 180 ? 2 : 1;
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+              padding: const .fromLTRB(12, 12, 12, 4),
               child: DVStudioTextInput(
                 icon: DVStudioIcons.search,
                 placeholder: 'Search elements',
@@ -418,9 +418,9 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
             // somebody happened to scroll to it.
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                padding: const .fromLTRB(12, 4, 12, 12),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     if (basics.isNotEmpty)
                       ..._group('Basics', basics, columns),
@@ -428,7 +428,7 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
                       ..._group('Layout', layouts, columns),
                     if (basics.isEmpty && layouts.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const .symmetric(vertical: 16),
                         child: DVStudioStyle.caption(
                             'No element matches “${_query.trim()}”.'),
                       ),
@@ -449,12 +449,12 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
   ) {
     return <Widget>[
       Padding(
-        padding: const EdgeInsets.only(top: 10, bottom: 8),
+        padding: const .only(top: 10, bottom: 8),
         child: DVStudioStyle.overline(label),
       ),
       for (int i = 0; i < items.length; i += columns)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const .only(bottom: 8),
           child: Row(
             children: <Widget>[
               for (int c = 0; c < columns; c++) ...<Widget>[
@@ -507,7 +507,7 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: widget.onInsert,
         child: Container(
           height: 64,
@@ -516,10 +516,10 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
             border: Border.all(
               color: _hover ? DVStudioStyle.lineStrong : DVStudioStyle.line,
             ),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+            borderRadius: .circular(DVStudioStyle.radius),
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: .center,
             children: <Widget>[
               Icon(
                 icon,
@@ -531,7 +531,7 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
                 const DVModifier()
                     .fontSize(12)
                     .color(DVStudioStyle.ink)
-                    .fontWeight(FontWeight.w500),
+                    .fontWeight(.w500),
               ),
             ],
           ),
@@ -596,7 +596,7 @@ class _DVStudioLayersState extends State<DVStudioLayers> {
 
         walk(document.root, 0);
         return ListView(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const .symmetric(vertical: 6),
           children: rows,
         );
       },
@@ -692,12 +692,12 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             onTap: () => widget.controller.select(node.id),
             child: Container(
               height: 30,
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              padding: EdgeInsets.only(
+              margin: const .symmetric(horizontal: 6),
+              padding: .only(
                   left: 4.0 + math.min(widget.depth * 14.0, 84.0), right: 4),
               decoration: BoxDecoration(
                 color: dropping
@@ -710,7 +710,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                 border: dropping
                     ? Border.all(color: DVStudioStyle.accent)
                     : null,
-                borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+                borderRadius: .circular(DVStudioStyle.radiusSmall),
               ),
               child: Row(
                 children: <Widget>[
@@ -721,7 +721,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                         : GestureDetector(
                             key: ValueKey<String>(
                                 'dv-studio-layer-toggle-${node.id}'),
-                            behavior: HitTestBehavior.opaque,
+                            behavior: .opaque,
                             onTap: widget.onToggle,
                             child: Icon(
                               widget.collapsed
@@ -764,7 +764,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                         ],
                       ),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      overflow: .ellipsis,
                     ),
                   ),
                   if (selected && !widget.isRoot)
@@ -935,20 +935,20 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
               // drawn as it ships, and a page styled for a white background
               // on Studio's dark surface is a page nobody can read.
               color: const Color(0xFFFFFFFF),
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: .circular(3),
               boxShadow: DVStudioStyle.shadowLarge,
             ),
             child: _buildNode(document.root, root: true),
           ),
         );
         final Widget scaled = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: .min,
+          crossAxisAlignment: .start,
           children: <Widget>[
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const .only(bottom: 10),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: .min,
                 children: <Widget>[
                   const Icon(DVStudioIcons.page,
                       size: 13, color: DVStudioStyle.muted),
@@ -972,8 +972,8 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
               SizedBox(
                 width: width * zoom,
                 child: FittedBox(
-                  fit: BoxFit.fitWidth,
-                  alignment: Alignment.topLeft,
+                  fit: .fitWidth,
+                  alignment: .topLeft,
                   child: artboard,
                 ),
               ),
@@ -1003,7 +1003,7 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
           child: Focus(
             focusNode: _focus,
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: () => _select(null),
               child: ColoredBox(
                 color: DVStudioStyle.canvas,
@@ -1011,18 +1011,18 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
                   painter: const _DVStudioDotGrid(),
                   child: SingleChildScrollView(
                     controller: _vertical,
-                    padding: const EdgeInsets.symmetric(vertical: 36),
+                    padding: const .symmetric(vertical: 36),
                     child: SingleChildScrollView(
                       controller: _horizontal,
-                      scrollDirection: Axis.horizontal,
+                      scrollDirection: .horizontal,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           minWidth: math.max(available, width * zoom + 96),
                         ),
                         child: Align(
-                          alignment: Alignment.topCenter,
+                          alignment: .topCenter,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 48),
+                            padding: const .symmetric(horizontal: 48),
                             child: scaled,
                           ),
                         ),
@@ -1065,7 +1065,7 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
       // rendered widget so a bound action in the document does not fire while
       // editing.
       final Widget selectable = GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: () => _select(node.id),
         child: _DVStudioNodeChrome(
           id: node.id,
@@ -1200,8 +1200,8 @@ class _DVStudioNodeChrome extends StatelessWidget {
       child: Stack(
         // Passthrough, so the node is laid out exactly as it would be without
         // the chrome: a stretched child in a column stays stretched.
-        fit: StackFit.passthrough,
-        clipBehavior: Clip.none,
+        fit: .passthrough,
+        clipBehavior: .none,
         children: <Widget>[
           child,
           Positioned.fill(
@@ -1240,10 +1240,10 @@ class _DVStudioNodeChrome extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: DVStudioStyle.accent,
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: .circular(3),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: <Widget>[
                       Icon(icon, size: 11, color: const Color(0xFFFFFFFF)),
                       const SizedBox(width: 4),
@@ -1251,7 +1251,7 @@ class _DVStudioNodeChrome extends StatelessWidget {
                         const DVModifier()
                             .fontSize(11)
                             .color(const Color(0xFFFFFFFF))
-                            .fontWeight(FontWeight.w600),
+                            .fontWeight(.w600),
                       ),
                     ],
                   ),
@@ -1529,13 +1529,13 @@ class DVStudioInspector extends StatelessWidget {
           );
         }
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           children: <Widget>[
             _header(node),
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: .stretch,
                   children: <Widget>[
                     for (final (String label, List<String> names)
                         in dvStudioInspectorGroupsFor(node))
@@ -1595,7 +1595,7 @@ class DVStudioInspector extends StatelessWidget {
   Widget _header(DVPageNode node) {
     final bool isRoot = node.id == controller.document.root.id;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+      padding: const .fromLTRB(16, 12, 10, 12),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
       ),
@@ -1606,7 +1606,7 @@ class DVStudioInspector extends StatelessWidget {
             height: 32,
             decoration: BoxDecoration(
               color: DVStudioStyle.accentSoft,
-              borderRadius: BorderRadius.circular(DVStudioStyle.radius),
+              borderRadius: .circular(DVStudioStyle.radius),
             ),
             child: Icon(
               isRoot
@@ -1619,8 +1619,8 @@ class DVStudioInspector extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: .start,
+              mainAxisSize: .min,
               children: <Widget>[
                 DVStudioStyle.heading(
                     _dvStudioNodeLabel(node, controller.document)),
@@ -1660,8 +1660,8 @@ class DVStudioInspector extends StatelessWidget {
           );
         }
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .stretch,
+          mainAxisSize: .min,
           children: <Widget>[
             if (label.isNotEmpty) ...<Widget>[
               DVStudioStyle.caption(label),
@@ -1699,8 +1699,8 @@ class DVStudioInspector extends StatelessWidget {
                         ],
                       )
                     : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: .stretch,
+                        mainAxisSize: .min,
                         children: <Widget>[
                           first,
                           const SizedBox(height: 6),
@@ -1818,7 +1818,7 @@ class DVStudioInspector extends StatelessWidget {
         );
       case DVStudioPropertyKind.flag:
         return Align(
-          alignment: Alignment.centerLeft,
+          alignment: .centerLeft,
           child: _DVStudioInspectorToggle(
             key: key,
             value: value == true,
@@ -1829,7 +1829,7 @@ class DVStudioInspector extends StatelessWidget {
         final String? current = value is String ? value : null;
         if (name == 'align' && choices.length == 9) {
           return Align(
-            alignment: Alignment.centerLeft,
+            alignment: .centerLeft,
             child: _DVStudioAlignGrid(
               key: key,
               keyPrefix: 'dv-studio-inspector-${node.id}-$name',
@@ -1941,13 +1941,13 @@ class _DVStudioInspectorGroupState extends State<_DVStudioInspectorGroup> {
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: <Widget>[
           GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             onTap: () => setState(() => _open = !_open),
             child: Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 12, _open ? 10 : 12),
+              padding: .fromLTRB(16, 12, 12, _open ? 10 : 12),
               child: Row(
                 children: <Widget>[
                   Expanded(child: DVStudioStyle.overline(widget.label)),
@@ -1962,9 +1962,9 @@ class _DVStudioInspectorGroupState extends State<_DVStudioInspectorGroup> {
           ),
           if (_open)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 14, 14),
+              padding: const .fromLTRB(16, 0, 14, 14),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: .stretch,
                 children: <Widget>[
                   for (int i = 0; i < widget.children.length; i++) ...<Widget>[
                     if (i > 0) const SizedBox(height: 8),
@@ -2001,10 +2001,10 @@ class _DVStudioInspectorOptions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 32,
-      padding: const EdgeInsets.all(2),
+      padding: const .all(2),
       decoration: BoxDecoration(
         color: DVStudioStyle.canvas,
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
       ),
       child: Row(
         children: <Widget>[
@@ -2014,17 +2014,17 @@ class _DVStudioInspectorOptions extends StatelessWidget {
                 _dvStudioHumanise(option),
                 GestureDetector(
                   key: ValueKey<String>('$keyPrefix-$option'),
-                  behavior: HitTestBehavior.opaque,
+                  behavior: .opaque,
                   onTap: () => onChanged(option == value ? null : option),
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
-                      alignment: Alignment.center,
+                      alignment: .center,
                       decoration: BoxDecoration(
                         color: option == value
                             ? DVStudioStyle.surface
                             : const Color(0x00000000),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: .circular(4),
                         boxShadow:
                             option == value ? DVStudioStyle.shadow : null,
                       ),
@@ -2066,10 +2066,10 @@ class _DVStudioAlignGrid extends StatelessWidget {
     return Container(
       width: 78,
       height: 78,
-      padding: const EdgeInsets.all(4),
+      padding: const .all(4),
       decoration: BoxDecoration(
         color: DVStudioStyle.canvas,
-        borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
       ),
       child: Column(
         children: <Widget>[
@@ -2093,7 +2093,7 @@ class _DVStudioAlignGrid extends StatelessWidget {
       _dvStudioHumanise(option),
       GestureDetector(
         key: ValueKey<String>('$keyPrefix-$option'),
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: () => onChanged(active ? null : option),
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
@@ -2103,7 +2103,7 @@ class _DVStudioAlignGrid extends StatelessWidget {
               height: active ? 9 : 5,
               decoration: BoxDecoration(
                 color: active ? DVStudioStyle.accent : DVStudioStyle.faint,
-                borderRadius: BorderRadius.circular(active ? 2 : 999),
+                borderRadius: .circular(active ? 2 : 999),
               ),
             ),
           ),
@@ -2134,10 +2134,10 @@ class _DVStudioInspectorToggle extends StatelessWidget {
           duration: const Duration(milliseconds: 120),
           width: 34,
           height: 20,
-          padding: const EdgeInsets.all(2),
+          padding: const .all(2),
           decoration: BoxDecoration(
             color: value ? DVStudioStyle.accent : DVStudioStyle.lineStrong,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: .circular(999),
           ),
           child: AnimatedAlign(
             duration: const Duration(milliseconds: 120),
@@ -2204,11 +2204,11 @@ class _DVStudioInspectorSelect extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: Container(
           height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const .symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border.all(color: DVStudioStyle.lineStrong),
-            borderRadius: BorderRadius.circular(DVStudioStyle.radiusSmall),
+            borderRadius: .circular(DVStudioStyle.radiusSmall),
           ),
           child: Row(
             children: <Widget>[

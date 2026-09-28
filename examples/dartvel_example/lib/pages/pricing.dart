@@ -94,7 +94,7 @@ class const PlanCard({
                 .rounded(8)
                 .backgroundColor(p.accentSoft),
           ),
-      ], crossAlign: DVCrossAlign.center),
+      ], crossAlign: .center),
       DVText(price).modifier(p.headline.fontSize(20)),
       for (final String point in points)
         DVBox.row([

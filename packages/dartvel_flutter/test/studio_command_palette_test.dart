@@ -61,7 +61,7 @@ void main() {
     await tester.enterText(find.byKey(DVStudioCommandPalette.searchKey), 'pag');
     await tester.pump();
     expect(find.text('Go to Flags'), findsNothing);
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pumpAndSettle();
     expect(ran, <String>['pages']);
     expect(find.byKey(DVStudioCommandPalette.searchKey), findsNothing);

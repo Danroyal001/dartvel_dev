@@ -279,6 +279,9 @@ class _Memo {
     expect(routes, contains('core.DVStudioDevGrant? studioDevGrant'));
     expect(routes, contains('devGrant: studioDevGrant'));
     expect(routes, contains('await publishedPages.respond(request) ?? '));
+    // And the server asks them before it answers an unknown path with a 404,
+    // or a published page would be reported missing to a crawler.
+    expect(routes, contains('publishedRoutes: publishedPages.routes'));
     expect(
       routes,
       contains('core.DVAdminServer(mount: admin, root: adminRoot, '

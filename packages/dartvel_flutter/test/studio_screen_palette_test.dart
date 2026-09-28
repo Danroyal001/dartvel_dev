@@ -30,7 +30,7 @@ Future<void> palette(WidgetTester tester, String query) async {
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(DVStudioCommandPalette.searchKey), query);
   await tester.pump();
-  await tester.testTextInput.receiveAction(TextInputAction.go);
+  await tester.testTextInput.receiveAction(.go);
   await tester.pumpAndSettle();
 }
 
@@ -77,7 +77,7 @@ void main() {
     expect(bar.controller!.text, '"Text"');
 
     await tester.enterText(find.byKey(DVStudioFormulaBar.inputKey), '"Today\'s menu"');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.testTextInput.receiveAction(.done);
     await tester.pumpAndSettle();
     expect(find.text("Today's menu"), findsWidgets);
 

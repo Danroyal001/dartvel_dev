@@ -181,7 +181,7 @@ Widget _siteHeader(BuildContext context) {
                   ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
                   ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
                 ], spacing: 18),
-            ], align: DVAlign.spaceBetween),
+            ], align: .spaceBetween),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
     const DVModifier()
@@ -266,7 +266,7 @@ Widget _section(
     // needs more of itself over a dark one.
     band = band.backgroundImage(
       const DVImage.asset('assets/texture/grain.png'),
-      fit: BoxFit.none,
+      fit: .none,
       repeat: ImageRepeat.repeat,
       opacity: palette.dark ? 0.30 : 0.14,
     );
@@ -290,7 +290,7 @@ Widget _eyebrow(BuildContext context, String text, {bool onDark = false}) =>
     DVText(text).modifier(
       const DVModifier()
           .fontSize(12)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           // On an ink band the page's own accent sits too dark to read.
           .color(onDark ? Palette.deepAccent : Palette.of(context).accent)
           .letterSpacing(1.8),
@@ -309,7 +309,7 @@ Widget _heading(
     Prose(text, 
       const DVModifier()
           .fontSize(context.screen.value<double>(mobile: 24, desktop: 30))
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(onDark ? Palette.deepInk : Palette.of(context).ink)
           .lineHeight(1.15)
           // Declared, so the outline exists for a screen reader moving by
@@ -382,12 +382,12 @@ Widget _siteCard(
       DVBox.wrapLine(<Widget>[
         Prose(title, const DVModifier()
             .fontSize(17)
-            .fontWeight(FontWeight.w700)
+            .fontWeight(.w700)
             .color(palette.ink)),
         if (status != null && label != null)
           DVText(label).modifier(const DVModifier()
               .fontSize(12)
-              .fontWeight(FontWeight.w700)
+              .fontWeight(.w700)
               .color(partial
                   ? palette.ink
                   : (status ? palette.accent : palette.faint))
@@ -454,7 +454,7 @@ Widget _stat(BuildContext context, String value, String label) {
     DVBox.list(<Widget>[
       DVText(value).modifier(const DVModifier()
           .fontSize(30)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(palette.accent)),
       DVText(label)
           .modifier(const DVModifier().fontSize(13).color(palette.muted)),
@@ -495,10 +495,10 @@ Widget _stats(
         ),
         DVText(item.label).modifier(const DVModifier()
             .fontSize(14)
-            .fontWeight(FontWeight.w600)
+            .fontWeight(.w600)
             .color(onDark ? Palette.deepMuted : palette.muted)
             .lineHeight(1.4)),
-      ], spacing: 4, crossAlign: DVCrossAlign.start),
+      ], spacing: 4, crossAlign: .start),
   ], spacing: context.screen.value<double>(mobile: 28, desktop: 56));
 }
 
@@ -514,7 +514,7 @@ Widget _wordmark(BuildContext context) {
   final Palette palette = Palette.of(context);
   return DVNavLink(
     to: DVRoutes.index,
-    padding: EdgeInsets.zero,
+    padding: .zero,
     semanticLabel: 'Dartvel, home',
     child: DVBox.row(<Widget>[
       // The mark itself, not a letter in a box. The placeholder was a bold
@@ -523,7 +523,7 @@ Widget _wordmark(BuildContext context) {
       const DartvelMark(size: 24),
       const DVText('Dartvel').modifier(const DVModifier()
           .fontSize(17)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(palette.ink)),
     ], spacing: 9),
   );
@@ -548,7 +548,7 @@ Widget _navLink(BuildContext context, String label, String href) {
 
   return DVNavLink(
     to: DVRouteTarget(href),
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    padding: const .symmetric(horizontal: 6, vertical: 8),
     child: DVText(label).modifier(const DVModifier()
         // Smaller on a phone, so the five site links share one line. At 15
         // they need 343 points and a 360-point phone has 316 after its
@@ -581,11 +581,11 @@ Widget _siteButton(
   final Palette palette = Palette.of(context);
   return DVNavLink(
     to: DVRouteTarget(href),
-    padding: EdgeInsets.zero,
+    padding: .zero,
     child: DVBox(
       DVText(label).modifier(const DVModifier()
           .fontSize(15)
-          .fontWeight(FontWeight.w600)
+          .fontWeight(.w600)
           .lineHeight(1.2)
           .color(filled ? const Color(0xFFFFFFFF) : palette.ink)),
       const DVModifier()
@@ -608,7 +608,7 @@ Widget _externalLink(BuildContext context, String label, String url,
       // so every footer link was dead and looked exactly like a working one.
       child: DVText(label).modifier(const DVModifier()
           .fontSize(14)
-          .fontWeight(FontWeight.w600)
+          .fontWeight(.w600)
           .color(onDark ? Palette.deepAccent : Palette.of(context).accent)),
     );
 
@@ -681,7 +681,7 @@ Widget _siteRecordEntry(BuildContext context,
     DVBox.wrapLine(<Widget>[
       DVText(area).modifier(const DVModifier()
           .fontSize(20)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(palette.ink)
           // Level 3 under the section's level 2, so the record is reachable
           // by heading rather than being one long scroll.
@@ -702,7 +702,7 @@ Widget _siteRecordLabel(BuildContext context,
   final String which = tone;
   return DVText(text).modifier(const DVModifier()
       .fontSize(12)
-      .fontWeight(FontWeight.w700)
+      .fontWeight(.w700)
       // Wide, because it is two or three words set small and the spacing is
       // what makes it read as a label rather than as a very short sentence.
       .letterSpacing(0.8)
@@ -726,7 +726,7 @@ Widget _objection(
   return DVBox.list(<Widget>[
     Prose(question, const DVModifier()
         .fontSize(17)
-        .fontWeight(FontWeight.w700)
+        .fontWeight(.w700)
         .color(onDark ? Palette.deepInk : palette.ink)
         .lineHeight(1.4)),
     Prose(answer, const DVModifier()
@@ -734,7 +734,7 @@ Widget _objection(
         .color(onDark ? const Color(0xFF9AA6C4) : palette.muted)
         .lineHeight(1.55)
         .maxWidth(600)),
-  ], spacing: 4, crossAlign: DVCrossAlign.start);
+  ], spacing: 4, crossAlign: .start);
 }
 
 /// A short list, for the points a skimmer reads instead of a paragraph.
@@ -749,10 +749,10 @@ Widget _bullets(BuildContext context, List<String> items, {bool onDark = false})
   return DVBox.list(<Widget>[
     for (final String item in items)
       Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.only(top: 9, right: 12),
+            padding: const .only(top: 9, right: 12),
             child: DVBox(
               const SizedBox(width: 6, height: 6),
               const DVModifier().backgroundColor(dot).rounded(3),
@@ -767,5 +767,5 @@ Widget _bullets(BuildContext context, List<String> items, {bool onDark = false})
           ),
         ],
       ),
-  ], spacing: 10, crossAlign: DVCrossAlign.start);
+  ], spacing: 10, crossAlign: .start);
 }

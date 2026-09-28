@@ -188,7 +188,7 @@ void main() {
 
     controller.add(utf8.encode('{not json\n'));
     controller.add(utf8.encode('{"jsonrpc":"2.0","id":1,"result":{}}\n'));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
 
     // The good message still arrives: killing the stream would strand every
     // pending call over one bad line.

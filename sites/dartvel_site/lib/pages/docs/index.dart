@@ -274,7 +274,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
             DVBox.wrapLine(<Widget>[
               PrimaryLink('See what works today', '/features'),
               ExternalLink('Read spec-status.json', kSpecStatusUrl),
-            ], spacing: 20, crossAlign: DVCrossAlign.center),
+            ], spacing: 20, crossAlign: .center),
           ],
         ),
       ],

@@ -11,7 +11,7 @@ Widget styledText() =>
     const DVText('Pricing').modifier(
       DVModifier()
           .fontSize(28)
-          .fontWeight(FontWeight.w700)
+          .fontWeight(.w700)
           .color(Color(0xFF0B1020))
           .semanticHeading(1),
     );
@@ -34,7 +34,7 @@ Widget layouts() => DVBox.list(<Widget>[
       const DVBox.row(<Widget>[
         DVText('Left'),
         DVText('Right'),
-      ], align: DVAlign.spaceBetween),
+      ], align: .spaceBetween),
       // A line of children that wraps onto the next line when full.
       const DVBox.wrapLine(<Widget>[
         DVText('Dart'),
@@ -75,12 +75,12 @@ Widget productGrid(BuildContext context, List<Widget> products) => DVBox.grid(
 @DVFunctionalWidget()
 Widget _priceTag(BuildContext context, int cents, {String currency = 'USD'}) =>
     DVText('$currency ${(cents / 100).toStringAsFixed(2)}').modifier(
-      const DVModifier().fontWeight(FontWeight.w600),
+      const DVModifier().fontWeight(.w600),
     );
 
 // Used anywhere as a widget: PriceTag(2499, currency: 'EUR')
 // docs:end
 
 // docs:start ui-theme
-void useDarkMode() => DV.Theme.setMode(ThemeMode.dark);
+void useDarkMode() => DV.Theme.setMode(.dark);
 // docs:end

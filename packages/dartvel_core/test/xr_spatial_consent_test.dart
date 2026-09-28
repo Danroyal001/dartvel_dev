@@ -36,7 +36,7 @@ const DVSpatialSpaceRequest _volume = DVSpatialSpaceRequest(
 
 Future<void> _settle() async {
   for (int i = 0; i < 10; i++) {
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
   }
 }
 

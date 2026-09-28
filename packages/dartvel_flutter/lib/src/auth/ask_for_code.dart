@@ -77,8 +77,8 @@ class _DVCodeEntryState extends State<DVCodeEntry> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: <Widget>[
         if (widget.message != null) ...<Widget>[
           Text(widget.message!, style: theme.textTheme.bodyMedium),
@@ -88,7 +88,7 @@ class _DVCodeEntryState extends State<DVCodeEntry> {
           controller: _controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
+          textAlign: .center,
           // The code is what somebody's password manager and their phone's
           // keyboard both offer to fill in.
           autofillHints: const <String>[AutofillHints.oneTimeCode],
@@ -172,7 +172,7 @@ class DVAskForCodePage extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const .all(24),
               child: DVCodeEntry(
                 length: length,
                 message: message,

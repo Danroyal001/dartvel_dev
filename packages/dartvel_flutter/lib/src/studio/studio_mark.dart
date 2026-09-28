@@ -44,8 +44,8 @@ class DVStudioMarkPainter extends CustomPainter {
       paint.color = color!;
     } else {
       paint.shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        begin: .topLeft,
+        end: .bottomRight,
         colors: <Color>[Color(0xFF7A3BFF), Color(0xFF2F6BFF), Color(0xFF1FB6F5)],
         stops: <double>[0, 0.55, 1],
       ).createShader(_bounds);

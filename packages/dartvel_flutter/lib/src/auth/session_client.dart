@@ -720,7 +720,7 @@ class DVSessionClient {
           AuthFailure.invalidEmail, 'That e-mail address is not valid.'),
       'breached_password' => const DVBreachedPasswordRefusal(),
       'too_many_attempts' =>
-        const DVVelocityRefusal(scope: 'server', retryAfter: Duration.zero),
+        const DVVelocityRefusal(scope: 'server', retryAfter: .zero),
       'challenge_failed' => const DVBotRefusal('the server refused the challenge'),
       'invalid_code' => const DVSecondFactorRefused(),
       'account_deleted' => const DVAccountDeleted(),

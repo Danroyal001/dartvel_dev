@@ -249,19 +249,19 @@ class _DVStudioCommandPaletteState extends State<DVStudioCommandPalette> {
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
         child: Material(
           elevation: 12,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
+          borderRadius: .circular(12),
+          clipBehavior: .antiAlias,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const .all(12),
                 child: TextField(
                   key: DVStudioCommandPalette.searchKey,
                   controller: _query,
                   focusNode: _focus,
                   autofocus: true,
-                  textInputAction: TextInputAction.go,
+                  textInputAction: .go,
                   onChanged: (_) => setState(() => _selected = 0),
                   onSubmitted: (_) => _run(),
                   decoration: const InputDecoration(
@@ -275,7 +275,7 @@ class _DVStudioCommandPaletteState extends State<DVStudioCommandPalette> {
               Flexible(
                 child: found.isEmpty
                     ? const Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: .all(16),
                         child: Text('Nothing matches.'),
                       )
                     : ListView.builder(
@@ -329,7 +329,7 @@ Future<void> dvShowStudioShortcuts(BuildContext context) => showDialog<void>(
         content: SizedBox(
           width: 420,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: <Widget>[
               for (final (String keys, String what) in dvStudioShortcuts)
                 ListTile(
@@ -342,7 +342,7 @@ Future<void> dvShowStudioShortcuts(BuildContext context) => showDialog<void>(
                   title: Text(what),
                 ),
               const Padding(
-                padding: EdgeInsets.only(top: 8),
+                padding: .only(top: 8),
                 child: Text('On a Mac, Cmd in place of Ctrl.'),
               ),
             ],

@@ -15,7 +15,7 @@ import 'dart:io';
 import 'package:dartvel_core/dartvel.dart' hide Platform;
 import 'package:test/test.dart';
 
-Future<void> pump() => Future<void>.delayed(Duration.zero);
+Future<void> pump() => Future<void>.delayed(.zero);
 
 /// How a real device writes: into the file, or by replacing it.
 Future<void> writeRecording(String path, List<int> bytes, bool replace) async {

@@ -12,18 +12,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 Widget body() => SingleChildScrollView(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           Semantics(headingLevel: 1, child: const Text('Retention policy')),
           for (int i = 0; i < 40; i++)
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const .all(8),
               child: Text('Paragraph $i says something about records.'),
             ),
           Semantics(headingLevel: 2, child: const Text('Setup')),
           for (int i = 0; i < 40; i++)
             Padding(
-              padding: const EdgeInsets.all(8),
+              padding: const .all(8),
               child: Text('Step $i of the setup.'),
             ),
           Semantics(headingLevel: 2, child: const Text('Setup')),

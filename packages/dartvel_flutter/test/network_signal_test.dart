@@ -48,7 +48,7 @@ void main() {
     DVNetworkSource.report(DVNetworkStatus.online);
     DVNetworkSource.report(DVNetworkStatus.online);
     DVNetworkSource.report(DVNetworkStatus.metered);
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(.zero);
     await sub.cancel();
 
     expect(seen, <DVNetworkStatus>[

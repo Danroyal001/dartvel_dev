@@ -34,9 +34,9 @@ void main() {
       final seen = <DVTransactionLifecycle>[];
       await transaction<void>((context) async {
         context.lifecycle.transaction.listen(seen.add);
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(.zero);
       });
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
 
       expect(seen, containsAllInOrder(<DVTransactionLifecycle>[
         DVTransactionLifecycle.preparing,
@@ -121,7 +121,7 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(seen, contains(DVTransactionLifecycle.rolledBack));
     });
 
@@ -135,7 +135,7 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(.zero);
       expect(seen, contains(DVTransactionLifecycle.compensating));
       expect(seen, contains(DVTransactionLifecycle.compensated));
     });
