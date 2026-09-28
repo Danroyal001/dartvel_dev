@@ -71,7 +71,12 @@ class DVForeignModuleSpec {
     this.exports = const <String>[],
     this.extraFiles = const <String, String>{},
     this.noopValues = const <String, String>{},
+    this.pubspecExtra = '',
   });
+
+  /// Top-level pubspec sections a kind needs besides the module block: the
+  /// assets an npm module serves to the browser.
+  final String pubspecExtra;
 
   /// What the parent calls it: `DV.Modules.<id>`.
   final String id;
@@ -240,6 +245,11 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('  dartvel_core: any');
   for (final MapEntry<String, String> dep in spec.dependencies.entries) {
     out.writeln('  ${dep.key}: ${dep.value}');
+  }
+  if (spec.pubspecExtra.isNotEmpty) {
+    out
+      ..writeln()
+      ..write(spec.pubspecExtra);
   }
   out
     ..writeln()

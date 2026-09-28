@@ -248,3 +248,109 @@ String _versionIn(String dir) {
       .firstMatch(File(p.join(dir, 'pubspec.yaml')).readAsStringSync());
   return m?.group(1) ?? '0.0.0';
 }
+
+/// Resolves `npm:<name>[@<version or range>]` from the npm registry.
+///
+/// The newest version the range allows, or `latest` when none is given; the
+/// tarball is checked against the registry's `integrity` (sha512) before it
+/// is unpacked. A range is an exact version, `^`, `~` or a comparator pair;
+/// anything else is refused rather than read as the nearest thing.
+Future<DVResolvedSource> dvResolveNpmSource(
+  String root,
+  String spec, {
+  DVSourceFetcher fetcher = const DVSourceFetcher(),
+}) async {
+  final int at = spec.indexOf('@', spec.startsWith('@') ? 1 : 0);
+  final String name = at < 0 ? spec : spec.substring(0, at);
+  final String? wanted = at < 0 ? null : spec.substring(at + 1);
+  if (!RegExp(r'^(@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*$').hasMatch(name)) {
+    throw DVSourceUnresolved('"$name" is not an npm package name.');
+  }
+  final Map<String, Object?> info = jsonDecode(await fetcher.getText(
+          Uri.parse('https://registry.npmjs.org/${name.replaceAll('/', '%2F')}')))
+      as Map<String, Object?>;
+  final Map<String, Object?> versions =
+      (info['versions'] as Map?)?.cast<String, Object?>() ?? <String, Object?>{};
+  String? chosen;
+  if (wanted == null) {
+    chosen = ((info['dist-tags'] as Map?)?['latest']) as String?;
+  } else {
+    final VersionConstraint constraint = _npmRange(wanted);
+    Version? best;
+    for (final String v in versions.keys) {
+      final Version version;
+      try {
+        version = Version.parse(v);
+      } on FormatException {
+        continue;
+      }
+      if (!constraint.allows(version)) continue;
+      if (version.isPreRelease && wanted != v) continue;
+      if (best == null || version > best) best = version;
+    }
+    chosen = best?.toString();
+  }
+  final Map<String, Object?>? release =
+      chosen == null ? null : (versions[chosen] as Map?)?.cast<String, Object?>();
+  if (release == null) {
+    throw DVSourceUnresolved('npm has no version of $name matching '
+        '${wanted ?? 'latest'}.');
+  }
+  final Map<String, Object?> dist =
+      (release['dist']! as Map).cast<String, Object?>();
+  final String tarballUrl = dist['tarball']! as String;
+  final List<int> tarball = await fetcher.getBytes(Uri.parse(tarballUrl));
+  final String? integrity = dist['integrity'] as String?;
+  if (integrity != null && integrity.startsWith('sha512-')) {
+    final String actual = base64Encode(sha512.convert(tarball).bytes);
+    if (actual != integrity.substring(7)) {
+      throw DVSourceUnresolved('The tarball of $name $chosen does not match '
+          'the integrity the registry publishes. Nothing was written '
+          '(DV-MODULE-004).');
+    }
+  }
+  final String safe = name.replaceAll('@', '').replaceAll('/', '__');
+  final Directory into =
+      Directory(p.join(root, '.dartvel', 'sources', 'npm', '$safe-$chosen'));
+  if (into.existsSync()) into.deleteSync(recursive: true);
+  into.createSync(recursive: true);
+  final File file = File('${into.path}.tgz')..writeAsBytesSync(tarball);
+  try {
+    await fetcher.run('tar', <String>['-xzf', file.path, '-C', into.path]);
+  } finally {
+    if (file.existsSync()) file.deleteSync();
+  }
+  // npm packs everything under package/.
+  final String dir = Directory(p.join(into.path, 'package')).existsSync()
+      ? p.join(into.path, 'package')
+      : into.path;
+  return DVResolvedSource(
+    descriptor: 'npm:$name@$chosen',
+    name: name,
+    version: chosen!,
+    directory: dir,
+    sourceDigest: sha256.convert(tarball).toString(),
+    resolvedFrom: tarballUrl,
+    dependency: '',
+  );
+}
+
+VersionConstraint _npmRange(String range) {
+  final String r = range.trim();
+  final RegExpMatch? tilde = RegExp(r'^~(\d+)\.(\d+)\.(\d+)$').firstMatch(r);
+  if (tilde != null) {
+    final int major = int.parse(tilde.group(1)!);
+    final int minor = int.parse(tilde.group(2)!);
+    return VersionRange(
+      min: Version.parse(r.substring(1)),
+      includeMin: true,
+      max: Version(major, minor + 1, 0),
+    );
+  }
+  try {
+    return VersionConstraint.parse(r);
+  } on FormatException {
+    throw DVSourceUnresolved('"$range" is not a range this reads: use an '
+        'exact version, ^, ~ or a pair such as ">=1.2.0 <2.0.0".');
+  }
+}
