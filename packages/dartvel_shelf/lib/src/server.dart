@@ -120,6 +120,9 @@ Future<ServerHandle> serve(
   CorsOptions? cors,
   String? staticDir, // Path to static files directory
   String? spaRoot, // Path to SPA root (e.g. build/web) for SSR injection
+  // The routes Studio has published, which no manifest lists: without them a
+  // published page would be answered with a 404.
+  Future<Set<String>> Function()? publishedRoutes,
   DVPageDataResolver? pageData, // The route's data on request, for the page pipeline
   DVCacheAdapter? pageStore, // Where the kept pages live, when they are shared
   bool compression = true, // Enable/disable compression
@@ -255,7 +258,7 @@ Future<ServerHandle> serve(
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
       if (resp.status == 404 && req.method == 'GET') {
-        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore);
+        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
       }
       return resp;
     };
