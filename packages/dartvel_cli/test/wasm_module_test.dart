@@ -109,7 +109,7 @@ void main() {
     ));
     expect(module.files['pubspec.yaml'], contains('''
       add:
-        native: unavailable
+        native: real
         web: real
         backend: real'''));
     final String config = install(root, module);
