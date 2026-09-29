@@ -1,3 +1,18 @@
+## Unreleased
+
+- **The first-run setup is a page of the Studio app, at `<mount>/setup`.**
+  While an application is still on the password its first run printed, the
+  mount answers nothing at all but that page: the app's shell and its own
+  code, the four auth endpoints it drives, and a 302 to it from everywhere
+  else. A 404 for anything else, rather than a 200 page telling a scanner
+  looking for a studio that it found one. The page names nobody and carries
+  no data, is never framed, never cached and never a referrer, and stops
+  being served the moment the setup is done.
+- `dvFirstRunScreen` is gone with the hand-written HTML it returned. The
+  setup is drawn by `DVStudioApp`, like Studio's sign-in, and the rate limit,
+  the CSRF check and the session rotation it relies on are the application's
+  own rather than a second copy of each.
+
 ## 0.9.4
 
 - Studio's sign-in page was blank in 0.9.3: the rule that keeps deferred code
