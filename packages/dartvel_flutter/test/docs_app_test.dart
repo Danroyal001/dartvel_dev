@@ -165,6 +165,7 @@ Future<void> _open(
   DVDocsDocument? document,
   DVDocsSource? source,
   Uri? at,
+  String base = '/',
   void Function(String url)? open,
 }) async {
   await tester.pumpWidget(
@@ -173,6 +174,7 @@ Future<void> _open(
         document: document ?? _document(),
         source: source,
         location: at,
+        base: base,
         open: open,
       ),
     ),
@@ -196,6 +198,26 @@ void main() {
     testWidgets('at a page path it draws that page',
         (WidgetTester tester) async {
       await _open(tester, at: Uri.parse('https://shop.test/models'));
+      expect(find.text('Two of them.'), findsOneWidget);
+    });
+
+    // Mounted inside an application, the address the browser shows carries
+    // the mount; the document's pages do not, and never should, because the
+    // mount is the project's to move.
+    testWidgets('mounted at /docs, the mount is the overview',
+        (WidgetTester tester) async {
+      for (final String at in <String>['/docs/', '/docs']) {
+        await _open(tester, at: Uri.parse('https://shop.test$at'),
+            base: '/docs');
+        expect(find.text('Shop'), findsOneWidget, reason: at);
+        expect(find.text('Page not found'), findsNothing, reason: at);
+      }
+    });
+
+    testWidgets('mounted at /docs, a page under it is that page',
+        (WidgetTester tester) async {
+      await _open(tester, at: Uri.parse('https://shop.test/docs/models'),
+          base: '/docs/');
       expect(find.text('Two of them.'), findsOneWidget);
     });
 
