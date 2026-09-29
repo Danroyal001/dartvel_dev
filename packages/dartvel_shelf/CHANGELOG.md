@@ -4,9 +4,11 @@
   backpressure: a handler that reads slowly keeps the client from sending ahead,
   and the handler is told when the body is done. A server whose native library
   predates this reads every body whole, as before, by name rather than by ABI.
-- A middleware or handler receives a body that stays small
-  (`content-length` ≤ 64 KiB) whole with its length; anything bigger is
-  streamed as it is produced.
+- A response body is streamed to the client as the handler produces it,
+  whether or not it is marked as a stream. Only a body that is already whole
+  when the handler returns it and no larger than 64 KiB goes out in one piece
+  with its `content-length`; a slow one is never held back to find out whether
+  it is small.
 - A body that passes the server's or a route's limit is refused with 413 as
   before; the connection stays readable for a short grace so the refusal
   reaches the client, then closes.

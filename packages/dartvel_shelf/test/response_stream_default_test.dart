@@ -126,6 +126,46 @@ void main() {
         reason: 'the whole body arrived');
   });
 
+  test('a body produced slowly in small pieces reaches the client as each '
+      'piece is produced, not once 64 KiB has piled up', () async {
+    final List<int> producedAt = <int>[];
+    final Router router = Router()
+      ..get('/ticker', (Request req) async => _producing(producedAt,
+          total: 8 * 1024,
+          piece: 1024,
+          between: const Duration(milliseconds: 100)));
+    server = await serve(router.call, host: '127.0.0.1', port: 0);
+    addTearDown(() => server.stop());
+
+    final Socket socket = await _connect();
+    final List<int> received = <int>[];
+    final Completer<void> closed = Completer<void>();
+    socket.listen(received.addAll,
+        onDone: () {
+          if (!closed.isCompleted) closed.complete();
+        },
+        onError: (Object _) {
+          if (!closed.isCompleted) closed.complete();
+        });
+
+    socket.add(_head('/ticker'));
+    await socket.flush();
+
+    final Stopwatch waited = Stopwatch()..start();
+    while (_bodyBytes(received) == 0 && waited.elapsed < bound) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    final int firstByteUs = clock.elapsedMicroseconds;
+    await closed.future.timeout(bound, onTimeout: () {});
+
+    expect(firstByteUs, lessThan(producedAt[2]),
+        reason: 'the first 1 KiB piece was produced at ${producedAt.first}us '
+            'but reached the client only at ${firstByteUs}us, after the third '
+            'piece (${producedAt[2]}us): a slow body was held back to see '
+            'whether it was small.');
+    expect(_bodyBytes(received), greaterThanOrEqualTo(8 * 1024));
+  });
+
   test('a small fixed body is sent in one piece, whole, with its length',
       () async {
     // The counterpart: a body that is already whole must not become a stream
