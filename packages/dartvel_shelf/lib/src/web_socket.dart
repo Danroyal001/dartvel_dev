@@ -136,14 +136,17 @@ class NativeWebSocketChannel(
   Timer? _timer;
   Timer? _ping;
   late final StreamController<Object?> _controller = StreamController<Object?>(
+    sync: true,
     onListen: () {
       _listening = true;
+      _drain();
     },
     onPause: () {
       _paused = true;
     },
     onResume: () {
       _paused = false;
+      _drain();
     },
     onCancel: () {
       dispose();
@@ -159,7 +162,8 @@ class NativeWebSocketChannel(
   WebSocketSink get sink => _sink;
 
   void start(Duration? interval) {
-    _timer = Timer.periodic(const Duration(milliseconds: 1), (_) => _poll());
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _drain());
+    _drain();
     if (interval != null) {
       _ping = Timer.periodic(interval, (_) {
         final count = _api.aw_ws_pong_count(id);
@@ -176,42 +180,54 @@ class NativeWebSocketChannel(
     }
   }
 
-  void _poll() {
+  void onWakeup() {
+    _drain();
+  }
+
+  void _drain() {
     if (_closed) return;
-    // Once the native task ends, drain its bounded tail even if nobody ever
-    // listened. This lets sink.done release the server's channel reference.
-    if ((!_listening || _paused) && _api.aw_ws_closed(id) == 0) return;
-    // One event per turn keeps a pause from allowing a burst into Dart.
-    final frame = _api.aw_ws_receive(id);
-    if (frame.kind == 0) return;
-    if (frame.kind < 0) {
-      closeCode ??= 1006;
-      dispose();
-      return;
-    }
-    final bytes = Uint8List.fromList(
-      frame.data.ptr.asTypedList(frame.data.len),
-    );
-    _api.aw_ws_free(frame.data);
-    switch (frame.kind) {
-      case 1:
-        _controller.add(utf8.decode(bytes));
-      case 2:
-        _controller.add(bytes);
-      case 9:
-        _send(10, bytes).catchError((Object _) {
+    while (!_closed) {
+      // Once the native task ends, drain its bounded tail even if nobody ever
+      // listened. This lets sink.done release the server's channel reference.
+      if ((!_listening || _paused) && _api.aw_ws_closed(id) == 0) return;
+      final frame = _api.aw_ws_receive(id);
+      if (frame.kind == 0) {
+        if (_api.aw_ws_closed(id) != 0) {
+          closeCode ??= 1006;
           dispose();
-        });
-      case 10:
-        _awaitingPong = false;
-      case 8:
-        if (bytes.length >= 2) {
-          closeCode = (bytes[0] << 8) | bytes[1];
-          closeReason = utf8.decode(bytes.sublist(2));
-        } else {
-          closeCode = 1005;
         }
+        return;
+      }
+      if (frame.kind < 0) {
+        closeCode ??= 1006;
         dispose();
+        return;
+      }
+      final bytes = Uint8List.fromList(
+        frame.data.ptr.asTypedList(frame.data.len),
+      );
+      _api.aw_ws_free(frame.data);
+      switch (frame.kind) {
+        case 1:
+          _controller.add(utf8.decode(bytes));
+        case 2:
+          _controller.add(bytes);
+        case 9:
+          _send(10, bytes).catchError((Object _) {
+            dispose();
+          });
+        case 10:
+          _awaitingPong = false;
+        case 8:
+          if (bytes.length >= 2) {
+            closeCode = (bytes[0] << 8) | bytes[1];
+            closeReason = utf8.decode(bytes.sublist(2));
+          } else {
+            closeCode = 1005;
+          }
+          dispose();
+          return;
+      }
     }
   }
 
