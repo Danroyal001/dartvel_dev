@@ -387,19 +387,35 @@ Future<ServerHandle> serve(
               : _bufferedResponseBytes;
           final StreamIterator<List<int>> parts =
               StreamIterator<List<int>>(resp.body!.stream);
-          final List<int> prefix = <int>[];
-          bool whole = true;
-          while (await parts.moveNext()) {
-            prefix.addAll(parts.current);
-            if (prefix.length > cap) {
-              whole = false;
+          final BytesBuilder prefix = BytesBuilder(copy: false);
+          bool whole = false;
+          // A piece still being produced when this turn of the event loop is
+          // over. A body is only "small" if it is already in hand: waiting
+          // for a slow one to reach the cap would hold its first bytes back.
+          Future<bool>? pending;
+          while (true) {
+            final Future<bool> next = parts.moveNext();
+            final int ready = await Future.any(<Future<int>>[
+              next.then<int>((bool more) => more ? 1 : 0,
+                  onError: (Object _) => 2),
+              Future<int>(() => -1),
+            ]);
+            if (ready == -1) {
+              pending = next;
               break;
             }
+            if (ready == 2) await next; // rethrows the body's own error
+            if (ready == 0) {
+              whole = true;
+              break;
+            }
+            prefix.add(parts.current);
+            if (prefix.length > cap) break;
           }
-          buffered = whole ? Uint8List.fromList(prefix) : buffered;
-          // Past the line: the part already read goes first, and the rest is
+          buffered = whole ? prefix.takeBytes() : buffered;
+          // Not whole: the part already read goes first, and the rest is
           // taken from the same iterator as it is produced.
-          if (!whole) source = _restOfBody(prefix, parts);
+          if (!whole) source = _restOfBody(prefix.takeBytes(), parts, pending);
         }
 
         final hdrsFlat = encodeHeaders(resp.headers.multiValueMap);
@@ -594,7 +610,8 @@ Future<ServerHandle> serve(
       dartRequestHandler, dartCancelHandler, dartBodyChunkHandler);
 }
 
-/// A response body no larger than this is sent in one piece.
+/// A response body no larger than this, and already whole when the handler
+/// returns it, is sent in one piece.
 ///
 /// Small enough that a body under it is nearly always already in hand -- a
 /// page, an API answer, an error -- and reading it costs no more than
@@ -602,15 +619,20 @@ Future<ServerHandle> serve(
 /// the thing being avoided.
 const int _bufferedResponseBytes = 64 * 1024;
 
-/// The bytes already read from a body that turned out not to be small, then the
-/// rest of it as the handler produces it.
+/// The bytes already read from a body that turned out not to be small or not
+/// yet whole, then the piece being waited for, then the rest of it as the
+/// handler produces it.
 ///
 /// A generator rather than a concatenation, so the part that was read is not
 /// held twice and the rest is not run ahead of the client: the native side
 /// takes each piece as it is produced.
-Stream<List<int>> _restOfBody(
-    List<int> prefix, StreamIterator<List<int>> rest) async* {
-  yield prefix;
+Stream<List<int>> _restOfBody(List<int> prefix,
+    StreamIterator<List<int>> rest, Future<bool>? pending) async* {
+  if (prefix.isNotEmpty) yield prefix;
+  if (pending != null) {
+    if (!await pending) return;
+    yield rest.current;
+  }
   while (await rest.moveNext()) {
     yield rest.current;
   }
