@@ -196,3 +196,7 @@ sites/*.zip
 # Ignored for the same reason as the worktrees above: this repository is
 # public and a stray `git add -A` would commit it.
 dump.rdb
+
+# Notes and logs from delegated agents
+PROGRESS-*.md
+.agent-*.log
