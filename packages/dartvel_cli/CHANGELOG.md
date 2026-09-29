@@ -15,8 +15,10 @@
   in it, so it cannot break by pointing at a file that moved; and the block
   kinds and span kinds are enumerated in `docs_site_test.dart`, because an
   unknown kind is the one thing that could make the document mean something
-  other than what it says. The site does not render yet -- the app and its
-  build land next.
+  other than what it says. The types themselves moved to `dartvel_core`, next
+  to the app that draws them: the two packages do not depend on each other and
+  a wire format declared twice is one half can change on its own. The site
+  does not render yet -- the app and its build land next.
 
 - **The build writes one file into the admin root, and it is the graph.** It
   wrote four: a static dashboard, its stylesheet, its script and the graph.
