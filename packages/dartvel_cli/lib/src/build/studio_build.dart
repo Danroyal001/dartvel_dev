@@ -132,8 +132,10 @@ Future<DVStudioBuildResult> dvBuildStudio({
   }
 
   final Directory admin = Directory(adminRoot)..createSync(recursive: true);
-  // Only the static page goes. graph.json is what the Routes, Functions and
-  // Jobs sections read.
+  // Nothing writes these any more -- the build's admin artifact is the graph
+  // alone -- but a build/web from before that still carries a static
+  // dashboard, and it would sit next to this one forever. graph.json is what
+  // the Routes, Functions and Jobs sections read, so it stays.
   for (final String stale in <String>['index.html', 'admin.css', 'admin.js']) {
     final File file = File(p.join(admin.path, stale));
     if (file.existsSync()) file.deleteSync();

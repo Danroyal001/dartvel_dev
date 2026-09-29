@@ -3472,11 +3472,9 @@ class BuildCommand extends Command<void> {
 
     final Directory adminRoot = Directory(p.join(web.path, '__admin'))
       ..createSync(recursive: true);
-    final Map<String, String> files = dvAdminArtifact(
-      graph: graph.toJson(),
-      appName: appName,
-      buildId: DateTime.now().toUtc().toIso8601String(),
-    );
+    // The graph is all this writes: Studio, compiled over it below, is the UI
+    // at this mount and fetches it at runtime.
+    final Map<String, String> files = dvAdminArtifact(graph: graph.toJson());
     for (final MapEntry<String, String> file in files.entries) {
       File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
     }
