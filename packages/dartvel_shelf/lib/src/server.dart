@@ -46,6 +46,15 @@ class _StreamResponseState {
   _StreamResponseState(this.subscription);
   final StreamSubscription<List<int>> subscription;
   int inFlight = 0;
+  static const int scratchSize = 256 * 1024;
+  final ffi.Pointer<ffi.Uint8> scratchPtr =
+      pkgffi.malloc<ffi.Uint8>(scratchSize);
+  final ffi.Pointer<gen.FfiBuf> scratchBuf = pkgffi.calloc<gen.FfiBuf>();
+
+  void dispose() {
+    pkgffi.malloc.free(scratchPtr);
+    pkgffi.calloc.free(scratchBuf);
+  }
 }
 
 class ServerHandle {
@@ -496,23 +505,37 @@ Future<ServerHandle> serve(
 
           late StreamSubscription<List<int>> subscription;
           late _StreamResponseState streamState;
-          const maxInFlight = 4;
+          const maxInFlight = 32;
           subscription = (source ?? resp.body!.stream).listen(
             (chunk) {
-              final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
-                ..asTypedList(chunk.length).setAll(0, chunk);
-              final chunkBuf = pkgffi.calloc<gen.FfiBuf>();
-              chunkBuf.ref.ptr = chunkNative.cast();
-              chunkBuf.ref.len = chunk.length;
+              final int status;
+              if (chunk.length <= _StreamResponseState.scratchSize) {
+                if (chunk.isNotEmpty) {
+                  streamState.scratchPtr
+                      .asTypedList(chunk.length)
+                      .setAll(0, chunk);
+                }
+                streamState.scratchBuf.ref
+                  ..ptr = streamState.scratchPtr
+                  ..len = chunk.length;
+                status =
+                    api.aw_stream_send_chunk(reqId, streamState.scratchBuf.ref);
+              } else {
+                final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
+                  ..asTypedList(chunk.length).setAll(0, chunk);
+                final chunkBuf = pkgffi.calloc<gen.FfiBuf>();
+                chunkBuf.ref.ptr = chunkNative.cast();
+                chunkBuf.ref.len = chunk.length;
 
-              final status = api.aw_stream_send_chunk(reqId, chunkBuf.ref);
+                status = api.aw_stream_send_chunk(reqId, chunkBuf.ref);
 
-              pkgffi.calloc.free(chunkBuf);
-              pkgffi.malloc.free(chunkNative);
+                pkgffi.calloc.free(chunkBuf);
+                pkgffi.malloc.free(chunkNative);
+              }
 
               if (status == 2) {
                 activeSubscriptions.remove(reqId);
-                activeStreamStates.remove(reqId);
+                activeStreamStates.remove(reqId)?.dispose();
                 subscription.cancel();
                 return;
               }
@@ -524,12 +547,12 @@ Future<ServerHandle> serve(
             },
             onDone: () {
               activeSubscriptions.remove(reqId);
-              activeStreamStates.remove(reqId);
+              activeStreamStates.remove(reqId)?.dispose();
               api.aw_stream_complete(reqId);
             },
             onError: (Object e) {
               activeSubscriptions.remove(reqId);
-              activeStreamStates.remove(reqId);
+              activeStreamStates.remove(reqId)?.dispose();
               api.aw_stream_complete(reqId);
             },
             cancelOnError: true,
@@ -537,6 +560,7 @@ Future<ServerHandle> serve(
           streamState = _StreamResponseState(subscription);
           activeSubscriptions[reqId] = subscription;
           activeStreamStates[reqId] = streamState;
+
         } else {
           out.ref.is_stream = 0;
           final bodyNative = pkgffi.malloc<ffi.Uint8>(buffered.length)
@@ -577,7 +601,7 @@ Future<ServerHandle> serve(
 
   final dartCancelHandler =
       ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
-    activeStreamStates.remove(reqId);
+    activeStreamStates.remove(reqId)?.dispose();
     final subscription = activeSubscriptions.remove(reqId);
     subscription?.cancel();
   });
@@ -592,10 +616,8 @@ Future<ServerHandle> serve(
       ffi.NativeCallable<_NativeAckCb>.listener((int reqId) {
     final state = activeStreamStates[reqId];
     if (state == null) return;
-    if (state.inFlight > 0) {
-      state.inFlight--;
-    }
-    if (state.inFlight < 4 && state.subscription.isPaused) {
+    state.inFlight = (state.inFlight - 8).clamp(0, 999999);
+    if (state.inFlight <= 16 && state.subscription.isPaused) {
       state.subscription.resume();
     }
   });

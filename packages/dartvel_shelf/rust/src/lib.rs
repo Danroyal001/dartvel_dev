@@ -13,7 +13,7 @@ use std::{
     collections::HashMap,
     io::Cursor,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
 };
@@ -346,7 +346,7 @@ struct FfiRespOwned {
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
 /// Capacity for the bounded response stream channel.
-const RESPONSE_STREAM_CAPACITY: usize = 8;
+const RESPONSE_STREAM_CAPACITY: usize = 64;
 
 /// One streamed body chunk, or the error that ended the stream.
 type StreamChunkResult = Result<Bytes, axum::BoxError>;
@@ -681,6 +681,7 @@ struct CancelOnDropStream<S> {
     /// The server this stream belongs to, so the cancel goes to that
     /// server's Dart callback rather than to whichever was registered last.
     server_id: Option<u64>,
+    ack_counter: u32,
 }
 
 impl<S> futures_util::stream::Stream for CancelOnDropStream<S>
@@ -695,8 +696,21 @@ where
     ) -> std::task::Poll<Option<Self::Item>> {
         use std::pin::Pin;
         let item = Pin::new(&mut self.inner).poll_next(cx);
-        if let std::task::Poll::Ready(Some(_)) = &item {
-            stream_ack(self.req_id, self.server_id);
+        match &item {
+            std::task::Poll::Ready(Some(_)) => {
+                self.ack_counter += 1;
+                if self.ack_counter >= 8 {
+                    self.ack_counter = 0;
+                    stream_ack(self.req_id, self.server_id);
+                }
+            }
+            std::task::Poll::Ready(None) => {
+                if self.ack_counter > 0 {
+                    self.ack_counter = 0;
+                    stream_ack(self.req_id, self.server_id);
+                }
+            }
+            _ => {}
         }
         item
     }
@@ -704,6 +718,9 @@ where
 
 impl<S> Drop for CancelOnDropStream<S> {
     fn drop(&mut self) {
+        if self.ack_counter > 0 {
+            stream_ack(self.req_id, self.server_id);
+        }
         if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
             safe_lock(map_mutex).remove(&self.req_id);
         }
@@ -723,6 +740,7 @@ impl<S> Drop for CancelOnDropStream<S> {
         }
     }
 }
+
 
 // ===== FFI Exports =====
 #[no_mangle]
@@ -1290,16 +1308,6 @@ async fn read_request_body(
         // body that never ends stops here.
         if received.saturating_add(bytes.len() as u64) > limit {
             finish_body(req_id, &state, BodyTerminal::TooLarge);
-            // A client mid-body is still writing. Letting the stream drop
-            // here lets hyper stop reading the socket, the client's send
-            // buffer fills, its flush blocks, and it never sees the 413 this
-            // becomes (up to minutes of hang). Keep draining for a short
-            // grace so the refusal reaches the wire while the client can
-            // still receive it; when the grace ends the stream is dropped and
-            // hyper closes the connection as it would have. Only inside a
-            // runtime, where there is a connection to drain for: the unit
-            // tests poll this future by hand and have no runtime, so they
-            // keep the refusal without the socket.
             if let Ok(runtime) = tokio::runtime::Handle::try_current() {
                 runtime.spawn(async move {
                     let deadline = tokio::time::Instant::now() + REFUSAL_DRAIN_GRACE;
@@ -1309,6 +1317,27 @@ async fn read_request_body(
             return;
         }
         received += bytes.len() as u64;
+
+        let mut bytes = bytes;
+        if bytes.len() >= 1024 && bytes.len() < 256 * 1024 {
+            let mut buf = bytes::BytesMut::from(bytes);
+            use futures_util::FutureExt;
+            while buf.len() < 256 * 1024 {
+                match body.next().now_or_never() {
+                    Some(Some(Ok(more))) => {
+                        if received.saturating_add(more.len() as u64) > limit {
+                            finish_body(req_id, &state, BodyTerminal::TooLarge);
+                            return;
+                        }
+                        received += more.len() as u64;
+                        buf.extend_from_slice(&more);
+                    }
+                    _ => break,
+                }
+            }
+            bytes = buf.freeze();
+        }
+
         deliver_chunk(req_id, &state, bytes);
     }
 }
@@ -2118,6 +2147,7 @@ fn abandon_stream(req_id: u64, server_id: Option<u64>) {
             inner: tokio_stream::wrappers::ReceiverStream::new(rx),
             req_id,
             server_id,
+            ack_counter: 0,
         });
     }
 }
@@ -2181,6 +2211,7 @@ fn response_from_dart(
             inner: tokio_stream::wrappers::ReceiverStream::new(rx),
             req_id,
             server_id,
+            ack_counter: 0,
         })
     } else {
         Body::from(resp.body)
@@ -2946,6 +2977,7 @@ struct WsBridge {
     pongs: Arc<AtomicU64>,
     incoming: Mutex<mpsc::Receiver<Message>>,
     outgoing: mpsc::Sender<Message>,
+    backpressure: Arc<AtomicBool>,
 }
 struct WsPending {
     id: u64,
@@ -2955,6 +2987,7 @@ struct WsPending {
     protocol: String,
     incoming: mpsc::Sender<Message>,
     outgoing: mpsc::Receiver<Message>,
+    backpressure: Arc<AtomicBool>,
 }
 static WS_BRIDGES: OnceCell<Mutex<HashMap<u64, WsBridge>>> = OnceCell::new();
 static WS_PENDING: OnceCell<Mutex<HashMap<u64, WsPending>>> = OnceCell::new();
@@ -2967,13 +3000,16 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
         String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(protocol.ptr, protocol.len) }).into_owned()
     };
     let pongs = Arc::new(AtomicU64::new(0));
-    let (in_tx, in_rx) = mpsc::channel(8);
-    let (out_tx, out_rx) = mpsc::channel(8);
+    let backpressure = Arc::new(AtomicBool::new(false));
+    let (in_tx, in_rx) = mpsc::channel(64);
+    let (out_tx, out_rx) = mpsc::channel(64);
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).insert(id, WsBridge {
         server: None, max, pongs: pongs.clone(), incoming: Mutex::new(in_rx), outgoing: out_tx,
+        backpressure: backpressure.clone(),
     });
     safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
         id, server: None, max, protocol, pongs, incoming: in_tx, outgoing: out_rx,
+        backpressure,
     });
     0
 }
@@ -2998,26 +3034,64 @@ pub extern "C" fn aw_ws_send(id: u64, kind: i32, data: FfiBuf) -> i32 {
     let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
     let Some(bridge) = bridges.get(&id) else { return -1; };
     if (matches!(kind, 1 | 2) && data.len > bridge.max) || (matches!(kind, 8 | 9 | 10) && data.len > 125) { return -1; }
-    let bytes = if data.len == 0 { Vec::new() } else {
-        unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-    };
     let message = match kind {
-        1 => match String::from_utf8(bytes) { Ok(text) => Message::Text(text), Err(_) => return -1 },
-        2 => Message::Binary(bytes),
-        9 => Message::Ping(bytes),
-        10 => Message::Pong(bytes),
+        1 => {
+            let bytes = if data.len == 0 {
+                Vec::new()
+            } else {
+                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+            };
+            match String::from_utf8(bytes) {
+                Ok(s) => Message::Text(s),
+                Err(_) => return -1,
+            }
+        }
+        2 => {
+            let bytes = if data.len == 0 {
+                Vec::new()
+            } else {
+                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+            };
+            Message::Binary(bytes)
+        }
+        9 => {
+            let bytes = if data.len == 0 {
+                Vec::new()
+            } else {
+                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+            };
+            Message::Ping(bytes)
+        }
+        10 => {
+            let bytes = if data.len == 0 {
+                Vec::new()
+            } else {
+                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+            };
+            Message::Pong(bytes)
+        }
         8 => {
-            if bytes.len() < 2 { Message::Close(None) } else {
+            let bytes = if data.len == 0 {
+                Vec::new()
+            } else {
+                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+            };
+            if bytes.len() < 2 {
+                Message::Close(None)
+            } else {
                 let code = u16::from_be_bytes([bytes[0], bytes[1]]);
                 let Ok(reason) = String::from_utf8(bytes[2..].to_vec()) else { return -1; };
                 Message::Close(Some(CloseFrame { code, reason: reason.into() }))
             }
-        },
+        }
         _ => return -1,
     };
     match bridge.outgoing.try_send(message) {
         Ok(()) => 0,
-        Err(mpsc::error::TrySendError::Full(_)) => 1,
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            bridge.backpressure.store(true, Ordering::Release);
+            1
+        }
         Err(_) => -1,
     }
 }
@@ -3072,6 +3146,7 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let mut outgoing = pending.outgoing;
     let incoming = pending.incoming;
     let pongs = pending.pongs;
+    let backpressure = pending.backpressure;
     // A blocked incoming queue must not prevent outgoing traffic (or closure).
     let read = async {
         while let Some(message) = stream.next().await {
@@ -3111,7 +3186,9 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
                 if sink.feed(next).await.is_err() || closed { break; }
             }
             if sink.flush().await.is_err() || closed { break; }
-            ws_wakeup(req_id, server_id);
+            if backpressure.swap(false, Ordering::AcqRel) {
+                ws_wakeup(req_id, server_id);
+            }
         }
         None
     };
