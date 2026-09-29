@@ -45,7 +45,11 @@ final class DVAssetCache {
   DVAssetCache({this.memoryLimit = 16 * 1024 * 1024, this.directory, this.imagesDirectory});
 
   /// How many bytes of files may be held in memory.
-  final int memoryLimit;
+  int memoryLimit;
+
+  /// Whether decoded files are kept in [directory]. The site's declaration
+  /// (`dartvel.web.server.http.diskCache`) can turn it off.
+  bool diskEnabled = true;
 
   /// Where decoded files are kept on disk, one directory per build, or null
   /// for no disk cache. Safe to delete at any time: it is rebuilt on demand.
@@ -108,6 +112,7 @@ final class DVAssetCache {
   final Set<String> _prepared = <String>{};
 
   Uint8List? _fromDisk(String buildId, String hash) {
+    if (!diskEnabled) return null;
     final Directory? dir = forBuild(buildId);
     if (dir == null) return null;
     final File file = File('${dir.path}${Platform.pathSeparator}$hash');
@@ -119,6 +124,7 @@ final class DVAssetCache {
   }
 
   void _toDisk(String buildId, String hash, Uint8List bytes) {
+    if (!diskEnabled) return;
     final Directory? dir = forBuild(buildId);
     if (dir == null) return;
     try {

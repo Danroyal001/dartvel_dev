@@ -225,6 +225,15 @@ Future<ServerHandle> serve(
   // does not accept it. A library built before the codec has neither, and a
   // build against it kept gzip, which dart:io decodes.
   DVNativeCodec.of(dylib)?.registerDecoders();
+  // The caches the site declared, for a binary's own: read now, when the
+  // manifest in its pack can be decoded.
+  final DVAssetCache? assetCache = DVAssetCache.current;
+  if (spaRoot != null && assetCache != null) {
+    final DVAssetHttpPolicy declared = _assetPolicyFor(spaRoot);
+    assetCache
+      ..memoryLimit = declared.memoryCacheBytes
+      ..diskEnabled = declared.diskCache;
+  }
 
   // Before anything is registered. A library built for an older callback
   // shape calls the request handler with fewer arguments than it declares,
