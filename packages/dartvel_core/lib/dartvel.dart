@@ -119,6 +119,10 @@ export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/database/records.dart';
 export 'src/diagnostics/startup_profile.dart';
+// The documentation document `dartvel docs` writes and DVDocsApp draws.
+// Shared rather than declared twice, because the two packages that need it
+// do not depend on each other.
+export 'src/docs/docs_document.dart';
 export 'src/edge/bot_protection.dart';
 export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
