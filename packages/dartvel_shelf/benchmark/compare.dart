@@ -1,6 +1,11 @@
 // Run: ~/heavy.sh dart run benchmark/compare.dart
 // Each engine/scenario runs in a fresh process. RSS includes the Dart client,
 // VM/JIT and (for Dartvel) the native runtime, not just the server.
+//
+// `websocket` runs its client in the server's own isolate, as the other
+// scenarios do. `websocket_remote` and `websocket_pipelined` run the client in
+// a separate process, as a real peer would be: the server isolate then waits
+// for the network like any server rather than for its own client's code.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -23,16 +28,16 @@ Stream<List<int>> payload() async* {
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     for (var trial = 1; trial <= 3; trial++) {
-      for (final scenario in ['hello', 'upload', 'download', 'websocket']) {
+      for (final scenario in [
+        'hello',
+        'upload',
+        'download',
+        'websocket',
+        'websocket_remote',
+        'websocket_pipelined',
+      ]) {
         for (final engine in ['shelf', 'dartvel']) {
-          final result = await Process.run(Platform.resolvedExecutable, [
-            if (['dart', 'dartvm', 'dart.exe'].contains(
-              Platform.resolvedExecutable.split(Platform.pathSeparator).last,
-            ))
-              Platform.script.toFilePath(),
-            engine,
-            scenario,
-          ]);
+          final result = await _self([engine, scenario]);
           if (result.exitCode != 0) {
             stderr.write(result.stderr);
             exitCode = result.exitCode;
@@ -45,6 +50,10 @@ Future<void> main(List<String> args) async {
         }
       }
     }
+    return;
+  }
+  if (args[0] == 'client') {
+    stdout.writeln(jsonEncode(await _client(int.parse(args[1]), args[2])));
     return;
   }
   final engine = args[0];
@@ -173,17 +182,35 @@ Future<void> main(List<String> args) async {
       final ws = await WebSocket.connect('ws://127.0.0.1:$port/ws');
       final messages = StreamIterator<Object?>(ws);
       final message = 'x' * 64;
+      final latencies = <int>[];
       for (var i = 0; i < 500; i++) {
+        final sent = watch.elapsedMicroseconds;
         ws.add(message);
         if (!await messages.moveNext() || messages.current != message) {
           throw StateError('Echo mismatch');
         }
+        latencies.add(watch.elapsedMicroseconds - sent);
       }
       watch.stop();
+      latencies.sort();
       metrics['messages_per_second'] =
           500 * 1000000 / watch.elapsedMicroseconds;
+      metrics['p50_us'] = latencies[latencies.length ~/ 2];
       await ws.close();
       await messages.cancel();
+    case 'websocket_remote':
+    case 'websocket_pipelined':
+      final result = await _self([
+        'client',
+        '$port',
+        scenario == 'websocket_remote' ? 'pingpong' : 'pipelined',
+      ]);
+      if (result.exitCode != 0) throw StateError('${result.stderr}');
+      watch.stop();
+      metrics.addAll(
+        (jsonDecode((result.stdout as String).trim()) as Map)
+            .cast<String, Object>(),
+      );
   }
   metrics['elapsed_ms'] = watch.elapsedMicroseconds / 1000;
   metrics['peak_rss_mib'] = ProcessInfo.maxRss / (1024 * 1024);
@@ -192,4 +219,114 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     jsonEncode({'engine': engine, 'scenario': scenario, ...metrics}),
   );
+}
+
+/// This program again, in a fresh process: `dart <script>` under the VM, the
+/// executable itself when compiled.
+Future<ProcessResult> _self(List<String> args) =>
+    Process.run(Platform.resolvedExecutable, [
+      if (['dart', 'dartvm', 'dart.exe'].contains(
+        Platform.resolvedExecutable.split(Platform.pathSeparator).last,
+      ))
+        Platform.script.toFilePath(),
+      ...args,
+    ]);
+
+/// A WebSocket peer in its own process.
+///
+/// `pingpong` sends one 64-byte text message and waits for its echo before the
+/// next, through dart:io's client. `pipelined` writes pre-encoded frames from a
+/// raw socket without waiting and counts the echoes, so the server is measured
+/// rather than a client that encodes each frame in Dart.
+Future<Map<String, Object>> _client(int port, String kind) async {
+  if (kind == 'pingpong') {
+    final ws = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+    final messages = StreamIterator<Object?>(ws);
+    final message = 'x' * 64;
+    Future<int> echo(Stopwatch clock) async {
+      final sent = clock.elapsedMicroseconds;
+      ws.add(message);
+      if (!await messages.moveNext() || messages.current != message) {
+        throw StateError('Echo mismatch');
+      }
+      return clock.elapsedMicroseconds - sent;
+    }
+
+    final clock = Stopwatch()..start();
+    for (var i = 0; i < 200; i++) {
+      await echo(clock);
+    }
+    const count = 2000;
+    final latencies = <int>[];
+    final watch = Stopwatch()..start();
+    for (var i = 0; i < count; i++) {
+      latencies.add(await echo(clock));
+    }
+    watch.stop();
+    latencies.sort();
+    await ws.close();
+    await messages.cancel();
+    return {
+      'messages_per_second': count * 1000000 / watch.elapsedMicroseconds,
+      'p50_us': latencies[count ~/ 2],
+      'p99_us': latencies[count * 99 ~/ 100],
+    };
+  }
+  const count = 200000;
+  const frameBytes = 6 + 64; // masked client frame
+  const echoBytes = 2 + 64; // unmasked server frame
+  final socket = await Socket.connect('127.0.0.1', port);
+  socket.setOption(SocketOption.tcpNoDelay, true);
+  socket.write(
+    'GET /ws HTTP/1.1\r\nHost: 127.0.0.1\r\n'
+    'Upgrade: websocket\r\nConnection: Upgrade\r\n'
+    'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+    'Sec-WebSocket-Version: 13\r\n\r\n',
+  );
+  // FIN + text, MASK + length 64, an all-zero masking key, then the payload.
+  final frame = [0x81, 0x80 | 64, 0, 0, 0, 0, ...List.filled(64, 0x78)];
+  const perWrite = 1000;
+  final chunk = Uint8List(frame.length * perWrite);
+  for (var i = 0; i < perWrite; i++) {
+    chunk.setRange(i * frameBytes, (i + 1) * frameBytes, frame);
+  }
+  final header = <int>[];
+  var upgraded = false;
+  var received = 0;
+  final done = Completer<void>();
+  final watch = Stopwatch();
+  final subscription = socket.listen(
+    (data) {
+      if (!upgraded) {
+        header.addAll(data);
+        final text = latin1.decode(header);
+        final end = text.indexOf('\r\n\r\n');
+        if (end < 0) return;
+        if (!text.startsWith('HTTP/1.1 101')) {
+          done.completeError(StateError('Upgrade refused: $text'));
+          return;
+        }
+        upgraded = true;
+        received = header.length - (end + 4);
+        watch.start();
+        for (var i = 0; i < count ~/ perWrite; i++) {
+          socket.add(chunk);
+        }
+      } else {
+        received += data.length;
+      }
+      if (received >= count * echoBytes && !done.isCompleted) done.complete();
+    },
+    onError: (Object e) {
+      if (!done.isCompleted) done.completeError(e);
+    },
+    onDone: () {
+      if (!done.isCompleted) done.completeError(StateError('Closed early'));
+    },
+  );
+  await done.future;
+  watch.stop();
+  await subscription.cancel();
+  socket.destroy();
+  return {'messages_per_second': count * 1000000 / watch.elapsedMicroseconds};
 }

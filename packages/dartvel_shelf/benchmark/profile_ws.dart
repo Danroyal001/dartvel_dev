@@ -10,8 +10,6 @@ Future<void> main() async {
   dv.embedNativeServerLibrary(
     await File('lib/native/linux-x64/libdartvel_shelf.so').readAsBytes(),
   );
-  var drainCount = 0;
-  var wakeupCount = 0;
   final sw = Stopwatch()..start();
   const N = 500;
   var clientToSendUs = 0;
