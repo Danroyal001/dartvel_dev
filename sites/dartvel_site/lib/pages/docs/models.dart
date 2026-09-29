@@ -63,6 +63,14 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'tenant'],
               <String>['subject:, retain:', 'Who the data is about and how long '
                   'to keep it'],
+              <String>['offline: DVConflict.lastWriteWins', 'Reads and writes '
+                  'a copy on the device and syncs it when the server can be '
+                  'reached'],
+              <String>['indexes: [DVIndex([...], unique: true)]', 'Asks the '
+                  'database for more indexes than the key'],
+              <String>['access: DVModelAccess(...)', 'Who may view, create, '
+                  'update and delete through the data API, where no @DVPolicy '
+                  'class says'],
             ]),
           ],
         ),
@@ -89,6 +97,11 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               <String>['@DVModel.model3dField()', 'A 3D asset with a poster'],
               <String>['@DVModel.retain(years:, because:)', 'Keeps one field '
                   'longer, with the reason'],
+              <String>['@DVModel.validate(min:, max:, minLength:, maxLength:, '
+                  'pattern:)', 'Checked by save() before anything is written, '
+                  'and by Studio'],
+              <String>['@DVModel.uniqueField()', 'A unique index, and a write '
+                  'that repeats a value is refused'],
             ]),
           ],
         ),
@@ -114,7 +127,8 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
             DocsCode('models-widgets'),
             Bullets(<String>[
               'Article.Form() creates one and article.Form() edits that '
-                  'one. Saving is what the form does.',
+                  'one. Saving is what the form does, and it checks the '
+                  'model\'s rules first. See Forms.',
               'Article.Table(rows) sorts by column and skips sensitive fields.',
               'Article.Page has .sync, .async, .signal and .fromId.',
             ]),
