@@ -1633,6 +1633,38 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     ),'''
         : '';
 
+    // The two pages an application shows when a page cannot be shown: a path
+    // with nothing at it, and a path the device cannot reach. Both were
+    // documents the build wrote by hand, outside the router, so neither had a
+    // theme, a capture or an editor -- and the offline one could not have been
+    // a page in principle, being served exactly when the network is gone.
+    //
+    // Not in the manifest or DVRoutes: that list is the pages this
+    // application wrote, and an error page is neither. dvNotFoundRoute and
+    // dvOfflineRoute are how anything names them.
+    final Set<String> applicationRoutes = <String>{
+      for (final _PageEntry e in pageEntries) e.route,
+      for (final DVConfigRoute r in config.routes) r.path,
+    };
+    final String errorRoutesSrc = dvJoinRouteBlocks(<String>[
+      if (!applicationRoutes.contains('/404'))
+        '''
+    GoRoute(
+      path: '/404',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: DVNotFoundPage(route: state.uri.toString()),
+      ),
+    ),''',
+      if (!applicationRoutes.contains('/offline'))
+        '''
+    GoRoute(
+      path: '/offline',
+      pageBuilder: (context, state) => NoTransitionPage<void>(
+        child: DVOfflinePage(from: state.uri.queryParameters['from']),
+      ),
+    ),''',
+    ]);
+
     // Behind DVAccountPages.requireSession but sign-up. The endpoints each
     // page calls refuse without a session anyway; the gate is what makes that
     // a sign-in rather than a page of failed requests.
@@ -1662,6 +1694,7 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
       moduleRoutesSrc,
       oauthConsentRouteSrc,
       secondFactorRouteSrc,
+      errorRoutesSrc,
       accountRoutesSrc,
     ]);
     // Config routes after the generated ones; dvOrderGoRoutes decides where
