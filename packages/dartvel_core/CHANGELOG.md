@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **`dvNotFoundRoute` and `dvOfflineRoute`**: the two paths an application
+  serves when a page cannot be shown, as routes rather than as documents the
+  build wrote by hand. The strings live here because the CLI declares them and
+  redirects to one and does not depend on `dartvel_flutter`, while the widgets
+  that draw them need the same two paths, and a rename that missed either side
+  would leave a service worker redirecting to a route nothing serves.
+- `dvIsErrorPageRoute` answers whether a path is one of the two, so a build
+  leaves both out of the sitemap and a page whose own slug is `404` is not
+  mistaken for one.
+- `dvOfflineReturn` is the `from` a failed navigation carries: a path in this
+  application, or `/` for anything that could lead off the site, or that is the
+  offline route itself and so would never land.
+- `dvSafeInternalPath` is the rule those two `from` parameters share, lifted
+  out of `DVPageMfa.safeReturn` so an open redirect is fixed in one place.
+
 - **The first-run setup is a page of the Studio app, at `<mount>/setup`.**
   While an application is still on the password its first run printed, the
   mount answers nothing at all but that page: the app's shell and its own
