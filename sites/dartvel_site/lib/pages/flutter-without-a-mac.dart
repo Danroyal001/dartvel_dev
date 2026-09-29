@@ -26,8 +26,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'actually for.',
               level: 1,
             ),
-            Body('Apple requires its own tools to compile and sign an iOS or '
-                'macOS application, and those tools run on macOS. That is the '
+            Body('Apple requires its own tools to compile and sign an iOS, '
+                'macOS or tvOS application, and those tools run on macOS. That is the '
                 'whole of the restriction, and it covers running on an iPhone '
                 'as well as building for one. Everything else needs no Apple '
                 'hardware: writing the app, the website, Android, the Windows '
@@ -105,9 +105,10 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                   'hour or the month, and Xcode runs on it exactly as it '
                   'would on your desk.',
               '`dartvel build ios --cloud`. The build runs on our macOS '
-                  'workers, the log streams to your terminal, and the IPA '
+                  'workers, the log streams to your terminal, and the build '
                   'downloads into build/cloud checked against its SHA-256. '
-                  'Cloud is built and not open yet, and it will be paid.',
+                  'Cloud is built and not open yet, it will be paid, and a '
+                  'signed IPA from it is not built yet.',
             ]),
             CodeBlock(<String>[
               '# on a macOS runner, or a Mac you rent',
