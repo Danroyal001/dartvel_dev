@@ -54,7 +54,7 @@ Widget _vsHasuraPage(BuildContext context) => const SingleChildScrollView(
                 <String>['API', 'GraphQL, generated from your data sources', 'A typed Dart client generated from the model, plus GraphQL and OpenAPI endpoints'],
                 <String>['Type safety', 'A codegen step over your GraphQL documents', 'The compiler. A renamed field fails the build'],
                 <String>['Realtime', 'GraphQL subscriptions, generated for each model, in beta', 'Model change streams, also served as GraphQL subscriptions over SSE. Models do not sync to devices on their own yet'],
-                <String>['Offline', 'Left to the client', 'An offline store with a replay log. Saving through it is still a separate call'],
+                <String>['Offline', 'Left to the client', '@DVModel(offline: ...): save() writes the device copy at once, and the queue is sent when the server can be reached'],
                 <String>['Permissions', 'ModelPermissions in metadata files, in your repository', 'DV.Auth.authorization in Dart, default deny'],
                 <String>['Custom logic', 'Lambda connectors in TypeScript, Python or Go', '@DVBackendFunction, in the same repository as the app'],
                 <String>['Data sources', 'Postgres, MySQL, SQL Server, Oracle, MongoDB, ClickHouse, Snowflake, BigQuery and more', 'SQLite, Postgres, MySQL'],
