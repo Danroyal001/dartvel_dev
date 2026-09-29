@@ -917,4 +917,40 @@ void main() {
       );
     });
   });
+
+  group('the project graph', () {
+    // Studio's Routes, Functions, Tasks and Modules sections read the graph
+    // the build wrote beside the server. It is the project's structure, so it
+    // is data behind the grant, read through the API like every other thing
+    // Studio shows -- never a file under the mount.
+    test('is read through the API by a caller who may open Studio', () async {
+      File('${root.path}/graph.json')
+          .writeAsStringSync('{"jobs":[{"name":"Mail","queue":"mail"}]}');
+
+      final Response? response =
+          await server.respond(_request('GET', '/__studio/api/graph'));
+
+      expect(response?.status, 200);
+      expect(response!.headers.get('cache-control'), 'no-store');
+      expect(await _json(response), <String, Object?>{
+        'jobs': <Object?>[
+          <String, Object?>{'name': 'Mail', 'queue': 'mail'},
+        ],
+      });
+    });
+
+    test('is empty, not an error, when the build wrote none', () async {
+      final Response? response =
+          await server.respond(_request('GET', '/__studio/api/graph'));
+      expect(response?.status, 200);
+      expect(await _json(response!), <String, Object?>{});
+    });
+
+    test('is nothing to a caller who may not open Studio', () async {
+      File('${root.path}/graph.json').writeAsStringSync('{"models":[]}');
+      granted = false;
+      expect(
+          await server.respond(_request('GET', '/__studio/api/graph')), isNull);
+    });
+  });
 }
