@@ -92,9 +92,17 @@ class _DVDocsAppState extends State<DVDocsApp> {
   Object? _failure;
   DVRouter? _router;
 
+  /// The address the site was opened at, as a router location.
+  late String _opened;
+
   @override
   void initState() {
     super.initState();
+    // Read now, before anything is drawn: the page shown while the document
+    // loads is an app of its own, and on the web it reports its route to the
+    // browser, which replaces /docs/models in the address bar with /docs/ --
+    // so a deep link read after the document arrived opened the overview.
+    _opened = _where();
     final document = widget.document;
     if (document != null) {
       _adopt(document);
@@ -184,7 +192,7 @@ class _DVDocsAppState extends State<DVDocsApp> {
     _failure = null;
     if (_router != null) return;
     final DVRouter router = DVRouter(
-      initialLocation: _where(),
+      initialLocation: _opened,
       routes: <RouteBase>[
         GoRoute(
           // Everything. A bare `/*` does not match at the top level, which is
