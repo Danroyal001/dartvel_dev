@@ -364,6 +364,17 @@ static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 /// not say: reading its headers, reading its body, and waiting for Dart.
 const DEFAULT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// How long a refused body is drained before the connection closes.
+///
+/// A client that passes the limit is answered 413 with the connection told to
+/// close, but it is likely still writing. Dropping the body stream as the
+/// response goes out lets hyper stop reading the socket, the client's send
+/// buffer fills, its flush blocks, and it never sees the 413 (up to minutes
+/// of hang). Draining for this short a grace instead keeps the client
+/// unblocked long enough for the refusal to reach it; the stream is then
+/// dropped and the connection closes as it would have.
+const REFUSAL_DRAIN_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// The request timeout each thread configured and has not yet started a
 /// server with. Keyed by thread for the reason the pending handlers are: two
 /// isolates starting servers at once must not take each other's setting.
@@ -1237,6 +1248,22 @@ async fn read_request_body(
         // body that never ends stops here.
         if received.saturating_add(bytes.len() as u64) > limit {
             finish_body(req_id, &state, BodyTerminal::TooLarge);
+            // A client mid-body is still writing. Letting the stream drop
+            // here lets hyper stop reading the socket, the client's send
+            // buffer fills, its flush blocks, and it never sees the 413 this
+            // becomes (up to minutes of hang). Keep draining for a short
+            // grace so the refusal reaches the wire while the client can
+            // still receive it; when the grace ends the stream is dropped and
+            // hyper closes the connection as it would have. Only inside a
+            // runtime, where there is a connection to drain for: the unit
+            // tests poll this future by hand and have no runtime, so they
+            // keep the refusal without the socket.
+            if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+                runtime.spawn(async move {
+                    let deadline = tokio::time::Instant::now() + REFUSAL_DRAIN_GRACE;
+                    while let Ok(Some(_)) = tokio::time::timeout_at(deadline, body.next()).await {}
+                });
+            }
             return;
         }
         received += bytes.len() as u64;
@@ -1350,7 +1377,7 @@ fn declared_too_large(headers: &axum::http::HeaderMap, limit: u64) -> bool {
     }
 }
 
-/// 413, closing the connection so the rest of the body is never read.
+/// 413, closing the connection as a body that refused does.
 ///
 /// The same words the route checks in Dart answer with, so a client is told
 /// the same thing whichever side refused it, and nothing of the request: the

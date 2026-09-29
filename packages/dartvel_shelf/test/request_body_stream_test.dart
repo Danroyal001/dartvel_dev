@@ -392,8 +392,8 @@ void main() {
       // Paced, and reading whatever arrives rather than stopping at the first
       // byte: the refusal closes the connection, and a reset while this is
       // still writing can discard part of the answer. That the connection is
-      // closed and the rest of the body is not read is the guarantee; the
-      // 413 itself has to survive the same way it does in
+      // closed and the handler is given nothing past the limit is the
+      // guarantee; the 413 itself has to survive the same way it does in
       // request_body_limit_test.dart.
       try {
         for (int written = 0; written < sent; written += each) {
