@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **`DVDocsServer` serves the documentation site at its mount, the way Studio
+  is served.** With `access: studio` a person without the Studio grant who
+  opens a page of it is sent to Studio's sign-in, and the document, the graph
+  and the compiled site answer as a path the application does not serve; with
+  `access: public` it is served to anybody. Files are resolved by the same
+  rule as Studio's own (`dvAdminAsset`): decoded before they are checked,
+  never outside the site, and the site's shell for a path that is no file.
+- **`dvDocsMount` is off unless `dartvel.docs.enabled` is `true`**, for every
+  application and every build profile, and reads `dartvel.docs.access`
+  (`DVDocsAccess.studio`, the default, or `DVDocsAccess.public`).
+  `DVDocsMount.requiresAuth` follows from the access rather than being a
+  constructor argument, and `dvDocsMount` no longer takes `release:`.
+
 - **The documentation document is here, not in `dartvel_cli`.**
   `DVDocsDocument`, `DVDocsPage`, the five block kinds, the nine span kinds and
   `DVDocsTarget` are the wire format `dartvel docs` writes as `docs.json` and

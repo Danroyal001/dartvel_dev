@@ -224,9 +224,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           ),
           SiteCard(
             'Project docs',
-            '`dartvel docs` writes a static site of your models, functions, '
-                'routes, jobs and policies. It is not served inside your app '
-                'yet.',
+            '`dartvel docs` builds a Flutter site of your models, functions, '
+                'routes, jobs and policies. It is off unless dartvel.docs '
+                'turns it on, and served behind Studio by default.',
             section: 'Documentation Generation',
           ),
           SiteCard(

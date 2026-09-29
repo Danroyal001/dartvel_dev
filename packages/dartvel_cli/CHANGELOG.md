@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **The documentation site is off unless `pubspec.yaml` turns it on, and
+  compiled when it is.** `dartvel.docs.enabled: true` makes a build compile
+  `DVDocsApp` for `dartvel.docs.path` (default `/docs`) with the document
+  beside it; nothing else does, for any application or profile.
+  `dartvel.docs.access` is `studio` by default: a `web-server` build carries
+  the site in a section of the binary of its own and serves it behind Studio's
+  sign-in and grant, and refuses when it serves no Studio. A static `web`
+  build carries only an `access: public` site, at its mount, and refuses one
+  behind Studio, which a static host cannot keep. Either build refuses a mount
+  that an application page is at or inside, naming the page's file. See
+  `docs/docs_options.md`.
+- `dartvel docs --serve` compiles the site for the root of its loopback port,
+  where it serves it. It was compiled for `/docs/`, so the shell asked the
+  server for `/docs/flutter_bootstrap.js` and got the shell back.
+
 - **`dartvel docs` writes a document, not nine pages of hand-written HTML.**
   It emitted `index.html`, `models.html`, `functions.html`, `routes.html`,
   `jobs.html`, `policies.html`, `modules.html`, `diagnostics.html` and a page
@@ -17,8 +32,7 @@
   unknown kind is the one thing that could make the document mean something
   other than what it says. The types themselves moved to `dartvel_core`, next
   to the app that draws them: the two packages do not depend on each other and
-  a wire format declared twice is one half can change on its own. The site
-  does not render yet -- the app and its build land next.
+  a wire format declared twice is one half can change on its own.
 
 - **The build writes one file into the admin root, and it is the graph.** It
   wrote four: a static dashboard, its stylesheet, its script and the graph.
