@@ -16,7 +16,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVAdminAsset, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, dvAdminAsset, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
 // functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
@@ -160,14 +160,7 @@ String dvServeRoute({
 List<String> dvWebServerStaleFiles({required List<String> present}) =>
     present
         .where((String path) =>
-            path.endsWith('/index.html') &&
-            path != 'index.html' &&
-            // The admin's shell is called index.html and is not a route: it
-            // is written by this same build into a directory the server
-            // reads from, and sweeping it away leaves the mount answering
-            // nothing again. It survives the order it is written in today,
-            // and would not survive somebody reordering two lines.
-            !path.startsWith('__admin/'))
+            path.endsWith('/index.html') && path != 'index.html')
         .toList();
 
 /// The server `dartvel build web-server` is for.
@@ -202,15 +195,13 @@ Handler dvWebServerHandler({
   Duration? staleFor,
   bool? streaming,
   DVCacheAdapter? pageStore,
-  // The admin, served by the backend rather than compiled into the client.
-  // Null is no admin at all, which is what a release build that never asked
-  // for one gets: not a disabled route, no route.
+  // Studio's mount. Null is no Studio at all, which is what a release build
+  // that never asked for one gets: not a disabled route, no route. Given
+  // with no [adminServer], the mount is hidden: nothing under it is ever a
+  // file.
   DVAdminMount? admin,
-  String? adminRoot,
-  Future<bool> Function(Request request)? adminAuthenticated,
-  // Studio's data as well as its files: the same server the web-server
-  // binary mounts, which decides who reaches the mount itself. Given one,
-  // [admin] is answered through it and [adminAuthenticated] is not asked.
+  // Studio: its pages, its API and its code, answered by the same server the
+  // web-server binary mounts, which decides who reaches any of it.
   core.DVAdminServer? adminServer,
   // The page documents Studio published, which a web-server build's app
   // reads from /_dartvel/pages.
@@ -359,34 +350,21 @@ Handler dvWebServerHandler({
         }
         return _shelfResponse(answered);
       }
-    } else if (admin != null) {
-      final DVAdminRequest decision = dvAdminFor(
-        path,
-        admin,
-        authenticated: adminAuthenticated == null
-            ? false
-            : await adminAuthenticated(request),
-      );
-      switch (decision) {
-        case DVAdminRequest.hidden:
-          return Response(dvAdminHiddenStatus,
-              body: '', headers: dvAdminHiddenHeaders);
-        case DVAdminRequest.serve:
-          // Which file, with what type, and refusing a path that climbs out
-          // of the admin root: dartvel_core's, the same resolution the
-          // web-server binary serves the dashboard with. A refused path is
-          // answered with the same nothing as a hidden admin, rather than an
-          // error naming what was attempted.
-          final DVAdminAsset? asset = dvAdminAsset(
-              adminRoot ?? p.join(webRoot, '__admin'), admin, path);
-          if (asset == null) {
-            return Response(dvAdminHiddenStatus,
-                body: '', headers: dvAdminHiddenHeaders);
-          }
-          return Response.ok(asset.bytes, headers: asset.headers);
-        case DVAdminRequest.notTheAdmin:
-          break;
+      // Studio's code, loaded from the site root like any deferred part, and
+      // never a file here: given to a caller the grant admits, and to anybody
+      // else answered as the path that does not exist that it is for them.
+      if (path.length > 1 &&
+          adminServer.studioParts.containsKey(path.substring(1))) {
+        final core.Response? part =
+            await adminServer.respond(await _coreRequest(request));
+        if (part != null) return _shelfResponse(part);
       }
+    } else if (admin != null &&
+        dvAdminFor(path, admin, authenticated: false) !=
+            DVAdminRequest.notTheAdmin) {
+      // A mount with nothing to answer it: hidden, whoever asks.
+      return Response(dvAdminHiddenStatus,
+          body: '', headers: dvAdminHiddenHeaders);
     }
 
     // A file on disk wins, so main.dart.js and the assets are served as
