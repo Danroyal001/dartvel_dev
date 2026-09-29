@@ -158,4 +158,37 @@ void main() {
     await ended.timeout(const Duration(seconds: 3));
     expect(ws.closeCode, 1009);
   });
+
+  test('a burst of 10,000 sink.add calls to a slow client does not throw and arrives in order', () async {
+    const total = 10000;
+    final server = await serve(
+      webSocketHandler((channel, _) {
+        for (var i = 0; i < total; i++) {
+          channel.sink.add('msg-$i');
+        }
+        channel.sink.close(1000, 'done');
+      }),
+      port: 0,
+    );
+    addTearDown(server.stop);
+    final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}/');
+    var received = 0;
+    final completer = Completer<void>();
+    late StreamSubscription subscription;
+    subscription = ws.listen(
+      (data) {
+        expect(data, 'msg-$received');
+        received++;
+        if (received % 500 == 0) {
+          subscription.pause();
+          Timer(const Duration(milliseconds: 5), subscription.resume);
+        }
+      },
+      onDone: completer.complete,
+      onError: completer.completeError,
+    );
+    await completer.future.timeout(const Duration(seconds: 30));
+    expect(received, total);
+  });
 }
+
