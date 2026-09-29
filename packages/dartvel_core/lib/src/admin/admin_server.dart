@@ -1,6 +1,7 @@
-/// The admin dashboard, served at its mount by whatever serves the backend.
+/// Studio at its mount, answered by whatever serves the backend: its pages,
+/// which are routes of the application, its API, and its code.
 ///
-/// `dartvel preview` served the dashboard and the web-server binary, which is
+/// `dartvel preview` served Studio and the web-server binary, which is
 /// the deployment, did not: the rules lived in the CLI and the generated
 /// backend cannot depend on the CLI. They live here so both servers answer
 /// the same request the same way, rather than as two copies that drift.
@@ -106,65 +107,10 @@ DVAdminRequest dvAdminFor(
   return DVAdminRequest.serve;
 }
 
-/// One file of the dashboard, ready to send.
-class DVAdminAsset {
-  const DVAdminAsset(this.bytes, this.contentType);
-
-  final Uint8List bytes;
-  final String contentType;
-
-  /// The headers it goes out with.
-  ///
-  /// Never stored by a shared cache: a dashboard kept by a proxy after one
-  /// signed-in request is served to the next person who asks, signed in or
-  /// not.
-  Map<String, String> get headers => <String, String>{
-        'content-type': contentType,
-        'cache-control': 'no-store',
-      };
-}
-
-/// The file under [root] that [path], a request path under [mount], names.
+/// The content type of one of Studio's parts, or anything else Studio serves.
 ///
-/// The mount itself is `index.html`, and a path under it that is no file is
-/// the shell too: the admin is one application with its own routes. Null
-/// when the path tries to leave [root] or there is no shell to fall back to.
-DVAdminAsset? dvAdminAsset(String root, DVAdminMount mount, String path) {
-  final String rest = path.substring(mount.path.length);
-  final String relative =
-      rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
-  // Decoded before it is checked, so %2e%2e is the same two dots here as it
-  // is to any proxy in front of this. An invalid escape is not a filename.
-  final String decoded;
-  try {
-    decoded = Uri.decodeComponent(relative).replaceAll(r'\', '/');
-  } on ArgumentError {
-    return null;
-  }
-  final List<String> segments = <String>[];
-  for (final String segment in decoded.split('/')) {
-    if (segment.isEmpty || segment == '.') continue;
-    // Refused rather than resolved. A dot-dot that stays inside the root is
-    // still a request nobody's dashboard makes.
-    if (segment == '..' || segment.contains(':')) return null;
-    segments.add(segment);
-  }
-  if (decoded.startsWith('/')) return null;
-  final String separator = Platform.pathSeparator;
-  final File asset = File(<String>[root, ...segments].join(separator));
-  if (segments.isNotEmpty && asset.existsSync()) {
-    return DVAdminAsset(
-        asset.readAsBytesSync(), dvAdminContentType(segments.last));
-  }
-  final File shell = File('$root${separator}index.html');
-  if (!shell.existsSync()) return null;
-  return DVAdminAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
-}
-
-/// The content type for a file the admin serves.
-///
-/// Serving admin.js as text/plain leaves a blank page and a console error
-/// about a MIME type, which reads as a broken admin rather than a missing
+/// A script served as text/plain leaves a blank page and a console error
+/// about a MIME type, which reads as a broken Studio rather than a missing
 /// line here.
 String dvAdminContentType(String relative) {
   final String name = relative.toLowerCase();
