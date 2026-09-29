@@ -39,14 +39,15 @@ String _labels(WidgetTester tester) {
   return buffer.toString();
 }
 
-/// The labels carried by nodes marked as headings. A heading is what the
+/// The labels carried by level-1 headings. A level-1 heading is what the
 /// capture turns into an `<h1>`, and the accessibility gate fails a build
-/// whose captured route has none, so this is what these pages are tested on.
+/// whose captured route has headings but none at level 1 -- which is what a
+/// bare `header: true` is -- so this is what these pages are tested on.
 List<String> _headings(WidgetTester tester) {
   final SemanticsNode root = _semanticsRoot(tester);
   final List<String> headings = <String>[];
   void walk(SemanticsNode node) {
-    if (node.flagsCollection.isHeader && node.label.isNotEmpty) {
+    if (node.headingLevel == 1 && node.label.isNotEmpty) {
       headings.add(node.label);
     }
     node.visitChildren((SemanticsNode child) {

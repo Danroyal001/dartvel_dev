@@ -73,7 +73,7 @@ class DVOfflinePage extends StatelessWidget {
       body: <String>[
         'This page is on this device, so it works without a network.',
         if (from != null && from!.isNotEmpty)
-          'Dartvel could not open $from.',
+          '$from could not be opened.',
         'Check the connection, then try again.',
       ],
       children: <Widget>[
@@ -114,8 +114,12 @@ class _DVErrorPage extends StatelessWidget {
             mainAxisSize: .min,
             crossAxisAlignment: .start,
             children: <Widget>[
+              // Level 1: the capture's <h1>, which the accessibility gate
+              // requires of every captured route. A bare header is a heading
+              // of no level, and a page of those names nothing.
               Semantics(
                 header: true,
+                headingLevel: 1,
                 child: Text(title, style: text.headlineMedium),
               ),
               const SizedBox(height: 12),
