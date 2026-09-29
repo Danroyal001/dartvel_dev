@@ -1609,6 +1609,7 @@ pub extern "C" fn aw_server_port(server_id: u64) -> u16 {
 
 #[no_mangle]
 pub extern "C" fn aw_stop(server_id: u64) -> i32 {
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).retain(|_, bridge| bridge.server != Some(server_id));
     if let Some(handles) = SERVER_HANDLES.get() {
         let mut map = safe_lock(handles);
         if let Some(handle) = map.remove(&server_id) {
@@ -1801,6 +1802,9 @@ async fn dart_proxy_with_fallback(
             .unwrap(),
     };
 
+    let (mut parts, body) = req.into_parts();
+    let upgrade = WebSocketUpgrade::from_request_parts(&mut parts, &()).await.ok();
+    let req = Request::from_parts(parts, body);
     let method = req.method().as_str().as_bytes().to_vec();
     let target = req.uri().to_string().into_bytes();
     let flattened_headers = headers_flat(&req);
@@ -1962,6 +1966,7 @@ async fn dart_proxy_with_fallback(
     };
 
     if terminal.is_refusal() {
+        aw_ws_dispose(req_id);
         if let Some(mutex) = PENDING_RESPONSES.get() {
             safe_lock(mutex).remove(&req_id);
         }
@@ -1976,9 +1981,29 @@ async fn dart_proxy_with_fallback(
     }
 
     match answered {
-        Ok(Ok(resp)) => response_from_dart(resp, req_id, server_id, fallback),
+        Ok(Ok(resp)) => {
+            let pending = safe_lock(WS_PENDING.get_or_init(Default::default)).remove(&req_id);
+            if let Some(pending) = pending {
+                if resp.status == 101 {
+                    if let Some(upgrade) = upgrade {
+                        if let Some(bridge) = safe_lock(WS_BRIDGES.get_or_init(Default::default)).get_mut(&req_id) {
+                            bridge.server = server_id;
+                        }
+                        let upgrade = upgrade.max_message_size(pending.max).max_frame_size(pending.max);
+                        let upgrade = if pending.protocol.is_empty() { upgrade } else {
+                            upgrade.protocols([pending.protocol.clone()])
+                        };
+                        return upgrade.on_upgrade(move |socket| run_websocket(socket, pending));
+                    }
+                }
+                aw_ws_dispose(req_id);
+                return plain_response(StatusCode::BAD_REQUEST);
+            }
+            response_from_dart(resp, req_id, server_id, fallback)
+        },
         Ok(Err(_)) => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
         Err(_) => {
+            aw_ws_dispose(req_id);
             if let Some(mutex) = PENDING_RESPONSES.get() {
                 safe_lock(mutex).remove(&req_id);
             }
@@ -2857,4 +2882,150 @@ mod body_stream_tests {
         assert_eq!(body_chunk_handler(None), None);
         safe_lock(handlers).remove(&server);
     }
+}
+
+// WebSocket messages cross the ABI through bounded queues, never a callback
+// that could outlive an isolate. Dart pulls only while its stream is resumed.
+use axum::extract::{FromRequestParts, ws::{WebSocketUpgrade, WebSocket, Message, CloseFrame}};
+use futures_util::SinkExt;
+
+struct WsBridge {
+    server: Option<u64>,
+    max: usize,
+    incoming: Mutex<mpsc::Receiver<Message>>,
+    outgoing: mpsc::Sender<Message>,
+}
+struct WsPending {
+    max: usize,
+    protocol: String,
+    incoming: mpsc::Sender<Message>,
+    outgoing: mpsc::Receiver<Message>,
+}
+static WS_BRIDGES: OnceCell<Mutex<HashMap<u64, WsBridge>>> = OnceCell::new();
+static WS_PENDING: OnceCell<Mutex<HashMap<u64, WsPending>>> = OnceCell::new();
+
+/// Creates bounded queues before completing an HTTP upgrade response.
+#[no_mangle]
+pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
+    if max == 0 || max > 64 * 1024 * 1024 { return -1; }
+    let protocol = if protocol.len == 0 { String::new() } else {
+        String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(protocol.ptr, protocol.len) }).into_owned()
+    };
+    let (in_tx, in_rx) = mpsc::channel(8);
+    let (out_tx, out_rx) = mpsc::channel(8);
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).insert(id, WsBridge {
+        server: None, max, incoming: Mutex::new(in_rx), outgoing: out_tx,
+    });
+    safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
+        max, protocol, incoming: in_tx, outgoing: out_rx,
+    });
+    0
+}
+
+/// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
+#[no_mangle]
+pub extern "C" fn aw_ws_send(id: u64, kind: i32, data: FfiBuf) -> i32 {
+    let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
+    let Some(bridge) = bridges.get(&id) else { return -1; };
+    if (matches!(kind, 1 | 2) && data.len > bridge.max) || (matches!(kind, 8 | 9 | 10) && data.len > 125) { return -1; }
+    let bytes = if data.len == 0 { Vec::new() } else {
+        unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+    };
+    let message = match kind {
+        1 => match String::from_utf8(bytes) { Ok(text) => Message::Text(text), Err(_) => return -1 },
+        2 => Message::Binary(bytes),
+        9 => Message::Ping(bytes),
+        10 => Message::Pong(bytes),
+        8 => {
+            if bytes.len() < 2 { Message::Close(None) } else {
+                let code = u16::from_be_bytes([bytes[0], bytes[1]]);
+                let Ok(reason) = String::from_utf8(bytes[2..].to_vec()) else { return -1; };
+                Message::Close(Some(CloseFrame { code, reason: reason.into() }))
+            }
+        },
+        _ => return -1,
+    };
+    match bridge.outgoing.try_send(message) {
+        Ok(()) => 0,
+        Err(mpsc::error::TrySendError::Full(_)) => 1,
+        Err(_) => -1,
+    }
+}
+
+#[repr(C)]
+pub struct FfiWsFrame { pub kind: i32, pub data: FfiBuf }
+
+/// 0 means pending, -1 closed. Positive kinds own data until aw_ws_free.
+#[no_mangle]
+pub extern "C" fn aw_ws_receive(id: u64) -> FfiWsFrame {
+    let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
+    let empty = |kind| FfiWsFrame { kind, data: FfiBuf { ptr: std::ptr::null(), len: 0 } };
+    let Some(bridge) = bridges.get(&id) else { return empty(-1); };
+    let result = safe_lock(&bridge.incoming).try_recv();
+    let message = match result {
+        Ok(message) => message,
+        Err(mpsc::error::TryRecvError::Empty) => return empty(0),
+        Err(_) => return empty(-1),
+    };
+    let (kind, bytes) = match message {
+        Message::Text(text) => (1, text.into_bytes()),
+        Message::Binary(bytes) => (2, bytes),
+        Message::Ping(bytes) => (9, bytes),
+        Message::Pong(bytes) => (10, bytes),
+        Message::Close(frame) => (8, frame.map(|f| {
+            let mut bytes = f.code.to_be_bytes().to_vec();
+            bytes.extend_from_slice(f.reason.as_bytes()); bytes
+        }).unwrap_or_default()),
+    };
+    let boxed = bytes.into_boxed_slice();
+    let len = boxed.len();
+    FfiWsFrame { kind, data: FfiBuf { ptr: Box::into_raw(boxed) as *const u8, len } }
+}
+
+#[no_mangle]
+pub extern "C" fn aw_ws_free(data: FfiBuf) {
+    if !data.ptr.is_null() {
+        unsafe { drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(data.ptr as *mut u8, data.len))); }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn aw_ws_dispose(id: u64) {
+    safe_lock(WS_PENDING.get_or_init(Default::default)).remove(&id);
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).remove(&id);
+}
+
+async fn run_websocket(socket: WebSocket, pending: WsPending) {
+    let (mut sink, mut stream) = socket.split();
+    let mut outgoing = pending.outgoing;
+    let incoming = pending.incoming;
+    // A blocked incoming queue must not prevent outgoing traffic (or closure).
+    let read = async {
+        while let Some(message) = stream.next().await {
+            let message = match message {
+                Ok(message) => message,
+                Err(error) => {
+                    let code = match error.into_inner().downcast::<tungstenite::Error>() {
+                        Ok(error) if matches!(*error, tungstenite::Error::Capacity(_)) => 1009,
+                        _ => 1002,
+                    };
+                    return Some(Message::Close(Some(CloseFrame { code, reason: "".into() })));
+                }
+            };
+            let closed = matches!(message, Message::Close(_));
+            // Tungstenite queues automatic pong/close replies when reading.
+            if incoming.send(message).await.is_err() || closed { break; }
+        }
+        None
+    };
+    let write = async {
+        while let Some(message) = outgoing.recv().await {
+            let closed = matches!(message, Message::Close(_));
+            if sink.send(message).await.is_err() || closed { break; }
+        }
+        None
+    };
+    let close = tokio::select! { close = read => close, close = write => close };
+    if let Some(close) = close { let _ = sink.send(close).await; }
+    let _ = sink.flush().await;
 }
