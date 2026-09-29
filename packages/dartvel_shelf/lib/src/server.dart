@@ -21,7 +21,7 @@ import 'package:dartvel_core/framework.dart' show DVAssetHttpPolicy, DVAssetSour
 
 import 'ffi_string.dart';
 import 'native_library.dart';
-export 'native_library.dart' show embedNativeServerLibrary;
+export 'native_library.dart' show embedNativeServerLibrary, embedNativeServerLibraryAt;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
 import 'asset_response.dart';
