@@ -31,8 +31,9 @@ Widget _docsDatabasePage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'SQLite turns on WAL mode and foreign keys.',
-              'A web-server binary from `dartvel build` needs no DATABASE_URL. '
-                  'It creates a SQLite file beside itself on its first run.',
+              'A binary from `dartvel build web-server` needs no '
+                  'DATABASE_URL. It keeps a SQLite file in dartvel_data beside '
+                  'itself, and DARTVEL_DATA_DIR moves that folder.',
               '`dartvel db migrate` reads dartvel.database in pubspec.yaml, '
                   'shown under the migrate section below.',
             ]),

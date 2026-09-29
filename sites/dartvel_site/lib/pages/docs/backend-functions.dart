@@ -236,8 +236,10 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Backend', missing: <String>[
-              'Functions are served over HTTP. WebSocket and polling '
-                  'transports are not generated.',
+              'Functions are served over HTTP, and a Stream result over '
+                  'server-sent events. dartvel_shelf, the server the backend '
+                  'runs on, has served WebSockets since 0.9.2, but no backend '
+                  'function is given a WebSocket or polling transport yet.',
             ]),
           ],
         ),
