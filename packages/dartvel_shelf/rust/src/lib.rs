@@ -299,6 +299,15 @@ static SERVER_STREAM_ACK_HANDLERS: OnceCell<Mutex<HashMap<u64, DartStreamAckHand
 static DART_STREAM_ACK_HANDLER: OnceCell<Mutex<Option<DartStreamAckHandler>>> =
     OnceCell::new();
 
+pub type DartWsWakeupHandler = extern "C" fn(u64);
+
+static DART_WS_WAKEUP_HANDLER: OnceCell<Mutex<Option<DartWsWakeupHandler>>> = OnceCell::new();
+static PENDING_WS_WAKEUP_HANDLERS: OnceCell<
+    Mutex<HashMap<std::thread::ThreadId, DartWsWakeupHandler>>,
+> = OnceCell::new();
+static SERVER_WS_WAKEUP_HANDLERS: OnceCell<Mutex<HashMap<u64, DartWsWakeupHandler>>> =
+    OnceCell::new();
+
 /// Rides along in the request extensions so a handler can tell which server
 /// took the request. Cheaper than threading state through every route.
 #[derive(Clone, Copy)]
@@ -652,6 +661,19 @@ fn stream_ack(req_id: u64, server_id: Option<u64>) {
     }
 }
 
+fn ws_wakeup(req_id: u64, server_id: Option<u64>) {
+    let cb = server_id
+        .and_then(|id| {
+            SERVER_WS_WAKEUP_HANDLERS
+                .get()
+                .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+        })
+        .or_else(|| DART_WS_WAKEUP_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(cb) = cb {
+        (cb)(req_id);
+    }
+}
+
 // Stream wrapper to trigger Dart cancellation on drop and backpressure acks on read
 struct CancelOnDropStream<S> {
     inner: S,
@@ -734,6 +756,14 @@ pub extern "C" fn aw_register_stream_ack_handler(cb: DartStreamAckHandler) {
     let slot = DART_STREAM_ACK_HANDLER.get_or_init(|| Mutex::new(None));
     *safe_lock(slot) = Some(cb);
     let pending = PENDING_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(std::thread::current().id(), cb);
+}
+
+#[no_mangle]
+pub extern "C" fn aw_register_ws_wakeup_handler(cb: DartWsWakeupHandler) {
+    let slot = DART_WS_WAKEUP_HANDLER.get_or_init(|| Mutex::new(None));
+    *safe_lock(slot) = Some(cb);
+    let pending = PENDING_WS_WAKEUP_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
     safe_lock(pending).insert(std::thread::current().id(), cb);
 }
 
@@ -1532,6 +1562,14 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let handlers = SERVER_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
         safe_lock(handlers).insert(server_id, handler);
     }
+    let ws_wakeup_handler = PENDING_WS_WAKEUP_HANDLERS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .or_else(|| DART_WS_WAKEUP_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(handler) = ws_wakeup_handler {
+        let handlers = SERVER_WS_WAKEUP_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server_id, handler);
+    }
 
     let handle_clone = handle.clone();
 
@@ -1609,6 +1647,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
                 safe_lock(handlers).remove(&server_id);
             }
             if let Some(handlers) = SERVER_STREAM_ACK_HANDLERS.get() {
+                safe_lock(handlers).remove(&server_id);
+            }
+            if let Some(handlers) = SERVER_WS_WAKEUP_HANDLERS.get() {
                 safe_lock(handlers).remove(&server_id);
             }
         });
@@ -2004,12 +2045,13 @@ async fn dart_proxy_with_fallback(
     match answered {
         Ok(Ok(resp)) => {
             let pending = safe_lock(WS_PENDING.get_or_init(Default::default)).remove(&req_id);
-            if let Some(pending) = pending {
+            if let Some(mut pending) = pending {
                 if resp.status == 101 {
                     if let Some(upgrade) = upgrade {
                         if let Some(bridge) = safe_lock(WS_BRIDGES.get_or_init(Default::default)).get_mut(&req_id) {
                             bridge.server = server_id;
                         }
+                        pending.server = server_id;
                         let upgrade = upgrade.max_message_size(pending.max).max_frame_size(pending.max);
                         let upgrade = if pending.protocol.is_empty() { upgrade } else {
                             upgrade.protocols([pending.protocol.clone()])
@@ -2906,6 +2948,8 @@ struct WsBridge {
     outgoing: mpsc::Sender<Message>,
 }
 struct WsPending {
+    id: u64,
+    server: Option<u64>,
     pongs: Arc<AtomicU64>,
     max: usize,
     protocol: String,
@@ -2929,7 +2973,7 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
         server: None, max, pongs: pongs.clone(), incoming: Mutex::new(in_rx), outgoing: out_tx,
     });
     safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
-        max, protocol, pongs, incoming: in_tx, outgoing: out_rx,
+        id, server: None, max, protocol, pongs, incoming: in_tx, outgoing: out_rx,
     });
     0
 }
@@ -3022,6 +3066,8 @@ pub extern "C" fn aw_ws_dispose(id: u64) {
 }
 
 async fn run_websocket(socket: WebSocket, pending: WsPending) {
+    let req_id = pending.id;
+    let server_id = pending.server;
     let (mut sink, mut stream) = socket.split();
     let mut outgoing = pending.outgoing;
     let incoming = pending.incoming;
@@ -3047,8 +3093,13 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
             }
             let closed = matches!(message, Message::Close(_));
             // Tungstenite queues automatic pong/close replies when reading.
-            if incoming.send(message).await.is_err() || closed { break; }
+            if incoming.send(message).await.is_err() || closed {
+                ws_wakeup(req_id, server_id);
+                break;
+            }
+            ws_wakeup(req_id, server_id);
         }
+        ws_wakeup(req_id, server_id);
         None
     };
     let write = async {
@@ -3061,4 +3112,5 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let close = tokio::select! { close = read => close, close = write => close };
     if let Some(close) = close { let _ = sink.send(close).await; }
     let _ = sink.flush().await;
+    ws_wakeup(req_id, server_id);
 }
