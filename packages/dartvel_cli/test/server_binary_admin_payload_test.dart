@@ -1,10 +1,10 @@
 // What a web-server binary carries of the admin dashboard.
 //
-// The binary serves every file of its 'web' section to anybody who asks, so
-// the dashboard cannot ride in there: it was left out, and so the one file
-// that is the deployment had no admin at all. It goes in a section of its
-// own, with the mount it is served at, and the web section still carries
-// none of it.
+// The binary serves every file under web/ in its pack to anybody who asks,
+// so the dashboard cannot ride in there: it was left out, and so the one
+// file that is the deployment had no admin at all. It goes under admin/,
+// every file marked protected, with the mount it is served at in a section
+// of its own, and web/ carries none of it.
 //
 // No compiler here: the compile step is handed a stand-in executable that
 // ends the way `dart compile exe` output does, and the payload is read back
@@ -76,18 +76,30 @@ void main() {
     return payload!;
   }
 
-  test('carries the dashboard in its own section, with its mount', () async {
+  DVAssetPack packOf(DVBinaryPayload payload) {
+    final ({int offset, int length}) at = payload.locate('assets')!;
+    return DVAssetPack.open(payload.path, offset: at.offset, length: at.length)!;
+  }
+
+  test('carries the dashboard under admin/, protected, with its mount', () async {
     final DVBinaryPayload payload = await build(
       admin: const DVAdminMount(
           path: '/ops/panel', enabled: true, requiresAuth: true),
     );
 
-    expect(payload.names, containsAll(<String>['web', 'admin', 'admin.mount']));
-    final Map<String, List<int>> admin =
-        dvUnpackFiles(payload.section('admin'));
-    expect(admin.keys,
-        unorderedEquals(<String>['index.html', 'admin.css', 'admin.js', 'graph.json']));
-    expect(utf8.decode(admin['index.html']!), 'studio index.html');
+    expect(payload.names, containsAll(<String>['native', 'assets', 'admin.mount']));
+    // Nothing is carried the old way, as a stream written out at start.
+    expect(payload.names, isNot(contains('web')));
+    expect(payload.names, isNot(contains('admin')));
+    final DVAssetPack pack = packOf(payload);
+    final List<String> admin = <String>[
+      for (final String path in pack.paths)
+        if (path.startsWith('admin/')) path.substring(6),
+    ];
+    expect(admin, unorderedEquals(<String>['index.html', 'admin.css', 'admin.js', 'graph.json']));
+    expect(utf8.decode(pack.read(pack['admin/index.html']!)), 'studio index.html');
+    expect(pack.assets.where((DVPackedAsset a) => a.path.startsWith('admin/')).every((DVPackedAsset a) => a.protected),
+        isTrue);
 
     // The mount the build decided, not the default: a project that moved its
     // admin somewhere private must not find it back at /__studio.
@@ -95,15 +107,16 @@ void main() {
         <String, Object?>{'path': '/ops/panel', 'requiresAuth': true});
   });
 
-  test('never puts the dashboard in the web section', () async {
+  test('never puts the dashboard among the web files', () async {
     final DVBinaryPayload payload = await build(
       admin: const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: false),
     );
 
-    final Map<String, List<int>> web = dvUnpackFiles(payload.section('web'));
-    expect(web.keys, contains('index.html'));
-    expect(web.keys.where((String path) => path.contains('__admin')), isEmpty);
+    final DVAssetPack pack = packOf(payload);
+    expect(pack.paths, contains('web/index.html'));
+    expect(pack.paths.where((String path) => path.contains('__admin')), isEmpty);
+    expect(pack['web/index.html']!.protected, isFalse);
   });
 
   test('carries no admin where the build has none', () async {
@@ -112,8 +125,8 @@ void main() {
       const DVAdminMount(path: '/__studio', enabled: false, requiresAuth: true),
     ]) {
       final DVBinaryPayload payload = await build(admin: admin);
-      expect(payload.names, isNot(contains('admin')));
       expect(payload.names, isNot(contains('admin.mount')));
+      expect(packOf(payload).paths.where((String path) => path.startsWith('admin/')), isEmpty);
     }
   });
 }

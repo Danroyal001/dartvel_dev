@@ -214,6 +214,10 @@ Future<String> _ping() async => 'pong from one file';
         ..createSync(recursive: true)
         ..writeAsStringSync('<html><head><title>The site</title></head>'
             '<body></body></html>');
+      // A code asset big enough to be worth compressing.
+      final String script =
+          List<String>.generate(2000, (int i) => 'function f$i(){return $i}').join('\n');
+      File(p.join(web.path, 'main.dart.js')).writeAsStringSync(script);
       // What the web-server build writes: the dashboard under __admin in the
       // web output, which the binary must not serve as a web file.
       final Map<String, String> dashboard = <String, String>{
@@ -308,6 +312,34 @@ Future<String> _ping() async => 'pong from one file';
           await Future<void>.delayed(const Duration(milliseconds: 250));
         }
       }
+
+      // The web app is read from the binary, in the encoding it was kept
+      // in, and nothing of it was written beside the binary.
+      final HttpClient raw = HttpClient()..autoUncompress = false;
+      try {
+        final HttpClientRequest request =
+            await raw.getUrl(Uri.parse('http://127.0.0.1:$port/main.dart.js'));
+        request.headers
+          ..removeAll(HttpHeaders.acceptEncodingHeader)
+          ..set(HttpHeaders.acceptEncodingHeader, 'br');
+        final HttpClientResponse response = await request.close();
+        await response.drain<void>();
+        expect(response.statusCode, 200);
+        expect(response.headers.value('content-encoding'), 'br');
+        expect(response.headers.value('etag'), isNotNull);
+        expect(response.headers.value('cache-control'), 'public, no-cache');
+        final String plain = await get('/main.dart.js').then((r) => r.body);
+        expect(plain, script);
+      } finally {
+        raw.close(force: true);
+      }
+      final List<String> kept = <String>[
+        for (final FileSystemEntity e
+            in Directory(p.join(elsewhere.path, 'dartvel_data')).listSync())
+          p.basename(e.path),
+      ];
+      expect(kept, isNot(contains('.web')));
+      expect(kept, isNot(contains('.admin')));
       return get;
     }
 
