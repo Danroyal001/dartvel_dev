@@ -38,7 +38,7 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'DARTVEL_DATA_DIR moves dartvel_data somewhere else, such as a '
                   'mounted volume.',
               'Set DATABASE_URL to use PostgreSQL or MySQL. The binary does '
-                  'not migrate those on start.',
+                  'not migrate those on start: run `dartvel db migrate`.',
               'With dartvel.admin.enabled on, the binary serves the admin at '
                   '/__studio. dartvel.admin.path moves it.',
             ]),
@@ -94,8 +94,10 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'Redis, every instance serves what one of them resolved.',
             ]),
             DocsStatus('Web Server Rendering', missing: <String>[
-              'Widgets are not rendered to HTML. Crawlers get the head tags '
-                  'and text written from the page\'s data.',
+              'Widgets are not rendered to HTML on each request. Crawlers get '
+                  'the text, links and headings the build captured from each '
+                  'page, and for a record\'s page the head tags and text '
+                  'written from its data.',
             ]),
           ],
         ),
