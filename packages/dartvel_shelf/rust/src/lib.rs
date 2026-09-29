@@ -17,7 +17,7 @@ use std::{
         Arc, Mutex,
     },
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Notify};
 use serde::Deserialize;
 
 use rustls::{
@@ -294,6 +294,28 @@ static SERVER_CANCEL_HANDLERS: OnceCell<Mutex<HashMap<u64, DartStreamCancelHandl
 struct ServerId(u64);
 static DART_CANCEL_HANDLER: OnceCell<Mutex<Option<DartStreamCancelHandler>>> =
     OnceCell::new();
+
+/// A request body chunk, or the event that ended it.
+///
+/// The direction is Rust to Dart, one chunk at a time and only when Dart has
+/// asked for the next one, so a handler reading a body decides how far ahead
+/// of it a client may get.
+pub type DartBodyChunkHandler = extern "C" fn(u64, FfiBuf, u8);
+
+static DART_BODY_CHUNK_HANDLER: OnceCell<Mutex<Option<DartBodyChunkHandler>>> = OnceCell::new();
+/// Per thread, for the reason the request and cancel handlers are: a chunk
+/// belonging to one server must not reach for a callback another has already
+/// freed.
+static PENDING_BODY_CHUNK_HANDLERS: OnceCell<
+    Mutex<HashMap<std::thread::ThreadId, DartBodyChunkHandler>>,
+> = OnceCell::new();
+/// Each server's own body-chunk callback.
+static SERVER_BODY_CHUNK_HANDLERS: OnceCell<Mutex<HashMap<u64, DartBodyChunkHandler>>> =
+    OnceCell::new();
+/// The bodies still being read, by request. A request is in here from the
+/// moment its Dart callback is called until its proxy future ends, which is
+/// also when it stops being pullable.
+static REQUEST_BODIES: OnceCell<Mutex<HashMap<u64, Arc<BodyState>>>> = OnceCell::new();
 
 struct FfiRespOwned {
     status: u16,
@@ -864,6 +886,388 @@ pub extern "C" fn aw_request_received(req_id: u64) {
     release_request_parts(req_id);
 }
 
+// ===== Streaming request bodies =====
+
+/// A chunk of the request body [req_id] is here.
+pub const AW_BODY_CHUNK: u8 = 0;
+/// The whole body arrived, within its limit.
+pub const AW_BODY_END: u8 = 1;
+/// The client stopped sending, or sent something that is not a body. The
+/// stream ends and the request is answered as it is for a request with no
+/// body, which is what it used to be read as.
+pub const AW_BODY_UNREADABLE: u8 = 2;
+/// The body passed its limit, or the request ran out of time with it
+/// unfinished. The stream fails and the request is answered 413 or 408 and
+/// the connection closed, whatever the handler answered.
+pub const AW_BODY_REFUSED: u8 = 3;
+
+/// The ask was recorded, or answered. A chunk may still be on its way.
+pub const AW_BODY_PULL_TAKEN: i32 = 0;
+/// [req_id] is not a request with a body being read: one that was never
+/// streamed, one already finished and released, or one the library was never
+/// given a callback for.
+pub const AW_BODY_PULL_UNKNOWN: i32 = 1;
+
+/// How far a request's body has got, and what the request is answered with.
+/// None while it is still arriving.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum BodyTerminal {
+    /// The whole body arrived, within the limit.
+    End,
+    /// The client stopped sending. The answer is the handler's.
+    Unreadable,
+    /// A chunk would take the body past its limit, so it was dropped rather
+    /// than kept. The answer is 413 and the connection is closed.
+    TooLarge,
+    /// The request ran out of time with the body still arriving. The answer
+    /// is 408 and the connection is closed.
+    TimedOut,
+}
+
+impl BodyTerminal {
+    /// How the terminal is reported to Dart, once a pull asks for it.
+    fn event(self) -> u8 {
+        match self {
+            BodyTerminal::End => AW_BODY_END,
+            BodyTerminal::Unreadable => AW_BODY_UNREADABLE,
+            // TooLarge and TimedOut are refusals, and a handler told only
+            // "ended" would have folded a truncated body and answered with a
+            // length for it.
+            BodyTerminal::TooLarge | BodyTerminal::TimedOut => AW_BODY_REFUSED,
+        }
+    }
+
+    /// Whether the terminal overrides whatever the handler answered.
+    fn is_refusal(self) -> bool {
+        matches!(self, BodyTerminal::TooLarge | BodyTerminal::TimedOut)
+    }
+}
+
+/// How much of a request's body has been read, and what is wanted next.
+///
+/// A plain lock rather than an async one: a pull arrives on Dart's thread,
+/// which is not a runtime thread, so anything that could only be awaited from
+/// inside a runtime task would make a body unreachable.
+#[derive(Default)]
+struct BodyProgress {
+    /// A chunk has been read and is waiting for Dart to ask for it.
+    pending_chunk: bool,
+    /// Dart has asked and has not been given one.
+    waiting: bool,
+    /// Dart has answered, so the rest of the body is read only to reach its
+    /// end: no handler is left to hand it to.
+    answered: bool,
+    /// How the body ended, while it is still arriving.
+    terminal: Option<BodyTerminal>,
+    /// The terminal has been delivered. Nobody may be waiting when a body
+    /// ends -- a handler that answered without reading it, or one that has
+    /// stopped pulling -- and the pull that comes afterwards is what it is
+    /// delivered to, so it is delivered once rather than to whoever happened
+    /// to be there.
+    terminal_sent: bool,
+}
+
+/// What a request's body reader shares with the rest of this library.
+///
+/// The reader task owns the stream itself; everything the FFI side touches
+/// lives here, so a pull is a flag and a wake rather than a second reader.
+struct BodyState {
+    progress: Mutex<BodyProgress>,
+    /// Wakes the reader when Dart asks for a chunk, or has answered.
+    pull: Notify,
+    /// The Dart callback an event goes to, captured when the body starts:
+    /// by the time an event is delivered the server's entry may be gone, and
+    /// the global slot may already name another server's callback.
+    handler: DartBodyChunkHandler,
+    /// The chunk last read, kept until the next one replaces it.
+    ///
+    /// The chunk callback is a Dart listener: it runs when the isolate gets
+    /// to it, not when it is called, so a `Bytes` dropped when the call
+    /// returned is freed memory the listener then reads. The same discipline
+    /// as [RequestParts], and sound for the same reason: Dart asks for the
+    /// next chunk only after it has this one.
+    chunk: Mutex<Bytes>,
+}
+
+impl BodyState {
+    /// [server]'s callback for bodies, or the one that was registered
+    /// globally, resolved now rather than when a chunk is due.
+    fn new(registered: DartBodyChunkHandler, server: Option<u64>) -> Self {
+        let handler = server
+            .and_then(|id| {
+                SERVER_BODY_CHUNK_HANDLERS
+                    .get()
+                    .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+            })
+            .unwrap_or(registered);
+        Self {
+            progress: Mutex::new(BodyProgress::default()),
+            pull: Notify::new(),
+            handler,
+            chunk: Mutex::new(Bytes::new()),
+        }
+    }
+}
+
+/// Forgets a request's body, so a pull after it cannot find one.
+///
+/// Dropped with the proxy future, which is what a server stopping mid-request
+/// does: nothing waits for that future to end on its own.
+struct BodyRegistration(u64);
+
+impl Drop for BodyRegistration {
+    fn drop(&mut self) {
+        release_request_body(self.0);
+    }
+}
+
+fn request_body(req_id: u64) -> Option<Arc<BodyState>> {
+    let map = REQUEST_BODIES.get()?;
+    safe_lock(map).get(&req_id).cloned()
+}
+
+fn register_request_body(req_id: u64, state: Arc<BodyState>) {
+    let map = REQUEST_BODIES.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(map).insert(req_id, state);
+}
+
+fn release_request_body(req_id: u64) {
+    if let Some(map) = REQUEST_BODIES.get() {
+        safe_lock(map).remove(&req_id);
+    }
+}
+
+/// Registers the callback request-body chunks and the ends of bodies are
+/// delivered to, and pulls for them are answered through.
+///
+/// On this thread, and taken by `aw_start` into a per-server slot the way the
+/// request and cancel handlers are: two isolates starting a server at the same
+/// moment interleave as register A, register B, start A, start B, and A would
+/// otherwise hand its requests to B's isolate.
+#[no_mangle]
+pub extern "C" fn aw_register_body_chunk_handler(cb: DartBodyChunkHandler) {
+    let slot = DART_BODY_CHUNK_HANDLER.get_or_init(|| Mutex::new(None));
+    *safe_lock(slot) = Some(cb);
+    let pending = PENDING_BODY_CHUNK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(std::thread::current().id(), cb);
+    // Created here for a server that is already running: this is what a
+    // second serve() in an isolate that already started one does, and a body
+    // that arrives between the two is still read a chunk at a time.
+    let _ = SERVER_BODY_CHUNK_HANDLERS.set(Mutex::new(HashMap::new()));
+    let _ = PENDING_BODY_CHUNK_HANDLERS.set(Mutex::new(HashMap::new()));
+}
+
+/// Dart asks for the next chunk of request [req_id]'s body.
+///
+/// The chunk does not arrive here: the reader sends it, from its own task, to
+/// the registered callback. That is the backpressure — nothing is read from
+/// the socket until Dart asks, so a handler that stops reading stops the
+/// client, and at most one chunk is ever in flight or waiting.
+///
+/// Returns [AW_BODY_PULL_TAKEN] for an ask that was recorded and
+/// [AW_BODY_PULL_UNKNOWN] for a request with no body to pull, which is how a
+/// caller learns it is not holding a body rather than being told it is empty.
+#[no_mangle]
+pub extern "C" fn aw_body_next_chunk(req_id: u64) -> i32 {
+    let Some(state) = request_body(req_id) else {
+        return AW_BODY_PULL_UNKNOWN;
+    };
+    // A chunk the reader had already read is handed over here, and a body
+    // that has ended is reported here: the reader sends an event only to
+    // somebody who has asked, so an ask after it is the ask that the event
+    // goes to.
+    enum Next {
+        Send(FfiBuf, u8),
+        Park,
+    }
+    let next = {
+        let mut progress = safe_lock(&state.progress);
+        match progress.terminal {
+            Some(terminal) if !progress.terminal_sent => {
+                progress.terminal_sent = true;
+                progress.pending_chunk = false;
+                Next::Send(empty_ffi_buf(), terminal.event())
+            }
+            // Already told: a handler pulling past the last chunk it was
+            // given, which it has the end of for.
+            Some(_) => Next::Park,
+            None if progress.pending_chunk => {
+                progress.pending_chunk = false;
+                Next::Send(ffi_buf(&state.chunk), AW_BODY_CHUNK)
+            }
+            None => {
+                progress.waiting = true;
+                Next::Park
+            }
+        }
+    };
+    // Whether the ask was answered here or parked on, the reader is woken: it
+    // is either already waiting for the chunk this asks for, or it has one
+    // ready and has gone back to sleep knowing this one was taken. A
+    // notification with nobody waiting is kept, so this is not lost when it
+    // lands between the two.
+    state.pull.notify_one();
+    if let Next::Send(buf, kind) = next {
+        (state.handler)(req_id, buf, kind);
+    }
+    AW_BODY_PULL_TAKEN
+}
+
+fn empty_ffi_buf() -> FfiBuf {
+    FfiBuf {
+        ptr: std::ptr::null(),
+        len: 0,
+    }
+}
+
+fn ffi_buf(chunk: &Mutex<Bytes>) -> FfiBuf {
+    let chunk = safe_lock(chunk);
+    FfiBuf {
+        ptr: chunk.as_ptr(),
+        len: chunk.len(),
+    }
+}
+
+/// The end of a request's body, and what its answer is because of it.
+///
+/// Called by the reader when the body ended, and by the proxy when the
+/// request ran out of time with it still arriving.
+fn finish_body(req_id: u64, state: &Arc<BodyState>, terminal: BodyTerminal) {
+    let event = {
+        let mut progress = safe_lock(&state.progress);
+        if progress.terminal.is_some() {
+            return;
+        }
+        progress.terminal = Some(terminal);
+        // Only to somebody who is waiting for it: the reader does not read
+        // past what Dart asked for, and an event to nobody is not read.
+        // A pull that arrives afterwards is answered with the terminal, so it
+        // is delivered once either way.
+        if progress.waiting && !progress.terminal_sent {
+            progress.waiting = false;
+            progress.pending_chunk = false;
+            progress.terminal_sent = true;
+            Some(terminal.event())
+        } else {
+            None
+        }
+    };
+    if let Some(kind) = event {
+        (state.handler)(req_id, empty_ffi_buf(), kind);
+    }
+}
+
+/// Dart answered request [req_id], so the rest of its body is read only to
+/// reach its end and free the connection.
+fn mark_body_answered(req_id: u64) {
+    let Some(state) = request_body(req_id) else {
+        return;
+    };
+    {
+        let mut progress = safe_lock(&state.progress);
+        if progress.terminal.is_some() {
+            return;
+        }
+        progress.answered = true;
+        // The chunk already read is not wanted either, whatever Dart does
+        // with its body now.
+        progress.pending_chunk = false;
+    }
+    *safe_lock(&state.chunk) = Bytes::new();
+    state.pull.notify_one();
+}
+
+/// Whether there is a reason to read another chunk of this body: Dart has
+/// asked for one, or has answered and the rest is being taken only to reach
+/// its end.
+///
+/// A function rather than a lock held in the reader, because a guard that
+/// lives across the wait would make the reader's future unSendable and take
+/// the whole handler with it.
+fn body_wanted(state: &Arc<BodyState>) -> bool {
+    let progress = safe_lock(&state.progress);
+    progress.waiting || progress.answered
+}
+
+/// Reads request [req_id]'s body, one chunk at a time, as far as it is asked
+/// for.
+///
+/// The first read is not waited for: a request with no body has to be known
+/// to have none without a handler pulling for it, or a request Dart never
+/// answers would be answered 408 for a body that had already ended rather
+/// than 504 for the handler. After that nothing is read until Dart asks for
+/// the next chunk, or has answered and the rest of the body is being taken
+/// only to let the connection be reused.
+async fn read_request_body(
+    req_id: u64,
+    state: Arc<BodyState>,
+    mut body: axum::body::BodyDataStream,
+    limit: u64,
+) {
+    let mut received: u64 = 0;
+    let mut first = true;
+    loop {
+        if !first {
+            // The wake is taken before the flags are read, so an ask that
+            // lands between the two is not lost.
+            let asked = state.pull.notified();
+            if !body_wanted(&state) {
+                asked.await;
+                continue;
+            }
+        }
+        first = false;
+
+        let Some(item) = body.next().await else {
+            finish_body(req_id, &state, BodyTerminal::End);
+            return;
+        };
+        let bytes = match item {
+            Ok(bytes) => bytes,
+            // What a body that could not be read ends as it always did: an
+            // empty one, with the request answered as a request with no body.
+            Err(_) => {
+                finish_body(req_id, &state, BodyTerminal::Unreadable);
+                return;
+            }
+        };
+        // Dropped before it is kept, so no more than the limit is ever held
+        // and nothing past it is handed to a handler: a Content-Length that
+        // understates what follows ends the body where it said, and a chunked
+        // body that never ends stops here.
+        if received.saturating_add(bytes.len() as u64) > limit {
+            finish_body(req_id, &state, BodyTerminal::TooLarge);
+            return;
+        }
+        received += bytes.len() as u64;
+        deliver_chunk(req_id, &state, bytes);
+    }
+}
+
+/// Hands a chunk to Dart if one is waiting for it, keeps it for the next
+/// pull, or drops it if the request has been answered.
+fn deliver_chunk(req_id: u64, state: &Arc<BodyState>, bytes: Bytes) {
+    let send = {
+        let mut progress = safe_lock(&state.progress);
+        if progress.answered {
+            false
+        } else if progress.waiting {
+            progress.waiting = false;
+            *safe_lock(&state.chunk) = bytes;
+            true
+        } else {
+            // Read ahead of the ask by at most this one chunk, which is what
+            // a pull after it is answered from without touching the socket.
+            progress.pending_chunk = true;
+            *safe_lock(&state.chunk) = bytes;
+            false
+        }
+    };
+    if send {
+        (state.handler)(req_id, ffi_buf(&state.chunk), AW_BODY_CHUNK);
+    }
+}
+
 /// The largest request body the next server this thread starts reads, in
 /// bytes, for every request no route limit covers. A body declared larger is
 /// answered 413 without being read, and one that grows past it while being
@@ -1069,6 +1473,16 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let handlers = SERVER_CANCEL_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
         safe_lock(handlers).insert(server_id, handler);
     }
+    // Likewise, so a body chunk goes to the isolate that took the request
+    // rather than to whichever one registered last.
+    let body_chunk_handler = PENDING_BODY_CHUNK_HANDLERS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .or_else(|| DART_BODY_CHUNK_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(handler) = body_chunk_handler {
+        let handlers = SERVER_BODY_CHUNK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server_id, handler);
+    }
 
     let handle_clone = handle.clone();
 
@@ -1139,6 +1553,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
                 safe_lock(handlers).remove(&server_id);
             }
             if let Some(handlers) = SERVER_CANCEL_HANDLERS.get() {
+                safe_lock(handlers).remove(&server_id);
+            }
+            if let Some(handlers) = SERVER_BODY_CHUNK_HANDLERS.get() {
                 safe_lock(handlers).remove(&server_id);
             }
         });
@@ -1232,6 +1649,9 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
             }
         }
         let _ = tx.send(owned);
+        // No handler is left to read this request's body, so the rest of it
+        // is read only to reach its end and free the connection.
+        mark_body_answered(req_id);
         0
     } else {
         1
@@ -1332,10 +1752,10 @@ async fn dart_proxy_with_fallback(
         .map(|RequestTimeout(timeout)| *timeout)
         .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
     let deadline = tokio::time::Instant::now() + request_timeout;
-    // Decided before a byte of the body is read. Every body is held whole
-    // here and again in Dart, and it was read with no bound at all, so one
-    // client could send as much as it liked -- or a chunked body that never
-    // ended -- and all of it was kept.
+    // Decided before a byte of the body is read. A body is read as far as it
+    // is asked for rather than held whole, but nothing past the limit is
+    // ever kept, so one client still cannot name a body as large as it
+    // liked -- or a chunked body that never ended -- and have it held.
     let body_limit = req
         .extensions()
         .get::<BodyLimits>()
@@ -1358,39 +1778,65 @@ async fn dart_proxy_with_fallback(
     let target = req.uri().to_string().into_bytes();
     let flattened_headers = headers_flat(&req);
     let peer = peer_text(&req).into_bytes();
-    
-    let mut body_buf = BytesMut::new();
-    let mut body_stream = req.into_body().into_data_stream();
-    // Whether the body ended within the limit. A chunk that would take it
-    // past is refused before it is kept, so no more than the limit is ever
-    // held: a Content-Length that understates what follows ends the body
-    // where it said, and a chunked body -- slow, or endless -- stops here.
-    let read_body = async {
-        while let Some(chunk) = body_stream.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    if (body_buf.len() as u64).saturating_add(bytes.len() as u64) > body_limit {
-                        return false;
-                    }
-                    body_buf.extend_from_slice(&bytes);
-                }
-                Err(_) => {
-                    body_buf.clear();
-                    break;
-                }
-            }
+
+    // Dart is given the body when it is able to pull one. A library that was
+    // never told how to receive chunks reads the body here, whole, as it
+    // always did -- which is also what a Dart that has not been rebuilt
+    // reads, and the two halves check for each other on purpose: a mismatched
+    // pair holds a body rather than losing it.
+    let mut streamed: Option<(Arc<BodyState>, axum::body::BodyDataStream)> = None;
+    let bytes = match body_chunk_handler(server_id) {
+        Some(cb) => {
+            let state = Arc::new(BodyState::new(cb, server_id));
+            let data = req.into_body().into_data_stream();
+            register_request_body(req_id, state.clone());
+            streamed = Some((state, data));
+            // Dart pulls the rest of it, so it is handed an empty body rather
+            // than the first chunk.
+            Bytes::new()
         }
-        true
+        None => {
+            let mut body_buf = BytesMut::new();
+            let mut body_stream = req.into_body().into_data_stream();
+            // Whether the body ended within the limit. A chunk that would
+            // take it past is refused before it is kept, so no more than the
+            // limit is ever held: a Content-Length that understates what
+            // follows ends the body where it said, and a chunked body --
+            // slow, or endless -- stops here.
+            let read_body = async {
+                while let Some(chunk) = body_stream.next().await {
+                    match chunk {
+                        Ok(bytes) => {
+                            if (body_buf.len() as u64)
+                                .saturating_add(bytes.len() as u64)
+                                > body_limit
+                            {
+                                return false;
+                            }
+                            body_buf.extend_from_slice(&bytes);
+                        }
+                        Err(_) => {
+                            body_buf.clear();
+                            break;
+                        }
+                    }
+                }
+                true
+            };
+            // A declared body that never arrives held the connection for as
+            // long as the client kept it open.
+            match tokio::time::timeout_at(deadline, read_body).await {
+                Err(_) => return closing_response(StatusCode::REQUEST_TIMEOUT),
+                // Closed as well as answered, so the rest is never read.
+                Ok(false) => return too_large_response(body_limit),
+                Ok(true) => {}
+            }
+            body_buf.freeze()
+        }
     };
-    // A declared body that never arrives held the connection for as long as
-    // the client kept it open.
-    match tokio::time::timeout_at(deadline, read_body).await {
-        Err(_) => return closing_response(StatusCode::REQUEST_TIMEOUT),
-        // Closed as well as answered, so the rest is never read.
-        Ok(false) => return too_large_response(body_limit),
-        Ok(true) => {}
-    }
-    let bytes = body_buf.freeze();
+    // Forgets the body when this future is dropped, which is what a server
+    // stopping mid-request does: nothing waits for that to end on its own.
+    let _registration = BodyRegistration(req_id);
 
     let method_ffi = FfiStr {
         ptr: method.as_ptr(),
@@ -1458,9 +1904,54 @@ async fn dart_proxy_with_fallback(
         peer_ffi,
     );
 
-    match tokio::time::timeout_at(deadline, response_rx).await {
+    // The body and the answer are waited for together, under the one
+    // deadline a request has. A refusal is the body saying the request may
+    // not be answered at all, so it has to reach a client that is still
+    // sending -- which it cannot while the answer it overrules is still
+    // outstanding.
+    let (answered, terminal) = match streamed {
+        Some((state, body)) => {
+            let read = read_request_body(req_id, state.clone(), body, body_limit);
+            let (answer, finished) = tokio::join!(
+                tokio::time::timeout_at(deadline, response_rx),
+                tokio::time::timeout_at(deadline, read),
+            );
+            // A body still arriving when the request ran out of time is
+            // refused rather than left open, and the handler is told so: a
+            // stream it is still reading fails instead of waiting for a chunk
+            // that is never coming.
+            if finished.is_err() {
+                finish_body(req_id, &state, BodyTerminal::TimedOut);
+            }
+            let terminal = safe_lock(&state.progress)
+                .terminal
+                .unwrap_or(BodyTerminal::TimedOut);
+            (answer, terminal)
+        }
+        None => (
+            tokio::time::timeout_at(deadline, response_rx).await,
+            BodyTerminal::End,
+        ),
+    };
+
+    if terminal.is_refusal() {
+        if let Some(mutex) = PENDING_RESPONSES.get() {
+            safe_lock(mutex).remove(&req_id);
+        }
+        // A handler still producing an answer will be refused it, so its
+        // stream is dropped now rather than left in a table nothing reads.
+        abandon_stream(req_id, server_id);
+        return if terminal == BodyTerminal::TooLarge {
+            too_large_response(body_limit)
+        } else {
+            closing_response(StatusCode::REQUEST_TIMEOUT)
+        };
+    }
+
+    match answered {
         Ok(Ok(resp)) => response_from_dart(resp, req_id, server_id, fallback),
-        _ => {
+        Ok(Err(_)) => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => {
             if let Some(mutex) = PENDING_RESPONSES.get() {
                 safe_lock(mutex).remove(&req_id);
             }
@@ -1473,6 +1964,17 @@ async fn dart_proxy_with_fallback(
             }
         }
     }
+}
+
+/// The Dart callback request-body chunks are delivered to, or None for a
+/// request that arrives through a server nobody registered one with -- which
+/// is a Dart that has not been rebuilt, and is answered a whole body.
+fn body_chunk_handler(server_id: Option<u64>) -> Option<DartBodyChunkHandler> {
+    server_id.and_then(|id| {
+        SERVER_BODY_CHUNK_HANDLERS
+            .get()
+            .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+    })
 }
 
 fn plain_response(status: StatusCode) -> Response<Body> {
@@ -2002,5 +2504,330 @@ mod peer_tests {
         assert_eq!(canonical_peer(scoped).to_string(), "[fe80::1]:443");
         let v4: SocketAddr = "198.51.100.4:80".parse().unwrap();
         assert_eq!(canonical_peer(v4), v4);
+    }
+}
+
+#[cfg(test)]
+mod body_stream_tests {
+    use super::*;
+    use futures_util::task::noop_waker;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::atomic::AtomicUsize;
+    use std::task::{Context, Poll};
+
+    type Reader = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+    /// Every event the library hands over, in order: which request, which
+    /// kind, and the bytes of the chunk that came with it.
+    static EVENTS: OnceCell<Mutex<Vec<(u64, u8, Vec<u8>)>>> = OnceCell::new();
+
+    /// These tests share the one event log a callback can write to, and each
+    /// of them reads it whole, so they run one at a time.
+    static SERIAL: OnceCell<Mutex<()>> = OnceCell::new();
+
+    fn events() -> &'static Mutex<Vec<(u64, u8, Vec<u8>)>> {
+        EVENTS.get_or_init(|| Mutex::new(Vec::new()))
+    }
+
+    fn alone() -> std::sync::MutexGuard<'static, ()> {
+        safe_lock(SERIAL.get_or_init(|| Mutex::new(())))
+    }
+
+    fn take_events() -> Vec<(u64, u8, Vec<u8>)> {
+        std::mem::take(&mut *safe_lock(events()))
+    }
+
+    /// Stands in for the Dart listener. Copies the chunk, because the bytes
+    /// behind the pointer belong to the library and are replaced on the next
+    /// pull -- the same thing the Dart side does before the isolate gets to it.
+    extern "C" fn record(req_id: u64, chunk: FfiBuf, kind: u8) {
+        let bytes = if chunk.ptr.is_null() || chunk.len == 0 {
+            Vec::new()
+        } else {
+            // SAFETY: the library keeps the chunk it is delivering until the
+            // next one replaces it.
+            unsafe { std::slice::from_raw_parts(chunk.ptr, chunk.len) }.to_vec()
+        };
+        safe_lock(events()).push((req_id, kind, bytes));
+    }
+
+    fn chunks(parts: &[&'static [u8]]) -> Vec<Result<Bytes, axum::BoxError>> {
+        parts
+            .iter()
+            .map(|part| Ok(Bytes::from_static(part)))
+            .collect()
+    }
+
+    /// A reader over [items], counting what it takes off the stream.
+    fn reader_with(
+        state: Arc<BodyState>,
+        req_id: u64,
+        items: Vec<Result<Bytes, axum::BoxError>>,
+        limit: u64,
+    ) -> (Reader, Arc<AtomicUsize>) {
+        register_request_body(req_id, state.clone());
+        let reads = Arc::new(AtomicUsize::new(0));
+        let counted = reads.clone();
+        let stream = futures_util::stream::iter(items).inspect(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+        });
+        let body = Body::from_stream(stream).into_data_stream();
+        (
+            Box::pin(read_request_body(req_id, state, body, limit)),
+            reads,
+        )
+    }
+
+    fn reader(
+        req_id: u64,
+        items: Vec<Result<Bytes, axum::BoxError>>,
+        limit: u64,
+    ) -> (Reader, Arc<AtomicUsize>) {
+        reader_with(Arc::new(BodyState::new(record, None)), req_id, items, limit)
+    }
+
+    fn read_count(reads: &AtomicUsize) -> usize {
+        reads.load(Ordering::SeqCst)
+    }
+
+    /// One poll of the reader, by hand: what matters here is what it does
+    /// between two asks, which a runtime would otherwise decide for us.
+    fn step(reader: &mut Reader) -> bool {
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        matches!(reader.as_mut().poll(&mut cx), Poll::Ready(()))
+    }
+
+    /// Steps until the reader is done, or gives up: one that cannot finish
+    /// fails the test instead of hanging it.
+    fn finish(reader: &mut Reader) -> bool {
+        (0..64).any(|_| step(reader))
+    }
+
+    #[test]
+    fn a_chunk_is_read_when_it_is_asked_for_and_not_before() {
+        let _alone = alone();
+        let (mut reader, reads) = reader(9201, chunks(&[b"one", b"two", b"three"]), 1024);
+
+        // The first read is not waited for: a request with no body has to be
+        // known to have none without a handler pulling for one, or a request
+        // Dart never answers is answered 408 for a body that had ended rather
+        // than 504 for the handler.
+        step(&mut reader);
+        // Read ahead of the ask by the one chunk, and never more: what is not
+        // asked for is not held either, so a client cannot send faster than a
+        // handler reads and have it all kept.
+        assert_eq!(read_count(&reads), 1);
+        assert_eq!(take_events(), [], "a chunk nobody asked for is not handed over");
+
+        for expected in [&b"one"[..], b"two", b"three"] {
+            // A chunk the reader had already read is handed over by the pull
+            // itself; one it has not read yet is read because of it, and
+            // handed over in the same step. Either way one pull is one chunk.
+            // A chunk the reader had already read is handed over by the pull
+            // itself; one it has not read yet is read because of the pull and
+            // handed over in the step that follows. Either way one pull is one
+            // chunk, and one step is enough to get it.
+            assert_eq!(aw_body_next_chunk(9201), AW_BODY_PULL_TAKEN);
+            step(&mut reader);
+            assert_eq!(
+                take_events(),
+                vec![(9201, AW_BODY_CHUNK, expected.to_vec())]
+            );
+        }
+        assert_eq!(
+            read_count(&reads),
+            3,
+            "nothing is read off the body past what is asked for"
+        );
+        release_request_body(9201);
+    }
+
+    #[test]
+    fn the_end_of_a_body_goes_to_the_pull_after_it_and_only_once() {
+        let _alone = alone();
+        let (mut reader, _) = reader(9202, chunks(&[b"only"]), 1024);
+
+        step(&mut reader);
+        aw_body_next_chunk(9202);
+        assert_eq!(take_events(), vec![(9202, AW_BODY_CHUNK, b"only".to_vec())]);
+
+        // The handler answered without asking for the rest: the body is read
+        // to its end so the connection can be used again, and it ends with
+        // nobody waiting for the end of it.
+        mark_body_answered(9202);
+        assert!(step(&mut reader));
+        assert_eq!(take_events(), [], "the end is not handed to nobody");
+
+        // The pull after it is answered with the end rather than left waiting
+        // for a chunk that is never coming.
+        assert_eq!(aw_body_next_chunk(9202), AW_BODY_PULL_TAKEN);
+        assert_eq!(take_events(), vec![(9202, AW_BODY_END, Vec::new())]);
+
+        // And a handler that pulls again is parked, not told the end twice.
+        assert_eq!(aw_body_next_chunk(9202), AW_BODY_PULL_TAKEN);
+        assert_eq!(take_events(), []);
+        release_request_body(9202);
+    }
+
+    #[test]
+    fn a_chunk_that_would_pass_the_limit_is_neither_kept_nor_handed_over() {
+        let _alone = alone();
+        let (mut reader, reads) = reader(9203, chunks(&[b"abcd", b"efgh"]), 5);
+
+        step(&mut reader);
+        aw_body_next_chunk(9203);
+        assert_eq!(take_events(), vec![(9203, AW_BODY_CHUNK, b"abcd".to_vec())]);
+
+        // The next chunk is read to find out it is too much, and dropped rather
+        // than kept or handed over: a Content-Length that understates what
+        // follows ends the body where it said, and a chunked body that never
+        // ends stops here.
+        assert_eq!(aw_body_next_chunk(9203), AW_BODY_PULL_TAKEN);
+        assert!(step(&mut reader));
+        assert_eq!(read_count(&reads), 2);
+        assert_eq!(take_events(), vec![(9203, AW_BODY_REFUSED, Vec::new())]);
+
+        // A refusal is what the request is answered from, over whatever the
+        // handler answered.
+        let state = request_body(9203).expect("the body is still held");
+        assert_eq!(
+            safe_lock(&state.progress).terminal,
+            Some(BodyTerminal::TooLarge)
+        );
+        release_request_body(9203);
+    }
+
+    #[test]
+    fn a_handler_that_answers_without_reading_is_handed_nothing_further() {
+        let _alone = alone();
+        let (mut reader, reads) = reader(9204, chunks(&[b"one", b"two"]), 1024);
+
+        step(&mut reader);
+        // The handler answered without ever pulling, so the chunk read ahead
+        // of its ask is not wanted either.
+        mark_body_answered(9204);
+
+        // The rest is read only to reach the end, so the connection the body
+        // is on can be used again rather than left mid-body.
+        assert!(finish(&mut reader));
+        assert_eq!(read_count(&reads), 2);
+        assert_eq!(take_events(), [], "an answered request gets no more body");
+        release_request_body(9204);
+    }
+
+    #[test]
+    fn a_body_that_cannot_be_read_ends_the_way_one_that_never_came_did() {
+        let _alone = alone();
+        let items: Vec<Result<Bytes, axum::BoxError>> = vec![
+            Ok(Bytes::from_static(b"one")),
+            Err(std::io::Error::other("client went away").into()),
+        ];
+        let (mut reader, _) = reader(9207, items, 1024);
+
+        step(&mut reader);
+        aw_body_next_chunk(9207);
+        assert_eq!(take_events(), vec![(9207, AW_BODY_CHUNK, b"one".to_vec())]);
+
+        // A second pull takes the error, because a body that stops being
+        // readable is only found out by reading it.
+        assert_eq!(aw_body_next_chunk(9207), AW_BODY_PULL_TAKEN);
+        assert!(step(&mut reader));
+        // The end a body that could not be read gets is the one a request with
+        // no body gets, and the request is answered as it always was.
+        assert_eq!(take_events(), vec![(9207, AW_BODY_UNREADABLE, Vec::new())]);
+        release_request_body(9207);
+    }
+
+    #[test]
+    fn a_pull_for_a_request_with_no_body_is_refused() {
+        let _alone = alone();
+        // One that was never streamed.
+        assert_eq!(aw_body_next_chunk(9205), AW_BODY_PULL_UNKNOWN);
+        // And one whose body was given up on, which is what a server stopping
+        // mid-request does.
+        let (mut reader, _) = reader(9206, chunks(&[b"one"]), 1024);
+        step(&mut reader);
+        release_request_body(9206);
+        assert_eq!(aw_body_next_chunk(9206), AW_BODY_PULL_UNKNOWN);
+        // Neither is a body handed over as an empty one, which a caller would
+        // fold into an answer as though the request had sent nothing.
+        assert_eq!(take_events(), []);
+    }
+
+    #[test]
+    fn only_a_refusal_overrules_the_answer_a_handler_gave() {
+        assert_eq!(BodyTerminal::End.event(), AW_BODY_END);
+        assert!(!BodyTerminal::End.is_refusal());
+        // A body that could not be read ends, it is not refused: the request
+        // is answered as a request with no body always was.
+        assert_eq!(BodyTerminal::Unreadable.event(), AW_BODY_UNREADABLE);
+        assert!(!BodyTerminal::Unreadable.is_refusal());
+        // Too large and out of time are the two that are refused, and both
+        // reach Dart as the same failure, because a handler told only that a
+        // body ended would fold a truncated one and answer a length for it.
+        assert_eq!(BodyTerminal::TooLarge.event(), AW_BODY_REFUSED);
+        assert!(BodyTerminal::TooLarge.is_refusal());
+        assert_eq!(BodyTerminal::TimedOut.event(), AW_BODY_REFUSED);
+        assert!(BodyTerminal::TimedOut.is_refusal());
+    }
+
+    #[test]
+    fn a_body_goes_to_the_callback_it_started_with() {
+        let _alone = alone();
+        extern "C" fn second(req_id: u64, _chunk: FfiBuf, kind: u8) {
+            safe_lock(events()).push((req_id, kind, b"second".to_vec()));
+        }
+
+        let server = 7_700_000_007;
+        let handlers = SERVER_BODY_CHUNK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server, record);
+        // This body starts while the server holds the first callback.
+        let in_flight = Arc::new(BodyState::new(second, Some(server)));
+        // Which is not the one it goes to: the server's own entry is taken
+        // first, and the one registered globally is only a fallback.
+        // Then another server stops and another takes its place, which is what
+        // two isolates starting and stopping at the same moment look like
+        // from here.
+        safe_lock(handlers).insert(server, second);
+
+        register_request_body(server, in_flight.clone());
+        assert_eq!(aw_body_next_chunk(server), AW_BODY_PULL_TAKEN);
+        assert_eq!(take_events(), []);
+        finish_body(server, &in_flight, BodyTerminal::End);
+        assert_eq!(
+            take_events(),
+            vec![(server, AW_BODY_END, Vec::new())],
+            "a callback registered after the body started does not get it"
+        );
+
+        // A request that arrives without a server behind it takes the one
+        // that was registered.
+        let global = Arc::new(BodyState::new(second, None));
+        register_request_body(9209, global.clone());
+        aw_body_next_chunk(9209);
+        finish_body(9209, &global, BodyTerminal::End);
+        assert_eq!(take_events(), vec![(9209, AW_BODY_END, b"second".to_vec())]);
+
+        safe_lock(handlers).remove(&server);
+        release_request_body(server);
+        release_request_body(9209);
+    }
+
+    #[test]
+    fn a_server_with_no_callback_of_its_own_streams_no_body() {
+        let _alone = alone();
+        let server = 7_700_000_009;
+        let handlers = SERVER_BODY_CHUNK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server, record);
+
+        assert!(body_chunk_handler(Some(server)).is_some());
+        // Another server's callback is never used for it, and a request that
+        // arrives without a server is answered a whole body as it always was:
+        // a Dart that has not been rebuilt reads none of this.
+        assert_eq!(body_chunk_handler(Some(server + 1)), None);
+        assert_eq!(body_chunk_handler(None), None);
+        safe_lock(handlers).remove(&server);
     }
 }

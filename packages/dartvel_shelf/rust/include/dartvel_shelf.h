@@ -20,6 +20,42 @@
 
 #define AW_FLAG_H2C 1
 
+/**
+ * A chunk of the request body [req_id] is here.
+ */
+#define AW_BODY_CHUNK 0
+
+/**
+ * The whole body arrived, within its limit.
+ */
+#define AW_BODY_END 1
+
+/**
+ * The client stopped sending, or sent something that is not a body. The
+ * stream ends and the request is answered as it is for a request with no
+ * body, which is what it used to be read as.
+ */
+#define AW_BODY_UNREADABLE 2
+
+/**
+ * The body passed its limit, or the request ran out of time with it
+ * unfinished. The stream fails and the request is answered 413 or 408 and
+ * the connection closed, whatever the handler answered.
+ */
+#define AW_BODY_REFUSED 3
+
+/**
+ * The ask was recorded, or answered. A chunk may still be on its way.
+ */
+#define AW_BODY_PULL_TAKEN 0
+
+/**
+ * [req_id] is not a request with a body being read: one that was never
+ * streamed, one already finished and released, or one the library was never
+ * given a callback for.
+ */
+#define AW_BODY_PULL_UNKNOWN 1
+
 typedef struct FfiStr {
   const uint8_t *ptr;
   size_t len;
@@ -39,6 +75,15 @@ typedef void (*DartReqHandler)(uint64_t,
                                struct FfiStr);
 
 typedef void (*DartStreamCancelHandler)(uint64_t);
+
+/**
+ * A request body chunk, or the event that ended it.
+ *
+ * The direction is Rust to Dart, one chunk at a time and only when Dart has
+ * asked for the next one, so a handler reading a body decides how far ahead
+ * of it a client may get.
+ */
+typedef void (*DartBodyChunkHandler)(uint64_t, struct FfiBuf, uint8_t);
 
 typedef struct FfiResp {
   uint16_t status;
@@ -79,6 +124,31 @@ int32_t aw_configure_request_timeout(uint64_t milliseconds);
  * may now be freed.
  */
 void aw_request_received(uint64_t req_id);
+
+/**
+ * Registers the callback request-body chunks and the ends of bodies are
+ * delivered to, and pulls for them are answered through.
+ *
+ * On this thread, and taken by `aw_start` into a per-server slot the way the
+ * request and cancel handlers are: two isolates starting a server at the same
+ * moment interleave as register A, register B, start A, start B, and A would
+ * otherwise hand its requests to B's isolate.
+ */
+void aw_register_body_chunk_handler(DartBodyChunkHandler cb);
+
+/**
+ * Dart asks for the next chunk of request [req_id]'s body.
+ *
+ * The chunk does not arrive here: the reader sends it, from its own task, to
+ * the registered callback. That is the backpressure — nothing is read from
+ * the socket until Dart asks, so a handler that stops reading stops the
+ * client, and at most one chunk is ever in flight or waiting.
+ *
+ * Returns [AW_BODY_PULL_TAKEN] for an ask that was recorded and
+ * [AW_BODY_PULL_UNKNOWN] for a request with no body to pull, which is how a
+ * caller learns it is not holding a body rather than being told it is empty.
+ */
+int32_t aw_body_next_chunk(uint64_t req_id);
 
 /**
  * The largest request body the next server this thread starts reads, in
