@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:dartvel_cli/src/build/dev_studio.dart';
 import 'package:dartvel_cli/src/commands/dev_command.dart'
-    show dvCompileDevStudio, dvDevBackendEnvironment, dvDevServerSource;
+    show dvDevBackendEnvironment, dvDevServerSource;
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -78,12 +78,12 @@ dartvel:
     );
   });
 
-  test('the dev backend serves Studio at the mount, from where dev compiles '
-      'it, behind the grant dev hands it', () {
+  test("the dev backend answers Studio's API at the mount, over the data dev "
+      'writes, behind the grant dev hands it', () {
     final String source = dvDevServerSource(
       admin: const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: true),
-      adminRoot: '/project/.dart_tool/dartvel_studio/admin',
+      adminRoot: '/project/.dart_tool/dartvel_studio/data',
     );
 
     expect(
@@ -92,7 +92,7 @@ dartvel:
           'enabled: true, requiresAuth: true)'),
     );
     expect(source,
-        contains("adminRoot: '/project/.dart_tool/dartvel_studio/admin'"));
+        contains("adminRoot: '/project/.dart_tool/dartvel_studio/data'"));
     expect(
       source,
       contains('studioDevGrant: core.DVStudioDevGrant.fromEnvironment('
@@ -121,54 +121,61 @@ dartvel:
     );
   });
 
-  group('compiling Studio for dev', () {
+  // Studio in development is the app's own route, as in a deployment. The app
+  // runs on Flutter's development server and Studio's API on the development
+  // backend, so the app's server passes <mount>/api/ through to the backend:
+  // the same origin, the same cookie, and no separately compiled Studio.
+  group('Studio in the app dev runs', () {
     const DVAdminMount mount =
         DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true);
 
-    test('a Studio compiled since dependencies last resolved is not rebuilt',
-        () async {
-      File(p.join(root.path, 'pubspec.lock')).writeAsStringSync('');
-      final String admin = p.join(root.path, 'studio');
-      File(p.join(admin, 'main.dart.js'))
-        ..createSync(recursive: true)
-        ..writeAsStringSync('//');
-      final List<String> ran = <String>[];
-      bool ready = false;
-
-      await dvCompileDevStudio(
-        root: root.path,
-        mount: mount,
-        adminRoot: admin,
-        onReady: () => ready = true,
-        run: (String exe, List<String> args, {String? workingDirectory}) async {
-          ran.add(exe);
-          return ProcessResult(0, 0, '', '');
-        },
-      );
-
-      expect(ran, isEmpty);
-      expect(ready, isTrue);
+    test('is compiled into a web app, and into nothing else', () {
+      expect(dvDevStudioFlutterArgs(mount, web: true),
+          <String>['--dart-define=dartvel.studio=true']);
+      expect(dvDevStudioFlutterArgs(mount, web: false), isEmpty);
+      expect(
+          dvDevStudioFlutterArgs(
+              const DVAdminMount(
+                  path: '/__studio', enabled: false, requiresAuth: true),
+              web: true),
+          isEmpty);
     });
 
-    test('a missing Studio is compiled with flutter build web, and a failed '
-        'compile is not reported ready', () async {
-      final List<List<String>> ran = <List<String>>[];
-      bool ready = false;
+    test("reaches Studio's API on the backend through the app's own server",
+        () {
+      final String? config =
+          dvDevStudioProxyConfig(mount, backendPort: 3000, existing: null);
+      expect(config, contains(dvDevStudioProxyMarker));
+      expect(config, contains('prefix: "/__studio/api/"'));
+      expect(config, contains('target: "http://localhost:3000/"'));
+      // Only the API: the app's own server answers <mount> with the app.
+      expect(config, isNot(contains('prefix: "/__studio/"')));
+    });
 
-      await dvCompileDevStudio(
-        root: root.path,
-        mount: mount,
-        adminRoot: p.join(root.path, 'studio'),
-        onReady: () => ready = true,
-        run: (String exe, List<String> args, {String? workingDirectory}) async {
-          ran.add(<String>[exe, ...args]);
-          return ProcessResult(0, 1, '', 'compile error');
-        },
-      );
+    test("a web_dev_config.yaml of the project's own is left alone", () {
+      expect(
+          dvDevStudioProxyConfig(mount,
+              backendPort: 3000, existing: 'server:\n  port: 8080\n'),
+          isNull);
+      // One dev wrote is rewritten, for a moved mount or port.
+      final String ours =
+          dvDevStudioProxyConfig(mount, backendPort: 3000, existing: null)!;
+      expect(
+          dvDevStudioProxyConfig(
+              const DVAdminMount(
+                  path: '/ops', enabled: true, requiresAuth: true),
+              backendPort: 4000,
+              existing: ours),
+          allOf(contains('prefix: "/ops/api/"'),
+              contains('target: "http://localhost:4000/"')));
+    });
 
-      expect(ran.single.take(3), <String>['flutter', 'build', 'web']);
-      expect(ran.single, containsAllInOrder(<String>['--base-href', '/__studio/']));
-      expect(ready, isFalse);
+    test('the grant link opens on the app, through the API the app passes on',
+        () {
+      const DVStudioDevGrant grant =
+          DVStudioDevGrant('0123456789abcdef0123456789abcdef');
+      expect(dvDevStudioLink('http://localhost:8080', mount, grant),
+          'http://localhost:8080/__studio/api/?dev_grant=${grant.token}');
     });
   });
 }
