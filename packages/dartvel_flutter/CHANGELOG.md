@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **The way out of the not-found and offline pages is a button.** "Go to the
+  home page" and "Try again" were lines of plain text that did not look like
+  anything a person could press. Each is now drawn as a filled button in the
+  application's own theme (its `filledButtonTheme` over its primary colour),
+  with hover, focus and press states, a visible outline on keyboard focus and
+  a 48-pixel minimum height. It is still a link underneath: a crawler reads
+  `<a href="/">`, a screen reader announces a link, and a middle click opens
+  a tab.
+
 - **`DVDocsApp`: the documentation site is a Flutter application.** It reads
   the `docs.json` `dartvel docs` writes and draws its pages, tables, lists,
   code and navigation in the framework's own widgets, routing a link from the
