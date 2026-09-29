@@ -8,6 +8,7 @@
 // Studio section built -- or its code fetched.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Server {
@@ -160,5 +161,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/__studio/login');
     expect(find.byType(DVStudioScreen), findsNothing);
+  });
+
+  testWidgets("Studio keeps the address it was opened at: it never tells the "
+      'browser it is at the root', (WidgetTester tester) async {
+    // Studio's screens and its sign-in are drawn inside the application's
+    // router, in a frame of their own. A frame that reported its own
+    // navigator to the engine rewrote the address bar to /, so a reload
+    // opened the site's home page instead of Studio.
+    final List<String> reported = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation, (MethodCall call) async {
+      if (call.method == 'routeInformationUpdated') {
+        final Object? arguments = call.arguments;
+        if (arguments is Map) reported.add('${arguments['uri'] ?? arguments['location']}');
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.navigation, null));
+
+    for (final bool granted in <bool>[true, false]) {
+      reported.clear();
+      final _Server server = _Server(granted: granted);
+      await _open(tester, server, '/__studio');
+      expect(reported, isNotEmpty);
+      expect(reported.where((String uri) => Uri.parse(uri).path == '/'),
+          isEmpty,
+          reason: 'granted: $granted, reported: $reported');
+    }
   });
 }
