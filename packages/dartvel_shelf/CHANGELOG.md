@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **Upstream Shelf adapter:** `package:dartvel_shelf/shelf.dart` provides `fromShelf()`
+  to mount existing Shelf pipelines, cascading handlers, and middlewares directly on
+  Dartvel's high-performance native server runtime.
+- **Response body backpressure:** Replaced the native generic HTTP response bridge's
+  unbounded queue with a bounded 8-chunk channel and native backpressure acknowledgements
+  (`aw_register_stream_ack_handler`). Fast Dart producers pause when native buffers fill,
+  preventing unbounded native memory growth when clients read slowly or pause.
+- **Native WebSockets:** `package:dartvel_shelf/web_socket.dart` provides `webSocketHandler`
+  and `wsHandler` backed by Axum and tungstenite. Supports subprotocols, allowed origins,
+  ping/pong heartbeats, message size caps, and bounded queues with backpressure via
+  `sink.addStream`.
+- **Event-driven WebSocket frame delivery:** Replaced the 1ms polling loop with native
+  frame wakeup callbacks (`aw_register_ws_wakeup_handler`), eliminating polling latency
+  and increasing echo throughput by over 5x.
+- **Native static file serving:** Native static asset handling now streams via
+  `tower-http` `ServeFile`, with full support for byte ranges (`Range`, `206`, `416`),
+  `HEAD`, conditional requests (`Last-Modified`, `If-Modified-Since`, weak `ETag`,
+  `If-None-Match`), and canonical path traversal protection.
+- **Parity gaps documented:** Arbitrary connection hijacking (`Request.hijack` expecting
+  `dart:io` Socket), dynamic HTTP request protocol version metadata (defaults to 1.1),
+  and configurable graceful shutdown timeouts remain missing / not done.
 - A request body reaches the handler as it is received, a chunk at a time, with
   backpressure: a handler that reads slowly keeps the client from sending ahead,
   and the handler is told when the body is done. A server whose native library

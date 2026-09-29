@@ -235,9 +235,12 @@ class NativeWebSocketChannel(
   Future<void> send(Object? message) => _sink.send(message);
 
   Future<void> _send(int kind, List<int> bytes) async {
-    if (_closed) throw StateError('WebSocket is closed');
-    if ((kind == 1 || kind == 2) && bytes.length > maxMessageSize)
+    if (_closed) {
+      throw StateError('WebSocket is closed');
+    }
+    if ((kind == 1 || kind == 2) && bytes.length > maxMessageSize) {
       throw ArgumentError('Message exceeds maxMessageSize');
+    }
     final ptr = malloc<ffi.Uint8>(bytes.isEmpty ? 1 : bytes.length);
     final data = calloc<gen.FfiBuf>();
     ptr.asTypedList(bytes.length).setAll(0, bytes);
@@ -248,8 +251,9 @@ class NativeWebSocketChannel(
       while (!_closed) {
         final result = _api.aw_ws_send(id, kind, data.ref);
         if (result == 0) return;
-        if (result < 0)
+        if (result < 0) {
           throw StateError('WebSocket is closed or message invalid');
+        }
         await Future<void>.delayed(const Duration(milliseconds: 1));
       }
       throw StateError('WebSocket is closed');
@@ -276,11 +280,14 @@ class _NativeSink(this.channel) implements WebSocketSink {
   int _pending = 0;
   bool _closing = false;
   Future<void> send(Object? value) {
-    if (_closing || channel._closed) throw StateError('WebSocket is closed');
-    if (_pending >= 8)
+    if (_closing || channel._closed) {
+      throw StateError('WebSocket is closed');
+    }
+    if (_pending >= 8) {
       throw StateError(
         'WebSocket send queue full; await send or use addStream',
       );
+    }
     final int kind;
     final List<int> bytes;
     if (value is String) {
@@ -292,8 +299,9 @@ class _NativeSink(this.channel) implements WebSocketSink {
     } else {
       throw ArgumentError('WebSocket messages must be String or List<int>');
     }
-    if (bytes.length > channel.maxMessageSize)
+    if (bytes.length > channel.maxMessageSize) {
       throw ArgumentError('Message exceeds maxMessageSize');
+    }
     _pending++;
     final next = _tail.then((_) => channel._send(kind, bytes)).whenComplete(() {
       _pending--;
@@ -336,8 +344,9 @@ class _NativeSink(this.channel) implements WebSocketSink {
       throw ArgumentError.value(code, 'closeCode');
     }
     final reason = utf8.encode(closeReason ?? '');
-    if (reason.length > 123)
+    if (reason.length > 123) {
       throw ArgumentError('Close reason exceeds 123 bytes');
+    }
     _closing = true;
     await _tail;
     try {
