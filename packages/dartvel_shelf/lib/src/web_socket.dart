@@ -23,6 +23,8 @@ typedef ConnectionCallback = void Function(
 /// Use sink.addStream (or NativeWebSocketChannel.send) for backpressure.
 /// sink.add buffers in Dart and applies backpressure to the network,
 /// matching dart:io WebSocket semantics without throwing on a full queue.
+/// Frames added in one turn of the event loop are written together, from
+/// the isolate's own thread whenever the socket can take them at once.
 /// Messages default to at most 1 MiB.
 Future<Response> Function(Request) webSocketHandler(
   ConnectionCallback onConnection, {
@@ -212,18 +214,12 @@ class NativeWebSocketChannel(
       }
       switch (frame.kind) {
         case 1:
-          // Avoid copy: create string directly from the native buffer.
-          // The buffer is owned by Rust until aw_ws_free is called.
-          // We must copy the data because the native buffer may be reused.
-          // Use utf8.decode which is optimized for this case.
+          // Decoded straight from the native buffer, which is freed after.
           final text = utf8.decode(frame.data.ptr.asTypedList(frame.data.len));
           _api.aw_ws_free(frame.data);
           _controller.add(text);
         case 2:
-          // Avoid Uint8List.fromList copy: use view of the native buffer.
-          // The buffer is owned by Rust until aw_ws_free is called.
-          // We must copy because the native buffer may be reused/freed.
-          // Use Uint8List.fromList for now; consider external typed data later.
+          // Copied: the native buffer is freed on the next line.
           final bytes = Uint8List.fromList(
             frame.data.ptr.asTypedList(frame.data.len),
           );
@@ -260,7 +256,24 @@ class NativeWebSocketChannel(
   /// Waits for native queue capacity. Await each send or use sink.addStream.
   Future<void> send(Object? message) => _sink.send(message);
 
-  int _sendDirect(int kind, Uint8List bytes) {
+  /// Queues and sends one frame at once (heartbeat pings).
+  int _sendDirect(int kind, Uint8List bytes) =>
+      _withNative(kind, bytes, _api.aw_ws_send);
+
+  /// Queues one frame natively without sending it; see [_flush].
+  /// 0 accepted, 1 queue full (a wakeup follows when there is room), -1 closed.
+  int _queue(int kind, Uint8List bytes) =>
+      _withNative(kind, bytes, _api.aw_ws_queue);
+
+  /// Sends what is queued: written from this thread when the socket takes it
+  /// all, otherwise by the native writer. 0 written, 1 in progress, -1 closed.
+  int _flush() => _closed ? -1 : _api.aw_ws_flush(id);
+
+  int _withNative(
+    int kind,
+    Uint8List bytes,
+    int Function(int, int, gen.FfiBuf) call,
+  ) {
     if (_closed) return -1;
     if ((kind == 1 || kind == 2) && bytes.length > maxMessageSize) {
       return -1;
@@ -272,7 +285,7 @@ class NativeWebSocketChannel(
       _scratchBuf.ref
         ..ptr = _scratchPtr
         ..len = bytes.length;
-      return _api.aw_ws_send(id, kind, _scratchBuf.ref);
+      return call(id, kind, _scratchBuf.ref);
     }
     final ptr = malloc<ffi.Uint8>(bytes.length);
     final data = calloc<gen.FfiBuf>();
@@ -281,7 +294,7 @@ class NativeWebSocketChannel(
       data.ref
         ..ptr = ptr
         ..len = bytes.length;
-      return _api.aw_ws_send(id, kind, data.ref);
+      return call(id, kind, data.ref);
     } finally {
       malloc.free(ptr);
       calloc.free(data);
@@ -340,7 +353,7 @@ class _NativeSink implements WebSocketSink {
     }
     final completer = Completer<void>.sync();
     _outgoing.add(_QueuedMessage(kind, bytes, completer));
-    _pumpOutgoing();
+    _schedulePump();
     return completer.future;
   }
 
@@ -367,7 +380,7 @@ class _NativeSink implements WebSocketSink {
       throw ArgumentError('Message exceeds maxMessageSize');
     }
     _outgoing.add(_QueuedMessage(kind, bytes));
-    _pumpOutgoing();
+    _schedulePump();
   }
 
   @override
@@ -407,7 +420,7 @@ class _NativeSink implements WebSocketSink {
 
     final closeCompleter = Completer<void>();
     _outgoing.add(_QueuedMessage(8, closeBytes, closeCompleter));
-    _pumpOutgoing();
+    _schedulePump();
     try {
       await closeCompleter.future;
     } finally {
@@ -419,18 +432,44 @@ class _NativeSink implements WebSocketSink {
   @override
   Future<void> get done => channel._done.future;
 
+  bool _pumpScheduled = false;
+
+  /// Frames added in one turn of the event loop go out together: one pass
+  /// over the queue and one write, after the code that added them returns.
+  void _schedulePump() {
+    if (_pumpScheduled) return;
+    _pumpScheduled = true;
+    scheduleMicrotask(() {
+      _pumpScheduled = false;
+      _pumpOutgoing();
+    });
+  }
+
   void _pumpOutgoing() {
     if (_pumping || channel._closed || _outgoing.isEmpty) return;
     _pumping = true;
+    var queued = false;
     try {
       while (_outgoing.isNotEmpty && !channel._closed) {
         final msg = _outgoing.first;
-        final result = channel._sendDirect(msg.kind, msg.bytes);
+        var result = channel._queue(msg.kind, msg.bytes);
+        if (result == 1 && queued) {
+          // Full of frames this pass queued: send them, and if the socket
+          // took them all there is room again.
+          queued = false;
+          final flushed = channel._flush();
+          if (flushed == 0) {
+            result = channel._queue(msg.kind, msg.bytes);
+          } else if (flushed < 0) {
+            result = -1;
+          }
+        }
         if (result == 0) {
           _outgoing.removeFirst();
+          queued = true;
           msg.completer?.complete();
         } else if (result == 1) {
-          // Native queue full, wait for capacity (via wakeup or timer)
+          // Native queue full; its writer wakes this side when there is room.
           break;
         } else {
           _outgoing.removeFirst();
@@ -438,8 +477,11 @@ class _NativeSink implements WebSocketSink {
             StateError('WebSocket is closed or message invalid'),
           );
           channel.dispose();
-          break;
+          return;
         }
+      }
+      if (queued && channel._flush() < 0) {
+        channel.dispose();
       }
     } catch (e, st) {
       if (_outgoing.isNotEmpty) {
