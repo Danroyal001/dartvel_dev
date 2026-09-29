@@ -182,6 +182,19 @@ void main() {
       expect(await get('/__studio/graph.json'), isNull);
     });
 
+    test('serves neither Studio\'s document under its file name nor its '
+        'deferred parts', () async {
+      // The same two rules the signed-out mount keeps once the setup is done:
+      // Studio's document is reached only as the setup page, whose headers
+      // it is served with, and Studio's deferred sections need the grant
+      // nobody has yet.
+      File('${server.root}/main.dart.js_1.part.js')
+          .writeAsStringSync('// Studio section');
+      expect(await get('/__studio/index.html'), isNull);
+      expect(await get('/__studio/main.dart.js_1.part.js'), isNull);
+      expect(await get('/__studio/missing.js'), isNull);
+    });
+
     test('drives the application\'s own auth endpoints, at the mount, with '
         'the CSRF header required', () async {
       final DVSessions sessions = DVSessions();
