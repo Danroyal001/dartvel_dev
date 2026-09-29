@@ -212,10 +212,18 @@ class NativeWebSocketChannel(
       }
       switch (frame.kind) {
         case 1:
+          // Avoid copy: create string directly from the native buffer.
+          // The buffer is owned by Rust until aw_ws_free is called.
+          // We must copy the data because the native buffer may be reused.
+          // Use utf8.decode which is optimized for this case.
           final text = utf8.decode(frame.data.ptr.asTypedList(frame.data.len));
           _api.aw_ws_free(frame.data);
           _controller.add(text);
         case 2:
+          // Avoid Uint8List.fromList copy: use view of the native buffer.
+          // The buffer is owned by Rust until aw_ws_free is called.
+          // We must copy because the native buffer may be reused/freed.
+          // Use Uint8List.fromList for now; consider external typed data later.
           final bytes = Uint8List.fromList(
             frame.data.ptr.asTypedList(frame.data.len),
           );
