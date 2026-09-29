@@ -40,11 +40,8 @@ class DVNotFoundPage extends StatelessWidget {
       'Nothing is at $route.',
       'The link may be wrong, or the page may have moved.',
     ],
-    children: <Widget>[
-      DVNavLink(
-        to: const DVRouteTarget('/'),
-        child: Text('Go to the home page', style: _linkStyle(context)),
-      ),
+    children: const <Widget>[
+      _DVLinkButton(to: DVRouteTarget('/'), label: 'Go to the home page'),
     ],
   );
 }
@@ -77,10 +74,7 @@ class DVOfflinePage extends StatelessWidget {
         'Check the connection, then try again.',
       ],
       children: <Widget>[
-        DVNavLink(
-          to: DVRouteTarget(target),
-          child: Text('Try again', style: _linkStyle(context)),
-        ),
+        _DVLinkButton(to: DVRouteTarget(target), label: 'Try again'),
       ],
     );
   }
@@ -137,11 +131,125 @@ class _DVErrorPage extends StatelessWidget {
   }
 }
 
-TextStyle? _linkStyle(BuildContext context) {
-  final ThemeData theme = Theme.of(context);
-  return theme.textTheme.bodyLarge?.copyWith(
-        color: theme.colorScheme.primary,
-        decoration: .underline,
-        decorationColor: theme.colorScheme.primary,
-      );
+/// A link drawn as the application's primary button.
+///
+/// A link, because where it goes is a page: a crawler reads it as
+/// `<a href>`, a screen reader announces a link, a middle click opens a tab
+/// and the keyboard reaches it -- all of which [DVNavLink] already is. Drawn
+/// as a filled button in the application's theme, because the one thing a
+/// person on an error page is looking for is the way out, and a line of plain
+/// text did not look like anything that could be pressed. Hover, focus and
+/// press are the theme's own filled-button states, with a visible outline on
+/// keyboard focus, and it is never smaller than a finger.
+class _DVLinkButton extends StatefulWidget {
+  const _DVLinkButton({required this.to, required this.label});
+
+  final DVRouteTarget to;
+  final String label;
+
+  @override
+  State<_DVLinkButton> createState() => _DVLinkButtonState();
+}
+
+class _DVLinkButtonState extends State<_DVLinkButton> {
+  final FocusNode _focus = FocusNode(debugLabel: 'DVLinkButton');
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _focus
+      ..removeListener(_changed)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    // The application's filled-button theme over Material's filled button,
+    // so an app that styled its buttons gets its own here too.
+    final ButtonStyle style = (theme.filledButtonTheme.style ??
+            const ButtonStyle())
+        .merge(FilledButton.styleFrom(
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      textStyle: theme.textTheme.labelLarge,
+      minimumSize: const Size(64, 48),
+      padding: const .symmetric(horizontal: 24, vertical: 12),
+      shape: const StadiumBorder(),
+    ));
+    final bool focused = _focus.hasFocus;
+    final Set<WidgetState> states = <WidgetState>{
+      if (_hovered) WidgetState.hovered,
+      if (focused) WidgetState.focused,
+      if (_pressed) WidgetState.pressed,
+    };
+    final Color background =
+        style.backgroundColor?.resolve(states) ?? scheme.primary;
+    final Color? overlay = style.overlayColor?.resolve(states);
+    final Color foreground =
+        style.foregroundColor?.resolve(states) ?? scheme.onPrimary;
+    final OutlinedBorder shape =
+        style.shape?.resolve(states) ?? const StadiumBorder();
+    return DVNavLink(
+      to: widget.to,
+      padding: .zero,
+      focusNode: _focus,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: Listener(
+          onPointerDown: (_) => setState(() => _pressed = true),
+          onPointerUp: (_) => setState(() => _pressed = false),
+          onPointerCancel: (_) => setState(() => _pressed = false),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: style.minimumSize?.resolve(states)?.width ?? 64,
+              minHeight: style.minimumSize?.resolve(states)?.height ?? 48,
+            ),
+            child: Material(
+              color: overlay == null
+                  ? background
+                  : Color.alphaBlend(overlay, background),
+              shape: focused
+                  ? shape.copyWith(
+                      side: BorderSide(color: scheme.onSurface, width: 2),
+                    )
+                  : shape,
+              child: Padding(
+                padding: style.padding?.resolve(states) ??
+                    const .symmetric(horizontal: 24, vertical: 12),
+                child: Center(
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  child: DefaultTextStyle.merge(
+                    style: (style.textStyle?.resolve(states) ??
+                            theme.textTheme.labelLarge ??
+                            const TextStyle())
+                        .copyWith(color: foreground),
+                    child: Text(widget.label),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

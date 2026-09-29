@@ -10,8 +10,10 @@
 // remote and a switch, and both are links a crawler follows rather than text
 // that looks like one.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _app(Widget child) => MaterialApp(
@@ -91,6 +93,85 @@ void main() {
         tester.widget<DVNavLink>(find.byType(DVNavLink)).to.path,
         '/',
       );
+    });
+
+    // The way home was a line of plain text that looked like nothing a
+    // person could press. It is a filled button in the application's own
+    // primary colour -- still a link underneath, so a crawler and a screen
+    // reader get an <a href="/"> and a middle click opens a tab.
+    group('the way home is a button', () {
+      const Color primary = Color(0xFF2F6BFF);
+      const Color onPrimary = Color(0xFFFFFFFF);
+      Future<void> pumpThemed(WidgetTester tester) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: primary).copyWith(
+              primary: primary,
+              onPrimary: onPrimary,
+            ),
+          ),
+          home: const DVNotFoundPage(route: '/nowhere'),
+        ));
+        await tester.pumpAndSettle();
+      }
+
+      Finder surface() => find
+          .ancestor(
+            of: find.text('Go to the home page'),
+            matching: find.byType(Material),
+          )
+          .first;
+
+      testWidgets('filled with the theme\'s primary colour, its label in '
+          'the colour drawn on it', (WidgetTester tester) async {
+        await pumpThemed(tester);
+        expect(tester.widget<Material>(surface()).color, primary);
+        final BuildContext label =
+            tester.element(find.text('Go to the home page'));
+        expect(DefaultTextStyle.of(label).style.color, onPrimary);
+      });
+
+      testWidgets('big enough to press', (WidgetTester tester) async {
+        await pumpThemed(tester);
+        final Size size = tester.getSize(surface());
+        expect(size.height, greaterThanOrEqualTo(48));
+        expect(size.width, greaterThanOrEqualTo(48));
+      });
+
+      testWidgets('answers the pointer over it and the keyboard focus on it',
+          (WidgetTester tester) async {
+        await pumpThemed(tester);
+        final Color? resting = tester.widget<Material>(surface()).color;
+
+        final TestGesture mouse =
+            await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(tester.getCenter(surface()));
+        await tester.pumpAndSettle();
+        final Color? hovered = tester.widget<Material>(surface()).color;
+        expect(hovered, isNot(resting), reason: 'hover');
+        await mouse.moveTo(Offset.zero);
+        await tester.pumpAndSettle();
+        expect(tester.widget<Material>(surface()).color, resting);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(tester.widget<Material>(surface()).color, isNot(resting),
+            reason: 'keyboard focus');
+      });
+
+      testWidgets('is still a link to the home page', (WidgetTester tester) async {
+        final SemanticsHandle handle = tester.ensureSemantics();
+        await pumpThemed(tester);
+        final SemanticsData link =
+            tester.getSemantics(find.byType(DVNavLink)).getSemanticsData();
+        expect(link.flagsCollection.isLink, isTrue);
+        expect(link.linkUrl, Uri.parse('/'));
+        expect(link.label, 'Go to the home page');
+        expect(link.hasAction(SemanticsAction.tap), isTrue);
+        handle.dispose();
+      });
     });
 
     testWidgets('carries the app theme, so a bare error page is not the '
