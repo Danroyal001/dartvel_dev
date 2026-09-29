@@ -40,6 +40,7 @@ const int _nativeAbiVersion = 2;
 const Duration _defaultRequestTimeout = Duration(seconds: 60);
 typedef _NativeCancelCb = gen.DartStreamCancelHandlerFunction;
 typedef _NativeAckCb = gen.DartStreamAckHandlerFunction;
+typedef _NativeWakeupCb = gen.DartWsWakeupHandlerFunction;
 
 class _StreamResponseState {
   _StreamResponseState(this.subscription);
@@ -58,6 +59,7 @@ class ServerHandle {
   // has no way to stream a body into.
   final ffi.NativeCallable<_NativeBodyChunkCb>? _dartBodyChunkHandler;
   final ffi.NativeCallable<_NativeAckCb>? _dartStreamAckHandler;
+  final ffi.NativeCallable<_NativeWakeupCb>? _dartWsWakeupHandler;
   bool _stopped = false;
   final Set<NativeWebSocketChannel> _webSockets;
 
@@ -71,6 +73,7 @@ class ServerHandle {
     this._dartBodyChunkHandler,
     this._dartStreamAckHandler,
     this._webSockets = const {},
+    this._dartWsWakeupHandler,
   ]);
 
   Future<void> stop() async {
@@ -82,6 +85,7 @@ class ServerHandle {
     _dartCancelHandler.close();
     _dartBodyChunkHandler?.close();
     _dartStreamAckHandler?.close();
+    _dartWsWakeupHandler?.close();
   }
 }
 
@@ -323,6 +327,7 @@ Future<ServerHandle> serve(
   var urlPort = port;
 
   final webSockets = <NativeWebSocketChannel>{};
+  final activeWebSockets = <int, NativeWebSocketChannel>{};
 
   void handleRequest(
       int reqId,
@@ -396,7 +401,11 @@ Future<ServerHandle> serve(
           if (accepted != 0) { api.aw_ws_dispose(reqId); return; }
           final channel = NativeWebSocketChannel(reqId, api, resp.protocol, resp.max, resp.pingInterval);
           webSockets.add(channel);
-          channel.sink.done.whenComplete(() { webSockets.remove(channel); });
+          activeWebSockets[reqId] = channel;
+          channel.sink.done.whenComplete(() {
+            webSockets.remove(channel);
+            activeWebSockets.remove(reqId);
+          });
           channel.start(resp.pingInterval);
           try { resp.callback(channel, resp.protocol); }
           catch (_) { channel.dispose(); }
@@ -596,6 +605,16 @@ Future<ServerHandle> serve(
     // Older bundled binaries may not expose this FFI symbol.
   }
 
+  final dartWsWakeupHandler =
+      ffi.NativeCallable<_NativeWakeupCb>.listener((int reqId) {
+    activeWebSockets[reqId]?.onWakeup();
+  });
+  try {
+    api.aw_register_ws_wakeup_handler(dartWsWakeupHandler.nativeFunction);
+  } on ArgumentError {
+    // Older bundled binaries may not expose this FFI symbol.
+  }
+
   // On this thread and before aw_start, which takes it into this server's own
   // slot the way it takes the request and cancel handlers: two isolates
   // starting a server at the same moment interleave as register A, register B,
@@ -694,6 +713,7 @@ Future<ServerHandle> serve(
     dartBodyChunkHandler,
     dartStreamAckHandler,
     webSockets,
+    dartWsWakeupHandler,
   );
 }
 
