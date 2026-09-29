@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/commands/docs_command.dart';
+import 'package:dartvel_cli/src/docs/docs_document.dart';
 import 'package:dartvel_cli/src/docs/docs_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -59,15 +60,23 @@ Future<(int, String)> _get(Uri url) async {
 }
 
 void main() {
-  test('builds the site into build/docs and reports drift', () async {
+  test('builds the document into build/docs and reports drift', () async {
     final Directory root = _project();
     final List<String> lines = <String>[];
     final int code = await runDocs(root.path, out: lines.add);
 
     expect(code, 0, reason: 'drift is a warning unless asked to be fatal');
-    final File index = File(p.join(root.path, 'build', 'docs', 'index.html'));
-    expect(index.existsSync(), isTrue);
-    expect(index.readAsStringSync(), contains('0001-users.html'));
+    // The document, and the graph beside it. Not pages: the site is an
+    // application, and what it draws is written next to it.
+    final File payload = File(
+      p.join(root.path, 'build', 'docs', dvDocsPayloadFile),
+    );
+    expect(payload.existsSync(), isTrue);
+    expect(payload.readAsStringSync(), contains('decision:0001-users'));
+    expect(
+      File(p.join(root.path, 'build', 'docs', dvDocsGraphFile)).existsSync(),
+      isTrue,
+    );
     expect(lines.join('\n'), contains('DV-DOCS-001'));
     expect(lines.join('\n'), contains('docs/decisions/0001-users.md:3'));
     expect(lines.join('\n'), contains('model:Account'));
@@ -91,7 +100,7 @@ void main() {
   test('--output is relative to the project', () async {
     final Directory root = _project();
     await runDocs(root.path, output: 'site', out: (_) {});
-    expect(File(p.join(root.path, 'site', 'models.html')).existsSync(), isTrue);
+    expect(File(p.join(root.path, 'site', dvDocsPayloadFile)).existsSync(), isTrue);
   });
 
   test('refuses to write over a directory it did not build', () async {
@@ -116,11 +125,13 @@ void main() {
       );
       addTearDown(server.close);
 
-      final (int status, String index) = await _get(server.url);
+      final (int status, String payload) = await _get(
+        server.url.resolve(dvDocsPayloadFile),
+      );
       expect(status, 200);
-      expect(index, contains('0001-users.html'));
+      expect(payload, contains('decision:0001-users'));
 
-      final (int missing, _) = await _get(server.url.resolve('nope.html'));
+      final (int missing, _) = await _get(server.url.resolve('nope.json'));
       expect(missing, 404);
       // Out of the site and into the project: a docs server must not serve
       // the application's source or its environment files.
@@ -148,11 +159,11 @@ class _Invoice {
       final Stopwatch waited = Stopwatch()..start();
       String models = '';
       while (waited.elapsed < const Duration(seconds: 30)) {
-        models = (await _get(server.url.resolve('models.html'))).$2;
-        if (models.contains('id="model-Invoice"')) break;
+        models = (await _get(server.url.resolve(dvDocsPayloadFile))).$2;
+        if (models.contains('"Invoice"')) break;
         await Future<void>.delayed(const Duration(milliseconds: 200));
       }
-      expect(models, contains('id="model-Invoice"'));
+      expect(models, contains('"Invoice"'));
       expect(models, contains('Sent at the end of the month.'));
     },
   );

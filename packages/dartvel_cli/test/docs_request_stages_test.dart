@@ -71,14 +71,17 @@ Pattern _marker(String stage, String function) => switch (stage) {
   _ => throw ArgumentError(stage),
 };
 
-List<String> _stagesIn(String html, String function) {
-  final int start = html.indexOf('id="function-$function"');
-  final int end = html.indexOf('<section', start + 1);
-  return RegExp(r'<li class="stage" data-stage="([^"]+)"')
-      .allMatches(html.substring(start, end == -1 ? html.length : end))
-      .map((RegExpMatch m) => m.group(1)!)
-      .toList();
-}
+/// The stages the site lists for [function], in order.
+///
+/// Read from the document rather than from markup: the lifecycle is a list of
+/// ids on the function's own page, and the page is what the app draws.
+List<String> _stagesIn(DVDocsPage functions, String function) => functions
+    .section('function-$function')!
+    .whereType<DVDocsList>()
+    .single
+    .items
+    .map((DVDocsListItem i) => i.id!)
+    .toList();
 
 /// The generated registration for [method] [path], up to the next one.
 String _handler(String routes, String method, String path) {
@@ -91,7 +94,7 @@ String _handler(String routes, String method, String path) {
 void main() {
   late Directory root;
   late String routes;
-  late String functions;
+  late DVDocsPage functions;
 
   setUpAll(() async {
     root = Directory.systemTemp.createTempSync('dv_docs_stages_');
@@ -115,7 +118,7 @@ void main() {
     ).readAsStringSync();
     functions = (await DVDocsSite.build(
       root: root.path,
-    )).files['functions.html']!;
+    )).document.page('functions')!;
   });
 
   tearDownAll(() => root.deleteSync(recursive: true));
@@ -131,8 +134,7 @@ void main() {
       final String handler = _handler(routes, method, path);
       final List<String> stages = _stagesIn(functions, name);
       expect(stages, isNotEmpty);
-      int previous = -1;
-      for (final String stage in stages) {
+      int previous = -1;      for (final String stage in stages) {
         final int at = handler.indexOf(_marker(stage, name));
         expect(
           at,
