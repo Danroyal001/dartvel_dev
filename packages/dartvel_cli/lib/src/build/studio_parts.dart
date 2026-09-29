@@ -90,3 +90,14 @@ Map<String, List<int>> dvReadStudioParts(String partsRoot) {
       if (entity is File) p.basename(entity.path): entity.readAsBytesSync(),
   };
 }
+
+/// Where a web-server build keeps what it carries of Studio, apart from the
+/// public web root: `data` (the graph and page structures) and `parts`
+/// (Studio's code).
+const String dvStudioDirectory = 'build/studio';
+
+/// Studio's data, relative to the project.
+const String dvStudioDataDirectory = 'build/studio/data';
+
+/// Studio's code, relative to the project.
+const String dvStudioPartsDirectory = 'build/studio/parts';
