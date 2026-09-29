@@ -17,6 +17,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVAdminMount,
         DVDatabaseAdapter,
         DVDatabaseConnection,
+        DVStudioDevGrant,
         DVStudioModelSpec,
         SqliteDVDatabaseAdapter;
 import 'package:path/path.dart' as p;
@@ -24,7 +25,7 @@ import 'package:path/path.dart' as p;
 import '../graph/project_graph.dart' show DartvelProjectGraph;
 
 import '../commands/db_command.dart' show dvDatabaseSettings;
-import 'admin_mount.dart' show dvAdminMount;
+import 'admin_mount.dart' show dvAdminMount, dvStudioDefine;
 
 /// The mount a development server serves Studio at: where the project put
 /// it, on unless the project turned it off, and behind the development grant.
@@ -106,3 +107,46 @@ Object? _pubspecName(String root) {
       .firstMatch(pubspec.readAsStringSync());
   return name?.group(1);
 }
+
+/// What `flutter run` is given so the app dev runs carries Studio's routes:
+/// the define, for a web app with Studio on, and nothing otherwise. Studio
+/// in an app on a phone or a desktop would have no server behind its mount.
+List<String> dvDevStudioFlutterArgs(DVAdminMount mount, {required bool web}) =>
+    web && mount.enabled
+        ? const <String>['--dart-define=$dvStudioDefine=true']
+        : const <String>[];
+
+/// The line that marks a `web_dev_config.yaml` as dev's to rewrite.
+const String dvDevStudioProxyMarker = '# dartvel:studio-proxy';
+
+/// The `web_dev_config.yaml` that has Flutter's development server pass
+/// `<mount>/api/` to the development backend on [backendPort], so Studio in
+/// the app reaches its API on the app's own origin, with the development
+/// grant's cookie. Null when [existing] is the project's own file, which dev
+/// never overwrites.
+String? dvDevStudioProxyConfig(
+  DVAdminMount mount, {
+  required int backendPort,
+  required String? existing,
+}) {
+  if (existing != null && !existing.contains(dvDevStudioProxyMarker)) {
+    return null;
+  }
+  return '''
+$dvDevStudioProxyMarker
+# Written by dartvel dev: Studio's API, on the development backend, reached
+# through the app's own development server. Remove the line above to keep
+# this file as your own; dev then leaves it alone.
+server:
+  proxy:
+    - prefix: "${mount.path}/api/"
+      target: "http://localhost:$backendPort/"
+''';
+}
+
+/// The development grant's link, on the app at [appOrigin]: through the API
+/// the app's server passes on, so the grant's cookie is set on the app's own
+/// origin and the backend's answer sends the browser to Studio in the app.
+String dvDevStudioLink(
+        String appOrigin, DVAdminMount mount, DVStudioDevGrant grant) =>
+    '$appOrigin${mount.path}/api/?${DVStudioDevGrant.queryParameter}=${grant.token}';
