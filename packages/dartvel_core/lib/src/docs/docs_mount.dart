@@ -52,7 +52,7 @@ const String dvDocsDefaultPath = '/docs';
 /// The documentation site is OFF by default for every app. A build includes
 /// it only when pubspec says so, e.g. `dartvel: docs: enabled: true`.
 /// Access defaults to `studio` when enabled, requiring a Studio grant.
-DVDocsMount dvDocsMount(Object? dartvel, {bool? release}) {
+DVDocsMount dvDocsMount(Object? dartvel) {
   final Object? docs = dartvel is Map ? dartvel['docs'] : null;
   final Object? declared = docs is Map ? docs['path'] : null;
   final Object? enabled = docs is Map ? docs['enabled'] : null;
