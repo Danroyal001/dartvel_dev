@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
@@ -20,8 +21,9 @@ typedef ConnectionCallback = void Function(
 
 /// Shelf-style callback and options, with bounded native message queues.
 /// Use sink.addStream (or NativeWebSocketChannel.send) for backpressure.
-/// sink.add refuses more than eight outstanding sends rather than buffering
-/// an unlimited number of messages. Messages default to at most 1 MiB.
+/// sink.add buffers in Dart and applies backpressure to the network,
+/// matching dart:io WebSocket semantics without throwing on a full queue.
+/// Messages default to at most 1 MiB.
 Future<Response> Function(Request) webSocketHandler(
   ConnectionCallback onConnection, {
   Iterable<String>? protocols,
@@ -161,9 +163,17 @@ class NativeWebSocketChannel(
   @override
   WebSocketSink get sink => _sink;
 
+  static const int _scratchSize = 64 * 1024;
+  late final ffi.Pointer<ffi.Uint8> _scratchPtr = malloc<ffi.Uint8>(_scratchSize);
+  late final ffi.Pointer<gen.FfiBuf> _scratchBuf = calloc<gen.FfiBuf>();
+
   void start(Duration? interval) {
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _drain());
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      _drain();
+      _sink._pumpOutgoing();
+    });
     _drain();
+    _sink._pumpOutgoing();
     if (interval != null) {
       _ping = Timer.periodic(interval, (_) {
         final count = _api.aw_ws_pong_count(id);
@@ -173,15 +183,16 @@ class NativeWebSocketChannel(
         }
         _pongCount = count;
         _awaitingPong = true;
-        _send(9, const []).catchError((Object _) {
+        if (_sendDirect(9, Uint8List(0)) < 0) {
           dispose();
-        });
+        }
       });
     }
   }
 
   void onWakeup() {
     _drain();
+    _sink._pumpOutgoing();
   }
 
   void _drain() {
@@ -213,9 +224,9 @@ class NativeWebSocketChannel(
         case 2:
           _controller.add(bytes);
         case 9:
-          _send(10, bytes).catchError((Object _) {
+          if (_sendDirect(10, bytes) < 0) {
             dispose();
-          });
+          }
         case 10:
           _awaitingPong = false;
         case 8:
@@ -234,29 +245,28 @@ class NativeWebSocketChannel(
   /// Waits for native queue capacity. Await each send or use sink.addStream.
   Future<void> send(Object? message) => _sink.send(message);
 
-  Future<void> _send(int kind, List<int> bytes) async {
-    if (_closed) {
-      throw StateError('WebSocket is closed');
-    }
+  int _sendDirect(int kind, Uint8List bytes) {
+    if (_closed) return -1;
     if ((kind == 1 || kind == 2) && bytes.length > maxMessageSize) {
-      throw ArgumentError('Message exceeds maxMessageSize');
+      return -1;
     }
-    final ptr = malloc<ffi.Uint8>(bytes.isEmpty ? 1 : bytes.length);
-    final data = calloc<gen.FfiBuf>();
-    ptr.asTypedList(bytes.length).setAll(0, bytes);
-    data.ref
-      ..ptr = ptr
-      ..len = bytes.length;
-    try {
-      while (!_closed) {
-        final result = _api.aw_ws_send(id, kind, data.ref);
-        if (result == 0) return;
-        if (result < 0) {
-          throw StateError('WebSocket is closed or message invalid');
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 1));
+    if (bytes.length <= _scratchSize) {
+      if (bytes.isNotEmpty) {
+        _scratchPtr.asTypedList(bytes.length).setAll(0, bytes);
       }
-      throw StateError('WebSocket is closed');
+      _scratchBuf.ref
+        ..ptr = _scratchPtr
+        ..len = bytes.length;
+      return _api.aw_ws_send(id, kind, _scratchBuf.ref);
+    }
+    final ptr = malloc<ffi.Uint8>(bytes.length);
+    final data = calloc<gen.FfiBuf>();
+    try {
+      ptr.asTypedList(bytes.length).setAll(0, bytes);
+      data.ref
+        ..ptr = ptr
+        ..len = bytes.length;
+      return _api.aw_ws_send(id, kind, data.ref);
     } finally {
       malloc.free(ptr);
       calloc.free(data);
@@ -268,54 +278,81 @@ class NativeWebSocketChannel(
     _closed = true;
     _timer?.cancel();
     _ping?.cancel();
+    _sink._onDisposed();
     _api.aw_ws_dispose(id);
     _controller.close();
     _done.complete();
+    malloc.free(_scratchPtr);
+    calloc.free(_scratchBuf);
   }
 }
 
-class _NativeSink(this.channel) implements WebSocketSink {
+class _QueuedMessage {
+  _QueuedMessage(this.kind, this.bytes, [this.completer]);
+  final int kind;
+  final Uint8List bytes;
+  final Completer<void>? completer;
+}
+
+class _NativeSink implements WebSocketSink {
+  _NativeSink(this.channel);
+
   final NativeWebSocketChannel channel;
-  Future<void> _tail = Future<void>.value();
-  int _pending = 0;
+  final Queue<_QueuedMessage> _outgoing = Queue<_QueuedMessage>();
   bool _closing = false;
+  bool _pumping = false;
+
   Future<void> send(Object? value) {
     if (_closing || channel._closed) {
       throw StateError('WebSocket is closed');
     }
-    if (_pending >= 8) {
-      throw StateError(
-        'WebSocket send queue full; await send or use addStream',
-      );
-    }
     final int kind;
-    final List<int> bytes;
+    final Uint8List bytes;
     if (value is String) {
       kind = 1;
       bytes = utf8.encode(value);
+    } else if (value is Uint8List) {
+      kind = 2;
+      bytes = value;
     } else if (value is List<int>) {
       kind = 2;
-      bytes = List<int>.of(value);
+      bytes = Uint8List.fromList(value);
     } else {
       throw ArgumentError('WebSocket messages must be String or List<int>');
     }
     if (bytes.length > channel.maxMessageSize) {
       throw ArgumentError('Message exceeds maxMessageSize');
     }
-    _pending++;
-    final next = _tail.then((_) => channel._send(kind, bytes)).whenComplete(() {
-      _pending--;
-    });
-    _tail = next.catchError((Object _) {});
-    return next;
+    final completer = Completer<void>();
+    _outgoing.add(_QueuedMessage(kind, bytes, completer));
+    _pumpOutgoing();
+    return completer.future;
   }
 
   @override
   void add(Object? data) {
-    send(data).catchError((Object error, StackTrace stack) {
-      if (!channel._closed) channel._controller.addError(error, stack);
-      channel.dispose();
-    });
+    if (_closing || channel._closed) {
+      throw StateError('WebSocket is closed');
+    }
+    final int kind;
+    final Uint8List bytes;
+    if (data is String) {
+      kind = 1;
+      bytes = utf8.encode(data);
+    } else if (data is Uint8List) {
+      kind = 2;
+      bytes = data;
+    } else if (data is List<int>) {
+      kind = 2;
+      bytes = Uint8List.fromList(data);
+    } else {
+      throw ArgumentError('WebSocket messages must be String or List<int>');
+    }
+    if (bytes.length > channel.maxMessageSize) {
+      throw ArgumentError('Message exceeds maxMessageSize');
+    }
+    _outgoing.add(_QueuedMessage(kind, bytes));
+    _pumpOutgoing();
   }
 
   @override
@@ -348,9 +385,16 @@ class _NativeSink(this.channel) implements WebSocketSink {
       throw ArgumentError('Close reason exceeds 123 bytes');
     }
     _closing = true;
-    await _tail;
+    final closeBytes = Uint8List(2 + reason.length);
+    closeBytes[0] = code >> 8;
+    closeBytes[1] = code & 255;
+    closeBytes.setRange(2, closeBytes.length, reason);
+
+    final closeCompleter = Completer<void>();
+    _outgoing.add(_QueuedMessage(8, closeBytes, closeCompleter));
+    _pumpOutgoing();
     try {
-      await channel._send(8, [code >> 8, code & 255, ...reason]);
+      await closeCompleter.future;
     } finally {
       // Allow the native writer to flush the close before disposing queues.
       Timer(const Duration(seconds: 1), channel.dispose);
@@ -359,7 +403,48 @@ class _NativeSink(this.channel) implements WebSocketSink {
 
   @override
   Future<void> get done => channel._done.future;
+
+  void _pumpOutgoing() {
+    if (_pumping || channel._closed || _outgoing.isEmpty) return;
+    _pumping = true;
+    try {
+      while (_outgoing.isNotEmpty && !channel._closed) {
+        final msg = _outgoing.first;
+        final result = channel._sendDirect(msg.kind, msg.bytes);
+        if (result == 0) {
+          _outgoing.removeFirst();
+          msg.completer?.complete();
+        } else if (result == 1) {
+          // Native queue full, wait for capacity (via wakeup or timer)
+          break;
+        } else {
+          _outgoing.removeFirst();
+          msg.completer?.completeError(
+            StateError('WebSocket is closed or message invalid'),
+          );
+          channel.dispose();
+          break;
+        }
+      }
+    } catch (e, st) {
+      if (_outgoing.isNotEmpty) {
+        final msg = _outgoing.removeFirst();
+        msg.completer?.completeError(e, st);
+      }
+      channel.dispose();
+    } finally {
+      _pumping = false;
+    }
+  }
+
+  void _onDisposed() {
+    while (_outgoing.isNotEmpty) {
+      final msg = _outgoing.removeFirst();
+      msg.completer?.completeError(StateError('WebSocket is closed'));
+    }
+  }
 }
+
 
 class _Connection(this.channel) implements WsConnection {
   final NativeWebSocketChannel channel;
