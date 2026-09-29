@@ -532,6 +532,8 @@ class DVStudioApi {
             return await _queuesAt(method, segments.sublist(1));
           case 'cache':
             return await _cacheAt(method, segments.sublist(1));
+          case 'graph':
+            if (segments.length == 1) return _graph(method);
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -1562,6 +1564,33 @@ class DVStudioApi {
         'lastError': ?job.lastError,
         'tenant': ?job.tenant,
       };
+
+  // ---- project graph -----------------------------------------------------
+
+  /// The project graph the build wrote beside the server: what Studio's
+  /// Routes, Functions, Tasks and Modules sections list. Read through the API,
+  /// behind the grant, like everything else Studio shows; it is the shape of
+  /// the whole project and never a file served under the mount. An empty
+  /// object when the build wrote none.
+  Response _graph(String method) {
+    if (method != 'GET' && method != 'HEAD') _notAllowed();
+    final String? directory = root;
+    Object? graph;
+    if (directory != null) {
+      try {
+        graph = jsonDecode(
+            File('$directory${Platform.pathSeparator}graph.json')
+                .readAsStringSync());
+      } on FileSystemException {
+        graph = null;
+      } on FormatException {
+        graph = null;
+      }
+    }
+    return _reply(graph is Map
+        ? graph.cast<String, Object?>()
+        : const <String, Object?>{});
+  }
 
   // ---- cache -------------------------------------------------------------
 
