@@ -53,14 +53,14 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
               rows: <List<String>>[
                 <String>['Deployment', 'One Go binary', 'One binary from `dartvel build web-server`'],
                 <String>['Database', 'SQLite, embedded', 'SQLite beside the binary; Postgres and MySQL adapters'],
-                <String>['Admin', 'Built in', 'Studio, built in, and it edits your pages too'],
-                <String>['Auth', 'Built in: password, one-time codes, OAuth2 and MFA', 'Sessions, passkeys, SAML, LDAP, second factors, OAuth'],
+                <String>['Admin', 'Built in, with collections designed in it', 'Studio, built in: data models designed in it, records, and your pages'],
+                <String>['Auth', 'Built in: password, one-time codes, OAuth2 and MFA', 'Sessions, passwords, magic links and one-time codes, passkeys, OAuth, SAML, LDAP, second factors'],
                 <String>['Realtime', 'Subscriptions over SSE, in both SDKs', 'Model change streams in one process. Delivery to devices is not built yet'],
-                <String>['Offline', 'Left to the client', 'An offline store with a replay log. Saving through it is still a separate call'],
+                <String>['Offline', 'Left to the client', '@DVModel(offline: ...): save() writes the device copy at once, and the queue is sent when the server can be reached'],
                 <String>['Custom logic', 'Go hooks, or JavaScript', '@DVBackendFunction, in Dart, in the same repository'],
                 <String>['The client app', 'Official JavaScript and Dart SDKs, in a project you build separately', 'Generated and typed, and it is the same project'],
                 <String>['Other targets', 'None. It is a backend', 'Android, iOS, desktop, TVs, browser extensions'],
-                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.6. Most spec sections are Partial, each with what is missing'],
+                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.9. Most spec sections are Partial, each with what is missing'],
               ],
             ),
           ],
@@ -78,7 +78,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 'support ticket, and the same page renders on the web and '
                 'on a phone.'),
             Bullets(<String>[
-              'Studio covers more than records: it has a page builder, a frontend '
+              'Studio covers more than records: it has a data model designer, a page builder, a frontend '
                   'function builder, a backend function builder and a Deploy '
                   'menu that lists every target with its status.',
               'The page builder writes to the same running binary, so a page '
