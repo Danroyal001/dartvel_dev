@@ -12,6 +12,7 @@ import 'dart:convert';
 
 import '../cache/adapters.dart';
 import '../tenancy/tenants.dart';
+import 'asset_http_policy.dart';
 import 'model_page_access.dart';
 import 'page_text.dart';
 import 'seo_head.dart';
@@ -66,6 +67,7 @@ class DVWebServerSettings {
     bool streaming = false,
     DVPageStreaming? streamingMode,
     this.cache,
+    this.http = const DVAssetHttpPolicy(),
   })  : _staleFor = staleFor,
         streamingMode = streamingMode ??
             (streaming ? DVPageStreaming.head : DVPageStreaming.off);
@@ -90,6 +92,10 @@ class DVWebServerSettings {
   /// Where a cache lives when it is shared -- `redis` -- and null for this
   /// process's memory.
   final String? cache;
+
+  /// How long browsers and shared caches may keep what the server sends:
+  /// `dartvel.web.server.http`.
+  final DVAssetHttpPolicy http;
 
   static const Map<String, DVPageDataMode> _modes = <String, DVPageDataMode>{
     'await': DVPageDataMode.await_,
@@ -117,6 +123,7 @@ class DVWebServerSettings {
         _ => DVPageStreaming.off,
       },
       cache: m['cache'] is String ? m['cache']! as String : null,
+      http: DVAssetHttpPolicy.parse(m['http']),
     );
   }
 
@@ -132,6 +139,8 @@ class DVWebServerSettings {
           DVPageStreaming.shell => 'shell',
         },
         if (cache != null) 'cache': cache,
+        // Only when declared, so a manifest without it reads as it always did.
+        if (http.toJson().isNotEmpty) 'http': http.toJson(),
       };
 }
 
