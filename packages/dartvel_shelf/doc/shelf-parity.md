@@ -78,3 +78,14 @@ on this transport; the provided handler matches its callback API instead.
 Correction to the baseline streaming row: request streaming has backpressure;
 the inherited ordinary HTTP response queue is unbounded. WebSocket queues are
 bounded independently. General response backpressure remains partial.
+
+## Native static serving
+
+Native `staticDir`/SPA assets now stream via tower-http ServeFile instead of
+reading the whole file. Ranges, 416, HEAD, Last-Modified/If-Modified-Since and
+MIME lookup are supplied by ServeFile; weak ETag/If-None-Match handling wraps
+it, with entity-tag precedence over modification dates. Canonical paths refuse
+symlinks outside the configured root. `test/native_static_test.dart` observed
+all three baseline failures and verifies the fixes through real HTTP clients.
+Native directory listing/default-document customization remains available via
+the Shelf adapter's upstream static handler rather than new native options.
