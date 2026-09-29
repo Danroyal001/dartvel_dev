@@ -24,6 +24,7 @@ export 'native_library.dart' show embedNativeServerLibrary;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
 import 'request_body.dart';
+import 'web_socket.dart';
 import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
@@ -50,6 +51,7 @@ class ServerHandle {
   // has no way to stream a body into.
   final ffi.NativeCallable<_NativeBodyChunkCb>? _dartBodyChunkHandler;
   bool _stopped = false;
+  final Set<NativeWebSocketChannel> _webSockets;
 
   ServerHandle(
     this.host,
@@ -59,11 +61,13 @@ class ServerHandle {
     this._dartHandler,
     this._dartCancelHandler, [
     this._dartBodyChunkHandler,
+    this._webSockets = const {},
   ]);
 
   Future<void> stop() async {
     if (_stopped) return;
     _stopped = true;
+    for (final channel in _webSockets.toList()) { channel.dispose(); }
     _api.aw_stop(_id);
     _dartHandler.close();
     _dartCancelHandler.close();
@@ -307,6 +311,8 @@ Future<ServerHandle> serve(
   // is before any request can arrive; `port` may be 0.
   var urlPort = port;
 
+  final webSockets = <NativeWebSocketChannel>{};
+
   void handleRequest(
       int reqId,
       gen.FfiStr method,
@@ -360,6 +366,31 @@ Future<ServerHandle> serve(
     Future<void>(() async {
       try {
         final resp = await effective(req);
+        if (resp is WebSocketResponse) {
+          if (!dylib.providesSymbol('aw_ws_prepare')) {
+            throw StateError('Rebuild the native library for WebSocket support');
+          }
+          final protocolBytes = utf8.encode(resp.protocol ?? '');
+          final ptr = pkgffi.malloc<ffi.Uint8>(protocolBytes.isEmpty ? 1 : protocolBytes.length);
+          ptr.asTypedList(protocolBytes.length).setAll(0, protocolBytes);
+          final protocol = pkgffi.calloc<gen.FfiStr>();
+          protocol.ref..ptr = ptr..len = protocolBytes.length;
+          final prepared = api.aw_ws_prepare(reqId, resp.max, protocol.ref);
+          pkgffi.malloc.free(ptr); pkgffi.calloc.free(protocol);
+          if (prepared != 0) throw StateError('WebSocket preparation refused');
+          final out = pkgffi.calloc<gen.FfiResp>();
+          out.ref.status = 101;
+          final accepted = api.aw_complete(reqId, out.ref);
+          pkgffi.calloc.free(out);
+          if (accepted != 0) { api.aw_ws_dispose(reqId); return; }
+          final channel = NativeWebSocketChannel(reqId, api, resp.protocol, resp.max, resp.pingInterval);
+          webSockets.add(channel);
+          channel.sink.done.whenComplete(() { webSockets.remove(channel); });
+          channel.start(resp.pingInterval);
+          try { resp.callback(channel, resp.protocol); }
+          catch (_) { channel.dispose(); }
+          return;
+        }
         // A body the handler marked as a stream is sent as one. So is any body
         // that turns out not to be small: the client gets each piece as the
         // handler produces it rather than waiting for the last one, which is
@@ -607,7 +638,7 @@ Future<ServerHandle> serve(
   if (boundPort != 0) urlPort = boundPort;
 
   return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
-      dartRequestHandler, dartCancelHandler, dartBodyChunkHandler);
+      dartRequestHandler, dartCancelHandler, dartBodyChunkHandler, webSockets);
 }
 
 /// A response body no larger than this, and already whole when the handler

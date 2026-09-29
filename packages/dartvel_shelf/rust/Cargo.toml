@@ -8,7 +8,7 @@ name = "dartvel_shelf"
 crate-type = ["cdylib"]
 
 [dependencies]
-axum = { version = "0.7", features = ["http2"] }
+axum = { version = "0.7", features = ["http2", "ws"] }
 # tls-rustls-no-provider, not tls-rustls: the latter drags in aws-lc-rs as
 # rustls's default crypto provider. We use ring, so aws-lc was compiled for
 # nothing — a large C codebase that also fails on macOS, where cc-rs invokes
@@ -27,6 +27,7 @@ num_cpus = "1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = "2"
 futures-util = "0.3"
+tungstenite = { version = "0.24", default-features = false }
 tokio-stream = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
