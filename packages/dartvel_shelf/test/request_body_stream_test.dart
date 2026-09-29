@@ -348,6 +348,12 @@ void main() {
         wire.socket.add(_chunk(each));
         await wire.socket.flush();
       }
+      // A chunked body ends with the empty chunk. Without it a decoder can
+      // never call the body ended, so the handler would wait for a chunk
+      // past the last of them and the request would time out instead of
+      // being answered -- which is 408 rather than the 200 this is about.
+      wire.socket.add(ascii.encode('0\r\n\r\n'));
+      await wire.socket.flush();
       final int writeDoneMs = clock.elapsedMilliseconds;
       // Now that the client is done, the handler is certainly running. A
       // server that reads the body whole before calling it would have had
