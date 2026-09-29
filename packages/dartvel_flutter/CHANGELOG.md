@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **`DVDocsApp`: the documentation site is a Flutter application.** It reads
+  the `docs.json` `dartvel docs` writes and draws its pages, tables, lists,
+  code and navigation in the framework's own widgets, routing a link from the
+  page id it names rather than from an address written into the page. It
+  replaces the hand-written HTML pages `dartvel docs` used to emit.
+
 - **`DVNotFoundPage` and `DVOfflinePage`**: the two pages an application
   shows when a page cannot be shown, drawn in the app's own theme instead of
   being documents the build wrote by hand. Both carry a heading, which is what

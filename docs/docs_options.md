@@ -1,34 +1,55 @@
-# `dartvel.docs` — Documentation site options
+# `dartvel.docs`: the generated documentation site
 
-The documentation site is a compiled Flutter application (`DVDocsApp`) that reads the project's own graph (`docs.json` and `graph.json`). It is **OFF by default** for every application.
+`dartvel docs` writes the project's own reference -- its data models,
+functions, routes, jobs, policies, modules and decision records -- as a
+document, `docs.json`, beside the raw graph, `graph.json`. The site that draws
+it is `DVDocsApp`, a Flutter application from `dartvel_flutter`, compiled on
+its own the way Studio is. No page of it is hand-written HTML.
 
-Configuration lives under the `dartvel:` section of `pubspec.yaml`:
+## Off unless you turn it on
+
+A build carries the site only when `pubspec.yaml` asks for it. This holds for
+every application and every build profile: an application deployed by
+somebody who never read this page does not acquire a page listing its models
+and policies.
 
 ```yaml
 dartvel:
   docs:
-    enabled: true        # false by default; set to true to include the site
-    path: /docs          # default mount; must begin with "/" and cannot be "/"
-    access: studio       # default when enabled; "studio" or "public"
+    enabled: true   # default false
+    path: /docs     # default /docs
+    access: studio  # studio (default) or public
 ```
 
-- `enabled` (bool): When omitted or `false`, the build produces no docs site (`DVDocsMount(enabled: false)`). Only `true` includes it.
-- `path` (string): The mount under which the site is served. Default `/docs`. Refused if missing a leading `/`, equal to `/`, or parameterised (`/docs/:id`, `/docs/*`).
-- `access` (string): `studio` (default when enabled) requires Studio authentication (`DVDocsAccess.studio`); `public` serves without authentication (`DVDocsAccess.public`).
+- `enabled`: only `true` turns it on. Anything else, or no `docs` section at
+  all, is off.
+- `path`: where the site is mounted. It must begin with `/`, cannot be `/`,
+  and is a literal (`/docs/:id` and `/docs/*` are refused). A trailing slash
+  is dropped.
+- `access`: who may read it.
+  - `studio` (the default): the site is Studio's. A person without the
+    Studio grant who opens a page of it is sent to Studio's sign-in
+    (`<admin mount>/login?from=...`), and the document, the graph and the
+    compiled site answer exactly as a path the application does not serve
+    (its 404). It needs a server that serves Studio (`dartvel.admin.enabled`
+    on a `web-server` build).
+  - `public`: anybody may read it.
 
-## Access control
+## What each build does with it
 
-- `studio`: Signed-out callers get a `302` redirect to Studio sign-in (`<adminMount.path>/login?from=...`). The docs data (`docs.json`, `graph.json`) answers `404` without a Studio grant. Authorized callers receive the docs app and its data.
-- `public`: Any caller can access the site and its data without authentication.
+| Build | `access: studio` | `access: public` |
+|---|---|---|
+| `dartvel build web-server` | Carried in the binary in a section of its own, outside the files it serves to anybody, and served at the mount behind Studio's sign-in and grant. Refused when the build serves no Studio. | Carried the same way and served to anybody. |
+| `dartvel build web` | Refused: a static host serves every file to anybody, so it cannot keep the site behind Studio. Build `web-server`, or choose `access: public`. | Written at the mount, like any other page of the site. |
 
-## Route collision refusal
+Either build refuses, naming both, a mount that an application page is at or
+inside -- a site with its own `/docs` pages keeps them, and the build says to
+move one of the two with `dartvel.docs.path`.
 
-A mount path that collides with an application page route is refused at build time with a clear error naming both the page file and the docs mount. The build exits non-zero (`DV-...`) so the collision is caught before deployment.
+## Local use
 
-## Build targets
-
-Both `dartvel build web` and `dartvel build web-server` integrate the docs site at its mount when enabled. The web-server binary carries the docs site outside the `web` section (behind authentication when `access: studio`) and serves it through `DVDocsServer`.
-
-## Local development
-
-`dartvel docs --serve` keeps working as today: it serves the compiled site on loopback (`http://localhost:4180` by default) and rebuilds it when the project changes.
+`dartvel docs` writes `docs.json` and `graph.json` to `build/docs` (or
+`--output`). `dartvel docs --serve` also compiles the site and serves it on
+loopback at `http://127.0.0.1:4180/` (`--port`), rebuilding when the project
+changes. It needs no `dartvel.docs` setting: it is the documentation you are
+writing against, not something deployed.
