@@ -24,6 +24,7 @@ import 'package:dartvel_core/binary_payload.dart';
 import 'package:path/path.dart' as p;
 
 import 'admin_mount.dart';
+import 'docs_mount.dart';
 
 /// Where the output goes, relative to the project.
 String dvServerBinaryPath({bool windows = false}) =>
@@ -124,6 +125,7 @@ Map<String, List<int>> dvServerWebFiles(String webRoot) {
     final String relative =
         p.relative(entity.path, from: root.path).replaceAll(r'\', '/');
     if (relative.startsWith('__admin/') ||
+        relative.startsWith('__docs/') ||
         relative.endsWith('.symbols') ||
         relative == '.last_build_id') {
       continue;
@@ -161,6 +163,37 @@ Map<String, List<int>> dvServerAdminSections({
     'admin.mount': utf8.encode(jsonEncode(<String, Object?>{
       'path': admin.path,
       'requiresAuth': admin.requiresAuth,
+    })),
+  };
+}
+
+/// The documentation site a binary carries, as sections of its own: `docs`,
+/// the compiled docs application and its data, and `docs.mount`.
+///
+/// Carried outside the `web` section because a docs site with studio access
+/// is served behind authentication rather than to anybody.
+Map<String, List<int>> dvServerDocsSections({
+  required DVDocsMount? docs,
+  required String? docsRoot,
+}) {
+  if (docs == null || !docs.enabled || docsRoot == null) {
+    return const <String, List<int>>{};
+  }
+  final Directory root = Directory(docsRoot);
+  if (!root.existsSync()) return const <String, List<int>>{};
+  final Map<String, List<int>> files = <String, List<int>>{
+    for (final FileSystemEntity entity in root.listSync(recursive: true))
+      if (entity is File)
+        p.relative(entity.path, from: root.path).replaceAll(r'\', '/'):
+            entity.readAsBytesSync(),
+  };
+  if (files.isEmpty) return const <String, List<int>>{};
+  return <String, List<int>>{
+    'docs': dvPackFiles(files),
+    'docs.mount': utf8.encode(jsonEncode(<String, Object?>{
+      'path': docs.path,
+      'access': docs.access.name,
+      'enabled': docs.enabled,
     })),
   };
 }
@@ -222,6 +255,27 @@ Future<void> main(List<String> arguments) async {
     }
   }
 
+  // The documentation site and its mount.
+  core.DVDocsMount? docs;
+  String? docsRoot;
+  if (payload.names.contains('docs') && payload.names.contains('docs.mount')) {
+    final Object? mount = jsonDecode(utf8.decode(payload.section('docs.mount')));
+    final Object? path = mount is Map ? mount['path'] : null;
+    final Object? accessRaw = mount is Map ? mount['access'] : null;
+    final core.DVDocsAccess access =
+        accessRaw is String && accessRaw == 'public'
+            ? core.DVDocsAccess.public
+            : core.DVDocsAccess.studio;
+    if (path is String && path.startsWith('/') && path.length > 1) {
+      docs = core.DVDocsMount(
+        path: path,
+        enabled: true,
+        access: access,
+      );
+      docsRoot = dvExtractFiles(payload.section('docs'), '$data$separator.docs');
+    }
+  }
+
   final String database = '$data${separator}data.db';
   final String? url = const core.DVSecrets().maybeGet('DATABASE_URL');
   if (url == null || url.trim().isEmpty) {
@@ -236,6 +290,8 @@ Future<void> main(List<String> arguments) async {
       webRoot: webRoot,
       admin: admin,
       adminRoot: adminRoot,
+      docs: docs,
+      docsRoot: docsRoot,
       // Where a self-hosted Shorebird patch source keeps what is published
       // to it, when shorebird.yaml says this server is one.
       updatesRoot: Platform.environment['DARTVEL_UPDATES_DIR'] ??
@@ -283,6 +339,8 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   String? webRoot,
   DVAdminMount? admin,
   String? adminRoot,
+  DVDocsMount? docs,
+  String? docsRoot,
   String dart = 'dart',
 }) async {
   final File routes =
@@ -317,6 +375,7 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     'native': library.readAsBytesSync(),
     if (webRoot != null) 'web': dvPackFiles(dvServerWebFiles(webRoot)),
     ...dvServerAdminSections(admin: admin, adminRoot: adminRoot),
+    ...dvServerDocsSections(docs: docs, docsRoot: docsRoot),
   };
   final Uint8List spliced;
   try {

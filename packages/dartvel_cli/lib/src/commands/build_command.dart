@@ -3555,6 +3555,16 @@ class BuildCommand extends Command<void> {
       return (ok: true, docs: null);
     }
 
+    final List<String> routes = _generatedRoutes(root);
+    final Map<String, String> routePages = <String, String>{
+      for (final String route in routes) route: 'route $route',
+    };
+    final String? conflict = dvDocsMountConflict(docs.path, routePages);
+    if (conflict != null) {
+      Logger.log('❌ $conflict');
+      return (ok: false, docs: null);
+    }
+
     final Object? declaredName = readPubspecYaml(root)?['name'];
     final String appName =
         declaredName is String && declaredName.trim().isNotEmpty
