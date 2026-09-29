@@ -40,6 +40,15 @@
   in a step that asks for the password they just set, since the printed one
   no longer opens anything; an account that already has a second factor is
   sent to the sign-in rather than walked into a setup it cannot finish.
+- **Studio is routes of the application.** `dvStudioRoutes(mount:)` is what
+  the generated router mounts: `<mount>`, guarded by the Studio grant with an
+  async route redirect asked on every visit, and `<mount>/login`, Studio's
+  sign-in. Studio's screens and its sign-in are deferred libraries, so
+  neither is in `main.dart.js`, and a caller with no grant never has a
+  Studio section built or its code loaded.
+- `DVStudioFrame` is the theme Studio's screens and its sign-in share;
+  `dvStudioBrowserTransport(base:)` sends Studio's requests under the mount;
+  the client reads the project graph from `api/graph`.
 
 ## 0.9.3
 

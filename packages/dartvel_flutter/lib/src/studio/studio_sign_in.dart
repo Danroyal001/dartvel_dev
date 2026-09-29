@@ -34,45 +34,109 @@ String dvStudioSignInTarget(String mount, String? from) {
 ///
 /// Shared by Studio's screens and its sign-in, which are separate deferred
 /// libraries, so both look the same without either reaching the other.
-class DVStudioFrame extends StatelessWidget {
+///
+/// Inside an application -- Studio's routes are the application's -- it is a
+/// navigator of its own under the application's router, which never reports
+/// a route to the browser: the address stays the Studio route it was opened
+/// at. A `MaterialApp` here told the browser it was at `/`, so a reload opened
+/// the site instead of Studio. On its own, with nothing around it, it is the
+/// whole application.
+class DVStudioFrame extends StatefulWidget {
   const DVStudioFrame({super.key, required this.title, required this.home});
 
   final String title;
   final Widget home;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: title,
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme:
-              ColorScheme.fromSeed(seedColor: const Color(0xFF6C4BF4)),
-          scaffoldBackgroundColor: DVStudioStyle.canvas,
-          canvasColor: DVStudioStyle.canvas,
+  State<DVStudioFrame> createState() => _DVStudioFrameState();
+}
+
+class _DVStudioFrameState extends State<DVStudioFrame> {
+  // Studio's own: the application's belongs to the application's navigator,
+  // and one controller shared by two navigators is an error.
+  final HeroController _heroes = MaterialApp.createMaterialHeroController();
+
+  @override
+  void dispose() {
+    _heroes.dispose();
+    super.dispose();
+  }
+
+  static ThemeData _theme(Brightness brightness) => ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: brightness == Brightness.dark
+              ? const Color(0xFF8E74F8)
+              : const Color(0xFF6C4BF4),
+          brightness: brightness,
         ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF8E74F8),
-            brightness: .dark,
-          ),
-          scaffoldBackgroundColor: DVStudioStyle.canvas,
-          canvasColor: DVStudioStyle.canvas,
-        ),
-        // The system's setting: prefers-color-scheme in a browser. Studio's
-        // colours read DVStudioStyle.dark when they paint, and the subtree is
-        // rebuilt under a new key when it changes, so no widget built for the
-        // other mode is kept.
-        builder: (BuildContext context, Widget? child) {
-          final bool dark =
-              MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-          DVStudioStyle.dark = dark;
-          return KeyedSubtree(
-            key: ValueKey<bool>(dark),
-            child: child ?? const SizedBox.shrink(),
-          );
-        },
-        home: home,
+        scaffoldBackgroundColor: DVStudioStyle.canvas,
+        canvasColor: DVStudioStyle.canvas,
       );
+
+  /// The system's setting: prefers-color-scheme in a browser. Studio's
+  /// colours read DVStudioStyle.dark when they paint, and the subtree is
+  /// rebuilt under a new key when it changes, so no widget built for the
+  /// other mode is kept.
+  static Widget _keyed(BuildContext context, Widget child) {
+    final bool dark =
+        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    DVStudioStyle.dark = dark;
+    return KeyedSubtree(key: ValueKey<bool>(dark), child: child);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (Navigator.maybeOf(context) == null) {
+      return MaterialApp(
+        title: widget.title,
+        debugShowCheckedModeBanner: false,
+        theme: _theme(Brightness.light),
+        darkTheme: _theme(Brightness.dark),
+        builder: (BuildContext context, Widget? child) =>
+            _keyed(context, child ?? const SizedBox.shrink()),
+        home: widget.home,
+      );
+    }
+    final Brightness brightness = MediaQuery.platformBrightnessOf(context);
+    Widget frame = Title(
+      title: widget.title,
+      color: const Color(0xFF6C4BF4),
+      child: Theme(
+        data: _theme(brightness),
+        child: ScaffoldMessenger(
+          child: HeroControllerScope(
+            controller: _heroes,
+            child: Navigator(
+              // Not the application's route: the browser's address is the
+              // application router's to keep.
+              reportsRouteUpdateToEngine: false,
+              onGenerateRoute: (RouteSettings settings) =>
+                  MaterialPageRoute<void>(
+                settings: settings,
+                builder: (BuildContext context) =>
+                    _keyed(context, widget.home),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    // An application with no Material localizations of its own still gets
+    // Studio's dialogs and fields labelled.
+    if (Localizations.of<MaterialLocalizations>(
+            context, MaterialLocalizations) ==
+        null) {
+      frame = Localizations(
+        locale: const Locale('en', 'US'),
+        delegates: const <LocalizationsDelegate<Object?>>[
+          DefaultMaterialLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
+        ],
+        child: frame,
+      );
+    }
+    return frame;
+  }
 }
 
 /// The sign-in page.
