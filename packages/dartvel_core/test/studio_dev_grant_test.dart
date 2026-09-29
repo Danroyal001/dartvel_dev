@@ -37,6 +37,8 @@ void main() {
     server = DVAdminServer(
       mount: _mount,
       root: root.path,
+      // The application's shell, which Studio's pages are rendered from.
+      webRoot: root.path,
       devGrant: grant,
       database: MemoryDVDatabaseAdapter(),
     );
