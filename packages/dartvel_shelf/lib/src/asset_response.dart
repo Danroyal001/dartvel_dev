@@ -42,7 +42,7 @@ const int _memoryEntryLimit = 512 * 1024;
 
 /// What the server keeps of its site between requests.
 final class DVAssetCache {
-  DVAssetCache({this.memoryLimit = 16 * 1024 * 1024, this.directory});
+  DVAssetCache({this.memoryLimit = 16 * 1024 * 1024, this.directory, this.imagesDirectory});
 
   /// How many bytes of files may be held in memory.
   final int memoryLimit;
@@ -50,6 +50,11 @@ final class DVAssetCache {
   /// Where decoded files are kept on disk, one directory per build, or null
   /// for no disk cache. Safe to delete at any time: it is rebuilt on demand.
   final String? directory;
+
+  /// Where resized images are kept, or null for the system's temporary
+  /// directory. Not under [directory], whose other builds are removed: a
+  /// variant is named by its source's bytes and outlives a deploy.
+  final String? imagesDirectory;
 
   final LinkedHashMap<String, Uint8List> _memory = LinkedHashMap<String, Uint8List>();
   int _held = 0;

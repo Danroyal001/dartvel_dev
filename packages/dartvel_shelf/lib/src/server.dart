@@ -11,19 +11,22 @@ import 'package:dartvel_core/dartvel.dart'
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
+        DVWebServerSettings,
         dvConfigureRuntimeLogging,
         dvDefaultMaxBodyBytes;
-import 'package:path/path.dart' as p;
 
 import 'generated/bindings.dart' as gen; // produced by ffigen via build hook
 import 'package:dartvel_core/http.dart';
+import 'package:dartvel_core/framework.dart' show DVAssetHttpPolicy, DVAssetSources;
 
 import 'ffi_string.dart';
 import 'native_library.dart';
 export 'native_library.dart' show embedNativeServerLibrary;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
-import 'mime_type.dart';
+import 'asset_response.dart';
+import 'native_codec.dart';
+import 'site_files.dart';
 export 'mime_type.dart' show getMimeType;
 import 'request_body.dart';
 import 'web_socket.dart';
@@ -218,6 +221,10 @@ Future<ServerHandle> serve(
   final dylib = native.library;
 
   final api = gen.DartvelShelfBindings(dylib);
+  // Brotli and zstd for a site file kept in one of them, for a client that
+  // does not accept it. A library built before the codec has neither, and a
+  // build against it kept gzip, which dart:io decodes.
+  DVNativeCodec.of(dylib)?.registerDecoders();
 
   // Before anything is registered. A library built for an older callback
   // shape calls the request handler with fewer arguments than it declares,
@@ -284,20 +291,17 @@ Future<ServerHandle> serve(
       );
       if (variant != null) return variant;
 
-      // 1. Try serving static file from spaRoot
-      final pathPart = req.url.path.startsWith('/')
-          ? req.url.path.substring(1)
-          : req.url.path;
-      if (pathPart.isNotEmpty && !pathPart.contains('..')) {
-        final file = File(p.join(spaRoot, pathPart));
-        if (await file.exists() && (await FileSystemEntity.isFile(file.path))) {
-          final bytes = await file.readAsBytes();
-          final mime = getMimeType(file.path);
-          return Response(200,
-              headers: Headers()..set('content-type', mime),
-              body: Stream.value(bytes));
-        }
-      }
+      // 1. A file of the site: from the pack a web-server binary carries, in
+      // the encoding it is kept in when the client takes it, or from the
+      // directory during development and preview.
+      final Response? file = await dvAssetResponse(
+        req,
+        DVAssetSources.at(spaRoot),
+        policy: _assetPolicyFor(spaRoot),
+        cache: DVAssetCache.current,
+        transportCompresses: compression,
+      );
+      if (file != null) return file;
 
       // 2. Fall back to normal handler or SPA index
       final resp = await handler(req);
@@ -1078,5 +1082,16 @@ void _configureBodyLimits(gen.DartvelShelfBindings api, int maxBodyBytes,
     if (routeRc != 0) {
       throw StateError('Route body limit config failed (code=$routeRc)');
     }
+  }
+}
+
+/// The caching policy the site at [root] declared, from its manifest; the
+/// defaults for a site without one.
+DVAssetHttpPolicy _assetPolicyFor(String root) {
+  try {
+    final Object? manifest = dvSiteJson(root, 'dartvel_routes.json');
+    return DVWebServerSettings.parse(manifest is Map ? manifest['server'] : null).http;
+  } on FormatException {
+    return const DVAssetHttpPolicy();
   }
 }
