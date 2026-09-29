@@ -244,6 +244,9 @@ pub extern "C" fn aw_abi_version() -> u32 {
 // Dart stream cancel callback: void(req_id)
 pub type DartStreamCancelHandler = extern "C" fn(u64);
 
+// Dart stream ack callback: void(req_id)
+pub type DartStreamAckHandler = extern "C" fn(u64);
+
 // ===== Globals =====
 // Replaceable rather than set-once: each `serve()` owns its own Dart
 // callbacks, and a stale pointer here is a use-after-free the moment the
@@ -288,6 +291,14 @@ static PENDING_CANCEL_HANDLERS: OnceCell<
 static SERVER_CANCEL_HANDLERS: OnceCell<Mutex<HashMap<u64, DartStreamCancelHandler>>> =
     OnceCell::new();
 
+static PENDING_STREAM_ACK_HANDLERS: OnceCell<
+    Mutex<HashMap<std::thread::ThreadId, DartStreamAckHandler>>,
+> = OnceCell::new();
+static SERVER_STREAM_ACK_HANDLERS: OnceCell<Mutex<HashMap<u64, DartStreamAckHandler>>> =
+    OnceCell::new();
+static DART_STREAM_ACK_HANDLER: OnceCell<Mutex<Option<DartStreamAckHandler>>> =
+    OnceCell::new();
+
 /// Rides along in the request extensions so a handler can tell which server
 /// took the request. Cheaper than threading state through every route.
 #[derive(Clone, Copy)]
@@ -325,15 +336,17 @@ struct FfiRespOwned {
 }
 static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
     OnceCell::new();
+/// Capacity for the bounded response stream channel.
+const RESPONSE_STREAM_CAPACITY: usize = 8;
+
 /// One streamed body chunk, or the error that ended the stream.
 type StreamChunkResult = Result<Bytes, axum::BoxError>;
-type StreamChunkSender = mpsc::UnboundedSender<StreamChunkResult>;
-type StreamChunkReceiver = mpsc::UnboundedReceiver<StreamChunkResult>;
+type StreamChunkSender = mpsc::Sender<StreamChunkResult>;
+type StreamChunkReceiver = mpsc::Receiver<StreamChunkResult>;
 
-/// Unbounded because `aw_stream_send_chunk` is called from Dart's thread,
-/// which is not a runtime thread: a bounded sender there can only drop the
-/// chunk, block the isolate, or reorder it behind a spawned send. Buffering
-/// instead trades memory for a stream that is neither lossy nor reordered.
+/// Bounded to [RESPONSE_STREAM_CAPACITY] chunks with backpressure signaled
+/// to Dart via `aw_register_stream_ack_handler`. A fast Dart producer pauses
+/// when in-flight chunks reach the window, preventing unbounded native buffering.
 static PENDING_STREAM_SENDERS: OnceCell<Mutex<HashMap<u64, StreamChunkSender>>> =
     OnceCell::new();
 /// Receivers are created when Dart completes the response rather than when the
@@ -626,7 +639,20 @@ const AW_START_BIND_FAILED: i32 = -3;
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
 
-// Stream wrapper to trigger Dart cancellation on drop
+fn stream_ack(req_id: u64, server_id: Option<u64>) {
+    let cb = server_id
+        .and_then(|id| {
+            SERVER_STREAM_ACK_HANDLERS
+                .get()
+                .and_then(|handlers| safe_lock(handlers).get(&id).copied())
+        })
+        .or_else(|| DART_STREAM_ACK_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(cb) = cb {
+        (cb)(req_id);
+    }
+}
+
+// Stream wrapper to trigger Dart cancellation on drop and backpressure acks on read
 struct CancelOnDropStream<S> {
     inner: S,
     req_id: u64,
@@ -646,7 +672,11 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         use std::pin::Pin;
-        Pin::new(&mut self.inner).poll_next(cx)
+        let item = Pin::new(&mut self.inner).poll_next(cx);
+        if let std::task::Poll::Ready(Some(_)) = &item {
+            stream_ack(self.req_id, self.server_id);
+        }
+        item
     }
 }
 
@@ -697,6 +727,14 @@ pub extern "C" fn aw_register_cancel_handler(cb: DartStreamCancelHandler) {
     safe_lock(pending).insert(std::thread::current().id(), cb);
     let _ = PENDING_STREAM_SENDERS.set(Mutex::new(HashMap::new()));
     let _ = PENDING_STREAM_RECEIVERS.set(Mutex::new(HashMap::new()));
+}
+
+#[no_mangle]
+pub extern "C" fn aw_register_stream_ack_handler(cb: DartStreamAckHandler) {
+    let slot = DART_STREAM_ACK_HANDLER.get_or_init(|| Mutex::new(None));
+    *safe_lock(slot) = Some(cb);
+    let pending = PENDING_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+    safe_lock(pending).insert(std::thread::current().id(), cb);
 }
 
 #[no_mangle]
@@ -1486,6 +1524,14 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let handlers = SERVER_BODY_CHUNK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
         safe_lock(handlers).insert(server_id, handler);
     }
+    let stream_ack_handler = PENDING_STREAM_ACK_HANDLERS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .or_else(|| DART_STREAM_ACK_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    if let Some(handler) = stream_ack_handler {
+        let handlers = SERVER_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
+        safe_lock(handlers).insert(server_id, handler);
+    }
 
     let handle_clone = handle.clone();
 
@@ -1560,6 +1606,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
                 safe_lock(handlers).remove(&server_id);
             }
             if let Some(handlers) = SERVER_BODY_CHUNK_HANDLERS.get() {
+                safe_lock(handlers).remove(&server_id);
+            }
+            if let Some(handlers) = SERVER_STREAM_ACK_HANDLERS.get() {
                 safe_lock(handlers).remove(&server_id);
             }
         });
@@ -1642,16 +1691,11 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
         };
         if owned.is_stream != 0 {
             let (chunk_tx, chunk_rx) =
-                mpsc::unbounded_channel::<Result<Bytes, axum::BoxError>>();
-            if let (Some(senders), Some(receivers)) = (
-                PENDING_STREAM_SENDERS.get(),
-                PENDING_STREAM_RECEIVERS.get(),
-            ) {
-                safe_lock(senders).insert(req_id, chunk_tx);
-                safe_lock(receivers).insert(req_id, chunk_rx);
-            } else {
-                return 4;
-            }
+                mpsc::channel::<Result<Bytes, axum::BoxError>>(RESPONSE_STREAM_CAPACITY);
+            let senders = PENDING_STREAM_SENDERS.get_or_init(|| Mutex::new(HashMap::new()));
+            let receivers = PENDING_STREAM_RECEIVERS.get_or_init(|| Mutex::new(HashMap::new()));
+            safe_lock(senders).insert(req_id, chunk_tx);
+            safe_lock(receivers).insert(req_id, chunk_rx);
         }
         let _ = tx.send(owned);
         // No handler is left to read this request's body, so the rest of it
@@ -1673,10 +1717,10 @@ pub extern "C" fn aw_stream_send_chunk(req_id: u64, chunk: FfiBuf) -> i32 {
     if let Some(map_mutex) = PENDING_STREAM_SENDERS.get() {
         let map = safe_lock(map_mutex);
         if let Some(tx) = map.get(&req_id) {
-            match tx.send(Ok(bytes)) {
+            match tx.try_send(Ok(bytes)) {
                 Ok(()) => 0,
-                // The receiver is gone: the client disconnected.
-                Err(_) => 2,
+                Err(mpsc::error::TrySendError::Full(_)) => 1,
+                Err(mpsc::error::TrySendError::Closed(_)) => 2,
             }
         } else {
             2
@@ -2029,7 +2073,7 @@ fn abandon_stream(req_id: u64, server_id: Option<u64>) {
         .and_then(|m| safe_lock(m).remove(&req_id));
     if let Some(rx) = rx {
         drop(CancelOnDropStream {
-            inner: tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
+            inner: tokio_stream::wrappers::ReceiverStream::new(rx),
             req_id,
             server_id,
         });
@@ -2092,7 +2136,7 @@ fn response_from_dart(
             return plain_response(StatusCode::INTERNAL_SERVER_ERROR);
         };
         Body::from_stream(CancelOnDropStream {
-            inner: tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
+            inner: tokio_stream::wrappers::ReceiverStream::new(rx),
             req_id,
             server_id,
         })
