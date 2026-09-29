@@ -810,7 +810,10 @@ export 'src/studio/studio_editor.dart';
 export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_screen.dart';
+export 'src/studio/studio_routes.dart';
 export 'src/studio/studio_server.dart';
+export 'src/studio/studio_sign_in.dart'
+    show DVStudioFrame, DVStudioSignInScreen, dvStudioSignInTarget;
 export 'src/studio/studio_site_pages.dart';
 export 'src/studio/studio_style.dart';
 export 'src/table/table.dart';
