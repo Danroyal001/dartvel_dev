@@ -44,8 +44,10 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               <String>['manifest.json, icons/', 'The installable PWA'],
               <String>['flutter_service_worker.js', 'Offline caching, '
                   'replaced by Dartvel\'s worker'],
-              <String>['offline/index.html, 404/index.html', 'The offline and '
-                  'not-found pages'],
+              <String>['offline/index.html, 404/index.html', 'The not-found '
+                  'and offline pages, which are routes of your app'],
+              <String>['404.html', 'The not-found page again, for the hosts '
+                  'that look for that name'],
               <String>['sitemap.xml, robots.txt', 'Search engines, when '
                   'seo.siteUrl is set'],
               <String>['.htaccess', 'Apache and LiteSpeed rules, when '
@@ -86,7 +88,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             Bullets(<String>[
               '`dartvel build web` writes the manifest, icons from web/icon.png, '
-                  'a service worker and an offline page.',
+                  'and a service worker. A page the worker cannot reach opens '
+                  '/offline, a page of your app that says where you were.',
               'A change sent while offline is queued in the browser and sent in '
                   'order when the network is back. CI checks this in Chrome on '
                   'every push.',

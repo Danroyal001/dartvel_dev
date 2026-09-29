@@ -1,32 +1,55 @@
-/// The service worker and the offline page.
+/// The service worker.
 ///
 /// Dartvel wrote a manifest and linked it, and shipped Flutter's own service
 /// worker unmodified -- which caches the app shell and nothing Dartvel knows
 /// about. So a Dartvel site had no offline page, no cached routes, and no
 /// control over what a stale worker serves after a deploy.
+///
+/// The page a failed navigation lands on is not here. It used to be: two
+/// documents of markup and inline CSS written by the build, styled in
+/// Dartvel's brand, and served from the cache for as long as the cache lived.
+/// It is a route of the application now -- `DVOfflinePage` in
+/// `dartvel_flutter`, declared by the generator and prerendered by the build
+/// -- so the worker redirects to it and carries the path that was being
+/// opened.
 library dartvel_cli.build.pwa_service_worker;
 
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' show dvOfflineRoute;
 
 /// The worker source for a build.
 ///
 /// [buildId] is part of the cache name, so a deploy opens a new cache and
 /// deletes the old one. Without that a deploy reuses the previous cache and
 /// serves the old bundle.
+///
+/// [offlineRoute] is where a navigation that could not be completed is sent.
+/// It is a route of the application rather than a document this build wrote,
+/// which is why the answer is a redirect and not a page: the offline page
+/// has a theme, a heading a crawler can read and a "Try again" that goes
+/// where the person was going. [offlineRoute] is null for a project whose
+/// router says nothing is at that path, and then a failed navigation gets no
+/// answer at all rather than a wrong one.
 String dvServiceWorker({
   required String buildId,
   required List<String> precache,
-  String? offlinePath,
+  String? offlineRoute = dvOfflineRoute,
   bool backgroundSync = true,
   String? adminPath,
   String? apiBasePath,
 }) {
+  // The URL the page is served from, rather than the route: a static host
+  // answers it as a directory index and a server answers it as the route, and
+  // both are this one address. The trailing slash is what a person sees
+  // after a host has redirected them, and what the cache has to hold.
+  final String? offline = offlineRoute == null ? null : '$offlineRoute/';
   final List<String> assets = <String>[
     ...precache,
     // Precached rather than fetched on demand, because fetching it on demand
     // is exactly what fails when there is no network.
-    if (offlinePath != null && !precache.contains(offlinePath)) offlinePath,
+    if (offline != null && !precache.contains(offline)) offline,
   ];
 
   return _template
@@ -34,8 +57,7 @@ String dvServiceWorker({
       .replaceAll('__API__', _pathOrNull(apiBasePath))
       .replaceAll('__BUILD_ID__', buildId)
       .replaceAll('__PRECACHE__', jsonEncode(assets))
-      .replaceAll('__OFFLINE__',
-          offlinePath == null ? 'null' : jsonEncode(offlinePath))
+      .replaceAll('__OFFLINE__', offline == null ? 'null' : jsonEncode(offline))
       // Stripped rather than switched off at runtime, so a worker with sync
       // disabled carries no outbox code at all and nothing can register the
       // tag by accident.
@@ -179,80 +201,24 @@ self.addEventListener('message', (event) => {
 });
 ''';
 
-/// A CSS colour taken from project configuration, or the neutral default.
-///
-/// Both error pages carried #2f6bff, which is the colour of dartvel.dev. Every
-/// application built with Dartvel shipped its error pages in the framework's
-/// brand rather than its own -- on the two pages a visitor sees when something
-/// has gone wrong, which is exactly when a page should look like the site it
-/// belongs to.
-///
-/// Sanitised rather than interpolated. The value lands inside a `<style>`
-/// block, so anything that is not a colour is a way to write CSS into every
-/// error page a project ships, and a pubspec is not a place anybody reads
-/// looking for that.
-///
-/// Black is the default because it is what the PWA manifest already defaults
-/// its theme colour to; a project that declares nothing gets the same answer
-/// from both.
-String dvAccentColour(String? declared) {
-  if (declared == null) return '#000000';
-  final String value = declared.trim();
-  return RegExp(r'^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$').hasMatch(value)
-      ? value
-      : '#000000';
-}
-
-/// The page shown when a navigation fails and nothing is cached.
-///
-/// Self-contained: it is served when the network is gone, so it cannot
-/// reference a stylesheet, a font or a script it would have to fetch.
-String dvOfflinePage({required String title, String? accent}) {
-  final String safe = const HtmlEscape().convert(title);
-  final String brand = dvAccentColour(accent);
-  return '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Offline — $safe</title>
-<style>
-body{margin:0;min-height:100vh;display:flex;align-items:center;
-justify-content:center;
-font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-color:#0b1020;background:#fff}
-main{max-width:28rem;padding:2rem;text-align:center}
-h1{font-size:1.5rem;margin:0 0 .5rem}
-p{margin:0 0 1.5rem;color:#5a6478}
-button{font:inherit;padding:.7rem 1.4rem;border:0;border-radius:8px;
-background:$brand;color:#fff;cursor:pointer}
-@media (prefers-color-scheme:dark){
-body{color:#f2f5fa;background:#0a0d13}
-p{color:#9aa7bd}}
-</style>
-</head>
-<body>
-<main>
-<h1>You are offline</h1>
-<p>$safe could not be reached. This page is being served from your device.</p>
-<button onclick="location.reload()">Try again</button>
-</main>
-</body>
-</html>
-''';
-}
-
 const String _template = r'''
 // GENERATED by dartvel build web -- do not edit.
 const CACHE = 'dartvel-__BUILD_ID__';
 const PRECACHE = __PRECACHE__;
-const OFFLINE = __OFFLINE__;
-// Studio's mount and the API base path. Studio is its own application with
-// its own session, and an API answer is data, not an asset: neither belongs
-// in a cache that only a deploy empties.
+// The app's own offline route, as the URL it is served from. Studio's mount
+// and the API base path. Studio is its own application with its own session,
+// and an API answer is data, not an asset: neither belongs in a cache that
+// only a deploy empties.
 const ADMIN = __ADMIN__;
 const API = __API__;
+const OFFLINE = __OFFLINE__;
+
+// A path with nothing behind it, so the trailing slash that says "directory
+// index" cannot make two spellings of one page.
+function bare(path) {
+  const trimmed = path.replace(/\/+$/, '');
+  return trimmed === '' ? '/' : trimmed;
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -275,6 +241,26 @@ self.addEventListener('activate', (event) => {
 });
 
 __OUTBOX__
+// Where a navigation that could not be completed goes.
+//
+// A redirect, not a document: the offline page is a route of this
+// application, drawn by the same widgets as every other page, and a redirect
+// is what lets the app render it. It carries the path the person was opening
+// as `from`, so the page's "Try again" goes back to where they were rather
+// than to the home page, and that path is encoded rather than pasted -- a
+// `from` is read by the app and written by whoever crafted the link.
+//
+// Never the offline page itself: a failure while that page is being fetched
+// would send the person to the page they are already on, and the browser
+// would follow it as often as it cared to. Answered from the cache instead,
+// which is the one version of it that exists offline.
+function offline(url) {
+  if (!OFFLINE) return undefined;
+  if (bare(url.pathname) === bare(OFFLINE)) return caches.match(OFFLINE);
+  const target = new URL(OFFLINE + '?from=' + encodeURIComponent(url.pathname), self.location.origin);
+  return Response.redirect(target.href, 302);
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
@@ -303,9 +289,7 @@ __QUEUE_ON_FAILURE__
           }
           return response;
         })
-        .catch(() => caches.match(request).then(
-          (cached) => cached || (OFFLINE ? caches.match(OFFLINE) : undefined)
-        ))
+        .catch(() => caches.match(request).then((cached) => cached || offline(url)))
     );
     return;
   }
@@ -373,64 +357,3 @@ List<String> dvPrecacheRoutes(Iterable<String> routes) {
   return precache.toList();
 }
 
-/// The page a host serves when the path is not a page.
-///
-/// There was an offline page and no not-found page at all, so a request for a
-/// route that does not exist got whatever the host happened to say: the host's
-/// own branding on most static hosts, and on Apache the generated rewrite
-/// quietly serving the application shell — which renders the router's
-/// not-found route, and is right only when the visitor reached the site with
-/// scripting on.
-///
-/// Self-contained for the same reason the offline page is: it is served at the
-/// moment something else could not be, so a stylesheet, a font or a script
-/// would be a blank page exactly when the page matters.
-///
-/// The link home is the whole point. A wrong URL with nothing on it is a dead
-/// end, and the visitor's only move is the back button.
-String dvNotFoundPage({
-  required String title,
-  String home = '/',
-  String? accent,
-}) {
-  final String brand = dvAccentColour(accent);
-  final HtmlEscape escape = const HtmlEscape();
-  final String safe = escape.convert(title);
-  // Attribute mode for the URL. The default escape turns every "/" into
-  // &#47;, which browsers accept and nobody should have to read -- and the
-  // link home is the one thing on this page somebody might inspect.
-  final String safeHome =
-      const HtmlEscape(HtmlEscapeMode.attribute).convert(home);
-  return '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Not found — $safe</title>
-<style>
-body{margin:0;min-height:100vh;display:flex;align-items:center;
-justify-content:center;
-font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-color:#0b1020;background:#fff}
-main{max-width:28rem;padding:2rem;text-align:center}
-h1{font-size:1.5rem;margin:0 0 .5rem}
-p{margin:0 0 1.5rem;color:#5a6478}
-a{display:inline-block;font:inherit;padding:.7rem 1.4rem;border-radius:8px;
-background:$brand;color:#fff;text-decoration:none}
-@media (prefers-color-scheme:dark){
-body{color:#f2f5fa;background:#0a0d13}
-p{color:#9aa7bd}}
-</style>
-</head>
-<body>
-<main>
-<h1>Page not found</h1>
-<p>That page is not part of $safe. It may have moved, or the link may be
-wrong.</p>
-<a href="$safeHome">Go to the home page</a>
-</main>
-</body>
-</html>
-''';
-}

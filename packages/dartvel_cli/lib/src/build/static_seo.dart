@@ -13,7 +13,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:dartvel_core/dartvel.dart' show dvStaticCanonical;
+import 'package:dartvel_core/dartvel.dart'
+    show dvIsErrorPageRoute, dvStaticCanonical;
 
 export 'package:dartvel_core/dartvel.dart' show dvStaticCanonical, dvStaticPage, dvStructuredData, dvRenderRoutePage, DVRoutePage;
 
@@ -316,6 +317,14 @@ String dvSitemap({
     // domain is advertised on the parent's path, so skipping the check there
     // would make mounting a module the way around this.
     if (guarded.contains(route)) continue;
+    // The two error routes, which are pages like any other and are not pages
+    // for a crawler. A sitemap is read to be told what a site is, and a
+    // crawler spends a request on each address in it: two of those requests
+    // would end on a page whose whole content is that something went wrong,
+    // and the address would sit in a result list next to the site's real
+    // ones. Matched as the whole path, so a page with a slug of 404 -- which
+    // is a page somebody wrote -- is left alone.
+    if (dvIsErrorPageRoute(route)) continue;
     if (dvSitemapExcluded(route, exclude)) continue;
     // Same filter as the writer: a route with no file behind it has no URL to
     // advertise, and a crawler following one gets a 404 from the sitemap that
@@ -665,6 +674,30 @@ List<String> dvRemoveStaleRoutePages({
     }
   }
   return removed;
+}
+
+/// The not-found document a static host serves, or null when this build
+/// rendered no not-found page.
+///
+/// GitHub Pages, Netlify and S3 website hosting each look for a file of this
+/// name at the root and cannot be told otherwise, and a site carrying only
+/// `404/index.html` falls back to the host's own branding on the one page
+/// where branding is the least useful thing it could show.
+///
+/// A copy of the page the build rendered rather than a document of its own:
+/// the not-found page is a route of the application, drawn by
+/// `DVNotFoundPage`, with the site's own theme, a heading and a link home --
+/// and a second copy of it written here is a second thing to keep in step
+/// with the first. Overwritten every build, because build/web is output and
+/// "only when absent" would serve the previous deploy's page for ever.
+///
+/// Null when there is no `404/index.html`: a build whose router was not
+/// generated has no page to point at, and a document standing in for one is a
+/// page that lies about the site.
+File? dvHostNotFoundDocument(Directory web) {
+  final File rendered = File(p.join(web.path, '404', 'index.html'));
+  if (!rendered.existsSync()) return null;
+  return rendered.copySync(p.join(web.path, '404.html'));
 }
 
 /// One Dart string literal, with its quotes and any `r` prefix.
