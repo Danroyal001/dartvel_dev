@@ -220,6 +220,21 @@ int32_t aw_ws_closed(uint64_t id);
 uint64_t aw_ws_pong_count(uint64_t id);
 
 /**
+ * Queues one frame without sending it; aw_ws_flush sends what is queued.
+ * 0 accepted, 1 backpressure (a wakeup follows when there is room),
+ * -1 closed/invalid. Never blocks the Dart thread.
+ */
+int32_t aw_ws_queue(uint64_t id, int32_t kind, struct FfiBuf data);
+
+/**
+ * Sends what is queued. When the socket takes it all at once, it is written
+ * from this thread; otherwise the connection's writer task finishes it.
+ * 0 everything was written, 1 the writer task has the rest, -1 closed.
+ */
+int32_t aw_ws_flush(uint64_t id);
+
+/**
+ * Queues and sends one frame: aw_ws_queue then aw_ws_flush.
  * 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
  */
 int32_t aw_ws_send(uint64_t id, int32_t kind, struct FfiBuf data);
