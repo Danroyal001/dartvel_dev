@@ -1,4 +1,4 @@
-/// Where the documentation site lives, and who may reach it.
+/// Where the documentation site lives, whether it is enabled, and who may reach it.
 ///
 /// One documentation site for one application, serving every platform that
 /// application ships to. Not a page in the client: the documentation is a
@@ -11,12 +11,21 @@
 /// exists so a deployed one can move it somewhere nobody is guessing.
 library;
 
+/// Who may access the documentation site.
+enum DVDocsAccess {
+  /// Open to anyone without authentication.
+  public,
+
+  /// Protected by Studio authentication and access grants.
+  studio;
+}
+
 /// Everything below the mount belongs to the docs site.
 class DVDocsMount {
   const DVDocsMount({
     required this.path,
     required this.enabled,
-    required this.requiresAuth,
+    this.access = DVDocsAccess.studio,
   });
 
   /// The mount, with no trailing slash.
@@ -25,13 +34,11 @@ class DVDocsMount {
   /// Whether the backend serves it at all.
   final bool enabled;
 
+  /// Who may reach the documentation site.
+  final DVDocsAccess access;
+
   /// Whether a request has to be authenticated before it sees anything.
-  ///
-  /// Not a setting of its own. A docs site reachable without a sign-in on a
-  /// deployed application is a risk, and making that optional is offering
-  /// somebody a way to get it wrong on the one question where being wrong
-  /// is expensive.
-  final bool requiresAuth;
+  bool get requiresAuth => access == DVDocsAccess.studio;
 
   /// Whether [route] is the docs site's rather than the application's.
   bool owns(String route) => route == path || route.startsWith('$path/');
@@ -40,34 +47,37 @@ class DVDocsMount {
 /// The default, and only the default.
 const String dvDocsDefaultPath = '/docs';
 
-/// What `dartvel.docs` says, against what the build is.
+/// What `dartvel.docs` says in pubspec.yaml.
 ///
-/// [release] decides the default for [DVDocsMount.enabled], and that default
-/// is the important one: an application deployed by somebody who never read
-/// this page must not acquire a docs endpoint because a framework thought it
-/// would be convenient. Development serves it with no configuration at all,
-/// which is where zero-config belongs.
-DVDocsMount dvDocsMount(Object? dartvel, {required bool release}) {
+/// The documentation site is OFF by default for every app. A build includes
+/// it only when pubspec says so, e.g. `dartvel: docs: enabled: true`.
+/// Access defaults to `studio` when enabled, requiring a Studio grant.
+DVDocsMount dvDocsMount(Object? dartvel, {bool? release}) {
   final Object? docs = dartvel is Map ? dartvel['docs'] : null;
   final Object? declared = docs is Map ? docs['path'] : null;
   final Object? enabled = docs is Map ? docs['enabled'] : null;
+  final Object? accessRaw = docs is Map ? docs['access'] : null;
 
   final String path = declared is String && declared.trim().isNotEmpty
       ? _normalise(declared)
       : dvDocsDefaultPath;
 
+  final DVDocsAccess access = accessRaw is String &&
+          accessRaw.trim().toLowerCase() == 'public'
+      ? DVDocsAccess.public
+      : DVDocsAccess.studio;
+
   return DVDocsMount(
     path: path,
-    enabled: enabled is bool ? enabled : !release,
-    requiresAuth: release,
+    enabled: enabled == true,
+    access: access,
   );
 }
 
 /// Why [path] cannot be a mount, or null when it can be.
 ///
 /// Refused rather than repaired. A path with no leading slash never matches a
-/// request, and quietly fixing it teaches the next person that either form
-/// works -- until one of them does not.
+/// request, because a request path always does.
 String? dvDocsMountProblem(String path) {
   final String value = path.trim();
   if (!value.startsWith('/')) {
@@ -93,7 +103,8 @@ String? dvDocsMountProblem(String path) {
 /// makes it a build-time refusal: a build that picks silently is a build that
 /// moves the bug somewhere else.
 String? dvDocsMountConflict(String mount, Map<String, String> pages) {
-  final DVDocsMount docs = DVDocsMount(path: mount, enabled: true, requiresAuth: false);
+  final DVDocsMount docs =
+      DVDocsMount(path: mount, enabled: true, access: DVDocsAccess.public);
   for (final MapEntry<String, String> page in pages.entries) {
     if (!docs.owns(page.key)) continue;
     return 'The page in ${page.value} claims "${page.key}", which is inside '
