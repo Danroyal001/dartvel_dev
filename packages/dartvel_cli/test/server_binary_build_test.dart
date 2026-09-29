@@ -197,7 +197,7 @@ Future<String> _ping() async => 'pong from one file';
     /// copies the one file somewhere empty, starts it and returns a way to
     /// ask it for a path.
     Future<
-        Future<({int status, String type, String cache, String body})> Function(
+        Future<({int status, String type, String cache, String location, String body})> Function(
             String path, {Map<String, String> headers})> serveAlone(
         DVAdminMount mount) async {
       final ProcessResult generated = await Process.run(
@@ -273,7 +273,7 @@ Future<String> _ping() async => 'pong from one file';
         await server.exitCode;
       });
 
-      Future<({int status, String type, String cache, String body})> get(
+      Future<({int status, String type, String cache, String location, String body})> get(
           String path,
           {Map<String, String> headers = const <String, String>{}}) async {
         final HttpClient client = HttpClient()
@@ -281,12 +281,14 @@ Future<String> _ping() async => 'pong from one file';
         try {
           final HttpClientRequest request =
               await client.getUrl(Uri.parse('http://127.0.0.1:$port$path'));
+          request.followRedirects = false;
           headers.forEach(request.headers.set);
           final HttpClientResponse response = await request.close();
           return (
             status: response.statusCode,
             type: response.headers.value('content-type') ?? '',
             cache: response.headers.value('cache-control') ?? '',
+            location: response.headers.value('location') ?? '',
             body: await response.transform(utf8.decoder).join(),
           );
         } finally {
@@ -340,36 +342,39 @@ Future<String> _ping() async => 'pong from one file';
       expect((await get('/')).body, contains('The site'));
     }, skip: skip);
 
-    test('answers a caller with no session exactly as a route that does not '
-        'exist', () async {
+    test('redirects an ungranted page request to login and hides project data',
+        () async {
       final get = await serveAlone(const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: true));
 
-      // The same path length, so nothing about the answer can differ by it.
-      final nowhere = await get('/__nowhr/');
-      for (final String path in <String>[
-        '/__studio/',
-        '/__studio/graph.json',
+      // Inspect the first response: following it sees the public login shell.
+      for (final headers in <Map<String, String>>[
+        const {},
+        const {'authorization': 'Bearer dvs_not-a-session'},
       ]) {
-        final hidden = await get(path);
-        expect(hidden.body, isNot(contains('Studio dashboard')), reason: path);
-        expect(hidden.body, isNot(contains('models')), reason: path);
+        for (final path in ['/__studio', '/__studio/']) {
+          final page = await get(path, headers: headers);
+          expect(page.status, 302, reason: path);
+          expect(page.location,
+              '/__studio/login?from=${Uri.encodeQueryComponent(path)}');
+          expect(page.cache, contains('no-store'));
+          expect(page.body, isEmpty);
+        }
+        final hidden = await get('/__studio/graph.json', headers: headers);
+        final nowhere = await get('/__nowhr/graph.json', headers: headers);
+        // This backend-only fixture falls back to its public site shell.
+        expect(hidden.status, nowhere.status);
+        expect(hidden.body, isNot(contains('Studio dashboard')));
+        expect(hidden.type, nowhere.type);
+        expect(hidden.cache, nowhere.cache);
+        expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
+        expect(hidden.body, isNot(contains('"models"')));
       }
-      final hidden = await get('/__studio/');
-      expect(hidden.status, nowhere.status);
-      expect(hidden.type, nowhere.type);
-      expect(hidden.cache, nowhere.cache);
-      expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
-
-      // A session token that is not a live session gets what it gets on any
-      // other route, and not the dashboard.
-      const Map<String, String> forged = <String, String>{
-        'authorization': 'Bearer dvs_not-a-session',
-      };
-      final forgedHidden = await get('/__studio/', headers: forged);
-      final forgedNowhere = await get('/__nowhr/', headers: forged);
-      expect(forgedHidden.status, forgedNowhere.status);
-      expect(forgedHidden.body, isNot(contains('Studio dashboard')));
+      // This fixture is the app shell, also used to render the login screen.
+      final login = await get('/__studio/login');
+      expect(login.status, 200);
+      expect(login.cache, contains('no-store'));
+      expect(login.body, contains('Studio dashboard'));
     }, skip: skip);
   });
 
