@@ -14,6 +14,7 @@
 // under node, in service_worker_offline_test.dart; what is here is the shape
 // of its answer.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartvel_cli/src/build/pwa_service_worker.dart';
 import 'package:test/test.dart';
@@ -26,6 +27,13 @@ List<String> precacheOf(String worker) {
   final RegExpMatch match =
       RegExp(r'const PRECACHE = (\[[^\]]*\]);').firstMatch(worker)!;
   return (jsonDecode(match.group(1)!) as List<Object?>).cast<String>();
+}
+
+/// Node, to run the worker in, or null where there is none.
+String? _node() {
+  final ProcessResult which = Process.runSync(
+      Platform.isWindows ? 'where' : 'which', <String>['node']);
+  return which.exitCode == 0 ? '${which.stdout}'.trim().split('\n').first : null;
 }
 
 void main() {
@@ -89,6 +97,63 @@ void main() {
       final String worker =
           dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
       expect(worker, contains("request.mode === 'navigate'"));
+    });
+
+    test('it never keeps a response the server said not to store', () async {
+      // Studio's code is served from the site root to a session with the
+      // Studio grant, marked no-store. A worker that kept it would hand it
+      // to the next person on that browser with no grant asked; a document
+      // or an answer marked private or no-store is the same.
+      final String? node = _node();
+      if (node == null) {
+        markTestSkipped('no node to run the worker in');
+        return;
+      }
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      final Directory dir = Directory.systemTemp.createTempSync('dv_sw_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final File harness = File('${dir.path}/harness.mjs')
+        ..writeAsStringSync('''
+const handlers = {};
+const puts = [];
+globalThis.self = {
+  location: { origin: 'https://shop.example' },
+  addEventListener: (name, fn) => { handlers[name] = fn; },
+  skipWaiting: () => Promise.resolve(),
+  clients: { claim: () => Promise.resolve() },
+};
+globalThis.caches = {
+  open: async () => ({ put: async (req) => { puts.push(new URL(req.url).pathname); }, addAll: async () => {} }),
+  match: async () => undefined,
+  keys: async () => [],
+};
+const answers = {
+  '/main.dart.js_7.part.js': 'no-store',
+  '/secret.js': 'private, max-age=60',
+  '/main.dart.js': 'public, max-age=60',
+  '/logo.png': null,
+};
+globalThis.fetch = async (req) => {
+  const path = new URL(req.url).pathname;
+  const headers = new Headers();
+  if (answers[path]) headers.set('cache-control', answers[path]);
+  return new Response('x', { status: 200, headers });
+};
+$worker
+for (const path of Object.keys(answers)) {
+  const request = new Request('https://shop.example' + path);
+  let responded;
+  handlers.fetch({ request, respondWith: (p) => { responded = p; }, waitUntil: () => {} });
+  await responded;
+}
+await new Promise((r) => setTimeout(r, 20));
+console.log(JSON.stringify(puts.sort()));
+''');
+      final ProcessResult run = await Process.run(node, <String>[harness.path]);
+      expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+      expect(jsonDecode('${run.stdout}'.trim()),
+          <String>['/logo.png', '/main.dart.js']);
     });
 
     test('a cross-origin request is left alone', () {
