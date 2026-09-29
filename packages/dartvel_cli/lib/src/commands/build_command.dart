@@ -1196,10 +1196,12 @@ class BuildCommand extends Command<void> {
             return _PlatformBuildResult.failed;
           }
           final DVAdminMount? admin = dashboard.admin;
-          // Documentation site, compiled and served at its mount.
-          final ({bool ok, DVDocsMount? docs}) docsDashboard =
-              await _writeDocsDashboard(root);
-          if (!docsDashboard.ok) {
+          // The documentation site, when pubspec asks for one: compiled
+          // beside Studio and carried the way Studio is, outside the files
+          // the binary serves to anybody.
+          final ({bool ok, DVDocsMount? docs}) documentation =
+              await _writeDocsSite(root, server: true, admin: admin);
+          if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
             return _PlatformBuildResult.failed;
           }
@@ -1207,17 +1209,19 @@ class BuildCommand extends Command<void> {
           // minified by now ships inside the binary as it was written.
           _minifyWebOutput(root);
           // The backend that serves all of it, as one executable file.
-          if (await _buildServerBinary(root, admin: admin) ==
+          if (await _buildServerBinary(root,
+                  admin: admin, docs: documentation.docs) ==
               _PlatformBuildResult.failed) {
             Logger.log('❌ $platform build failed');
             return _PlatformBuildResult.failed;
           }
         } else {
           await _writeStaticPages(root);
-          // Documentation site, compiled and served at its mount.
-          final ({bool ok, DVDocsMount? docs}) docsDashboard =
-              await _writeDocsDashboard(root);
-          if (!docsDashboard.ok) {
+          // The documentation site, when pubspec asks for a public one: files
+          // at its mount like every other page of a static site.
+          final ({bool ok, DVDocsMount? docs}) documentation =
+              await _writeDocsSite(root, server: false, admin: null);
+          if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
             return _PlatformBuildResult.failed;
           }
@@ -1252,7 +1256,7 @@ class BuildCommand extends Command<void> {
   /// `dartvel deploy`'s image runs as /app/server and `dartvel infra`'s units
   /// start as /opt/<app>/server.
   Future<_PlatformBuildResult> _buildServerBinary(String root,
-      {required DVAdminMount? admin}) async {
+      {required DVAdminMount? admin, required DVDocsMount? docs}) async {
     Logger.log('🔨 Compiling the backend into one executable...');
     final host = dvHostServerLibrary();
     final DVServerLibraryLookup lookup =
@@ -1270,6 +1274,9 @@ class BuildCommand extends Command<void> {
       // among the web files, served by the binary at its mount.
       admin: admin,
       adminRoot: p.join(root, 'build', 'web', '__admin'),
+      // The documentation site, the same way: a section of its own.
+      docs: docs,
+      docsRoot: p.join(root, 'build', 'web', dvDocsPagesDirectory),
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
@@ -3530,38 +3537,43 @@ class BuildCommand extends Command<void> {
     return (ok: true, admin: admin);
   }
 
-  /// The documentation site this build serves, compiled.
+  /// The documentation site this build carries, compiled, or none.
   ///
-  /// A release or profile build has to ask for the docs; a debug one gets
-  /// it by default, which is what makes a new project's documentation work
-  /// with no configuration. Profile counts as release: a profile build is
-  /// something you hand to somebody.
-  Future<({bool ok, DVDocsMount? docs})> _writeDocsDashboard(String root) async {
+  /// Off unless `dartvel.docs.enabled` is true, for every application and
+  /// every profile: an application deployed by somebody who never read the
+  /// option must not acquire a page listing its models and policies because
+  /// a framework thought it would be convenient.
+  ///
+  /// [server] is a web-server build, which carries the site in a section of
+  /// its own and serves it at the mount, behind Studio for `access: studio`;
+  /// [admin] is the Studio it serves, if any. A static build carries a
+  /// public site at its mount and refuses one behind Studio, which a static
+  /// host cannot keep. A mount that is not a path, or one an application
+  /// page is inside, fails the build naming both.
+  Future<({bool ok, DVDocsMount? docs})> _writeDocsSite(
+    String root, {
+    required bool server,
+    required DVAdminMount? admin,
+  }) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return (ok: true, docs: null);
-
-    final DVDocsMount docs = dvDocsMount(_dartvelSection(root),
-        release: _isReleaseBuild());
-    if (!docs.enabled) {
-      Logger.log('   No documentation site in this build. A release build '
-          'serves one only when dartvel.docs.enabled says so; '
-          '--profile development gets it with no configuration.');
-      return (ok: true, docs: null);
+    // build/web is not emptied between builds, so a site an earlier build
+    // carried -- at any mount it had then -- would otherwise ride along in
+    // this one, and a web-server build packs everything left in there. Only
+    // a directory carrying the docs build's own marker is removed.
+    for (final FileSystemEntity entity in web.listSync(followLinks: false)) {
+      if (entity is Directory &&
+          File(p.join(entity.path, dvDocsMarker)).existsSync()) {
+        entity.deleteSync(recursive: true);
+      }
     }
 
-    final String problem = dvDocsMountProblem(docs.path) ?? '';
-    if (problem.isNotEmpty) {
-      Logger.log('❌ $problem');
-      return (ok: true, docs: null);
-    }
+    final DVDocsMount docs = dvDocsMount(_dartvelSection(root));
+    if (!docs.enabled) return (ok: true, docs: null);
 
-    final List<String> routes = _generatedRoutes(root);
-    final Map<String, String> routePages = <String, String>{
-      for (final String route in routes) route: 'route $route',
-    };
-    final String? conflict = dvDocsMountConflict(docs.path, routePages);
-    if (conflict != null) {
-      Logger.log('❌ $conflict');
+    final String? problem = dvDocsMountProblem(docs.path);
+    if (problem != null) {
+      Logger.log('❌ dartvel.docs.path: $problem');
       return (ok: false, docs: null);
     }
 
@@ -3571,17 +3583,49 @@ class BuildCommand extends Command<void> {
             ? declaredName.trim()
             : 'Dartvel application';
 
-    final Directory docsRoot = Directory(p.join(web.path, dvDocsPagesDirectory))
-      ..createSync(recursive: true);
+    // The application's pages, by the file each is written in, so a refusal
+    // names the file to move. The routes the generated router declares that
+    // no page file does (the error routes, a config route) are named as the
+    // router's.
+    final DartvelProjectGraph graph =
+        await DartvelProjectGraph.build(root: root, pkgName: appName);
+    final Map<String, String> pages = <String, String>{
+      for (final String route in _generatedRoutes(root))
+        route: 'the generated router',
+      for (final DVGraphRoute route in graph.routes) route.path: route.source,
+    };
+    final String? conflict = dvDocsMountConflict(docs.path, pages);
+    if (conflict != null) {
+      Logger.log('❌ $conflict');
+      return (ok: false, docs: null);
+    }
 
-    // The document and graph are written by `dvDocsBuildInto` (called by
-    // `dartvel docs`), but we also need them here for the web-server binary.
-    // Build the document and write it beside the compiled app.
+    final ({String? directory, String? problem}) placed = dvDocsPlacement(
+      docs,
+      server: server,
+      studioServed: admin != null && admin.enabled,
+    );
+    if (placed.problem != null) {
+      Logger.log('❌ ${placed.problem}');
+      return (ok: false, docs: null);
+    }
+    final Directory docsRoot = Directory(p.join(web.path, placed.directory!));
+    if (docsRoot.existsSync() && docsRoot.listSync().isNotEmpty) {
+      // Something of the web build's own is already there -- its assets,
+      // its renderer -- and a site written over it would break the app.
+      Logger.log('❌ dartvel.docs.path is ${docs.path}, and build/web/'
+          '${placed.directory} is already the web build\'s own. Move the '
+          'docs with dartvel.docs.path in pubspec.yaml.');
+      return (ok: false, docs: null);
+    }
+    docsRoot.createSync(recursive: true);
+
+    // The document the site draws, and the graph beside it.
     final DVDocsSite site = await DVDocsSite.build(root: root);
     site.writeTo(docsRoot.path);
 
-    // The docs site itself, compiled for the mount.
-    Logger.log('   Compiling documentation site for ${docs.path} (flutter build web)...');
+    Logger.log('   Compiling the documentation site for ${docs.path} '
+        '(flutter build web)...');
     final DVDocsBuildResult docsBuild = await dvBuildDocs(
       root: root,
       mount: docs.path,
@@ -3597,7 +3641,10 @@ class BuildCommand extends Command<void> {
     }
     if (!docsBuild.ok) return (ok: false, docs: null);
 
-    Logger.log('   Documentation at ${docs.path}, served by the backend.');
+    Logger.log(server
+        ? '   Documentation at ${docs.path}, served by the backend '
+            '${docs.requiresAuth ? 'to the people granted Studio.access' : 'to anybody'}.'
+        : '   Documentation at ${docs.path}, public.');
     return (ok: true, docs: docs);
   }
 
