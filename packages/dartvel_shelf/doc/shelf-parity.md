@@ -40,3 +40,19 @@ with an upstream package. ✅ means implemented, not a performance claim.
 Implementation updates and measured benchmarks follow below. Raw hijacking and
 exact request protocol metadata require additional ABI work; do not infer them
 from ordinary middleware compatibility.
+
+## Shelf handler adapter
+
+`package:dartvel_shelf/shelf.dart` exports `fromShelf(handler)`. Pass a complete
+upstream Shelf pipeline to it, then pass the resulting handler to `serve`.
+`test/shelf_compat_test.dart` verifies Pipeline, Cascade, context changes,
+charset decoding, repeated cookies, static ranges and conditional responses
+through the real native server. These capabilities are now ✅ through the
+adapter. Upstream static listing/default-document/MIME options, multipart
+extensions and proxy handlers retain their own implementation; their broader
+option sets have not all been integration-tested here. Fetch types remain
+unchanged. Request protocolVersion still defaults to Shelf's 1.1.
+
+Upstream shelf_static 1.1.3's second-resolution comparison retains file mtime
+microseconds, which can miss a 304 on files with submillisecond timestamps.
+This is an upstream limitation, not claimed fixed by the adapter.
