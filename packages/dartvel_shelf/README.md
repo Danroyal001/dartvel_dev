@@ -27,16 +27,19 @@ What the server does before your handler runs:
 | Network stack | Rust (hyper, rustls) in a native library | Dart's `HttpServer` |
 | Body limits and timeouts | Built in, enforced before the body reaches Dart | Mostly yours to write |
 | Compression, CORS, static files | Built in | Separate packages |
-| Middleware ecosystem | Plain functions; shelf middleware does not plug in | `shelf_router`, `shelf_static` and many more |
-| Request body | Buffered whole, up to the limit | Streamed |
-| WebSockets | No | `shelf_web_socket` |
+| Middleware ecosystem | Its own plus `fromShelf(handler)`: existing shelf Pipelines, middleware and Cascade run unchanged | `shelf_router`, `shelf_static` and many more |
+| Request body | Streamed a chunk at a time with backpressure; the limit is enforced as bytes arrive | Streamed |
+| WebSockets | Built in (`webSocketHandler`, `wsHandler`), bounded queues both ways | `shelf_web_socket` |
 | Platforms | Six desktop/server targets with a shipped library (below) | Anywhere `dart:io` runs |
 | Size | Adds a 5-7 MB native library | Pure Dart |
 
-Choose `dartvel_shelf` for a JSON API or web backend that should refuse abuse
-by default and be deployed as a compiled executable. Choose `package:shelf` when
-you need WebSockets, streamed uploads larger than you want to hold in memory,
-the shelf middleware ecosystem, or a platform without a shipped library.
+Choose `dartvel_shelf` for a web backend or API that should refuse abuse by
+default, stream large bodies without holding them in memory, and ship as a
+compiled executable; existing shelf middleware runs on it through `fromShelf`.
+Choose `package:shelf` for a platform without a shipped library, a pure-Dart
+build, or raw socket hijacking (not supported here). Measured differences,
+including where shelf is still faster, are in
+[doc/shelf-parity.md](doc/shelf-parity.md).
 
 ## Requirements
 
