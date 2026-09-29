@@ -141,9 +141,26 @@ class _DVDocsAppState extends State<DVDocsApp> {
   /// the page the row is in.
   String _where() {
     final Uri uri = _here;
-    final String path = uri.path.isEmpty ? '/' : uri.path;
+    final String path = _withinMount(uri.path.isEmpty ? '/' : uri.path);
     return '${uri.hasQuery ? '$path?${uri.query}' : path}'
         '${uri.fragment.isEmpty ? '' : '#${uri.fragment}'}';
+  }
+
+  /// [path] as the document names its pages: without the mount.
+  ///
+  /// The address a browser shows carries the mount the site is served at --
+  /// `/docs/models` -- and the document's pages never do, because the mount
+  /// is the project's to move. A path outside the mount is left as it is, and
+  /// answered as a page the document does not have.
+  String _withinMount(String path) {
+    String mount = widget.base;
+    while (mount.endsWith('/')) {
+      mount = mount.substring(0, mount.length - 1);
+    }
+    if (mount.isEmpty) return path;
+    if (path == mount) return '/';
+    if (path.startsWith('$mount/')) return path.substring(mount.length);
+    return path;
   }
 
   Future<void> _read() async {
