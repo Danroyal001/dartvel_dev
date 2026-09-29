@@ -287,5 +287,17 @@ class _Memo {
       contains('core.DVAdminServer(mount: admin, root: adminRoot, '
           'models: dartvelStudioModels, database: dartvelDatabase'),
     );
+    // Studio's pages are the application's shell rendered for its routes,
+    // so the admin server renders from the web root every page comes from,
+    // and Studio's code is handed over in memory by the binary.
+    expect(routes, contains('webRoot: spaRoot'));
+    expect(routes, contains("title: 'Studio · shop'"));
+    expect(routes, contains('studioParts: studioParts'));
+    expect(
+        RegExp(r'Map<String, Uint8List> studioParts = const <String, Uint8List>\{\}')
+            .allMatches(routes)
+            .length,
+        2,
+        reason: 'startBackend and dartvelMain both take Studio\'s code');
   });
 }
