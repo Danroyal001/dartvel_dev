@@ -261,6 +261,17 @@ function offline(url) {
   return Response.redirect(target.href, 302);
 }
 
+// Whether an asset may be kept. Only a complete, successful one: caching a
+// 206 or a 404 pins it, and the page then serves that error from disk on
+// every later visit. And never one the server said not to keep -- Studio's
+// code, which the server hands only to a session with the Studio grant, or
+// anything marked private -- or the next person on this browser is served it
+// with nothing asked.
+function storable(response) {
+  return response.ok && response.status === 200 &&
+    !/no-store|private/i.test(response.headers.get('cache-control') || '');
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
@@ -283,6 +294,9 @@ __QUEUE_ON_FAILURE__
     event.respondWith(
       fetch(request)
         .then((response) => {
+          // Any document that loaded, whatever it says about caching: a
+          // server renders every page no-store, and this copy is only what
+          // is shown offline. Studio's pages never reach here.
           if (response.ok) {
             const copy = response.clone();
             caches.open(CACHE).then((cache) => cache.put(request, copy));
@@ -298,9 +312,7 @@ __QUEUE_ON_FAILURE__
   // miss.
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      // Only a complete, successful response. Caching a 206 or a 404 pins it,
-      // and the page then serves that error from disk on every later visit.
-      if (response.ok && response.status === 200) {
+      if (storable(response)) {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(request, copy));
       }
