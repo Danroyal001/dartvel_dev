@@ -35,6 +35,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/page_text.dart';
 import '../build/render_backends.dart';
 
@@ -1687,8 +1688,21 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
         ? '<DVAccountPageEntry>[]'
         : '<DVAccountPageEntry>[\n${accountPages.map((page) => "  DVAccountPageEntry(DVAccountPage.${page.key}, DVRouteTarget('${esc(page.path)}')),").join('\n')}\n]';
 
+    // Studio: routes of this application at dartvel.admin's mount, not an
+    // application of its own. Compiled in only by a build that serves Studio
+    // -- dartvel build web-server passes the define -- so a static export, a
+    // phone or a desktop build tree-shakes the branch and carries none of
+    // it. Not generated at all when the application turned Studio off.
+    final String? studioMount = dvStudioRouteMount(dv);
+    final String studioRoutesSrc = studioMount == null
+        ? ''
+        : '''
+    if (const bool.fromEnvironment('$dvStudioDefine'))
+      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'),''';
+
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
+      studioRoutesSrc,
       modelRoutesSrc,
       homeWidgetRoutesSrc,
       moduleRoutesSrc,
