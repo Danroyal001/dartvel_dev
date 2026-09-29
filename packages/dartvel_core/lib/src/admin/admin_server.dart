@@ -25,6 +25,7 @@ import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../web/route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
@@ -160,30 +161,11 @@ DVAdminAsset? dvAdminAsset(String root, DVAdminMount mount, String path) {
   return DVAdminAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
 }
 
-/// Whether [path] resolves to a Studio deferred library chunk (part.js,
-/// wasm, or any file the deferred library mechanism produces). These
-/// must only be served to a caller with the Studio grant: without it they
-/// receive 404, exactly as a route that does not exist, never 302.
-bool dvIsDeferredLibraryChunk(DVAdminMount mount, String path) {
-  final String rest = path.substring(mount.path.length);
-  final String relative =
-      rest.isEmpty || rest == '/' ? '' : rest.substring(1);
-  if (relative.isEmpty || relative.startsWith('api/') || relative == 'api') {
-    return false;
-  }
-  // Only a deferred library's parts (`main.dart.js_1.part.js`,
-  // `main.dart.wasm_3.part.wasm` and their maps). The engine (canvaskit,
-  // skwasm) and the app entry are needed by the sign-in screen itself, so a
-  // rule that caught every `.wasm` left the sign-in page blank.
-  final String basename = relative.split('/').last.toLowerCase();
-  return basename.contains('.part.');
-}
-
 /// The content type for a file the admin serves.
 ///
-/// Serving main.dart.js as text/plain leaves a blank Studio and a console
-/// error about a MIME type, which reads as a broken admin rather than a
-/// missing line here.
+/// Serving admin.js as text/plain leaves a blank page and a console error
+/// about a MIME type, which reads as a broken admin rather than a missing
+/// line here.
 String dvAdminContentType(String relative) {
   final String name = relative.toLowerCase();
   if (name.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -259,7 +241,20 @@ Future<bool> dvAdminAuthorized(Request request) =>
       );
     });
 
-/// The dashboard in [root], served at [mount] by the generated backend.
+/// The robots meta every Studio page carries: an operator's screen belongs
+/// in no search index, and nothing on it is a link to follow.
+const String dvStudioRobots = 'noindex, nofollow';
+
+/// Studio, at [mount], answered by the generated backend.
+///
+/// Studio is not a second application with files of its own. Its screens are
+/// routes of the application -- `<mount>` and `<mount>/login` -- and a
+/// request for one is answered with the application's own shell, rendered
+/// for that route by [dvRenderRoutePage] like every other page of it. Studio
+/// itself is the application's deferred Studio library: its parts are
+/// [studioParts], held in memory and handed out by exact path to a caller the
+/// Studio grant admits, and to nobody else. Nothing under the mount is ever
+/// a file.
 class DVAdminServer {
   DVAdminServer({
     required this.mount,
@@ -274,9 +269,13 @@ class DVAdminServer {
     this.devGrant,
     String? sourceRoot,
     String? structureRoot,
+    this.webRoot,
+    this.title = 'Studio',
+    Map<String, Uint8List> studioParts = const <String, Uint8List>{},
   })  : _authenticated =
             authenticated ?? devGrant?.check ?? dvAdminAuthorized,
         _database = database,
+        studioParts = Map<String, Uint8List>.unmodifiable(studioParts),
         api = DVStudioApi(
           models: models,
           database: database,
@@ -292,9 +291,24 @@ class DVAdminServer {
 
   final DVAdminMount mount;
 
-  /// The directory the dashboard's files are in. Never under the web root a
-  /// server serves every file of to anybody.
+  /// Where the build put Studio's data: the project graph and each page's
+  /// captured structure, which Studio reads through its API. Never served
+  /// as files, and never under the web root a server serves every file of
+  /// to anybody.
   final String root;
+
+  /// The application's web root, whose `index.html` is the shell every page
+  /// is rendered from -- Studio's included. Null renders no Studio page.
+  final String? webRoot;
+
+  /// The title of Studio's pages: `Studio · <application>`.
+  final String title;
+
+  /// Studio's code: the parts of the application's deferred Studio library,
+  /// by path from the site root (`main.dart.js_7.part.js`). Served from
+  /// memory to a caller who may open Studio, and answered as nothing to
+  /// anybody else.
+  final Map<String, Uint8List> studioParts;
 
   final Future<bool> Function(Request request) _authenticated;
 
@@ -309,6 +323,68 @@ class DVAdminServer {
   /// The development grant, on a development server: the mount serves the
   /// browser that opened the grant's link, and nobody else.
   final DVStudioDevGrant? devGrant;
+
+  /// Studio's data, under `<mount>/api/`: a model's records, the page
+  /// builder's documents, the project graph and the grants, for exactly the
+  /// callers Studio's pages are served to.
+  final DVStudioApi api;
+
+  static const Map<String, String> _json = <String, String>{
+    'content-type': 'application/json',
+    'cache-control': 'no-store',
+  };
+
+  /// Whether this caller may have what the mount guards.
+  Future<bool> _allowed(Request request) async =>
+      !mount.requiresAuth || await _authenticated(request);
+
+  /// Studio's page for [route]: the application's shell, rendered for it by
+  /// the function every page of the application is rendered by. Null when
+  /// there is no shell to render from, which the application then answers.
+  Response? _page(Request request, String route,
+      {String referrer = 'same-origin'}) {
+    final String? web = webRoot;
+    if (web == null) return null;
+    final File shell = File('$web${Platform.pathSeparator}index.html');
+    final String html;
+    try {
+      html = shell.readAsStringSync();
+    } on FileSystemException {
+      return null;
+    }
+    final String page = dvRenderRoutePage(
+      html,
+      DVRoutePage(route: route, title: title, robots: dvStudioRobots),
+    );
+    return Response(
+      200,
+      headers: Headers(<String, String>{
+        'content-type': 'text/html; charset=utf-8',
+        // One person's view of their own Studio, never a shared cache's.
+        'cache-control': 'no-store',
+        // An operator's screen is not something any other site may frame.
+        'x-frame-options': 'DENY',
+        'referrer-policy': referrer,
+      }),
+      body: request.method == 'HEAD'
+          ? const Stream<List<int>>.empty()
+          : Stream<List<int>>.value(utf8.encode(page)),
+    );
+  }
+
+  /// One of Studio's parts, for a caller already admitted.
+  Response _part(Request request, String name, Uint8List bytes) => Response(
+        200,
+        headers: Headers(<String, String>{
+          'content-type': dvAdminContentType(name),
+          // Protected code: never kept by a proxy, which would hand it to
+          // the next person who asked.
+          'cache-control': 'no-store',
+        }),
+        body: request.method == 'HEAD'
+            ? const Stream<List<int>>.empty()
+            : Stream<List<int>>.value(bytes),
+      );
 
   /// What the Studio app needs, signed out, to sign somebody in; null for
   /// everything else.
@@ -326,141 +402,57 @@ class DVAdminServer {
     if (path == '${api}access') {
       final bool granted = await _authenticated(request);
       return Response(200,
-          headers: Headers(const <String, String>{
-            'content-type': 'application/json',
-            'cache-control': 'no-store',
-          }),
+          headers: Headers(_json),
           body: Stream<List<int>>.value(
               utf8.encode(jsonEncode(<String, Object?>{'granted': granted}))));
     }
-    if (path.startsWith(api) || path == '${mount.path}/api') return null;
-    if (path == login || path == '$login/') {
-      final DVAdminAsset? shell = dvAdminAsset(root, mount, mount.path);
-      if (shell == null) return null;
-      return _asset(request, shell, noStore: true);
-    }
-    // Deferred library chunks (.part.js, wasm, etc.) are never served
-    // without the Studio grant. A signed-out request for one must fall
-    // through to the deferred guard (404), not be served as a static asset.
-    if (readable && _isStaticAsset(path) &&
-        dvIsDeferredLibraryChunk(mount, path) &&
-        !(await _authenticated(request))) {
-      return null;
-    }
-    // The app's static assets (JS, wasm, fonts, images), but never index.html
-    // or the project's graph.
-    if (_isStaticAsset(path)) {
-      final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
-      if (asset == null) return null;
-      return _asset(request, asset);
-    }
+    // The sign-in route, a page of the application like any other.
+    if (path == login || path == '$login/') return _page(request, login);
     return null;
-  }
-
-  /// Whether [path] resolves to a static asset on disk (JS, wasm, css, image,
-  /// font, etc.), excluding the app document (index.html) and protected project
-  /// graph (graph.json).
-  bool _isStaticAsset(String path) {
-    if (path.startsWith('${mount.path}/api/') || path == '${mount.path}/api') {
-      return false;
-    }
-    final String rest = path.substring(mount.path.length);
-    final String relative =
-        rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
-    final String decoded;
-    try {
-      decoded = Uri.decodeComponent(relative).replaceAll(r'\', '/');
-    } on ArgumentError {
-      return false;
-    }
-    final List<String> segments = <String>[];
-    for (final String segment in decoded.split('/')) {
-      if (segment.isEmpty || segment == '.') continue;
-      if (segment == '..' || segment.contains(':')) return false;
-      segments.add(segment);
-    }
-    if (decoded.startsWith('/') || segments.isEmpty) return false;
-    final String last = segments.last.toLowerCase();
-    if (last == 'index.html' || last == 'graph.json') return false;
-    final File asset =
-        File(<String>[root, ...segments].join(Platform.pathSeparator));
-    return asset.existsSync() && !FileSystemEntity.isDirectorySync(asset.path);
   }
 
   /// The setup, while the first owner still has their printed password.
   ///
-  /// The same shape as [_signIn] and for the same reason: the setup is a page
-  /// of the Studio app, at `<mount>/setup`, and what the server owes it is
-  /// the shell to boot it, the app's own code, and the four auth endpoints
-  /// the page drives -- the application's own, answered at the mount, so the
-  /// rate limit, the CSRF check and the session rotation are the ones already
-  /// written rather than a second copy of each.
+  /// The same shape as [_signIn] and for the same reason: the setup is a
+  /// route of the application, at `<mount>/setup`, rendered from its shell
+  /// like every page, and what the server owes it besides is the four auth
+  /// endpoints the page drives -- the application's own, answered at the
+  /// mount, so the rate limit, the CSRF check and the session rotation are
+  /// the ones already written rather than a second copy of each.
   ///
-  /// Everything else on the mount is nothing at all. A hard screen used to
-  /// answer every path with the setup page and 200, which told a scanner
-  /// looking for a studio that it had found one; a 404 is a real answer, and
-  /// the graph and the records are not handed to somebody who has changed
-  /// nothing yet.
+  /// Every other page on the mount is sent to the setup, and everything else
+  /// -- the API, the graph, a file name -- is nothing at all: the graph and
+  /// the records are not handed to somebody who has changed nothing yet.
   Future<Response?> _setup(Request request, String path, bool readable) async {
     final String api = '${mount.path}/api/';
     final String setup = '${mount.path}/setup';
     if (request.method == 'POST') {
-      final Response? auth = await _authPost(request, path, <String, DVAdminAuthEndpoint>{
+      return _authPost(request, path, <String, DVAdminAuthEndpoint>{
         '${api}auth/sign-in': DVAuthEndpoints.signIn,
         '${api}auth/account/password': DVAuthEndpoints.changePassword,
         '${api}auth/factors/totp': DVAuthEndpoints.beginTotp,
         '${api}auth/factors/totp/confirm': DVAuthEndpoints.confirmTotp,
       });
-      if (auth != null) return auth;
-      return null;
     }
     if (!readable) return null;
     if (path.startsWith(api) || path == '${mount.path}/api') return null;
-    // The app's own static files, never its document under another name
-    // (index.html), never the project's graph, and never a deferred part:
-    // those need the Studio grant, which nobody has yet. The page cannot be
-    // drawn without the rest, and they carry none of the project.
-    if (_isStaticAsset(path)) {
-      if (dvIsDeferredLibraryChunk(mount, path)) return null;
-      final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
-      if (asset == null) return null;
-      return _asset(request, asset);
-    }
     if (path.split('/').last.contains('.')) return null;
-    if (path != setup && path != '$setup/') {
-      // Everywhere else on the mount is the setup, which is the whole of what
-      // this mount answers while the setup is pending.
-      return Response(
-        302,
-        headers: Headers(<String, String>{
-          'location': setup,
-          'cache-control': 'no-store',
-        }),
-        body: const Stream<List<int>>.empty(),
-      );
+    if (path == setup || path == '$setup/') {
+      return _page(request, setup, referrer: 'no-referrer');
     }
-    final DVAdminAsset? shell = dvAdminAsset(root, mount, mount.path);
-    if (shell == null) return null;
-    // Not a page anybody should be able to frame, and the last one to be
-    // cached anywhere on the way: it is open to the internet by definition.
     return Response(
-      200,
+      302,
       headers: Headers(<String, String>{
-        ...shell.headers,
+        'location': setup,
         'cache-control': 'no-store',
-        'x-frame-options': 'DENY',
-        'referrer-policy': 'no-referrer',
       }),
-      body: request.method == 'HEAD'
-          ? const Stream<List<int>>.empty()
-          : Stream<List<int>>.value(shell.bytes),
+      body: const Stream<List<int>>.empty(),
     );
   }
 
   /// One of [endpoints] under the mount's own API, with the CSRF header the
-  /// browser transport sends and a cross-site form cannot.
-  ///
-  /// Null when [path] is none of them, so a caller can go on to decide.
+  /// browser transport sends and a cross-site form cannot. Null when [path]
+  /// is none of them, so a caller can go on to decide.
   Future<Response?> _authPost(
     Request request,
     String path,
@@ -471,73 +463,61 @@ class DVAdminServer {
     final String token = request.headers.get('x-dartvel-csrf-token') ?? '';
     if (token.length < 16) {
       return Response(403,
-          headers: Headers(const <String, String>{
-            'content-type': 'application/json',
-            'cache-control': 'no-store',
-          }),
+          headers: Headers(_json),
           body: Stream<List<int>>.value(utf8.encode(jsonEncode(
               <String, Object?>{'error': 'csrf', 'message': 'Missing CSRF header.'}))));
     }
     return endpoint(request);
   }
 
-  Response _asset(Request request, DVAdminAsset asset, {bool noStore = false}) {
-    final Map<String, String> headers = <String, String>{...asset.headers};
-    if (noStore) headers['cache-control'] = 'no-store';
-    return Response(
-      200,
-      headers: Headers(headers),
-      body: request.method == 'HEAD'
-          ? const Stream<List<int>>.empty()
-          : Stream<List<int>>.value(asset.bytes),
-    );
-  }
-
-  /// Studio's data, under `<mount>/api/`: a model's records, the page
-  /// builder's documents and the grants, for exactly the callers the
-  /// dashboard's files are served to.
-  final DVStudioApi api;
-
-  /// The dashboard's answer to [request], or null for the application to
-  /// answer.
+  /// Studio's answer to [request], or null for the application to answer.
   ///
-  /// Null for a request that is not the admin's, and null for one the
-  /// caller may not see: the application then answers it exactly as it
-  /// answers any path it does not serve, which is the only way to be sure
-  /// the two cannot be told apart. A server whose unknown routes render the
-  /// site's shell would turn a 404 of this class's own into the oracle it
-  /// exists to avoid.
+  /// Null for a request that is not Studio's, and null for one the caller
+  /// may not see: the application then answers it exactly as it answers any
+  /// path it does not serve, which is the only way to be sure the two cannot
+  /// be told apart.
   Future<Response?> respond(Request request) async {
     final String path = request.url.path.isEmpty ? '/' : request.url.path;
-    if (!mount.owns(path)) return null;
+    final bool readable = request.method == 'GET' || request.method == 'HEAD';
+    if (!mount.owns(path)) {
+      // Studio's code, which the application's Studio routes load from the
+      // site root like any deferred part. By exact path, from memory, and
+      // only when the caller may open Studio -- asked only for one of its
+      // parts, so no other request pays for a session lookup.
+      final Uint8List? part =
+          path.length > 1 ? studioParts[path.substring(1)] : null;
+      if (part == null || !readable || !mount.enabled) return null;
+      if (!await _allowed(request)) return null;
+      return _part(request, path.substring(1), part);
+    }
     final Response? claimed = devGrant?.claim(request, mount);
     if (claimed != null) return claimed;
-    final bool readable = request.method == 'GET' || request.method == 'HEAD';
     // An application still on the password its first run printed is one
     // anybody who saw that console can open. Until the owner has replaced it
-    // and turned on a second factor, every route on the mount is sent to
+    // and turned on a second factor, every page on the mount is sent to
     // <mount>/setup, and nothing else on the mount is served at all.
     //
     // Before the sign-in check, because signing in is what the setup is for:
     // the owner has an address and a password and no session, so answering
     // them the way this mount answers a stranger would make the setup
-    // unreachable by the only person who needs it. The page it serves is a
-    // page of the Studio app, at the same place its sign-in is, so the server
-    // serves the shell and the app draws the screen. The page names nobody
-    // and carries no data, and the only credential that opens anything behind
-    // it is 32 characters of secure random. It stops being sent the moment
-    // the setup is done.
+    // unreachable by the only person who needs it. The setup is a route of
+    // the application, rendered from its shell; it names nobody and carries
+    // no data, and the only credential that opens anything behind it is 32
+    // characters of secure random. It stops being sent the moment the setup
+    // is done.
     if (mount.enabled &&
         await DVFirstRunOwner.setupPending(database: _database)) {
-      return _setup(request, path, readable);
+      return _setup(request, path,
+          request.method == 'GET' || request.method == 'HEAD');
     }
-    // Studio's sign-in is a page of the Studio app, at <mount>/login. What
-    // the server does for somebody signed out is only what the app needs to
-    // reach that page: its shell and its code (the same framework code for
-    // every application), the application's own sign-in and second factor
-    // answered at the mount, and whether this caller may open Studio. The
-    // project's graph and Studio's data stay behind the grant.
+    // Studio's sign-in is a route of the application, at <mount>/login. What
+    // the server does for somebody signed out is only what that page needs:
+    // the page itself, the application's own sign-in and second factor
+    // answered at the mount, and whether this caller may open Studio.
+    // Everything else stays behind the grant.
     final String login = '${mount.path}/login';
+    final String apiPrefix = '${mount.path}/api/';
+    final bool isApi = path.startsWith(apiPrefix) || path == '${mount.path}/api';
     if (devGrant == null && mount.enabled && mount.requiresAuth) {
       final Response? signIn = await _signIn(request, path, readable, login);
       if (signIn != null) return signIn;
@@ -553,15 +533,11 @@ class DVAdminServer {
         mount.enabled &&
         mount.requiresAuth &&
         readable &&
-        !path.startsWith('${mount.path}/api/') &&
-        path != '${mount.path}/api' &&
-        path != '${mount.path}/graph.json' &&
-        !dvIsDeferredLibraryChunk(mount, path)) {
-      // For a caller without a Studio grant, any request under the mount that
-      // would return the app document (index.html itself, any SPA fallback,
-      // any path that isn't a static asset) must 302 to the sign-in route,
-      // except the sign-in route. Static assets stay public for sign-in;
-      // API requests and graph.json stay hidden (null -> 404).
+        !isApi &&
+        path != '${mount.path}/graph.json') {
+      // Any page under the mount, for a caller without a Studio grant, is
+      // sent to the sign-in with where they were going. The API and the
+      // graph stay hidden (null, answered as a path nothing serves).
       final String from =
           '${request.url.path}${request.url.hasQuery ? '?${request.url.query}' : ''}${request.url.hasFragment ? '#${request.url.fragment}' : ''}';
       return Response(
@@ -574,29 +550,19 @@ class DVAdminServer {
       );
     }
     if (decision != DVAdminRequest.serve) return null;
-    final String apiPrefix = '${mount.path}/api/';
     if (path.startsWith(apiPrefix)) {
       // On the request's tenant, as every route of the application is, so a
       // tenant-scoped model shows this tenant's records and nobody else's.
       return dvWithRequestTenant(
           request, () => api.respond(request, path.substring(apiPrefix.length)));
     }
-    if (request.method != 'GET' && request.method != 'HEAD') return null;
-    // Deferred library chunks (.part.js, wasm, etc.) are never served
-    // without a Studio grant. A signed-out request for one gets 404,
-    // exactly like a route that does not exist — not 302, not the chunk.
-    if (dvIsDeferredLibraryChunk(mount, path) &&
-        decision == DVAdminRequest.hidden) {
-      return null;
+    if (!readable) return null;
+    // Studio's two routes. Anything else under the mount is a path the
+    // application does not serve, and it answers it as one.
+    if (path == mount.path || path == '${mount.path}/') {
+      return _page(request, mount.path);
     }
-    final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
-    if (asset == null) return null;
-    return Response(
-      200,
-      headers: Headers(asset.headers),
-      body: request.method == 'HEAD'
-          ? const Stream<List<int>>.empty()
-          : Stream<List<int>>.value(asset.bytes),
-    );
+    if (path == login || path == '$login/') return _page(request, login);
+    return null;
   }
 }
