@@ -52,6 +52,17 @@ final class DVBinaryPayload {
   /// The section names, in the order they were written.
   List<String> get names => _sections.keys.toList(growable: false);
 
+  /// The executable this payload is in.
+  String get path => _file;
+
+  /// Where section [name] lies in [path]: what a reader that reads it in
+  /// place, rather than whole, needs. Null for a name not carried.
+  ({int offset, int length})? locate(String name) {
+    final ({int offset, int length})? found = _sections[name];
+    if (found == null) return null;
+    return (offset: _offset + found.offset, length: found.length);
+  }
+
   /// One section's bytes. Throws [ArgumentError] for a name not carried.
   Uint8List section(String name) {
     final ({int offset, int length})? found = _sections[name];
@@ -132,10 +143,15 @@ final class DVBinaryPayload {
   /// Throws [FormatException] for bytes that do not end the way a compiled
   /// Dart executable does: splicing into anything else writes a file that
   /// does not start, and says nothing until somebody runs it.
+  ///
+  /// Each section named in [aligned] starts on a 64 KiB boundary of the
+  /// file, so it can be mapped straight from it: a compiled code unit is
+  /// loaded that way.
   static Uint8List splice(
     Uint8List executable,
-    Map<String, List<int>> sections,
-  ) {
+    Map<String, List<int>> sections, {
+    Set<String> aligned = const <String>{},
+  }) {
     if (executable.length < 32) {
       throw const FormatException('too short to be a compiled executable');
     }
@@ -143,7 +159,7 @@ final class DVBinaryPayload {
     if (bytes.getUint64(executable.length - 8, Endian.little) !=
         _snapshotMagic) {
       if (_isPortableExecutable(executable) || _isMachO(executable)) {
-        return _append(executable, sections);
+        return _append(executable, sections, aligned);
       }
       throw const FormatException(
         'not a compiled Dart executable: it does not end with the snapshot '
@@ -156,8 +172,8 @@ final class DVBinaryPayload {
       throw const FormatException('the snapshot trailer points past the file');
     }
 
-    final Uint8List block = _block(sections);
     final int start = snapshot;
+    final Uint8List block = _block(sections, base: start, aligned: aligned);
     final int end = start + block.length;
     final int moved = ((end + 16 + _alignment - 1) ~/ _alignment) * _alignment;
 
@@ -184,8 +200,10 @@ final class DVBinaryPayload {
   static Uint8List _append(
     Uint8List executable,
     Map<String, List<int>> sections,
+    Set<String> aligned,
   ) {
-    final Uint8List block = _block(sections);
+    final Uint8List block =
+        _block(sections, base: executable.length, aligned: aligned);
     final Uint8List end = Uint8List(16);
     ByteData.sublistView(end).setUint64(0, executable.length, Endian.little);
     end.setRange(8, 16, ascii.encode(_appendedMagic));
@@ -203,24 +221,32 @@ final class DVBinaryPayload {
       ByteData.sublistView(bytes).getUint32(0, Endian.little) == 0xfeedfacf;
 
   /// The payload itself: its magic, the section index, and the sections.
-  static Uint8List _block(Map<String, List<int>> sections) {
+  ///
+  /// [base] is where the block will start in the file, which is what an
+  /// [aligned] section's padding is worked out from.
+  static Uint8List _block(
+    Map<String, List<int>> sections, {
+    required int base,
+    Set<String> aligned = const <String>{},
+  }) {
     final List<Map<String, Object?>> index = <Map<String, Object?>>[];
-    final BytesBuilder body = BytesBuilder(copy: false);
     for (final MapEntry<String, List<int>> section in sections.entries) {
       index.add(<String, Object?>{
         'name': section.key,
         'offset': 0, // placed below, once the header's length is known
         'length': section.value.length,
       });
-      body.add(section.value);
     }
     // The offsets depend on the header's length, which depends on the
     // offsets' digits; settle it by writing the header until it stops
     // growing.
     Uint8List header = Uint8List(0);
-    for (int attempt = 0; attempt < 4; attempt++) {
+    for (int attempt = 0; attempt < 6; attempt++) {
       int at = 12 + header.length;
       for (final Map<String, Object?> entry in index) {
+        if (aligned.contains(entry['name'])) {
+          at += (_alignment - (base + at) % _alignment) % _alignment;
+        }
         entry['offset'] = at;
         at += entry['length']! as int;
       }
@@ -234,11 +260,18 @@ final class DVBinaryPayload {
     final Uint8List head = Uint8List(12);
     head.setRange(0, 8, ascii.encode(_payloadMagic));
     ByteData.sublistView(head).setUint32(8, header.length, Endian.little);
-    return (BytesBuilder(copy: false)
-          ..add(head)
-          ..add(header)
-          ..add(body.takeBytes()))
-        .takeBytes();
+    final BytesBuilder out = BytesBuilder(copy: false)
+      ..add(head)
+      ..add(header);
+    int at = 12 + header.length;
+    for (final Map<String, Object?> entry in index) {
+      final int offset = entry['offset']! as int;
+      if (offset > at) out.add(Uint8List(offset - at));
+      final List<int> bytes = sections[entry['name']]!;
+      out.add(bytes);
+      at = offset + bytes.length;
+    }
+    return out.takeBytes();
   }
 }
 
