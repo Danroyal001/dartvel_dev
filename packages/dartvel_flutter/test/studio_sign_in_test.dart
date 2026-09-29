@@ -142,4 +142,22 @@ void main() {
     expect(find.text('Sign in to Studio'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('the app with no session never builds a section',
+      (WidgetTester tester) async {
+    for (final String url in <String>[
+      'https://shop.example/__studio/index.html',
+      'https://shop.example/__studio/index.html#/data',
+      'https://shop.example/__studio/anything',
+      'https://shop.example/__studio/',
+    ]) {
+      final _Server server = _Server(granted: false);
+      await _open(tester, server, url: url);
+      expect(find.byType(DVStudioScreen), findsNothing, reason: url);
+      expect(find.byKey(const ValueKey<String>('dv-studio-pages')), findsNothing,
+          reason: url);
+      expect(find.text('Sign in to Studio'), findsOneWidget, reason: url);
+    }
+  });
 }
+
