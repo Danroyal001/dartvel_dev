@@ -56,3 +56,25 @@ unchanged. Request protocolVersion still defaults to Shelf's 1.1.
 Upstream shelf_static 1.1.3's second-resolution comparison retains file mtime
 microseconds, which can miss a 304 on files with submillisecond timestamps.
 This is an upstream limitation, not claimed fixed by the adapter.
+
+## Native WebSockets
+
+`package:dartvel_shelf/web_socket.dart` supplies `webSocketHandler` with a
+`WebSocketChannel, String?` callback, protocols, allowedOrigins, pingInterval,
+and maxMessageSize (1 MiB default; maximum 64 MiB). `wsHandler` adapts core
+structured-message handlers and room registration to the same transport.
+`test/websocket_test.dart` drives real dart:io clients, including a stalled
+receiver and shutdown. Native queues hold eight messages per direction;
+Dart's sink holds at most eight outstanding sends. Use `sink.addStream` or
+await `NativeWebSocketChannel.send` for backpressure. `sink.add` throws when
+its queue is full; this bounded behavior differs from an unlimited Dart sink.
+
+The native bridge polls at 1 ms while consuming. This adds latency and idle
+CPU overhead; benchmark results below quantify the tradeoff. Generic raw
+socket hijacking remains ❌. Upstream shelf_web_socket 3.0.0 explicitly casts
+the hijacked sink to dart:io Socket, so its implementation cannot run unchanged
+on this transport; the provided handler matches its callback API instead.
+
+Correction to the baseline streaming row: request streaming has backpressure;
+the inherited ordinary HTTP response queue is unbounded. WebSocket queues are
+bounded independently. General response backpressure remains partial.

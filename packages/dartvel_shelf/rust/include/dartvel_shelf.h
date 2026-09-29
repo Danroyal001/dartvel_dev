@@ -93,6 +93,11 @@ typedef struct FfiResp {
   uint8_t is_stream;
 } FfiResp;
 
+typedef struct FfiWsFrame {
+  int32_t kind;
+  struct FfiBuf data;
+} FfiWsFrame;
+
 uint32_t aw_abi_version(void);
 
 void aw_register_handler(DartReqHandler cb);
@@ -190,5 +195,24 @@ int32_t aw_complete(uint64_t req_id, struct FfiResp resp);
 int32_t aw_stream_send_chunk(uint64_t req_id, struct FfiBuf chunk);
 
 int32_t aw_stream_complete(uint64_t req_id);
+
+/**
+ * Creates bounded queues before completing an HTTP upgrade response.
+ */
+int32_t aw_ws_prepare(uint64_t id, size_t max, struct FfiStr protocol);
+
+/**
+ * 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
+ */
+int32_t aw_ws_send(uint64_t id, int32_t kind, struct FfiBuf data);
+
+/**
+ * 0 means pending, -1 closed. Positive kinds own data until aw_ws_free.
+ */
+struct FfiWsFrame aw_ws_receive(uint64_t id);
+
+void aw_ws_free(struct FfiBuf data);
+
+void aw_ws_dispose(uint64_t id);
 
 #endif  /* DARTVEL_SHELF_H */
