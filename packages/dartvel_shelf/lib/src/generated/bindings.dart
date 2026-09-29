@@ -280,6 +280,61 @@ class DartvelShelfBindings {
       );
   late final _aw_stream_complete = _aw_stream_completePtr
       .asFunction<int Function(int)>();
+
+  /// Creates bounded queues before completing an HTTP upgrade response.
+  int aw_ws_prepare(int id, int max, FfiStr protocol) {
+    return _aw_ws_prepare(id, max, protocol);
+  }
+
+  late final _aw_ws_preparePtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Size, FfiStr)>
+      >('aw_ws_prepare');
+  late final _aw_ws_prepare = _aw_ws_preparePtr
+      .asFunction<int Function(int, int, FfiStr)>();
+
+  /// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
+  int aw_ws_send(int id, int kind, FfiBuf data) {
+    return _aw_ws_send(id, kind, data);
+  }
+
+  late final _aw_ws_sendPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Int32, FfiBuf)>
+      >('aw_ws_send');
+  late final _aw_ws_send = _aw_ws_sendPtr
+      .asFunction<int Function(int, int, FfiBuf)>();
+
+  /// 0 means pending, -1 closed. Positive kinds own data until aw_ws_free.
+  FfiWsFrame aw_ws_receive(int id) {
+    return _aw_ws_receive(id);
+  }
+
+  late final _aw_ws_receivePtr =
+      _lookup<ffi.NativeFunction<FfiWsFrame Function(ffi.Uint64)>>(
+        'aw_ws_receive',
+      );
+  late final _aw_ws_receive = _aw_ws_receivePtr
+      .asFunction<FfiWsFrame Function(int)>();
+
+  void aw_ws_free(FfiBuf data) {
+    return _aw_ws_free(data);
+  }
+
+  late final _aw_ws_freePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(FfiBuf)>>('aw_ws_free');
+  late final _aw_ws_free = _aw_ws_freePtr.asFunction<void Function(FfiBuf)>();
+
+  void aw_ws_dispose(int id) {
+    return _aw_ws_dispose(id);
+  }
+
+  late final _aw_ws_disposePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Uint64)>>(
+        'aw_ws_dispose',
+      );
+  late final _aw_ws_dispose = _aw_ws_disposePtr
+      .asFunction<void Function(int)>();
 }
 
 final class FfiStr extends ffi.Struct {
@@ -348,6 +403,13 @@ final class FfiResp extends ffi.Struct {
 
   @ffi.Uint8()
   external int is_stream;
+}
+
+final class FfiWsFrame extends ffi.Struct {
+  @ffi.Int32()
+  external int kind;
+
+  external FfiBuf data;
 }
 
 const int AW_ABI_VERSION = 2;
