@@ -6,7 +6,6 @@ import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
 import '../build/docs_build.dart';
-import '../build/docs_mount.dart';
 import 'docs_site.dart';
 
 /// [output] resolved against the project, as `--output` means it.
@@ -131,18 +130,7 @@ class DVDocsServer {
     final String directory = dvDocsOutputPath(root, output);
     // Build the document first.
     await dvDocsBuildInto(root, directory, out: out);
-    // Determine the mount and app name.
-    final Object? dartvel = (() {
-      try {
-        final String yaml = File(p.join(root, 'pubspec.yaml')).readAsStringSync();
-        final Object? loaded = loadYaml(yaml);
-        if (loaded is YamlMap) return loaded['dartvel'];
-      } on Object {
-        // Ignore YAML parsing errors, fall back to default mount.
-      }
-      return null;
-    })();
-    final DVDocsMount mount = dvDocsMount(dartvel, release: false);
+    // The application's name, for the site's title.
     final Object? declaredName = (() {
       try {
         final String yaml = File(p.join(root, 'pubspec.yaml')).readAsStringSync();
@@ -159,11 +147,14 @@ class DVDocsServer {
         declaredName is String && declaredName.trim().isNotEmpty
             ? declaredName.trim()
             : 'Dartvel application';
-    // Compile the app.
+    // Compiled for where this server serves it, the root of a loopback
+    // port, not for the mount the application would serve it at: a site
+    // whose base is /docs/ asks this server for /docs/main.dart.js, which it
+    // does not have, and gets the shell back.
     await dvDocsCompileApp(
       root: root,
       directory: directory,
-      mount: mount.path,
+      mount: '',
       appName: appName,
       out: out,
       run: run,
@@ -173,7 +164,7 @@ class DVDocsServer {
       port,
     );
     final DVDocsServer docs = DVDocsServer._(
-      server, root, directory, mount.path, appName, out, run);
+      server, root, directory, '', appName, out, run);
     server.listen(docs._handle);
     final DirectoryWatcher watcher = DirectoryWatcher(root);
     docs._watch = watcher.events.listen(docs._changed);
