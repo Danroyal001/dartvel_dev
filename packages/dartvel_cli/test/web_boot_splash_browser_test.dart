@@ -1,10 +1,9 @@
-// The page's own text is on screen before the engine boots.
+// While the engine boots a visitor sees the splash, never the crawler text.
 //
-// A prerendered page carries its text for crawlers, printers and find. It
-// was kept off the screen until now, so for the seconds a Flutter page
-// takes to boot the reader saw a splash and nothing to read, and the
-// largest contentful paint was the splash image. Now the text shows, styled,
-// over the splash colour, until the first frame hands over to the app.
+// A prerendered page carries its text for crawlers, printers, find and
+// visitors without JavaScript. It stays off the screen while Flutter loads:
+// 0.9.2 briefly showed it as the page during boot, and the owner rejected
+// that. This guards the splash.
 @TestOn('vm')
 library;
 
@@ -72,15 +71,25 @@ void main() {
     await server.close(force: true);
   });
 
-  test('before the first frame the text is on screen, over the splash',
+  test('before the first frame the splash is on screen and the text is not',
       () async {
     final Page page = await _open();
-    expect(await _textWidth(page), greaterThan(200));
-    expect(await _headingOnTop(page), isTrue);
+    expect(await _textWidth(page), lessThanOrEqualTo(1));
+    expect(await _headingOnTop(page), isFalse);
+    expect(await page.evaluate<bool>('''() => {
+      const s = document.getElementById("dartvel-splash");
+      const r = s.getBoundingClientRect();
+      return r.width >= 790 && r.height >= 590 &&
+          document.elementFromPoint(400, 300).closest("#dartvel-splash") !== null;
+    }'''), isTrue);
+    // Still in the document for crawlers, find and print.
+    expect(await page.evaluate<String>(
+        '() => document.querySelector(".dv-fallback h1").textContent'),
+        'Pricing');
     await page.close();
   });
 
-  test('the first frame hands the screen to the app', () async {
+  test('the first frame removes the splash and the text stays hidden', () async {
     final Page page = await _open();
     await page.evaluate<void>(
         '() => window.dispatchEvent(new Event("flutter-first-frame"))');

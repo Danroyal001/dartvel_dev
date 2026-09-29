@@ -355,25 +355,15 @@ String dvWebSplashApply(
         '#dartvel-progress>div{transition:none}}');
   }
 
-  // The page's own text, which the build writes for crawlers and keeps
-  // off the screen, is the page until the first frame: a reader sees what
-  // they came for rather than a splash, and the largest contentful paint is
-  // that text. Over the splash (later in the document, and positioned), in
-  // its reading column, and handed back to the app on the first frame.
-  style.write('@media screen{html.dv-booting .dv-fallback{position:relative;'
-      'width:auto;height:auto;max-width:44rem;margin:0 auto;'
-      'padding:2rem 1.25rem;overflow:visible;clip-path:none;'
-      'pointer-events:auto}'
-      'html.dv-booting #dartvel-progress{z-index:1}'
-      'html.dv-booting .dv-fallback [data-dv-anchor]{display:block;'
-      'content-visibility:visible}}');
+  // The crawler/no-JS text stays off the screen while Flutter boots: the
+  // splash is what a visitor sees until the first frame. (0.9.2 showed that
+  // text as the page during boot; the owner rejected it.)
 
   final String headBlock = '$_headOpen\n'
       // The compiled app, fetched while the page is parsed rather than once
       // flutter_bootstrap.js has run and asked for it.
       '<link rel="preload" href="main.dart.js" as="script">\n'
       '<style id="dartvel-splash-style">$style</style>\n'
-      '<script>document.documentElement.classList.add("dv-booting")</script>\n'
       '<noscript><style>${<String>[
         if (splash.enabled) '#dartvel-splash',
         if (splash.progress) '#dartvel-progress',
@@ -397,7 +387,6 @@ String dvWebSplashApply(
           '<script>$_progressScript</script>\n' : ''}'
       '<script>addEventListener("flutter-first-frame",function(){'
       'var s=document.getElementById("dartvel-splash");if(s)s.remove();'
-      'document.documentElement.classList.remove("dv-booting");'
       'var t=document.getElementById("dartvel-splash-style");if(t)t.remove()'
       '},{once:true})</script>\n'
       '$_bodyClose';
