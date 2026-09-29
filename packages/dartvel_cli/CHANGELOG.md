@@ -1,5 +1,19 @@
 ## Unreleased
 
+- **The build writes one file into the admin root, and it is the graph.** It
+  wrote four: a static dashboard, its stylesheet, its script and the graph.
+  The dashboard was hand-authored HTML emitted by a build step, and the very
+  next step of the same build compiled `DVStudioApp` into the same root and
+  deleted all three by name -- so the build authored a page, a stylesheet and a
+  script that could never be opened by anybody. `graph.json` is what survives
+  and all three readers of it are runtime ones: Studio's site map, task and
+  module sections, and the server taking its worker queue names from it. The
+  columns those sections show now live in `dartvel_flutter`, next to the
+  sections that read them, and this test now holds the producer side of that
+  contract -- that a real `DartvelProjectGraph` has each key its readers ask
+  for, with a value in it. `studio_build` still deletes the three files, so a
+  `build/web` from before this has no dashboard left sitting beside Studio.
+
 - **A failed navigation goes to the app's offline page, and a host's
   not-found document is a copy of the app's.** The build wrote both pages as
   hand-authored HTML with inline CSS, in a colour sanitised out of the

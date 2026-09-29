@@ -181,9 +181,9 @@ bool dvIsDeferredLibraryChunk(DVAdminMount mount, String path) {
 
 /// The content type for a file the admin serves.
 ///
-/// Serving admin.js as text/plain leaves a blank page and a console error
-/// about a MIME type, which reads as a broken admin rather than a missing
-/// line here.
+/// Serving main.dart.js as text/plain leaves a blank Studio and a console
+/// error about a MIME type, which reads as a broken admin rather than a
+/// missing line here.
 String dvAdminContentType(String relative) {
   final String name = relative.toLowerCase();
   if (name.endsWith('.html')) return 'text/html; charset=utf-8';
