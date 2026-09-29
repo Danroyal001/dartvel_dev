@@ -151,6 +151,19 @@ void main() {
       expect(status, 200);
       expect(payload, contains('decision:0001-users'));
 
+      // Compiled for where it is served, the root of this port: a site whose
+      // base is /docs/ would ask this server for /docs/flutter_bootstrap.js
+      // and be handed the shell back instead of the code.
+      final List<String> compile = runs.single;
+      expect(compile[compile.indexOf('--base-href') + 1], '/');
+      final (int shell, String shellBody) = await _get(server.url);
+      expect(shell, 200);
+      expect(shellBody, contains('<base href="/">'));
+      final (int boot, String bootBody) =
+          await _get(server.url.resolve('flutter_bootstrap.js'));
+      expect(boot, 200);
+      expect(bootBody, '// boot');
+
       // For a Flutter SPA, paths that don't exist as files serve index.html
       // so the client-side router can handle them.
       final (int missing, String missingBody) = await _get(server.url.resolve('nope.json'));
