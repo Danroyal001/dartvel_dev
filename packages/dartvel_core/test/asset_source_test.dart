@@ -92,6 +92,34 @@ void main() {
     });
   });
 
+  test('a directory under a registered root is served from the same pack', () {
+    final DVAssetPack assets = pack(<DVAssetPackEntry>[
+      DVAssetPackEntry('admin/graph.json', text('{}'), protected: true),
+      DVAssetPackEntry('admin/structure/docs.json', text('[1]'), protected: true),
+      DVAssetPackEntry('admin/structure/home.json', text('[2]'), protected: true),
+    ]);
+    DVAssetSources.register('/srv/app/server/admin', DVPackedAssets(assets, prefix: 'admin/'));
+    final DVAssetSource structure = DVAssetSources.at('/srv/app/server/admin/structure');
+    expect(structure.embedded, isTrue);
+    expect(structure.file('docs.json')!.bytes(), text('[1]'));
+    expect(structure.file('docs.json')!.protected, isTrue);
+    expect(structure.list().toList()..sort(), <String>['docs.json', 'home.json']);
+    expect(DVAssetSources.at('/srv/app/server/admin').list().toList()..sort(),
+        <String>['graph.json', 'structure/docs.json', 'structure/home.json']);
+    // A name that merely starts the same is another directory.
+    expect(DVAssetSources.at('/srv/app/server/administrator').embedded, isFalse);
+  });
+
+  test('a directory lists its files, under it and nowhere else', () {
+    File(p.join(work.path, 'site', 'structure', 'a.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('[]');
+    File(p.join(work.path, 'site', 'graph.json')).writeAsStringSync('{}');
+    expect(DVAssetSources.at(p.join(work.path, 'site')).list().toList()..sort(),
+        <String>['graph.json', 'structure/a.json']);
+    expect(DVAssetSources.at(p.join(work.path, 'nothing')).list(), isEmpty);
+  });
+
   test('a root nothing was registered for is the directory of that name', () {
     expect(DVAssetSources.at(work.path).embedded, isFalse);
     DVAssetSources.register(work.path, DVPackedAssets(pack(const <DVAssetPackEntry>[]), prefix: 'web/'));
