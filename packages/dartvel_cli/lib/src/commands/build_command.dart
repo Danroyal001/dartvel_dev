@@ -1251,6 +1251,8 @@ class BuildCommand extends Command<void> {
       // among the web files, served by the binary at its mount.
       admin: admin,
       adminRoot: p.join(root, 'build', 'web', '__admin'),
+      // dartvel.web.server.compression: how the web files are kept inside.
+      compression: dvAssetCompression(_webServerSection(root)['compression']),
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
@@ -1263,6 +1265,13 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.failed;
     }
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// `dartvel.web.server`, or nothing.
+  Map<Object?, Object?> _webServerSection(String root) {
+    final Object? web = _dartvelSection(root)['web'];
+    final Object? server = web is Map ? web['server'] : null;
+    return server is Map ? server : const <Object?, Object?>{};
   }
 
   /// Builds embedded/television targets through their dedicated Flutter
