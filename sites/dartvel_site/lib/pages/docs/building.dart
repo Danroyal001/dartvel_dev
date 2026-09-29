@@ -90,8 +90,10 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
                   'TPK. CI can only skip it'],
               <String>['sony-elinux', 'Linux', 'Builds and runs in release on '
                   'a virtual device'],
-              <String>['webos', 'The webOS toolchain', 'Runs in a Wayland '
-                  'window under ARM emulation. Not run on a TV'],
+              <String>['webos', 'The webOS toolchain', '`dartvel build webos` '
+                  'skips: LG\'s CLI cannot resolve a Dartvel project. A package '
+                  'assembled in CI runs in a Wayland window under ARM '
+                  'emulation. Not run on a TV'],
               <String>['fuchsia', 'Linux', 'Blocked: the embedder\'s Flutter '
                   'is too old to resolve dependencies'],
               <String>['vscode', 'npm', 'Builds a VS Code extension'],
@@ -100,7 +102,8 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['linux-cli', 'Linux', 'Runs in a terminal in the '
                   'verification workflow'],
               <String>['windows-cli, macos-cli, fuchsia-cli', 'That OS', 'Not '
-                  'verified'],
+                  'verified, and not expected to build: the terminal '
+                  'embedder builds for Linux only'],
               <String>['web-server', 'Any host', 'See Servers and deploying'],
             ]),
             DocsText('The evidence for every row, with CI run links, is in '
@@ -117,8 +120,9 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
                   'platform\'s own Flutter embedder.',
               'Dartvel keeps a pinned fork of each, which it can install for '
                   'you.',
-              '--arch picks arm, arm64 (the default) or x64 for embedded '
-                  'builds.',
+              '--arch picks arm, arm64 or x64 for embedded builds. It '
+                  'defaults to arm64, to x64 for fuchsia, and to this '
+                  'machine\'s own for sony-elinux.',
             ]),
             DocsNote('sony-elinux-iso and sony-elinux-img',
                 'These names are accepted. Today they build the same bundle as '

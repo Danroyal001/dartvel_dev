@@ -7,9 +7,9 @@ import '../../dartvel_client/dartvel_client.dart';
 // capability checks that decide whether a published one can be trusted.
 // Status boxes follow docs/spec-status.json.
 @DVPage(
-  title: 'Dartvel modules: Rust, C and Android code behind one surface',
-  description: 'A Dartvel module is a complete app whose Dart can call a '
-      'Rust crate over FFI or an Android library over JNI. The parent '
+  title: 'Dartvel modules: Dart, npm, C, Rust, JVM and Swift behind one surface',
+  description: 'A Dartvel module is a complete app, or a Dart, npm, C, Rust, '
+      'JVM or Swift package that dartvel add wraps as one. The parent '
       'mounts, grants and calls it the same way.',
   showAppBar: false,
 )
@@ -115,19 +115,23 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
                   'calls them. Dartvel\'s own Android features under '
                   'DV.Platform are bound like this, and nothing uses platform '
                   'channels.',
-              'The web has no FFI. Until the WASM carrier is built, a module '
-                  'the web also calls keeps its FFI calls behind a '
+              'The web has no FFI. A C library or a Rust crate added with '
+                  '`dartvel add` is also compiled to WebAssembly for the '
+                  'browser, for functions of numbers. A module whose FFI '
+                  'surface you wrote yourself keeps those calls behind a '
                   'conditional import.',
             ]),
-            DocsNote('What `dartvel add` does with a bare crate today',
-                'Pointed at a Cargo.toml or a build.gradle, it names what it '
-                'found and the binding it would take, FFI or JNI, and writes '
-                'nothing. Generating the module around it is specified and '
-                'not built, so today you write the Dart surface yourself.'),
+            DocsNote('What `dartvel add` does with a bare directory',
+                'Pointed at a directory with a Cargo.toml, C sources, a '
+                'Package.swift or a .wasm file, it generates the module as '
+                'cargo:, c:, swift: or wasm: would. A build.gradle or a '
+                'package.json is named and refused: add the library as '
+                'maven: or jar:, or the package as npm:.'),
             DocsStatus('Native Binding Graph', missing: <String>[
-              'Generating a module from a crate, a C library, a Swift package '
-                  'or an Android library. You write the FFI or JNI surface '
-                  'by hand.',
+              'The binding graph itself: DVBindingGraph and its five binding '
+                  'kinds. A module you write yourself around a crate or an '
+                  'Android library still has a hand-written FFI or JNI '
+                  'surface.',
               'Typed errors naming the module, the operation and the '
                   'binding kind, and foreign callbacks turned into a Future '
                   'or a Stream at the boundary.',
@@ -296,25 +300,18 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             DocsStatus('Modules', missing: <String>[
               'A module that runs in its own deployment contributes no '
                   'backend to the parent build, by design.',
-              'Placement by call site. One Rust crate is meant to ship as a '
-                  '.so or .a on Android and Linux, an .xcframework on Apple '
-                  'targets, inside the backend binary and as .wasm on the '
-                  'web, each chosen by where the module is called from.',
               'Tree-shaking per environment, so a module with a heavy native '
                   'library costs a web build nothing until a web page calls '
                   'it.',
               'Ambient requirements: a module declaring the app lifecycle '
                   'hooks, background work and push registration an SDK such '
-                  'as Firebase needs, wired into the target\'s entry points, '
-                  'and DV-MODULE-020.',
+                  'as Firebase needs, wired into the target\'s entry points.',
             ]),
             DocsStatus('Module Sources', missing: <String>[
-              'compat: a generated path from an environment without a '
-                  'carrier to one that has it, such as a browser calling a '
-                  'dart:io package through the backend. Declaring compat is '
-                  'refused with DV-MODULE-017; unavailable and noop work.',
-              'A .proto source, a Swift package with dependencies, and a '
-                  'backend JVM or Swift carrier.',
+              'Node on phones, a WebAssembly runtime without Node, and '
+                  'strings across WebAssembly.',
+              'A .proto source, a Swift package with dependencies, the JVM '
+                  'outside Android, and a backend JVM carrier.',
               'A component library exported with exports: components.',
             ]),
             DocsStatus('Module Health'),

@@ -114,8 +114,9 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
             ]),
             DocsStatus('Protocol Versioning and Client Compatibility',
                 missing: <String>[
-              'The contract is not yet read from your project, and no build '
-                  'step runs the lock check.',
+              'The contract is not yet read from your project, no command '
+                  'writes dartvel.protocol.lock, and no build step runs the '
+                  'lock check.',
               'The generated client and backend do not do the version '
                   'handshake yet, so there is no upgrade prompt.',
             ]),
