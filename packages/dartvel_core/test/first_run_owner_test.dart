@@ -125,6 +125,8 @@ void main() {
         mount: const DVAdminMount(
             path: '/__studio', enabled: true, requiresAuth: true),
         root: root.path,
+        // The application's shell, which Studio's pages are rendered from.
+        webRoot: root.path,
         authenticated: (Request _) async => true,
         models: const <DVStudioModelSpec>[],
         database: database,
@@ -399,6 +401,8 @@ void reachable() {
         mount: const DVAdminMount(
             path: '/__studio', enabled: true, requiresAuth: true),
         root: root.path,
+        // The application's shell, which Studio's pages are rendered from.
+        webRoot: root.path,
         // Nobody is signed in, which is the state the owner is in.
         authenticated: (Request _) async => false,
         database: database,
