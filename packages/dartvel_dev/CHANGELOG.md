@@ -1,3 +1,11 @@
+## 0.9.3
+
+- Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.3, and
+  dartvel_shelf 0.9.2: Studio lists every page and designs data models,
+  upstream Shelf adapter (`fromShelf`), native WebSockets with event-driven
+  delivery, response body backpressure, and native static file streaming.
+  The constraints on its siblings move with them.
+
 ## 0.9.2
 
 - Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.2: the web
