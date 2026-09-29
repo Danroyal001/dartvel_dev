@@ -4,3 +4,4 @@ library;
 
 export 'src/process/asset_pack.dart';
 export 'src/process/binary_payload.dart';
+export 'src/web/asset_source.dart';
