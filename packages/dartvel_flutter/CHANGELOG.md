@@ -1,5 +1,20 @@
 ## Unreleased
 
+- **`DVNotFoundPage` and `DVOfflinePage`**: the two pages an application
+  shows when a page cannot be shown, drawn in the app's own theme instead of
+  being documents the build wrote by hand. Both carry a heading, which is what
+  the accessibility gate demands of every captured route and what a reader of
+  the captured text has to go on, and both answer in links a crawler follows
+  and a switch reaches. `DVNotFoundPage` names the path that was asked for;
+  `DVOfflinePage` says it is on the device and takes the person back to where
+  they were once the network is back, refusing a `from` that could lead off
+  the site or back to itself.
+- `DVStudioPageRoute`'s fallback for a route with nothing to serve is now
+  `DVNotFoundPage`, so the page a router draws on a miss and the page the
+  `/404` route serves are the same page rather than two that drifted.
+- `DVPageMfa.safeReturn` is [dvSafeInternalPath], the rule the offline page's
+  `from` uses too, so one open-redirect fix covers both.
+
 - **`DVStudioFirstRunScreen`: the first-run setup as a page of the Studio
   app**, shown by `DVStudioApp` at `<mount>/setup`. It asks for the address
   and the printed password rather than printing either -- the page is open to
