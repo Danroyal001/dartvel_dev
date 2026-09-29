@@ -288,6 +288,9 @@ class _FakeServer {
         'jobs': <Object?>[],
       });
     }
+    if (method == 'GET' && path == 'api/access') {
+      return reply(200, <String, Object?>{'granted': true});
+    }
     return reply(404, <String, Object?>{'error': 'not_found'});
   }
 }
@@ -347,6 +350,26 @@ void main() {
       expect(server.pages.keys, <String>['/about']);
       expect(await store.routes(), <String>['/about']);
       expect((await store.load('/about'))?.title, 'About');
+    });
+
+    test('a server error body containing HTML is sanitized to a short message',
+        () async {
+      final DVStudioClient htmlClient = DVStudioClient(
+        (String method, String path, {Object? body}) async =>
+            const DVStudioReply(404, <String, Object?>{
+          'error': 'http_404',
+          'message':
+              '<!DOCTYPE html><html><head><title>404</title></head><body><h1>Not Found</h1></body></html>',
+        }),
+      );
+      expect(
+        () => htmlClient.pages(),
+        throwsA(isA<DVStudioRemoteError>().having(
+          (DVStudioRemoteError e) => e.message,
+          'message',
+          'The server answered 404.',
+        )),
+      );
     });
   });
 
@@ -798,6 +821,35 @@ void main() {
       );
       expect(server.grants, isEmpty);
       expect(find.text('owner-1'), findsNothing);
+    });
+
+    testWidgets('never renders server error HTML as text',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final DVStudioClient errorClient = DVStudioClient(
+        (String method, String path, {Object? body}) async {
+          if (method == 'GET' && path == 'api/access') {
+            return const DVStudioReply(200, <String, Object?>{'granted': true});
+          }
+          if (method == 'GET' && path == 'api/pages') {
+            return const DVStudioReply(500, <String, Object?>{
+              'message':
+                  '<!DOCTYPE html><html><body><h1>Error</h1></body></html>',
+            });
+          }
+          return const DVStudioReply(404, <String, Object?>{});
+        },
+      );
+      await tester.pumpWidget(_host(errorClient));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('<!DOCTYPE'), findsNothing);
+      expect(find.textContaining('<html'), findsNothing);
+      expect(
+        find.textContaining('Could not read pages: The server answered 500.'),
+        findsOneWidget,
+      );
     });
   });
 }
