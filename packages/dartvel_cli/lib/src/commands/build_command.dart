@@ -8,6 +8,9 @@ import '../build/node_runtime_bundle.dart';
 import '../build/accessibility_audit.dart';
 import '../build/admin_artifact.dart';
 import '../build/admin_mount.dart';
+import '../build/docs_build.dart';
+import '../build/docs_mount.dart';
+import '../docs/docs_site.dart';
 import '../build/image_variants_build.dart';
 import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
@@ -18,7 +21,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVBuildLifecycle,
         DVImageVariants,
         dvAndroidPermissionNames,
-        dvOfflineRoute;
+        dvOfflineRoute,
+        DVDocsMount;
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
@@ -1192,6 +1196,13 @@ class BuildCommand extends Command<void> {
             return _PlatformBuildResult.failed;
           }
           final DVAdminMount? admin = dashboard.admin;
+          // Documentation site, compiled and served at its mount.
+          final ({bool ok, DVDocsMount? docs}) docsDashboard =
+              await _writeDocsDashboard(root);
+          if (!docsDashboard.ok) {
+            Logger.log('❌ $platform build failed');
+            return _PlatformBuildResult.failed;
+          }
           // Before the executable packs build/web into itself: what is not
           // minified by now ships inside the binary as it was written.
           _minifyWebOutput(root);
@@ -1203,6 +1214,13 @@ class BuildCommand extends Command<void> {
           }
         } else {
           await _writeStaticPages(root);
+          // Documentation site, compiled and served at its mount.
+          final ({bool ok, DVDocsMount? docs}) docsDashboard =
+              await _writeDocsDashboard(root);
+          if (!docsDashboard.ok) {
+            Logger.log('❌ $platform build failed');
+            return _PlatformBuildResult.failed;
+          }
           // After the per-route pages, so the pass takes the indentation out
           // of every one of them rather than only out of the shell.
           _minifyWebOutput(root);
@@ -3510,6 +3528,67 @@ class BuildCommand extends Command<void> {
     Logger.log('   Studio at ${admin.path}, served by the backend to the '
         'people granted Studio.access.');
     return (ok: true, admin: admin);
+  }
+
+  /// The documentation site this build serves, compiled.
+  ///
+  /// A release or profile build has to ask for the docs; a debug one gets
+  /// it by default, which is what makes a new project's documentation work
+  /// with no configuration. Profile counts as release: a profile build is
+  /// something you hand to somebody.
+  Future<({bool ok, DVDocsMount? docs})> _writeDocsDashboard(String root) async {
+    final web = Directory(p.join(root, 'build', 'web'));
+    if (!web.existsSync()) return (ok: true, docs: null);
+
+    final DVDocsMount docs = dvDocsMount(_dartvelSection(root),
+        release: _isReleaseBuild());
+    if (!docs.enabled) {
+      Logger.log('   No documentation site in this build. A release build '
+          'serves one only when dartvel.docs.enabled says so; '
+          '--profile development gets it with no configuration.');
+      return (ok: true, docs: null);
+    }
+
+    final String problem = dvDocsMountProblem(docs.path) ?? '';
+    if (problem.isNotEmpty) {
+      Logger.log('❌ $problem');
+      return (ok: true, docs: null);
+    }
+
+    final Object? declaredName = readPubspecYaml(root)?['name'];
+    final String appName =
+        declaredName is String && declaredName.trim().isNotEmpty
+            ? declaredName.trim()
+            : 'Dartvel application';
+
+    final Directory docsRoot = Directory(p.join(web.path, dvDocsPagesDirectory))
+      ..createSync(recursive: true);
+
+    // The document and graph are written by `dvDocsBuildInto` (called by
+    // `dartvel docs`), but we also need them here for the web-server binary.
+    // Build the document and write it beside the compiled app.
+    final DVDocsSite site = await DVDocsSite.build(root: root);
+    site.writeTo(docsRoot.path);
+
+    // The docs site itself, compiled for the mount.
+    Logger.log('   Compiling documentation site for ${docs.path} (flutter build web)...');
+    final DVDocsBuildResult docsBuild = await dvBuildDocs(
+      root: root,
+      mount: docs.path,
+      docsRoot: docsRoot.path,
+      appName: appName,
+      run: (String executable, List<String> arguments,
+              {String? workingDirectory}) =>
+          _processRun(executable, arguments,
+              workingDirectory: workingDirectory, runInShell: true),
+    );
+    for (final String line in docsBuild.lines) {
+      Logger.log('   $line');
+    }
+    if (!docsBuild.ok) return (ok: false, docs: null);
+
+    Logger.log('   Documentation at ${docs.path}, served by the backend.');
+    return (ok: true, docs: docs);
   }
 
   /// Whether this build is a release or profile one.
