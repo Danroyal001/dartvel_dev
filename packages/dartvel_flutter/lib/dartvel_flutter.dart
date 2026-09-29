@@ -687,11 +687,30 @@ export 'package:dartvel_core/dartvel.dart'
         dvModelFactories,
         dvModelReadCarriers,
         dvModelSerializers,
+        // Documentation: the document `dartvel docs` writes and the app
+        // draws. Reached from here because an application that hosts the
+        // documentation under a mount of its own builds pages from it.
+        DVDocsBlock,
+        DVDocsCode,
+        DVDocsColumn,
+        DVDocsDocument,
+        DVDocsFinding,
+        DVDocsHeading,
+        DVDocsList,
+        DVDocsListItem,
+        DVDocsPage,
+        DVDocsParagraph,
+        DVDocsRow,
+        DVDocsSpan,
+        DVDocsTable,
+        DVDocsTarget,
         carryDVModelRead,
         registerDVModelDeserializer,
         registerDVModelReadCarrier,
         registerDVModelFactory,
-        registerDVModelSerializer;
+        registerDVModelSerializer,
+        dvDocsNavigation,
+        dvDocsPayloadFile;
 export 'package:go_router/go_router.dart';
 
 export 'src/accessibility/keyboard_scroll.dart';
@@ -712,6 +731,13 @@ export 'src/auth/session_client.dart';
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
+// The documentation site: the widgets that draw the document `dartvel docs`
+// writes, so a project hosting its documentation under a mount of its own can
+// reach them. The document itself is re-exported from dartvel_core below.
+export 'src/docs/docs_app.dart';
+export 'src/docs/docs_blocks.dart';
+export 'src/docs/docs_source.dart';
+export 'src/docs/docs_style.dart';
 export 'src/flags/flag_signal.dart';
 export 'src/kiosk/device_kiosk.dart';
 export 'src/kiosk/kiosk.dart';
