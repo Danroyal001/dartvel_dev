@@ -356,8 +356,9 @@ static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
 /// caller would have no way to find out where its own server ended up.
 static SERVER_PORTS: OnceCell<Mutex<HashMap<u64, u16>>> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
-static STATIC_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
-static SPA_ROOT_DIR: OnceCell<Mutex<Option<String>>> = OnceCell::new();
+#[derive(Clone, Default)]
+struct StaticPaths { directory: Option<String>, spa: Option<String> }
+static PENDING_STATIC: OnceCell<Mutex<HashMap<std::thread::ThreadId, StaticPaths>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
 /// How long a request may take to arrive and be answered when the caller did
@@ -821,48 +822,21 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
     0
 }
 
-#[no_mangle]
-pub extern "C" fn aw_configure_static(path: FfiStr) -> i32 {
-    if path.len == 0 || path.ptr.is_null() {
-        // Clear static directory
-        if let Some(mutex) = STATIC_DIR.get() {
-            *safe_lock(mutex) = None;
+fn configure_static_path(path: FfiStr, spa: bool) -> i32 {
+    let value = if path.len == 0 || path.ptr.is_null() { None } else {
+        match std::str::from_utf8(unsafe { std::slice::from_raw_parts(path.ptr, path.len) }) {
+            Ok(path) => Some(path.to_owned()), Err(_) => return 1,
         }
-        return 0;
-    }
-
-    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
-    let path_slice = unsafe { std::slice::from_raw_parts(path.ptr, path.len) };
-    let path_string = match std::str::from_utf8(path_slice) {
-        Ok(s) => s.to_string(),
-        Err(_) => return 1,
     };
-
-    let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
-    *safe_lock(mutex) = Some(path_string);
+    let mut pending = safe_lock(PENDING_STATIC.get_or_init(Default::default));
+    let paths = pending.entry(std::thread::current().id()).or_default();
+    if spa { paths.spa = value; } else { paths.directory = value; }
     0
 }
-
 #[no_mangle]
-pub extern "C" fn aw_configure_spa_root(path: FfiStr) -> i32 {
-    if path.len == 0 || path.ptr.is_null() {
-        if let Some(mutex) = SPA_ROOT_DIR.get() {
-            *safe_lock(mutex) = None;
-        }
-        return 0;
-    }
-
-    // SAFETY: FfiStr contract guarantees ptr is valid for len bytes
-    let path_slice = unsafe { std::slice::from_raw_parts(path.ptr, path.len) };
-    let path_string = match std::str::from_utf8(path_slice) {
-        Ok(s) => s.to_string(),
-        Err(_) => return 1,
-    };
-
-    let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
-    *safe_lock(mutex) = Some(path_string);
-    0
-}
+pub extern "C" fn aw_configure_static(path: FfiStr) -> i32 { configure_static_path(path, false) }
+#[no_mangle]
+pub extern "C" fn aw_configure_spa_root(path: FfiStr) -> i32 { configure_static_path(path, true) }
 
 #[no_mangle]
 pub extern "C" fn aw_configure_compression(enabled: i32) -> i32 {
@@ -1440,6 +1414,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
     // Likewise: this thread's body limits, or the default.
     let body_limits = take_pending_body_limits();
+    let static_paths = safe_lock(PENDING_STATIC.get_or_init(Default::default))
+        .remove(&std::thread::current().id()).unwrap_or_default();
 
     let handle = axum_server::Handle::new();
     if let Some(handles) = SERVER_HANDLES.get() {
@@ -1540,6 +1516,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             app = app.layer(axum::Extension(ServerId(server_id)));
             app = app.layer(axum::Extension(RequestTimeout(request_timeout)));
             app = app.layer(axum::Extension(body_limits));
+            app = app.layer(axum::Extension(static_paths));
             // Outermost: a panic anywhere in answering a request is a 500
             // rather than a connection dropped with no answer at all.
             app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
@@ -2170,10 +2147,8 @@ async fn catch_all_handler(
     let path = req.uri().path().to_string();
     
     // 1. Static dir check
-    let static_dir = {
-        let mutex = STATIC_DIR.get_or_init(|| Mutex::new(None));
-        safe_lock(mutex).clone()
-    };
+    let paths = req.extensions().get::<StaticPaths>().cloned().unwrap_or_default();
+    let static_dir = paths.directory;
     if let Some(dir) = static_dir {
         if path.starts_with("/static/") {
             let relative_path = &path["/static".len()..];
@@ -2184,10 +2159,7 @@ async fn catch_all_handler(
     }
 
     // 2. SPA root check
-    let spa_root = {
-        let mutex = SPA_ROOT_DIR.get_or_init(|| Mutex::new(None));
-        safe_lock(mutex).clone()
-    };
+    let spa_root = paths.spa;
     if let Some(dir) = spa_root {
         if let Some(file_path) = get_static_file(&dir, &path) {
             return serve_file_response(file_path, req).await;
