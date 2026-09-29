@@ -1,3 +1,16 @@
+## Unreleased
+
+- A request body reaches the handler as it is received, a chunk at a time, with
+  backpressure: a handler that reads slowly keeps the client from sending ahead,
+  and the handler is told when the body is done. A server whose native library
+  predates this reads every body whole, as before, by name rather than by ABI.
+- A middleware or handler receives a body that stays small
+  (`content-length` ≤ 64 KiB) whole with its length; anything bigger is
+  streamed as it is produced.
+- A body that passes the server's or a route's limit is refused with 413 as
+  before; the connection stays readable for a short grace so the refusal
+  reaches the client, then closes.
+
 ## 0.9.1
 
 - A route's page is rendered with `dvRenderRoutePage` from the page the build
