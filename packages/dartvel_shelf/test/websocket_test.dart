@@ -190,5 +190,82 @@ void main() {
     await completer.future.timeout(const Duration(seconds: 30));
     expect(received, total);
   });
-}
 
+  test(
+    'pipelined client messages are echoed in order, text and binary',
+    () async {
+      const total = 5000;
+      final server = await serve(
+        webSocketHandler((channel, _) {
+          channel.stream.listen(channel.sink.add);
+        }),
+        port: 0,
+      );
+      addTearDown(server.stop);
+      final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}/');
+      final received = <Object?>[];
+      final done = Completer<void>();
+      ws.listen((data) {
+        received.add(data);
+        if (received.length == total) done.complete();
+      });
+      for (var i = 0; i < total; i++) {
+        ws.add(i.isEven ? 'm$i' : <int>[i & 255, (i >> 8) & 255]);
+      }
+      await done.future.timeout(const Duration(seconds: 30));
+      for (var i = 0; i < total; i++) {
+        expect(received[i], i.isEven ? 'm$i' : [i & 255, (i >> 8) & 255]);
+      }
+      await ws.close();
+    },
+  );
+
+  test(
+    'frames added before close all arrive, then the close code and reason',
+    () async {
+      final server = await serve(
+        webSocketHandler((channel, _) {
+          for (var i = 0; i < 300; i++) {
+            channel.sink.add('before-$i');
+          }
+          channel.sink.close(4001, 'bye');
+        }),
+        port: 0,
+      );
+      addTearDown(server.stop);
+      final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}/');
+      final received = await ws.toList().timeout(const Duration(seconds: 10));
+      expect(received, [for (var i = 0; i < 300; i++) 'before-$i']);
+      expect(ws.closeCode, 4001);
+      expect(ws.closeReason, 'bye');
+    },
+  );
+
+  test(
+    'awaited sends of large binary frames arrive whole and in order',
+    () async {
+      const count = 40;
+      final server = await serve(
+        webSocketHandler((channel, _) async {
+          final native = channel as NativeWebSocketChannel;
+          for (var i = 0; i < count; i++) {
+            await native.send(List<int>.filled(200 * 1024, i));
+          }
+          await channel.sink.close(1000, 'sent');
+        }),
+        port: 0,
+      );
+      addTearDown(server.stop);
+      final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}/');
+      final received = await ws.toList().timeout(const Duration(seconds: 20));
+      expect(received, hasLength(count));
+      for (var i = 0; i < count; i++) {
+        final frame = received[i] as List<int>;
+        expect(frame.length, 200 * 1024);
+        expect(frame.first, i);
+        expect(frame.last, i);
+      }
+      expect(ws.closeCode, 1000);
+    },
+  );
+}
