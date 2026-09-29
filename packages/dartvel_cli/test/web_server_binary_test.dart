@@ -387,7 +387,7 @@ Future<List<String>> _notes() async => <String>[
     final run = await start();
     try {
       Future<void> expectLogin({String? bearer}) async {
-        for (final path in ['/__studio', '/__studio/', '/__studio/pages']) {
+        for (final path in ['/__studio', '/__studio/', '/__studio/pages', '/__studio/index.html']) {
           final page = await request(run.port, 'GET', path, bearer: bearer);
           expect(page.status, 302, reason: path);
           expect(page.location,
@@ -401,7 +401,7 @@ Future<List<String>> _notes() async => <String>[
       await expectLogin(bearer: 'dvs_not-a-session');
       // The login screen needs the public Flutter shell and code.
       for (final path in [
-        '/__studio/login', '/__studio/index.html', '/__studio/main.dart.js',
+        '/__studio/login', '/__studio/main.dart.js',
       ]) {
         final shell = await request(run.port, 'GET', path);
         expect(shell.status, 200, reason: path);
