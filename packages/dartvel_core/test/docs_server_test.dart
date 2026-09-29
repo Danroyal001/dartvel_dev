@@ -102,11 +102,10 @@ void main() {
         '/docs/docs.json',
         '/docs/graph.json'
       ]) {
-        final Response? response = await server.respond(_get(path));
-        expect(response, isNotNull, reason: path);
-        expect(response!.status, 404, reason: path);
-        expect(
-            response.headers.get('content-type'), 'text/plain; charset=utf-8');
+        // Hidden the way Studio's files are: the application answers, as it
+        // answers any path it does not serve, so the two cannot be told
+        // apart.
+        expect(await server.respond(_get(path)), isNull, reason: path);
       }
     });
 
@@ -117,8 +116,40 @@ void main() {
         root: _root.path,
         authenticated: (_) async => false,
       );
-      final Response? response = await server.respond(_get('/docs/docs.json'));
-      expect(response?.status, 404);
+      expect(await server.respond(_get('/docs/docs.json')), isNull);
+      expect(await server.respond(_get('/docs/graph.json')), isNull);
+      // Nor the compiled site itself, or the shell under a file's name.
+      expect(await server.respond(_get('/docs/main.dart.js')), isNull);
+      expect(await server.respond(_get('/docs/index.html')), isNull);
+    });
+
+    test('the sign-in is sent back to the page, query included', () async {
+      final DVDocsServer server = DVDocsServer(
+        mount: studioMount,
+        root: _root.path,
+        authenticated: (_) async => false,
+      );
+      final Response? response =
+          await server.respond(_get('/docs/models?focus=User'));
+      expect(response?.status, 302);
+      expect(response!.headers.get('location'),
+          '/__studio/login?from=${Uri.encodeQueryComponent('/docs/models?focus=User')}');
+    });
+
+    test('a signed-out request never reaches the grant check for another path',
+        () async {
+      int asked = 0;
+      final DVDocsServer server = DVDocsServer(
+        mount: studioMount,
+        root: _root.path,
+        authenticated: (_) async {
+          asked += 1;
+          return false;
+        },
+      );
+      expect(await server.respond(_get('/documents')), isNull);
+      expect(await server.respond(_get('/')), isNull);
+      expect(asked, 0);
     });
 
     test('callers with Studio grant get 200 for pages and docs data',
@@ -143,19 +174,64 @@ void main() {
       final Response? docsJson =
           await server.respond(_get('/docs/docs.json'));
       expect(docsJson?.status, 200);
-      expect(docsJson!.headers.get('content-type'), 'application/json');
+      expect(docsJson!.headers.get('content-type'), startsWith('application/json'));
       expect(await _body(docsJson), contains('"application":"test"'));
 
       final Response? graphJson =
           await server.respond(_get('/docs/graph.json'));
       expect(graphJson?.status, 200);
-      expect(graphJson!.headers.get('content-type'), 'application/json');
+      expect(graphJson!.headers.get('content-type'), startsWith('application/json'));
       expect(await _body(graphJson), contains('"models"'));
 
       final Response? js = await server.respond(_get('/docs/main.dart.js'));
       expect(js?.status, 200);
       expect(js!.headers.get('content-type'),
-          'application/javascript; charset=utf-8');
+          'text/javascript; charset=utf-8');
+      expect(js.headers.get('cache-control'), 'no-store');
+    });
+
+    test('a path that tries to leave the site is nobody\'s', () async {
+      File('${_root.parent.path}/secret.txt').writeAsStringSync('secret');
+      final DVDocsServer server = DVDocsServer(
+        mount: studioMount,
+        root: _root.path,
+        authenticated: (_) async => true,
+      );
+      for (final String path in <String>[
+        '/docs/../secret.txt',
+        '/docs/%2e%2e/secret.txt',
+        '/docs/..%2fsecret.txt',
+      ]) {
+        final Response? response = await server.respond(_get(path));
+        if (response != null) {
+          expect(await _body(response), isNot(contains('secret')),
+              reason: path);
+        }
+      }
+    });
+
+    test('HEAD answers with the headers and no body; other methods are the '
+        'application\'s', () async {
+      final DVDocsServer server = DVDocsServer(
+        mount: studioMount,
+        root: _root.path,
+        authenticated: (_) async => true,
+      );
+      final Response? head = await server.respond(Request(
+        method: 'HEAD',
+        url: Uri.parse('http://localhost:8080/docs/docs.json'),
+        headers: Headers(),
+        bodyStream: const Stream<List<int>>.empty(),
+      ));
+      expect(head?.status, 200);
+      expect(await head!.body!.bytes(), isEmpty);
+      final Response? post = await server.respond(Request(
+        method: 'POST',
+        url: Uri.parse('http://localhost:8080/docs/docs.json'),
+        headers: Headers(),
+        bodyStream: const Stream<List<int>>.empty(),
+      ));
+      expect(post, isNull);
     });
   });
 
@@ -190,12 +266,12 @@ void main() {
       final Response? docsJson =
           await server.respond(_get('/docs/docs.json'));
       expect(docsJson?.status, 200);
-      expect(docsJson!.headers.get('content-type'), 'application/json');
+      expect(docsJson!.headers.get('content-type'), startsWith('application/json'));
 
       final Response? graphJson =
           await server.respond(_get('/docs/graph.json'));
       expect(graphJson?.status, 200);
-      expect(graphJson!.headers.get('content-type'), 'application/json');
+      expect(graphJson!.headers.get('content-type'), startsWith('application/json'));
     });
   });
 }
