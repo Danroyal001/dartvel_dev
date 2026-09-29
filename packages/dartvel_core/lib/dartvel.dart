@@ -123,6 +123,7 @@ export 'src/diagnostics/startup_profile.dart';
 // Shared rather than declared twice, because the two packages that need it
 // do not depend on each other.
 export 'src/docs/docs_document.dart';
+export 'src/docs/docs_mount.dart';
 export 'src/edge/bot_protection.dart';
 export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
