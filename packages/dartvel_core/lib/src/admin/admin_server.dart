@@ -25,10 +25,12 @@ import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
-import 'first_run_screen.dart';
 import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
+
+/// One of the application's own auth endpoints, as the mount answers it.
+typedef DVAdminAuthEndpoint = Future<Response> Function(Request);
 
 /// Everything below the mount belongs to the admin.
 class DVAdminMount {
@@ -313,23 +315,12 @@ class DVAdminServer {
   Future<Response?> _signIn(
       Request request, String path, bool readable, String login) async {
     final String api = '${mount.path}/api/';
-    if (request.method == 'POST' &&
-        (path == '${api}auth/sign-in' || path == '${api}auth/second-factor')) {
-      // A cross-site form cannot set a header; a request without one is not
-      // Studio's.
-      final String token = request.headers.get('x-dartvel-csrf-token') ?? '';
-      if (token.length < 16) {
-        return Response(403,
-            headers: Headers(const <String, String>{
-              'content-type': 'application/json',
-              'cache-control': 'no-store',
-            }),
-            body: Stream<List<int>>.value(utf8.encode(jsonEncode(
-                <String, Object?>{'error': 'csrf', 'message': 'Missing CSRF header.'}))));
-      }
-      return path.endsWith('sign-in')
-          ? DVAuthEndpoints.signIn(request)
-          : DVAuthEndpoints.secondFactor(request);
+    if (request.method == 'POST') {
+      final Response? auth = await _authPost(request, path, <String, DVAdminAuthEndpoint>{
+        '${api}auth/sign-in': DVAuthEndpoints.signIn,
+        '${api}auth/second-factor': DVAuthEndpoints.secondFactor,
+      });
+      if (auth != null) return auth;
     }
     if (!readable) return null;
     if (path == '${api}access') {
@@ -396,6 +387,100 @@ class DVAdminServer {
     return asset.existsSync() && !FileSystemEntity.isDirectorySync(asset.path);
   }
 
+  /// The setup, while the first owner still has their printed password.
+  ///
+  /// The same shape as [_signIn] and for the same reason: the setup is a page
+  /// of the Studio app, at `<mount>/setup`, and what the server owes it is
+  /// the shell to boot it, the app's own code, and the four auth endpoints
+  /// the page drives -- the application's own, answered at the mount, so the
+  /// rate limit, the CSRF check and the session rotation are the ones already
+  /// written rather than a second copy of each.
+  ///
+  /// Everything else on the mount is nothing at all. A hard screen used to
+  /// answer every path with the setup page and 200, which told a scanner
+  /// looking for a studio that it had found one; a 404 is a real answer, and
+  /// the graph and the records are not handed to somebody who has changed
+  /// nothing yet.
+  Future<Response?> _setup(Request request, String path, bool readable) async {
+    final String api = '${mount.path}/api/';
+    final String setup = '${mount.path}/setup';
+    if (request.method == 'POST') {
+      final Response? auth = await _authPost(request, path, <String, DVAdminAuthEndpoint>{
+        '${api}auth/sign-in': DVAuthEndpoints.signIn,
+        '${api}auth/account/password': DVAuthEndpoints.changePassword,
+        '${api}auth/factors/totp': DVAuthEndpoints.beginTotp,
+        '${api}auth/factors/totp/confirm': DVAuthEndpoints.confirmTotp,
+      });
+      if (auth != null) return auth;
+      return null;
+    }
+    if (!readable) return null;
+    if (path.startsWith(api) || path == '${mount.path}/api') return null;
+    // The app's own static files, never its document under another name
+    // (index.html), never the project's graph, and never a deferred part:
+    // those need the Studio grant, which nobody has yet. The page cannot be
+    // drawn without the rest, and they carry none of the project.
+    if (_isStaticAsset(path)) {
+      if (dvIsDeferredLibraryChunk(mount, path)) return null;
+      final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
+      if (asset == null) return null;
+      return _asset(request, asset);
+    }
+    if (path.split('/').last.contains('.')) return null;
+    if (path != setup && path != '$setup/') {
+      // Everywhere else on the mount is the setup, which is the whole of what
+      // this mount answers while the setup is pending.
+      return Response(
+        302,
+        headers: Headers(<String, String>{
+          'location': setup,
+          'cache-control': 'no-store',
+        }),
+        body: const Stream<List<int>>.empty(),
+      );
+    }
+    final DVAdminAsset? shell = dvAdminAsset(root, mount, mount.path);
+    if (shell == null) return null;
+    // Not a page anybody should be able to frame, and the last one to be
+    // cached anywhere on the way: it is open to the internet by definition.
+    return Response(
+      200,
+      headers: Headers(<String, String>{
+        ...shell.headers,
+        'cache-control': 'no-store',
+        'x-frame-options': 'DENY',
+        'referrer-policy': 'no-referrer',
+      }),
+      body: request.method == 'HEAD'
+          ? const Stream<List<int>>.empty()
+          : Stream<List<int>>.value(shell.bytes),
+    );
+  }
+
+  /// One of [endpoints] under the mount's own API, with the CSRF header the
+  /// browser transport sends and a cross-site form cannot.
+  ///
+  /// Null when [path] is none of them, so a caller can go on to decide.
+  Future<Response?> _authPost(
+    Request request,
+    String path,
+    Map<String, DVAdminAuthEndpoint> endpoints,
+  ) async {
+    final DVAdminAuthEndpoint? endpoint = endpoints[path];
+    if (endpoint == null) return null;
+    final String token = request.headers.get('x-dartvel-csrf-token') ?? '';
+    if (token.length < 16) {
+      return Response(403,
+          headers: Headers(const <String, String>{
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          }),
+          body: Stream<List<int>>.value(utf8.encode(jsonEncode(
+              <String, Object?>{'error': 'csrf', 'message': 'Missing CSRF header.'}))));
+    }
+    return endpoint(request);
+  }
+
   Response _asset(Request request, DVAdminAsset asset, {bool noStore = false}) {
     final Map<String, String> headers = <String, String>{...asset.headers};
     if (noStore) headers['cache-control'] = 'no-store';
@@ -427,32 +512,24 @@ class DVAdminServer {
     if (!mount.owns(path)) return null;
     final Response? claimed = devGrant?.claim(request, mount);
     if (claimed != null) return claimed;
+    final bool readable = request.method == 'GET' || request.method == 'HEAD';
     // An application still on the password its first run printed is one
     // anybody who saw that console can open. Until the owner has replaced it
-    // and turned on a second factor, every route on the mount answers with
-    // the screen that finishes the setup, and nothing else does.
+    // and turned on a second factor, every route on the mount is sent to
+    // <mount>/setup, and nothing else on the mount is served at all.
     //
-    // Before the sign-in check, because signing in is what the screen is
-    // for: the owner has an address and a password and no session, so
-    // answering them the way this mount answers a stranger would make the
-    // setup screen unreachable by the only person who needs it. The screen
-    // names nobody and carries no data, and the only credential that opens
-    // anything behind it is 32 characters of secure random. It stops being
-    // served the moment the setup is done.
+    // Before the sign-in check, because signing in is what the setup is for:
+    // the owner has an address and a password and no session, so answering
+    // them the way this mount answers a stranger would make the setup
+    // unreachable by the only person who needs it. The page it serves is a
+    // page of the Studio app, at the same place its sign-in is, so the server
+    // serves the shell and the app draws the screen. The page names nobody
+    // and carries no data, and the only credential that opens anything behind
+    // it is 32 characters of secure random. It stops being sent the moment
+    // the setup is done.
     if (mount.enabled &&
         await DVFirstRunOwner.setupPending(database: _database)) {
-      return Response(
-        200,
-        headers: Headers(const <String, String>{
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-          // Not a page anybody should be able to frame.
-          'x-frame-options': 'DENY',
-          'referrer-policy': 'no-referrer',
-        }),
-        body: Stream<List<int>>.value(utf8.encode(
-            dvFirstRunScreen(mount: mount.path, api: apiBasePath))),
-      );
+      return _setup(request, path, readable);
     }
     // Studio's sign-in is a page of the Studio app, at <mount>/login. What
     // the server does for somebody signed out is only what the app needs to
@@ -460,7 +537,6 @@ class DVAdminServer {
     // every application), the application's own sign-in and second factor
     // answered at the mount, and whether this caller may open Studio. The
     // project's graph and Studio's data stay behind the grant.
-    final bool readable = request.method == 'GET' || request.method == 'HEAD';
     final String login = '${mount.path}/login';
     if (devGrant == null && mount.enabled && mount.requiresAuth) {
       final Response? signIn = await _signIn(request, path, readable, login);
