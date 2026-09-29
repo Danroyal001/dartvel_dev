@@ -17,8 +17,6 @@ import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
 import '../build/dev_studio.dart';
-import '../build/server_binary.dart' show DVServerBinaryRun;
-import '../build/studio_build.dart';
 import '../build/seo_head.dart';
 import '../utils/logger.dart';
 
@@ -70,13 +68,14 @@ class DevCommand extends Command<void> {
     final devServer = File(p.join(toolDir.path, 'dartvel_dev_server.dart'));
     // Always rewrite to ensure latest runtime (switch from shelf to dartvel_shelf)
     //
-    // Studio at the admin mount, compiled into .dart_tool beside this entry
-    // and served by this backend to the browser that opens the development
-    // grant's link: dev has the project's data and nobody to grant.
+    // Studio is the app's own route at the admin mount, as in a deployment.
+    // This backend answers its API, over the data dev writes into .dart_tool,
+    // to the browser that opens the development grant's link: dev has the
+    // project's data and nobody to grant.
     final Object? dartvelSection = _dartvelSection(root);
     final DVAdminMount studioMount = dvDevStudioMount(dartvelSection);
     final String studioRoot =
-        p.join(toolDir.path, 'dartvel_studio', 'admin');
+        p.join(toolDir.path, 'dartvel_studio', 'data');
     final DVStudioDevGrant studioGrant = DVStudioDevGrant.generate();
     devServer.writeAsStringSync(dvDevServerSource(
         admin: studioMount, adminRoot: studioRoot, projectRoot: root));
@@ -189,13 +188,36 @@ class DevCommand extends Command<void> {
       flutterArgs.addAll(['--web-renderer', webRenderer]);
     }
     final webTarget = _isWebServerDevice(deviceOpt);
+    // Studio's routes, in a web app: the app's own development server then
+    // passes Studio's API through to the backend, so Studio in the app talks
+    // to its own origin, with the grant's cookie.
+    final bool studioInApp = studioMount.enabled &&
+        runLocalApp &&
+        (webTarget || deviceOpt == 'chrome');
+    flutterArgs.addAll(dvDevStudioFlutterArgs(studioMount, web: studioInApp));
+    if (studioInApp) {
+      final File webDevConfig = File(p.join(root, 'web_dev_config.yaml'));
+      final String? proxy = dvDevStudioProxyConfig(
+        studioMount,
+        backendPort: config.backendPort,
+        existing:
+            webDevConfig.existsSync() ? webDevConfig.readAsStringSync() : null,
+      );
+      if (proxy != null) {
+        webDevConfig.writeAsStringSync(proxy);
+      } else {
+        Logger.log('[dev] web_dev_config.yaml is your own, so Studio needs a '
+            'proxy rule in it: prefix "${studioMount.path}/api/" to target '
+            '"http://localhost:${config.backendPort}/".');
+      }
+    }
     final webHostname = (argResults?['web-hostname'] as String?) ??
         Platform.environment['DARTVEL_WEB_HOST'] ??
         (webTarget ? '0.0.0.0' : null);
     final webPortInput = (argResults?['web-port'] as String?) ??
         Platform.environment['DARTVEL_WEB_PORT'];
     int? webPort;
-    if (webTarget) {
+    if (webTarget || studioInApp) {
       webPort = await _resolveWebPort(webPortInput);
       if (webHostname != null && webHostname.isNotEmpty) {
         flutterArgs.addAll(['--web-hostname', webHostname]);
@@ -279,16 +301,14 @@ class DevCommand extends Command<void> {
     } catch (_) {
       Logger.log('WARN: failed to start backend');
     }
-    if (studioMount.enabled) {
-      unawaited(dvCompileDevStudio(
-        root: root,
-        mount: studioMount,
-        adminRoot: studioRoot,
-        onReady: () => Logger.log(
-          '[dev] Studio: ${studioGrant.link('http://localhost:${config.backendPort}', studioMount)} '
-          '(only the browser that opens this link gets in).',
-        ),
-      ));
+    if (studioInApp && webPort != null) {
+      Logger.log(
+        '[dev] Studio: ${dvDevStudioLink('http://localhost:$webPort', studioMount, studioGrant)} '
+        '(only the browser that opens this link gets in).',
+      );
+    } else if (studioMount.enabled) {
+      Logger.log('[dev] Studio is a route of the web app: run it with '
+          '-d web-server or -d chrome to open it.');
     }
     try {
       Map<String, String> flutterEnv = const {};
@@ -905,46 +925,4 @@ Object? _dartvelSection(String root) {
   } on Object {
     return null;
   }
-}
-
-
-/// Compiles Studio for [mount] into [adminRoot] when what is there is missing
-/// or older than the project's resolved dependencies, then calls [onReady].
-///
-/// In the background: a Studio compile is a `flutter build web`, and the
-/// application should not wait for its admin.
-Future<void> dvCompileDevStudio({
-  required String root,
-  required DVAdminMount mount,
-  required String adminRoot,
-  required void Function() onReady,
-  DVServerBinaryRun? run,
-}) async {
-  final File compiled = File(p.join(adminRoot, 'main.dart.js'));
-  final File lock = File(p.join(root, 'pubspec.lock'));
-  final bool fresh = compiled.existsSync() &&
-      (!lock.existsSync() ||
-          !compiled.lastModifiedSync().isBefore(lock.lastModifiedSync()));
-  if (!fresh) {
-    Logger.log('[dev] Compiling Studio for ${mount.path} (flutter build web)...');
-    final DVStudioBuildResult result = await dvBuildStudio(
-      root: root,
-      mount: mount.path,
-      adminRoot: adminRoot,
-      appName: p.basename(root),
-      run: run ??
-          (String executable, List<String> arguments,
-                  {String? workingDirectory}) =>
-              Process.run(executable, arguments,
-                  workingDirectory: workingDirectory, runInShell: true),
-    );
-    if (!result.ok) {
-      for (final String line in result.lines.take(20)) {
-        Logger.log('[dev] $line');
-      }
-      Logger.log('[dev] Studio did not compile, so ${mount.path} is not served.');
-      return;
-    }
-  }
-  onReady();
 }

@@ -6,7 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../build/node_runtime_bundle.dart';
 import '../build/accessibility_audit.dart';
-import '../build/admin_artifact.dart';
+import '../build/studio_data.dart';
+import '../build/studio_parts.dart';
 import '../build/admin_mount.dart';
 import '../build/docs_build.dart';
 import '../build/docs_mount.dart';
@@ -63,7 +64,6 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
-import '../build/studio_build.dart';
 import '../build/web_server.dart';
 import '../build/web_server_prefetch.dart';
 import '../graph/module_mounts.dart';
@@ -1125,6 +1125,9 @@ class BuildCommand extends Command<void> {
       // Before the build, because the app is handed the list as a
       // compile-time value: which images have variants, and how wide each is.
       imageVariants: _imageVariants(_projectRoot, platform),
+      // Studio's routes, compiled into the application where this build's
+      // server will guard them.
+      studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
     );
 
     // Check if platform is available
@@ -1171,6 +1174,13 @@ class BuildCommand extends Command<void> {
     if (exitCode == 0) {
       if (platform == 'web' || platform == 'web-server') {
         final root = _projectRoot;
+        // First, before anything reads build/web or lists its parts: Studio's
+        // code comes out of the web root, whose every file is public, and a
+        // static build is checked to carry none of it.
+        if (!_separateStudioCode(root, platform)) {
+          Logger.log('❌ $platform build failed');
+          return _PlatformBuildResult.failed;
+        }
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
         _writeStaticImageVariants(root, platform);
@@ -1273,8 +1283,9 @@ class BuildCommand extends Command<void> {
       // The dashboard this build wrote, in a section of its own and never
       // among the web files, served by the binary at its mount.
       admin: admin,
-      adminRoot: p.join(root, 'build', 'web', '__admin'),
-      // The documentation site, the same way: a section of its own.
+      adminRoot: p.join(root, dvStudioDataDirectory),
+      studioPartsRoot: p.join(root, dvStudioPartsDirectory),
+      // The documentation site: a section of its own.
       docs: docs,
       docsRoot: p.join(root, 'build', 'web', dvDocsPagesDirectory),
       run: (String executable, List<String> arguments,
@@ -3433,50 +3444,90 @@ class BuildCommand extends Command<void> {
 
 
 
-  /// Write what a Dartvel server needs to build any page on request.
+  /// Where this build serves Studio, or null when it serves none.
   ///
-  /// The admin dashboard, into the directory the server serves it from.
+  /// A release or profile build has to ask for Studio; a debug one gets it by
+  /// default, which is what makes a new project's Studio work with no
+  /// configuration. Profile counts as release: a profile build is something
+  /// you hand to somebody. An application that turned Studio off, or whose
+  /// mount cannot be one, has none.
+  DVAdminMount? _servesStudio(String root) {
+    final Object? dartvel = _dartvelSection(root);
+    final DVAdminMount admin = dvAdminMount(dartvel, release: _isReleaseBuild());
+    if (!admin.enabled || dvStudioRouteMount(dartvel) == null) return null;
+    return admin;
+  }
+
+  /// Takes Studio's code out of the web root, whose every file is public.
   ///
-  /// Everything around this was already built and nothing wrote the files:
-  /// the mount decided where the admin lived, the request handler decided
-  /// who could see it and answered a hidden one with the same nothing a
-  /// nonexistent route gets, and the server read from an admin root no build
-  /// step had ever created. A project that turned the admin on got a 404
-  /// from a mount that was working correctly.
+  /// A web-server build that serves Studio compiled it in as the deferred
+  /// library `dartvel_studio`; the parts only it loads go to
+  /// build/studio/parts, carried by the binary apart from the web files and
+  /// served only to a session with the Studio grant. Any other build must
+  /// have none of Studio's code: it was compiled without the define, and a
+  /// Studio part in its output is refused rather than published.
+  bool _separateStudioCode(String root, String platform) {
+    final String web = p.join(root, 'build', 'web');
+    final Directory studio = Directory(p.join(root, dvStudioDirectory));
+    // What an earlier build left: the separately built Studio app under
+    // build/web/__admin, or another build's Studio code and data.
+    final Directory legacy = Directory(p.join(web, '__admin'));
+    if (legacy.existsSync()) legacy.deleteSync(recursive: true);
+    if (studio.existsSync()) studio.deleteSync(recursive: true);
+
+    final File main = File(p.join(web, 'main.dart.js'));
+    final bool compiledIn = main.existsSync() &&
+        dvDeferredParts(main.readAsStringSync())
+            .containsKey(dvStudioDeferredImport);
+    if (platform != 'web-server' || _servesStudio(root) == null) {
+      if (compiledIn) {
+        Logger.log("❌ Studio's code is in this build, which has no server to "
+            'guard it. Only dartvel build web-server carries Studio.');
+        return false;
+      }
+      return true;
+    }
+    final DVStudioPartsResult parts = dvSplitStudioParts(
+      webRoot: web,
+      partsRoot: p.join(root, dvStudioPartsDirectory),
+    );
+    if (parts.problem != null) {
+      Logger.log('❌ ${parts.problem}');
+      return false;
+    }
+    Logger.log("   Studio's code: ${parts.parts.length} part(s), carried apart "
+        'from the web files and served only to a session with the Studio '
+        'grant.');
+    return true;
+  }
+
+  /// Studio's data, where the binary carries it from: the project graph and
+  /// each page's captured structure, which Studio reads through its API.
   ///
-  /// One dashboard per application, not per target: what it shows is the
-  /// project graph, which has no target in it. And it is only written for
-  /// web-server, because that is the target with a backend to serve it --
-  /// putting it in a static web build would be the same thing as compiling
-  /// it into the client, which is what moving it here undid.
+  /// Studio itself is routes of the application, already compiled into it by
+  /// the web build; nothing here builds or writes a page. Only for
+  /// web-server, because that is the target with a server to guard Studio.
   ///
-  /// Returns the mount it wrote the dashboard for, or null when this build
-  /// has none -- which is what the binary carries, so a dashboard left in
-  /// build/web by an earlier build is never mistaken for this one's.
+  /// Returns the mount Studio is served at, or null when this build has none
+  /// -- which is what the binary carries, so Studio data left by an earlier
+  /// build is never mistaken for this one's.
   Future<({bool ok, DVAdminMount? admin})> _writeAdminDashboard(
       String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return (ok: true, admin: null);
 
-    // A release or profile build has to ask for the admin; a debug one gets
-    // it by default, which is what makes a new project's dashboard work with
-    // no configuration. Profile counts as release: a profile build is
-    // something you hand to somebody.
-    final DVAdminMount admin = dvAdminMount(_dartvelSection(root),
-        release: _isReleaseBuild());
-    if (!admin.enabled) {
-      // Said out loud rather than left as an empty directory. dartvel build
-      // defaults to --profile release, so somebody trying the dashboard for the
-      // first time gets a build without one and nothing telling them why.
-      Logger.log('   No admin dashboard in this build. A release build '
-          'serves one only when dartvel.admin.enabled says so; '
-          '--profile development gets it with no configuration.');
-      return (ok: true, admin: null);
-    }
-
-    final String problem = dvAdminMountProblem(admin.path) ?? '';
-    if (problem.isNotEmpty) {
-      Logger.log('❌ $problem');
+    final DVAdminMount? admin = _servesStudio(root);
+    if (admin == null) {
+      // Said out loud rather than left as nothing. dartvel build defaults to
+      // --profile release, so somebody trying Studio for the first time gets
+      // a build without one and nothing telling them why.
+      final String problem =
+          dvAdminMountProblem(dvAdminMount(_dartvelSection(root), release: false).path) ?? '';
+      Logger.log(problem.isNotEmpty
+          ? '❌ $problem'
+          : '   No Studio in this build. A release build serves one only when '
+              'dartvel.admin.enabled says so; --profile development gets it '
+              'with no configuration.');
       return (ok: true, admin: null);
     }
 
@@ -3491,45 +3542,25 @@ class BuildCommand extends Command<void> {
       pkgName: appName,
     );
 
-    final Directory adminRoot = Directory(p.join(web.path, '__admin'))
+    final Directory data = Directory(p.join(root, dvStudioDataDirectory))
       ..createSync(recursive: true);
-    // The graph is all this writes: Studio, compiled over it below, is the UI
-    // at this mount and fetches it at runtime.
-    final Map<String, String> files = dvAdminArtifact(graph: graph.toJson());
-    for (final MapEntry<String, String> file in files.entries) {
-      File(p.join(adminRoot.path, file.key)).writeAsStringSync(file.value);
+    for (final MapEntry<String, String> file
+        in dvStudioData(graph: graph.toJson()).entries) {
+      File(p.join(data.path, file.key)).writeAsStringSync(file.value);
     }
     // Each page's captured structure, so Studio opens a compiled page as
     // what it is made of rather than as an empty canvas.
     final int structures = dvCopyPageStructures(
       semantics: p.join(root, '.dart_tool', 'dartvel_semantics'),
-      adminRoot: adminRoot.path,
+      adminRoot: data.path,
     );
     if (structures > 0) {
       Logger.log('   Studio can open $structures compiled pages by their '
           'structure.');
     }
 
-    // Studio itself, over the manifest: DVStudioApp compiled for the mount,
-    // reading records, pages and grants from the backend that serves it.
-    Logger.log('   Compiling Studio for ${admin.path} (flutter build web)...');
-    final DVStudioBuildResult studio = await dvBuildStudio(
-      root: root,
-      mount: admin.path,
-      adminRoot: adminRoot.path,
-      appName: appName,
-      run: (String executable, List<String> arguments,
-              {String? workingDirectory}) =>
-          _processRun(executable, arguments,
-              workingDirectory: workingDirectory, runInShell: true),
-    );
-    for (final String line in studio.lines) {
-      Logger.log('   $line');
-    }
-    if (!studio.ok) return (ok: false, admin: null);
-
-    Logger.log('   Studio at ${admin.path}, served by the backend to the '
-        'people granted Studio.access.');
+    Logger.log('   Studio at ${admin.path}: pages of the application, served '
+        'by the binary to the people granted Studio.access.');
     return (ok: true, admin: admin);
   }
 
