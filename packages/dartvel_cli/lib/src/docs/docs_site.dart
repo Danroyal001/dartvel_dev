@@ -13,30 +13,9 @@ import '../graph/module_mounts.dart';
 import '../graph/project_graph.dart';
 import '../module_trust/capabilities.dart';
 import '../module_trust/module_trust.dart';
-import 'docs_html.dart';
+import 'docs_document.dart';
 
-/// Something the documentation build found wrong with what it was asked to
-/// render. Both codes are drift -- see `DV-DOCS` in the diagnostics registry.
-/// A generated site cannot be out of date with the code; what it can be is
-/// pointed at something that is gone.
-class DVDocsFinding {
-  const DVDocsFinding({
-    required this.code,
-    required this.message,
-    required this.source,
-  });
-
-  /// `DV-DOCS-001` or `DV-DOCS-002`.
-  final String code;
-
-  final String message;
-
-  /// Where to look, as `path:line` relative to the project.
-  final String source;
-
-  @override
-  String toString() => '$code  $source  $message';
-}
+export 'docs_document.dart';
 
 /// The node kinds a decision record can name, as `` `kind:target` ``.
 const List<String> dvDocsReferenceKinds = <String>[
@@ -54,24 +33,53 @@ const List<String> dvDocsReferenceKinds = <String>[
 /// later build knows the directory is its own to clear.
 const String dvDocsMarker = '.dartvel-docs';
 
-/// The documentation site for one application: a second rendering of the
-/// project graph, the same graph `dartvel inspect` and `dartvel mcp` answer
-/// from, plus what the generators already read beside it.
+/// The documentation for one application: a second reading of the project
+/// graph, the same graph `dartvel inspect` and `dartvel mcp` answer from, plus
+/// what the generators already read beside it.
 ///
 /// Nothing is authored here. A description is the doc comment above the
 /// declaration, read through the node's source mapping; a node whose mapping
 /// no longer resolves is rendered without one and reported, rather than
 /// rendered with something plausible.
+///
+/// What this is not is the site. `dartvel docs` compiles `DVDocsApp` and
+/// writes this beside it, and the application draws every page from it -- so
+/// what the build produces here is the content, and the site itself is code
+/// like every other page in the framework.
 class DVDocsSite {
-  const DVDocsSite({required this.files, required this.findings});
+  const DVDocsSite({required this.document, required this.graph});
 
-  /// Every page, by forward-slash path relative to the site root, in sorted
-  /// order. Byte-deterministic for a given project: nothing here reads a
-  /// clock, an absolute path or an unsorted listing.
-  final Map<String, String> files;
+  /// Every page of the site, as data.
+  final DVDocsDocument document;
 
-  /// Sorted by code, then source.
-  final List<DVDocsFinding> findings;
+  /// The graph the document was rendered from, published beside it.
+  final DartvelProjectGraph graph;
+
+  /// Sorted by code, then source. What `--fatal-warnings` decides on, and
+  /// what the application shows as drift.
+  List<DVDocsFinding> get findings => document.findings;
+
+  /// The artifacts this build writes, by name.
+  ///
+  /// Two files rather than the nine pages this used to write: the pages are in
+  /// [document], and the application is what turns them into pages. Byte
+  /// deterministic for a given project -- nothing here reads a clock, an
+  /// absolute path or an unsorted listing.
+  Map<String, String> get files => <String, String>{
+    dvDocsGraphFile: graphJson,
+    dvDocsPayloadFile: payload,
+  };
+
+  /// The document, as the application reads it.
+  String get payload =>
+      '${const JsonEncoder.withIndent('  ').convert(document.toJson())}\n';
+
+  /// The raw graph, so a reader can diff it against a commit.
+  String get graphJson =>
+      '${const JsonEncoder.withIndent('  ').convert(graph.toJson())}\n';
+
+  /// One of [files] by name.
+  String file(String name) => files[name]!;
 
   /// Builds the site for the project at [root].
   ///
@@ -94,7 +102,7 @@ class DVDocsSite {
     return builder.render();
   }
 
-  /// Writes the site into [directory], removing any page an earlier build
+  /// Writes the artifacts into [directory], removing anything an earlier build
   /// wrote that this one does not produce.
   ///
   /// Refuses a non-empty directory that an earlier documentation build did
@@ -186,15 +194,20 @@ class _Policy {
 }
 
 class _Decision {
-  _Decision(this.file, this.page, this.title);
+  _Decision(this.file, this.id, this.title);
 
   /// Relative to the project.
   final String file;
 
-  /// Relative to the site root.
-  final String page;
+  /// What a link names this record by, and what the application routes it at.
+  final String id;
+
   final String title;
-  String html = '';
+
+  /// The record's own heading, its source, and its body.
+  late List<DVDocsBlock> blocks;
+
+  DVDocsTarget get target => DVDocsTarget.page(id);
 }
 
 class _Route {
@@ -252,8 +265,12 @@ class _Builder {
   final List<_Route> routes = <_Route>[];
   final List<_Decision> decisions = <_Decision>[];
 
-  /// `kind:target` to the page and fragment it renders at.
-  final Map<String, String> nodes = <String, String>{};
+  /// `kind:target` to the page and anchor it is rendered at.
+  ///
+  /// A target and not an href: the app routes a page from its id, so a link
+  /// that names a page id and an anchor cannot break by pointing at a file
+  /// that moved.
+  final Map<String, DVDocsTarget> nodes = <String, DVDocsTarget>{};
 
   /// `kind:target` to the decisions naming it, in decision order.
   final Map<String, List<_Decision>> backlinks = <String, List<_Decision>>{};
@@ -397,30 +414,52 @@ class _Builder {
 
   void _indexNodes() {
     for (final DVGraphModel m in graph.models) {
-      nodes['model:${m.name}'] = 'models.html#model-${m.name}';
+      nodes['model:${m.name}'] = DVDocsTarget.page(
+        'models',
+        anchor: 'model-${m.name}',
+      );
       for (final DVGraphField f in m.fields) {
-        nodes['field:${m.name}.${f.name}'] =
-            'models.html#field-${m.name}-${f.name}';
+        nodes['field:${m.name}.${f.name}'] = DVDocsTarget.page(
+          'models',
+          anchor: 'field-${m.name}-${f.name}',
+        );
       }
     }
     for (final _Route r in routes) {
-      nodes.putIfAbsent('route:${r.path}', () => 'routes.html#route-${r.path}');
+      nodes.putIfAbsent(
+        'route:${r.path}',
+        () => DVDocsTarget.page('routes', anchor: 'route-${r.path}'),
+      );
     }
     for (final DVGraphFunction f in graph.functions) {
-      nodes['function:${f.name}'] = 'functions.html#function-${f.name}';
+      nodes['function:${f.name}'] = DVDocsTarget.page(
+        'functions',
+        anchor: 'function-${f.name}',
+      );
     }
     for (final DVGraphJob j in graph.jobs) {
-      nodes['job:${j.name}'] = 'jobs.html#job-${j.name}';
+      nodes['job:${j.name}'] = DVDocsTarget.page(
+        'jobs',
+        anchor: 'job-${j.name}',
+      );
     }
     for (final _Schedule s in schedules) {
-      nodes['schedule:${s.name}'] = 'jobs.html#schedule-${s.name}';
+      nodes['schedule:${s.name}'] = DVDocsTarget.page(
+        'jobs',
+        anchor: 'schedule-${s.name}',
+      );
     }
     for (final _Policy policy in policies) {
-      nodes['policy:${policy.declaration.className}'] =
-          'policies.html#policy-${policy.declaration.resource}';
+      nodes['policy:${policy.declaration.className}'] = DVDocsTarget.page(
+        'policies',
+        anchor: 'policy-${policy.declaration.resource}',
+      );
     }
     for (final DVModuleMount m in mounts) {
-      nodes['module:${m.id}'] = 'modules.html#module-${m.id}';
+      nodes['module:${m.id}'] = DVDocsTarget.page(
+        'modules',
+        anchor: 'module-${m.id}',
+      );
     }
   }
 
@@ -446,17 +485,17 @@ class _Builder {
       final String name = p.basenameWithoutExtension(record.path);
       final _Decision decision = _Decision(
         rel,
-        'decisions/$name.html',
+        'decision:$name',
         dvDocsMarkdownTitle(text) ?? name,
       );
-      decision.html = dvDocsMarkdown(
+      final List<DVDocsBlock> body = dvDocsProse(
         text,
         code: (String code, int line) {
           final RegExpMatch? m = reference.firstMatch(code.trim());
-          if (m == null) return '<code>${dvDocsText(code)}</code>';
+          if (m == null) return DVDocsSpan.code(code);
           final String key = '${m.group(1)}:${m.group(2)}';
-          final String? href = nodes[key];
-          if (href == null) {
+          final DVDocsTarget? target = nodes[key];
+          if (target == null) {
             findings.add(
               DVDocsFinding(
                 code: 'DV-DOCS-001',
@@ -464,17 +503,32 @@ class _Builder {
                 message: 'names `$key`, which is not in the project graph',
               ),
             );
-            return '<code class="gone" title="no longer exists">'
-                '${dvDocsText(key)}</code>';
+            return DVDocsSpan.gone(key);
           }
           final List<_Decision> named = backlinks.putIfAbsent(
             key,
             () => <_Decision>[],
           );
           if (!named.contains(decision)) named.add(decision);
-          return '<a href="../${dvDocsAttr(href)}"><code>${dvDocsText(key)}</code></a>';
+          return DVDocsSpan.link(key, target);
         },
       );
+      // The record's own `# heading` is this page's title, drawn by the app
+      // above the content. Left in the body it would be a second one, and it
+      // would cut the page in half for anything that follows a link to it.
+      if (body.isNotEmpty &&
+          body.first is DVDocsHeading &&
+          (body.first as DVDocsHeading).level == 1) {
+        body.removeAt(0);
+      }
+      decision.blocks = <DVDocsBlock>[
+        DVDocsHeading(1, dvDocsInline(decision.title), anchor: name),
+        DVDocsParagraph(<DVDocsSpan>[
+          const DVDocsSpan.text('Source: '),
+          DVDocsSpan.note(rel),
+        ]),
+        ...body,
+      ];
       decisions.add(decision);
     }
   }
@@ -498,25 +552,14 @@ class _Builder {
   // ----------------------------------------------------------------- render
 
   DVDocsSite render() {
-    final Map<String, String> pages = <String, String>{
-      'graph.json':
-          '${const JsonEncoder.withIndent('  ').convert(graph.toJson())}\n',
-      'models.html': _page('Models', _models()),
-      'functions.html': _page('Functions', _functions()),
-      'routes.html': _page('Routes', _routes()),
-      'jobs.html': _page('Jobs and cron', _jobs()),
-      'policies.html': _page('Policies', _policies()),
-      'modules.html': _page('Modules', _modules()),
-      'diagnostics.html': _page('Diagnostics', _diagnostics()),
-      for (final _Decision d in decisions)
-        d.page: dvDocsPage(
-          title: d.title,
-          application: pkgName,
-          depth: 1,
-          body:
-              '<p class="source">Source: <code>${dvDocsText(d.file)}</code></p>\n'
-              '${d.html}',
-        ),
+    // Every page but the overview first, because rendering one is what finds
+    // drift: a node whose source mapping no longer resolves is reported as
+    // the page is built, so the overview -- which lists the drift -- has to be
+    // rendered after them all or it lists what the earlier pages had found
+    // so far.
+    final Map<String, List<DVDocsBlock>> blocks = <String, List<DVDocsBlock>>{
+      for (final (String id, String _) in dvDocsNavigation)
+        if (id != 'index') id: _render(id),
     };
     final List<DVDocsFinding> sorted = List<DVDocsFinding>.of(findings)
       ..sort((DVDocsFinding a, DVDocsFinding b) {
@@ -525,92 +568,135 @@ class _Builder {
         final int bySource = a.source.compareTo(b.source);
         return bySource != 0 ? bySource : a.message.compareTo(b.message);
       });
-    pages['index.html'] = _page('Overview', _index(sorted));
-    final List<String> keys = pages.keys.toList()..sort();
+    blocks['index'] = _index(sorted);
     return DVDocsSite(
-      files: <String, String>{for (final String k in keys) k: pages[k]!},
-      findings: List<DVDocsFinding>.unmodifiable(sorted),
+      document: DVDocsDocument(
+        application: pkgName,
+        graphVersion: graph.graphVersion,
+        navigation: dvDocsNavigation,
+        pages: <DVDocsPage>[
+          for (final (String id, String label) in dvDocsNavigation)
+            DVDocsPage(id: id, title: label, blocks: blocks[id]!),
+          // The decision records are not in the navigation, and they are the
+          // only pages the build produced that a reader did not ask for by
+          // name: each is reached from the node it explains.
+          for (final _Decision d in decisions)
+            DVDocsPage(id: d.id, title: d.title, source: d.file, blocks: d.blocks),
+        ],
+        findings: List<DVDocsFinding>.unmodifiable(sorted),
+      ),
+      graph: graph,
     );
   }
 
-  String _page(String title, String body) =>
-      dvDocsPage(title: title, application: pkgName, body: body);
+  List<DVDocsBlock> _render(String id) => switch (id) {
+    'models' => _models(),
+    'functions' => _functions(),
+    'routes' => _routes(),
+    'jobs' => _jobs(),
+    'policies' => _policies(),
+    'modules' => _modules(),
+    'diagnostics' => _diagnostics(),
+    _ => const <DVDocsBlock>[],
+  };
 
-  String _index(List<DVDocsFinding> sorted) {
-    final StringBuffer b = StringBuffer()
-      ..writeln(
-        '<p>Rendered from the project graph. Descriptions are doc '
-        'comments read from the source; nothing here is written twice.</p>',
-      )
-      ..writeln('<table><tbody>')
-      ..writeln(
-        '<tr><td><a href="models.html">Models</a></td><td>${graph.models.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="functions.html">Functions</a></td><td>${graph.functions.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="routes.html">Routes</a></td><td>${routes.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="jobs.html">Jobs</a></td><td>${graph.jobs.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="jobs.html#schedules">Schedules</a></td><td>${schedules.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="policies.html">Policies</a></td><td>${policies.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="modules.html">Modules</a></td><td>${mounts.length}</td></tr>',
-      )
-      ..writeln(
-        '<tr><td><a href="graph.json">graph.json</a></td><td>graphVersion ${graph.graphVersion}</td></tr>',
-      )
-      ..writeln('</tbody></table>')
-      ..writeln('<h2>Decisions</h2>');
+  List<DVDocsBlock> _index(List<DVDocsFinding> sorted) {
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('Rendered from the project graph. Descriptions are '),
+        DVDocsSpan.text('doc comments read from the source; nothing here is '),
+        DVDocsSpan.text('written twice.'),
+      ]),
+      DVDocsTable(
+        <DVDocsColumn>[
+          const DVDocsColumn('Page'),
+          const DVDocsColumn('Count'),
+        ],
+        <DVDocsRow>[
+          _linkRow('Models', 'models', graph.models.length),
+          _linkRow('Functions', 'functions', graph.functions.length),
+          _linkRow('Routes', 'routes', routes.length),
+          _linkRow('Jobs', 'jobs', graph.jobs.length),
+          _linkRow('Schedules', 'jobs', schedules.length),
+          _linkRow('Policies', 'policies', policies.length),
+          _linkRow('Modules', 'modules', mounts.length),
+          DVDocsRow(<List<DVDocsSpan>>[
+            <DVDocsSpan>[
+              const DVDocsSpan.link(dvDocsGraphFile, DVDocsTarget.external(dvDocsGraphFile)),
+            ],
+            <DVDocsSpan>[
+              const DVDocsSpan.text('graphVersion '),
+              DVDocsSpan.note('${graph.graphVersion}'),
+            ],
+          ]),
+        ],
+      ),
+      const DVDocsHeading(2, <DVDocsSpan>[DVDocsSpan.text('Decisions')]),
+    ];
     if (decisions.isEmpty) {
-      b.writeln(
-        '<p>No decision records under <code>${dvDocsText(_decisionsDir())}</code>.</p>',
+      out.add(
+        DVDocsParagraph(<DVDocsSpan>[
+          const DVDocsSpan.text('No decision records under '),
+          DVDocsSpan.code(_decisionsDir()),
+          const DVDocsSpan.text('.'),
+        ]),
       );
     } else {
-      b.writeln('<ul>');
-      for (final _Decision d in decisions) {
-        b.writeln(
-          '<li><a href="${dvDocsAttr(d.page)}">${dvDocsInline(d.title)}</a></li>',
-        );
-      }
-      b.writeln('</ul>');
+      out.add(
+        DVDocsList(false, <DVDocsListItem>[
+          for (final _Decision d in decisions)
+            DVDocsListItem(<DVDocsSpan>[DVDocsSpan.link(d.title, d.target)]),
+        ]),
+      );
     }
     if (sorted.isNotEmpty) {
-      b
-        ..writeln('<h2>Drift</h2>')
-        ..writeln('<ul>');
-      for (final DVDocsFinding f in sorted) {
-        b.writeln(
-          '<li class="finding"><a href="diagnostics.html#${f.code}">'
-          '${f.code}</a> <code>${dvDocsText(f.source)}</code> '
-          '${dvDocsInline(f.message)}</li>',
+      out
+        ..add(
+          const DVDocsHeading(2, <DVDocsSpan>[DVDocsSpan.text('Drift')]),
+        )
+        ..add(
+          DVDocsList(false, <DVDocsListItem>[
+            for (final DVDocsFinding f in sorted)
+              DVDocsListItem(<DVDocsSpan>[
+                DVDocsSpan.link(f.code, DVDocsTarget.page('diagnostics', anchor: f.code)),
+                const DVDocsSpan.text(' '),
+                DVDocsSpan.note(f.source),
+                const DVDocsSpan.text(' '),
+                ...dvDocsInline(f.message),
+              ]),
+          ]),
         );
-      }
-      b.writeln('</ul>');
     }
-    return b.toString();
+    return out;
   }
 
-  String _models() {
-    if (graph.models.isEmpty) {
-      return '<p>No <code>@DVModel</code> inputs.</p>\n';
-    }
+  static DVDocsRow _linkRow(String label, String page, int count) =>
+      DVDocsRow(<List<DVDocsSpan>>[
+        <DVDocsSpan>[DVDocsSpan.link(label, DVDocsTarget.page(page))],
+        <DVDocsSpan>[DVDocsSpan.note('$count')],
+      ]);
+
+  List<DVDocsBlock> _models() {
     final Set<String> names = <String>{
       for (final DVGraphModel m in graph.models) m.name,
     };
-    final StringBuffer b = StringBuffer()
-      ..writeln(
-        '<p>Example data is generated from each field\'s type, never '
-        'read from a database. A sensitive field is named and never '
-        'valued.</p>',
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('Example data is generated from each field\'s '),
+        DVDocsSpan.text('type, never read from a database. A sensitive '),
+        DVDocsSpan.text('field is named and never valued.'),
+      ]),
+    ];
+    if (graph.models.isEmpty) {
+      out.add(
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No '),
+          DVDocsSpan.code('@DVModel'),
+          DVDocsSpan.text(' inputs.'),
+        ]),
       );
+      return out;
+    }
     for (final DVGraphModel m in graph.models) {
       final _Mapping? mapping = _resolve(m.source, RegExp(r'@DVModel\s*\('));
       if (mapping == null) _unmapped('model ${m.name}', m.source);
@@ -618,129 +704,200 @@ class _Builder {
           ? const <String, String>{}
           : _fieldDocs(mapping, m);
 
-      b
-        ..writeln('<section id="model-${dvDocsAttr(m.name)}">')
-        ..writeln('<h2>${dvDocsText(m.name)}</h2>')
-        ..write(_description(mapping, m.source))
-        ..writeln(
-          '<table class="fields"><thead><tr><th>Field</th><th>Type</th>'
-          '<th></th><th>Description</th></tr></thead><tbody>',
-        );
-      for (final DVGraphField f in m.fields) {
-        b.writeln(
-          '<tr id="field-${dvDocsAttr(m.name)}-${dvDocsAttr(f.name)}"'
-          '${f.sensitive ? ' class="sensitive"' : ''}>'
-          '<td><code>${dvDocsText(f.name)}</code></td>'
-          '<td><code>${_typeHtml(f.type, names)}</code></td>'
-          '<td>${f.sensitive ? '<span class="badge">sensitive</span>' : ''}</td>'
-          '<td>${dvDocsInline(fieldDocs[f.name] ?? '')}</td></tr>',
-        );
-      }
-      b.writeln('</tbody></table>');
+      out.add(
+        DVDocsHeading(2, <DVDocsSpan>[DVDocsSpan.text(m.name)], anchor: 'model-${m.name}'),
+      );
+      out.addAll(_description(mapping, m.source));
+      out.add(
+        DVDocsTable(
+          <DVDocsColumn>[
+            const DVDocsColumn('Field', 'name'),
+            const DVDocsColumn('Type', 'type'),
+            const DVDocsColumn('', 'flags'),
+            const DVDocsColumn('Description', 'description'),
+          ],
+          <DVDocsRow>[
+            for (final DVGraphField f in m.fields)
+              DVDocsRow(
+                <List<DVDocsSpan>>[
+                  <DVDocsSpan>[DVDocsSpan.code(f.name)],
+                  _typeSpans(f.type, names),
+                  <DVDocsSpan>[
+                    if (f.sensitive) const DVDocsSpan.badge('sensitive'),
+                  ],
+                  dvDocsInline(fieldDocs[f.name] ?? ''),
+                ],
+                'field-${m.name}-${f.name}',
+              ),
+          ],
+        ),
+      );
 
       final List<DVGraphField> relations = <DVGraphField>[
         for (final DVGraphField f in m.fields)
           if (_modelsIn(f.type, names).isNotEmpty) f,
       ];
       if (relations.isNotEmpty) {
-        b.writeln('<h3>Relations</h3><ul>');
-        for (final DVGraphField f in relations) {
-          final String targets = _modelsIn(f.type, names)
-              .map(
-                (String t) =>
-                    '<a href="#model-${dvDocsAttr(t)}">${dvDocsText(t)}</a>',
-              )
-              .join(', ');
-          b.writeln('<li><code>${dvDocsText(f.name)}</code> → $targets</li>');
-        }
-        b.writeln('</ul>');
+        out
+          ..add(
+            const DVDocsHeading(
+              3,
+              <DVDocsSpan>[DVDocsSpan.text('Relations')],
+            ),
+          )
+          ..add(
+            DVDocsList(false, <DVDocsListItem>[
+              for (final DVGraphField f in relations)
+                DVDocsListItem(<DVDocsSpan>[
+                  DVDocsSpan.code(f.name),
+                  const DVDocsSpan.text(' → '),
+                  for (final (int i, String target) in _modelsIn(
+                    f.type,
+                    names,
+                  ).indexed)
+                    ...<DVDocsSpan>[
+                      if (i > 0) const DVDocsSpan.text(', '),
+                      DVDocsSpan.link(
+                        target,
+                        DVDocsTarget.page('models', anchor: 'model-$target'),
+                      ),
+                    ],
+                ]),
+            ]),
+          );
       }
 
       final List<_Policy> own = <_Policy>[
         for (final _Policy policy in policies)
           if (policy.declaration.resource == m.name) policy,
       ];
-      b.writeln('<h3>Policies</h3>');
+      out.add(
+        const DVDocsHeading(3, <DVDocsSpan>[DVDocsSpan.text('Policies')]),
+      );
       if (own.isEmpty) {
-        b.writeln(
-          '<p>No <code>@DVPolicy(${dvDocsText(m.name)})</code> class: '
-          'every action on it is denied.</p>',
+        out.add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('No '),
+            DVDocsSpan.code('@DVPolicy(${m.name})'),
+            const DVDocsSpan.text(' class: every action on it is denied.'),
+          ]),
         );
       } else {
-        b.writeln('<ul>');
-        for (final _Policy policy in own) {
-          final String actions = policy.declaration.methods
-              .map((DVPolicyMethod x) => x.action)
-              .join(', ');
-          b.writeln(
-            '<li><a href="policies.html#policy-${dvDocsAttr(m.name)}">'
-            '<code>${dvDocsText(policy.declaration.className)}</code></a>: '
-            '${actions.isEmpty ? 'no actions' : dvDocsText(actions)}</li>',
-          );
-        }
-        b.writeln('</ul>');
+        out.add(
+          DVDocsList(false, <DVDocsListItem>[
+            for (final _Policy policy in own)
+              DVDocsListItem(<DVDocsSpan>[
+                DVDocsSpan.link(
+                  policy.declaration.className,
+                  DVDocsTarget.page(
+                    'policies',
+                    anchor: 'policy-${m.name}',
+                  ),
+                ),
+                const DVDocsSpan.text(': '),
+                DVDocsSpan.text(
+                  policy.declaration.methods.isEmpty
+                      ? 'no actions'
+                      : policy.declaration.methods
+                            .map((DVPolicyMethod x) => x.action)
+                            .join(', '),
+                ),
+              ]),
+          ]),
+        );
       }
 
-      b
-        ..writeln('<h3>Generated</h3><ul>')
-        ..writeln(
-          <String>['Form', 'List', 'Table', 'Card', 'PageBody', 'Page']
-              .map(
-                (String s) => '<li><code>${dvDocsText(m.name)}.$s</code></li>',
-              )
-              .join('\n'),
-        );
-      for (final StaticPathsProvider provider in providers) {
-        if (provider.className != m.name || provider.route == null) continue;
-        b.writeln(
-          provider.generatesPage
-              ? '<li>public page at <a href="routes.html#route-${dvDocsAttr(provider.route!)}">'
-                    '<code>${dvDocsText(provider.route!)}</code></a></li>'
-              : '<li>static paths for <code>${dvDocsText(provider.route!)}</code> '
-                    'from <code>${dvDocsText(provider.resolveExpression)}</code></li>',
-        );
-      }
-      b
-        ..writeln('</ul>')
-        ..writeln('<h3>Example</h3>')
-        ..writeln('<pre><code>${dvDocsText(_example(m, names))}</code></pre>')
-        ..write(_backlinks('model:${m.name}'))
-        ..writeln('</section>');
+      final List<DVDocsListItem> generated = <DVDocsListItem>[
+        for (final String surface in const <String>[
+          'Form',
+          'List',
+          'Table',
+          'Card',
+          'PageBody',
+          'Page',
+        ])
+          DVDocsListItem(<DVDocsSpan>[
+            DVDocsSpan.code('${m.name}.$surface'),
+          ]),
+        for (final StaticPathsProvider provider in providers)
+          if (provider.className == m.name && provider.route != null)
+            DVDocsListItem(<DVDocsSpan>[
+              if (provider.generatesPage)
+                const DVDocsSpan.text('public page at ')
+              else
+                const DVDocsSpan.text('static paths for '),
+              if (provider.generatesPage)
+                DVDocsSpan.link(
+                  provider.route!,
+                  DVDocsTarget.page('routes', anchor: 'route-${provider.route!}'),
+                )
+              else ...<DVDocsSpan>[
+                DVDocsSpan.code(provider.route!),
+                const DVDocsSpan.text(' from '),
+                DVDocsSpan.code(provider.resolveExpression),
+              ],
+            ]),
+      ];
+      out
+        ..add(
+          const DVDocsHeading(
+            3,
+            <DVDocsSpan>[DVDocsSpan.text('Generated')],
+          ),
+        )
+        ..add(DVDocsList(false, generated))
+        ..add(
+          const DVDocsHeading(3, <DVDocsSpan>[DVDocsSpan.text('Example')]),
+        )
+        ..add(DVDocsCode(_example(m, names)))
+        ..addAll(_backlinks('model:${m.name}'));
     }
-    return b.toString();
+    return out;
   }
 
-  String _functions() {
+  List<DVDocsBlock> _functions() {
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('Each function lists the stages a request passes '),
+        DVDocsSpan.text('through before and around it, in the order the '),
+        DVDocsSpan.text('generated backend runs them.'),
+      ]),
+    ];
     if (graph.functions.isEmpty) {
-      return '<p>No backend functions under <code>lib/backend/functions</code>.</p>\n';
-    }
-    final StringBuffer b = StringBuffer()
-      ..writeln(
-        '<p>Each function lists the stages a request passes through '
-        'before and around it, in the order the generated backend runs '
-        'them.</p>',
+      out.add(
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No backend functions under '),
+          DVDocsSpan.code('lib/backend/functions'),
+          DVDocsSpan.text('.'),
+        ]),
       );
+      return out;
+    }
     for (final DVGraphFunction f in graph.functions) {
       final _Mapping? mapping = _resolve(
         f.source,
         f.annotated ? RegExp(r'@DVBackendFunction\b') : null,
       );
       if (mapping == null) _unmapped('function ${f.name}', f.source);
-      b
-        ..writeln('<section id="function-${dvDocsAttr(f.name)}">')
-        ..writeln('<h2><code>${dvDocsText(f.name)}</code></h2>')
-        ..writeln(
-          '<p><strong>${dvDocsText(f.method)}</strong> '
-          '<code>${dvDocsText(f.path)}</code></p>',
+      out
+        ..add(
+          DVDocsHeading(
+            2,
+            <DVDocsSpan>[DVDocsSpan.code(f.name)],
+            anchor: 'function-${f.name}',
+          ),
+        )
+        ..add(
+          DVDocsParagraph(<DVDocsSpan>[
+            DVDocsSpan.strong(f.method),
+            const DVDocsSpan.text(' '),
+            DVDocsSpan.code(f.path),
+          ]),
         );
       if (mapping == null) {
-        b
-          ..writeln(
-            '<p class="unmapped">no source to render from: '
-            '<code>${dvDocsText(f.source)}</code></p>',
-          )
-          ..write(_backlinks('function:${f.name}'))
-          ..writeln('</section>');
+        out
+          ..addAll(_unmappedParagraph(f.source))
+          ..addAll(_backlinks('function:${f.name}'));
         continue;
       }
       final String file = mapping.lines.join('\n');
@@ -749,41 +906,39 @@ class _Builder {
           ? null
           : _signature(mapping.lines, declaration.line, f);
       final String? policy = dvBackendPolicyFromSource(file);
-      b.write(
-        _docHtml(
-          declaration == null ? '' : _docAbove(mapping.lines, declaration.line),
-        ),
+      out.addAll(
+        declaration == null
+            ? const <DVDocsBlock>[]
+            : dvDocsProse(_docAbove(mapping.lines, declaration.line)),
       );
       if (signature != null) {
-        b.writeln(
-          '<pre class="signature"><code>${dvDocsText(signature)}</code></pre>',
-        );
+        out.add(DVDocsCode(signature, signature: true));
       }
-      b
-        ..writeln('<h3>Request lifecycle</h3>')
-        ..writeln('<ol class="stages">');
-      for (final (String id, String text) in _stages(
-        method: f.method,
-        middleware: dvMiddlewareKeysFromSource(file),
-        policy: policy,
-        typed: declaration?.typed ?? false,
-        context:
-            signature != null &&
-            RegExp(r'\(\s*(?:final\s+)?DVContext\s+\w+').hasMatch(signature),
-      )) {
-        b.writeln(
-          '<li class="stage" data-stage="${dvDocsAttr(id)}">$text</li>',
-        );
-      }
-      b
-        ..writeln('</ol>')
-        ..writeln(
-          '<p class="source">Source: <code>${dvDocsText(f.source)}</code></p>',
+      out
+        ..add(
+          const DVDocsHeading(
+            3,
+            <DVDocsSpan>[DVDocsSpan.text('Request lifecycle')],
+          ),
         )
-        ..write(_backlinks('function:${f.name}'))
-        ..writeln('</section>');
+        ..add(
+          DVDocsList(true, <DVDocsListItem>[
+            for (final (String id, List<DVDocsSpan> spans) in _stages(
+              method: f.method,
+              middleware: dvMiddlewareKeysFromSource(file),
+              policy: policy,
+              typed: declaration?.typed ?? false,
+              context:
+                  signature != null &&
+                  RegExp(r'\(\s*(?:final\s+)?DVContext\s+\w+').hasMatch(signature),
+            ))
+              DVDocsListItem(spans, id),
+          ]),
+        )
+        ..addAll(_sourceParagraph(f.source))
+        ..addAll(_backlinks('function:${f.name}'));
     }
-    return b.toString();
+    return out;
   }
 
   /// The stages the generated backend runs a request through, in order.
@@ -791,7 +946,7 @@ class _Builder {
   /// This mirrors the order `BackendGenerator` emits, and a test generates a
   /// real backend and checks the two agree, because a list that drifted from
   /// the handler would still read as a perfectly plausible lifecycle.
-  static List<(String, String)> _stages({
+  static List<(String, List<DVDocsSpan>)> _stages({
     required String method,
     required List<String> middleware,
     required String? policy,
@@ -802,139 +957,229 @@ class _Builder {
     final bool readsBody = typed && m != 'GET' && m != 'HEAD';
     final bool limited =
         middleware.contains('bodyLimit') || middleware.contains('uploadLimit');
-    return <(String, String)>[
+    return <(String, List<DVDocsSpan>)>[
       (
         'tenant',
-        'Tenant scope: the tenant this request names is current for '
-            'everything below.',
+        const <DVDocsSpan>[
+          DVDocsSpan.text('Tenant scope: the tenant this request names is '),
+          DVDocsSpan.text('current for everything below.'),
+        ],
       ),
       (
         'privacy',
-        'Privacy scope: a <code>Sec-GPC: 1</code> header is in force for '
-            'everything below, and denies every consent category declared '
-            'as tracking.',
+        const <DVDocsSpan>[
+          DVDocsSpan.text('Privacy scope: a '),
+          DVDocsSpan.code('Sec-GPC: 1'),
+          DVDocsSpan.text(' header is in force for everything below, and '),
+          DVDocsSpan.text('denies every consent category declared as '),
+          DVDocsSpan.text('tracking.'),
+        ],
       ),
       if (middleware.contains('tracing'))
         (
           'tracing',
-          'Tracing span around everything below, refused requests '
-              'included.',
+          const <DVDocsSpan>[
+            DVDocsSpan.text('Tracing span around everything below, refused '),
+            DVDocsSpan.text('requests included.'),
+          ],
         ),
       for (final String key in middleware)
         if (key != 'tracing')
           (
             'middleware:$key',
-            'Middleware <code>${dvDocsText(key)}</code>, in '
-                'declared order.',
+            <DVDocsSpan>[
+              const DVDocsSpan.text('Middleware '),
+              DVDocsSpan.code(key),
+              const DVDocsSpan.text(', in declared order.'),
+            ],
           ),
       if (readsBody)
         (
           'body',
           limited
-              ? 'Body read, refused past the declared limit before it is buffered.'
-              : 'Body read and decoded.',
+              ? const <DVDocsSpan>[
+                  DVDocsSpan.text(
+                    'Body read, refused past the declared limit before it '
+                    'is buffered.',
+                  ),
+                ]
+              : const <DVDocsSpan>[DVDocsSpan.text('Body read and decoded.')],
         ),
-      if (typed) ('csrf', 'CSRF check.'),
+      if (typed) ('csrf', const <DVDocsSpan>[DVDocsSpan.text('CSRF check.')]),
       if (policy != null)
         (
           'policy',
-          'Policy gate <code>${dvDocsText(policy)}</code>: refused '
-              'with 403 before the function runs.',
+          <DVDocsSpan>[
+            const DVDocsSpan.text('Policy gate '),
+            DVDocsSpan.code(policy),
+            const DVDocsSpan.text(': refused with 403 before the function '),
+            const DVDocsSpan.text('runs.'),
+          ],
         ),
       if (context)
         (
           'context',
-          'A <code>DVContext</code> is built and passed first; it is '
-              'not a client argument.',
+          const <DVDocsSpan>[
+            DVDocsSpan.text('A '),
+            DVDocsSpan.code('DVContext'),
+            DVDocsSpan.text(' is built and passed first; it is not a client '),
+            DVDocsSpan.text('argument.'),
+          ],
         ),
       (
         'function',
-        typed ? 'The function.' : 'The raw handler, which owns the request.',
+        <DVDocsSpan>[
+          if (typed)
+            const DVDocsSpan.text('The function.')
+          else
+            const DVDocsSpan.text('The raw handler, which owns the request.'),
+        ],
       ),
     ];
   }
 
-  String _routes() {
-    if (routes.isEmpty) return '<p>No routes.</p>\n';
-    final StringBuffer b = StringBuffer();
+  List<DVDocsBlock> _routes() {
+    if (routes.isEmpty) {
+      return const <DVDocsBlock>[
+        DVDocsParagraph(<DVDocsSpan>[DVDocsSpan.text('No routes.')]),
+      ];
+    }
+    final List<DVDocsBlock> out = <DVDocsBlock>[];
     for (final _Route r in routes) {
-      b
-        ..writeln('<section id="route-${dvDocsAttr(r.path)}">')
-        ..writeln('<h2><code>${dvDocsText(r.path)}</code></h2>')
-        ..writeln(
-          '<p>${dvDocsText(r.kind)}'
-          '${r.page == null ? '' : ' · <code>${dvDocsText(r.page!)}</code>'}'
-          '${r.module == null ? '' : ' · module <a href="modules.html#module-${dvDocsAttr(r.module!)}"><code>${dvDocsText(r.module!)}</code></a>'}'
-          '</p>',
+      out
+        ..add(
+          DVDocsHeading(
+            2,
+            <DVDocsSpan>[DVDocsSpan.code(r.path)],
+            anchor: 'route-${r.path}',
+          ),
+        )
+        ..add(
+          DVDocsParagraph(<DVDocsSpan>[
+            DVDocsSpan.text(r.kind),
+            if (r.page != null) ...<DVDocsSpan>[
+              const DVDocsSpan.text(' · '),
+              DVDocsSpan.code(r.page!),
+            ],
+            if (r.module != null) ...<DVDocsSpan>[
+              const DVDocsSpan.text(' · module '),
+              DVDocsSpan.link(
+                r.module!,
+                DVDocsTarget.page('modules', anchor: 'module-${r.module}'),
+              ),
+            ],
+          ]),
         );
       if (r.model != null) {
-        b.writeln(
-          '<p>Generated from <a href="models.html#model-${dvDocsAttr(r.model!)}">'
-          '${dvDocsText(r.model!)}</a>.</p>',
+        out.add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('Generated from '),
+            DVDocsSpan.link(
+              r.model!,
+              DVDocsTarget.page('models', anchor: 'model-${r.model}'),
+            ),
+            const DVDocsSpan.text('.'),
+          ]),
         );
       }
       if (r.location != null) {
-        b.writeln(
-          '<p>Served by the module\'s own deployment at '
-          '<code>${dvDocsText(r.location!)}</code>, from its verified manifest.</p>',
+        out.add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('Served by the module\'s own deployment '),
+            const DVDocsSpan.text('at '),
+            DVDocsSpan.code(r.location!),
+            const DVDocsSpan.text(', from its verified manifest.'),
+          ]),
         );
       }
       if (r.unmapped) {
-        b.writeln(
-          '<p class="unmapped">no source to render from: '
-          '<code>${dvDocsText(r.source ?? '')}</code></p>',
-        );
+        out.addAll(_unmappedParagraph(r.source ?? ''));
       } else if (r.mapping != null) {
-        b.write(_docHtml(_docAbove(r.mapping!.lines, r.mapping!.line)));
+        out.addAll(
+          dvDocsProse(_docAbove(r.mapping!.lines, r.mapping!.line)),
+        );
       }
       if (r.policy != null) {
-        b.writeln('<p>Guarded by <code>${dvDocsText(r.policy!)}</code>.</p>');
+        out.add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('Guarded by '),
+            DVDocsSpan.code(r.policy!),
+            const DVDocsSpan.text('.'),
+          ]),
+        );
       }
       if (r.middleware.isNotEmpty) {
-        b.writeln(
-          '<p>Middleware: ${r.middleware.map((String k) => '<code>${dvDocsText(k)}</code>').join(', ')}</p>',
+        out.add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('Middleware: '),
+            for (final (int i, String key) in r.middleware.indexed) ...<DVDocsSpan>[
+              if (i > 0) const DVDocsSpan.text(', '),
+              DVDocsSpan.code(key),
+            ],
+          ]),
         );
       }
       if (r.source != null && !r.unmapped) {
-        b.writeln(
-          '<p class="source">Source: <code>${dvDocsText(r.source!)}</code></p>',
-        );
+        out.addAll(_sourceParagraph(r.source!));
       }
-      b
-        ..write(_backlinks('route:${r.path}'))
-        ..writeln('</section>');
+      out.addAll(_backlinks('route:${r.path}'));
     }
-    return b.toString();
+    return out;
   }
 
-  String _jobs() {
-    final StringBuffer b = StringBuffer();
-    b.writeln('<h2 id="jobs">Jobs</h2>');
-    if (graph.jobs.isEmpty) b.writeln('<p>No <code>@DVJob</code> inputs.</p>');
-    b
-      ..writeln('<h2 id="schedules">Schedules</h2>')
-      ..writeln(
-        '<p>A backend schedule runs on the server from a periodic '
-        'timer. A client schedule is a request, not a guarantee: it ticks '
-        'while the application is showing a page, and each platform decides '
-        'how often a backgrounded or closed application runs it.</p>',
-      );
-    if (schedules.isEmpty) {
-      b.writeln(
-        '<p>No <code>@DVBackendCron</code> or <code>@DVClientCron</code> '
-        'functions.</p>',
-      );
-    }
+  List<DVDocsBlock> _jobs() {
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsHeading(
+        2,
+        <DVDocsSpan>[DVDocsSpan.text('Jobs')],
+        anchor: 'jobs',
+      ),
+      if (graph.jobs.isEmpty)
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No '),
+          DVDocsSpan.code('@DVJob'),
+          DVDocsSpan.text(' inputs.'),
+        ]),
+      const DVDocsHeading(
+        2,
+        <DVDocsSpan>[DVDocsSpan.text('Schedules')],
+        anchor: 'schedules',
+      ),
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('A backend schedule runs on the server from a '),
+        DVDocsSpan.text('periodic timer. A client schedule is a request, '),
+        DVDocsSpan.text('not a guarantee: it ticks while the application is '),
+        DVDocsSpan.text('showing a page, and each platform decides how often '),
+        DVDocsSpan.text('a backgrounded or closed application runs it.'),
+      ]),
+      if (schedules.isEmpty)
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No '),
+          DVDocsSpan.code('@DVBackendCron'),
+          DVDocsSpan.text(' or '),
+          DVDocsSpan.code('@DVClientCron'),
+          DVDocsSpan.text(' functions.'),
+        ]),
+    ];
     for (final DVGraphJob j in graph.jobs) {
       final _Mapping? mapping = _resolve(j.source, RegExp(r'@DVJob\b'));
       if (mapping == null) _unmapped('job ${j.name}', j.source);
-      b
-        ..writeln('<section id="job-${dvDocsAttr(j.name)}">')
-        ..writeln('<h3>${dvDocsText(j.name)}</h3>')
-        ..writeln('<p>Queue <code>${dvDocsText(j.queue)}</code></p>')
-        ..write(_description(mapping, j.source))
-        ..write(_backlinks('job:${j.name}'))
-        ..writeln('</section>');
+      out
+        ..add(
+          DVDocsHeading(
+            3,
+            <DVDocsSpan>[DVDocsSpan.text(j.name)],
+            anchor: 'job-${j.name}',
+          ),
+        )
+        ..add(
+          DVDocsParagraph(<DVDocsSpan>[
+            const DVDocsSpan.text('Queue '),
+            DVDocsSpan.code(j.queue),
+          ]),
+        )
+        ..addAll(_description(mapping, j.source))
+        ..addAll(_backlinks('job:${j.name}'));
     }
     for (final _Schedule s in schedules) {
       final List<String>? lines = _lines(s.file);
@@ -953,112 +1198,161 @@ class _Builder {
           ? null
           : _Mapping(s.file, line, lines!);
       if (mapping == null) _unmapped('schedule ${s.name}', source);
-      b
-        ..writeln('<section id="schedule-${dvDocsAttr(s.name)}">')
-        ..writeln('<h3><code>${dvDocsText(s.name)}</code></h3>')
-        ..writeln(
-          '<p><code>${dvDocsText(s.cron)}</code> on the '
-          '${s.client ? 'client' : 'backend'}'
-          '${s.catchUp == null ? '' : ' · catch-up ${s.catchUp! ? 'on' : 'off'}'}</p>',
+      out
+        ..add(
+          DVDocsHeading(
+            3,
+            <DVDocsSpan>[DVDocsSpan.code(s.name)],
+            anchor: 'schedule-${s.name}',
+          ),
+        )
+        ..add(
+          DVDocsParagraph(<DVDocsSpan>[
+            DVDocsSpan.code(s.cron),
+            DVDocsSpan.text(
+              ' on the ${s.client ? 'client' : 'backend'}'
+              '${s.catchUp == null ? '' : ' · catch-up ${s.catchUp! ? 'on' : 'off'}'}',
+            ),
+          ]),
         );
       if (s.client) {
-        b.writeln(
-          '<p>A request, not a guarantee: runs while the application '
-          'is showing a page; how often it runs in the background is the '
-          'platform\'s decision.</p>',
+        out.add(
+          const DVDocsParagraph(<DVDocsSpan>[
+            DVDocsSpan.text('A request, not a guarantee: runs while the '),
+            DVDocsSpan.text('application is showing a page; how often it runs '),
+            DVDocsSpan.text('in the background is the platform\'s decision.'),
+          ]),
         );
       }
-      b
-        ..write(_description(mapping, source))
-        ..write(_backlinks('schedule:${s.name}'))
-        ..writeln('</section>');
+      out
+        ..addAll(_description(mapping, source))
+        ..addAll(_backlinks('schedule:${s.name}'));
     }
-    return b.toString();
+    return out;
   }
 
-  String _policies() {
-    final StringBuffer b = StringBuffer()
-      ..writeln(
-        '<p>An action no policy method answers is denied: '
-        '<code>DV.Auth.authorization</code> is default-deny. Who a method '
-        'allows is decided in its body, which the source link opens.</p>',
-      );
-    if (policies.isEmpty) {
-      b.writeln('<p>No <code>@DVPolicy</code> classes.</p>');
-    }
+  List<DVDocsBlock> _policies() {
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('An action no policy method answers is denied: '),
+        DVDocsSpan.code('DV.Auth.authorization'),
+        DVDocsSpan.text(' is default-deny. Who a method allows is decided '),
+        DVDocsSpan.text('in its body, which the source link opens.'),
+      ]),
+      if (policies.isEmpty)
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No '),
+          DVDocsSpan.code('@DVPolicy'),
+          DVDocsSpan.text(' classes.'),
+        ]),
+    ];
     final List<String> resources = <String>{
       for (final _Policy policy in policies) policy.declaration.resource,
     }.toList();
     for (final String resource in resources) {
-      b
-        ..writeln('<section id="policy-${dvDocsAttr(resource)}">')
-        ..writeln(
-          '<h2>${_typeHtml(resource, <String>{for (final DVGraphModel m in graph.models) m.name}, fromPolicies: true)}</h2>',
+      out
+        ..add(
+          DVDocsHeading(
+            2,
+            _typeSpans(
+              resource,
+              <String>{for (final DVGraphModel m in graph.models) m.name},
+            ),
+            anchor: 'policy-$resource',
+          ),
         )
-        ..writeln(
-          '<table><thead><tr><th>Policy</th>'
-          '${dvPolicyActions.map((String a) => '<th>$a</th>').join()}</tr></thead><tbody>',
+        ..add(
+          DVDocsTable(
+            <DVDocsColumn>[
+              const DVDocsColumn('Policy', 'policy'),
+              for (final String action in dvPolicyActions)
+                DVDocsColumn(action, action),
+            ],
+            <DVDocsRow>[
+              for (final _Policy policy in policies)
+                if (policy.declaration.resource == resource)
+                  DVDocsRow(
+                    <List<DVDocsSpan>>[
+                      <DVDocsSpan>[
+                        DVDocsSpan.code(policy.declaration.className),
+                        const DVDocsSpan.text(' '),
+                        DVDocsSpan.note(policy.source),
+                      ],
+                      for (final String action in dvPolicyActions)
+                        <DVDocsSpan>[
+                          if (policy.declaration.methods.any(
+                            (DVPolicyMethod x) => x.action == action,
+                          ))
+                            DVDocsSpan.code(
+                              '${policy.declaration.className}.$action',
+                            )
+                          else
+                            const DVDocsSpan.denied(),
+                        ],
+                    ],
+                    'policy-${policy.declaration.className}',
+                  ),
+            ],
+          ),
         );
       for (final _Policy policy in policies) {
         if (policy.declaration.resource != resource) continue;
-        final Set<String> defined = <String>{
-          for (final DVPolicyMethod m in policy.declaration.methods) m.action,
-        };
-        final String name = dvDocsText(policy.declaration.className);
-        b.writeln(
-          '<tr><td><code>$name</code><br>'
-          '<span class="source">${dvDocsText(policy.source)}</span></td>'
-          '${dvPolicyActions.map((String a) => '<td data-action="$a">${defined.contains(a) ? '<code>$name.$a</code>' : 'denied'}</td>').join()}'
-          '</tr>',
-        );
+        out.addAll(_backlinks('policy:${policy.declaration.className}'));
       }
-      b
-        ..writeln('</tbody></table>')
-        ..write(
-          <String>[
-            for (final _Policy policy in policies)
-              if (policy.declaration.resource == resource)
-                _backlinks('policy:${policy.declaration.className}'),
-          ].join(),
-        )
-        ..writeln('</section>');
     }
 
-    final List<(String, String, String)> guarded =
-        <(String, String, String)>[
+    final List<(String, String, DVDocsTarget)> guarded =
+        <(String, String, DVDocsTarget)>[
           for (final _Route r in routes)
             if (r.policy != null)
-              (r.policy!, r.path, 'routes.html#route-${r.path}'),
+              (
+                r.policy!,
+                r.path,
+                DVDocsTarget.page('routes', anchor: 'route-${r.path}'),
+              ),
           for (final DVGraphFunction f in graph.functions)
             if (_functionPolicy(f) case final String policy)
               (
                 policy,
                 '${f.method} ${f.path}',
-                'functions.html#function-${f.name}',
+                DVDocsTarget.page('functions', anchor: 'function-${f.name}'),
               ),
-        ]..sort(((String, String, String) a, (String, String, String) b) {
+        ]..sort(((String, String, DVDocsTarget) a, (String, String, DVDocsTarget) b) {
           final int byPolicy = a.$1.compareTo(b.$1);
           return byPolicy != 0 ? byPolicy : a.$2.compareTo(b.$2);
         });
-    b
-      ..writeln('<section id="guarded">')
-      ..writeln('<h2>What each policy guards</h2>');
+    out.add(
+      const DVDocsHeading(
+        2,
+        <DVDocsSpan>[DVDocsSpan.text('What each policy guards')],
+        anchor: 'guarded',
+      ),
+    );
     if (guarded.isEmpty) {
-      b.writeln('<p>No page or backend function declares a policy.</p>');
-    } else {
-      b.writeln(
-        '<table><thead><tr><th>Policy</th><th>Surface</th></tr></thead><tbody>',
+      out.add(
+        const DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No page or backend function declares a policy.'),
+        ]),
       );
-      for (final (String policy, String surface, String href) in guarded) {
-        b.writeln(
-          '<tr><td><code>${dvDocsText(policy)}</code></td>'
-          '<td><a href="${dvDocsAttr(href)}"><code>${dvDocsText(surface)}</code></a></td></tr>',
-        );
-      }
-      b.writeln('</tbody></table>');
+    } else {
+      out.add(
+        DVDocsTable(
+          const <DVDocsColumn>[
+            DVDocsColumn('Policy'),
+            DVDocsColumn('Surface'),
+          ],
+          <DVDocsRow>[
+            for (final (String policy, String surface, DVDocsTarget target)
+                in guarded)
+              DVDocsRow(<List<DVDocsSpan>>[
+                <DVDocsSpan>[DVDocsSpan.code(policy)],
+                <DVDocsSpan>[DVDocsSpan.link(surface, target)],
+              ]),
+          ],
+        ),
+      );
     }
-    b.writeln('</section>');
-    return b.toString();
+    return out;
   }
 
   String? _functionPolicy(DVGraphFunction f) {
@@ -1071,160 +1365,246 @@ class _Builder {
         : dvBackendPolicyFromSource(mapping.lines.join('\n'));
   }
 
-  String _modules() {
+  List<DVDocsBlock> _modules() {
     if (mounts.isEmpty) {
-      return '<p>No modules are mounted: <code>dartvel.modules</code> is empty.</p>\n';
+      return const <DVDocsBlock>[
+        DVDocsParagraph(<DVDocsSpan>[
+          DVDocsSpan.text('No modules are mounted: '),
+          DVDocsSpan.code('dartvel.modules'),
+          DVDocsSpan.text(' is empty.'),
+        ]),
+      ];
     }
-    final StringBuffer b = StringBuffer();
-    String list(List<String> values) => values.isEmpty
-        ? 'none'
-        : values.map((String v) => '<code>${dvDocsText(v)}</code>').join(', ');
+    final List<DVDocsBlock> out = <DVDocsBlock>[];
     for (final DVModuleMount m in mounts) {
-      b
-        ..writeln('<section id="module-${dvDocsAttr(m.id)}">')
-        ..writeln('<h2><code>DV.Modules.${dvDocsText(m.id)}</code></h2>')
-        ..writeln('<table><tbody>')
-        ..writeln(
-          '<tr><th>Mount</th><td><code>${dvDocsText(m.mount)}</code></td></tr>',
+      List<DVDocsSpan> list(List<String> values) => values.isEmpty
+          ? const <DVDocsSpan>[DVDocsSpan.text('none')]
+          : <DVDocsSpan>[
+              for (final (int i, String v) in values.indexed) ...<DVDocsSpan>[
+                if (i > 0) const DVDocsSpan.text(', '),
+                DVDocsSpan.code(v),
+              ],
+            ];
+      out
+        ..add(
+          DVDocsHeading(
+            2,
+            <DVDocsSpan>[DVDocsSpan.code('DV.Modules.${m.id}')],
+            anchor: 'module-${m.id}',
+          ),
         )
-        ..writeln(
-          '<tr><th>Deployment</th><td>${dvDocsText(m.deployment.name)}'
-          '${m.mounted ? '' : ' (not mounted)'}</td></tr>',
-        )
-        ..writeln(
-          '<tr><th>Package</th><td><code>${dvDocsText(m.packageName)}</code>'
-          '${m.version == null ? '' : ' ${dvDocsText(m.version!)}'}</td></tr>',
-        )
-        ..writeln(
-          '<tr><th>Modes</th><td>'
-          '<code>shell="${dvDocsText(m.shell)}"</code> '
-          '<code>auth="${dvDocsText(m.auth)}"</code> '
-          '<code>theme="${dvDocsText(m.theme)}"</code> '
-          '<code>data="${dvDocsText(m.data)}"</code></td></tr>',
-        )
-        ..writeln('<tr><th>Requires</th><td>${list(m.requires)}</td></tr>')
-        ..writeln(
-          '<tr><th>Shares pages</th><td>${m.exportsPages ? 'yes' : 'no'}</td></tr>',
-        )
-        ..writeln(
-          '<tr><th>Shares functions</th><td>${m.exportsFunctions ? 'yes' : 'no'}</td></tr>',
-        )
-        ..writeln(
-          '<tr><th>Exported globals</th><td>${list(m.exportedGlobals)}</td></tr>',
-        )
-        ..writeln(
-          '<tr><th>Inherited globals</th><td>${list(m.inheritedGlobals)}</td></tr>',
+        ..add(
+          DVDocsTable(
+            const <DVDocsColumn>[
+              DVDocsColumn('Property'),
+              DVDocsColumn('Value'),
+            ],
+            <DVDocsRow>[
+              _row('Mount', <DVDocsSpan>[DVDocsSpan.code(m.mount)]),
+              _row('Deployment', <DVDocsSpan>[
+                DVDocsSpan.text(m.deployment.name),
+                if (!m.mounted) const DVDocsSpan.text(' (not mounted)'),
+              ]),
+              _row('Package', <DVDocsSpan>[
+                DVDocsSpan.code(m.packageName),
+                if (m.version != null) DVDocsSpan.text(' ${m.version}'),
+              ]),
+              _row('Modes', <DVDocsSpan>[
+                DVDocsSpan.code('shell="${m.shell}"'),
+                const DVDocsSpan.text(' '),
+                DVDocsSpan.code('auth="${m.auth}"'),
+                const DVDocsSpan.text(' '),
+                DVDocsSpan.code('theme="${m.theme}"'),
+                const DVDocsSpan.text(' '),
+                DVDocsSpan.code('data="${m.data}"'),
+              ]),
+              _row('Requires', list(m.requires)),
+              _row('Shares pages', <DVDocsSpan>[
+                DVDocsSpan.text(m.exportsPages ? 'yes' : 'no'),
+              ]),
+              _row('Shares functions', <DVDocsSpan>[
+                DVDocsSpan.text(m.exportsFunctions ? 'yes' : 'no'),
+              ]),
+              _row('Exported globals', list(m.exportedGlobals)),
+              _row('Inherited globals', list(m.inheritedGlobals)),
+              // What the parent grants, and what Module Distribution and Trust
+              // says of it. Showing only what a module was declared to need
+              // left a reader unable to tell a granted module from one the
+              // build refuses.
+              _row('Grant', list(_grant(m.id))),
+              _row('Trust', _trust(m)),
+              if (m.backend != null)
+                _row('Backend', <DVDocsSpan>[DVDocsSpan.code(m.backend!)]),
+              if (m.location != null)
+                _row('Location', <DVDocsSpan>[DVDocsSpan.code(m.location!)]),
+              _row('Routes', <DVDocsSpan>[
+                if (m.routes.isEmpty)
+                  const DVDocsSpan.text('none')
+                else
+                  for (final (int i, DVModuleRoute r) in m.routes.indexed) ...<DVDocsSpan>[
+                    if (i > 0) const DVDocsSpan.text(', '),
+                    DVDocsSpan.link(
+                      r.mounted,
+                      DVDocsTarget.page(
+                        'routes',
+                        anchor: 'route-${r.mounted}',
+                      ),
+                    ),
+                  ],
+              ]),
+            ],
+          ),
         );
-      // What the parent grants, and what Module Distribution and Trust says
-      // of it. Showing only what a module was declared to need left a reader
-      // unable to tell a granted module from one the build refuses.
-      Object? declaredBody;
-      try {
-        final Object? doc = loadYaml(
-          File(p.join(root, 'pubspec.yaml')).readAsStringSync(),
-        );
-        final Object? dartvel = doc is Map ? doc['dartvel'] : null;
-        final Object? modules = dartvel is Map ? dartvel['modules'] : null;
-        declaredBody = modules is Map ? modules[m.id] : null;
-      } on Object {
-        declaredBody = null;
-      }
-      final Object? grant = declaredBody is Map ? declaredBody['grant'] : null;
-      b.writeln(
-        '<tr><th>Grant</th><td>${list(dvParseModuleCapabilities(grant, where: 'grant').capabilities.items())}</td></tr>',
-      );
-      final String trust;
-      if (m.deployment == DVModuleDeployment.federated) {
-        trust = 'deployed elsewhere and trusted through its signed manifest';
-      } else {
-        final List<DVModuleTrustFinding> found = dvEvaluateModuleTrust(
-          root,
-        ).findings.where((DVModuleTrustFinding f) => f.module == m.id).toList();
-        trust = found.isEmpty
-            ? 'verifies against its pin where it has one, and uses only what '
-                  'it is granted'
-            : found
-                  .map(
-                    (DVModuleTrustFinding f) =>
-                        '${f.code == null ? '' : '<code>${dvDocsText(f.code!)}</code> '}'
-                        '${f.isError ? '' : '(warning) '}${dvDocsText(f.message)}',
-                  )
-                  .join('<br>');
-      }
-      b.writeln('<tr><th>Trust</th><td>$trust</td></tr>');
-      if (m.backend != null) {
-        b.writeln(
-          '<tr><th>Backend</th><td><code>${dvDocsText(m.backend!)}</code></td></tr>',
-        );
-      }
-      if (m.location != null) {
-        b.writeln(
-          '<tr><th>Location</th><td><code>${dvDocsText(m.location!)}</code></td></tr>',
-        );
-      }
-      b
-        ..writeln(
-          '<tr><th>Routes</th><td>${m.routes.isEmpty ? 'none' : m.routes.map((DVModuleRoute r) => '<a href="routes.html#route-${dvDocsAttr(r.mounted)}"><code>${dvDocsText(r.mounted)}</code></a>').join(', ')}</td></tr>',
-        )
-        ..writeln('</tbody></table>');
       if (m.problems.isNotEmpty) {
-        b.writeln('<ul>');
-        for (final String problem in m.problems) {
-          b.writeln('<li class="finding">${dvDocsText(problem)}</li>');
-        }
-        b.writeln('</ul>');
+        out.add(
+          DVDocsList(false, <DVDocsListItem>[
+            for (final String problem in m.problems)
+              DVDocsListItem(<DVDocsSpan>[DVDocsSpan.finding(problem)]),
+          ]),
+        );
       }
-      b
-        ..write(_backlinks('module:${m.id}'))
-        ..writeln('</section>');
+      out.addAll(_backlinks('module:${m.id}'));
     }
-    return b.toString();
+    return out;
   }
 
-  String _diagnostics() {
-    final StringBuffer b = StringBuffer()
-      ..writeln('<p>The registry <code>dartvel explain</code> reads.</p>');
-    for (final String family in DVDiagnostics.families()) {
-      b
-        ..writeln('<section id="family-${dvDocsAttr(family)}">')
-        ..writeln('<h2>${dvDocsText(family)}</h2>')
-        ..writeln(
-          '<table><thead><tr><th>Code</th><th>Level</th><th>Reason</th></tr></thead><tbody>',
-        );
-      for (final DVDiagnostic d in DVDiagnostics.family(family)) {
-        b.writeln(
-          '<tr class="diagnostic" id="${dvDocsAttr(d.code)}">'
-          '<td><code>${dvDocsText(d.code)}</code></td>'
-          '<td>${dvDocsText(d.level)}</td>'
-          '<td>${dvDocsInline(d.reason)}</td></tr>',
-        );
-      }
-      b
-        ..writeln('</tbody></table>')
-        ..writeln('</section>');
+  static DVDocsRow _row(String label, List<DVDocsSpan> value) =>
+      DVDocsRow(<List<DVDocsSpan>>[
+        <DVDocsSpan>[DVDocsSpan.strong(label)],
+        value,
+      ]);
+
+  /// What the parent grants this module, as the grant block reads it.
+  List<String> _grant(String id) {
+    Object? declared;
+    try {
+      final Object? doc = loadYaml(
+        File(p.join(root, 'pubspec.yaml')).readAsStringSync(),
+      );
+      final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+      final Object? modules = dartvel is Map ? dartvel['modules'] : null;
+      declared = modules is Map ? modules[id] : null;
+    } on Object {
+      declared = null;
     }
-    return b.toString();
+    final Object? grant = declared is Map ? declared['grant'] : null;
+    return dvParseModuleCapabilities(
+      grant,
+      where: 'grant',
+    ).capabilities.items();
+  }
+
+  /// What the trust evaluation says of this module.
+  List<DVDocsSpan> _trust(DVModuleMount m) {
+    if (m.deployment == DVModuleDeployment.federated) {
+      return const <DVDocsSpan>[
+        DVDocsSpan.text('deployed elsewhere and trusted through its signed '),
+        DVDocsSpan.text('manifest'),
+      ];
+    }
+    final List<DVModuleTrustFinding> found = dvEvaluateModuleTrust(
+      root,
+    ).findings.where((DVModuleTrustFinding f) => f.module == m.id).toList();
+    if (found.isEmpty) {
+      return const <DVDocsSpan>[
+        DVDocsSpan.text('verifies against its pin where it has one, and uses '),
+        DVDocsSpan.text('only what it is granted'),
+      ];
+    }
+    return <DVDocsSpan>[
+      for (final (int i, DVModuleTrustFinding f) in found.indexed) ...<DVDocsSpan>[
+        if (i > 0) const DVDocsSpan.text(' '),
+        if (f.code != null) DVDocsSpan.code(f.code!),
+        if (f.code != null) const DVDocsSpan.text(' '),
+        if (!f.isError) const DVDocsSpan.text('(warning) '),
+        DVDocsSpan.text(f.message),
+      ],
+    ];
+  }
+
+  List<DVDocsBlock> _diagnostics() {
+    final List<DVDocsBlock> out = <DVDocsBlock>[
+      const DVDocsParagraph(<DVDocsSpan>[
+        DVDocsSpan.text('The registry '),
+        DVDocsSpan.code('dartvel explain'),
+        DVDocsSpan.text(' reads.'),
+      ]),
+    ];
+    for (final String family in DVDiagnostics.families()) {
+      out
+        ..add(
+          DVDocsHeading(
+            2,
+            <DVDocsSpan>[DVDocsSpan.text(family)],
+            anchor: 'family-$family',
+          ),
+        )
+        ..add(
+          DVDocsTable(
+            const <DVDocsColumn>[
+              DVDocsColumn('Code'),
+              DVDocsColumn('Level'),
+              DVDocsColumn('Reason'),
+            ],
+            <DVDocsRow>[
+              for (final DVDiagnostic d in DVDiagnostics.family(family))
+                DVDocsRow(
+                  <List<DVDocsSpan>>[
+                    <DVDocsSpan>[DVDocsSpan.code(d.code)],
+                    <DVDocsSpan>[DVDocsSpan.text(d.level)],
+                    dvDocsInline(d.reason),
+                  ],
+                  d.code,
+                ),
+            ],
+          ),
+        );
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------- helpers
 
-  String _backlinks(String key) {
+  /// The decisions naming [key], as a block, or nothing.
+  List<DVDocsBlock> _backlinks(String key) {
     final List<_Decision>? named = backlinks[key];
-    if (named == null || named.isEmpty) return '';
-    return '<p>Decisions: ${named.map((_Decision d) => '<a href="${dvDocsAttr(d.page)}">${dvDocsInline(d.title)}</a>').join(', ')}</p>\n';
+    if (named == null || named.isEmpty) return const <DVDocsBlock>[];
+    return <DVDocsBlock>[
+      DVDocsParagraph(<DVDocsSpan>[
+        const DVDocsSpan.text('Decisions: '),
+        for (final (int i, _Decision d) in named.indexed) ...<DVDocsSpan>[
+          if (i > 0) const DVDocsSpan.text(', '),
+          DVDocsSpan.link(d.title, d.target),
+        ],
+      ]),
+    ];
   }
 
-  String _description(_Mapping? mapping, String source) {
-    if (mapping == null) {
-      return '<p class="unmapped">no source to render from: '
-          '<code>${dvDocsText(source)}</code></p>\n';
-    }
-    return '${_docHtml(_docAbove(mapping.lines, mapping.line))}'
-        '<p class="source">Source: <code>${dvDocsText(mapping.source)}</code></p>\n';
-  }
+  /// A node's doc comment, and where it was read from.
+  List<DVDocsBlock> _description(_Mapping? mapping, String source) =>
+      mapping == null
+      ? _unmappedParagraph(source)
+      : <DVDocsBlock>[
+          ...dvDocsProse(_docAbove(mapping.lines, mapping.line)),
+          ..._sourceParagraph(mapping.source),
+        ];
 
-  String _docHtml(String doc) =>
-      doc.isEmpty ? '' : '<div class="doc">${dvDocsMarkdown(doc)}</div>\n';
+  List<DVDocsBlock> _sourceParagraph(String source) => <DVDocsBlock>[
+        DVDocsParagraph(<DVDocsSpan>[
+          const DVDocsSpan.text('Source: '),
+          DVDocsSpan.note(source),
+        ]),
+      ];
+
+  /// Said, not invented around. A node the build cannot read still appears in
+  /// the page with its path on it, because a reference that has silently
+  /// vanished is harder to notice than one that admits itself.
+  List<DVDocsBlock> _unmappedParagraph(String source) => <DVDocsBlock>[
+        DVDocsParagraph(<DVDocsSpan>[
+          const DVDocsSpan.text('no source to render from: '),
+          DVDocsSpan.note(source),
+        ]),
+      ];
 
   void _unmapped(String node, String source) {
     findings.add(
@@ -1478,18 +1858,28 @@ class _Builder {
       if (models.contains(m.group(0))) m.group(0)!,
   ];
 
-  static String _typeHtml(
-    String type,
-    Set<String> models, {
-    bool fromPolicies = false,
-  }) {
-    final String prefix = fromPolicies ? 'models.html' : '';
-    return dvDocsText(type).replaceAllMapped(
-      RegExp(r'[A-Za-z_][A-Za-z0-9_]*'),
-      (Match m) => models.contains(m.group(0))
-          ? '<a href="$prefix#model-${m.group(0)}">${m.group(0)}</a>'
-          : m.group(0)!,
-    );
+  /// A type as spans: the names in it that are models link to those models,
+  /// and the rest is the type as written.
+  static List<DVDocsSpan> _typeSpans(String type, Set<String> models) {
+    final List<DVDocsSpan> out = <DVDocsSpan>[];
+    int at = 0;
+    for (final Match m in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(type)) {
+      if (m.start > at) {
+        out.add(DVDocsSpan.text(type.substring(at, m.start)));
+      }
+      final String name = m.group(0)!;
+      out.add(
+        models.contains(name)
+            ? DVDocsSpan.link(
+                name,
+                DVDocsTarget.page('models', anchor: 'model-$name'),
+              )
+            : DVDocsSpan.code(name),
+      );
+      at = m.end;
+    }
+    if (at < type.length) out.add(DVDocsSpan.text(type.substring(at)));
+    return out.isEmpty ? <DVDocsSpan>[DVDocsSpan.text(type)] : out;
   }
 
   DVGraphModel? _model(String? name) {
