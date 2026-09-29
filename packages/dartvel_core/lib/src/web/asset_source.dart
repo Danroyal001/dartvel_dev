@@ -50,6 +50,9 @@ abstract interface class DVAssetSource {
   /// or null when there is none. A directory is not a file.
   DVAssetFile? file(String path);
 
+  /// Every file's path, relative, with `/`.
+  Iterable<String> list();
+
   /// Whether the files are carried inside this executable.
   bool get embedded;
 
@@ -65,9 +68,22 @@ abstract final class DVAssetSources {
   /// Serves [root] from [source] rather than from a directory of that name.
   static void register(String root, DVAssetSource source) => _registered[root] = source;
 
-  /// The source for [root]: what was registered for it, or the directory.
-  static DVAssetSource at(String root) =>
-      _registered[root] ?? DVDirectoryAssets(root);
+  /// The source for [root]: what was registered for it or for a directory
+  /// it is under, or the directory itself.
+  static DVAssetSource at(String root) {
+    final DVAssetSource? exact = _registered[root];
+    if (exact != null) return exact;
+    for (final MapEntry<String, DVAssetSource> entry in _registered.entries) {
+      for (final String separator in <String>{'/', Platform.pathSeparator}) {
+        if (root.startsWith('${entry.key}$separator') && entry.value is DVPackedAssets) {
+          final DVPackedAssets packed = entry.value as DVPackedAssets;
+          final String under = root.substring(entry.key.length + 1).replaceAll(separator, '/');
+          return DVPackedAssets(packed.pack, prefix: '${packed.prefix}$under/');
+        }
+      }
+    }
+    return DVDirectoryAssets(root);
+  }
 
   /// Forgets every registration.
   static void clear() => _registered.clear();
@@ -108,6 +124,17 @@ final class DVDirectoryAssets implements DVAssetSource {
 
   @override
   String? get buildId => null;
+
+  @override
+  Iterable<String> list() {
+    final Directory directory = Directory(root);
+    if (!directory.existsSync()) return const <String>[];
+    return <String>[
+      for (final FileSystemEntity entity in directory.listSync(recursive: true))
+        if (entity is File)
+          entity.path.substring(directory.path.length + 1).replaceAll(Platform.pathSeparator, '/'),
+    ];
+  }
 
   @override
   DVAssetFile? file(String path) {
@@ -186,6 +213,12 @@ final class DVPackedAssets implements DVAssetSource {
 
   @override
   String? get buildId => pack.buildId;
+
+  @override
+  Iterable<String> list() => <String>[
+        for (final String path in pack.paths)
+          if (path.startsWith(prefix)) path.substring(prefix.length),
+      ];
 
   @override
   DVAssetFile? file(String path) {

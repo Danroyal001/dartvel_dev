@@ -12,7 +12,9 @@
 // not serve.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -129,6 +131,64 @@ void main() {
     });
   });
 
+  group('carried in a web-server binary', () {
+    // The binary keeps the dashboard in its pack, every file protected, and
+    // writes none of it out. Served from there, every answer is the one the
+    // directory gives.
+    late String packed;
+
+    setUp(() {
+      final List<DVAssetPackEntry> entries = <DVAssetPackEntry>[
+        for (final FileSystemEntity f in _root.listSync(recursive: true))
+          if (f is File)
+            DVAssetPackEntry('admin/${f.path.substring(_root.path.length + 1)}', f.readAsBytesSync(),
+                stored: Uint8List.fromList(gzip.encode(f.readAsBytesSync())),
+                encoding: DVAssetEncoding.gzip,
+                protected: true),
+      ];
+      final Uint8List bytes = dvWriteAssetPack(entries);
+      final File server = File('${_root.parent.path}/server')..writeAsBytesSync(bytes);
+      packed = '${server.path}/admin';
+      DVAssetSources.register(
+          packed, DVPackedAssets(DVAssetPack.open(server.path, offset: 0, length: bytes.length)!, prefix: 'admin/'));
+      addTearDown(DVAssetSources.clear);
+    });
+
+    test('answers every request as the directory does', () async {
+      for (final String path in <String>[
+        '/__studio', '/__studio/', '/__studio/index.html', '/__studio/admin.css',
+        '/__studio/admin.js', '/__studio/graph.json', '/__studio/models',
+        '/__studio/../secret.txt', '/__studio/%2e%2e/secret.txt', '/__studio/nothing.js',
+      ]) {
+        final Response? fromDisk = await DVAdminServer(mount: _open, root: _root.path).respond(_get(path));
+        final Response? fromPack = await DVAdminServer(mount: _open, root: packed).respond(_get(path));
+        expect(fromPack?.status, fromDisk?.status, reason: path);
+        expect(fromPack?.headers.get('content-type'), fromDisk?.headers.get('content-type'), reason: path);
+        if (fromDisk != null && fromPack != null) {
+          expect(await _body(fromPack), await _body(fromDisk), reason: path);
+        }
+      }
+      expect(Directory(packed).existsSync(), isFalse, reason: 'nothing was written out');
+    });
+
+    test('is private and never stored', () async {
+      final Response? response =
+          await DVAdminServer(mount: _open, root: packed).respond(_get('/__studio/admin.js'));
+      expect(response!.headers.get('cache-control'), 'private, no-store');
+    });
+
+    test('reads the queues from the graph in the pack', () {
+      final Uint8List bytes = dvWriteAssetPack(<DVAssetPackEntry>[
+        DVAssetPackEntry('admin/graph.json', Uint8List.fromList(utf8.encode('{"jobs":[{"queue":"mail"}]}')),
+            protected: true),
+      ]);
+      final File server = File('${_root.parent.path}/other-server')..writeAsBytesSync(bytes);
+      DVAssetSources.register('${server.path}/admin',
+          DVPackedAssets(DVAssetPack.open(server.path, offset: 0, length: bytes.length)!, prefix: 'admin/'));
+      expect(dvAdminGraphQueues('${server.path}/admin'), <String>['mail']);
+    });
+  });
+
   group('the application keeps', () {
     test('every path that is not the mount', () async {
       final DVAdminServer server = DVAdminServer(mount: _open, root: _root.path);
@@ -198,7 +258,7 @@ void main() {
           await server.respond(_get('/__studio/login?from=/__studio/data'));
       expect(r?.status, 200);
       expect(r!.headers.get('content-type'), startsWith('text/html'));
-      expect(r.headers.get('cache-control'), 'no-store');
+      expect(r.headers.get('cache-control'), 'private, no-store');
       expect(await _body(r), '<html><title>Studio</title></html>');
     });
 

@@ -14,7 +14,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization, DVAuthEndpoints;
@@ -25,6 +24,7 @@ import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../web/asset_source.dart';
 import 'first_run_screen.dart';
 import 'studio_access.dart';
 import 'studio_api.dart';
@@ -114,10 +114,10 @@ class DVAdminAsset {
   ///
   /// Never stored by a shared cache: a dashboard kept by a proxy after one
   /// signed-in request is served to the next person who asks, signed in or
-  /// not.
+  /// not. `private` says so to a cache that reads no further.
   Map<String, String> get headers => <String, String>{
         'content-type': contentType,
-        'cache-control': 'no-store',
+        'cache-control': 'private, no-store',
       };
 }
 
@@ -147,15 +147,17 @@ DVAdminAsset? dvAdminAsset(String root, DVAdminMount mount, String path) {
     segments.add(segment);
   }
   if (decoded.startsWith('/')) return null;
-  final String separator = Platform.pathSeparator;
-  final File asset = File(<String>[root, ...segments].join(separator));
-  if (segments.isNotEmpty && asset.existsSync()) {
-    return DVAdminAsset(
-        asset.readAsBytesSync(), dvAdminContentType(segments.last));
+  // Through the source registered for the root: the pack a web-server
+  // binary carries, where every file of the dashboard is protected and never
+  // kept by a cache shared between callers; the directory otherwise.
+  final DVAssetSource files = DVAssetSources.at(root);
+  final DVAssetFile? asset = segments.isEmpty ? null : files.file(segments.join('/'));
+  if (asset != null) {
+    return DVAdminAsset(asset.bytes(), dvAdminContentType(segments.last));
   }
-  final File shell = File('$root${separator}index.html');
-  if (!shell.existsSync()) return null;
-  return DVAdminAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
+  final DVAssetFile? shell = files.file('index.html');
+  if (shell == null) return null;
+  return DVAdminAsset(shell.bytes(), 'text/html; charset=utf-8');
 }
 
 /// Whether [path] resolves to a Studio deferred library chunk (part.js,
@@ -204,9 +206,8 @@ String dvAdminContentType(String relative) {
 /// server knows its queue names from. Read on each request, so a graph that
 /// is missing or unreadable lists no queue of its own rather than failing.
 List<String> dvAdminGraphQueues(String root) {
-  final File graph = File('$root${Platform.pathSeparator}graph.json');
   try {
-    final Object? decoded = jsonDecode(graph.readAsStringSync());
+    final Object? decoded = jsonDecode(utf8.decode(DVAssetSources.at(root).file('graph.json')!.bytes()));
     final Object? jobs = decoded is Map ? decoded['jobs'] : null;
     return <String>{
       if (jobs is List)
@@ -391,14 +392,12 @@ class DVAdminServer {
     if (decoded.startsWith('/') || segments.isEmpty) return false;
     final String last = segments.last.toLowerCase();
     if (last == 'index.html' || last == 'graph.json') return false;
-    final File asset =
-        File(<String>[root, ...segments].join(Platform.pathSeparator));
-    return asset.existsSync() && !FileSystemEntity.isDirectorySync(asset.path);
+    return DVAssetSources.at(root).file(segments.join('/')) != null;
   }
 
   Response _asset(Request request, DVAdminAsset asset, {bool noStore = false}) {
     final Map<String, String> headers = <String, String>{...asset.headers};
-    if (noStore) headers['cache-control'] = 'no-store';
+    if (noStore) headers['cache-control'] = 'private, no-store';
     return Response(
       200,
       headers: Headers(headers),
