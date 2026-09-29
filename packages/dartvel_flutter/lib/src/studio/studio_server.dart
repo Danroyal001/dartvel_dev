@@ -54,7 +54,10 @@ typedef DVStudioTransport = Future<DVStudioReply> Function(
 
 /// The browser's transport: same-origin, with the session cookie, and the
 /// CSRF header every write needs.
-DVStudioTransport dvStudioBrowserTransport() {
+///
+/// [base] goes before every path: `<mount>/` for Studio in the application,
+/// whose pages are at the application's base rather than the mount's.
+DVStudioTransport dvStudioBrowserTransport({String base = ''}) {
   final math.Random random = math.Random.secure();
   const String alphabet =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -63,7 +66,7 @@ DVStudioTransport dvStudioBrowserTransport() {
       alphabet.codeUnitAt(random.nextInt(alphabet.length)),
   ]);
   return (String method, String path, {Object? body}) =>
-      transport.dvStudioSend(method, path, body: body, csrf: csrf);
+      transport.dvStudioSend(method, '$base$path', body: body, csrf: csrf);
 }
 
 /// The page documents published on the server that served this page, from
@@ -498,7 +501,7 @@ class DVStudioClient {
   /// The project graph the build wrote beside Studio: models, routes,
   /// functions and jobs, with the file each is declared in.
   Future<Map<String, Object?>> manifest() async =>
-      _map(await _send('GET', 'graph.json'));
+      _map(await _send('GET', 'api/graph'));
 }
 
 /// A page store kept on the server Studio is served by.
@@ -626,35 +629,8 @@ class _DVStudioAppState extends State<DVStudioApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return DVStudioFrame(
       title: widget.title,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C4BF4)),
-        scaffoldBackgroundColor: DVStudioStyle.canvas,
-        canvasColor: DVStudioStyle.canvas,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF8E74F8),
-          brightness: .dark,
-        ),
-        scaffoldBackgroundColor: DVStudioStyle.canvas,
-        canvasColor: DVStudioStyle.canvas,
-      ),
-      // The system's setting: prefers-color-scheme in a browser. Studio's
-      // colours read DVStudioStyle.dark when they paint, and the subtree is
-      // rebuilt under a new key when it changes, so no widget built for the
-      // other mode is kept.
-      builder: (BuildContext context, Widget? child) {
-        final bool dark =
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-        DVStudioStyle.dark = dark;
-        return KeyedSubtree(
-          key: ValueKey<bool>(dark),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
       home: _settingUp
           ? DVStudioFirstRunScreen(
               client: widget.client,

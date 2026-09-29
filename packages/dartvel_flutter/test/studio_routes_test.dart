@@ -1,0 +1,164 @@
+// Studio is routes of the application, not an application of its own.
+//
+// dvStudioRoutes is what the generated router mounts at the Studio mount:
+// <mount>, guarded by the Studio grant on the client as the server guards it
+// before anything is rendered, and <mount>/login, Studio's sign-in, for
+// anybody. Studio's screens are a deferred library loaded only once the
+// guard has let the caller through, so a caller with no grant never has a
+// Studio section built -- or its code fetched.
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class _Server {
+  _Server({required this.granted});
+
+  bool granted;
+  final List<String> calls = <String>[];
+
+  Future<DVStudioReply> call(String method, String path, {Object? body}) async {
+    calls.add('$method $path');
+    switch ('$method $path') {
+      case 'GET api/access':
+        return DVStudioReply(200, <String, Object?>{'granted': granted});
+      case 'POST api/auth/sign-in':
+        // The operator's account, which holds the grant.
+        granted = true;
+        return const DVStudioReply(200, <String, Object?>{
+          'mfaRequired': false,
+        });
+      case 'GET api/models':
+        return const DVStudioReply(200, <String, Object?>{
+          'models': <Object?>[],
+          'studioModels': <Object?>[],
+        });
+      case 'GET api/site':
+        return const DVStudioReply(200, <String, Object?>{
+          'pages': <Object?>[],
+        });
+      case 'GET api/pages':
+        return const DVStudioReply(200, <String, Object?>{
+          'pages': <Object?>[],
+        });
+    }
+    return const DVStudioReply(404, <String, Object?>{'error': 'not_found'});
+  }
+}
+
+Future<GoRouter> _open(
+  WidgetTester tester,
+  _Server server,
+  String location, {
+  List<String>? opened,
+}) async {
+  tester.view.physicalSize = const Size(1440, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final GoRouter router = GoRouter(
+    initialLocation: location,
+    routes: <RouteBase>[
+      GoRoute(path: '/', builder: (_, _) => const Text('the shop')),
+      ...dvStudioRoutes(
+        mount: '/__studio',
+        title: 'Studio · shop',
+        transport: server.call,
+        open: (String path) => opened?.add(path),
+        location: (GoRouterState state) =>
+            Uri.parse('https://shop.example${state.uri}'),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  await tester.pumpAndSettle();
+  return router;
+}
+
+bool _dataRequested(_Server server) => server.calls.any(
+  (String call) =>
+      call != 'GET api/access' && !call.startsWith('POST api/auth/'),
+);
+
+void main() {
+  setUpAll(dvStudioLoadLibrariesForTest);
+
+  testWidgets('a caller with no grant is sent to the sign-in and never has a '
+      'Studio section built', (WidgetTester tester) async {
+    final _Server server = _Server(granted: false);
+    final GoRouter router = await _open(tester, server, '/__studio');
+
+    expect(router.state.uri.path, '/__studio/login');
+    expect(router.state.uri.queryParameters['from'], '/__studio');
+    expect(find.byType(DVStudioSignInScreen), findsOneWidget);
+    expect(find.byType(DVStudioScreen), findsNothing);
+    expect(find.text('Site map'), findsNothing);
+    expect(find.text('Team'), findsNothing);
+    // Asked whether it may, and nothing else: no records, pages or graph.
+    expect(_dataRequested(server), isFalse, reason: '${server.calls}');
+  });
+
+  testWidgets('a granted caller gets Studio at the mount', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(granted: true);
+    final GoRouter router = await _open(tester, server, '/__studio');
+
+    expect(router.state.uri.path, '/__studio');
+    expect(find.byType(DVStudioScreen), findsOneWidget);
+    expect(find.byType(DVStudioSignInScreen), findsNothing);
+  });
+
+  testWidgets('the sign-in is a route for anybody, and sends a signed-in, '
+      'granted person on to where they were going', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(granted: false);
+    final List<String> opened = <String>[];
+    final GoRouter router = await _open(
+      tester,
+      server,
+      '/__studio/login?from=/__studio',
+      opened: opened,
+    );
+
+    expect(router.state.uri.path, '/__studio/login');
+    expect(find.byType(DVStudioSignInScreen), findsOneWidget);
+    expect(find.byType(DVStudioScreen), findsNothing);
+    expect(_dataRequested(server), isFalse, reason: '${server.calls}');
+
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('dv-studio-sign-in-email')),
+      'ops@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('dv-studio-sign-in-password')),
+      'a-long-enough-password-1',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('dv-studio-sign-in-submit')),
+    );
+    await tester.pumpAndSettle();
+    // Loaded from the server as a page, so the server decides on the grant
+    // before Studio is rendered or its code is handed over.
+    expect(opened, <String>['/__studio']);
+  });
+
+  testWidgets('the grant is asked again on every visit, not remembered', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(granted: true);
+    final GoRouter router = await _open(tester, server, '/');
+    router.go('/__studio');
+    await tester.pumpAndSettle();
+    expect(find.byType(DVStudioScreen), findsOneWidget);
+
+    // The grant is taken away; the next visit is refused on the client too.
+    server.granted = false;
+    router.go('/');
+    await tester.pumpAndSettle();
+    router.go('/__studio');
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/__studio/login');
+    expect(find.byType(DVStudioScreen), findsNothing);
+  });
+}
