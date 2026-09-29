@@ -34,3 +34,10 @@ User restrictions: local commits only; no pushes, merges, publishing, deployment
 - Rust tests: 32 passed before this follow-up; rerun planned after final changes.
 - Benchmark: first exploratory JIT run overlapped tests, so its numbers are discarded. Preparing a compiled benchmark and will measure only after validation jobs finish.
 - Next: commit isolation fix, final full suites, isolated benchmark, documentation/changelog/final report.
+
+## Step 6 — validation and WebSocket lifecycle review
+- Full validation after static isolation: 185 Dart tests passed / 3 skipped; 32 Rust tests passed. Targeted analyzer only found two style notices in the draft benchmark.
+- Review regressions: a one-byte data-message limit wrongly rejected close frames (observed ArgumentError, fixed); server pingInterval disconnected healthy peers when the application had no data listener (observed closed vs open, fixed by tracking native pong acknowledgements); an unlistened channel never completed sink.done after peer closure (observed timeout, cleanup fix currently rebuilding/testing).
+- Benchmark implementation: identical AOT HTTP and echo workloads in fresh processes, three trials, 50 MiB streamed transfers, 16 concurrent hello clients. Early results show native WebSocket polling loses echo throughput and native ordinary downloads use more RSS. Final measurement follows final validation, without overlapping builds/tests.
+- Next: commit lifecycle fixes, format/analyze, final full validation, final isolated benchmark, changelog and handoff report.
+- Lifecycle follow-up result: all seven WebSocket integration tests pass, including all three newly reproduced regressions. Rebuilt linux-x64 and regenerated bindings for the native heartbeat/closure queries.

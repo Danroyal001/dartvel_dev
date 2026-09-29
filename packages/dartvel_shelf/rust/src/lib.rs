@@ -2857,10 +2857,12 @@ use futures_util::SinkExt;
 struct WsBridge {
     server: Option<u64>,
     max: usize,
+    pongs: Arc<AtomicU64>,
     incoming: Mutex<mpsc::Receiver<Message>>,
     outgoing: mpsc::Sender<Message>,
 }
 struct WsPending {
+    pongs: Arc<AtomicU64>,
     max: usize,
     protocol: String,
     incoming: mpsc::Sender<Message>,
@@ -2876,15 +2878,30 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
     let protocol = if protocol.len == 0 { String::new() } else {
         String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(protocol.ptr, protocol.len) }).into_owned()
     };
+    let pongs = Arc::new(AtomicU64::new(0));
     let (in_tx, in_rx) = mpsc::channel(8);
     let (out_tx, out_rx) = mpsc::channel(8);
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).insert(id, WsBridge {
-        server: None, max, incoming: Mutex::new(in_rx), outgoing: out_tx,
+        server: None, max, pongs: pongs.clone(), incoming: Mutex::new(in_rx), outgoing: out_tx,
     });
     safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
-        max, protocol, incoming: in_tx, outgoing: out_rx,
+        max, protocol, pongs, incoming: in_tx, outgoing: out_rx,
     });
     0
+}
+
+/// The native task has ended; remaining received messages are bounded.
+#[no_mangle]
+pub extern "C" fn aw_ws_closed(id: u64) -> i32 {
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).get(&id)
+        .map_or(1, |bridge| if bridge.outgoing.is_closed() { 1 } else { 0 })
+}
+
+/// Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+#[no_mangle]
+pub extern "C" fn aw_ws_pong_count(id: u64) -> u64 {
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).get(&id)
+        .map_or(0, |bridge| bridge.pongs.load(Ordering::Relaxed))
 }
 
 /// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
@@ -2964,6 +2981,7 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let (mut sink, mut stream) = socket.split();
     let mut outgoing = pending.outgoing;
     let incoming = pending.incoming;
+    let pongs = pending.pongs;
     // A blocked incoming queue must not prevent outgoing traffic (or closure).
     let read = async {
         while let Some(message) = stream.next().await {
@@ -2977,6 +2995,12 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
                     return Some(Message::Close(Some(CloseFrame { code, reason: "".into() })));
                 }
             };
+            match &message {
+                // The next tungstenite read flushes its automatic pong.
+                Message::Ping(_) => continue,
+                Message::Pong(_) => { pongs.fetch_add(1, Ordering::Relaxed); continue; },
+                _ => {},
+            }
             let closed = matches!(message, Message::Close(_));
             // Tungstenite queues automatic pong/close replies when reading.
             if incoming.send(message).await.is_err() || closed { break; }

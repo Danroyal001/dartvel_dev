@@ -293,6 +293,29 @@ class DartvelShelfBindings {
   late final _aw_ws_prepare = _aw_ws_preparePtr
       .asFunction<int Function(int, int, FfiStr)>();
 
+  /// The native task has ended; remaining received messages are bounded.
+  int aw_ws_closed(int id) {
+    return _aw_ws_closed(id);
+  }
+
+  late final _aw_ws_closedPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_ws_closed',
+      );
+  late final _aw_ws_closed = _aw_ws_closedPtr.asFunction<int Function(int)>();
+
+  /// Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+  int aw_ws_pong_count(int id) {
+    return _aw_ws_pong_count(id);
+  }
+
+  late final _aw_ws_pong_countPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(ffi.Uint64)>>(
+        'aw_ws_pong_count',
+      );
+  late final _aw_ws_pong_count = _aw_ws_pong_countPtr
+      .asFunction<int Function(int)>();
+
   /// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
   int aw_ws_send(int id, int kind, FfiBuf data) {
     return _aw_ws_send(id, kind, data);
