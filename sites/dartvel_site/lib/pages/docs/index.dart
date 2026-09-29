@@ -54,9 +54,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               '`dartvel update` installs the latest release later.',
             ]),
             DocsNote('Prebuilt binaries are Linux only for now',
-                'As of 2026-09-26, the release binaries behind Homebrew and npm '
-                'are Linux only. The macOS and Windows binaries follow when the '
-                'release workflow can run again.'),
+                'The v0.9.3 release binaries behind Homebrew and npm are Linux '
+                'only, for x64 and arm64. The macOS and Windows binaries follow '
+                'when the release workflow can run again.'),
             ExternalLink('Download a release', kReleasesUrl),
           ],
         ),
@@ -262,10 +262,10 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           title: 'Check what is built before you depend on it',
           children: <Widget>[
             Bullets(<String>[
-              'Dartvel is at 0.6. Some features are complete and some are '
+              'Dartvel is at 0.9. Some features are complete and some are '
                   'partial.',
-              'Twenty-four sections are a frozen public contract with unfinished code '
-                  'behind them.',
+              'Twenty-five sections are a frozen public contract with unfinished '
+                  'code behind them.',
               'Pages in these docs mark partial features and say what is '
                   'missing.',
               'The full record is spec-status.json in the Dartvel repository.',
