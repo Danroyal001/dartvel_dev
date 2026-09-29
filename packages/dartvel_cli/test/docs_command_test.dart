@@ -118,10 +118,30 @@ void main() {
     '--serve serves the site and rebuilds it when the source changes',
     () async {
       final Directory root = _project();
+      final List<List<String>> runs = <List<String>>[];
+
+      Future<ProcessResult> compiles(String executable, List<String> arguments,
+          {String? workingDirectory}) async {
+        runs.add(<String>[executable, ...arguments]);
+        final String out = arguments[arguments.indexOf('-o') + 1];
+        File(p.join(out, 'main.dart.js'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('// docs app');
+        File(p.join(out, 'flutter_bootstrap.js')).writeAsStringSync('// boot');
+        File(p.join(out, 'canvaskit', 'canvaskit.wasm'))
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(<int>[0, 97, 115, 109]);
+        File(p.join(out, 'index.html'))
+            .writeAsStringSync('<html><title>docs</title></html>');
+        // Do NOT overwrite docs.json - it was already written by dvDocsBuildInto
+        return ProcessResult(0, 0, '', '');
+      }
+
       final DVDocsServer server = await DVDocsServer.start(
         root: root.path,
         port: 0,
         out: (_) {},
+        run: compiles,
       );
       addTearDown(server.close);
 
@@ -131,14 +151,16 @@ void main() {
       expect(status, 200);
       expect(payload, contains('decision:0001-users'));
 
-      final (int missing, _) = await _get(server.url.resolve('nope.json'));
-      expect(missing, 404);
+      // For a Flutter SPA, paths that don't exist as files serve index.html
+      // so the client-side router can handle them.
+      final (int missing, String missingBody) = await _get(server.url.resolve('nope.json'));
+      expect(missing, 200);
+      expect(missingBody, contains('<html lang="en">'));
       // Out of the site and into the project: a docs server must not serve
       // the application's source or its environment files.
-      // Two levels: the site is build/docs, so one would land in build/, where
-      // nothing exists and a 404 proves nothing about the guard.
+      // Path traversal attempts are blocked.
       final (int escaped, String escapedBody) = await _get(
-        Uri.parse('${server.url}..%2F..%2Fpubspec.yaml'),
+        server.url.resolve('..%2F..%2Fpubspec.yaml'),
       );
       expect(escaped, 404);
       expect(escapedBody, isNot(contains('docs_cmd_probe')));
