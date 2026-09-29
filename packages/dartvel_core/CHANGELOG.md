@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **The documentation document is here, not in `dartvel_cli`.**
+  `DVDocsDocument`, `DVDocsPage`, the five block kinds, the nine span kinds and
+  `DVDocsTarget` are the wire format `dartvel docs` writes as `docs.json` and
+  `DVDocsApp` reads back. The build that writes it and the application that
+  draws it are in packages that do not depend on each other, so the types live
+  in the one package both can reach rather than being declared twice: a copy
+  is a format one side can change without the other finding out, and this is
+  the same reason `dvNotFoundRoute` is here. `dvDocsPayloadFile`,
+  `dvDocsGraphFile` and `dvDocsNavigation` come with it, because the file the
+  app fetches and the pages it routes are part of the same contract.
 - **`dvNotFoundRoute` and `dvOfflineRoute`**: the two paths an application
   serves when a page cannot be shown, as routes rather than as documents the
   build wrote by hand. The strings live here because the CLI declares them and
