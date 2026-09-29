@@ -640,8 +640,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Documentation Generation',
     '`dartvel docs`',
-    'Present: a static docs site built from your project graph. Absent: running it '
-        'as part of build or dev.',
+    'Present: a docs site drawn by Flutter from your project graph, carried by a '
+        'build when dartvel.docs turns it on. Absent: running it as part of dev.',
   ),
   (
     'App Store Deployment and Privacy Manifests',
