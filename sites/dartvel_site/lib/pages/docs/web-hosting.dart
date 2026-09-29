@@ -75,8 +75,9 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Existing files are served as they are. Every other path loads '
                   'the app, which routes it.',
-              'index.html and main.dart.js are never cached, so a new upload '
-                  'reaches returning visitors.',
+              'index.html, main.dart.js and the service worker are checked '
+                  'with the server on every visit, so a new upload reaches '
+                  'returning visitors.',
               'Put your own web/.htaccess in the project and the build copies '
                   'yours instead.',
             ]),
