@@ -1,3 +1,16 @@
+## Unreleased
+
+- **`/404` and `/offline` are routes in every generated client**, drawn by
+  `DVNotFoundPage` and `DVOfflinePage`. They were documents the build wrote by
+  hand at build time: two pages outside the router, with no theme, no capture
+  and no editor, and the offline one could not have been a page in principle,
+  being served exactly when the network is gone. As routes they prerender
+  through the same `dvRenderRoutePage` as every other page. Neither is in
+  `dartvelRouteManifest` or `DVRoutes` -- those are the pages the application
+  wrote, and a crawler should not be handed two URLs that exist to report a
+  problem -- so `dvNotFoundRoute` and `dvOfflineRoute` are how they are named.
+  A page at either path is the application's and gets no generated route.
+
 ## 0.9.4
 
 - The splash is back while Flutter boots. 0.9.2 showed a page's crawler text as
