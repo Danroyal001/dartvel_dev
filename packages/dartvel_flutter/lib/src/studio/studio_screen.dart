@@ -612,7 +612,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         try {
           site = await source.pages();
         } catch (error) {
-          siteError = '$error';
+          siteError = _cleanError(error);
         }
       }
       final Set<String> listed = <String>{
@@ -651,9 +651,26 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // it as an empty page list would look like the pages were deleted.
       setState(() {
         _loading = false;
-        _error = '$error';
+        _error = _cleanError(error);
       });
     }
+  }
+
+  static String _cleanError(Object error) {
+    final String text = error is Exception
+        ? error.toString().replaceFirst(
+            RegExp(r'^(Exception|Error|StateError|ArgumentError):\s*'), '')
+        : '$error';
+    final String trimmed = text.trim();
+    if (trimmed.startsWith('<') ||
+        trimmed.contains('<!DOCTYPE') ||
+        trimmed.contains('<!doctype') ||
+        trimmed.contains('<html') ||
+        trimmed.contains('<body') ||
+        trimmed.length > 200) {
+      return 'The server answered with an error.';
+    }
+    return text;
   }
 
   Future<void> _open(String route) async {
@@ -685,7 +702,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       if (!mounted || document == null) return;
       _select(document, compiled: compiled);
     } catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      if (mounted) setState(() => _error = _cleanError(error));
     }
   }
 
@@ -839,7 +856,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       _lastPublished = DateTime.now();
       await _loadRoutes();
     } catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      if (mounted) setState(() => _error = _cleanError(error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
