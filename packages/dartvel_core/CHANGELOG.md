@@ -1,3 +1,16 @@
+## 0.9.3
+
+- **Security: Studio never renders for a signed-out visitor.** The admin
+  mount served `<mount>/index.html` as a file, so a signed-out request for it
+  got the Studio app, which drew Studio's screens (its data stayed 404). Every
+  document path under the mount now answers 302 to the Studio sign-in without
+  the Studio grant, and Studio's deferred code chunks need the grant too.
+  Upgrade and redeploy if Studio is enabled.
+- **Data models designed in Studio, and model data API:** Studio data models
+  are stored beside records and served at `/_dartvel/data/<Model>` governed
+  by their access policies. `@DVModel.validate(...)`, `@DVModel.uniqueField()`
+  and `@DVModel(indexes:, access:)` declare the same rules in code.
+
 ## 0.9.2
 
 - DV-BROWNFIELD-001 to 003 are registered with the other diagnostics, as the

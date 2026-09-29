@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.9.3 — 2026-09-29
+
+**Studio lists every page the application has, and data models can be
+designed in Studio.** Pages lists compiled routes from the route
+manifest alongside stored pages, marked Code, Studio or Override;
+compiled pages open read-only, **Edit this page** creates an override, and
+**Restore compiled page** deletes it. In Studio's Data section, data models
+(fields, types, validation rules, relations, indexes, access) are created,
+edited and served with an instant data API at `/_dartvel/data/<Model>`, and
+can be written to `lib/models` as `@DVModel` declarations during development.
+**dartvel_shelf gains native WebSockets, upstream Shelf adapter (`fromShelf`),
+streaming backpressure and native static file serving.** WebSocket connections
+are backed by Axum/tungstenite with event-driven native wakeup callbacks;
+`fromShelf()` mounts existing Shelf pipelines onto the native runtime;
+response bodies stream with bounded-queue backpressure to prevent native
+memory growth; and native static file serving supports byte ranges, HEAD, and
+conditional requests.
+
+dartvel_core, dartvel_flutter, dartvel_cli and dartvel_dev go to 0.9.3;
+dartvel_shelf goes to 0.9.2; dartvel_generator 1.4.2 is unchanged.
 
 ### Added
 
@@ -32,6 +51,20 @@ changes are called out explicitly below.
   `@DVModel.validate(...)`, `@DVModel.uniqueField()` and `@DVModel(indexes:,
   access:)` declare the same rules in code. (dartvel_core, dartvel_flutter,
   dartvel_cli)
+- **Upstream Shelf adapter:** `package:dartvel_shelf/shelf.dart` provides
+  `fromShelf()` to mount existing Shelf pipelines, cascading handlers, and
+  middlewares directly on Dartvel's native server runtime. (dartvel_shelf)
+- **Native WebSockets:** `package:dartvel_shelf/web_socket.dart` provides
+  `webSocketHandler` and `wsHandler` backed by Axum and tungstenite with
+  event-driven native frame delivery callbacks (`aw_register_ws_wakeup_handler`).
+  (dartvel_shelf)
+- **Response and request body streaming with backpressure:** Bounded-queue
+  backpressure prevents unbounded native memory growth when clients read
+  slowly; request bodies are pulled chunk-by-chunk. (dartvel_shelf)
+- **Native static file serving:** Native static asset handling streams via
+  `tower-http` `ServeFile` with byte ranges (`206`, `416`), `HEAD`, conditional
+  requests (`ETag`, `If-Modified-Since`), and path traversal protection.
+  (dartvel_shelf)
 
 ## 0.9.2 — 2026-09-28
 

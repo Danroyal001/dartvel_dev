@@ -304,7 +304,7 @@ run as a global command.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
-and Windows on x64, Linux and macOS on arm64. (0.9.2, released 2026-09-28,
+and Windows on x64, Linux and macOS on arm64. (0.9.3, released 2026-09-29,
 ships Linux binaries first; macOS and Windows follow when the release workflow
 runs.) Then put it on your PATH:
 
@@ -323,7 +323,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.9.2
+  dartvel_dev: ^0.9.3
 ```
 
 Or the pieces directly, where you want only some of them:
