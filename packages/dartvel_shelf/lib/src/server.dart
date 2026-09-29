@@ -212,10 +212,10 @@ Future<ServerHandle> serve(
       dylib.providesSymbol('aw_configure_request_timeout');
   final bool acknowledgesRequests = dylib.providesSymbol('aw_request_received');
   // A request body is read a chunk at a time rather than whole when both
-  // halves can do it. This side is detected rather than assumed for the same
-  // reason the timeout above is: the pairing is by name, so a library that
-  // predates streaming gets the whole body it has always been given, and a
-  // Dart that does can still read one from a library that does not.
+  // halves can do it. Detected rather than assumed, and by name rather than by
+  // ABI, because the pairing is what makes this safe either way: a library
+  // without the symbols reads every body whole, as it always did, and this
+  // side reads those bytes as it always did.
   final bool streamsRequestBodies =
       dylib.providesSymbol('aw_register_body_chunk_handler') &&
           dylib.providesSymbol('aw_body_next_chunk');
@@ -297,10 +297,10 @@ Future<ServerHandle> serve(
   final effective = preview == null ? routed : preview.wrap(routed);
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
-  // The body of each request being read, keyed by the request the native side
-  // will deliver its chunks for. Removed when the request is answered, so a
-  // chunk that arrives after the handler is done is dropped rather than
-  // filling a map that is never read again.
+  // The body of each request being read, keyed by the request its chunks will
+  // be delivered for. Dropped when the request is answered, so a chunk that
+  // arrives after its handler is done goes nowhere rather than into a map
+  // nothing reads again.
   final bodies = <int, RequestBodyStream>{};
   final authority = host.contains(':') && !host.startsWith('[') ? '[$host]' : host;
   // The port a request's URL names. The bound one once the server is up, which
@@ -323,8 +323,7 @@ Future<ServerHandle> serve(
     // out answers.
     final Request req;
     // A body this side can pull, or null for a request whose body the native
-    // side read whole -- a library that cannot stream one, which is a Dart
-    // that has not been rebuilt against this API.
+    // side read whole -- a library that cannot stream one.
     final RequestBodyStream? bodyStream =
         streamsRequestBodies ? RequestBodyStream(reqId, api) : null;
     try {
@@ -339,8 +338,8 @@ Future<ServerHandle> serve(
         authority: authority,
         port: urlPort,
       );
-      // Only once the request exists: a chunk delivered before this would have
-      // nowhere to go, and the body is read as soon as the handler pulls.
+      // Only once the request exists, so a chunk that arrives before this has
+      // nowhere to go and the body is read as soon as the handler pulls.
       if (bodyStream != null) bodies[reqId] = bodyStream;
       // Copied out, so the native side may free what it passed. Until this
       // it keeps them, because a listener runs when the isolate gets to it,
@@ -361,6 +360,48 @@ Future<ServerHandle> serve(
     Future<void>(() async {
       try {
         final resp = await effective(req);
+        // A body the handler marked as a stream is sent as one. So is any body
+        // that turns out not to be small: the client gets each piece as the
+        // handler produces it rather than waiting for the last one, which is
+        // the whole difference for a report that builds itself, a generated
+        // file, or a page assembled from a generator. Only a body that is
+        // already whole goes as one copy -- reading a small one costs what
+        // producing it costs, and the client gets a length rather than framing
+        // it has to reassemble.
+        final bool marked = resp.isStream ||
+            resp.headers.get('content-type')?.contains('text/event-stream') ==
+                true;
+        Uint8List buffered = Uint8List(0);
+        Stream<List<int>>? source;
+        if (resp.body != null && !marked) {
+          final int? declared =
+              int.tryParse(resp.headers.get('content-length') ?? '');
+          // A declared length is the handler's own answer for how big this is,
+          // so it is the bound to keep to. Failing that, a body no larger than
+          // [_bufferedResponseBytes] is read whole and one past that is sent
+          // as a stream from the piece that crossed the line.
+          final int cap = declared != null &&
+                  declared >= 0 &&
+                  declared < _bufferedResponseBytes
+              ? declared
+              : _bufferedResponseBytes;
+          final StreamIterator<List<int>> parts =
+              StreamIterator<List<int>>(resp.body!.stream);
+          final List<int> prefix = <int>[];
+          bool whole = true;
+          while (await parts.moveNext()) {
+            prefix.addAll(parts.current);
+            if (prefix.length > cap) {
+              whole = false;
+              break;
+            }
+          }
+          buffered = whole ? Uint8List.fromList(prefix) : buffered;
+          // Past the line: the part already read goes first, and the rest is
+          // taken from the same iterator as it is produced.
+          if (!whole) source = _restOfBody(prefix, parts);
+        }
+
         final hdrsFlat = encodeHeaders(resp.headers.multiValueMap);
         final hdrsNative = pkgffi.malloc<ffi.Uint8>(hdrsFlat.length)
           ..asTypedList(hdrsFlat.length).setAll(0, hdrsFlat);
@@ -370,12 +411,7 @@ Future<ServerHandle> serve(
         out.ref.hdrs = hdrsNative.cast();
         out.ref.hdrs_len = hdrsFlat.length;
 
-        final isSse =
-            resp.headers.get('content-type')?.contains('text/event-stream') ==
-                true;
-        final isStream = resp.isStream || isSse;
-
-        if (isStream && resp.body != null) {
+        if ((marked || source != null) && resp.body != null) {
           out.ref.is_stream = 1;
           final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
           bodyBuf.ref.ptr = ffi.Pointer.fromAddress(0);
@@ -392,7 +428,7 @@ Future<ServerHandle> serve(
           if (accepted != 0) return;
 
           late StreamSubscription<List<int>> subscription;
-          subscription = resp.body!.stream.listen(
+          subscription = (source ?? resp.body!.stream).listen(
             (chunk) {
               final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
                 ..asTypedList(chunk.length).setAll(0, chunk);
@@ -418,13 +454,12 @@ Future<ServerHandle> serve(
           activeSubscriptions[reqId] = subscription;
         } else {
           out.ref.is_stream = 0;
-          final bodyData = await resp.body?.bytesU8() ?? Uint8List(0);
-          final bodyNative = pkgffi.malloc<ffi.Uint8>(bodyData.length)
-            ..asTypedList(bodyData.length).setAll(0, bodyData);
+          final bodyNative = pkgffi.malloc<ffi.Uint8>(buffered.length)
+            ..asTypedList(buffered.length).setAll(0, buffered);
 
           final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
           bodyBuf.ref.ptr = bodyNative.cast();
-          bodyBuf.ref.len = bodyData.length;
+          bodyBuf.ref.len = buffered.length;
           out.ref.body = bodyBuf.ref;
 
           api.aw_complete(reqId, out.ref);
@@ -557,6 +592,28 @@ Future<ServerHandle> serve(
 
   return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
       dartRequestHandler, dartCancelHandler, dartBodyChunkHandler);
+}
+
+/// A response body no larger than this is sent in one piece.
+///
+/// Small enough that a body under it is nearly always already in hand -- a
+/// page, an API answer, an error -- and reading it costs no more than
+/// producing it. Past it, holding a body to find out whether it is small is
+/// the thing being avoided.
+const int _bufferedResponseBytes = 64 * 1024;
+
+/// The bytes already read from a body that turned out not to be small, then the
+/// rest of it as the handler produces it.
+///
+/// A generator rather than a concatenation, so the part that was read is not
+/// held twice and the rest is not run ahead of the client: the native side
+/// takes each piece as it is produced.
+Stream<List<int>> _restOfBody(
+    List<int> prefix, StreamIterator<List<int>> rest) async* {
+  yield prefix;
+  while (await rest.moveNext()) {
+    yield rest.current;
+  }
 }
 
 /// A request that cannot be served as written, and why, in words chosen here:
