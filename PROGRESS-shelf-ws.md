@@ -28,3 +28,9 @@ User restrictions: local commits only; no pushes, merges, publishing, deployment
 - Tests: all three static integration tests failed against the previous library and pass after rebuilding.
 - Next: commit static changes, run all Dart/Rust tests and the three-trial benchmark in fresh worker processes.
 - Blockers/remaining scope: raw hijack, actual HTTP version metadata, configurable graceful shutdown and inherited generic HTTP response backpressure require further ABI work. These are not claimed complete.
+
+## Step 5 — full-suite isolation regression
+- Done: full Dart suite found native static configuration shared across servers. Added deterministic two-server regression; observed 404 instead of 200. Moved static/SPA roots into per-thread pending configuration captured as per-server request extensions; all four static tests now pass.
+- Rust tests: 32 passed before this follow-up; rerun planned after final changes.
+- Benchmark: first exploratory JIT run overlapped tests, so its numbers are discarded. Preparing a compiled benchmark and will measure only after validation jobs finish.
+- Next: commit isolation fix, final full suites, isolated benchmark, documentation/changelog/final report.
