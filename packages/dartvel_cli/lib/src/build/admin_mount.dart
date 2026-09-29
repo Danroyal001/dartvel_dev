@@ -127,3 +127,24 @@ bool dvPageBelongsToClient(String path, {required DVAdminMount? admin}) {
   final String normalised = path.replaceAll(r'\', '/');
   return !normalised.contains('/$dvAdminPagesDirectory/');
 }
+
+/// The compile-time define a build passes (`--dart-define=dartvel.studio=true`)
+/// when it serves Studio.
+///
+/// The generated router mounts Studio's routes behind
+/// `const bool.fromEnvironment(dvStudioDefine)`, so a build that does not
+/// serve Studio -- a static web export, a phone, a desktop -- compiles the
+/// branch away and carries none of Studio's code.
+const String dvStudioDefine = 'dartvel.studio';
+
+/// Where the generated router mounts Studio, or null when the application
+/// turned Studio off (`dartvel.admin.enabled: false`) or its mount is not one
+/// a request can reach. Whether a given build compiles the routes in is
+/// [dvStudioDefine]'s, decided per build.
+String? dvStudioRouteMount(Object? dartvel) {
+  final Object? admin = dartvel is Map ? dartvel['admin'] : null;
+  if (admin is Map && admin['enabled'] == false) return null;
+  final DVAdminMount mount = dvAdminMount(dartvel, release: false);
+  if (dvAdminMountProblem(mount.path) != null) return null;
+  return mount.path;
+}
