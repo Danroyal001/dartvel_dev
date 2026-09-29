@@ -19,10 +19,13 @@ String dvSeoHead({
   Map<String, String> alternates = const <String, String>{},
   String? defaultAlternate,
   String type = 'website',
+  String? robots,
 }) {
   final tags = <String>[
     '<title>${_escapeText(title)}</title>',
     _meta('name', 'description', description),
+    // Only when the page asks: no tag is every crawler's default, index.
+    _meta('name', 'robots', robots),
     if (siteUrl != null && siteUrl.isNotEmpty)
       '<link rel="canonical" href="${_escapeAttribute(siteUrl)}">',
     // hreflang, one link per language this page exists in. Without them a

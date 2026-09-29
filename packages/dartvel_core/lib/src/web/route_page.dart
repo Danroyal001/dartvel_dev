@@ -39,6 +39,7 @@ String dvStaticPage({
   String? defaultAlternate,
   String? favicon,
   String? schemaType,
+  String? robots,
 }) {
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
@@ -79,6 +80,7 @@ String dvStaticPage({
       siteName: siteName,
       alternates: alternates,
       defaultAlternate: defaultAlternate,
+      robots: robots,
     ) + (jsonLd.isEmpty ? '' : '\n$jsonLd'),
   );
 
@@ -139,6 +141,7 @@ class DVRoutePage {
     this.defaultAlternate,
     this.favicon,
     this.schemaType,
+    this.robots,
     this.content,
     this.html,
     this.text = const <String>[],
@@ -159,6 +162,7 @@ class DVRoutePage {
         defaultAlternate: json['defaultAlternate'] as String?,
         favicon: json['favicon'] as String?,
         schemaType: json['schemaType'] as String?,
+        robots: json['robots'] as String?,
         content: json['content'] as String?,
         html: json['html'] as String?,
         text: <String>[
@@ -181,6 +185,11 @@ class DVRoutePage {
 
   /// What the page is, for its structured data; null is a WebPage.
   final String? schemaType;
+
+  /// What crawlers may do with the page, as a robots meta says it:
+  /// `noindex, nofollow` for a page no search engine should keep, such as
+  /// Studio's. Null writes no tag.
+  final String? robots;
 
   /// Prerendered text a model page carries in its metadata.
   final String? content;
@@ -206,6 +215,7 @@ class DVRoutePage {
           defaultAlternate: defaultAlternate,
           favicon: favicon,
           schemaType: schemaType,
+          robots: robots,
           content: content,
           html: html,
           text: text,
@@ -222,6 +232,7 @@ class DVRoutePage {
         if (defaultAlternate != null) 'defaultAlternate': defaultAlternate,
         if (favicon != null) 'favicon': favicon,
         if (schemaType != null) 'schemaType': schemaType,
+        if (robots != null) 'robots': robots,
         if (content != null) 'content': content,
         if (html != null) 'html': html,
         if (text.isNotEmpty) 'text': text,
@@ -253,6 +264,7 @@ String dvRenderRoutePage(
     defaultAlternate: page.defaultAlternate,
     favicon: page.favicon,
     schemaType: page.schemaType,
+    robots: page.robots,
     content: page.content,
   );
   final String? captured = page.html;

@@ -72,4 +72,17 @@ void main() {
     final DVRoutePage back = DVRoutePage.fromJson(page.toJson());
     expect(dvRenderRoutePage(_shell, back), dvRenderRoutePage(_shell, page));
   });
+
+  test('a route that asks not to be indexed says so in its own head', () {
+    // Studio's pages are routes of the application, rendered by this same
+    // function, and nothing about an operator's screen belongs in a search
+    // engine. A page that says nothing gets no robots tag at all.
+    const DVRoutePage studio = DVRoutePage(
+        route: '/__studio', title: 'Studio', robots: 'noindex, nofollow');
+    final String html = dvRenderRoutePage(_shell, studio);
+    expect(html, contains('<meta name="robots" content="noindex, nofollow">'));
+    expect(dvRenderRoutePage(_shell, DVRoutePage.fromJson(studio.toJson())),
+        html);
+    expect(dvRenderRoutePage(_shell, page), isNot(contains('name="robots"')));
+  });
 }
