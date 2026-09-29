@@ -124,6 +124,7 @@ export 'src/diagnostics/startup_profile.dart';
 // do not depend on each other.
 export 'src/docs/docs_document.dart';
 export 'src/docs/docs_mount.dart';
+export 'src/docs/docs_server.dart';
 export 'src/edge/bot_protection.dart';
 export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
