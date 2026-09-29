@@ -4549,6 +4549,7 @@ List<String> resolveFlutterBuildArguments({
   String? format,
   bool codesign = true,
   String? exportOptionsPlist,
+  bool studio = false,
 }) {
   final bool bundle = platform == 'android' && format == 'aab';
   final bool ipa = platform == 'ios' && format == 'ipa';
@@ -4605,6 +4606,13 @@ List<String> resolveFlutterBuildArguments({
   // that checks passwords in the browser tab.
   if (platform == 'web-server') {
     args.add('--dart-define=DARTVEL_WEB_SERVER=true');
+  }
+
+  // Studio's routes, compiled into the application only where the server
+  // that guards them is part of the build. A static export has no server,
+  // so it never carries Studio, whatever it is asked.
+  if (platform == 'web-server' && studio) {
+    args.add('--dart-define=$dvStudioDefine=true');
   }
 
   if (platform == 'android' && splitPerAbi && !bundle) {
