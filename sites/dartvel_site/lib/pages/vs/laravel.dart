@@ -52,17 +52,17 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
             DocsTable(
               columns: <String>['', 'Laravel', 'Dartvel'],
               rows: <List<String>>[
-                <String>['Data models', 'Eloquent', '@DVModel: table, typed client, form and admin from one class'],
-                <String>['Migrations', 'php artisan make:migration, written by hand, then migrate', 'Generated from the model, run on start'],
+                <String>['Data models', 'Eloquent', '@DVModel: table, typed client, form, admin and a public page per record from one class'],
+                <String>['Migrations', 'php artisan make:migration, written by hand, then migrate', 'Generated from the model. SQLite is migrated on start; PostgreSQL and MySQL with dartvel db migrate'],
                 <String>['CLI', 'artisan', 'dartvel'],
-                <String>['Queues and jobs', 'Queues with delays, retries, backoff, unique jobs and batches; Horizon', 'DV.Jobs, DV.Queues, @DVJob. No delayed jobs, backoff or unique jobs yet'],
-                <String>['Scheduling', 'Task scheduling', '@DVSchedule'],
+                <String>['Queues and jobs', 'Queues with delays, retries, backoff, unique jobs and batches; Horizon', 'DV.Jobs, DV.Queues, @DVJob: priorities, retries and dead letters on seven adapters. No delayed jobs, growing backoff or unique jobs yet'],
+                <String>['Scheduling', 'Task scheduling', '@DVBackendCron on the server, @DVClientCron in the app'],
                 <String>['Mail', 'Mail, Mailable', 'DV.Notifications.mail'],
                 <String>['Realtime', 'Event broadcasting over Reverb, its WebSocket server', 'Model change streams inside one process. Delivery to devices is not built yet'],
-                <String>['Auth', 'Starter kits, Fortify with two-factor and passkeys, Sanctum, Passport; WorkOS AuthKit for SSO', 'Sessions, passkeys, SAML, LDAP, second factors'],
+                <String>['Auth', 'Starter kits, Fortify with two-factor and passkeys, Sanctum, Passport; WorkOS AuthKit for SSO', 'Sessions, passkeys, OAuth sign-in, SAML, LDAP, second factors, API keys, and an OAuth 2.1 provider for your own API'],
                 <String>['Policies', 'Gates and policies', 'DV.Auth.authorization, in Dart'],
                 <String>['Admin', 'Nova (paid) or Filament', 'Studio, in your own binary, free'],
-                <String>['Views', 'Blade, Livewire, or Inertia with React, Vue or Svelte', 'Flutter pages: the same code on the web and on a phone'],
+                <String>['Views and forms', 'Blade, Livewire, or Inertia with React, Vue or Svelte; forms written in the view', 'Flutter pages: the same code on the web and on a phone. Invoice.Form() creates a record and invoice.Form() edits one, generated from the model'],
                 <String>['Deployment', 'Forge, Vapor, Laravel Cloud', 'One file from `dartvel build web-server`'],
               ],
             ),
@@ -80,13 +80,11 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                 'it are compiled together.'),
             CodeBlock(<String>[
               '@DVBackendFunction()',
-              'Future<List<Invoice>> _unpaid(DVContext context) async => <Invoice>[',
-              '      for (final Invoice i in await Invoice.all())',
-              '        if (i.paidAt == null) i,',
-              '    ];',
+              'Future<int> _priceWithVat(int cents, String country) async =>',
+              '    cents + cents * vatPercent(country) ~/ 100;',
               '',
               '// in a page: typed, generated, no route string',
-              'final List<Invoice> owing = await unpaid();',
+              "final int total = await priceWithVat(cents: 1999, country: 'NG');",
             ]),
             Bullets(<String>[
               'Pages are files: lib/pages/invoices/[id].dart is '
@@ -94,6 +92,10 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                   'at compile time.',
               'The same page renders on the web, Android, iOS, desktop and a '
                   'TV.',
+              'A backend function cannot use the generated data models yet: '
+                  'they import Flutter, and the server is pure Dart. The app '
+                  'reads and writes them, and Studio and the data API serve '
+                  'them.',
               'Data models run on SQLite, Postgres and MySQL today. A '
                   'storage-neutral records layer is under way, and MongoDB is '
                   'planned. Laravel reaches MongoDB today through the '
@@ -111,12 +113,20 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
                   'and a book for everything else.',
               'Forge, Vapor and Laravel Cloud are running services you can '
                   'pay for this afternoon. Dartvel Cloud is not open yet.',
-              "Laravel's queues delay, back off and deduplicate jobs, and "
-                  'Reverb broadcasts events to browsers and apps today. '
-                  "Dartvel's queues do none of those three yet, and its model "
-                  'changes do not leave the process they happen in.',
-              'If your product is a website with forms, Blade and Livewire '
-                  'are less machinery than shipping a Flutter application.',
+              "Laravel's queues delay jobs, grow the wait between retries "
+                  'and deduplicate jobs, and Reverb broadcasts events to '
+                  "browsers and apps today. Dartvel's queues do none of those "
+                  'three yet, and its model changes do not leave the process '
+                  'they happen in.',
+              'Forms are not the difference: every data model here has one, '
+                  'with a typed builder when you want your own layout. What '
+                  'the browser downloads is. A Blade page is HTML from the '
+                  'server. A Dartvel page is its text in HTML, then a Flutter '
+                  'app that has to arrive before the page is interactive: '
+                  'about 4 MB on this site, most of it the compiled app and '
+                  'the renderer. For a '
+                  'site that has to be light on a slow phone, Blade and '
+                  'Livewire send less.',
             ]),
             VersusFair('Dartvel is not trying to replace Laravel on the web. '
                 'It is answering the question people ask when they have a '
