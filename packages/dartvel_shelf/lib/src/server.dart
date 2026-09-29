@@ -23,6 +23,8 @@ import 'native_library.dart';
 export 'native_library.dart' show embedNativeServerLibrary;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
+import 'mime_type.dart';
+export 'mime_type.dart' show getMimeType;
 import 'request_body.dart';
 import 'web_socket.dart';
 import 'ssr_helper.dart';
@@ -1076,37 +1078,5 @@ void _configureBodyLimits(gen.DartvelShelfBindings api, int maxBodyBytes,
     if (routeRc != 0) {
       throw StateError('Route body limit config failed (code=$routeRc)');
     }
-  }
-}
-
-String getMimeType(String path) {
-  // iOS refuses the Universal Links document as anything but JSON, and its
-  // name has no extension to say so.
-  if (p.basename(path) == 'apple-app-site-association') {
-    return 'application/json';
-  }
-  final ext = p.extension(path).toLowerCase();
-  switch (ext) {
-    case '.html':
-      return 'text/html';
-    case '.css':
-      return 'text/css';
-    case '.js':
-      return 'application/javascript';
-    case '.png':
-      return 'image/png';
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.gif':
-      return 'image/gif';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.json':
-      return 'application/json';
-    case '.wasm':
-      return 'application/wasm';
-    default:
-      return 'application/octet-stream';
   }
 }
