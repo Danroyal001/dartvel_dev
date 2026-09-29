@@ -54,7 +54,7 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
                 <String>['Generators', 'rails generate, including scaffold: model, migration, controller, views and forms', '`dartvel dev` regenerates on save'],
                 <String>['Background jobs', 'Active Job on Solid Queue, the default since Rails 8', 'DV.Jobs, DV.Queues, @DVJob'],
                 <String>['Mail', 'Action Mailer', 'DV.Notifications.mail'],
-                <String>['Auth', 'bin/rails generate authentication, built in since Rails 8', 'Sessions, passkeys, SAML, LDAP, second factors'],
+                <String>['Auth', 'bin/rails generate authentication, built in since Rails 8', 'Sessions, passkeys, OAuth sign-in, SAML, LDAP, second factors'],
                 <String>['Admin', 'None built in; ActiveAdmin or Avo', 'Studio, in your own binary, free'],
                 <String>['Views', 'ERB and Hotwire', 'Flutter pages: web, phone, desktop and TV'],
                 <String>['Strong parameters', 'params.expect and permit in the controller', 'Typed function arguments, checked by the compiler'],
@@ -68,8 +68,8 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
             Eyebrow('CONVENTION'),
             Heading('One class, and the boring files are already written.'),
             Body('A model declares fields. From that come the table, the '
-                'typed client, a form with validation and error messages, a '
-                'table widget, an admin screen and, unless you opt out, '
+                'typed client, a form with an input per field, a table '
+                'widget, an admin screen and, unless you opt out, '
                 'public pages with their own sitemap entries. rails generate '
                 'scaffold writes much of the same once, as files you then '
                 'own and edit; here they are regenerated from the class '
@@ -88,8 +88,10 @@ Widget _vsRailsPage(BuildContext context) => const SingleChildScrollView(
               'Models publish change streams to watchers in the same '
                   'process. Carrying a change to another server or a phone '
                   'is not built yet.',
-              'Forms come from the fields: DVForm<Article> is the inputs, the '
-                  'validation and the messages.',
+              'Forms come from the fields: Article.Form() creates a record '
+                  'and article.Form() edits one, and saving is what the form '
+                  'does. @DVModel.validate and @DVModel.uniqueField set the '
+                  'rules a write has to meet.',
             ]),
           ],
         ),

@@ -53,8 +53,8 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
             Eyebrow('ALSO ASKED'),
             Heading('Can I build a Flutter app without a Mac?'),
             Body('Mostly yes, and the honest answer has a shape: everything '
-                'except an iOS or macOS build runs on any computer today, '
-                'and the two that do not have a route that is not buying a '
+                'except an iOS, macOS or Apple TV build needs no Mac today, '
+                'and the three that do have a route that is not buying a '
                 'Mac.'),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('Flutter without a Mac', '/flutter-without-a-mac'),
