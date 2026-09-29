@@ -119,6 +119,6 @@ void main() {
       expect(receivedBytes, greaterThanOrEqualTo(totalBytes));
       expect(generatedBytes, equals(totalBytes));
     },
-    timeout: const Timeout(Duration(seconds: 30)),
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }

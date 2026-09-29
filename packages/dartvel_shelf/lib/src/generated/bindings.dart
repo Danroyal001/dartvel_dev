@@ -64,6 +64,17 @@ class DartvelShelfBindings {
       _aw_register_stream_ack_handlerPtr
           .asFunction<void Function(DartStreamAckHandler)>();
 
+  void aw_register_ws_wakeup_handler(DartWsWakeupHandler cb) {
+    return _aw_register_ws_wakeup_handler(cb);
+  }
+
+  late final _aw_register_ws_wakeup_handlerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(DartWsWakeupHandler)>>(
+        'aw_register_ws_wakeup_handler',
+      );
+  late final _aw_register_ws_wakeup_handler = _aw_register_ws_wakeup_handlerPtr
+      .asFunction<void Function(DartWsWakeupHandler)>();
+
   int aw_configure_cors(FfiStr config_json) {
     return _aw_configure_cors(config_json);
   }
@@ -414,6 +425,10 @@ typedef DartStreamAckHandlerFunction = ffi.Void Function(ffi.Uint64);
 typedef DartDartStreamAckHandlerFunction = void Function(int);
 typedef DartStreamAckHandler =
     ffi.Pointer<ffi.NativeFunction<DartStreamAckHandlerFunction>>;
+typedef DartWsWakeupHandlerFunction = ffi.Void Function(ffi.Uint64);
+typedef DartDartWsWakeupHandlerFunction = void Function(int);
+typedef DartWsWakeupHandler =
+    ffi.Pointer<ffi.NativeFunction<DartWsWakeupHandlerFunction>>;
 typedef DartBodyChunkHandlerFunction = ffi.Void Function(
   ffi.Uint64,
   FfiBuf,

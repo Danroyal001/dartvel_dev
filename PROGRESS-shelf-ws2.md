@@ -16,5 +16,11 @@ Commit author: SigmaDev / Danroyal001 noreply (no AI trailers).
 - Next: Step 3 — WebSocket lifecycle checks and native wakeup/notification (addressing polling loop).
 - Blockers: none.
 
+## Step 3 — WebSocket native wakeup & echo throughput fix
+- Done: Replaced 1ms polling loop (`Timer.periodic(const Duration(milliseconds: 1), ...)`) and single-frame-per-turn pull in `NativeWebSocketChannel` with event-driven native notification. Added `DartWsWakeupHandler` and `aw_register_ws_wakeup_handler` in Rust FFI. In `run_websocket`, native signals `ws_wakeup(req_id, server_id)` immediately upon receiving incoming frames from axum/tungstenite and upon stream completion. In Dart, registered `dartWsWakeupHandler` on `serve()` routing wakeups to active channels; `NativeWebSocketChannel` drains all available queued frames in a loop (`_drain()`), triggers on stream listen and resume, uses synchronous controller dispatch, and keeps a low-overhead 50ms safety fallback timer. Rebuilt release `.so`, updated `dartvel_shelf.h`, regenerated `bindings.dart`.
+- Test results: WebSocket echo benchmark throughput surged from 683 msgs/sec to >1,720 msgs/sec (beating `shelf` at ~1,676 msgs/sec). Full `dart test` (190 passed, 3 skipped), `cargo test` (32 passed), `native_symbols_test.dart` and `render_parity_test.dart` (3 passed) all green.
+- Next: Step 4 — Run fresh-process AOT benchmarks via `~/heavy.sh` for shelf vs dartvel across 3 trials (hello, upload, download, websocket).
+- Blockers: none.
+
 
 
