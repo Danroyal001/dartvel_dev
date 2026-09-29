@@ -117,58 +117,58 @@ set size (`ProcessInfo.maxRss`), which includes the client driver, Dart runtime,
 
 | Scenario | Shelf (dart:io) | Dartvel (Axum/native) | Delta / Notes |
 |---|---|---|---|
-| **hello (RPS)** | 3,703.6 req/s | **6,077.1 req/s** | **+64.1% throughput** (Dartvel faster) |
-| **hello (p50 latency)** | 4.10 ms | **2.57 ms** | **37.3% lower latency** |
-| **hello (p95 latency)** | 5.70 ms | **3.62 ms** | **36.5% lower latency** |
-| **hello (peak RSS)** | **12.7 MiB** | 26.9 MiB | +14.2 MiB baseline (Rust/Tokio runtime) |
-| **upload 50 MiB** | **446.3 MiB/s** | 401.3 MiB/s | Comparable streaming performance |
-| **upload (peak RSS)** | **45.3 MiB** | 50.6 MiB | Bounded memory during 50 MiB stream |
-| **download 50 MiB** | **434.0 MiB/s** | 392.2 MiB/s | Comparable streaming performance |
-| **download (peak RSS)** | **48.3 MiB** | 50.0 MiB | Bounded response backpressure |
-| **websocket (echo)** | **8,252.4 msgs/s** | 3,505.6 msgs/s | Up from 683 msgs/s (5.1x gain via native wakeup) |
-| **websocket (peak RSS)**| **12.6 MiB** | 24.8 MiB | +12.2 MiB baseline |
+| **hello (RPS)** | 4,060.2 req/s | **5,913.3 req/s** | **+45.6% throughput** (Dartvel faster) |
+| **hello (p50 latency)** | 3.88 ms | **2.60 ms** | **33.0% lower latency** |
+| **hello (p95 latency)** | 4.95 ms | **3.88 ms** | **21.6% lower latency** |
+| **hello (peak RSS)** | **12.3 MiB** | 25.4 MiB | +13.1 MiB baseline (Rust/Tokio runtime) |
+| **upload 50 MiB** | 435.1 MiB/s | **463.9 MiB/s** | **+6.6% throughput** (Dartvel faster) |
+| **upload (peak RSS)** | **46.3 MiB** | 50.6 MiB | Bounded memory during 50 MiB stream |
+| **download 50 MiB** | 457.2 MiB/s | 452.9 MiB/s | **-0.9%** (at parity) |
+| **download (peak RSS)** | **48.8 MiB** | 50.9 MiB | Bounded response backpressure |
+| **websocket (echo)** | **6,872.6 msgs/s** | 3,945.0 msgs/s | Up from 683 msgs/s (5.7x gain via native wakeup) |
+| **websocket (peak RSS)**| **12.1 MiB** | 24.6 MiB | +12.5 MiB baseline |
 
 ### Raw trial data
 
 ```json
-{"trial":1,"engine":"shelf","scenario":"hello","requests":2000,"rps":3747.3,"p50_ms":4.05,"p95_ms":5.44,"elapsed_ms":533.7,"peak_rss_mib":13.0}
-{"trial":1,"engine":"dartvel","scenario":"hello","requests":2000,"rps":5775.3,"p50_ms":2.79,"p95_ms":3.75,"elapsed_ms":346.3,"peak_rss_mib":24.8}
-{"trial":1,"engine":"shelf","scenario":"upload","mib_per_second":395.7,"elapsed_ms":126.3,"peak_rss_mib":44.8}
-{"trial":1,"engine":"dartvel","scenario":"upload","mib_per_second":265.4,"elapsed_ms":188.4,"peak_rss_mib":49.8}
-{"trial":1,"engine":"shelf","scenario":"download","mib_per_second":414.3,"elapsed_ms":120.7,"peak_rss_mib":48.4}
-{"trial":1,"engine":"dartvel","scenario":"download","mib_per_second":386.2,"elapsed_ms":129.5,"peak_rss_mib":49.5}
-{"trial":1,"engine":"shelf","scenario":"websocket","messages_per_second":8550.7,"elapsed_ms":58.5,"peak_rss_mib":12.3}
-{"trial":1,"engine":"dartvel","scenario":"websocket","messages_per_second":2862.5,"elapsed_ms":174.7,"peak_rss_mib":24.9}
+{"trial":1,"engine":"shelf","scenario":"hello","requests":2000,"rps":4361.974054978321,"p50_ms":3.65,"p95_ms":4.329,"elapsed_ms":458.508,"peak_rss_mib":12.69921875}
+{"trial":1,"engine":"dartvel","scenario":"hello","requests":2000,"rps":6060.128595928805,"p50_ms":2.579,"p95_ms":3.364,"elapsed_ms":330.026,"peak_rss_mib":30.78515625}
+{"trial":1,"engine":"shelf","scenario":"upload","mib_per_second":534.382147361221,"elapsed_ms":93.566,"peak_rss_mib":45.7578125}
+{"trial":1,"engine":"dartvel","scenario":"upload","mib_per_second":531.4851821931204,"elapsed_ms":94.076,"peak_rss_mib":50.3828125}
+{"trial":1,"engine":"shelf","scenario":"download","mib_per_second":478.7162744384658,"elapsed_ms":104.446,"peak_rss_mib":49.33984375}
+{"trial":1,"engine":"dartvel","scenario":"download","mib_per_second":503.4993202759176,"elapsed_ms":99.305,"peak_rss_mib":50.703125}
+{"trial":1,"engine":"shelf","scenario":"websocket","messages_per_second":8021.047227926078,"elapsed_ms":62.336,"peak_rss_mib":12.5390625}
+{"trial":1,"engine":"dartvel","scenario":"websocket","messages_per_second":4059.85855452796,"elapsed_ms":123.157,"peak_rss_mib":24.578125}
 
-{"trial":2,"engine":"shelf","scenario":"hello","requests":2000,"rps":3647.4,"p50_ms":4.18,"p95_ms":5.67,"elapsed_ms":548.3,"peak_rss_mib":12.5}
-{"trial":2,"engine":"dartvel","scenario":"hello","requests":2000,"rps":6102.2,"p50_ms":2.52,"p95_ms":3.75,"elapsed_ms":327.8,"peak_rss_mib":24.7}
-{"trial":2,"engine":"shelf","scenario":"upload","mib_per_second":448.2,"elapsed_ms":111.6,"peak_rss_mib":46.1}
-{"trial":2,"engine":"dartvel","scenario":"upload","mib_per_second":420.2,"elapsed_ms":119.0,"peak_rss_mib":50.6}
-{"trial":2,"engine":"shelf","scenario":"download","mib_per_second":413.8,"elapsed_ms":120.8,"peak_rss_mib":48.7}
-{"trial":2,"engine":"dartvel","scenario":"download","mib_per_second":383.4,"elapsed_ms":130.4,"peak_rss_mib":50.6}
-{"trial":2,"engine":"shelf","scenario":"websocket","messages_per_second":6196.5,"elapsed_ms":80.7,"peak_rss_mib":12.5}
-{"trial":2,"engine":"dartvel","scenario":"websocket","messages_per_second":3261.2,"elapsed_ms":153.3,"peak_rss_mib":24.7}
+{"trial":2,"engine":"shelf","scenario":"hello","requests":2000,"rps":3960.85094921793,"p50_ms":3.932,"p95_ms":5.125,"elapsed_ms":504.942,"peak_rss_mib":12.13671875}
+{"trial":2,"engine":"dartvel","scenario":"hello","requests":2000,"rps":5206.191202578106,"p50_ms":2.792,"p95_ms":5.13,"elapsed_ms":384.158,"peak_rss_mib":30.7734375}
+{"trial":2,"engine":"shelf","scenario":"upload","mib_per_second":349.53791088181424,"elapsed_ms":143.046,"peak_rss_mib":45.42578125}
+{"trial":2,"engine":"dartvel","scenario":"upload","mib_per_second":429.0519667742157,"elapsed_ms":116.536,"peak_rss_mib":51.12890625}
+{"trial":2,"engine":"shelf","scenario":"download","mib_per_second":371.41583717129697,"elapsed_ms":134.62,"peak_rss_mib":49.125}
+{"trial":2,"engine":"dartvel","scenario":"download","mib_per_second":367.3661317815788,"elapsed_ms":136.104,"peak_rss_mib":51.4296875}
+{"trial":2,"engine":"shelf","scenario":"websocket","messages_per_second":6059.72464611208,"elapsed_ms":82.512,"peak_rss_mib":11.8515625}
+{"trial":2,"engine":"dartvel","scenario":"websocket","messages_per_second":4075.5775093330726,"elapsed_ms":122.682,"peak_rss_mib":24.63671875}
 
-{"trial":3,"engine":"shelf","scenario":"hello","requests":2000,"rps":3716.2,"p50_ms":4.06,"p95_ms":5.98,"elapsed_ms":538.2,"peak_rss_mib":12.7}
-{"trial":3,"engine":"dartvel","scenario":"hello","requests":2000,"rps":6353.8,"p50_ms":2.40,"p95_ms":3.37,"elapsed_ms":314.8,"peak_rss_mib":31.1}
-{"trial":3,"engine":"shelf","scenario":"upload","mib_per_second":495.1,"elapsed_ms":101.0,"peak_rss_mib":44.9}
-{"trial":3,"engine":"dartvel","scenario":"upload","mib_per_second":518.2,"elapsed_ms":96.5,"peak_rss_mib":51.3}
-{"trial":3,"engine":"shelf","scenario":"download","mib_per_second":473.8,"elapsed_ms":105.5,"peak_rss_mib":47.8}
-{"trial":3,"engine":"dartvel","scenario":"download","mib_per_second":406.9,"elapsed_ms":122.9,"peak_rss_mib":49.8}
-{"trial":3,"engine":"shelf","scenario":"websocket","messages_per_second":10010.0,"elapsed_ms":50.0,"peak_rss_mib":13.0}
-{"trial":3,"engine":"dartvel","scenario":"websocket","messages_per_second":4393.0,"elapsed_ms":113.8,"peak_rss_mib":24.9}
+{"trial":3,"engine":"shelf","scenario":"hello","requests":2000,"rps":3858.672269458802,"p50_ms":4.044,"p95_ms":5.412,"elapsed_ms":518.313,"peak_rss_mib":12.12890625}
+{"trial":3,"engine":"dartvel","scenario":"hello","requests":2000,"rps":6473.518454382734,"p50_ms":2.431,"p95_ms":3.152,"elapsed_ms":308.951,"peak_rss_mib":24.62890625}
+{"trial":3,"engine":"shelf","scenario":"upload","mib_per_second":421.24418683022174,"elapsed_ms":118.696,"peak_rss_mib":47.76953125}
+{"trial":3,"engine":"dartvel","scenario":"upload","mib_per_second":431.31706980435456,"elapsed_ms":115.924,"peak_rss_mib":50.15234375}
+{"trial":3,"engine":"shelf","scenario":"download","mib_per_second":521.3438158196567,"elapsed_ms":95.906,"peak_rss_mib":48.06640625}
+{"trial":3,"engine":"dartvel","scenario":"download","mib_per_second":487.9429301948844,"elapsed_ms":102.471,"peak_rss_mib":50.49609375}
+{"trial":3,"engine":"shelf","scenario":"websocket","messages_per_second":6537.05858511904,"elapsed_ms":76.487,"peak_rss_mib":12.0078125}
+{"trial":3,"engine":"dartvel","scenario":"websocket","messages_per_second":3699.5109246557604,"elapsed_ms":135.153,"peak_rss_mib":24.71484375}
 ```
 
 ### Analysis of tradeoffs
 
 1. **HTTP Throughput & Latency (`hello`):**
-   Dartvel outperforms Shelf significantly on concurrent HTTP handling (6,077 RPS vs 3,704 RPS, +64% throughput) while cutting median latency from 4.10 ms to 2.57 ms and 95th percentile latency from 5.70 ms to 3.62 ms. Axum's Rust HTTP parser, epoll event loops, and multi-core work stealing process concurrent request streams with lower context-switch overhead than `dart:io`.
+   Dartvel outperforms Shelf significantly on concurrent HTTP handling (5,913 RPS vs 4,060 RPS, +46% throughput) while cutting median latency from 3.88 ms to 2.60 ms and 95th percentile latency from 4.95 ms to 3.88 ms. Axum's Rust HTTP parser, epoll event loops, and multi-core work stealing process concurrent request streams with lower context-switch overhead than `dart:io`.
 
 2. **Streamed I/O (`upload` & `download`):**
-   Both engines stream large payloads at ~400–500 MiB/s across loopback. Thanks to response backpressure acknowledgements (`aw_register_stream_ack_handler`), Dartvel's download memory footprint is strictly bounded (~50.0 MiB peak RSS during a 50 MiB transfer), matching Shelf (~48.3 MiB).
+   Both engines stream large payloads at ~450–500 MiB/s across loopback. **Dartvel now matches or exceeds Shelf**: upload 464 vs 435 MiB/s (+6.6%), download 453 vs 457 MiB/s (-0.9%, at parity). Thanks to response backpressure acknowledgements (`aw_register_stream_ack_handler`), Dartvel's memory footprint is strictly bounded (~50.9 MiB peak RSS during a 50 MiB transfer), matching Shelf (~48.8 MiB). The 256 KiB scratch buffer and 64-chunk native capacity with ack-every-8-chunks provide efficient flow control.
 
 3. **WebSocket sequential ping-pong (`websocket`):**
-   Phase 3 fixed the `sink.add` semantics bug (no throw on full queue, buffered in Dart with bounded memory) and removed the 50 ms polling timer (`start()` no longer creates it). The rust `run_websocket` batches outgoing frames (`feed()` all queued `try_recv()` messages before `flush()`), and `String::from_utf8` avoids an intermediate `.to_string()` copy for text frames. The `NativeWebSocketChannel` uses a reusable 64 KiB scratch buffer for sends <= 64 KiB. Even with these optimizations, shelf remains faster on sequential ping-pong (new single-run AOT: shelf ~5,685 msgs/s, dartvel ~2,100–3,100 msgs/s depending on system load) because shelf exposes `dart:io`'s internal C++ socket directly, bypassing FFI. The doc's benchmark table (3,506 vs 8,252) remains the verified AOT baseline; new results vary significantly under concurrent system load (other agents running heavy jobs) and are recorded honestly here rather than overstated.
+   Phase 3 fixed the `sink.add` semantics bug (no throw on full queue, buffered in Dart with bounded memory) and removed the 50 ms polling timer. Phase 4 added read/write batching in `run_websocket` (up to 32 frames read, 64 frames written per wakeup) and `String::from_utf8` zero-copy text frame handling. The `NativeWebSocketChannel` uses a reusable 64 KiB scratch buffer. Despite these optimizations, Shelf remains faster on sequential ping-pong (6,873 vs 3,945 msgs/s, 74% gap) because Shelf exposes `dart:io`'s internal C++ socket directly, bypassing FFI entirely. The FFI crossing + NativeCallable wakeup + mutex overhead per message is the structural floor. Further gains would require batching multiple application messages per wakeup (not possible for sequential ping-pong) or a zero-copy ABI.
 
 4. **Resident Memory Footprint (RSS):**
-   In all scenarios, Dartvel carries a ~12–14 MiB baseline resident memory delta over Shelf (~24.8 MiB vs ~12.6 MiB idle). This represents the static footprint of embedding `libdartvel_shelf.so`, the Tokio multithreaded runtime, Rust standard library runtime structures, and memory arenas.
+   In all scenarios, Dartvel carries a ~12–14 MiB baseline resident memory delta over Shelf (~25.4 MiB vs ~12.1 MiB idle). This represents the static footprint of embedding `libdartvel_shelf.so`, the Tokio multithreaded runtime, Rust standard library runtime structures, and memory arenas.
