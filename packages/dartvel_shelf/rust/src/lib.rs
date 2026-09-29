@@ -26,6 +26,9 @@ use rustls::{
 };
 use rustls_pemfile::Item;
 
+mod codec;
+pub use codec::{aw_codec_decode, aw_codec_encode};
+
 
 // ===== C ABI structs =====
 /// Installs rustls's ring provider once.

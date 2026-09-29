@@ -56,6 +56,32 @@
  */
 #define AW_BODY_PULL_UNKNOWN 1
 
+/**
+ * Brotli, `Content-Encoding: br`.
+ */
+#define AW_CODEC_BROTLI 1
+
+/**
+ * Zstandard, `Content-Encoding: zstd`.
+ */
+#define AW_CODEC_ZSTD 2
+
+/**
+ * The encoding did not fit in the output buffer.
+ */
+#define AW_CODEC_TOO_LARGE -2
+
+/**
+ * An unknown codec, a level out of range, or a null buffer.
+ */
+#define AW_CODEC_BAD_ARGUMENT -3
+
+/**
+ * The input is not a valid stream of the codec, or decodes to a different
+ * length than the caller said.
+ */
+#define AW_CODEC_CORRUPT -4
+
 typedef struct FfiStr {
   const uint8_t *ptr;
   size_t len;
@@ -232,5 +258,34 @@ struct FfiWsFrame aw_ws_receive(uint64_t id);
 void aw_ws_free(struct FfiBuf data);
 
 void aw_ws_dispose(uint64_t id);
+
+/**
+ * Compresses `input_len` bytes at `input` with `codec` at `level` into the
+ * `out_cap` bytes at `out`. Returns the length written, or a negative
+ * `AW_CODEC_*`.
+ *
+ * # Safety
+ * `input` must be valid for `input_len` bytes and `out` for `out_cap`.
+ */
+int64_t aw_codec_encode(int32_t codec,
+                        int32_t level,
+                        const uint8_t *input,
+                        size_t input_len,
+                        uint8_t *out,
+                        size_t out_cap);
+
+/**
+ * Decompresses `input_len` bytes at `input`, encoded with `codec`, into
+ * exactly the `out_len` bytes at `out`. Returns `out_len`, or a negative
+ * `AW_CODEC_*` -- a stream that decodes to any other length is corrupt.
+ *
+ * # Safety
+ * `input` must be valid for `input_len` bytes and `out` for `out_len`.
+ */
+int64_t aw_codec_decode(int32_t codec,
+                        const uint8_t *input,
+                        size_t input_len,
+                        uint8_t *out,
+                        size_t out_len);
 
 #endif  /* DARTVEL_SHELF_H */
