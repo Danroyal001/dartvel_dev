@@ -245,7 +245,7 @@ Future<List<String>> _notes() async => <String>[
     fail('the binary never answered (exit $exited):\n$output');
   }
 
-  Future<({int status, String type, String body})> request(
+  Future<({int status, String type, String cache, String location, String body})> request(
     int port,
     String method,
     String path, {
@@ -256,6 +256,7 @@ Future<List<String>> _notes() async => <String>[
     try {
       final HttpClientRequest request =
           await client.openUrl(method, Uri.parse('http://127.0.0.1:$port$path'));
+      request.followRedirects = false;
       if (bearer != null) request.headers.set('authorization', 'Bearer $bearer');
       if (json != null) {
         request.headers.contentType = ContentType.json;
@@ -267,6 +268,8 @@ Future<List<String>> _notes() async => <String>[
       return (
         status: response.statusCode,
         type: response.headers.contentType?.mimeType ?? '',
+        cache: response.headers.value('cache-control') ?? '',
+        location: response.headers.value('location') ?? '',
         body: await response.transform(utf8.decoder).join(),
       );
     } finally {
@@ -318,8 +321,60 @@ Future<List<String>> _notes() async => <String>[
     }
   }, skip: skip);
 
-  test('the copied binary serves the admin dashboard to a person granted '
-      'Studio and to nobody else', () async {
+  test('the copied binary returns 404 for every Studio data endpoint without a grant',
+      () async {
+    final run = await start();
+    try {
+      // Keep aligned with DVStudioApi.respond and its nested handlers.
+      // Auth and access are intentionally public and carry no project data.
+      const endpoints = <String, List<String>>{
+        '/__studio/graph.json': ['GET', 'HEAD'],
+        '/__studio/api/models': ['GET', 'HEAD'],
+        '/__studio/api/models/Note': ['GET', 'HEAD', 'PUT', 'DELETE'],
+        '/__studio/api/models/Note/source': ['POST'],
+        '/__studio/api/models/Note/records': ['GET', 'HEAD', 'POST'],
+        '/__studio/api/models/Note/records/private-note': ['GET', 'HEAD', 'PUT', 'DELETE'],
+        '/__studio/api/pages': ['GET', 'HEAD', 'PUT', 'DELETE'],
+        '/__studio/api/site': ['GET', 'HEAD'],
+        '/__studio/api/site/structure?route=%2F': ['GET', 'HEAD'],
+        '/__studio/api/functions': ['GET', 'HEAD', 'PUT', 'DELETE'],
+        '/__studio/api/grants': ['GET', 'HEAD', 'POST', 'DELETE'],
+        '/__studio/api/queues': ['GET', 'HEAD'],
+        '/__studio/api/queues/jobs/private-job/retry': ['POST'],
+        '/__studio/api/queues/jobs/private-job/discard': ['POST'],
+        '/__studio/api/cache/tags': ['GET', 'HEAD'],
+        '/__studio/api/cache/tags/private-tag/revalidate': ['POST'],
+      };
+      for (final bearer in <String?>[null, 'dvs_not-a-session']) {
+        for (final endpoint in endpoints.entries) {
+          for (final method in endpoint.value) {
+            final hidden = await request(run.port, method, endpoint.key,
+                bearer: bearer,
+                // A valid CSRF header ensures it is authorization that refuses writes.
+                json: method == 'GET' || method == 'HEAD' ? null : {});
+            expect(hidden.status, 404,
+                reason: '$method ${endpoint.key}, bearer=$bearer: ${hidden.body}');
+            final nowhere = await request(run.port, method,
+                endpoint.key.replaceFirst('/__studio/', '/__nowhr/'),
+                bearer: bearer,
+                json: method == 'GET' || method == 'HEAD' ? null : {});
+            expect(hidden.type, nowhere.type);
+            expect(hidden.cache, nowhere.cache);
+            expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'),
+                nowhere.body, reason: '$method ${endpoint.key}');
+            expect(hidden.location, isEmpty);
+            if (method == 'HEAD') expect(hidden.body, isEmpty);
+          }
+        }
+      }
+    } finally {
+      run.process.kill();
+      await run.process.exitCode;
+    }
+  }, skip: skip);
+
+  test('the copied binary requires a Studio grant for project data and '
+      'serves the public login shell', () async {
     // Carried, and not among the web files the binary serves to anybody.
     final DVBinaryPayload? payload = DVBinaryPayload.read(binary.path);
     expect(payload?.names, contains('admin'), reason: buildOutput);
@@ -331,19 +386,29 @@ Future<List<String>> _notes() async => <String>[
 
     final run = await start();
     try {
-      // No session: the mount answers as a path the application does not
-      // serve, the same length so nothing can differ by it.
-      final nowhere = await request(run.port, 'GET', '/__nowhr/');
-      final hidden = await request(run.port, 'GET', '/__studio/');
-      expect(hidden.status, nowhere.status);
-      expect(hidden.type, nowhere.type);
-      expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
-      expect(hidden.body, isNot(contains('<title>Studio')));
-      final hiddenGraph = await request(run.port, 'GET', '/__studio/graph.json');
-      expect(hiddenGraph.body, isNot(contains('"models"')));
-      final hiddenRecords =
-          await request(run.port, 'GET', '/__studio/api/models/Note/records');
-      expect(hiddenRecords.body, isNot(contains('"records"')));
+      Future<void> expectLogin({String? bearer}) async {
+        for (final path in ['/__studio', '/__studio/', '/__studio/pages']) {
+          final page = await request(run.port, 'GET', path, bearer: bearer);
+          expect(page.status, 302, reason: path);
+          expect(page.location,
+              '/__studio/login?from=${Uri.encodeQueryComponent(path)}');
+          expect(page.cache, contains('no-store'));
+          expect(page.body, isEmpty);
+        }
+      }
+
+      await expectLogin();
+      await expectLogin(bearer: 'dvs_not-a-session');
+      // The login screen needs the public Flutter shell and code.
+      for (final path in [
+        '/__studio/login', '/__studio/index.html', '/__studio/main.dart.js',
+      ]) {
+        final shell = await request(run.port, 'GET', path);
+        expect(shell.status, 200, reason: path);
+      }
+      final access = await request(run.port, 'GET', '/__studio/api/access');
+      expect(access.status, 200);
+      expect(jsonDecode(access.body), {'granted': false});
       // And the dashboard's files are not web files under any path.
       final raw = await request(run.port, 'GET', '/__admin/graph.json');
       expect(raw.body, isNot(contains('"models"')));
@@ -378,24 +443,13 @@ Future<List<String>> _notes() async => <String>[
       // exported interface.
       (database as dynamic).close();
 
-      // Signed in, and granted nothing: every customer of the application is
-      // exactly this, and gets exactly what a path that does not exist gets.
-      final signedIn =
-          await request(run.port, 'GET', '/__studio/', bearer: issued.token);
-      final signedInNowhere =
-          await request(run.port, 'GET', '/__nowhr/', bearer: issued.token);
-      expect(signedIn.status, signedInNowhere.status);
-      expect(signedIn.type, signedInNowhere.type);
-      expect(signedIn.body.replaceAll('/__studio/', '/__nowhr/'),
-          signedInNowhere.body);
-      expect(signedIn.body, isNot(contains('<title>Studio')));
-      final signedInGraph = await request(
-          run.port, 'GET', '/__studio/graph.json',
-          bearer: issued.token);
-      expect(signedInGraph.body, isNot(contains('"models"')));
-      final signedInModels = await request(run.port, 'GET', '/__studio/api/models',
-          bearer: issued.token);
-      expect(signedInModels.body, isNot(contains('"models"')));
+      // An application session alone grants no Studio access.
+      await expectLogin(bearer: issued.token);
+      for (final path in ['/__studio/graph.json', '/__studio/api/models']) {
+        final hidden = await request(run.port, 'GET', path, bearer: issued.token);
+        expect(hidden.status, 404, reason: path);
+        expect(hidden.body, isNot(contains('"models"')));
+      }
 
       // Granted, with the command an operator runs against the binary's own
       // database while it is serving.
@@ -450,6 +504,7 @@ Future<List<String>> _notes() async => <String>[
       // The control: a token that is not a live session is nobody.
       final forged = await request(run.port, 'GET', '/__studio/graph.json',
           bearer: 'dvs_not-a-session');
+      expect(forged.status, 404);
       expect(forged.body, isNot(contains('"models"')));
     } finally {
       run.process.kill();
