@@ -1,5 +1,23 @@
 ## Unreleased
 
+- **`dartvel docs` writes a document, not nine pages of hand-written HTML.**
+  It emitted `index.html`, `models.html`, `functions.html`, `routes.html`,
+  `jobs.html`, `policies.html`, `modules.html`, `diagnostics.html` and a page
+  per decision record, each with a stylesheet and a stylesheet link and an
+  `<a href>` for every link -- hand-authored markup with the framework's own
+  theme nowhere in it, growing a second name for every page the graph already
+  had. It writes `docs.json` now, beside `graph.json`, and the site is
+  `DVDocsApp`: pages, tables, lists, code and the navigation are all values in
+  a payload an application draws. Three consequences worth stating: a doc
+  comment is a sentence somebody wrote and is carried verbatim, so the payload
+  contains whatever a comment contains and a test asserts exactly that rather
+  than escaping it; a link is a `DVDocsTarget` naming a page id and an anchor
+  in it, so it cannot break by pointing at a file that moved; and the block
+  kinds and span kinds are enumerated in `docs_site_test.dart`, because an
+  unknown kind is the one thing that could make the document mean something
+  other than what it says. The site does not render yet -- the app and its
+  build land next.
+
 - **The build writes one file into the admin root, and it is the graph.** It
   wrote four: a static dashboard, its stylesheet, its script and the graph.
   The dashboard was hand-authored HTML emitted by a build step, and the very

@@ -248,7 +248,7 @@ class const _Customer(
 ''',
     });
     final DVDocsSite site = await DVDocsSite.build(root: root.path);
-    final String models = site.files['models.html']!;
+    final String models = site.document.page('models')!.text;
     expect(models, contains('Someone who buys.'));
     expect(models, contains('Where receipts are sent.'));
     expect(models, contains('What they like to be called.'));
