@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:path/path.dart' as p;
 import 'package:dartvel_core/dartvel.dart'
     show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant;
 import 'package:dartvel_core/http.dart';
+import 'package:dartvel_core/framework.dart' show dvAssetPath;
+
+import 'site_files.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
 /// route injected into it.
@@ -52,30 +54,31 @@ Future<Response> _handleSsrFallback(
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
 }) async {
-  final indexFile = File(p.join(spaRoot, 'index.html'));
-  if (!await indexFile.exists()) {
+  // Read through the source registered for the root: the pack inside a
+  // web-server binary, the directory everywhere else.
+  final String? shell = dvSiteText(spaRoot, 'index.html');
+  if (shell == null) {
     return Response.text('SPA index.html not found', status: 404);
   }
 
-  var html = await indexFile.readAsString();
+  var html = shell;
 
   // A web-server build wrote a manifest beside the shell: the page is
   // assembled from it on request, with the route's data from the resolver
   // the backend was started with, by the declared mode.
-  final manifestFile = File(p.join(spaRoot, 'dartvel_routes.json'));
-  if (await manifestFile.exists()) {
-    return _fromManifest(req, html, manifestFile, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
+  if (dvSiteHash(spaRoot, 'dartvel_routes.json') != null) {
+    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
   }
 
   // Check for prerendered metadata
   final route = req.url.path;
   final cleanRoute =
       route == '/' || route.isEmpty ? 'index' : route.substring(1);
-  final metaFile = File(p.join(spaRoot, 'prerender', cleanRoute, 'meta.json'));
+  final String? metaPath = dvAssetPath('prerender/$cleanRoute/meta.json');
+  final String? metaJson = metaPath == null ? null : dvSiteText(spaRoot, metaPath);
 
-  if (await metaFile.exists()) {
+  if (metaJson != null) {
     try {
-      final metaJson = await metaFile.readAsString();
       final meta = jsonDecode(metaJson) as Map<String, dynamic>;
 
       final title = meta['title'] as String?;
@@ -119,33 +122,31 @@ DVPageDataCache _cacheFor(String spaRoot, DVWebServerSettings settings, DVCacheA
       () => DVPageDataCache(ttl: settings.cacheTtl, staleFor: settings.staleFor, shared: store),
     );
 
-/// Each site's route preloads, with the modification time they were read at.
+/// Each site's route preloads, with the content hash they were read at.
 ///
 /// Kept rather than read per request, and re-read when the file changes: a
 /// deploy writes a new build over the old one, and a server that kept the
 /// first list forever would preload the previous build's parts -- files that
 /// no longer exist, fetched on every page.
-final Map<String, (DateTime, DVRoutePreloads)> _preloads =
-    <String, (DateTime, DVRoutePreloads)>{};
+final Map<String, (String, DVRoutePreloads)> _preloads =
+    <String, (String, DVRoutePreloads)>{};
 
 DVRoutePreloads _preloadsFor(String spaRoot) {
-  final File file = File(p.join(spaRoot, dvRoutePreloadsFile));
-  final FileStat stat = file.statSync();
-  if (stat.type == FileSystemEntityType.notFound) {
+  final String? hash = dvSiteHash(spaRoot, dvRoutePreloadsFile);
+  if (hash == null) {
     _preloads.remove(spaRoot);
     return DVRoutePreloads.none;
   }
-  final (DateTime, DVRoutePreloads)? kept = _preloads[spaRoot];
-  if (kept != null && kept.$1 == stat.modified) return kept.$2;
-  final DVRoutePreloads read = DVRoutePreloads.parse(file.readAsStringSync());
-  _preloads[spaRoot] = (stat.modified, read);
+  final (String, DVRoutePreloads)? kept = _preloads[spaRoot];
+  if (kept != null && kept.$1 == hash) return kept.$2;
+  final DVRoutePreloads read = DVRoutePreloads.parse(dvSiteText(spaRoot, dvRoutePreloadsFile)!);
+  _preloads[spaRoot] = (hash, read);
   return read;
 }
 
 Future<Response> _fromManifest(
   Request req,
-  String shell,
-  File manifestFile, {
+  String shell, {
   required String spaRoot,
   required DVPageDataResolver? pageData,
   required DVPageDataCache? cache,
@@ -154,7 +155,7 @@ Future<Response> _fromManifest(
 }) async {
   Map<String, Object?> manifest;
   try {
-    final Object? decoded = jsonDecode(await manifestFile.readAsString());
+    final Object? decoded = dvSiteJson(spaRoot, 'dartvel_routes.json');
     manifest = decoded is Map ? decoded.cast<String, Object?>() : <String, Object?>{};
   } on FormatException {
     manifest = <String, Object?>{};
