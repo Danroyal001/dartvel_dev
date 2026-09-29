@@ -142,7 +142,8 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Adoption', missing: <String>[
               'No bridges between signals and Riverpod providers or streams.',
               'No auth adapters for Firebase Auth or Supabase Auth.',
-              'No mount for Navigator 1.0 or routers other than go_router.',
+              'No mount for routers other than go_router, auto_route and '
+                  'Flutter\'s Navigator.',
             ]),
           ],
         ),
