@@ -76,6 +76,8 @@ typedef void (*DartReqHandler)(uint64_t,
 
 typedef void (*DartStreamCancelHandler)(uint64_t);
 
+typedef void (*DartStreamAckHandler)(uint64_t);
+
 /**
  * A request body chunk, or the event that ended it.
  *
@@ -103,6 +105,8 @@ uint32_t aw_abi_version(void);
 void aw_register_handler(DartReqHandler cb);
 
 void aw_register_cancel_handler(DartStreamCancelHandler cb);
+
+void aw_register_stream_ack_handler(DartStreamAckHandler cb);
 
 int32_t aw_configure_cors(struct FfiStr config_json);
 
