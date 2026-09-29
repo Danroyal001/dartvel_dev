@@ -1,6 +1,6 @@
 name: dartvel_shelf
 description: A Fetch-style HTTP server for Dart backed by a Rust (Axum/Tokio) runtime over FFI, with routing, middleware, streaming, request limits and TLS.
-version: 0.9.2
+version: 0.9.3
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 environment:

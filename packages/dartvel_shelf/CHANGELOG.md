@@ -1,3 +1,9 @@
+## 0.9.3
+
+- Documentation only: the README's comparison with `package:shelf` now says
+  what 0.9.2 does (streamed request bodies, WebSockets, `fromShelf` for shelf
+  middleware) and links the measured comparison.
+
 ## 0.9.2
 
 - **Upstream Shelf adapter:** `package:dartvel_shelf/shelf.dart` provides `fromShelf()`
