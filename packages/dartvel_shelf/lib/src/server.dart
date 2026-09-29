@@ -39,6 +39,13 @@ const int _nativeAbiVersion = 2;
 /// refused only when a caller asked for something else.
 const Duration _defaultRequestTimeout = Duration(seconds: 60);
 typedef _NativeCancelCb = gen.DartStreamCancelHandlerFunction;
+typedef _NativeAckCb = gen.DartStreamAckHandlerFunction;
+
+class _StreamResponseState {
+  _StreamResponseState(this.subscription);
+  final StreamSubscription<List<int>> subscription;
+  int inFlight = 0;
+}
 
 class ServerHandle {
   final String host;
@@ -50,6 +57,7 @@ class ServerHandle {
   // Null for a library that reads every body whole, which is a Dart this side
   // has no way to stream a body into.
   final ffi.NativeCallable<_NativeBodyChunkCb>? _dartBodyChunkHandler;
+  final ffi.NativeCallable<_NativeAckCb>? _dartStreamAckHandler;
   bool _stopped = false;
   final Set<NativeWebSocketChannel> _webSockets;
 
@@ -61,6 +69,7 @@ class ServerHandle {
     this._dartHandler,
     this._dartCancelHandler, [
     this._dartBodyChunkHandler,
+    this._dartStreamAckHandler,
     this._webSockets = const {},
   ]);
 
@@ -72,6 +81,7 @@ class ServerHandle {
     _dartHandler.close();
     _dartCancelHandler.close();
     _dartBodyChunkHandler?.close();
+    _dartStreamAckHandler?.close();
   }
 }
 
@@ -301,6 +311,7 @@ Future<ServerHandle> serve(
   final effective = preview == null ? routed : preview.wrap(routed);
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
+  final activeStreamStates = <int, _StreamResponseState>{};
   // The body of each request being read, keyed by the request its chunks will
   // be delivered for. Dropped when the request is answered, so a chunk that
   // arrives after its handler is done goes nowhere rather than into a map
@@ -475,6 +486,8 @@ Future<ServerHandle> serve(
           if (accepted != 0) return;
 
           late StreamSubscription<List<int>> subscription;
+          late _StreamResponseState streamState;
+          const maxInFlight = 4;
           subscription = (source ?? resp.body!.stream).listen(
             (chunk) {
               final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
@@ -483,22 +496,38 @@ Future<ServerHandle> serve(
               chunkBuf.ref.ptr = chunkNative.cast();
               chunkBuf.ref.len = chunk.length;
 
-              api.aw_stream_send_chunk(reqId, chunkBuf.ref);
+              final status = api.aw_stream_send_chunk(reqId, chunkBuf.ref);
 
               pkgffi.calloc.free(chunkBuf);
               pkgffi.malloc.free(chunkNative);
+
+              if (status == 2) {
+                activeSubscriptions.remove(reqId);
+                activeStreamStates.remove(reqId);
+                subscription.cancel();
+                return;
+              }
+
+              streamState.inFlight++;
+              if (streamState.inFlight >= maxInFlight || status == 1) {
+                subscription.pause();
+              }
             },
             onDone: () {
               activeSubscriptions.remove(reqId);
+              activeStreamStates.remove(reqId);
               api.aw_stream_complete(reqId);
             },
             onError: (Object e) {
               activeSubscriptions.remove(reqId);
+              activeStreamStates.remove(reqId);
               api.aw_stream_complete(reqId);
             },
             cancelOnError: true,
           );
+          streamState = _StreamResponseState(subscription);
           activeSubscriptions[reqId] = subscription;
+          activeStreamStates[reqId] = streamState;
         } else {
           out.ref.is_stream = 0;
           final bodyNative = pkgffi.malloc<ffi.Uint8>(buffered.length)
@@ -539,6 +568,7 @@ Future<ServerHandle> serve(
 
   final dartCancelHandler =
       ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
+    activeStreamStates.remove(reqId);
     final subscription = activeSubscriptions.remove(reqId);
     subscription?.cancel();
   });
@@ -547,6 +577,23 @@ Future<ServerHandle> serve(
   } on ArgumentError {
     // Older bundled binaries may not expose this FFI symbol. Rust source and
     // generated bindings include it; rebuilding the native asset enables it.
+  }
+
+  final dartStreamAckHandler =
+      ffi.NativeCallable<_NativeAckCb>.listener((int reqId) {
+    final state = activeStreamStates[reqId];
+    if (state == null) return;
+    if (state.inFlight > 0) {
+      state.inFlight--;
+    }
+    if (state.inFlight < 4 && state.subscription.isPaused) {
+      state.subscription.resume();
+    }
+  });
+  try {
+    api.aw_register_stream_ack_handler(dartStreamAckHandler.nativeFunction);
+  } on ArgumentError {
+    // Older bundled binaries may not expose this FFI symbol.
   }
 
   // On this thread and before aw_start, which takes it into this server's own
@@ -637,8 +684,17 @@ Future<ServerHandle> serve(
   final boundPort = api.aw_server_port(serverId);
   if (boundPort != 0) urlPort = boundPort;
 
-  return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
-      dartRequestHandler, dartCancelHandler, dartBodyChunkHandler, webSockets);
+  return ServerHandle(
+    host,
+    boundPort == 0 ? port : boundPort,
+    serverId,
+    api,
+    dartRequestHandler,
+    dartCancelHandler,
+    dartBodyChunkHandler,
+    dartStreamAckHandler,
+    webSockets,
+  );
 }
 
 /// A response body no larger than this, and already whole when the handler
