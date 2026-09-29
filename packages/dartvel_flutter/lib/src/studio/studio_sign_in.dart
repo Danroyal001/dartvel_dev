@@ -30,6 +30,51 @@ String dvStudioSignInTarget(String mount, String? from) {
   return inside && !login ? value : home;
 }
 
+/// Studio's frame: its theme, light or dark as the system is, around [home].
+///
+/// Shared by Studio's screens and its sign-in, which are separate deferred
+/// libraries, so both look the same without either reaching the other.
+class DVStudioFrame extends StatelessWidget {
+  const DVStudioFrame({super.key, required this.title, required this.home});
+
+  final String title;
+  final Widget home;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        title: title,
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme:
+              ColorScheme.fromSeed(seedColor: const Color(0xFF6C4BF4)),
+          scaffoldBackgroundColor: DVStudioStyle.canvas,
+          canvasColor: DVStudioStyle.canvas,
+        ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF8E74F8),
+            brightness: .dark,
+          ),
+          scaffoldBackgroundColor: DVStudioStyle.canvas,
+          canvasColor: DVStudioStyle.canvas,
+        ),
+        // The system's setting: prefers-color-scheme in a browser. Studio's
+        // colours read DVStudioStyle.dark when they paint, and the subtree is
+        // rebuilt under a new key when it changes, so no widget built for the
+        // other mode is kept.
+        builder: (BuildContext context, Widget? child) {
+          final bool dark =
+              MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+          DVStudioStyle.dark = dark;
+          return KeyedSubtree(
+            key: ValueKey<bool>(dark),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        home: home,
+      );
+}
+
 /// The sign-in page.
 class DVStudioSignInScreen extends StatefulWidget {
   const DVStudioSignInScreen({
