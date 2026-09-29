@@ -3104,8 +3104,14 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     };
     let write = async {
         while let Some(message) = outgoing.recv().await {
-            let closed = matches!(message, Message::Close(_));
-            if sink.send(message).await.is_err() || closed { break; }
+            let mut closed = matches!(message, Message::Close(_));
+            if sink.feed(message).await.is_err() || closed { break; }
+            while let Ok(next) = outgoing.try_recv() {
+                closed = matches!(next, Message::Close(_));
+                if sink.feed(next).await.is_err() || closed { break; }
+            }
+            if sink.flush().await.is_err() || closed { break; }
+            ws_wakeup(req_id, server_id);
         }
         None
     };
