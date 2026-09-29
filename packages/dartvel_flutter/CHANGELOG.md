@@ -1,3 +1,16 @@
+## Unreleased
+
+- **`DVStudioFirstRunScreen`: the first-run setup as a page of the Studio
+  app**, shown by `DVStudioApp` at `<mount>/setup`. It asks for the address
+  and the printed password rather than printing either -- the page is open to
+  the internet by definition -- drives the application's own
+  `api/auth/sign-in`, `api/auth/account/password` and
+  `api/auth/factors/totp` endpoints at the mount, and opens Studio once the
+  second factor is on. An authenticator that will not start leaves the owner
+  in a step that asks for the password they just set, since the printed one
+  no longer opens anything; an account that already has a second factor is
+  sent to the sign-in rather than walked into a setup it cannot finish.
+
 ## 0.9.3
 
 - **Security:** the Studio app checks the session before building any
