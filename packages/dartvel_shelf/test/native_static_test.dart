@@ -20,6 +20,13 @@ void main() {
     headers.forEach(req.headers.set);
     return req.close();
   }
+  test('starting another server does not change this servers static root', () async {
+    final other = await serve((_) async => Response.text('other'), port: 0);
+    addTearDown(other.stop);
+    final res = await get();
+    expect(res.statusCode, 200);
+    expect(await res.transform(utf8.decoder).join(), '0123456789');
+  });
   test('native static ranges and unsatisfiable ranges', () async {
     final res = await get({'range': 'bytes=2-5'});
     expect(res.statusCode, 206);
