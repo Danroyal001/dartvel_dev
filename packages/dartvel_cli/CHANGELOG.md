@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **A failed navigation goes to the app's offline page, and a host's
+  not-found document is a copy of the app's.** The build wrote both pages as
+  hand-authored HTML with inline CSS, in a colour sanitised out of the
+  project's own theme, and the worker served the offline one from the cache
+  for as long as the cache lived. It now redirects to `/offline` with the
+  path being opened as `from` -- never to itself -- and `404.html` is a copy
+  of the `404/index.html` the build rendered. Both routes are out of
+  `sitemap.xml`: a crawler spends a request on each address in one, and two
+  of those would end on a page whose whole content is that something went
+  wrong. `404.html` moved out of the PWA block, so a project with
+  `dartvel.pwa.enabled: false` has one.
+
 - **`/404` and `/offline` are routes in every generated client**, drawn by
   `DVNotFoundPage` and `DVOfflinePage`. They were documents the build wrote by
   hand at build time: two pages outside the router, with no theme, no capture
