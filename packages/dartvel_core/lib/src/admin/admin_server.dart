@@ -158,6 +158,28 @@ DVAdminAsset? dvAdminAsset(String root, DVAdminMount mount, String path) {
   return DVAdminAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
 }
 
+/// Whether [path] resolves to a Studio deferred library chunk (part.js,
+/// wasm, or any file the deferred library mechanism produces). These
+/// must only be served to a caller with the Studio grant: without it they
+/// receive 404, exactly as a route that does not exist, never 302.
+bool dvIsDeferredLibraryChunk(DVAdminMount mount, String path) {
+  final String rest = path.substring(mount.path.length);
+  final String relative =
+      rest.isEmpty || rest == '/' ? '' : rest.substring(1);
+  if (relative.isEmpty || relative.startsWith('api/') || relative == 'api') {
+    return false;
+  }
+  final String name = relative.toLowerCase();
+  if (name.endsWith('.part.js') || name.endsWith('.wasm') ||
+      name.endsWith('.part.js.map') || name.contains('.part.')) {
+    return true;
+  }
+  // Any file whose basename matches the deferred chunk naming pattern.
+  final String basename = relative.split('/').last;
+  if (basename.contains('.part.')) return true;
+  return false;
+}
+
 /// The content type for a file the admin serves.
 ///
 /// Serving admin.js as text/plain leaves a blank page and a console error
@@ -324,19 +346,57 @@ class DVAdminServer {
               utf8.encode(jsonEncode(<String, Object?>{'granted': granted}))));
     }
     if (path.startsWith(api) || path == '${mount.path}/api') return null;
-    if (path == login) {
+    if (path == login || path == '$login/') {
       final DVAdminAsset? shell = dvAdminAsset(root, mount, mount.path);
       if (shell == null) return null;
       return _asset(request, shell, noStore: true);
     }
-    // The app's own files, but never the project's graph.
-    final String last = path.split('/').last;
-    if (last.contains('.') && last != 'graph.json') {
+    // Deferred library chunks (.part.js, wasm, etc.) are never served
+    // without the Studio grant. A signed-out request for one must fall
+    // through to the deferred guard (404), not be served as a static asset.
+    if (readable && _isStaticAsset(path) &&
+        dvIsDeferredLibraryChunk(mount, path) &&
+        !(await _authenticated(request))) {
+      return null;
+    }
+    // The app's static assets (JS, wasm, fonts, images), but never index.html
+    // or the project's graph.
+    if (_isStaticAsset(path)) {
       final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
       if (asset == null) return null;
       return _asset(request, asset);
     }
     return null;
+  }
+
+  /// Whether [path] resolves to a static asset on disk (JS, wasm, css, image,
+  /// font, etc.), excluding the app document (index.html) and protected project
+  /// graph (graph.json).
+  bool _isStaticAsset(String path) {
+    if (path.startsWith('${mount.path}/api/') || path == '${mount.path}/api') {
+      return false;
+    }
+    final String rest = path.substring(mount.path.length);
+    final String relative =
+        rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
+    final String decoded;
+    try {
+      decoded = Uri.decodeComponent(relative).replaceAll(r'\', '/');
+    } on ArgumentError {
+      return false;
+    }
+    final List<String> segments = <String>[];
+    for (final String segment in decoded.split('/')) {
+      if (segment.isEmpty || segment == '.') continue;
+      if (segment == '..' || segment.contains(':')) return false;
+      segments.add(segment);
+    }
+    if (decoded.startsWith('/') || segments.isEmpty) return false;
+    final String last = segments.last.toLowerCase();
+    if (last == 'index.html' || last == 'graph.json') return false;
+    final File asset =
+        File(<String>[root, ...segments].join(Platform.pathSeparator));
+    return asset.existsSync() && !FileSystemEntity.isDirectorySync(asset.path);
   }
 
   Response _asset(Request request, DVAdminAsset asset, {bool noStore = false}) {
@@ -349,16 +409,6 @@ class DVAdminServer {
           ? const Stream<List<int>>.empty()
           : Stream<List<int>>.value(asset.bytes),
     );
-  }
-
-  /// Whether [path] under the mount is a page a person navigates to, rather
-  /// than one of the dashboard's files or its API.
-  bool _isPage(String path) {
-    if (path.startsWith('${mount.path}/api/') || path == '${mount.path}/api') {
-      return false;
-    }
-    final String last = path.split('/').last;
-    return !last.contains('.');
   }
 
   /// Studio's data, under `<mount>/api/`: a model's records, the page
@@ -430,14 +480,21 @@ class DVAdminServer {
         mount.enabled &&
         mount.requiresAuth &&
         readable &&
-        _isPage(path)) {
-      // A person arriving at a Studio page is sent to Studio's sign-in, and
-      // back here once signed in. Its files and its API are not pages: a
-      // script asking for them gets what a path nobody serves gets.
+        !path.startsWith('${mount.path}/api/') &&
+        path != '${mount.path}/api' &&
+        path != '${mount.path}/graph.json' &&
+        !dvIsDeferredLibraryChunk(mount, path)) {
+      // For a caller without a Studio grant, any request under the mount that
+      // would return the app document (index.html itself, any SPA fallback,
+      // any path that isn't a static asset) must 302 to the sign-in route,
+      // except the sign-in route. Static assets stay public for sign-in;
+      // API requests and graph.json stay hidden (null -> 404).
+      final String from =
+          '${request.url.path}${request.url.hasQuery ? '?${request.url.query}' : ''}${request.url.hasFragment ? '#${request.url.fragment}' : ''}';
       return Response(
         302,
         headers: Headers(<String, String>{
-          'location': '$login?from=${Uri.encodeQueryComponent(path)}',
+          'location': '$login?from=${Uri.encodeQueryComponent(from)}',
           'cache-control': 'no-store',
         }),
         body: const Stream<List<int>>.empty(),
@@ -452,6 +509,13 @@ class DVAdminServer {
           request, () => api.respond(request, path.substring(apiPrefix.length)));
     }
     if (request.method != 'GET' && request.method != 'HEAD') return null;
+    // Deferred library chunks (.part.js, wasm, etc.) are never served
+    // without a Studio grant. A signed-out request for one gets 404,
+    // exactly like a route that does not exist — not 302, not the chunk.
+    if (dvIsDeferredLibraryChunk(mount, path) &&
+        decision == DVAdminRequest.hidden) {
+      return null;
+    }
     final DVAdminAsset? asset = dvAdminAsset(root, mount, path);
     if (asset == null) return null;
     return Response(
