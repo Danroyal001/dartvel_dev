@@ -1,3 +1,10 @@
+## 0.9.3
+
+- **Studio pages and data models reach every project:** `dartvel admin generate`
+  opens Studio over the project's own compiled routes and models, the router
+  generates `dartvelPagePreview`, and `dartvel dev` can write designed models
+  to `lib/models` as `@DVModel` declarations.
+
 ## 0.9.2
 
 - **Adopt Dartvel without changing routers: go_router, auto_route or
