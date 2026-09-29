@@ -168,10 +168,6 @@ class NativeWebSocketChannel(
   late final ffi.Pointer<gen.FfiBuf> _scratchBuf = calloc<gen.FfiBuf>();
 
   void start(Duration? interval) {
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      _drain();
-      _sink._pumpOutgoing();
-    });
     _drain();
     _sink._pumpOutgoing();
     if (interval != null) {
@@ -214,22 +210,33 @@ class NativeWebSocketChannel(
         dispose();
         return;
       }
-      final bytes = Uint8List.fromList(
-        frame.data.ptr.asTypedList(frame.data.len),
-      );
-      _api.aw_ws_free(frame.data);
       switch (frame.kind) {
         case 1:
-          _controller.add(utf8.decode(bytes));
+          final text = utf8.decode(frame.data.ptr.asTypedList(frame.data.len));
+          _api.aw_ws_free(frame.data);
+          _controller.add(text);
         case 2:
+          final bytes = Uint8List.fromList(
+            frame.data.ptr.asTypedList(frame.data.len),
+          );
+          _api.aw_ws_free(frame.data);
           _controller.add(bytes);
         case 9:
+          final bytes = Uint8List.fromList(
+            frame.data.ptr.asTypedList(frame.data.len),
+          );
+          _api.aw_ws_free(frame.data);
           if (_sendDirect(10, bytes) < 0) {
             dispose();
           }
         case 10:
+          _api.aw_ws_free(frame.data);
           _awaitingPong = false;
         case 8:
+          final bytes = Uint8List.fromList(
+            frame.data.ptr.asTypedList(frame.data.len),
+          );
+          _api.aw_ws_free(frame.data);
           if (bytes.length >= 2) {
             closeCode = (bytes[0] << 8) | bytes[1];
             closeReason = utf8.decode(bytes.sublist(2));
@@ -323,7 +330,7 @@ class _NativeSink implements WebSocketSink {
     if (bytes.length > channel.maxMessageSize) {
       throw ArgumentError('Message exceeds maxMessageSize');
     }
-    final completer = Completer<void>();
+    final completer = Completer<void>.sync();
     _outgoing.add(_QueuedMessage(kind, bytes, completer));
     _pumpOutgoing();
     return completer.future;
