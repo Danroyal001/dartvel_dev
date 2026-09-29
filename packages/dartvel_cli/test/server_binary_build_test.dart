@@ -192,8 +192,8 @@ Future<String> _ping() async => 'pong from one file';
     expect(body, contains('pong from one file'));
   }, skip: skip);
 
-  group('the admin dashboard, served by the binary alone', () {
-    /// Builds build/server carrying a web root and the dashboard at [mount],
+  group('Studio, served by the binary alone', () {
+    /// Builds build/server carrying a web root and Studio at [mount],
     /// copies the one file somewhere empty, starts it and returns a way to
     /// ask it for a path.
     Future<
@@ -213,20 +213,25 @@ Future<String> _ping() async => 'pong from one file';
       File(p.join(web.path, 'index.html'))
         ..createSync(recursive: true)
         ..writeAsStringSync('<html><head><title>The site</title></head>'
-            '<body></body></html>');
-      // What the web-server build writes: the dashboard under __admin in the
-      // web output, which the binary must not serve as a web file.
-      final Map<String, String> dashboard = <String, String>{
-        'index.html': '<html><title>Studio dashboard</title></html>',
-        'admin.css': 'body { color: black; }',
-        'admin.js': 'console.log("studio");',
-        'graph.json': '{"models":[]}',
-      };
-      for (final MapEntry<String, String> file in dashboard.entries) {
-        File(p.join(web.path, '__admin', file.key))
-          ..createSync(recursive: true)
-          ..writeAsStringSync(file.value);
-      }
+            '<body><script src="flutter_bootstrap.js" async></script>'
+            '</body></html>');
+      File(p.join(web.path, 'main.dart.js')).writeAsStringSync('// the site');
+      // What an older build left in the web output: a separately built
+      // Studio. The binary never carries it as a web file.
+      File(p.join(web.path, '__admin', 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<html><title>OLD STUDIO APP</title></html>');
+      // What the web-server build writes for Studio, apart from the web root:
+      // its data, and its code.
+      final Directory studio =
+          Directory(p.join(project.path, 'build', 'studio'));
+      if (studio.existsSync()) studio.deleteSync(recursive: true);
+      File(p.join(studio.path, 'data', 'graph.json'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{"models":[]}');
+      File(p.join(studio.path, 'parts', 'main.dart.js_7.part.js'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('/* Studio screens */');
 
       final DVServerBinaryResult built = await dvBuildServerBinary(
         root: project.path,
@@ -234,7 +239,8 @@ Future<String> _ping() async => 'pong from one file';
         dart: Platform.resolvedExecutable,
         webRoot: web.path,
         admin: mount,
-        adminRoot: p.join(web.path, '__admin'),
+        adminRoot: p.join(studio.path, 'data'),
+        studioPartsRoot: p.join(studio.path, 'parts'),
         run: (String executable, List<String> arguments,
                 {String? workingDirectory}) =>
             Process.run(executable, arguments,
@@ -243,6 +249,7 @@ Future<String> _ping() async => 'pong from one file';
       expect(built.ok, isTrue, reason: built.lines.join('\n'));
       // The project's build output goes, so nothing can be served from it.
       web.deleteSync(recursive: true);
+      studio.deleteSync(recursive: true);
 
       final Directory elsewhere =
           Directory.systemTemp.createTempSync('dv_server_binary_admin_');
@@ -311,8 +318,8 @@ Future<String> _ping() async => 'pong from one file';
       return get;
     }
 
-    test('serves the dashboard at its mount, each file as its own type',
-        () async {
+    test('serves Studio at its mount as a page of the application, and its '
+        'code from memory', () async {
       final get = await serveAlone(const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: false));
 
@@ -320,39 +327,65 @@ Future<String> _ping() async => 'pong from one file';
         final page = await get(path);
         expect(page.status, 200, reason: path);
         expect(page.type, 'text/html; charset=utf-8', reason: path);
-        expect(page.body, contains('Studio dashboard'), reason: path);
+        // The application's own shell, rendered for Studio's route.
+        expect(page.body, contains('<title>Studio · server_binary_probe</title>'),
+            reason: path);
+        expect(page.body, contains('flutter_bootstrap.js'), reason: path);
+        expect(page.body,
+            contains('<meta name="robots" content="noindex, nofollow">'),
+            reason: path);
+        expect(page.cache, contains('no-store'), reason: path);
       }
-      final Map<String, String> types = <String, String>{
-        '/__studio/admin.css': 'text/css; charset=utf-8',
-        '/__studio/admin.js': 'text/javascript; charset=utf-8',
-        '/__studio/graph.json': 'application/json; charset=utf-8',
-      };
-      for (final MapEntry<String, String> file in types.entries) {
-        final answer = await get(file.key);
-        expect(answer.status, 200, reason: file.key);
-        expect(answer.type, file.value, reason: file.key);
-        expect(answer.cache, contains('no-store'), reason: file.key);
+      // Nothing under the mount is a file: the application answers each of
+      // these as it answers any path it does not serve.
+      for (final String path in <String>[
+        '/__studio/admin.css',
+        '/__studio/index.html',
+        '/__studio/graph.json',
+      ]) {
+        final answer = await get(path);
+        final nowhere = await get(path.replaceFirst('/__studio/', '/__nowhr/'));
+        expect(answer.status, nowhere.status, reason: path);
+        expect(answer.body, nowhere.body, reason: path);
+        expect(answer.body, isNot(contains('"models"')), reason: path);
+        expect(answer.body, isNot(contains('<title>Studio')), reason: path);
       }
+      // The project graph is data, through the API.
+      final graph = await get('/__studio/api/graph');
+      expect(graph.status, 200);
+      expect(graph.body, contains('"models"'));
+      // Studio's code, from memory, from the site root.
+      final part = await get('/main.dart.js_7.part.js');
+      expect(part.status, 200);
+      expect(part.type, 'text/javascript; charset=utf-8');
+      expect(part.cache, contains('no-store'));
+      expect(part.body, '/* Studio screens */');
 
-      // The web section carries none of it: the dashboard's files are not
-      // web files, whatever path they are asked for by.
+      // The web section carries nothing of Studio, whatever path it is asked
+      // for by.
       final raw = await get('/__admin/index.html');
-      expect(raw.body, isNot(contains('Studio dashboard')));
+      expect(raw.body, isNot(contains('OLD STUDIO APP')));
       // And the site is still the site.
       expect((await get('/')).body, contains('The site'));
+      expect((await get('/main.dart.js')).body, '// the site');
     }, skip: skip);
 
-    test('redirects an ungranted page request to login and hides project data',
-        () async {
+    test('sends an ungranted page request to the sign-in, and hides Studio\'s '
+        'data and code exactly as a missing path', () async {
       final get = await serveAlone(const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: true));
 
-      // Inspect the first response: following it sees the public login shell.
+      // Inspect the first response: following it sees the public sign-in.
       for (final headers in <Map<String, String>>[
         const {},
         const {'authorization': 'Bearer dvs_not-a-session'},
       ]) {
-        for (final path in ['/__studio', '/__studio/']) {
+        for (final path in [
+          '/__studio',
+          '/__studio/',
+          '/__studio/index.html',
+          '/__studio/anything',
+        ]) {
           final page = await get(path, headers: headers);
           expect(page.status, 302, reason: path);
           expect(page.location,
@@ -360,21 +393,29 @@ Future<String> _ping() async => 'pong from one file';
           expect(page.cache, contains('no-store'));
           expect(page.body, isEmpty);
         }
-        final hidden = await get('/__studio/graph.json', headers: headers);
-        final nowhere = await get('/__nowhr/graph.json', headers: headers);
-        // This backend-only fixture falls back to its public site shell.
-        expect(hidden.status, nowhere.status);
-        expect(hidden.body, isNot(contains('Studio dashboard')));
-        expect(hidden.type, nowhere.type);
-        expect(hidden.cache, nowhere.cache);
-        expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'), nowhere.body);
-        expect(hidden.body, isNot(contains('"models"')));
+        for (final (String hiddenPath, String nowherePath) in <(String, String)>[
+          ('/__studio/graph.json', '/__nowhr/graph.json'),
+          ('/__studio/api/graph', '/__nowhr/api/graph'),
+          ('/main.dart.js_7.part.js', '/main.dart.js_8.part.js'),
+        ]) {
+          final hidden = await get(hiddenPath, headers: headers);
+          final nowhere = await get(nowherePath, headers: headers);
+          expect(hidden.status, nowhere.status, reason: hiddenPath);
+          expect(hidden.type, nowhere.type, reason: hiddenPath);
+          expect(hidden.cache, nowhere.cache, reason: hiddenPath);
+          expect(hidden.body.replaceAll('/__studio/', '/__nowhr/'),
+              nowhere.body.replaceAll('main.dart.js_8', 'main.dart.js_7'),
+              reason: hiddenPath);
+          expect(hidden.body, isNot(contains('"models"')));
+          expect(hidden.body, isNot(contains('Studio screens')));
+        }
       }
-      // This fixture is the app shell, also used to render the login screen.
+      // The sign-in is a page of the application, for anybody.
       final login = await get('/__studio/login');
       expect(login.status, 200);
       expect(login.cache, contains('no-store'));
-      expect(login.body, contains('Studio dashboard'));
+      expect(login.body, contains('<title>Studio · server_binary_probe</title>'));
+      expect(login.body, contains('flutter_bootstrap.js'));
     }, skip: skip);
   });
 
