@@ -284,6 +284,7 @@ export 'src/updates/rollout.dart';
 export 'src/updates/shorebird_patch_source.dart';
 export 'src/updates/update_info.dart';
 export 'src/web/deep_links.dart';
+export 'src/web/error_routes.dart';
 export 'src/web/find_in_page.dart';
 export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
