@@ -278,17 +278,43 @@ class DVStudioClient {
 
   final DVStudioTransport transport;
 
+  /// Whether this caller has a granted session to open Studio.
+  Future<bool> access() async {
+    try {
+      final DVStudioReply reply = await transport('GET', 'api/access');
+      final Object? body = reply.body;
+      return reply.status == 200 && body is Map && body['granted'] == true;
+    } on Object {
+      return false;
+    }
+  }
+
   Future<Object?> _send(String method, String path, {Object? body}) async {
     final DVStudioReply reply = await transport(method, path, body: body);
     if (reply.status >= 200 && reply.status < 300) return reply.body;
     final Object? json = reply.body;
     final Map<Object?, Object?> error =
         json is Map ? json : const <Object?, Object?>{};
+    String message =
+        '${error['message'] ?? 'The server answered ${reply.status}.'}';
+    if (_isMarkupOrDump(message)) {
+      message = 'The server answered ${reply.status}.';
+    }
     throw DVStudioRemoteError(
       reply.status,
       '${error['error'] ?? 'http_${reply.status}'}',
-      '${error['message'] ?? 'The server answered ${reply.status}.'}',
+      message,
     );
+  }
+
+  static bool _isMarkupOrDump(String text) {
+    final String trimmed = text.trim();
+    return trimmed.startsWith('<') ||
+        trimmed.contains('<!DOCTYPE') ||
+        trimmed.contains('<!doctype') ||
+        trimmed.contains('<html') ||
+        trimmed.contains('<body') ||
+        trimmed.length > 200;
   }
 
   Map<String, Object?> _map(Object? json) =>
@@ -505,18 +531,7 @@ class DVStudioRemotePageStore extends DVPageStore {
 }
 
 /// The whole of Studio, as a web-server binary serves it.
-class DVStudioApp extends StatelessWidget {
-  Uri get _here => location ?? Uri.base;
-
-  bool get _signingIn => _here.path.endsWith('/login');
-
-  /// The mount, from the address of its sign-in: `/__studio/login` is
-  /// `/__studio`.
-  String get _mount {
-    final String path = _here.path;
-    return path.substring(0, path.length - '/login'.length);
-  }
-
+class DVStudioApp extends StatefulWidget {
   const DVStudioApp({
     super.key,
     required this.client,
@@ -536,9 +551,73 @@ class DVStudioApp extends StatelessWidget {
   final void Function(String path)? open;
 
   @override
+  State<DVStudioApp> createState() => _DVStudioAppState();
+}
+
+class _DVStudioAppState extends State<DVStudioApp> {
+  Uri get _here => widget.location ?? Uri.base;
+
+  bool get _signingIn =>
+      _here.path.endsWith('/login') || _here.path.endsWith('/login/');
+
+  /// The mount, from the address of its sign-in or page: `/__studio/login` is
+  /// `/__studio`.
+  String get _mount {
+    final String path = _here.path;
+    if (path.endsWith('/login')) {
+      return path.substring(0, path.length - '/login'.length);
+    }
+    if (path.endsWith('/login/')) {
+      return path.substring(0, path.length - '/login/'.length);
+    }
+    if (path.endsWith('/index.html')) {
+      return path.substring(0, path.length - '/index.html'.length);
+    }
+    if (path.endsWith('/index.html/')) {
+      return path.substring(0, path.length - '/index.html/'.length);
+    }
+    if (path.endsWith('/')) {
+      return path.substring(0, path.length - 1);
+    }
+    return path;
+  }
+
+  bool? _granted;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_signingIn) {
+      _granted = false;
+    } else {
+      _checkSession();
+    }
+  }
+
+  @override
+  void didUpdateWidget(DVStudioApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.client != widget.client ||
+        oldWidget.location != widget.location) {
+      if (_signingIn) {
+        _granted = false;
+      } else {
+        _checkSession();
+      }
+    }
+  }
+
+  Future<void> _checkSession() async {
+    final bool granted = await widget.client.access();
+    if (mounted) {
+      setState(() => _granted = granted);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: title,
+      title: widget.title,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C4BF4)),
@@ -566,24 +645,30 @@ class DVStudioApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: _signingIn
-          ? DVStudioSignInScreen(
-              client: client,
-              mount: _mount,
-              from: _here.queryParameters['from'],
-              title: title,
-              open: open ?? dvOpenUrl,
+      home: _granted == null
+          ? const Scaffold(
+              backgroundColor: DVStudioStyle.canvas,
+              body: SizedBox.shrink(),
             )
-          : Material(
-              child: DVStudioScreen(
-                store: DVStudioRemotePageStore(client),
-                site: DVStudioSiteSource(
-                  pages: client.site,
-                  structure: client.structure,
-                ),
-                sections: dvStudioServerSections(client),
-              ),
-            ),
+          : (_granted == true
+              ? Material(
+                  child: DVStudioScreen(
+                    store: DVStudioRemotePageStore(widget.client),
+                    site: DVStudioSiteSource(
+                      pages: widget.client.site,
+                      structure: widget.client.structure,
+                    ),
+                    sections: dvStudioServerSections(widget.client),
+                  ),
+                )
+              : DVStudioSignInScreen(
+                  client: widget.client,
+                  mount: _mount,
+                  from: _here.queryParameters['from'] ??
+                      (_signingIn ? null : _here.path),
+                  title: widget.title,
+                  open: widget.open ?? dvOpenUrl,
+                )),
     );
   }
 }

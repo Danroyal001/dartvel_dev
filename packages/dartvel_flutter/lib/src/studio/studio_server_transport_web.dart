@@ -41,7 +41,10 @@ Future<DVStudioReply> dvStudioSend(
   try {
     decoded = text.isEmpty ? null : jsonDecode(text);
   } on FormatException {
-    decoded = <String, Object?>{'message': text};
+    decoded = <String, Object?>{
+      'error': 'http_${response.status}',
+      'message': 'The server answered ${response.status}.',
+    };
   }
   return DVStudioReply(response.status, decoded);
 }
