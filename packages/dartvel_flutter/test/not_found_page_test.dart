@@ -39,7 +39,7 @@ void main() {
       (WidgetTester tester) async {
     await pumpAt(tester, '/nope');
 
-    expect(find.text('404'), findsOneWidget);
+    expect(find.text('Page not found'), findsOneWidget);
     expect(find.textContaining('/nope'), findsOneWidget);
   });
 
@@ -62,9 +62,10 @@ void main() {
     // takes Flutter's red-on-yellow fallback style.
     expect(
         find.ancestor(
-            of: find.text('404'), matching: find.byType(Material)),
+            of: find.text('Page not found'), matching: find.byType(Material)),
         findsWidgets);
-    final TextStyle style = tester.widget<Text>(find.text('404')).style!;
+    final TextStyle style = tester.widget<Text>(find.text('Page not found'))
+        .style!;
     expect(style.color, isNot(const Color(0xFFFF0000)));
   });
 }

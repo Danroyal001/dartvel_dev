@@ -761,6 +761,7 @@ export 'src/routing/config_routes.dart';
 export 'src/routing/host_routers.dart';
 export 'src/routing/mount.dart';
 export 'src/routing/nav_link.dart';
+export 'src/routing/page_errors.dart';
 export 'src/routing/page_lifecycle.dart';
 export 'src/routing/page_mfa.dart';
 export 'src/routing/page_middleware.dart';
