@@ -23,10 +23,12 @@ import 'native_library.dart';
 export 'native_library.dart' show embedNativeServerLibrary;
 import 'header_codec.dart';
 import 'image_endpoint.dart';
+import 'request_body.dart';
 import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
 
 typedef _NativeCb = gen.DartReqHandlerFunction;
+typedef _NativeBodyChunkCb = gen.DartBodyChunkHandlerFunction;
 
 /// The callback shape this file is written for; see `AW_ABI_VERSION` in
 /// rust/src/lib.rs. 2 added the peer address.
@@ -44,6 +46,9 @@ class ServerHandle {
   final gen.DartvelShelfBindings _api;
   final ffi.NativeCallable<_NativeCb> _dartHandler;
   final ffi.NativeCallable<_NativeCancelCb> _dartCancelHandler;
+  // Null for a library that reads every body whole, which is a Dart this side
+  // has no way to stream a body into.
+  final ffi.NativeCallable<_NativeBodyChunkCb>? _dartBodyChunkHandler;
   bool _stopped = false;
 
   ServerHandle(
@@ -52,8 +57,9 @@ class ServerHandle {
     this._id,
     this._api,
     this._dartHandler,
-    this._dartCancelHandler,
-  );
+    this._dartCancelHandler, [
+    this._dartBodyChunkHandler,
+  ]);
 
   Future<void> stop() async {
     if (_stopped) return;
@@ -61,6 +67,7 @@ class ServerHandle {
     _api.aw_stop(_id);
     _dartHandler.close();
     _dartCancelHandler.close();
+    _dartBodyChunkHandler?.close();
   }
 }
 
@@ -204,6 +211,14 @@ Future<ServerHandle> serve(
   final bool configuresTimeout =
       dylib.providesSymbol('aw_configure_request_timeout');
   final bool acknowledgesRequests = dylib.providesSymbol('aw_request_received');
+  // A request body is read a chunk at a time rather than whole when both
+  // halves can do it. This side is detected rather than assumed for the same
+  // reason the timeout above is: the pairing is by name, so a library that
+  // predates streaming gets the whole body it has always been given, and a
+  // Dart that does can still read one from a library that does not.
+  final bool streamsRequestBodies =
+      dylib.providesSymbol('aw_register_body_chunk_handler') &&
+          dylib.providesSymbol('aw_body_next_chunk');
   if (!configuresTimeout && requestTimeout != _defaultRequestTimeout) {
     throw StateError(
       'dartvel: the native server library at ${native.origin} cannot '
@@ -282,6 +297,11 @@ Future<ServerHandle> serve(
   final effective = preview == null ? routed : preview.wrap(routed);
 
   final activeSubscriptions = <int, StreamSubscription<List<int>>>{};
+  // The body of each request being read, keyed by the request the native side
+  // will deliver its chunks for. Removed when the request is answered, so a
+  // chunk that arrives after the handler is done is dropped rather than
+  // filling a map that is never read again.
+  final bodies = <int, RequestBodyStream>{};
   final authority = host.contains(':') && !host.startsWith('[') ? '[$host]' : host;
   // The port a request's URL names. The bound one once the server is up, which
   // is before any request can arrive; `port` may be 0.
@@ -302,6 +322,11 @@ Future<ServerHandle> serve(
     // server. So building the request is guarded as a whole, and every way
     // out answers.
     final Request req;
+    // A body this side can pull, or null for a request whose body the native
+    // side read whole -- a library that cannot stream one, which is a Dart
+    // that has not been rebuilt against this API.
+    final RequestBodyStream? bodyStream =
+        streamsRequestBodies ? RequestBodyStream(reqId, api) : null;
     try {
       req = _readRequest(
         method: method,
@@ -309,10 +334,14 @@ Future<ServerHandle> serve(
         hdrsPtr: hdrsPtr,
         hdrsLen: hdrsLen,
         body: body,
+        bodyStream: bodyStream,
         peer: peer,
         authority: authority,
         port: urlPort,
       );
+      // Only once the request exists: a chunk delivered before this would have
+      // nowhere to go, and the body is read as soon as the handler pulls.
+      if (bodyStream != null) bodies[reqId] = bodyStream;
       // Copied out, so the native side may free what it passed. Until this
       // it keeps them, because a listener runs when the isolate gets to it,
       // which can be after the native side has stopped waiting.
@@ -413,6 +442,11 @@ Future<ServerHandle> serve(
         // Already answered is harmless: the native side answers a request
         // once and refuses the second.
         _answerError(api, reqId, 500);
+      } finally {
+        // Nobody is left to pull this request's body: its answer is what
+        // told the native side so, and a chunk that arrives after it is
+        // dropped rather than waiting for a pull nobody will make.
+        bodies.remove(reqId);
       }
     });
   }
@@ -431,6 +465,21 @@ Future<ServerHandle> serve(
   } on ArgumentError {
     // Older bundled binaries may not expose this FFI symbol. Rust source and
     // generated bindings include it; rebuilding the native asset enables it.
+  }
+
+  // On this thread and before aw_start, which takes it into this server's own
+  // slot the way it takes the request and cancel handlers: two isolates
+  // starting a server at the same moment interleave as register A, register B,
+  // start A, start B, and A would otherwise hand its request bodies to B's
+  // isolate.
+  ffi.NativeCallable<_NativeBodyChunkCb>? dartBodyChunkHandler;
+  if (streamsRequestBodies) {
+    dartBodyChunkHandler =
+        ffi.NativeCallable<_NativeBodyChunkCb>.listener(
+            (int reqId, gen.FfiBuf chunk, int kind) {
+      bodies[reqId]?.deliver(kind, chunk.ptr, chunk.len);
+    });
+    api.aw_register_body_chunk_handler(dartBodyChunkHandler.nativeFunction);
   }
 
   _configureCors(api, cors);
@@ -507,7 +556,7 @@ Future<ServerHandle> serve(
   if (boundPort != 0) urlPort = boundPort;
 
   return ServerHandle(host, boundPort == 0 ? port : boundPort, serverId, api,
-      dartRequestHandler, dartCancelHandler);
+      dartRequestHandler, dartCancelHandler, dartBodyChunkHandler);
 }
 
 /// A request that cannot be served as written, and why, in words chosen here:
@@ -526,6 +575,7 @@ Request _readRequest({
   required ffi.Pointer<ffi.Uint8> hdrsPtr,
   required int hdrsLen,
   required gen.FfiBuf body,
+  required RequestBodyStream? bodyStream,
   required gen.FfiStr peer,
   required String authority,
   required int port,
@@ -542,15 +592,32 @@ Request _readRequest({
   final targetStr = String.fromCharCodes(
       target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
   final headers = decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
-  final bodyBytes =
-      Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len));
+  // A body the native side streamed is pulled one chunk at a time as the
+  // handler reads it; one it read whole arrives here and is already in memory.
+  final Stream<List<int>> bodySource = bodyStream == null
+      ? Stream<List<int>>.value(
+          Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len)))
+      : _pulled(bodyStream);
   return Request(
     method: methodStr,
     url: _requestUrl(targetStr, authority: authority, port: port),
     headers: Headers(headers),
-    bodyStream: Stream<List<int>>.value(bodyBytes),
+    bodyStream: bodySource,
     peerAddress: peerAddress,
   );
+}
+
+/// The body [source] has, as it arrives.
+///
+/// A generator, so a chunk is asked for only when the consumer has come back
+/// for the next one. That is what makes the handler the thing that decides how
+/// fast a client may send.
+Stream<List<int>> _pulled(RequestBodyStream source) async* {
+  while (true) {
+    final Uint8List? chunk = await source.pull();
+    if (chunk == null) return;
+    yield chunk;
+  }
 }
 
 /// The URL of a request whose request line named [target], on this server.
