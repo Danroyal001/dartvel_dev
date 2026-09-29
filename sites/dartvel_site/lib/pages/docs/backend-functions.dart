@@ -34,7 +34,9 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
             DocsNote('Backend files import dartvel_core',
                 'The backend runs without Flutter. Import '
                 'package:dartvel_core/dartvel.dart there, and leave DV and the '
-                'generated client barrel to the app.'),
+                'generated client barrel to the app. The generated data models '
+                'import Flutter, so a backend function cannot call '
+                'Order.find() or order.save() yet.'),
           ],
         ),
         DocsSection(
