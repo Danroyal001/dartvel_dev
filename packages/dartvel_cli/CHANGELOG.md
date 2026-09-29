@@ -1,3 +1,9 @@
+## 0.9.4
+
+- The splash is back while Flutter boots. 0.9.2 showed a page's crawler text as
+  the page until the first frame; visitors now see the splash, as before 0.9.2.
+  The text stays in the document for crawlers, find, print and no-JS visitors.
+
 ## 0.9.3
 
 - **Studio pages and data models reach every project:** `dartvel admin generate`
