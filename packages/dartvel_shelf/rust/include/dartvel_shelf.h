@@ -202,6 +202,16 @@ int32_t aw_stream_complete(uint64_t req_id);
 int32_t aw_ws_prepare(uint64_t id, size_t max, struct FfiStr protocol);
 
 /**
+ * The native task has ended; remaining received messages are bounded.
+ */
+int32_t aw_ws_closed(uint64_t id);
+
+/**
+ * Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+ */
+uint64_t aw_ws_pong_count(uint64_t id);
+
+/**
  * 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
  */
 int32_t aw_ws_send(uint64_t id, int32_t kind, struct FfiBuf data);
