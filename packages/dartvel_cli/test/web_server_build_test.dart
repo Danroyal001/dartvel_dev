@@ -194,20 +194,19 @@ void main() {
     });
   });
 
-  test('the admin is not a stale page', () async {
+  test('a separately built Studio an older build left is swept too', () async {
     // The sweep removes every per-route index.html a previous static build
     // left, because a server that falls through to files would serve
-    // yesterday's copy of each route. The admin's shell is also called
-    // index.html and is not a route: it is written by this same build, into
-    // a directory the server reads from, and removing it leaves the mount
-    // answering nothing again.
+    // yesterday's copy of each route. Studio is routes of the application
+    // now, and an old Studio document left under __admin is exactly such a
+    // file: served from disk, it is Studio's UI to anybody who asks.
     expect(
       dvWebServerStaleFiles(present: <String>[
         'index.html',
         'docs/index.html',
         '__admin/index.html',
       ]),
-      <String>['docs/index.html'],
+      <String>['docs/index.html', '__admin/index.html'],
     );
   });
 }
