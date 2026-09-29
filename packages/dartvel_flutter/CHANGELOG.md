@@ -1,3 +1,17 @@
+## 0.9.3
+
+- **Security:** the Studio app checks the session before building any
+  section, whatever the path, and shows a short message instead of a server's
+  raw response when a request fails.
+- **Studio lists every compiled page:** Pages lists compiled routes from the
+  application's route manifest alongside stored pages, marked Code, Studio or
+  Override. A compiled page opens read-only as its content or captured
+  structure, with **Edit this page** creating an override and **Restore
+  compiled page** removing it.
+- **Studio Data model designer:** Data models are created and edited in
+  Studio's Data section with field types, rules, relations, indexes and
+  access policies, with record browsing and editing in the same interface.
+
 ## 0.9.2
 
 - **`DVHostedPage`, `dvOnGenerateRoute`, `dvPageFor`**: Dartvel's routes in

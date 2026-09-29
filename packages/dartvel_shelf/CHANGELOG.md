@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.2
 
 - **Upstream Shelf adapter:** `package:dartvel_shelf/shelf.dart` provides `fromShelf()`
   to mount existing Shelf pipelines, cascading handlers, and middlewares directly on
