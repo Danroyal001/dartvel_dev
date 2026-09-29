@@ -339,6 +339,34 @@ class DartvelShelfBindings {
   late final _aw_ws_pong_count = _aw_ws_pong_countPtr
       .asFunction<int Function(int)>();
 
+  /// Queues one frame without sending it; aw_ws_flush sends what is queued.
+  /// 0 accepted, 1 backpressure (a wakeup follows when there is room),
+  /// -1 closed/invalid. Never blocks the Dart thread.
+  int aw_ws_queue(int id, int kind, FfiBuf data) {
+    return _aw_ws_queue(id, kind, data);
+  }
+
+  late final _aw_ws_queuePtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Int32, FfiBuf)>
+      >('aw_ws_queue');
+  late final _aw_ws_queue = _aw_ws_queuePtr
+      .asFunction<int Function(int, int, FfiBuf)>();
+
+  /// Sends what is queued. When the socket takes it all at once, it is written
+  /// from this thread; otherwise the connection's writer task finishes it.
+  /// 0 everything was written, 1 the writer task has the rest, -1 closed.
+  int aw_ws_flush(int id) {
+    return _aw_ws_flush(id);
+  }
+
+  late final _aw_ws_flushPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_ws_flush',
+      );
+  late final _aw_ws_flush = _aw_ws_flushPtr.asFunction<int Function(int)>();
+
+  /// Queues and sends one frame: aw_ws_queue then aw_ws_flush.
   /// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
   int aw_ws_send(int id, int kind, FfiBuf data) {
     return _aw_ws_send(id, kind, data);
