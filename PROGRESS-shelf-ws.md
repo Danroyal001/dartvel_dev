@@ -22,3 +22,9 @@ User restrictions: local commits only; no pushes, merges, publishing, deployment
 - Next: commit verified transport, fix native static ranges/cache validators/symlink escape, benchmark and run full suites.
 - Findings: the inherited generic HTTP response bridge still uses an unbounded native queue. Phase-1 backpressure claims apply to request bodies, not all response bodies; parity documentation must state this accurately.
 - Static tests already observed failing: ranges return 200, ETag absent, external symlink serves 200. Native static implementation follows after the transport commit.
+
+## Step 4 — native static files
+- Done: transport committed as `4fa1c2ad`; nine focused transport/adapter/native-symbol/render-parity tests passed. Native static serving now uses streaming ServeFile with ranges/416/HEAD/MIME/date validators, adds weak metadata ETags with If-None-Match precedence, and canonicalizes paths to refuse external symlinks.
+- Tests: all three static integration tests failed against the previous library and pass after rebuilding.
+- Next: commit static changes, run all Dart/Rust tests and the three-trial benchmark in fresh worker processes.
+- Blockers/remaining scope: raw hijack, actual HTTP version metadata, configurable graceful shutdown and inherited generic HTTP response backpressure require further ABI work. These are not claimed complete.
