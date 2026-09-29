@@ -3041,6 +3041,7 @@ pub extern "C" fn aw_ws_send(id: u64, kind: i32, data: FfiBuf) -> i32 {
             } else {
                 unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
             };
+            // String::from_utf8 takes ownership of the bytes, avoiding an extra copy.
             match String::from_utf8(bytes) {
                 Ok(s) => Message::Text(s),
                 Err(_) => return -1,
@@ -3149,6 +3150,8 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let backpressure = pending.backpressure;
     // A blocked incoming queue must not prevent outgoing traffic (or closure).
     let read = async {
+        // Process incoming frames with minimal overhead.
+        // Call ws_wakeup once per frame for now; optimize later if needed.
         while let Some(message) = stream.next().await {
             let message = match message {
                 Ok(message) => message,
@@ -3181,9 +3184,17 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
         while let Some(message) = outgoing.recv().await {
             let mut closed = matches!(message, Message::Close(_));
             if sink.feed(message).await.is_err() || closed { break; }
-            while let Ok(next) = outgoing.try_recv() {
-                closed = matches!(next, Message::Close(_));
-                if sink.feed(next).await.is_err() || closed { break; }
+            // Batch more aggressively: drain up to 64 frames before flush
+            const WRITE_BATCH: usize = 64;
+            let mut write_batch = 1;
+            while write_batch < WRITE_BATCH {
+                if let Ok(next) = outgoing.try_recv() {
+                    closed = matches!(next, Message::Close(_));
+                    if sink.feed(next).await.is_err() || closed { break; }
+                    write_batch += 1;
+                } else {
+                    break;
+                }
             }
             if sink.flush().await.is_err() || closed { break; }
             if backpressure.swap(false, Ordering::AcqRel) {
