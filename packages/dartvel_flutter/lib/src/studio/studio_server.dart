@@ -29,9 +29,10 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:flutter/material.dart';
 
 import '../../dartvel_flutter.dart';
-import 'studio_sign_in.dart';
+import 'studio_first_run.dart';
 import 'studio_server_transport_stub.dart'
     if (dart.library.js_interop) 'studio_server_transport_web.dart' as transport;
+import 'studio_sign_in.dart';
 
 part 'studio_model_designer.dart';
 
@@ -560,15 +561,24 @@ class _DVStudioAppState extends State<DVStudioApp> {
   bool get _signingIn =>
       _here.path.endsWith('/login') || _here.path.endsWith('/login/');
 
-  /// The mount, from the address of its sign-in or page: `/__studio/login` is
-  /// `/__studio`.
+  /// The first-run setup, at `<mount>/setup`: the server serves it only while
+  /// the setup is pending, and it carries no data, so it needs no session.
+  bool get _settingUp =>
+      _here.path.endsWith('/setup') || _here.path.endsWith('/setup/');
+
+  /// The mount, from the address of its sign-in, its setup or a page:
+  /// `/__studio/login` and `/__studio/setup` are both `/__studio`.
   String get _mount {
     final String path = _here.path;
-    if (path.endsWith('/login')) {
-      return path.substring(0, path.length - '/login'.length);
-    }
-    if (path.endsWith('/login/')) {
-      return path.substring(0, path.length - '/login/'.length);
+    for (final String page in const <String>[
+      '/login',
+      '/login/',
+      '/setup',
+      '/setup/',
+    ]) {
+      if (path.endsWith(page)) {
+        return path.substring(0, path.length - page.length);
+      }
     }
     if (path.endsWith('/index.html')) {
       return path.substring(0, path.length - '/index.html'.length);
@@ -587,7 +597,7 @@ class _DVStudioAppState extends State<DVStudioApp> {
   @override
   void initState() {
     super.initState();
-    if (_signingIn) {
+    if (_signingIn || _settingUp) {
       _granted = false;
     } else {
       _checkSession();
@@ -599,7 +609,7 @@ class _DVStudioAppState extends State<DVStudioApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.client != widget.client ||
         oldWidget.location != widget.location) {
-      if (_signingIn) {
+      if (_signingIn || _settingUp) {
         _granted = false;
       } else {
         _checkSession();
@@ -645,7 +655,14 @@ class _DVStudioAppState extends State<DVStudioApp> {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: _granted == null
+      home: _settingUp
+          ? DVStudioFirstRunScreen(
+              client: widget.client,
+              mount: _mount,
+              title: widget.title,
+              open: widget.open ?? dvOpenUrl,
+            )
+          : _granted == null
           ? const Scaffold(
               backgroundColor: DVStudioStyle.canvas,
               body: SizedBox.shrink(),
