@@ -2178,7 +2178,7 @@ async fn catch_all_handler(
         if path.starts_with("/static/") {
             let relative_path = &path["/static".len()..];
             if let Some(file_path) = get_static_file(&dir, relative_path) {
-                return serve_file_response(file_path).await;
+                return serve_file_response(file_path, req).await;
             }
         }
     }
@@ -2190,12 +2190,11 @@ async fn catch_all_handler(
     };
     if let Some(dir) = spa_root {
         if let Some(file_path) = get_static_file(&dir, &path) {
-            return serve_file_response(file_path).await;
+            return serve_file_response(file_path, req).await;
         }
         if req.method() == Method::GET {
-            let index_path = std::path::PathBuf::from(&dir).join("index.html");
-            if index_path.is_file() {
-                return serve_file_response(index_path).await;
+            if let Some(index_path) = get_static_file(&dir, "/index.html") {
+                return serve_file_response(index_path, req).await;
             }
         }
     }
@@ -2205,51 +2204,45 @@ async fn catch_all_handler(
 }
 
 fn get_static_file(dir: &str, path: &str) -> Option<std::path::PathBuf> {
-    let mut file_path = std::path::PathBuf::from(dir);
-    let sanitized = path.trim_start_matches('/');
-    if sanitized.contains("..") {
-        return None;
-    }
-    file_path.push(sanitized);
-    if file_path.is_file() {
-        Some(file_path)
-    } else {
-        None
-    }
+    let root = std::fs::canonicalize(dir).ok()?;
+    let path = root.join(path.trim_start_matches('/'));
+    let resolved = std::fs::canonicalize(path).ok()?;
+    if resolved.starts_with(&root) && resolved.is_file() { Some(resolved) } else { None }
 }
 
-fn get_mime_type(path: &std::path::Path) -> &'static str {
-    match path.extension().and_then(|s| s.to_str()) {
-        Some("html") => "text/html",
-        Some("css") => "text/css",
-        Some("js") => "application/javascript",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("svg") => "image/svg+xml",
-        Some("json") => "application/json",
-        Some("wasm") => "application/wasm",
-        _ => "application/octet-stream",
-    }
-}
-
-async fn serve_file_response(path: std::path::PathBuf) -> Response<Body> {
-    match tokio::fs::read(&path).await {
-        Ok(bytes) => {
-            let mime = get_mime_type(&path);
-            Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, mime)
-                .body(Body::from(bytes))
-                .unwrap()
-        }
-        Err(err) => {
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from(format!("File not found: {}", err)))
-                .unwrap()
+async fn serve_file_response(path: std::path::PathBuf, mut req: Request<Body>) -> Response<Body> {
+    use tower::ServiceExt;
+    use tower_http::services::ServeFile;
+    // A weak validator: metadata identifies a version, not byte equality.
+    let etag = tokio::fs::metadata(&path).await.ok().and_then(|meta| {
+        let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+        Some(format!("W/\"{:x}-{:x}\"", meta.len(), modified.as_nanos()))
+    });
+    let retrieval = req.method() == Method::GET || req.method() == Method::HEAD;
+    if retrieval {
+        if let Some(condition) = req.headers().get(header::IF_NONE_MATCH) {
+            let matches = etag.as_ref().map_or(false, |etag| {
+                condition.to_str().ok().map_or(false, |value| value.split(',').any(|item| {
+                    let item = item.trim();
+                    item == "*" || item.trim_start_matches("W/") == etag.trim_start_matches("W/")
+                }))
+            });
+            if matches {
+                return Response::builder().status(StatusCode::NOT_MODIFIED)
+                    .header(header::ETAG, etag.unwrap()).body(Body::empty()).unwrap();
+            }
+            // If-None-Match takes precedence over a date, including a miss.
+            req.headers_mut().remove(header::IF_MODIFIED_SINCE);
         }
     }
+    // ServeFile streams from disk and implements byte ranges, HEAD, MIME,
+    // Last-Modified and date preconditions. Do not read a file into one Vec.
+    let response = ServeFile::new(path).oneshot(req).await.unwrap();
+    let (mut parts, body) = response.into_parts();
+    if let Some(etag) = etag {
+        if let Ok(value) = etag.parse() { parts.headers.insert(header::ETAG, value); }
+    }
+    Response::from_parts(parts, Body::new(body))
 }
 
 fn safe_lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
