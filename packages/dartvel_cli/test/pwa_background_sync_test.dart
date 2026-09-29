@@ -16,7 +16,6 @@ import 'package:test/test.dart';
 String worker({bool? backgroundSync}) => dvServiceWorker(
       buildId: 'test',
       precache: const <String>['/'],
-      offlinePath: '/offline.html',
       backgroundSync: backgroundSync ?? true,
     );
 
@@ -85,7 +84,8 @@ void main() {
 
     test('the rest of the worker is unchanged', () {
       expect(worker(backgroundSync: false), contains("addEventListener('fetch'"));
-      expect(worker(backgroundSync: false), contains('/offline.html'));
+      expect(worker(backgroundSync: false),
+          contains('const OFFLINE = "/offline/"'));
     });
   });
 }
