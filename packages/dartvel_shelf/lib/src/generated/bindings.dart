@@ -52,6 +52,18 @@ class DartvelShelfBindings {
   late final _aw_register_cancel_handler = _aw_register_cancel_handlerPtr
       .asFunction<void Function(DartStreamCancelHandler)>();
 
+  void aw_register_stream_ack_handler(DartStreamAckHandler cb) {
+    return _aw_register_stream_ack_handler(cb);
+  }
+
+  late final _aw_register_stream_ack_handlerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(DartStreamAckHandler)>>(
+        'aw_register_stream_ack_handler',
+      );
+  late final _aw_register_stream_ack_handler =
+      _aw_register_stream_ack_handlerPtr
+          .asFunction<void Function(DartStreamAckHandler)>();
+
   int aw_configure_cors(FfiStr config_json) {
     return _aw_configure_cors(config_json);
   }
@@ -398,6 +410,10 @@ typedef DartStreamCancelHandlerFunction = ffi.Void Function(ffi.Uint64);
 typedef DartDartStreamCancelHandlerFunction = void Function(int);
 typedef DartStreamCancelHandler =
     ffi.Pointer<ffi.NativeFunction<DartStreamCancelHandlerFunction>>;
+typedef DartStreamAckHandlerFunction = ffi.Void Function(ffi.Uint64);
+typedef DartDartStreamAckHandlerFunction = void Function(int);
+typedef DartStreamAckHandler =
+    ffi.Pointer<ffi.NativeFunction<DartStreamAckHandlerFunction>>;
 typedef DartBodyChunkHandlerFunction = ffi.Void Function(
   ffi.Uint64,
   FfiBuf,
