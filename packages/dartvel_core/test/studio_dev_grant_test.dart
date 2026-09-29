@@ -56,7 +56,10 @@ void main() {
     expect(cookie, contains('${DVStudioDevGrant.cookieName}=${grant.token}'));
     expect(cookie, contains('HttpOnly'));
     expect(cookie, contains('SameSite=Strict'));
-    expect(cookie, contains('Path=/__studio'));
+    // The whole site, not only the mount: Studio's code is the application's
+    // deferred library, loaded from the site root, and a browser only sends
+    // the cookie to a path under the one it was set for.
+    expect(cookie, contains('Path=/;'));
   });
 
   test('a browser holding the cookie gets Studio and its data', () async {

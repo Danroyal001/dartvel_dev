@@ -6,7 +6,7 @@
 /// Studio, with the project's records and its page builder, to anybody on
 /// the same network. So a development server makes a grant token and prints
 /// a link carrying it, the way a notebook server does. Opening the link sets
-/// a cookie scoped to the mount, and the mount serves only a browser that
+/// a cookie for the site, and Studio serves only a browser that
 /// holds it.
 library;
 
@@ -66,7 +66,9 @@ class DVStudioDevGrant {
       303,
       headers: Headers(<String, String>{
         'location': '${mount.path}/',
-        'set-cookie': '$cookieName=$token; Path=${mount.path}; HttpOnly; '
+        // The site root: Studio's code is loaded from it, as the
+        // application's deferred library, not from under the mount.
+        'set-cookie': '$cookieName=$token; Path=/; HttpOnly; '
             'SameSite=Strict',
         'cache-control': 'no-store',
       }),
