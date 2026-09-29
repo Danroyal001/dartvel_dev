@@ -13,6 +13,7 @@ library;
 
 export 'package:dartvel_core/dartvel.dart'
     show
+        DVDocsAccess,
         DVDocsMount,
         dvDocsMount,
         dvDocsMountProblem,
