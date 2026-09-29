@@ -1,3 +1,10 @@
+## 0.9.4
+
+- Studio's sign-in page was blank in 0.9.3: the rule that keeps deferred code
+  parts behind the Studio grant also caught the Flutter engine
+  (`canvaskit.wasm`), which the sign-in screen needs. Only a deferred
+  library's `*.part.*` files need the grant now.
+
 ## 0.9.3
 
 - **Security: Studio never renders for a signed-out visitor.** The admin
