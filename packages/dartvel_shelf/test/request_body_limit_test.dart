@@ -185,7 +185,7 @@ void main() {
     expect(result.status, 413, reason: '$result');
     expect(result.elapsed, lessThan(bound), reason: '$result');
     expect(result.closed, isTrue,
-        reason: 'the rest of a refused body is not read: $result');
+        reason: 'the connection closes after a refusal: $result');
     expect(result.text, contains(dvTooLargeMessage(by)), reason: '$result');
     expect(result.text, isNot(contains(marker)),
         reason: 'an error answer repeats nothing the request carried');
