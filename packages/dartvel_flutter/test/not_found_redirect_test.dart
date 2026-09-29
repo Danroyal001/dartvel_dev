@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('home'), findsOneWidget);
-    expect(find.text('404'), findsNothing);
+    expect(find.text('Page not found'), findsNothing);
   });
 
   testWidgets('a declared route is left where it is',
@@ -50,7 +50,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('404'), findsOneWidget);
+    expect(find.text('Page not found'), findsOneWidget);
   });
 
   testWidgets('a Studio page stored for the path is not redirected away',
