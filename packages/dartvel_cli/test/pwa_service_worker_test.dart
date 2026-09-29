@@ -9,6 +9,10 @@
 // harmful when they are wrong. A worker that caches index.html forever serves
 // last week's bundle references and the app fails to boot, with no way for the
 // user to fix it except clearing site data.
+//
+// What the worker does with a navigation it cannot complete is run for real,
+// under node, in service_worker_offline_test.dart; what is here is the shape
+// of its answer.
 import 'dart:convert';
 
 import 'package:dartvel_cli/src/build/pwa_service_worker.dart';
@@ -97,24 +101,36 @@ void main() {
   });
 
   group('offline', () {
-    test('a navigation that fails falls back to the offline page', () {
-      final String worker = dvServiceWorker(
-        buildId: 'abc',
-        precache: const <String>['/'],
-        offlinePath: '/offline.html',
-      );
-      expect(worker, contains('/offline.html'));
+    // What the worker does with a navigation it cannot complete is run for
+    // real, under node, in service_worker_offline_test.dart. What is left here
+    // is the shape of the worker's answer: which route it is sent to, and
+    // that nothing it serves is a document the build wrote.
+    test('a navigation that fails is sent to the offline route', () {
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      expect(worker, contains('const OFFLINE = "/offline/"'));
+      expect(worker, contains('Response.redirect'));
     });
 
     test('the offline page is precached, or it cannot be served offline', () {
-      // The one asset that must be in the cache before it is needed. Fetching
+      // The one page that must be in the cache before it is needed. Fetching
       // it on demand is exactly what fails when there is no network.
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      expect(precacheOf(worker), contains('/offline/'));
+    });
+
+    test('a project whose router has no offline route gets no answer', () {
+      // Rather than a page that claims to be one: an address nothing serves
+      // is a 404 the person can see, which is true, and a document the build
+      // made up about a site that has no such page is not.
       final String worker = dvServiceWorker(
         buildId: 'abc',
         precache: const <String>['/'],
-        offlinePath: '/offline.html',
+        offlineRoute: null,
       );
-      expect(precacheOf(worker), contains('/offline.html'));
+      expect(worker, contains('const OFFLINE = null'));
+      expect(precacheOf(worker), isNot(contains('/offline/')));
     });
   });
 
@@ -126,29 +142,6 @@ void main() {
           dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
       expect(worker, contains('skipWaiting'));
       expect(worker, contains('clients.claim'));
-    });
-  });
-
-  group('the offline page', () {
-    test('it stands alone', () {
-      // It is shown when the network is gone, so it cannot reference a
-      // stylesheet, a font or a script it would have to fetch.
-      final String page = dvOfflinePage(title: 'Dartvel');
-      expect(page, isNot(contains('<link rel="stylesheet"')));
-      expect(page, isNot(contains('<script src=')));
-      expect(page, contains('<style'));
-    });
-
-    test('it names the site', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('Dartvel'));
-    });
-
-    test('it carries a viewport, like every other page', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('width=device-width'));
-    });
-
-    test('it follows the reader colour scheme', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('prefers-color-scheme'));
     });
   });
 

@@ -200,7 +200,10 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
               '  notFoundRedirect: /',
             ]),
             Bullets(<String>[
-              'For a page of your own, put one at the route you redirect to.',
+              'It lives at /404. Put a page of your own there and yours is '
+                  'used instead.',
+              'For a page of your own anywhere else, put one at the route you '
+                  'redirect to.',
               'On a static host, `dartvel build web` also writes 404/index.html '
                   'for paths the app never loads.',
               'See Static web hosting for the Apache rules.',

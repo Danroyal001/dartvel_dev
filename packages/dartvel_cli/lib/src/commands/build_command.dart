@@ -17,7 +17,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVHomeWidgetSpec,
         DVBuildLifecycle,
         DVImageVariants,
-        dvAndroidPermissionNames;
+        dvAndroidPermissionNames,
+        dvOfflineRoute;
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
@@ -2729,7 +2730,7 @@ class BuildCommand extends Command<void> {
     }
 
     _writePwaIcons(root, settings);
-    await _writeServiceWorker(root, name: name, settings: settings);
+    await _writeServiceWorker(root, settings: settings);
   }
 
   /// The hreflang set for [route], and its x-default, when the site is built
@@ -2792,16 +2793,6 @@ class BuildCommand extends Command<void> {
     }
   }
 
-  /// Writes [html] at `<web>/<path>/index.html`.
-  ///
-  /// A directory with an index.html in it is how every static host serves a
-  /// path with no extension, and it needs no server configuration to work.
-  void _writePage(Directory web, String path, String html) {
-    final File file = File(p.join(web.path, path, 'index.html'));
-    file.parent.createSync(recursive: true);
-    file.writeAsStringSync(html);
-  }
-
   /// Replace Flutter's service worker with one that knows the routes.
   ///
   /// Flutter's own caches the app shell and nothing Dartvel knows about, so a
@@ -2809,7 +2800,6 @@ class BuildCommand extends Command<void> {
   /// what a stale worker serves after a deploy.
   Future<void> _writeServiceWorker(
     String root, {
-    required String name,
     required Map<Object?, Object?> settings,
   }) async {
     if (settings['serviceWorker'] == false) return;
@@ -2829,25 +2819,12 @@ class BuildCommand extends Command<void> {
     // locally ever saw it.
     final routes = dvPrecacheRoutes(await _pagesToGenerate(root));
 
-    // Extensionless, because these are URLs a person sees: one is what the
-    // browser shows when the network is gone and the other is what a mistyped
-    // link lands on. A directory with an index.html in it is how a static
-    // host serves a path without an extension.
-    const offlinePath = '/offline/';
-    // The project's own colour, not the framework's. Both pages carried
-    // dartvel.dev's blue, so every application shipped its error pages in
-    // Dartvel's brand on the two screens a visitor sees when something has
-    // gone wrong.
-    //
-    // From the PWA block rather than this one: `settings` here is the
-    // service-worker section, and the colour a project already declares for
-    // its manifest is the colour it means.
-    final Object? pwa = _dartvelSection(root)['pwa'];
-    final String? accent =
-        pwa is Map && pwa['themeColor'] is String
-            ? pwa['themeColor']! as String
-            : null;
-    _writePage(web, 'offline', dvOfflinePage(title: name, accent: accent));
+    // The two pages the build used to write here are not written here. They
+    // are routes now -- declared by the generator, drawn by
+    // dartvel_flutter, prerendered with every other route below -- so the
+    // worker redirects a navigation that failed to the offline one and the
+    // static host's not-found document is a copy of the page the build
+    // rendered.
 
     // The page this used to be. build/web is not emptied between builds, so a
     // file Dartvel wrote and no longer writes stays there and gets deployed:
@@ -2857,15 +2834,6 @@ class BuildCommand extends Command<void> {
     // identical on disk.
     final File legacyOffline = File(p.join(web.path, 'offline.html'));
     if (legacyOffline.existsSync()) legacyOffline.deleteSync();
-    _writePage(web, '404', dvNotFoundPage(title: name, accent: accent));
-
-    // And once more at the root, under the name the hosts that cannot be told
-    // otherwise look for. GitHub Pages, Netlify and S3 website hosting each
-    // hard-code 404.html; a site that only had /404/index.html would fall
-    // back to their branding rather than its own. Nobody navigates to this
-    // one, so it is not an extension anybody sees.
-    File(p.join(web.path, '404.html'))
-        .writeAsStringSync(dvNotFoundPage(title: name, accent: accent));
 
     // Written over flutter_service_worker.js, which index.html already
     // registers: adding a second worker would leave two competing for the
@@ -2878,7 +2846,6 @@ class BuildCommand extends Command<void> {
       dvServiceWorker(
         buildId: DateTime.now().toUtc().toIso8601String(),
         precache: <String>[...routes, ...parts],
-        offlinePath: offlinePath,
         // On unless the project says otherwise: a backend call made offline
         // is queued and replayed, which is the behaviour a PWA promises.
         backgroundSync: settings['backgroundSync'] != false,
@@ -2892,7 +2859,7 @@ class BuildCommand extends Command<void> {
 
     Logger.log('   Service worker written: '
         '${routes.length} route(s) and ${parts.length} page part(s) '
-        'precached, with an offline page.');
+        'precached; a failed navigation goes to $dvOfflineRoute/.');
   }
 
   /// The admin mount the worker leaves alone, when this build serves one.
@@ -3354,6 +3321,22 @@ class BuildCommand extends Command<void> {
     if (home != null) {
       index.writeAsStringSync(
           dvRenderRoutePage(shell, home, onUncaptured: _logUncaptured));
+    }
+
+    // Once the not-found route is on disk, under the name the hosts that
+    // cannot be told otherwise look for. GitHub Pages, Netlify and S3
+    // website hosting each hard-code 404.html; a site carrying only
+    // /404/index.html falls back to their branding on the one page where
+    // branding is the least useful thing it could show.
+    //
+    // Here rather than with the worker, because it is not the worker's: it is
+    // what a host serves for a request that never reached a browser at all,
+    // and it was written inside the PWA block until now, so a project with
+    // `dartvel.pwa.enabled: false` shipped none.
+    final File? hostNotFound = dvHostNotFoundDocument(web);
+    if (hostNotFound != null) {
+      Logger.log('   ${p.relative(hostNotFound.path, from: web.path)} is a '
+          'copy of the not-found page, for the hosts that look for that name.');
     }
 
     // After every page is on disk, root included: each names its own
