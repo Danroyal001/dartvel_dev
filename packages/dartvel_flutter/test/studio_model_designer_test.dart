@@ -160,8 +160,14 @@ void main() {
         <String, Object?>{'name': 'city', 'type': 'String'},
       ],
     });
-    for (final String city in <String>['Lagos', 'Lisbon', 'Uyo']) {
-      await client.create('Place', <String, Object?>{'city': city});
+    // Fixed keys: search matches every field, and a generated key may hold
+    // the letter searched for.
+    for (final (String id, String city) in <(String, String)>[
+      ('p1', 'Lagos'),
+      ('p2', 'Lisbon'),
+      ('p3', 'Uyo'),
+    ]) {
+      await client.create('Place', <String, Object?>{'id': id, 'city': city});
     }
     await _openData(tester);
     await tester.tap(_key('dv-studio-model-Place'));
