@@ -169,15 +169,12 @@ bool dvIsDeferredLibraryChunk(DVAdminMount mount, String path) {
   if (relative.isEmpty || relative.startsWith('api/') || relative == 'api') {
     return false;
   }
-  final String name = relative.toLowerCase();
-  if (name.endsWith('.part.js') || name.endsWith('.wasm') ||
-      name.endsWith('.part.js.map') || name.contains('.part.')) {
-    return true;
-  }
-  // Any file whose basename matches the deferred chunk naming pattern.
-  final String basename = relative.split('/').last;
-  if (basename.contains('.part.')) return true;
-  return false;
+  // Only a deferred library's parts (`main.dart.js_1.part.js`,
+  // `main.dart.wasm_3.part.wasm` and their maps). The engine (canvaskit,
+  // skwasm) and the app entry are needed by the sign-in screen itself, so a
+  // rule that caught every `.wasm` left the sign-in page blank.
+  final String basename = relative.split('/').last.toLowerCase();
+  return basename.contains('.part.');
 }
 
 /// The content type for a file the admin serves.
