@@ -156,12 +156,22 @@ void main() {
       DVSessionAuthentication.install(sessions: DVSessions());
       final DVAdminServer server =
           DVAdminServer(mount: _guarded, root: _root.path);
-      for (final String path in <String>['/__studio', '/__studio/', '/__studio/pages']) {
+      for (final String path in <String>[
+        '/__studio',
+        '/__studio/',
+        '/__studio/index.html',
+        '/__studio/index.html/',
+        '/__studio/index.html#/data',
+        '/__studio/anything',
+        '/__studio/anything/',
+        '/__studio/pages',
+      ]) {
         final Response? r = await server.respond(_get(path));
         expect(r?.status, 302, reason: path);
         expect(r!.headers.get('location'),
-            '/__studio/login?from=${Uri.encodeQueryComponent(path)}');
-        expect(r.headers.get('cache-control'), 'no-store');
+            '/__studio/login?from=${Uri.encodeQueryComponent(path)}',
+            reason: path);
+        expect(r.headers.get('cache-control'), 'no-store', reason: path);
       }
     });
 
@@ -442,6 +452,55 @@ void main() {
 
       expect((await as('u-owner'))?.status, 200);
       expect(await as('u-customer'), _refused);
+    });
+  });
+
+  group('deferred library chunks', () {
+    // Point 3 of the binding brief: deferred parts (.part.js, wasm,
+    // anything matching the deferred chunk naming) are never served
+    // without the Studio grant. A signed-out request gets 404,
+    // exactly as a route that does not exist — never 302, never the chunk.
+    test('a deferred chunk without a grant is 404, not 302 or the chunk',
+        () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      // Create a fake deferred chunk file in the admin root.
+      File('${_root.path}/main.dart.js_2.part.js')
+          .writeAsStringSync('/* deferred chunk */');
+      File('${_root.path}/main.dart.js_7.part.js')
+          .writeAsStringSync('/* deferred chunk */');
+      File('${_root.path}/main.dart.js')
+          .writeAsStringSync('/* main */');
+      for (final String path in <String>[
+        '/__studio/main.dart.js_2.part.js',
+        '/__studio/main.dart.js_7.part.js',
+      ]) {
+        final Response? r = await server.respond(_get(path));
+        // Without a grant, deferred chunks must be hidden (null -> 404).
+        // The sign-in redirect applies only to navigable pages, not chunks.
+        expect(r, isNull, reason: path);
+      }
+    });
+
+    test('a deferred chunk with a grant is served', () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      final DVStudioGrants grants =
+          DVStudioGrants(SqliteDVDatabaseAdapter.memory())..install();
+      final DVIssuedSession issued = await sessions.create('u-operator');
+      await grants.grant('u-operator');
+      final DVAdminServer server =
+          DVAdminServer(mount: _guarded, root: _root.path);
+      File('${_root.path}/main.dart.js_2.part.js')
+          .writeAsStringSync('/* deferred chunk */');
+      final Response? r = await server.respond(_get(
+        '/__studio/main.dart.js_2.part.js',
+        headers: <String, String>{
+          'authorization': 'Bearer ${issued.token}',
+        },
+      ));
+      expect(r?.status, 200);
     });
   });
 }
