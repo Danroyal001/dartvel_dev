@@ -188,8 +188,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               ),
               SiteCard(
                 'Store upload from Cloud',
-                'The App Bundle and the IPA build today. The upload from our '
-                    'machines waits on them.',
+                'The App Bundle and an unsigned iOS archive build today. No '
+                    'build has been signed for or uploaded to a store from our '
+                    'machines yet.',
                 built: false,
               ),
               SiteCard(
