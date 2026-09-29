@@ -273,7 +273,7 @@ class _FakeServer {
         ],
       });
     }
-    if (method == 'GET' && path == 'graph.json') {
+    if (method == 'GET' && path == 'api/graph') {
       return reply(200, <String, Object?>{
         'models': <Object?>[],
         'routes': routes,
