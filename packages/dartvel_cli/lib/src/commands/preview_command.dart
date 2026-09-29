@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
@@ -18,6 +19,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVStudioDevGrant;
 
 import '../build/dev_studio.dart';
+import '../build/studio_parts.dart'
+    show dvReadStudioParts, dvStudioDataDirectory, dvStudioPartsDirectory;
 import '../build/web_server.dart';
 import '../preview/preview_cli.dart';
 
@@ -170,11 +173,22 @@ class PreviewCommand extends Command<void> {
           dvWebServerHandler(
             webRoot: buildDir.path,
             admin: admin,
-            adminRoot: p.join(buildDir.path, '__admin'),
+            // Studio as the binary serves it: pages of the application
+            // rendered from its shell, its data from what the build kept
+            // for it, and its code handed out from memory.
             adminServer: admin.enabled
                 ? DVAdminServer(
                     mount: admin,
-                    root: p.join(buildDir.path, '__admin'),
+                    root: p.join(root, dvStudioDataDirectory),
+                    webRoot: buildDir.path,
+                    title: 'Studio · ${_appName(root)}',
+                    studioParts: <String, Uint8List>{
+                      for (final MapEntry<String, List<int>> part
+                          in dvReadStudioParts(
+                                  p.join(root, dvStudioPartsDirectory))
+                              .entries)
+                        part.key: Uint8List.fromList(part.value),
+                    },
                     devGrant: grant,
                     models: dvDevStudioModels(root),
                     database: database,
@@ -207,6 +221,20 @@ class PreviewCommand extends Command<void> {
       Logger.log('❌ Failed to start server: $e');
       exit(1);
     }
+  }
+}
+
+/// The project's name, as its pubspec gives it.
+String _appName(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  try {
+    final Object? document = loadYaml(pubspec.readAsStringSync());
+    final Object? name = document is Map ? document['name'] : null;
+    return name is String && name.trim().isNotEmpty
+        ? name.trim()
+        : 'Dartvel application';
+  } on Object {
+    return 'Dartvel application';
   }
 }
 
