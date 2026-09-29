@@ -33,6 +33,9 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/widgets.dart';
 
 void main() {
+  // Addresses as the browser shows them, /docs/models, read relative to the
+  // base the site is compiled for; not /docs/#/models.
+  dvUsePathUrlStrategy();
   runApp(DVDocsApp(
     source: dvDocsBrowserSource(base: ${_dartString(base)}),
     title: ${_dartString('Documentation · $appName')},
