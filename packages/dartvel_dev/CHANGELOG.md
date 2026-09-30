@@ -1,3 +1,11 @@
+## 0.10.0
+
+- Released with dartvel_core, dartvel_flutter and dartvel_cli 0.10.0,
+  dartvel_shelf 0.9.4: Studio redesign (guarded routes, deferred code,
+  sign-out), sensitive fields hidden from generated forms, model names
+  `Post`/`Route` handled, docs site behind Studio, 404/offline themed,
+  no hand-written HTML pages. The constraints move with the siblings.
+
 ## 0.9.3
 
 - Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.3, and

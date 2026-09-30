@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.0
 
 - **`registerDVModelFormFields<T>` and `dvModelFormFields`**: the fields a
   generated form may show for a model, which leave out its sensitive fields.

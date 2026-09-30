@@ -1,4 +1,4 @@
-## Unreleased
+## 0.9.4
 
 - **WebSocket latency:** a reply is written to the socket from the isolate's
   own thread when nothing is queued or in flight, instead of being handed to a

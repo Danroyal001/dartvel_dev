@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.10.0 — 2026-09-30
 
 **Security: Studio is part of the application, guarded by the server.**
 Studio was a second Flutter application, built on its own and served as

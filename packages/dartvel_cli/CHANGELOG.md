@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.0
 
 - **A data model may be called `Post`, `Route`, `Get`, `Put`, `Delete` or
   `Patch`.** Those are also dartvel_core's HTTP annotations (and `Route` is

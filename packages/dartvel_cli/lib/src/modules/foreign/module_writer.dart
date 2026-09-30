@@ -258,7 +258,7 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('dependencies:')
     // The first release with DVModuleRpc, which a call carried to the
     // backend needs.
-    ..writeln('  dartvel_core: ^0.9.0');
+    ..writeln('  dartvel_core: ^0.10.0');
   for (final MapEntry<String, String> dep in spec.dependencies.entries) {
     out.writeln('  ${dep.key}: ${dep.value}');
   }

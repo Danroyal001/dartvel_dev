@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.0
 
 - **`DVForm` keeps to the fields a model registers for forms.** With a list
   registered through `registerDVModelFormFields<T>`, a field outside it gets
