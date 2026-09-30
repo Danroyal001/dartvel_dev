@@ -17,7 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../routing/url_strategy.dart' show dvOpenUrl;
 import 'studio_app_entry.dart' deferred as dartvel_studio;
 import 'studio_server.dart'
-    show DVStudioClient, DVStudioTransport, dvStudioBrowserTransport;
+    show DVStudioReply, DVStudioTransport, dvStudioBrowserTransport;
 import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
 
 /// Studio's routes at [mount] (`/__studio`), titled [title].
@@ -34,9 +34,12 @@ List<RouteBase> dvStudioRoutes({
   void Function(String path)? open,
   Uri Function(GoRouterState state)? location,
 }) {
-  final DVStudioClient client = DVStudioClient(
-    transport ?? dvStudioBrowserTransport(base: '$mount/'),
-  );
+  // A transport and nothing more on this side of the deferred imports: an
+  // object of Studio's made here would bring every method it has into
+  // main.dart.js, and with them the code they reach. Each library makes its
+  // own client from it.
+  final DVStudioTransport send =
+      transport ?? dvStudioBrowserTransport(base: '$mount/');
   final String login = '$mount/login';
   return <RouteBase>[
     GoRoute(
@@ -47,7 +50,7 @@ List<RouteBase> dvStudioRoutes({
       // page existed; this is the same guard for a navigation that never
       // reached the server.
       redirect: (BuildContext context, GoRouterState state) async {
-        if (await client.access()) return null;
+        if (await dvStudioGranted(send)) return null;
         return Uri(
           path: login,
           queryParameters: <String, String>{'from': state.uri.toString()},
@@ -59,7 +62,7 @@ List<RouteBase> dvStudioRoutes({
             child: DVStudioDeferred(
               load: dartvel_studio.loadLibrary,
               builder: (BuildContext context) => dartvel_studio.dvStudioAppFor(
-                client: client,
+                transport: send,
                 title: title,
                 location: location?.call(state),
                 open: open,
@@ -76,7 +79,7 @@ List<RouteBase> dvStudioRoutes({
               load: dartvel_studio_sign_in.loadLibrary,
               builder: (BuildContext context) =>
                   dartvel_studio_sign_in.dvStudioSignInFor(
-                    client: client,
+                    transport: send,
                     mount: mount,
                     from: state.uri.queryParameters['from'],
                     title: title,
@@ -86,6 +89,18 @@ List<RouteBase> dvStudioRoutes({
           ),
     ),
   ];
+}
+
+/// Whether the caller [send] speaks for may open Studio: `api/access`, and
+/// no on anything but a clear yes.
+Future<bool> dvStudioGranted(DVStudioTransport send) async {
+  try {
+    final DVStudioReply reply = await send('GET', 'api/access');
+    final Object? body = reply.body;
+    return reply.status == 200 && body is Map && body['granted'] == true;
+  } on Object {
+    return false;
+  }
 }
 
 /// A Studio screen whose code is a deferred library: nothing until [load]
