@@ -249,11 +249,17 @@ class DVStudioPaletteItem {
 /// inspector: the page, a leaf's palette label, or a box's layout label.
 String _dvStudioNodeLabel(DVPageNode node, DVPageDocument document) {
   if (node.id == document.root.id) return 'Page';
+  if (dvStudioComponentOf(node) case final String name) return name;
   final DVStudioLeafType? leaf = dvStudioLeafTypeFor(node);
   return leaf?.label ?? dvStudioLayoutLabel(node.layout);
 }
 
 /// [node] and everything in it, with new ids.
+/// [node] and everything in it, with new ids: a copy that can live in
+/// another document -- a component made from a selection -- without
+/// sharing an id with the original.
+DVPageNode dvStudioFreshCopy(DVPageNode node) => _dvStudioFresh(node);
+
 DVPageNode _dvStudioFresh(DVPageNode node) => DVPageNode(
       type: node.type,
       layout: node.layout,
@@ -389,12 +395,19 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
         <(DVStudioPaletteItem, DVPageNode)>[];
     final List<(DVStudioPaletteItem, DVPageNode)> layouts =
         <(DVStudioPaletteItem, DVPageNode)>[];
+    final List<(DVStudioPaletteItem, DVPageNode)> components =
+        <(DVStudioPaletteItem, DVPageNode)>[];
     for (final DVStudioPaletteItem item in entries) {
       if (query.isNotEmpty && !item.label.toLowerCase().contains(query)) {
         continue;
       }
       final DVPageNode sample = item.create();
-      (sample.type == 'box' ? layouts : basics).add((item, sample));
+      (sample.type == dvStudioComponentType
+              ? components
+              : sample.type == 'box'
+                  ? layouts
+                  : basics)
+          .add((item, sample));
     }
 
     return LayoutBuilder(
@@ -427,7 +440,10 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
                       ..._group('Basics', basics, columns),
                     if (layouts.isNotEmpty)
                       ..._group('Layout', layouts, columns),
-                    if (basics.isEmpty && layouts.isEmpty)
+                    // The project's own, beside the built-in ones.
+                    if (components.isNotEmpty)
+                      ..._group('Components', components, columns),
+                    if (basics.isEmpty && layouts.isEmpty && components.isEmpty)
                       Padding(
                         padding: const .symmetric(vertical: 16),
                         child: DVStudioStyle.caption(
@@ -1641,7 +1657,18 @@ const Map<String, String> _dvStudioUnits = <String, String>{
 class DVStudioInspector extends StatelessWidget {
   final DVStudioEditorController controller;
 
-  const DVStudioInspector({super.key, required this.controller});
+  /// Turns the selection into a component; no button without it.
+  final VoidCallback? onMakeComponent;
+
+  /// Opens a component where it is made, from a use of it.
+  final void Function(String name)? onEditComponent;
+
+  const DVStudioInspector({
+    super.key,
+    required this.controller,
+    this.onMakeComponent,
+    this.onEditComponent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1655,6 +1682,17 @@ class DVStudioInspector extends StatelessWidget {
             title: 'Nothing selected',
             message: 'Select an element on the canvas or in Layers to edit '
                 'how it looks and behaves.',
+          );
+        }
+        if (node.type == dvStudioComponentType) {
+          return Column(
+            crossAxisAlignment: .stretch,
+            children: <Widget>[
+              _header(node),
+              Expanded(
+                child: SingleChildScrollView(child: _instanceProps(node)),
+              ),
+            ],
           );
         }
         return Column(
@@ -1721,6 +1759,76 @@ class DVStudioInspector extends StatelessWidget {
     }
   }
 
+  /// A use of a component: the props the component takes, each set for this
+  /// use, and the way to the component itself.
+  Widget _instanceProps(DVPageNode node) {
+    final String name = dvStudioComponentOf(node) ?? '';
+    final DVPageDocument? component =
+        DVPageStore.cached(dvStudioComponentRoute(name));
+    final Map<String, Object?> given = dvStudioInstancePropsOf(node);
+    void set(String prop, Object? value) => _guard(() => controller.setProperty(
+          node.id,
+          'props',
+          <String, Object?>{...given, prop: value},
+        ));
+    return Padding(
+      key: const ValueKey<String>('dv-studio-instance-props'),
+      padding: const .all(16),
+      child: Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          DVStudioStyle.caption(component == null
+              ? 'The component $name is not there any more, so nothing is '
+                  'drawn here.'
+              : 'A use of $name. Change its props here; change $name itself '
+                  'to change it on every page.'),
+          const SizedBox(height: 12),
+          if (component != null)
+            for (final DVStudioComponentProp prop
+                in dvStudioComponentPropsOf(component))
+              Padding(
+                padding: const .only(bottom: 8),
+                child: _row(
+                  prop.name,
+                  prop.kind == DVStudioPropKind.action
+                      ? DVStudioTextInput(
+                          key: ValueKey<String>('dv-studio-instance-prop-${prop.name}'),
+                          icon: DVStudioIcons.link,
+                          placeholder: 'Go to a page: /route',
+                          value: '${(given[prop.name] as Map?)?['to'] ?? ''}',
+                          onChanged: (String v) => set(
+                            prop.name,
+                            v.trim().isEmpty
+                                ? null
+                                : <String, Object?>{'type': 'navigate', 'to': v.trim()},
+                          ),
+                        )
+                      : DVStudioTextInput(
+                          key: ValueKey<String>('dv-studio-instance-prop-${prop.name}'),
+                          placeholder: '${prop.value ?? ''}',
+                          value: '${given[prop.name] ?? ''}',
+                          onChanged: (String v) =>
+                              set(prop.name, v.isEmpty ? null : v),
+                        ),
+                ),
+              ),
+          if (onEditComponent != null && component != null) ...<Widget>[
+            const SizedBox(height: 8),
+            GestureDetector(
+              key: const ValueKey<String>('dv-studio-edit-component'),
+              onTap: () => onEditComponent!(name),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: DVStudioStyle.control('Edit $name',
+                    enabled: true, icon: DVStudioIcons.components),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _header(DVPageNode node) {
     final bool isRoot = node.id == controller.document.root.id;
     return Container(
@@ -1760,6 +1868,14 @@ class DVStudioInspector extends StatelessWidget {
               ],
             ),
           ),
+          if (!isRoot && onMakeComponent != null && !controller.readOnly &&
+              node.type != dvStudioComponentType)
+            DVStudioIconButton(
+              key: const ValueKey<String>('dv-studio-make-component'),
+              icon: DVStudioIcons.components,
+              tooltip: 'Make a component from this (Ctrl+Alt+K)',
+              onTap: onMakeComponent,
+            ),
           if (!isRoot)
             DVStudioIconButton(
               icon: DVStudioIcons.delete,
