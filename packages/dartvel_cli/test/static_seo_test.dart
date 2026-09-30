@@ -250,6 +250,40 @@ class BuildingPageGeneratedPage extends DVGeneratedPage {
       );
     });
 
+    test('a route listed again later keeps its own page\'s title', () {
+      // The router lists every route a second time, in dartvelRouteManifest,
+      // and a few hundred characters after the last entries comes the first
+      // `const <Page>()` of the next table. The pattern read on past the
+      // manifest entry into it, so dartvel.dev served /vs/pocketbase titled
+      // "Dartvel Cloud and Studio Pro", in the tab, the search result and
+      // the page's <title>.
+      const String listedTwice = """
+class CloudPageGeneratedPage extends DVGeneratedPage {
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec(title: 'Cloud', showAppBar: false);
+}
+class PocketbasePageGeneratedPage extends DVGeneratedPage {
+  DVPageScaffoldSpec get pageScaffold => const DVPageScaffoldSpec(title: 'Dartvel vs PocketBase', showAppBar: false);
+}
+      path: '/cloud',
+        final page = const CloudPageGeneratedPage();
+      path: '/vs/pocketbase',
+        final page = const PocketbasePageGeneratedPage();
+const List<DVRouteInfo> dartvelRouteManifest = <DVRouteInfo>[
+  DVRouteInfo(
+    path: '/vs/pocketbase',
+    page: 'vsPocketbasePage',
+  ),
+];
+Widget pageFor(String path) => switch (path) {
+    '/cloud' => const CloudPageGeneratedPage(),
+    _ => const SizedBox(),
+  };
+""";
+
+      expect(dvRouteTitles(listedTwice)['/vs/pocketbase'], 'Dartvel vs PocketBase');
+      expect(dvRouteTitles(listedTwice)['/cloud'], 'Cloud');
+    });
+
     test('an apostrophe in a title survives the read', () {
       const String owned = r"""
 class GuidePageGeneratedPage extends DVGeneratedPage {
