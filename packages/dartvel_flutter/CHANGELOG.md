@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **`DVForm` keeps to the fields a model registers for forms.** With a list
+  registered through `registerDVModelFormFields<T>`, a field outside it gets
+  no input, is not prefilled, and keeps the value the model holds when the
+  form is submitted -- which is how a `@DVModel.sensitiveField()` stays off
+  `Model.Form()`. A model registered without a list shows what its serializer
+  returns, as before.
+
 - **The way out of the not-found and offline pages is a button.** "Go to the
   home page" and "Try again" were lines of plain text that did not look like
   anything a person could press. Each is now drawn as a filled button in the
