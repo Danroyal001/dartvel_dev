@@ -2,6 +2,6 @@
 <!-- dartvel:splash: written by dartvel build from dartvel.splash in
      pubspec.yaml, and rewritten by every build. To design this file by
      hand, delete this comment and Dartvel will leave it alone. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/dartvel_splash_background" />
-</layer-list>
+<resources>
+    <color name="dartvel_splash_background">#FFFFFF</color>
+</resources>

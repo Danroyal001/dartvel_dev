@@ -4,4 +4,22 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- dartvel.devclient: start -->
+    <!-- A scanned dartvel-dev:// link pairs this development
+         build with dartvel dev. Debug builds only. -->
+    <application>
+        <activity
+            android:name="dev.dartvel.devclient.DartvelDevPairActivity"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="dartvel-dev" android:host="pair"/>
+            </intent-filter>
+        </activity>
+    </application>
+    <!-- dartvel.devclient: end -->
 </manifest>
