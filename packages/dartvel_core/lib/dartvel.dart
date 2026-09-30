@@ -3,6 +3,7 @@ library dartvel_core;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
@@ -651,8 +652,10 @@ class DVInMemorySearchProvider<TModel, TFacets>
     // Facet counts describe what the text query found, before the facet
     // filter narrows it -- otherwise every count but the selected one is zero
     // and the UI can only ever narrow further.
-    final List<TModel> textMatches =
-        records.where(documentMatches).toList(growable: false);
+    final List<TModel> textMatches = _ranked(
+      records.where(documentMatches).toList(growable: false),
+      terms,
+    );
 
     final matches = textMatches
         .where((TModel record) => facetMatcher?.call(record, facets) ?? true)
@@ -693,6 +696,74 @@ class DVInMemorySearchProvider<TModel, TFacets>
       ),
       facetCounts: Map<String, Map<String, int>>.unmodifiable(counts),
     );
+  }
+
+  /// [matched] best first, by BM25 over the query's terms.
+  ///
+  /// What matches is unchanged; only the order is decided here. A keyword
+  /// search is half of a hybrid one, and reciprocal rank fusion reads only
+  /// positions, so matches in the order they were stored gave the fusion a
+  /// ranking that meant nothing. Rare terms weigh more than common ones, a
+  /// term said again counts for less each time, and a long record does not
+  /// win by being long. Records that score the same keep the stored order.
+  List<TModel> _ranked(List<TModel> matched, List<String> terms) {
+    if (terms.isEmpty || matched.length < 2) return matched;
+    final RegExp separator = RegExp(r'[^A-Za-z0-9]+');
+    final List<List<String>> words = <List<String>>[
+      for (final TModel record in matched)
+        document(record)
+            .toLowerCase()
+            .split(separator)
+            .where((String w) => w.isNotEmpty)
+            .toList(growable: false),
+    ];
+    final double averageLength =
+        words.fold<int>(0, (int sum, List<String> w) => sum + w.length) /
+            words.length;
+
+    // How strongly each record says each term: a word that is or contains
+    // it counts one, a word within a typo of it half.
+    final List<Map<String, double>> said = <Map<String, double>>[
+      for (final List<String> w in words)
+        <String, double>{
+          for (final String term in terms)
+            term: w.fold<double>(
+              0,
+              (double sum, String word) =>
+                  sum +
+                  (word.contains(term)
+                      ? 1
+                      : dvTypoMatches(term, word,
+                              enabled: tuning.typoTolerance)
+                          ? 0.5
+                          : 0),
+            ),
+        },
+    ];
+    final int n = matched.length;
+    final Map<String, double> idf = <String, double>{};
+    for (final String term in terms) {
+      final int df =
+          said.where((Map<String, double> s) => s[term]! > 0).length;
+      idf[term] = math.log(1 + (n - df + 0.5) / (df + 0.5));
+    }
+    final List<double> scores = <double>[
+      for (int i = 0; i < n; i++)
+        terms.fold<double>(0, (double sum, String term) {
+          final double tf = said[i][term]!;
+          if (tf == 0) return sum;
+          final double norm = averageLength == 0
+              ? 1
+              : 0.25 + 0.75 * words[i].length / averageLength;
+          return sum + idf[term]! * tf * 2.2 / (tf + 1.2 * norm);
+        }),
+    ];
+    final List<int> order = List<int>.generate(n, (int i) => i)
+      ..sort((int a, int b) {
+        final int byScore = scores[b].compareTo(scores[a]);
+        return byScore != 0 ? byScore : a.compareTo(b);
+      });
+    return <TModel>[for (final int i in order) matched[i]];
   }
 }
 

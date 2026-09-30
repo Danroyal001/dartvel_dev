@@ -36,6 +36,8 @@ DVInMemorySearchProvider<_Person, _Facets> providerWith({
     );
 
 void main() {
+  rankingTests();
+
   test('a typo still finds the record', () async {
     final DVSearchResultPage<_Person> page =
         await providerWith().query('lovelice');
@@ -100,5 +102,66 @@ void main() {
     );
 
     expect((await plain.query('ada')).facetCounts, isEmpty);
+  });
+}
+
+// A keyword search is one half of a hybrid one, and reciprocal rank fusion
+// reads only positions. A provider that returned its matches in the order
+// they were stored handed the fusion a ranking that meant nothing.
+class _Page {
+  const _Page(this.title, this.body);
+  final String title;
+  final String body;
+}
+
+const List<_Page> _pages = <_Page>[
+  _Page('Routing', 'How pages link to each other and how a layout wraps them.'),
+  _Page('State', 'How signals rebuild a widget, and how a global is read.'),
+  _Page('Deploying', 'How to deploy the server binary to your own server.'),
+  _Page('Secrets', 'How a key reaches the server and never the browser.'),
+];
+
+DVInMemorySearchProvider<_Page, Object?> pagesProvider() =>
+    DVInMemorySearchProvider<_Page, Object?>(
+      records: _pages,
+      document: (_Page p) => '${p.title} ${p.body}',
+    );
+
+void rankingTests() {
+  test('the record matching the most, and the rarest, terms comes first',
+      () async {
+    // Every page says "how"; only one says "deploy". Stored order would put
+    // Routing first.
+    final DVSearchResultPage<_Page> page =
+        await pagesProvider().query('how do i deploy a server');
+
+    expect(page.items.first.title, 'Deploying');
+  });
+
+  test('a word said twice outranks the same word said once', () async {
+    final DVSearchResultPage<_Page> page =
+        await DVInMemorySearchProvider<_Page, Object?>(
+      records: const <_Page>[
+        _Page('Once', 'the server is here now'),
+        _Page('Twice', 'the server is a server'),
+      ],
+      document: (_Page p) => p.body,
+    ).query('server');
+
+    expect(page.items.map((_Page p) => p.title), <String>['Twice', 'Once']);
+  });
+
+  test('records that score the same keep the order they were stored in',
+      () async {
+    final DVSearchResultPage<_Page> page =
+        await DVInMemorySearchProvider<_Page, Object?>(
+      records: const <_Page>[
+        _Page('Beta', 'one shared word'),
+        _Page('Alpha', 'one shared word'),
+      ],
+      document: (_Page p) => p.body,
+    ).query('shared');
+
+    expect(page.items.map((_Page p) => p.title), <String>['Beta', 'Alpha']);
   });
 }
