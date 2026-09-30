@@ -14,6 +14,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
+  compiledInTests();
+
   late Directory root;
   late String web;
   late String parts;
@@ -102,5 +104,31 @@ void main() {
             .map((FileSystemEntity e) => p.basename(e.path))
             .toList(),
         <String>['main.dart.js_1.part.js']);
+  });
+}
+
+void compiledInTests() {
+  test('a static build whose Studio import was tree-shaken carries no Studio',
+      () {
+    // What dart2js wrote for Dartvel Preview, a static web build with no
+    // Studio define: the router's Studio routes are behind a false constant,
+    // so both of Studio's deferred imports own no part at all. The build
+    // read the key's presence as Studio compiled in, and refused every
+    // static `dartvel build web`.
+    const String shaken =
+        'deferredLibraryParts:{p0:[0,1],p1:[0,2],dartvel_studio:[],dartvel_studio_sign_in:[]},'
+        'deferredPartUris:["main.dart.js_2.part.js","main.dart.js_1.part.js","main.dart.js_3.part.js"]';
+    expect(dvStudioCompiledIn(shaken), isFalse);
+  });
+
+  test('a build with Studio\'s parts carries Studio', () {
+    const String studio =
+        'deferredLibraryParts:{p0:[0],dartvel_studio:[1,2]},'
+        'deferredPartUris:["main.dart.js_1.part.js","main.dart.js_2.part.js","main.dart.js_3.part.js"]';
+    expect(dvStudioCompiledIn(studio), isTrue);
+  });
+
+  test('a build with no deferred code carries no Studio', () {
+    expect(dvStudioCompiledIn('main();'), isFalse);
   });
 }

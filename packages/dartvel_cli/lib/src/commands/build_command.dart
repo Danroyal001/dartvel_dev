@@ -3476,9 +3476,8 @@ class BuildCommand extends Command<void> {
     if (studio.existsSync()) studio.deleteSync(recursive: true);
 
     final File main = File(p.join(web, 'main.dart.js'));
-    final bool compiledIn = main.existsSync() &&
-        dvDeferredParts(main.readAsStringSync())
-            .containsKey(dvStudioDeferredImport);
+    final bool compiledIn =
+        main.existsSync() && dvStudioCompiledIn(main.readAsStringSync());
     if (platform != 'web-server' || _servesStudio(root) == null) {
       if (compiledIn) {
         Logger.log("❌ Studio's code is in this build, which has no server to "
