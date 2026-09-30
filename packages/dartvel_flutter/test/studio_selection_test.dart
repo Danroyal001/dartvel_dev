@@ -15,13 +15,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Server {
-  _Server({required this.granted, this.routes = const <String>[], this.functions});
+  _Server({
+    required this.granted,
+    this.routes = const <String>[],
+    this.functions,
+    this.graph = const <String, Object?>{},
+    this.queues = const <Object?>[],
+  });
 
   bool granted;
 
   /// The pages Studio has published, as their routes.
   final List<String> routes;
   final List<Object?>? functions;
+
+  /// What `api/graph` answers: `jobs`, `modules` and whatever else the build
+  /// wrote, keyed the way the build writes it.
+  final Map<String, Object?> graph;
+
+  /// The queues `api/queues` answers.
+  final List<Object?> queues;
   final List<String> calls = <String>[];
 
   Future<DVStudioReply> call(String method, String path, {Object? body}) async {
@@ -80,6 +93,10 @@ class _Server {
         return DVStudioReply(200, <String, Object?>{
           'functions': functions ?? const <Object?>[],
         });
+      case 'GET api/graph':
+        return DVStudioReply(200, graph);
+      case 'GET api/queues':
+        return DVStudioReply(200, <String, Object?>{'queues': queues});
     }
     return const DVStudioReply(404, <String, Object?>{'error': 'not_found'});
   }
@@ -137,9 +154,27 @@ String? openSection(WidgetTester tester) {
   return null;
 }
 
-/// Whether the row under [key] is the one the screen has open.
-bool _selected(WidgetTester tester, String key) =>
-    tester.widget<DVStudioListRow>(find.byKey(ValueKey<String>(key))).selected;
+/// Whether the thing under [key] is the one the address names.
+///
+/// Read from whichever widget the screen draws for it: a list row says so with
+/// its own flag, and a table row or a card is marked by the colour of the
+/// background behind it.
+bool _selected(WidgetTester tester, String key) {
+  final Finder row = find.byKey(ValueKey<String>(key));
+  final Iterable<DVStudioListRow> listRows = tester
+      .widgetList<DVStudioListRow>(
+        find.byWidgetPredicate((Widget widget) => widget is DVStudioListRow),
+      )
+      .where((DVStudioListRow listRow) => listRow.key == ValueKey<String>(key));
+  if (listRows.isNotEmpty) return listRows.first.selected;
+  return tester
+      .widgetList<Container>(
+        find.descendant(of: row, matching: find.byType(Container)),
+      )
+      .any((Container container) =>
+          container.decoration is BoxDecoration &&
+          (container.decoration! as BoxDecoration).color == DVStudioStyle.selected);
+}
 
 void main() {
   setUpAll(dvStudioLoadLibrariesForTest);
@@ -316,6 +351,118 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/__studio');
     expect(openSection(tester), 'pages');
+  });
+
+  testWidgets('a task in the address is the row the address names', (
+    WidgetTester tester,
+  ) async {
+    // The server prints a document at `<mount>/jobs/<name>` for every task the
+    // graph declares, so a task has an address of its own whether or not the
+    // list here has anything to show for it.
+    final _Server server = _Server(
+      granted: true,
+      graph: <String, Object?>{
+        'jobs': <Object?>[
+          <String, Object?>{'name': 'sendReceipt', 'queue': 'mail'},
+          <String, Object?>{'name': 'chargeCard', 'queue': 'payments'},
+        ],
+      },
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/jobs/chargeCard');
+
+    expect(openSection(tester), 'jobs');
+    expect(_selected(tester, 'dv-studio-job-chargeCard'), isTrue);
+    expect(_selected(tester, 'dv-studio-job-sendReceipt'), isFalse);
+    expect(router.state.uri.path, '/__studio/jobs/chargeCard');
+  });
+
+  testWidgets('choosing a task in the list moves the address', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(
+      granted: true,
+      graph: <String, Object?>{
+        'jobs': <Object?>[
+          <String, Object?>{'name': 'sendReceipt', 'queue': 'mail'},
+        ],
+      },
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/jobs');
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('dv-studio-job-sendReceipt')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/__studio/jobs/sendReceipt');
+  });
+
+  testWidgets('a queue in the address is the queue that is open', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(
+      granted: true,
+      queues: <Object?>[
+        <String, Object?>{'name': 'mail', 'pending': <Object?>[]},
+        <String, Object?>{'name': 'payments', 'pending': <Object?>[]},
+      ],
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/queues/payments');
+
+    expect(openSection(tester), 'queues');
+    expect(_selected(tester, 'dv-studio-queue-payments'), isTrue);
+    expect(_selected(tester, 'dv-studio-queue-mail'), isFalse);
+    expect(router.state.uri.path, '/__studio/queues/payments');
+  });
+
+  testWidgets('choosing a queue moves the address', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(
+      granted: true,
+      queues: <Object?>[
+        <String, Object?>{'name': 'mail', 'pending': <Object?>[]},
+        <String, Object?>{'name': 'payments', 'pending': <Object?>[]},
+      ],
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/queues');
+
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-queue-payments')));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/__studio/queues/payments');
+  });
+
+  testWidgets('a module in the address is the card the address names', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(
+      granted: true,
+      graph: <String, Object?>{
+        'modules': <Object?>[
+          <String, Object?>{'id': 'shop', 'mount': '/store', 'pages': 3},
+          <String, Object?>{'id': 'help', 'mount': '/help', 'pages': 2},
+        ],
+      },
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/modules/help');
+
+    expect(openSection(tester), 'modules');
+    expect(_selected(tester, 'dv-studio-module-help'), isTrue);
+    expect(_selected(tester, 'dv-studio-module-shop'), isFalse);
+    expect(router.state.uri.path, '/__studio/modules/help');
+  });
+
+  testWidgets('a screen whose object this build has no list for keeps its '
+      'address', (WidgetTester tester) async {
+    // The modules screen has no list to select from when nothing is declared,
+    // and the address still names a screen: rewriting it to the first screen
+    // would move a person off the link they followed.
+    final _Server server = _Server(granted: true);
+    final GoRouter router = await _at(tester, server, '/__studio/queues/mail');
+
+    expect(openSection(tester), 'queues');
+    expect(router.state.uri.path, '/__studio/queues/mail');
   });
 
   testWidgets('the sign-in and the setup are not screens and answer as '

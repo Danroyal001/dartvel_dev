@@ -87,10 +87,21 @@ class DVStudioModule {
 
 /// Studio's Modules section.
 class DVStudioModulesSection extends StatefulWidget {
-  const DVStudioModulesSection({super.key, required this.manifest});
+  const DVStudioModulesSection({
+    super.key,
+    required this.manifest,
+    this.module,
+    this.onSelect,
+  });
 
   /// The project graph the build wrote beside Studio.
   final Future<Map<String, Object?>> Function() manifest;
+
+  /// The module the address names, so its card says which one it is.
+  final String? module;
+
+  /// Called with the module a person chose, so the address can follow.
+  final void Function(String id)? onSelect;
 
   @override
   State<DVStudioModulesSection> createState() => _DVStudioModulesSectionState();
@@ -177,7 +188,18 @@ class _DVStudioModulesSectionState extends State<DVStudioModulesSection> {
                       else
                         ...<Widget>[
                           for (final DVStudioModule module in modules) ...<Widget>[
-                            _DVStudioModuleCard(module: module),
+                            _DVStudioModuleCard(
+                              key: ValueKey<String>(
+                                  'dv-studio-module-${module.id}'),
+                              module: module,
+                              // The module the address names, so a link to one
+                              // says which one it is rather than showing a
+                              // list and leaving the reader to find it.
+                              selected: widget.module == module.id,
+                              onSelect: widget.onSelect == null
+                                  ? null
+                                  : () => widget.onSelect!(module.id),
+                            ),
                             const SizedBox(height: DVStudioStyle.space3),
                           ],
                         ],
@@ -212,13 +234,25 @@ class _DVStudioModulesSectionState extends State<DVStudioModulesSection> {
 
 /// One module's card.
 class _DVStudioModuleCard extends StatelessWidget {
-  const _DVStudioModuleCard({required this.module});
+  const _DVStudioModuleCard({
+    super.key,
+    required this.module,
+    this.selected = false,
+    this.onSelect,
+  });
 
   final DVStudioModule module;
 
+  /// Whether this is the module the address names. Marked rather than
+  /// reordered: reordering would move every card under the reader, and a
+  /// highlight answers the question the address was asked.
+  final bool selected;
+  final VoidCallback? onSelect;
+
   @override
   Widget build(BuildContext context) {
-    return DVStudioStyle.card(
+    final Widget card = DVStudioStyle.card(
+      selected: selected,
       child: Column(
         crossAxisAlignment: .start,
         mainAxisSize: .min,
@@ -253,6 +287,28 @@ class _DVStudioModuleCard extends StatelessWidget {
               ),
           ],
         ],
+      ),
+    );
+    if (onSelect == null) {
+      return Semantics(
+        identifier: module.id,
+        selected: selected,
+        child: card,
+      );
+    }
+    return Semantics(
+      identifier: module.id,
+      button: true,
+      selected: selected,
+      onTap: onSelect,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: .opaque,
+          onTap: onSelect,
+          child: card,
+        ),
       ),
     );
   }

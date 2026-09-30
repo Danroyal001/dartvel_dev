@@ -380,12 +380,16 @@ abstract final class DVStudioStyle {
   static Widget card({
     required Widget child,
     EdgeInsets padding = const EdgeInsets.all(space4),
+    bool selected = false,
   }) {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: surface,
-        border: Border.all(color: line),
+        // A card that is the one the address names is tinted and outlined,
+        // not reordered: the reader asked which one it was, and the answer
+        // is a mark on the card rather than a shuffle of the list.
+        color: selected ? DVStudioStyle.selected : surface,
+        border: Border.all(color: selected ? accent : line),
         borderRadius: .circular(radiusLarge),
         boxShadow: shadow,
       ),

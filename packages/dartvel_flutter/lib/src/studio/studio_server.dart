@@ -951,33 +951,46 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
           ];
         },
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'modules',
         label: 'Modules',
         icon: Icons.extension_outlined,
-        build: (BuildContext context) =>
-            DVStudioModulesSection(manifest: client.manifest),
+        build: (BuildContext context, DVStudioSelection selection) =>
+            DVStudioModulesSection(
+          manifest: client.manifest,
+          module: selection.object,
+          onSelect: (String id) => selection.select?.call(id),
+        ),
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'jobs',
         label: 'Tasks',
         icon: Icons.work_history_outlined,
-        build: (BuildContext context) => _DVStudioManifestSection(
+        build: (BuildContext context, DVStudioSelection selection) =>
+            _DVStudioManifestSection(
           client: client,
           kind: 'jobs',
+          name: 'job',
           title: 'Background tasks',
           columns: const <List<String>>[
             <String>['name', 'Task'],
             <String>['queue', 'Queue'],
             <String>['source', 'File'],
           ],
+          object: selection.object,
+          onSelect: (String name) => selection.select?.call(name),
         ),
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'queues',
         label: 'Queue',
         icon: Icons.inbox_outlined,
-        build: (BuildContext context) => _DVStudioQueuesSection(client: client),
+        build: (BuildContext context, DVStudioSelection selection) =>
+            _DVStudioQueuesSection(
+          client: client,
+          queue: selection.object,
+          onSelect: (String name) => selection.select?.call(name),
+        ),
       ),
       DVStudioSection(
         id: 'cache',
@@ -2280,16 +2293,30 @@ class _DVStudioManifestSection extends StatefulWidget {
   const _DVStudioManifestSection({
     required this.client,
     required this.kind,
+    required this.name,
     required this.title,
     required this.columns,
+    this.object,
+    this.onSelect,
   });
 
   final DVStudioClient client;
   final String kind;
   final String title;
 
+  /// What a row of this screen is called in a URL: `<mount>/jobs/<name>` and
+  /// `<mount>/queues/<name>` both name the thing, so a row's key and the
+  /// address are the same word. Read off the first column, which is its name.
+  final String name;
+
   /// Each column's key in the graph and its heading.
   final List<List<String>> columns;
+
+  /// The row the address names, marked in the list.
+  final String? object;
+
+  /// Called with the row a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
 
   @override
   State<_DVStudioManifestSection> createState() =>
@@ -2334,6 +2361,23 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
                               _cell(row[c[0]]),
                           ],
                       ],
+                      rowKeys: <Key>[
+                        for (final Map<String, Object?> row in rows)
+                          ValueKey<String>(
+                            'dv-studio-${widget.name}-${row['name']}'),
+                      ],
+                      // A row the address names is marked, and every row can
+                      // be tapped to put itself in the address, so a task is
+                      // linkable the same way a page and a model are.
+                      selected: widget.object == null
+                          ? null
+                          : rows.indexWhere(
+                              (Map<String, Object?> row) =>
+                                  row['name'] == widget.object),
+                      onTap: widget.onSelect == null
+                          ? null
+                          : (int index) => widget.onSelect!(
+                              '${rows[index]['name']}'),
                     ),
                   ),
           ),
@@ -2414,9 +2458,19 @@ class _DVStudioSiteMapSectionState extends State<_DVStudioSiteMapSection> {
 /// The build's queues: what waits, what died and why, and the two things an
 /// operator can do about a dead letter.
 class _DVStudioQueuesSection extends StatefulWidget {
-  const _DVStudioQueuesSection({required this.client});
+  const _DVStudioQueuesSection({
+    required this.client,
+    this.queue,
+    this.onSelect,
+  });
 
   final DVStudioClient client;
+
+  /// The queue the address names, opened once the list is read.
+  final String? queue;
+
+  /// Called with the queue a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
 
   @override
   State<_DVStudioQueuesSection> createState() => _DVStudioQueuesSectionState();
@@ -2435,6 +2489,16 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
     unawaited(_load());
   }
 
+  @override
+  void didUpdateWidget(_DVStudioQueuesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another queue: open it rather than keep the one
+    // the person was already reading.
+    if (widget.queue != oldWidget.queue && widget.queue != null) {
+      _open = widget.queue;
+    }
+  }
+
   Future<void> _load() async {
     try {
       final List<Map<String, Object?>> queues = await widget.client.queues();
@@ -2442,14 +2506,23 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
       setState(() {
         _queues = queues;
         _error = null;
-        // The first queue with something dead in it is what somebody opening
-        // this is most likely here for.
-        _open ??= (queues.firstWhere(
-                  (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
-                  orElse: () => queues.isEmpty
-                      ? const <String, Object?>{}
-                      : queues.first,
-                )['name'] as String?);
+        // The queue the address names, or the first queue with something
+        // dead in it, which is what somebody opening this is most likely here
+        // for. A queue this build has no list of yet still keeps its address:
+        // the detail pane says it is not here rather than the screen changing.
+        final Map<String, Object?>? named = widget.queue == null
+            ? null
+            : queues
+                .where((Map<String, Object?> q) => q['name'] == widget.queue)
+                .firstOrNull;
+        final String? here = named == null ? null : '${named['name']}';
+        _open ??= here ??
+            (queues.firstWhere(
+              (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
+              orElse: () => queues.isEmpty
+                  ? const <String, Object?>{}
+                  : queues.first,
+            )['name'] as String?);
       });
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -2520,7 +2593,10 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
               trailing: _jobs(queue, 'deadLetters').isEmpty
                   ? null
                   : DVStudioStyle.dot(DVStudioStyle.danger),
-              onTap: () => setState(() => _open = '${queue['name']}'),
+              onTap: () {
+                setState(() => _open = '${queue['name']}');
+                widget.onSelect?.call('${queue['name']}');
+              },
             ),
         ],
       ),
