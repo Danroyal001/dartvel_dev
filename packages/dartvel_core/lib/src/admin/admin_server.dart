@@ -341,6 +341,10 @@ class DVAdminServer {
       final Response? auth = await _authPost(request, path, <String, DVAdminAuthEndpoint>{
         '${api}auth/sign-in': DVAuthEndpoints.signIn,
         '${api}auth/second-factor': DVAuthEndpoints.secondFactor,
+        // Signing out revokes the session on the server and clears the
+        // cookie: a browser that merely forgot its token would leave a live
+        // one behind for whoever holds a copy.
+        '${api}auth/sign-out': DVAuthEndpoints.signOut,
       });
       if (auth != null) return auth;
     }
