@@ -92,4 +92,20 @@ void main() {
     expect((await http.get(Uri.parse('$base/pricing'))).statusCode, 200);
     expect((await http.get(Uri.parse('$base/pricing.js'))).statusCode, 404);
   });
+
+  test('the last build\'s prefetch manifest is not served to the capture',
+      () async {
+    // The capture records the images a page asks for, and the manifest is
+    // written from what it records. A manifest left in build/web by the
+    // last build made each page prefetch what its links needed, so the
+    // capture recorded /studio's screenshots as /cloud's own because /cloud
+    // links to /studio -- and every rebuild in the same tree wrote a bigger
+    // manifest and preloaded more on every page.
+    File('${web.path}/dartvel_prefetch.json')
+        .writeAsStringSync('{"routes": {"/studio": {"images": []}}}');
+
+    final http.Response response =
+        await http.get(Uri.parse('$base/dartvel_prefetch.json'));
+    expect(response.statusCode, 404);
+  });
 }

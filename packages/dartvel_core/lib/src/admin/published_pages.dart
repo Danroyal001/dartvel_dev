@@ -19,6 +19,7 @@ import '../database/adapter.dart';
 import '../database/records.dart';
 import '../http/wintercg.dart';
 import 'studio_api.dart' show dvStudioPagesTable;
+import 'studio_site.dart' show dvStudioIsReservedRoute;
 
 /// Where the generated backend answers the published page documents.
 const String dvPublishedPagesPath = '/_dartvel/pages';
@@ -42,7 +43,9 @@ class DVPublishedPages {
           await DVRecordAdapter.over(database)
               .find(dvStudioPagesTable, fields: const <String>['route']);
       return <String>{
-        for (final Map<String, Object?> row in rows) '${row['route']}',
+        for (final Map<String, Object?> row in rows)
+          // A component is a document pages are drawn from, not a page.
+          if (!dvStudioIsReservedRoute('${row['route']}')) '${row['route']}',
       };
     } on Object {
       // No table yet: nothing has been published.

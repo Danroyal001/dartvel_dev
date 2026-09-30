@@ -346,8 +346,11 @@ Future<DVMiddlewareResult> dvRunMiddlewares(
       status: refusal.value,
       message: _refusalMessage[refusal.key]!,
       // Nothing from a refused chain decorates a response that is not being
-      // sent.
-      headers: const <String, String>{},
+      // sent, except when to come back after a rate limit (RFC 9110 10.2.3).
+      headers: <String, String>{
+        if (refusal.key == 'rateLimitError' && context.data['retryAfter'] is int)
+          'Retry-After': '${context.data['retryAfter']}',
+      },
       data: const <String, Object?>{},
     );
   }

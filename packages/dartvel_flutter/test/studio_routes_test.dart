@@ -253,4 +253,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, <String>['/docs/models']);
   });
+
+  testWidgets('the Studio route hands Studio the application''s page views and '
+      'its look, taken above Studio''s own frame', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final _Server server = _Server(granted: true);
+    Widget? view(String path, {Widget? content, bool layout = true}) =>
+        content ?? Text('page at $path');
+    final ThemeData light = ThemeData(scaffoldBackgroundColor: const Color(0xFF123456));
+    final ThemeData dark = ThemeData(brightness: Brightness.dark);
+    final GoRouter router = GoRouter(
+      initialLocation: '/__studio',
+      routes: <RouteBase>[
+        GoRoute(path: '/', builder: (_, _) => const Text('the shop')),
+        ...dvStudioRoutes(
+          mount: '/__studio',
+          transport: server.call,
+          view: view,
+          location: (GoRouterState state) =>
+              Uri.parse('https://shop.example${state.uri}'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(
+      routerConfig: router,
+      theme: light,
+      darkTheme: dark,
+      themeMode: ThemeMode.light,
+    ));
+    await tester.pumpAndSettle();
+
+    final DVStudioHost host = tester.widget<DVStudioHost>(find.byType(DVStudioHost));
+    expect(host.view, same(view));
+    expect(host.look!.theme, same(light));
+    expect(host.look!.darkTheme, same(dark));
+    expect(host.look!.themeMode, ThemeMode.light);
+    // Studio itself is drawn in its own theme, not the shop's.
+    expect(
+      Theme.of(tester.element(find.byKey(const ValueKey<String>('dv-studio-rail'))))
+          .scaffoldBackgroundColor,
+      isNot(const Color(0xFF123456)),
+    );
+  });
 }

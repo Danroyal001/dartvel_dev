@@ -9,6 +9,7 @@
 // do -- a caller who may not see Studio gets the same nothing.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:dartvel_core/dartvel.dart';
 // The record layer, which an application does not name and a test of it
@@ -327,7 +328,7 @@ void main() {
       expect(rows.single['name'], 'Ada');
     });
 
-    test('a sensitive value cannot be written through Studio', () async {
+    test('a sensitive value can be written through Studio, but is never returned on read', () async {
       final Response? response = await server.respond(
         _request(
           'PUT',
@@ -339,11 +340,167 @@ void main() {
         ),
       );
 
-      expect(response?.status, 400);
+      expect(response?.status, 200);
+      final Map<String, Object?> body =
+          ((await _json(response!)) as Map).cast<String, Object?>();
+      final Map<String, Object?> values =
+          (body['values'] as Map).cast<String, Object?>();
+      expect(values.containsKey('password'), isFalse,
+          reason: 'Sensitive field must not be returned in write response');
+
       final List<Map<String, Object?>> rows = await database.query(
-        'SELECT * FROM users',
+        'SELECT * FROM users WHERE slug = \'ada\'',
+      );
+      expect(rows.single['password'], 'chosen-by-studio');
+
+      // Verify read endpoints never return the sensitive field
+      final Response? getSingle =
+          await server.respond(_request('GET', '/__studio/api/models/User/records/ada'));
+      expect(getSingle?.status, 200);
+      final Map<String, Object?> singleBody =
+          ((await _json(getSingle!)) as Map).cast<String, Object?>();
+      final Map<String, Object?> singleValues =
+          (singleBody['values'] as Map).cast<String, Object?>();
+      expect(singleValues.containsKey('password'), isFalse,
+          reason: 'GET /records/:key must not return sensitive field');
+
+      final Response? getList =
+          await server.respond(_request('GET', '/__studio/api/models/User/records'));
+      expect(getList?.status, 200);
+      final Map<String, Object?> listBody =
+          ((await _json(getList!)) as Map).cast<String, Object?>();
+      final List<Object?> records = listBody['records'] as List<Object?>;
+      for (final Object? r in records) {
+        final Map<String, Object?> rValues =
+            ((r as Map)['values'] as Map).cast<String, Object?>();
+        expect(rValues.containsKey('password'), isFalse,
+            reason: 'GET /records list must not return sensitive field');
+      }
+    });
+
+    test('an edit with an empty sensitive value keeps the stored sensitive value', () async {
+      final Response? response = await server.respond(
+        _request(
+          'PUT',
+          '/__studio/api/models/User/records/ada',
+          json: <String, Object?>{
+            'version': 1,
+            'values': <String, Object?>{'name': 'Ada Lovelace', 'password': ''},
+          },
+        ),
+      );
+
+      expect(response?.status, 200);
+      final List<Map<String, Object?>> rows = await database.query(
+        'SELECT * FROM users WHERE slug = \'ada\'',
+      );
+      expect(rows.single['name'], 'Ada Lovelace');
+      expect(rows.single['password'], 'hash-of-a-secret',
+          reason: 'Empty submission must keep the stored sensitive value');
+    });
+
+    test('an edit that sends a sensitive field as null keeps it too',
+        () async {
+      final Response? response = await server.respond(
+        _request(
+          'PUT',
+          '/__studio/api/models/User/records/ada',
+          json: <String, Object?>{
+            'version': 1,
+            'values': <String, Object?>{'password': null},
+          },
+        ),
+      );
+
+      expect(response?.status, 200);
+      final List<Map<String, Object?>> rows = await database.query(
+        'SELECT * FROM users WHERE slug = ?',
+        <Object?>['ada'],
       );
       expect(rows.single['password'], 'hash-of-a-secret');
+    });
+
+    test('a new record takes the sensitive value it is given, and does not '
+        'answer with it', () async {
+      final Response? response = await server.respond(
+        _request(
+          'POST',
+          '/__studio/api/models/User/records',
+          json: <String, Object?>{
+            'values': <String, Object?>{
+              'slug': 'grace',
+              'name': 'Grace',
+              'published': true,
+              'password': 'set-at-creation',
+            },
+          },
+        ),
+      );
+
+      expect(response?.status, 201);
+      final Map<String, Object?> body =
+          ((await _json(response!)) as Map).cast<String, Object?>();
+      expect((body['values'] as Map).containsKey('password'), isFalse);
+      expect(jsonEncode(body), isNot(contains('set-at-creation')));
+      final List<Map<String, Object?>> rows = await database.query(
+        'SELECT * FROM users WHERE slug = ?',
+        <Object?>['grace'],
+      );
+      expect(rows.single['password'], 'set-at-creation');
+    });
+
+    test('an encrypted sensitive field is sealed before it is stored, as the '
+        'model seals it', () async {
+      final Random random = Random(7);
+      final String key = base64Encode(
+        List<int>.generate(32, (_) => random.nextInt(256)),
+      );
+      DVFieldEncryption.configure(
+        DVFieldCipher(DVFieldKeyring.parse('k1:$key')),
+      );
+      addTearDown(DVFieldEncryption.reset);
+      final DVAdminServer sealed = DVAdminServer(
+        mount: _guarded,
+        root: root.path,
+        authenticated: (Request _) async => true,
+        models: const <DVStudioModelSpec>[
+          DVStudioModelSpec(
+            model: 'Citizen',
+            table: 'citizens',
+            key: 'id',
+            fields: <DVStudioFieldSpec>[
+              DVStudioFieldSpec(name: 'id', type: 'String'),
+              DVStudioFieldSpec(
+                name: 'taxNumber',
+                type: 'String',
+                sensitive: true,
+                encrypted: true,
+              ),
+            ],
+          ),
+        ],
+        database: database,
+      );
+
+      final Response? response = await sealed.respond(
+        _request(
+          'POST',
+          '/__studio/api/models/Citizen/records',
+          json: <String, Object?>{
+            'values': <String, Object?>{'id': 'c1', 'taxNumber': 'GB-4471-22'},
+          },
+        ),
+      );
+
+      expect(response?.status, 201);
+      final List<Map<String, Object?>> rows =
+          await database.query('SELECT * FROM citizens');
+      final String stored = '${rows.single['taxNumber']}';
+      expect(stored, isNot(contains('GB-4471-22')));
+      expect(
+        DVFieldEncryption.decrypt('Citizen', 'taxNumber', stored),
+        'GB-4471-22',
+      );
     });
 
     test('a new record is created, and creating it twice is refused', () async {

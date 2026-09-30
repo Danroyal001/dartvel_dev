@@ -149,7 +149,10 @@ Widget _siteHeader(BuildContext context) {
       // Cloud alone on a second line.
       screen.isMobile
           ? const DVBox.list(<Widget>[
-              Wordmark(),
+              // The search sits beside the wordmark as a magnifier: the
+              // links below have no room left for it.
+              DVBox.row(<Widget>[Wordmark(), SiteSearchButton()],
+                  align: .spaceBetween),
               DVBox.wrapLine(<Widget>[
                 NavLink('Docs', '/docs'),
                 NavLink('Features', '/features'),
@@ -176,11 +179,13 @@ Widget _siteHeader(BuildContext context) {
               // Four site links and two outbound ones do not fit a tablet or a
               // phone on its side, and the site links are the ones a visitor
               // came for. GitHub and pub.dev are in the footer too.
-              if (!screen.isTablet)
-                const DVBox.row(<Widget>[
+              DVBox.row(<Widget>[
+                const SiteSearchButton(),
+                if (!screen.isTablet) ...const <Widget>[
                   ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
                   ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
-                ], spacing: 18),
+                ],
+              ], spacing: 18),
             ], align: .spaceBetween),
       const DVModifier().maxWidth(kColumn).centered(),
     ),

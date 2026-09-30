@@ -168,9 +168,17 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             section: 'Dartvel Studio',
           ),
           SiteCard(
+            'Components',
+            'Make a card, a header or a price box once and put it on any '
+                'page. Each use sets its own text, picture, colour and tap; '
+                'change the component and every page changes. Ctrl+Alt+K '
+                'turns a selection into one.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
             'Data',
             'Design data models, and browse and edit each model\'s records. '
-                'Sensitive fields never leave the server.',
+                'Sensitive fields can be set there but never read back.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
@@ -204,6 +212,19 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
                 'version and signed preview links. The editor is built '
                 'and is not in the server Studio yet.',
             section: 'Content Workflow',
+          ),
+          SiteCard(
+            'Keyboard shortcuts',
+            'Keys that open a page of your app from anywhere in it, set '
+                'without code; press ? in the app to see them.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
+            'GitHub',
+            'See what Studio changed as a diff, then open a pull request or '
+                'push, so the next release is built with it. During `dartvel '
+                'dev` Studio writes straight to your project\'s files.',
+            section: 'Dartvel Studio',
           ),
           SiteCard(
             'Queue and Cache',
@@ -340,12 +361,6 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             'Every top-level frame becomes a page. Auto-layout, type, '
                 'shadows, gradients and icons come through, and images are '
                 'downloaded before Figma\'s links expire.',
-            built: true,
-          ),
-          SiteCard(
-            'Reusable components',
-            'Save a node as a component, see how many pages use it, and push '
-                'a change to every instance.',
             built: true,
           ),
           SiteCard(

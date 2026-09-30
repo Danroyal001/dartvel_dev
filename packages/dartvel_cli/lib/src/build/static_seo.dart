@@ -418,14 +418,11 @@ Map<String, String> dvRouteTitles(String routerSource) {
     byClass[match.group(1)!] = _joinLiterals(match.group(2)!);
   }
 
-  // path: '<route>' ... const <Name>()
   final titles = <String, String>{};
-  final routePattern = RegExp(
-    r"path:\s*'([^']+)'[\s\S]{0,600}?const\s+(\w+)\(\)",
-  );
-  for (final RegExpMatch match in routePattern.allMatches(routerSource)) {
-    final title = byClass[match.group(2)!];
-    if (title != null && title.isNotEmpty) titles[match.group(1)!] = title;
+  for (final MapEntry<String, String> route
+      in _routePageClasses(routerSource).entries) {
+    final title = byClass[route.value];
+    if (title != null && title.isNotEmpty) titles[route.key] = title;
   }
   return titles;
 }
@@ -456,18 +453,34 @@ Map<String, String> dvRouteDescriptions(String routerSource) {
     byClass[match.group(1)!] = _joinLiterals(match.group(2)!);
   }
 
-  // path: '<route>' ... const <Name>()
   final Map<String, String> descriptions = <String, String>{};
-  final RegExp routePattern = RegExp(
-    r"path:\s*'([^']+)'[\s\S]{0,600}?const\s+(\w+)\(\)",
-  );
-  for (final RegExpMatch match in routePattern.allMatches(routerSource)) {
-    final String? description = byClass[match.group(2)!];
+  for (final MapEntry<String, String> route
+      in _routePageClasses(routerSource).entries) {
+    final String? description = byClass[route.value];
     if (description != null && description.isNotEmpty) {
-      descriptions[match.group(1)!] = description;
+      descriptions[route.key] = description;
     }
   }
   return descriptions;
+}
+
+/// Each route's page class: `path: '<route>'` and the first `const <Name>()`
+/// after it, in the route's own definition.
+///
+/// The first definition of a path wins, and a match never reads past the
+/// next `path:`. The router lists every route a second time, in
+/// dartvelRouteManifest, and a few hundred characters after its last entries
+/// is the first `const <Page>()` of the next table: reading on into it gave
+/// /vs/pocketbase the cloud page's title and description on dartvel.dev.
+Map<String, String> _routePageClasses(String routerSource) {
+  final Map<String, String> classes = <String, String>{};
+  final RegExp routePattern = RegExp(
+    r"path:\s*'([^']+)'((?:(?!path:)[\s\S]){0,600}?)const\s+(\w+)\(\)",
+  );
+  for (final RegExpMatch match in routePattern.allMatches(routerSource)) {
+    classes.putIfAbsent(match.group(1)!, () => match.group(3)!);
+  }
+  return classes;
 }
 
 /// A single-quoted Dart literal's escapes, as the text they stand for.

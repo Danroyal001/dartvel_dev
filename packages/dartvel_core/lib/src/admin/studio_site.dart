@@ -227,6 +227,18 @@ bool dvStudioHasStructure(String? directory, String route) {
   return File('$directory${Platform.pathSeparator}$name.json').existsSync();
 }
 
+/// Where Dartvel keeps documents that are not pages: under it, Studio's
+/// components (at [dvStudioComponentsPrefix]). Nothing is served as a page
+/// at an address here, listed as one, or put in a sitemap.
+const String dvStudioReservedPrefix = '/_dartvel/';
+
+/// Where a component made in Studio is stored: `<prefix><Name>`.
+const String dvStudioComponentsPrefix = '/_dartvel/components/';
+
+/// Whether [route] is Dartvel's rather than a page's.
+bool dvStudioIsReservedRoute(String route) =>
+    route.startsWith(dvStudioReservedPrefix);
+
 /// Every route of the site: each compiled one, marked as overridden when
 /// [stored] has a document at its path, then the stored routes no compiled
 /// page answers. Sorted by path.
@@ -267,7 +279,7 @@ List<DVStudioSitePage> dvStudioSitePages({
     );
   }
   for (final MapEntry<String, String?> page in stored.entries) {
-    if (seen.contains(page.key)) continue;
+    if (seen.contains(page.key) || dvStudioIsReservedRoute(page.key)) continue;
     pages.add(
       DVStudioSitePage(
         path: page.key,

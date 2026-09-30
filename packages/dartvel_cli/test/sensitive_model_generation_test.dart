@@ -240,6 +240,82 @@ class _User {
           .where((String s) => s.isNotEmpty)
           .toSet();
       expect(shown, <String>{'id', 'recoveryEmail'});
+
+      // The sensitive field is on Model.Form() all the same, as a
+      // write-only input: it can be set there and is never read back into
+      // it, the way a password field works.
+      final writeOnly = RegExp(
+        r'registerDVModelWriteOnlyFields<User>\(const <String>\{([^}]*)\}\);',
+      ).firstMatch(content);
+      expect(writeOnly, isNotNull,
+          reason: 'Model.Form() must be told which fields are write-only');
+      expect(
+        writeOnly!
+            .group(1)!
+            .split(',')
+            .map((String s) => s.trim().replaceAll("'", ''))
+            .where((String s) => s.isNotEmpty)
+            .toSet(),
+        <String>{'nationalId'},
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('GraphQL writes a sensitive field without reading it, and an update '
+      'that leaves it out keeps what is stored', () async {
+    final root = await Directory.systemTemp.createTemp('dartvel_gql_wo_');
+    try {
+      Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+      Directory(p.join(root.path, 'lib', 'dartvel_client'))
+          .createSync(recursive: true);
+      File(p.join(root.path, 'lib', 'models', 'user.dart'))
+          .writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel()
+class _User {
+  final String id;
+  final String name;
+  @DVModel.sensitiveField()
+  final String nationalId;
+
+  const _User({
+    required this.id,
+    required this.name,
+    required this.nationalId,
+  });
+}
+''');
+      await ModelGenerator.generate(
+        root: root.path,
+        pkgName: 'gql_app',
+        buildId: 'test-build',
+      );
+      final content = File(
+        p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'),
+      ).readAsStringSync();
+
+      // Never readable: not a field of the GraphQL type.
+      final typeStart = content.indexOf("DVGraphQLObjectType(\n    'User',");
+      expect(typeStart, greaterThan(-1));
+      final type = content.substring(typeStart, content.indexOf('));', typeStart));
+      expect(type, isNot(contains('nationalId')));
+
+      final saveStart = content.indexOf("'saveUser',");
+      expect(saveStart, greaterThan(-1));
+      final save = content.substring(
+          saveStart, content.indexOf("'deleteUser',", saveStart));
+      // Writable: an optional argument of saveUser.
+      expect(save, contains("'nationalId': 'String',"));
+      // Used when something was sent, and the stored value otherwise. It
+      // used to be replaced by the generated default on every update, so
+      // saving a user's name through GraphQL wiped their national id.
+      expect(save, contains("args['nationalId']"));
+      expect(save, contains('stored?.nationalId'));
+      expect(save.indexOf('final stored ='),
+          lessThan(save.indexOf('final candidate =')));
     } finally {
       root.deleteSync(recursive: true);
     }
