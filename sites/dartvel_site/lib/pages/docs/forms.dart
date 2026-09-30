@@ -67,11 +67,23 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'sensitive',
-          title: 'Keep sensitive fields off the controls',
+          title: 'Sensitive fields are write-only',
           children: <Widget>[
-            DocsText('A field marked @DVModel.sensitiveField() gets no getter '
-                'on the builder\'s controls. Put one back with '
-                '@DVModel.sensitiveField(showInForms: true).'),
+            DocsText('A field marked @DVModel.sensitiveField() works like a '
+                'password field. Model.Form() and the Studio record form show '
+                'an input for it that hides what is typed and always starts '
+                'empty: the stored value is never put in it.'),
+            Bullets(<String>[
+              'Type a value and save, and the value is stored.',
+              'Leave it empty and save, and the stored value stays as it '
+                  'was. An edit form says so under the input.',
+              'No read gives the value back: not toPublicJson, GraphQL, '
+                  'Studio, tables, cards or model pages. GraphQL takes it as '
+                  'an optional argument of the save mutation.',
+              'The builder\'s controls have no getter for it. '
+                  '@DVModel.sensitiveField(showInForms: true) makes it an '
+                  'ordinary, readable field on forms and controls instead.',
+            ]),
           ],
         ),
         DocsSection(
