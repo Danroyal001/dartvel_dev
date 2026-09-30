@@ -159,14 +159,13 @@ void main() {
       expect(utf8.decode(await setup.body!.bytes()), '<title>Studio</title>');
     });
 
-    test('serves the app\'s own code, so the screen can be drawn at all',
-        () async {
-      // The sign-in page is only reachable the same way, and a mount that
-      // answered the shell but not its code served a blank page.
-      final Response? code = await get('/__studio/main.dart.js');
-      expect(code?.status, 200);
-      expect(code!.headers.get('content-type'), 'text/javascript; charset=utf-8');
-      expect(utf8.decode(await code.body!.bytes()), '// Studio');
+    test('serves no file under the mount: the setup is a route of the '
+        'application, whose code the application serves', () async {
+      // The setup page is the application's shell rendered for its route,
+      // and the shell loads the application's own code from the site root.
+      // Nothing under the mount is a file, during the setup or after it.
+      expect(await get('/__studio/main.dart.js'), isNull);
+      expect(await get('/__studio/flutter_bootstrap.js'), isNull);
     });
 
     test('never framed, never cached, and never a referrer', () async {
