@@ -319,7 +319,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                           for (final DVFormulaField f in _fields)
                             DropdownMenuItem<String>(
                               value: f.name,
-                              child: Text(f.name),
+                              child: Text(dvStudioPlainFieldName(f.name)),
                             ),
                         ],
                         onChanged: enabled ? _pick : null,
@@ -351,7 +351,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                           border: const OutlineInputBorder(),
                           hintText: node == null
                               ? 'Select an element to edit it here'
-                              : 'A formula for ${field?.name}',
+                              : 'A formula for ${dvStudioPlainFieldName(field?.name ?? '').toLowerCase()}',
                         ),
                       ),
                     ),

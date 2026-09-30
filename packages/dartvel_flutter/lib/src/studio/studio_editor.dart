@@ -152,6 +152,108 @@ class DVStudioEditorController extends ChangeNotifier {
     insert(copy, parent: parent.id, index: index);
   }
 
+  /// What Ctrl+C or Ctrl+X last took, for Ctrl+V: shared by every editor in
+  /// the process, so an element copied on one page pastes onto another.
+  static DVPageNode? _clipboard;
+
+  /// Ctrl+C: [id] is kept to be pasted.
+  void copy(String id) {
+    final DVPageNode? node = _editor.find(id);
+    if (node == null || id == _document.root.id) return;
+    _clipboard = _dvStudioFresh(node);
+  }
+
+  /// Ctrl+X: [id] is kept to be pasted, and taken off the page.
+  void cut(String id) {
+    if (id == _document.root.id) return;
+    copy(id);
+    remove(id);
+  }
+
+  /// Ctrl+V: a copy of what was copied, after the selection -- or into it,
+  /// when the selection holds children -- or at the end of the page.
+  void paste() {
+    final DVPageNode? held = _clipboard;
+    if (held == null) return;
+    final DVPageNode copy = _dvStudioFresh(held);
+    final String? at = _selectedId;
+    final DVPageNode? selected = at == null ? null : _editor.find(at);
+    if (selected == null || selected.id == _document.root.id) {
+      insert(copy, parent: _document.root.id);
+      return;
+    }
+    if (selected.type == 'box') {
+      insert(copy, parent: selected.id);
+      return;
+    }
+    final DVPageNode parent = _dvStudioParentOf(_document.root, selected.id)!;
+    final int index =
+        parent.children.indexWhere((DVPageNode n) => n.id == selected.id) + 1;
+    insert(copy, parent: parent.id, index: index);
+  }
+
+  /// Ctrl+G: [id] goes into a new column where it was, and the column is
+  /// selected -- Figma's group, as a box that lays out what is in it.
+  void group(String id) {
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final DVPageNode box = DVPageNode.box(layout: 'list');
+    insert(box, parent: parent.id, index: index);
+    move(id, parent: box.id);
+    select(box.id);
+  }
+
+  /// Ctrl+Shift+G: what [id] holds takes its place, and [id] goes.
+  void ungroup(String id) {
+    final DVPageNode? box = _editor.find(id);
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (box == null || parent == null || box.type != 'box') return;
+    int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    for (final DVPageNode child in <DVPageNode>[...box.children]) {
+      move(child.id, parent: parent.id, index: index++);
+    }
+    remove(id);
+  }
+
+  /// Ctrl+] and Ctrl+[: [id] one place later or earlier among what it sits
+  /// beside.
+  void moveBy(String id, int delta) {
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final int to = index + delta;
+    if (to < 0 || to >= parent.children.length) return;
+    // The editor takes the index after the element leaves its place.
+    move(id, parent: parent.id, index: to);
+    select(id);
+  }
+
+  /// Tab and Shift+Tab: the next or previous element beside the selection.
+  void selectSibling(int delta) {
+    final String? id = _selectedId;
+    if (id == null) return;
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final int to = (index + delta) % parent.children.length;
+    select(parent.children[to < 0 ? to + parent.children.length : to].id);
+  }
+
+  /// Shift+Enter: what the selection is in.
+  void selectParent() {
+    final String? id = _selectedId;
+    if (id == null) return;
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent != null) select(parent.id);
+  }
+
+  /// Enter: the first thing in the selection.
+  void selectFirstChild() {
+    final DVPageNode? node = selectedNode;
+    if (node != null && node.children.isNotEmpty) select(node.children.first.id);
+  }
+
   void remove(String id) {
     _mutate((DVPageDocumentEditor editor) {
       editor.remove(id);
@@ -935,6 +1037,35 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     c.duplicate(id);
   }
 
+  /// [key] with Ctrl, and with Cmd for a Mac.
+  static Map<ShortcutActivator, VoidCallback> _command(
+    LogicalKeyboardKey key,
+    VoidCallback run, {
+    bool shift = false,
+  }) =>
+      <ShortcutActivator, VoidCallback>{
+        SingleActivator(key, control: true, shift: shift): run,
+        SingleActivator(key, meta: true, shift: shift): run,
+      };
+
+  /// An edit that a read-only editor refuses, refused quietly.
+  void _edit(VoidCallback edit) {
+    try {
+      edit();
+    } on StateError {
+      // Read-only.
+    } on ArgumentError {
+      // Nothing to do it to.
+    }
+  }
+
+  /// [run] on the selected element, when there is one that is not the page.
+  VoidCallback _onSelected(void Function(String id) run) => () {
+        final String? id = widget.controller.selectedId;
+        if (id == null || id == widget.controller.document.root.id) return;
+        _edit(() => run(id));
+      };
+
   void _select(String? id) {
     widget.controller.select(id);
     // Focus follows the click, so Delete and Escape act on the canvas and not
@@ -1089,6 +1220,27 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
                 _duplicateSelected,
             const SingleActivator(LogicalKeyboardKey.keyD, meta: true):
                 _duplicateSelected,
+            // The rest of what Figma, Bubble and Power Apps have taught
+            // people's fingers, doing the same thing here.
+            ..._command(LogicalKeyboardKey.keyY, widget.controller.redo),
+            ..._command(LogicalKeyboardKey.keyC, _onSelected(widget.controller.copy)),
+            ..._command(LogicalKeyboardKey.keyX, _onSelected(widget.controller.cut)),
+            ..._command(LogicalKeyboardKey.keyV, () => _edit(widget.controller.paste)),
+            ..._command(LogicalKeyboardKey.keyG, _onSelected(widget.controller.group)),
+            ..._command(LogicalKeyboardKey.keyG, _onSelected(widget.controller.ungroup),
+                shift: true),
+            ..._command(LogicalKeyboardKey.bracketRight,
+                _onSelected((String id) => widget.controller.moveBy(id, 1))),
+            ..._command(LogicalKeyboardKey.bracketLeft,
+                _onSelected((String id) => widget.controller.moveBy(id, -1))),
+            const SingleActivator(LogicalKeyboardKey.tab): () =>
+                widget.controller.selectSibling(1),
+            const SingleActivator(LogicalKeyboardKey.tab, shift: true): () =>
+                widget.controller.selectSibling(-1),
+            const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+                widget.controller.selectParent,
+            const SingleActivator(LogicalKeyboardKey.enter):
+                widget.controller.selectFirstChild,
           },
           child: Focus(
             focusNode: _focus,
@@ -2496,3 +2648,36 @@ Object? _parseProperty(DVStudioProperty property, String input) {
 /// palette's tap does.
 String dvStudioInsertTarget(DVStudioEditorController controller) =>
     _dvStudioInsertTarget(controller);
+
+/// What a field of an element is called for somebody who has never written
+/// code: the formula bar lists fields by these, where it listed `fontSize`
+/// and `crossAxis`.
+String dvStudioPlainFieldName(String name) =>
+    _dvStudioPlainNames[name] ??
+    _dvStudioLabels[name] ??
+    // `borderTopWidth` reads as "Border top width".
+    name
+        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
+            (Match m) => '${m[1]} ${m[2]!.toLowerCase()}')
+        .replaceFirstMapped(RegExp('^.'), (Match m) => m[0]!.toUpperCase());
+
+/// Names that need more than the inspector's label, which is read beside
+/// its group's heading and so can be one word.
+const Map<String, String> _dvStudioPlainNames = <String, String>{
+  'action': 'What a tap does',
+  'fontSize': 'Text size',
+  'fontWeight': 'Text weight',
+  'fontFamily': 'Font',
+  'color': 'Text colour',
+  'letterSpacing': 'Letter spacing',
+  'spacing': 'Gap between items',
+  'mainAxis': 'Spread items',
+  'crossAxis': 'Line items up',
+  'src': 'Picture address',
+  'alt': 'Picture description',
+  'rounded': 'Corner radius',
+  'borderWidth': 'Border width',
+  'borderColor': 'Border colour',
+  'align': 'Position',
+  'clip': 'Clip what overflows',
+};

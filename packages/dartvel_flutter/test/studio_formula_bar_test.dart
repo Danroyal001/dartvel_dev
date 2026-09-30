@@ -77,7 +77,7 @@ void main() {
     await pumpBar(tester, c);
     c.select(firstLeaf(c));
     await tester.pump();
-    await pickField(tester, 'fontSize');
+    await pickField(tester, 'Text size');
     expect(tester.widget<TextField>(input()).controller!.text, '18');
 
     await tester.enterText(input(), '=12 * 2');
@@ -92,7 +92,7 @@ void main() {
     await pumpBar(tester, c);
     c.select(firstLeaf(c));
     await tester.pump();
-    await pickField(tester, 'color');
+    await pickField(tester, 'Text colour');
     await tester.enterText(input(), '#GG0000');
     await tester.testTextInput.receiveAction(.done);
     await tester.pump();
@@ -120,7 +120,7 @@ void main() {
     await pumpBar(tester, c);
     c.select(firstLeaf(c));
     await tester.pump();
-    await pickField(tester, 'action');
+    await pickField(tester, 'What a tap does');
     await tester.tap(input());
     await tester.enterText(input(), 'Navigate("/pr');
     await tester.pump();
