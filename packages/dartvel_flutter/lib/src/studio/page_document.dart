@@ -406,6 +406,15 @@ class DVPageDocument {
           ],
       };
 
+}
+
+/// Exporting a page document as source.
+///
+/// An extension rather than members of [DVPageDocument]: the application
+/// reads page documents in its own code, and dart2js keeps every live
+/// instance member of a class it builds there in main.dart.js. Exporting is
+/// Studio's, and as static code it stays in Studio's deferred parts.
+extension DVPageDocumentSource on DVPageDocument {
   /// Full code export: the page as the same private expression-bodied
   /// `@DVPage` source a hand-written page uses. Once exported, the builder is
   /// out of the loop — the page is ordinary code.
