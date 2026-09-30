@@ -2113,8 +2113,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                 onTap: () => setState(_closeEditor),
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              Flexible(
-                flex: 5,
+              // Each side takes half of what the viewport controls leave,
+              // so they sit in the middle and Deploy sits at the end.
+              Expanded(
                 child: FittedBox(
                   fit: .scaleDown,
                   alignment: .centerLeft,
@@ -2153,13 +2154,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                   ),
                 ),
               ),
-              const Spacer(),
-              if (viewport) ...<Widget>[
-                _viewportControls(),
-                const Spacer(),
-              ],
-              Flexible(
-                flex: 6,
+              if (viewport)
+                Padding(
+                  padding: const .symmetric(horizontal: DVStudioStyle.space3),
+                  child: _viewportControls(),
+                ),
+              Expanded(
                 child: FittedBox(
                   fit: .scaleDown,
                   alignment: .centerRight,
