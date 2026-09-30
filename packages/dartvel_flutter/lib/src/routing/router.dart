@@ -16,7 +16,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../dartvel_flutter.dart' show DVPageStore, DvDefaultLoading;
+import '../../dartvel_flutter.dart'
+    show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -169,13 +170,44 @@ class _FixedRoutingConfig extends ValueListenable<RoutingConfig> {
 ///
 /// Leaves alone a path that already is [to], so a target that is itself
 /// unserved renders the 404 page instead of redirecting forever, and a path
-/// a Studio page document is stored for, since that page is served by the
-/// router's error builder and redirecting would make it unreachable.
+/// a Studio page document is stored for, since redirecting would make that
+/// page unreachable. [dvStudioPagesRoute] matching is not a page matching:
+/// it answers every address, and one with no document is not found.
 String? dvNotFoundRedirect(GoRouterState state, String to) {
   if (to.isEmpty) return null;
-  if (state.topRoute != null) return null;
+  final GoRoute? matched = state.topRoute;
+  if (matched != null && matched.name != dvStudioPagesRouteName) return null;
   final String path = state.uri.path;
   if (path == to) return null;
   if (DVPageStore.cached(path) != null) return null;
   return to;
 }
+
+/// The name of [dvStudioPagesRoute], which [dvNotFoundRedirect] does not
+/// count as a page matching.
+const String dvStudioPagesRouteName = 'dv-studio-page';
+
+/// The route a page made in Studio is served at: every address, listed last,
+/// so any page the application compiled is matched first.
+///
+/// These pages were built by the router's error builder, where there is no
+/// Material and no router state: on a site they came out in Flutter's debug
+/// text style, with no header, and the site's layouts -- which read
+/// `GoRouterState` to light the current link -- could not be put around
+/// them. As a route, a page gets both, and [frame] puts the application's
+/// layouts and shell around the document. An address with no document is
+/// the not-found page, as it was, and is not framed.
+GoRoute dvStudioPagesRoute({Widget Function(Widget document)? frame}) =>
+    GoRoute(
+      name: dvStudioPagesRouteName,
+      path: '/:dvStudioPage(.+)',
+      pageBuilder: (BuildContext context, GoRouterState state) =>
+          NoTransitionPage<void>(
+            key: state.pageKey,
+            child: DartvelRouteState(
+              params: const <String, String>{},
+              query: state.uri.queryParameters,
+              child: DVStudioPageRoute(state.uri.path, frame: frame),
+            ),
+          ),
+    );

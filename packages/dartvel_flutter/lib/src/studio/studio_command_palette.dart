@@ -318,6 +318,7 @@ const List<(String, String)> dvStudioShortcuts = <(String, String)>[
   ('Enter', 'Apply the formula'),
   ('Ctrl+Enter', 'Apply the formula when the bar has several lines'),
   ('Tab', 'Take the first completion in the formula bar'),
+  ('Ctrl+\\', 'Hide or show the side panels'),
   ('Ctrl+/', 'Show these shortcuts'),
 ];
 
