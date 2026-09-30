@@ -86,9 +86,12 @@ class _About extends StatelessWidget {
 Widget? _view(String path, {Widget? content, bool layout = true}) {
   final Widget? body = content ?? (path == '/about' ? const _About() : null);
   if (body == null) return null;
+  // As the generated view is: the page's own lifecycle host around the
+  // body, the layouts around that.
+  final Widget hosted = DVPageLifecycleHost(child: body);
   return DVPageShell(
     spec: const DVPageScaffoldSpec(),
-    child: layout ? _SiteLayout(child: body) : body,
+    child: layout ? _SiteLayout(child: hosted) : hosted,
   );
 }
 
@@ -216,6 +219,30 @@ void main() {
     final BuildContext inPage = tester.element(find.text('We roast on Tuesdays.'));
     expect(Theme.of(inPage).scaffoldBackgroundColor, _light.scaffoldBackgroundColor);
     expect(Theme.of(inPage).colorScheme.primary, _light.colorScheme.primary);
+  });
+
+  testWidgets('editing a page written in code copies the page, not the site '
+      'around it', (WidgetTester tester) async {
+    _screen(tester, const Size(1600, 1000));
+    await tester.pumpWidget(_studio());
+    await tester.pumpAndSettle();
+    await tester.tap(_key('dv-studio-route-/about'));
+    await tester.pumpAndSettle();
+    await tester.tap(_key('dv-studio-override'));
+    await tester.pumpAndSettle();
+    await tester.tap(_key('dv-studio-publish'));
+    await tester.pumpAndSettle();
+    final DVPageDocument? copy = await const DVPageStore().load('/about');
+    final List<String> texts = <String>[];
+    void walk(DVPageNode node) {
+      if (node.properties['text'] case final String text) texts.add(text);
+      node.children.forEach(walk);
+    }
+
+    walk(copy!.root);
+    expect(texts, contains('We roast on Tuesdays.'));
+    expect(texts, isNot(contains('Site header')),
+        reason: 'the header is the layout\'s, drawn around the copy');
   });
 
   testWidgets('the page is drawn in the application\'s dark theme on request, '

@@ -802,9 +802,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     if (!mounted || context == null || _compiled?.path != page.path) {
       return null;
     }
+    // The page, not the site around it: the view draws the layouts too,
+    // and a copy that carried the header would draw it twice inside them.
+    // The page's own lifecycle host is where the view puts the page.
+    Element? body;
+    void find(Element element) {
+      if (body != null) return;
+      if (element.widget is DVPageLifecycleHost) {
+        body = element;
+        return;
+      }
+      element.visitChildElements(find);
+    }
+
+    (context as Element).visitChildElements(find);
     return dvStudioDocumentFromStructure(
       page.path,
-      dvStudioStructureOf(context),
+      dvStudioStructureOf(body ?? context),
       title: page.title,
     );
   }
