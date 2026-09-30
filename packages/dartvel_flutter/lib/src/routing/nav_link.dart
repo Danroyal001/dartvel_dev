@@ -193,6 +193,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   Timer? _visibleTimer;
   bool _checkScheduled = false;
   OverlayEntry? _previewEntry;
+  LocalHistoryEntry? _previewHistory;
   FocusNode? _ownedFocusNode;
   bool _focused = false;
 
@@ -382,7 +383,8 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _showPreview() {
-    if (!mounted || _previewEntry != null) return;
+    if (!mounted || !widget.enabled || widget.preview == .none ||
+        _previewEntry != null) return;
     final builder = DVRoutePreviews.forPath(widget.to.path);
     // Nothing registered for this route. Quietly nothing, rather than an
     // empty card that looks like a failure.
@@ -409,6 +411,22 @@ class _DVNavLinkState extends State<DVNavLink> {
       ),
     );
     Overlay.of(context, rootOverlay: true).insert(_previewEntry!);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_previewPointer);
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      _previewHistory = LocalHistoryEntry(onRemove: () {
+        _previewHistory = null;
+        _removePreview();
+      });
+      route.addLocalHistoryEntry(_previewHistory!);
+    }
+  }
+
+  // Observe without taking the gesture: an outside drag still scrolls the page.
+  void _previewPointer(PointerEvent event) {
+    if (event is PointerDownEvent || event is PointerScrollEvent) {
+      _removePreview();
+    }
   }
 
   bool get _isCurrentRoute {
@@ -423,8 +441,14 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _removePreview() {
+    if (_previewEntry == null) return;
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_previewPointer);
     _previewEntry?.remove();
+    _previewEntry?.dispose();
     _previewEntry = null;
+    final history = _previewHistory;
+    _previewHistory = null;
+    history?.remove();
   }
 
   /// Whether this click means "beside this page" rather than "instead of it".
