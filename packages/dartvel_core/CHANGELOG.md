@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Sensitive fields are write-only in Studio, like a password field.**
+  Studio used to refuse any write to a `@DVModel.sensitiveField()`. The
+  records API now stores a value sent for one, sealed first with
+  `DVFieldEncryption` when the field is `encrypted: true`, and treats an
+  empty or null value as "keep what is stored". No response carries the
+  value, as before. `DVStudioFieldSpec.encrypted` says which fields are
+  sealed.
+- **`registerDVModelWriteOnlyFields<T>` and `dvModelWriteOnlyFields`**: the
+  sensitive fields a generated form draws as write-only inputs.
+
 - **`registerDVModelFormFields<T>` and `dvModelFormFields`**: the fields a
   generated form may show for a model, which leave out its sensitive fields.
 

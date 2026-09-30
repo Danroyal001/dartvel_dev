@@ -125,14 +125,16 @@ void main() {
     return byLabel;
   }
 
-  testWidgets('Post.Form() has an input per public field, and none for the '
-      'sensitive one', (WidgetTester tester) async {
+  testWidgets('Post.Form() has an input per field, the sensitive one '
+      'write-only', (WidgetTester tester) async {
     final Map<String, String> fields = await fieldsOf(tester, Post.Form());
-    expect(fields.keys, containsAll(<String>['SLUG', 'AUTHORID', 'TITLE', 'BODY', 'LIKES']));
-    expect(fields.keys, isNot(contains('MODERATORNOTES')));
+    expect(fields.keys, containsAll(<String>['SLUG', 'AUTHORID', 'TITLE', 'BODY', 'LIKES', 'MODERATORNOTES']));
+    final TextField notes = tester.widget<TextField>(find.byWidgetPredicate(
+        (Widget w) => w is TextField && w.decoration?.labelText == 'MODERATORNOTES'));
+    expect(notes.obscureText, isTrue);
   });
 
-  testWidgets('editing a Post neither shows nor prefills its sensitive field',
+  testWidgets('editing a Post never prefills its sensitive field',
       (WidgetTester tester) async {
     const Post post = Post(
       slug: 'hello',
@@ -142,9 +144,10 @@ void main() {
       moderatorNotes: 'flagged by legal',
       likes: 0,
     );
-    await tester.pumpWidget(MaterialApp(home: Material(child: post.Form())));
-    await tester.pumpAndSettle();
+    final Map<String, String> fields = await fieldsOf(tester, post.Form());
+    expect(fields['MODERATORNOTES'], isEmpty);
     expect(find.textContaining('flagged by legal'), findsNothing);
+    expect(find.text('Leave empty to keep the current value'), findsOneWidget);
     expect(find.text('hello'), findsWidgets);
   });
 
