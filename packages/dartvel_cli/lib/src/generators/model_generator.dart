@@ -2425,6 +2425,22 @@ class ModelGenerator {
         sb.writeln(
           '  registerDVModelDeserializer<$className>(${className}Parser.fromJson);',
         );
+        // The fields Model.Form() may show. The serializer above is the
+        // internal one and carries every field, so without this the form
+        // drew a sensitive field as an input, prefilled with its value --
+        // while the builder form, through the form controls, hid it. Same
+        // rule as the controls: sensitive fields stay off unless a field
+        // opted back in with showInForms: true.
+        final formFieldNames = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) =>
+                !sensitiveFieldNames.contains(name) ||
+                sensitiveFormFields.contains(name))
+            .map((String name) => "'$name'")
+            .join(', ');
+        sb.writeln(
+          '  registerDVModelFormFields<$className>(const <String>{$formFieldNames});',
+        );
 
         // GraphQL: the generated API surface for this model. Sensitive fields
         // stay out of the type, the resolvers, and the mutation arguments —
