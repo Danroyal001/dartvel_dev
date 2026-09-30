@@ -133,9 +133,18 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsCode('routing-navlink-options'),
             Bullets(<String>[
               'DVLinkPreload: none, hover, visible (the default) or immediate.',
-              'DVLinkPreview: auto (the default) or none.',
+              'DVLinkPreview: auto (the default), none, or widget(child).',
+              'Tap or scroll outside a preview to close it. Back closes the '
+                  'preview before leaving the page.',
               'DVNavLink.external opens another site and never preloads.',
             ]),
+            DocsSubheading('Show your own preview'),
+            DocsCode('routing-navlink-custom'),
+            DocsText('A custom preview replaces the destination page with your '
+                'widget, including its buttons and scrolling. It gets at most '
+                '340 × 240 logical pixels, reduced to fit the safe screen area '
+                'and keyboard. Use normal constrained layouts inside it. '
+                'It does not need a registered destination preview.'),
             DocsNote('Keep GlobalKeys inside the page',
                 'A preview builds a second live copy of the target page. Keys '
                 'shared by the whole program cannot be in two places, so create '
