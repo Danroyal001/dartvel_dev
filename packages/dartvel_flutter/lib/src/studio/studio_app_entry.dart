@@ -8,14 +8,19 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import 'studio_server.dart' show DVStudioApp, DVStudioClient;
+import 'studio_server.dart' show DVStudioApp, DVStudioClient, DVStudioTransport;
 
 /// Studio for a caller the route's guard let through. [DVStudioApp] asks
 /// the server once more, and draws the sign-in rather than Studio if the
 /// grant has gone in the meantime.
 Widget dvStudioAppFor({
-  required DVStudioClient client,
+  required DVStudioTransport transport,
   required String title,
   Uri? location,
   void Function(String path)? open,
-}) => DVStudioApp(client: client, title: title, location: location, open: open);
+}) => DVStudioApp(
+  client: DVStudioClient(transport),
+  title: title,
+  location: location,
+  open: open,
+);

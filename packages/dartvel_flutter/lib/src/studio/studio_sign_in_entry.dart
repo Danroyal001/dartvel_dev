@@ -7,12 +7,12 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import 'studio_server.dart' show DVStudioClient;
+import 'studio_server.dart' show DVStudioClient, DVStudioTransport;
 import 'studio_sign_in.dart';
 
 /// Studio's sign-in page, in Studio's own frame.
 Widget dvStudioSignInFor({
-  required DVStudioClient client,
+  required DVStudioTransport transport,
   required String mount,
   String? from,
   required String title,
@@ -20,7 +20,7 @@ Widget dvStudioSignInFor({
 }) => DVStudioFrame(
   title: title,
   home: DVStudioSignInScreen(
-    client: client,
+    client: DVStudioClient(transport),
     mount: mount,
     from: from,
     title: title,
