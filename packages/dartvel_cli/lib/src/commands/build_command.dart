@@ -1256,6 +1256,9 @@ class BuildCommand extends Command<void> {
       // Deferred imports compile to code units carried inside the binary and
       // mapped when first used, where the host can build them.
       units: true,
+      // A build that serves no Studio compiles none of it: every reference
+      // the generated backend makes is behind this.
+      defines: <String, String>{'dartvel.studio': admin == null ? 'false' : 'true'},
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,

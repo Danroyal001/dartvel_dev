@@ -419,6 +419,111 @@ Future<String> _ping() async => 'pong from one file';
     }, skip: skip);
   });
 
+  group('Studio turned off', () {
+    // A release build that serves no Studio compiles none of it: the
+    // generated backend puts every Studio reference behind dartvelStudio, and
+    // the build passes -Ddartvel.studio=false, so AOT drops the dashboard,
+    // its API and its grants. Its files are not carried, and its mount is a
+    // path like any other the application does not serve.
+    Future<File> buildWith({required bool studio}) async {
+      final ProcessResult generated = await Process.run(
+        Platform.resolvedExecutable,
+        <String>['run', 'dartvel_cli:dartvel', 'routes'],
+        workingDirectory: project.path,
+      ).timeout(const Duration(minutes: 5));
+      expect(generated.exitCode, 0, reason: '${generated.stdout}\n${generated.stderr}');
+      final Directory web = Directory(p.join(project.path, 'build', 'web'));
+      if (web.existsSync()) web.deleteSync(recursive: true);
+      File(p.join(web.path, 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<html><head><title>The site</title></head><body></body></html>');
+      File(p.join(web.path, '__admin', 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<html><title>Studio dashboard 7c1d</title></html>');
+      const DVAdminMount mount = DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true);
+      final DVServerBinaryResult built = await dvBuildServerBinary(
+        root: project.path,
+        library: library,
+        dart: Platform.resolvedExecutable,
+        webRoot: web.path,
+        admin: studio ? mount : null,
+        adminRoot: p.join(web.path, '__admin'),
+        units: true,
+        defines: <String, String>{'dartvel.studio': '$studio'},
+        run: (String executable, List<String> arguments, {String? workingDirectory}) =>
+            Process.run(executable, arguments, workingDirectory: workingDirectory),
+      );
+      expect(built.ok, isTrue, reason: built.lines.join('\n'));
+      final File kept = File(p.join(project.path, 'build', studio ? 'server-on' : 'server-off'));
+      built.binary!.copySync(kept.path);
+      return kept;
+    }
+
+    test('carries no Studio code or files, and is smaller for it', () async {
+      final File on = await buildWith(studio: true);
+      final File off = await buildWith(studio: false);
+      // What only Studio's server has: its class names, which an AOT
+      // snapshot keeps, and its own messages.
+      const List<String> studioOnly = <String>['DVAdminServer', 'DVStudioApi', 'DVStudioGrants', 'Missing CSRF header.'];
+      bool carries(File binary, String text) => latin1.decode(binary.readAsBytesSync()).contains(text);
+      for (final String marker in studioOnly) {
+        expect(carries(on, marker), isTrue, reason: 'a Studio build carries $marker');
+        expect(carries(off, marker), isFalse, reason: 'a build without Studio carries $marker');
+      }
+      final DVBinaryPayload payload = DVBinaryPayload.read(off.path)!;
+      expect(payload.names, isNot(contains('admin.mount')));
+      final ({int offset, int length}) at = payload.locate('assets')!;
+      final DVAssetPack pack = DVAssetPack.open(off.path, offset: at.offset, length: at.length)!;
+      expect(pack.paths.where((String path) => path.startsWith('admin/')), isEmpty);
+      expect(off.lengthSync(), lessThan(on.lengthSync()));
+    }, skip: skip);
+
+    test('answers its mount as a path nobody serves', () async {
+      final File off = await buildWith(studio: false);
+      final Directory elsewhere = Directory.systemTemp.createTempSync('dv_server_binary_nostudio_');
+      addTearDown(() => elsewhere.deleteSync(recursive: true));
+      final File copy = off.copySync(p.join(elsewhere.path, 'server'));
+      await Process.run('chmod', <String>['+x', copy.path]);
+      final int port = await _freePort();
+      final Process server = await Process.start(copy.path, const <String>[],
+          workingDirectory: elsewhere.path,
+          includeParentEnvironment: false,
+          environment: <String, String>{..._serverEnvironment(), 'DARTVEL_PORT': '$port'});
+      final StringBuffer output = StringBuffer();
+      server.stdout.transform(utf8.decoder).listen(output.write);
+      server.stderr.transform(utf8.decoder).listen(output.write);
+      addTearDown(() async {
+        server.kill();
+        await server.exitCode;
+      });
+      final HttpClient client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+      addTearDown(() => client.close(force: true));
+      Future<(int, String)> get(String path) async {
+        final HttpClientRequest request = await client.getUrl(Uri.parse('http://127.0.0.1:$port$path'));
+        request.followRedirects = false;
+        final HttpClientResponse response = await request.close();
+        return (response.statusCode, await response.transform(utf8.decoder).join());
+      }
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 60));
+      while (true) {
+        try {
+          await get('/api/ping');
+          break;
+        } on SocketException {
+          if (DateTime.now().isAfter(deadline)) fail('the binary never answered:\n$output');
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
+      for (final String path in <String>['/__studio', '/__studio/', '/__studio/login', '/__studio/api/access']) {
+        final (int status, String body) = await get(path);
+        final (int nowhereStatus, String nowhereBody) = await get(path.replaceFirst('__studio', '__nowhr'));
+        expect(status, nowhereStatus, reason: path);
+        expect(body.replaceAll('/__studio', '/__nowhr'), nowhereBody, reason: path);
+        expect(body, isNot(contains('Studio dashboard 7c1d')), reason: path);
+      }
+    }, skip: skip);
+  });
+
   group('the native library a server build embeds', () {
     test('is found through the project package configuration', () {
       final Directory root =
