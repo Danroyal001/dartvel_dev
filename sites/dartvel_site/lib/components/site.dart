@@ -216,7 +216,7 @@ Widget _siteFooter(BuildContext context) {
         // the edge, which in release is silently clipped.
         DVBox.wrapLine(<Widget>[
           DartvelMark(size: 16, color: palette.faint),
-          const DVText('MIT licensed. Built with Dartvel.')
+          const DVText('FSL-1.1-MIT licensed. Built with Dartvel.')
               .modifier(const DVModifier().fontSize(13).color(palette.faint)),
         ], spacing: 8),
       ], spacing: 12),

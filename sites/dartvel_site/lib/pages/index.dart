@@ -117,7 +117,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     PrimaryLink('Create your first app', '/docs'),
     GhostLink('See what works today', '/features'),
   ], spacing: 12),
-  const DVText('MIT licensed. dartvel_dev 0.9.3 is on pub.dev.').modifier(
+  const DVText('FSL-1.1-MIT licensed. dartvel_dev 0.9.3 is on pub.dev.').modifier(
     const DVModifier()
         .fontSize(14)
         .color(Palette.of(context).faint)
