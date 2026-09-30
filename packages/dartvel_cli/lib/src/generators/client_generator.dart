@@ -2072,15 +2072,15 @@ GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   // are still deciding, it paints a pending view where go_router paints
   // nothing, so a deep link onto a guarded page is never a blank screen.
   final router = DVRouter(
-    routes: _dartvelRouteList(),
+    // Every address no page claims, last: a page made in Studio is a page of
+    // the site, with its layouts, its shell and the router state they read.
+    routes: <RouteBase>[..._dartvelRouteList(), dvStudioPagesRoute(frame: _dartvelStoredFrame)],
     redirect: _globalRedirect,
-    // A route with no compiled page may still be a Studio page: builder
-    // documents are data, so saving one publishes it without a rebuild.
-    // Compiled routes always win — the store is only consulted here, after
-    // matching has already failed.
-    // A route with no compiled page at all may still be a Studio page.
+    // What the Studio pages route above does not reach -- an address the
+    // router could not parse -- is still looked up in the store, and is
+    // otherwise not found.
     errorBuilder: (BuildContext context, GoRouterState state) =>
-        DVStudioPageRoute(state.uri.path, frame: _dartvelStoredFrame),
+        DVStudioPageRoute(state.uri.path),
   );
   // DV.Navigation is used from callbacks with no BuildContext, so it needs the
   // live router rather than looking one up from the widget tree.

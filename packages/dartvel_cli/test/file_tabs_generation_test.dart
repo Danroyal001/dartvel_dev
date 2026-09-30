@@ -186,7 +186,10 @@ void main() {
         ),
       );
       expect(source, contains('dvMountRoutes(_dartvelRouteList(), at: at)'));
-      expect(source, contains('routes: _dartvelRouteList(),'));
+      expect(
+          source,
+          contains('routes: <RouteBase>[..._dartvelRouteList(), '
+              'dvStudioPagesRoute(frame: _dartvelStoredFrame)],'));
     });
   });
 }
