@@ -20,19 +20,23 @@ import 'studio_server.dart'
     show DVStudioReply, DVStudioTransport, dvStudioBrowserTransport;
 import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
 
-/// Studio's routes at [mount] (`/__studio`), titled [title].
+/// Studio's routes at [mount] (`/__studio`), titled [title]: Studio, its
+/// sign-in and its first-run setup.
 ///
 /// [transport] reaches Studio's API; the browser's, at `<mount>/api/`, by
 /// default. [open] loads a path from the server as a page, which is how a
 /// person who has just signed in reaches Studio: the server decides on the
 /// grant again before it renders anything. [location] is the address a
-/// Studio page was opened at; the browser's by default.
+/// Studio page was opened at; the browser's by default. [signInReturns] are
+/// the other mounts Studio's grant guards, such as a documentation site with
+/// `access: studio`, which the sign-in sends a person back to.
 List<RouteBase> dvStudioRoutes({
   required String mount,
   String title = 'Studio',
   DVStudioTransport? transport,
   void Function(String path)? open,
   Uri Function(GoRouterState state)? location,
+  List<String> signInReturns = const <String>[],
 }) {
   // A transport and nothing more on this side of the deferred imports: an
   // object of Studio's made here would bring every method it has into
@@ -41,6 +45,7 @@ List<RouteBase> dvStudioRoutes({
   final DVStudioTransport send =
       transport ?? dvStudioBrowserTransport(base: '$mount/');
   final String login = '$mount/login';
+  final String setup = '$mount/setup';
   return <RouteBase>[
     GoRoute(
       path: mount,
@@ -82,6 +87,26 @@ List<RouteBase> dvStudioRoutes({
                     transport: send,
                     mount: mount,
                     from: state.uri.queryParameters['from'],
+                    title: title,
+                    open: open ?? dvOpenUrl,
+                    returns: signInReturns,
+                  ),
+            ),
+          ),
+    ),
+    // The first-run setup: the server sends every page of the mount here
+    // until the owner has finished it, and answers this route only then.
+    GoRoute(
+      path: setup,
+      pageBuilder: (BuildContext context, GoRouterState state) =>
+          NoTransitionPage<void>(
+            key: state.pageKey,
+            child: DVStudioDeferred(
+              load: dartvel_studio_sign_in.loadLibrary,
+              builder: (BuildContext context) =>
+                  dartvel_studio_sign_in.dvStudioSetupFor(
+                    transport: send,
+                    mount: mount,
                     title: title,
                     open: open ?? dvOpenUrl,
                   ),

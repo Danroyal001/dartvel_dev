@@ -59,6 +59,7 @@ Future<GoRouter> _open(
   _Server server,
   String location, {
   List<String>? opened,
+  List<String> signInReturns = const <String>[],
 }) async {
   tester.view.physicalSize = const Size(1440, 900);
   tester.view.devicePixelRatio = 1;
@@ -72,6 +73,7 @@ Future<GoRouter> _open(
         title: 'Studio · shop',
         transport: server.call,
         open: (String path) => opened?.add(path),
+        signInReturns: signInReturns,
         location: (GoRouterState state) =>
             Uri.parse('https://shop.example${state.uri}'),
       ),
@@ -223,5 +225,32 @@ void main() {
           isEmpty,
           reason: 'granted: $granted, reported: $reported');
     }
+  });
+
+  testWidgets('the first-run setup is a route of the application, drawn '
+      'before anybody has signed in', (WidgetTester tester) async {
+    final _Server server = _Server(granted: false);
+    final GoRouter router = await _open(tester, server, '/__studio/setup');
+    expect(router.state.uri.path, '/__studio/setup');
+    expect(find.byType(DVStudioFirstRunScreen), findsOneWidget);
+    expect(find.byType(DVStudioScreen), findsNothing);
+    expect(_dataRequested(server), isFalse, reason: '${server.calls}');
+  });
+
+  testWidgets('signing in from another page Studio guards, such as the docs '
+      'site, goes back there', (WidgetTester tester) async {
+    final _Server server = _Server(granted: false);
+    final List<String> opened = <String>[];
+    await _open(tester, server, '/__studio/login?from=/docs/models',
+        opened: opened, signInReturns: const <String>['/docs']);
+    await tester.enterText(
+        find.byKey(const ValueKey<String>('dv-studio-sign-in-email')),
+        'ops@example.com');
+    await tester.enterText(
+        find.byKey(const ValueKey<String>('dv-studio-sign-in-password')),
+        'a-long-enough-password-1');
+    await tester.tap(find.byKey(const ValueKey<String>('dv-studio-sign-in-submit')));
+    await tester.pumpAndSettle();
+    expect(opened, <String>['/docs/models']);
   });
 }
