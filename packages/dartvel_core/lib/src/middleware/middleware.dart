@@ -129,8 +129,10 @@ class CommonMiddleware {
     final DVCountingCacheAdapter? shared = store as DVCountingCacheAdapter?;
     final DateTime Function() now = clock ?? DateTime.now;
     final Map<String, List<DateTime>> requestsMap = {};
+    DateTime lastSweep = now();
 
-    return (request, context) async {
+    late final Middleware limiter;
+    limiter = (request, context) async {
       final clientId =
           clientIdentifier?.call(request) ?? _clientIdentifier(request);
       final at = now();
@@ -150,6 +152,10 @@ class CommonMiddleware {
           if (count > maxRequests) {
             context.abort();
             context.data['rateLimitError'] = 'Too many requests';
+            // The counter is per window, so a slot opens when this one ends.
+            final int ends = (slot + 1) * window.inMilliseconds;
+            final int wait = ends - at.millisecondsSinceEpoch;
+            context.data['retryAfter'] = wait < 1000 ? 1 : (wait / 1000).ceil();
           }
         } on Object catch (error) {
           DVObservability.log(
@@ -163,6 +169,16 @@ class CommonMiddleware {
         return;
       }
 
+      // Forget callers whose every request has left the window, once per
+      // window. Kept forever, the map grew by one entry for every source
+      // that ever sent a request: an attacker rotating addresses filled this
+      // process's memory through the limiter meant to stop them.
+      if (at.difference(lastSweep) >= window) {
+        requestsMap.removeWhere((String _, List<DateTime> times) =>
+            times.isEmpty || at.difference(times.last) > window);
+        lastSweep = at;
+      }
+
       final requests = requestsMap[clientId] ?? [];
 
       // Remove old requests
@@ -171,11 +187,17 @@ class CommonMiddleware {
       if (requests.length >= maxRequests) {
         context.abort();
         context.data['rateLimitError'] = 'Too many requests';
+        // When the oldest counted request leaves the window, a slot opens.
+        final Duration wait = window - at.difference(requests.first);
+        context.data['retryAfter'] =
+            wait.inSeconds < 1 ? 1 : (wait.inMilliseconds / 1000).ceil();
       } else {
         requests.add(at);
         requestsMap[clientId] = requests;
       }
     };
+    _rateLimitCallers[limiter] = requestsMap;
+    return limiter;
   }
 
   /// Logging middleware
@@ -654,3 +676,14 @@ Future<T> dvWithRequestPrivacy<T>(Object? request, Future<T> Function() body) =>
       dvGlobalPrivacyControl(_requestHeaders(request)),
       body,
     );
+
+/// Each in-process rate limiter's callers, for [dvRateLimitTrackedCallers].
+final Expando<Map<String, List<DateTime>>> _rateLimitCallers =
+    Expando<Map<String, List<DateTime>>>('rate limit callers');
+
+/// How many callers [limiter] is holding counts for, or 0 for a limiter that
+/// counts in a shared store (or is not a rate limiter). How a test, or an
+/// operator's health check, sees that the limiter forgets callers that have
+/// gone quiet instead of growing with every address that ever called.
+int dvRateLimitTrackedCallers(Middleware limiter) =>
+    _rateLimitCallers[limiter]?.length ?? 0;

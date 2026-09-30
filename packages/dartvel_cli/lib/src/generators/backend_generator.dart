@@ -1101,7 +1101,7 @@ Future<dv.Response> _dvGuarded(
     // The message is fixed text chosen by the runtime. Nothing from the
     // request is echoed back into it.
     return dv.Response(mw.status,
-        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8', for (final MapEntry<String, String> h in mw.headers.entries) h.key: h.value}),
         body: Stream<List<int>>.value(conv.utf8.encode(mw.message)));
   }
   final dv.Response response = await run();
