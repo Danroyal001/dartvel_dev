@@ -101,3 +101,14 @@ const String dvStudioDataDirectory = 'build/studio/data';
 
 /// Studio's code, relative to the project.
 const String dvStudioPartsDirectory = 'build/studio/parts';
+
+/// Whether Studio's code is in the web build whose main.dart.js is [mainJs].
+///
+/// Studio is reached only through its deferred import, so its code is in the
+/// build exactly when that import owns part files. dart2js keeps the import's
+/// key in its table after tree shaking has removed everything behind it --
+/// `dartvel_studio:[]` -- and reading the key alone refused every static
+/// `dartvel build web`, whose Studio routes sit behind a false constant.
+bool dvStudioCompiledIn(String mainJs) =>
+    (dvDeferredParts(mainJs)[dvStudioDeferredImport] ?? const <String>[])
+        .isNotEmpty;
