@@ -69,6 +69,7 @@ import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
+import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/windowing/window.dart';
@@ -809,6 +810,7 @@ export 'src/studio/functions/function_section.dart'
 export 'src/studio/functions/functions.dart';
 export 'src/studio/functions/record_sequence.dart' show dvNextSequence;
 export 'src/studio/page_document.dart';
+export 'src/studio/studio_app_shortcuts.dart';
 export 'src/studio/studio_components.dart';
 export 'src/studio/studio_components_section.dart';
 export 'src/studio/studio_content.dart';
@@ -9652,8 +9654,14 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // forget. Both are inert until they are needed: the switch keys are left
     // to the page until switch control is turned on, so an ordinary keyboard
     // user is never hijacked.
+    // And the keyboard shortcuts set for the application in Studio, which
+    // are nothing at all until somebody sets one. Not on Studio's canvas,
+    // where the keys are Studio's.
+    final Widget answering = DVPagePreviewScope.of(context)
+        ? scrollable
+        : DVStudioAppShortcuts(child: scrollable);
     final Widget reachable =
-        DVHardwareKeys(child: DVSwitchControl(child: scrollable));
+        DVHardwareKeys(child: DVSwitchControl(child: answering));
     final Widget selectionWrapped = selectable
         ? SelectionArea(
             // skipTraversal, because a SelectionArea is focusable and would
