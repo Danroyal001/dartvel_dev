@@ -70,6 +70,20 @@
   wrote, and a crawler should not be handed two URLs that exist to report a
   problem -- so `dvNotFoundRoute` and `dvOfflineRoute` are how they are named.
   A page at either path is the application's and gets no generated route.
+- **Studio is part of the application.** The generated router mounts
+  Studio's routes at `dartvel.admin`'s mount behind the `dartvel.studio`
+  define, and generates none when Studio is turned off. `dartvel build
+  web-server` passes the define when it serves Studio, moves the parts only
+  Studio's screens load out of `build/web` into `build/studio/parts`, and the
+  binary carries them in memory in a section of its own. A static
+  `dartvel build web` never carries Studio, and a build whose Studio code
+  would be public is stopped.
+- The separately built Studio (`dvBuildStudio`) and the static admin
+  dashboard are gone; `build/studio/data` holds only the graph and page
+  structures Studio reads through its API.
+- `dartvel preview` serves Studio as the binary does. `dartvel dev` runs
+  Studio as a route of the web app, with Flutter's development server
+  passing `<mount>/api/` to the backend.
 
 ## 0.9.4
 
