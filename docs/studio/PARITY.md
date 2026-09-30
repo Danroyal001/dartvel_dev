@@ -165,6 +165,15 @@ whole of Studio answers to the keyboard and describes itself.
 | Pages | Site overview, page list with thumbnails, the canvas editor, layers, insert panel, inspector, formula bar, deploy, review, export | The closest to Figma's canvas and Webflow's builder. Partial. |
 | Components | Reusable parts with props, an Insert panel, `Ctrl+Alt+K` | Done for the symbol case; variants missing (Figma) |
 | Shortcuts | The app's keyboard shortcuts, without code | Done (Power Apps has none) |
+| Data | Models, records, the model designer | Done for Bubble's data types; no privacy-rule editor |
+| Site map | Every compiled and stored route | Done |
+| Frontend / Backend | Function builders, steps and runs | Done for Bubble workflows on the server; missing for page-level workflows |
+| Modules | What to paste into `pubspec.yaml` | Missing (Bubble plugins, Webflow custom code) |
+| Tasks | Background jobs from the project graph | Done (list only) |
+| Queue / Cache | Queue names and cache entries | Partial |
+| GitHub | Diff, pull request or push of the project's `studio/` folder | Not in any of the four; unique to Dartvel |
+| Team | Grants by address | Partial (no roles editor) |
+| Flags / Operations | Feature flags with rules, service levels, alert rules, incidents, status preview | Not in the four; unique to Dartvel, and real |
 
 ### A URL for every screen, and what it is read by
 
@@ -174,6 +183,17 @@ thing inside it. Nothing in the rail is a state of the page it is on, so a
 Studio screen can be linked, bookmarked and reloaded, and the browser's Back
 button goes back through it. Nothing is a `#fragment`, and nothing is an
 application that fetches its own pages from the server.
+
+The client opens a screen by navigating to its address, not by pushing a
+route the browser is never told about: `go_router`'s `push` keeps an
+imperative match to itself and, by default, leaves the location bar where it
+was, which is what made a selection change the body while the address still
+read Pages. `_openStudio` navigates (`studio_routes.dart`), so the location
+bar follows, each screen and object is a history entry of its own, and Back
+returns through them -- checked against the navigation channel in
+`packages/dartvel_flutter/test/studio_routes_test.dart` and a report sent the
+way the web engine sends it in
+`packages/dartvel_flutter/test/studio_selection_test.dart`.
 
 The three cases that are not screens are named too, and what each is for is
 said in the document it is served with:
@@ -198,15 +218,6 @@ The list of screens and the sections Studio actually puts on its rail are held
 to each other by `packages/dartvel_flutter/test/studio_sections_drift_test.dart`,
 so a screen cannot be printed by the server and missing from the client, or
 appear on the rail with no address.
-| Data | Models, records, the model designer | Done for Bubble's data types; no privacy-rule editor |
-| Site map | Every compiled and stored route | Done |
-| Frontend / Backend | Function builders, steps and runs | Done for Bubble workflows on the server; missing for page-level workflows |
-| Modules | What to paste into `pubspec.yaml` | Missing (Bubble plugins, Webflow custom code) |
-| Tasks | Background jobs from the project graph | Done (list only) |
-| Queue / Cache | Queue names and cache entries | Partial |
-| GitHub | Diff, pull request or push of the project's `studio/` folder | Not in any of the four; unique to Dartvel |
-| Team | Grants by address | Partial (no roles editor) |
-| Flags / Operations | Feature flags with rules, service levels, alert rules, incidents, status preview | Not in the four; unique to Dartvel, and real |
 
 ## How this file stays honest
 

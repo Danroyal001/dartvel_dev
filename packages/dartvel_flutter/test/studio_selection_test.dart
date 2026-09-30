@@ -12,6 +12,7 @@
 // object keeps its slashes so a page is at the route it answers.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Server {
@@ -338,6 +339,13 @@ void main() {
   testWidgets('the browser''s Back goes back through the sections', (
     WidgetTester tester,
   ) async {
+    // Each screen is a browser history entry of its own, so Back returns to
+    // the one before it. What Back actually does is move the browser to the
+    // previous entry and have the engine report that location to the app;
+    // here that report is sent the way the web engine sends it, through the
+    // navigation channel. The app has to follow it back -- the address is
+    // the selection, so a report it ignored would leave the body on Jobs
+    // while the location bar read Pages.
     final _Server server = _Server(granted: true);
     final GoRouter router = await _at(tester, server, '/__studio');
 
@@ -346,8 +354,16 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/__studio/jobs');
+    expect(openSection(tester), 'jobs');
 
-    router.pop();
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      SystemChannels.navigation.name,
+      SystemChannels.navigation.codec
+          .encodeMethodCall(const MethodCall('pushRouteInformation', <String, dynamic>{
+        'location': '/__studio',
+      })),
+      (_) {},
+    );
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/__studio');
     expect(openSection(tester), 'pages');

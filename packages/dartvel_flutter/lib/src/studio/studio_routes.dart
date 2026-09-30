@@ -120,9 +120,10 @@ List<RouteBase> dvStudioRoutes({
                 object: object,
                 location: location?.call(state),
                 open: open,
-                // Pushed rather than replaced, so Back walks back through
-                // the screens and the objects a person opened, which is what
-                // Back does in every tool Studio is measured against.
+                // Navigated to, not pushed: the address bar follows the
+                // screen as a history entry of its own, so Back walks back
+                // through the screens and the objects a person opened, which
+                // is what Back does in every tool Studio is measured against.
                 onSelect: (String section, String? chosen) =>
                     _openStudio(router: GoRouter.of(context), mount: mount, section: section, object: chosen),
               ),
@@ -228,8 +229,16 @@ List<RouteBase> dvStudioRoutes({
 /// what the server prints and what the router's `:object(.*)` reads back.
 ///
 /// A route carries a leading `/` that the address already has, so it is
-/// dropped rather than doubled. Pushed rather than replaced, so Back walks
-/// back through the screens and the objects a person opened.
+/// dropped rather than doubled.
+///
+/// Navigated to, not pushed. go_router's `push` keeps the address to itself:
+/// by default it does not report the new route to the browser, so the
+/// location bar stayed on the screen a person started at, a reload opened
+/// that screen again, and the link for the one they were looking at could not
+/// be copied. `go` reports it, and the browser keeps each screen and object
+/// as its own history entry, so Back walks back through them. Re-selecting
+/// where they already are is left alone, so Back is not filled with the same
+/// address twice.
 void _openStudio({
   required GoRouter router,
   required String mount,
@@ -240,7 +249,7 @@ void _openStudio({
       ? '$mount/$section'
       : '$mount/$section/${object.replaceFirst(RegExp('^/+'), '')}';
   if (router.state.uri.path == path) return;
-  router.push(path);
+  router.go(path);
 }
 
 /// A Studio screen through the page shell every other page of the

@@ -315,6 +315,58 @@ void main() {
     expect(opened, <String>['/docs/models']);
   });
 
+  testWidgets('choosing a screen tells the browser where it is, so the '
+      'address bar follows and Back walks back', (WidgetTester tester) async {
+    // The rail item reported the choice and Studio drew the section, but the
+    // address stayed where it was. go_router's `push` keeps an imperative
+    // match to itself: by default it does not report the new route to the
+    // browser, so clicking Data changed the body while the location bar still
+    // read Pages. Back had nothing to go back to, a reload opened the wrong
+    // screen, and the link could not be copied -- the address URL is the
+    // whole point of a screen having one.
+    //
+    // The delegate's own `state` updates for a push, which is why a test
+    // that read it passed while the browser did not move. What the address
+    // bar is written from is `routeInformationUpdated`, so that is what this
+    // watches.
+    final List<String> reported = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation, (MethodCall call) async {
+      if (call.method == 'routeInformationUpdated') {
+        final Object? arguments = call.arguments;
+        if (arguments is Map) {
+          reported.add('${arguments['uri'] ?? arguments['location']}');
+        }
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.navigation, null));
+
+    final _Server server = _Server(granted: true);
+    final GoRouter router = await _open(tester, server, '/__studio');
+    expect(tester.takeException(), isNull);
+    reported.clear();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('dv-studio-section-components')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      router.state.uri.path,
+      '/__studio/components',
+      reason: 'the screen changed but the router did not',
+    );
+    expect(
+      reported.map((String uri) => Uri.parse(uri).path),
+      contains('/__studio/components'),
+      reason: 'the screen changed but the browser was never told, so the '
+          'address bar still read the old screen: $reported',
+    );
+  });
+
   testWidgets('the Studio route hands Studio the application''s page views and '
       'its look, taken above Studio''s own frame', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
