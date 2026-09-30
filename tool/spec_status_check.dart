@@ -216,6 +216,7 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Deployment': 'Deployment',
     'Dartvel Studio': 'Dartvel Studio',
     'Development Builds': 'Dev Client',
+    'Development Builds & Preview': 'Dev Client',
     'Dartvel Cloud': 'Dartvel Cloud',
     'Data Workflows': 'Data Import, Export, and Reporting',
     'Secrets': 'Secrets and Environments',

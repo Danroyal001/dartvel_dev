@@ -200,7 +200,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsShell(<String>[
               'dartvel create shop',
-              'dartvel dev',
+              'cd shop && dartvel dev',
               'dartvel db migrate',
               'dartvel test',
               'dartvel build web-server',
