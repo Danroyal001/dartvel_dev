@@ -20,6 +20,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:dartvel_core/framework.dart'
     show DVCaptureConfig, DVCaptureConfigError;
 import 'package:file/local.dart';
+import 'model_names.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
 import 'raw_path.dart';
@@ -2362,6 +2363,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     // The application's types the typed wrappers below name.
     final Set<String> clientTypeImports = <String>{};
+    // The data models they name, which come from models.g.dart. A model is
+    // declared nowhere an application file imports -- it is generated -- so
+    // the imports above never find one, and a function returning Post
+    // compiled against dartvel_core's @Post annotation instead.
+    final List<String> declaredModels = dvDeclaredModelNames(root);
+    final Set<String> clientModelTypes = <String>{};
     for (final e in backendEntries) {
       final method = e['method']!;
       final urlPath = e['path']!;
@@ -2492,6 +2499,20 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
         final String abs = e['abs'] ?? '';
         final String rel = e['rel'] ?? '';
+        if ((e['pkg'] ?? pkgName) == pkgName) {
+          for (final String type in <String>[
+            clientReturnType,
+            for (var i2 = 0; i2 < tparams.length; i2++)
+              if (i2 < ttypes.length) ttypes[i2],
+          ]) {
+            for (final RegExpMatch m
+                in RegExp(r'[A-Za-z_$][\w$]*').allMatches(type)) {
+              if (declaredModels.contains(m.group(0))) {
+                clientModelTypes.add(m.group(0)!);
+              }
+            }
+          }
+        }
         if (abs.isNotEmpty && rel.isNotEmpty) {
           clientTypeImports.addAll(dvClientTypeImports(
             source: e['src'] ?? '',
@@ -2714,12 +2735,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // warns on every project whose backend functions happen not to need the
     // runtime, and a warning in generated code is one nobody can fix.
     const String coreImport = "import 'package:dartvel_core/dartvel.dart';";
-    final clientBody = sbClient.toString().replaceFirst(
+    // A model the signatures name is the application's, so it is hidden from
+    // the framework import and taken from the models.
+    final List<String> modelTypes = clientModelTypes.toList()..sort();
+    String clientBody = sbClient.toString().replaceFirst(
         coreImport,
-        coreImport +
+        (modelTypes.isEmpty
+                ? coreImport
+                : "import 'package:dartvel_core/dartvel.dart'"
+                    "${dvHideModelNames(modelTypes)};\n"
+                    "import 'models.g.dart' show ${modelTypes.join(', ')};") +
             (clientTypeImports.toList()..sort())
                 .map((String uri) => "\nimport '$uri';")
                 .join());
+    if (modelTypes.isNotEmpty) {
+      clientBody = clientBody.replaceFirst(
+          '// ignore_for_file: unused_element',
+          '// ignore_for_file: unused_element, $dvUndefinedHiddenName');
+    }
     const runtimeSymbols = <String>['DartvelRuntime', 'dartvelBaseUrl',
         'dartvelApiBase', 'DartvelConfigRuntime'];
     final needsRuntime =
