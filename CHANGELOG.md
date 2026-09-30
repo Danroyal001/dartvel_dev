@@ -40,12 +40,27 @@ Studio's screens are now routes of the project's own app, at `<mount>` and
   development backend, and the grant link opens on the app itself.
 - Studio reads the project graph through `<mount>/api/graph`, behind the
   grant, instead of as a file.
+- **Studio says who is signed in, and signs out properly.** The foot of
+  Studio's rail shows the signed-in account and a **Sign out** control;
+  signing out ends the session on the server (`<mount>/api/auth/sign-out`)
+  and clears the cookie, not only this browser's copy.
+- The first-run setup is the third Studio route, `<mount>/setup`, rendered
+  from the application's shell like the sign-in; a documentation site with
+  `access: studio` sends a signed-out reader to Studio's sign-in, which now
+  brings them back to the page they wanted.
+- **Cost to public pages:** a public page's JavaScript grows by about 1.2%
+  (around 12 KB gzipped on dartvel.dev; `main.dart.js` +40 KB raw). dart2js
+  keeps a Flutter framework method in `main.dart.js` once any code calls it
+  on a class the page already builds, even when only Studio's deferred code
+  does, and Studio's route registration itself lives there. Studio's own
+  screens (about 360 KB) are in no public file. Accepted for this release.
 
 ### Removed
 
 - The separately built Studio (`dvBuildStudio`), the static admin dashboard
   it replaced, and `dvAdminAsset`/`DVAdminAsset`, which resolved a request
-  under the mount to a file on disk.
+  under the mount to a file on disk (the documentation site, a separate
+  compiled app, keeps its own file resolution).
 
 ## 0.9.3 — 2026-09-29
 

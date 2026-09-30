@@ -66,7 +66,10 @@
 - The development grant's cookie is set for the site, since Studio's code
   loads from the site root.
 - **Breaking:** `dvAdminAsset`, `DVAdminAsset` and `dvIsDeferredLibraryChunk`
-  are removed.
+  are removed; `DVDocsServer` resolves the documentation site's files itself.
+- The first-run setup is served as `<mount>/setup`, the application's shell
+  rendered for that route, and `POST <mount>/api/auth/sign-out` and
+  `GET <mount>/api/me` are new.
 
 ## 0.9.4
 
