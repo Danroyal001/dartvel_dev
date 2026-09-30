@@ -9,9 +9,9 @@ Widget newArticleForm() => Article.Form();
 // On an article, a form that edits that article.
 Widget editArticleForm(Article article) => article.Form();
 
-// Neither takes a callback. Saving is what the form does, and whether this
-// reader may create or edit is the policy's answer, the same policy the page
-// and the backend function ask.
+// Neither takes a callback. Saving is what the form does: save() checks the
+// model's @DVModel.validate rules and the version of the record the form
+// opened before anything is written.
 // docs:end
 
 // docs:start forms-builder

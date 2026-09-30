@@ -551,9 +551,9 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '// On an article, a form that edits that article.',
     'Widget editArticleForm(Article article) => article.Form();',
     '',
-    '// Neither takes a callback. Saving is what the form does, and whether this',
-    '// reader may create or edit is the policy\'s answer, the same policy the page',
-    '// and the backend function ask.',
+    '// Neither takes a callback. Saving is what the form does: save() checks the',
+    '// model\'s \u0040DVModel.validate rules and the version of the record the form',
+    '// opened before anything is written.',
   ],
   'forms-builder': <String>[
     'Widget articleSummaryForm(Article article) => DVForm<Article>.builder(',
