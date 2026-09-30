@@ -11,6 +11,7 @@ import '../dartvel_client/dartvel_client.dart';
 import 'docs_cli_command.dart';
 import 'docs_page_info.dart';
 import 'docs_samples.dart';
+import 'section_anchor.dart';
 import 'site.dart';
 
 /// Every docs page, in reading order. The sidebar, the pager and the index
@@ -257,6 +258,11 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
 class const DocsAnchors({
   super.key,
   required final List<String> ids,
+
+  /// Other names a section answers to, each to the id it means: a
+  /// section's heading as the site search links to it,
+  /// `#choose-a-search-provider` for the section whose id is `providers`.
+  final Map<String, String> aliases = const <String, String>{},
   required final Widget Function(
     BuildContext context,
     Map<String, GlobalKey> keys,
@@ -278,6 +284,10 @@ class _DocsAnchorsState extends State<DocsAnchors> {
   Widget build(BuildContext context) {
     for (final String id in widget.ids) {
       _keys.putIfAbsent(id, () => GlobalKey(debugLabel: 'docs:$id'));
+    }
+    for (final MapEntry<String, String> alias in widget.aliases.entries) {
+      final GlobalKey? key = _keys[alias.value];
+      if (key != null) _keys.putIfAbsent(alias.key, () => key);
     }
     return _DocsAnchorKeys(
       keys: _keys,
@@ -370,6 +380,9 @@ Widget _docsArticle(
 
   return DocsAnchors(
     ids: <String>[for (final DocsSection s in parts) s.id],
+    aliases: <String, String>{
+      for (final DocsSection s in parts) sectionAnchor(s.title): s.id,
+    },
     builder: (BuildContext inner, Map<String, GlobalKey> keys) =>
         ScrollToFragment(
       child: SingleChildScrollView(
