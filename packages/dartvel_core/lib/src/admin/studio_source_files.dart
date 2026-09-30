@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 
 import '../database/records.dart';
+import 'studio_api.dart' show dvStudioPagesShape, dvStudioPagesTable;
 import 'studio_site.dart' show dvStudioComponentsPrefix;
 
 /// Where the project keeps Studio's documents.
@@ -229,4 +230,79 @@ class DVStudioSourceFiles {
     }
     return changed;
   }
+}
+
+/// The collection the version of each bundled document last seeded is kept
+/// in.
+const String dvStudioSeededTable = 'dartvel_studio_seeded';
+
+const DVRecordShape _seededShape = DVRecordShape(
+  collection: dvStudioSeededTable,
+  key: 'route',
+  fields: <String, DVFieldType>{
+    'route': DVFieldType.text,
+    'hash': DVFieldType.text,
+  },
+);
+
+/// Seeds the documents a build bundled from the project's studio/ files --
+/// [documents], each a document's JSON -- into the store Studio's pages are
+/// kept in, [records], and returns how many it wrote.
+///
+/// A release ships what was committed, so a server started on an empty
+/// database has what the repository holds. A document already seeded at
+/// this version is left alone -- so one deleted on the server stays deleted
+/// -- and a newer version replaces the stored one only when nobody changed
+/// that in Studio since it was seeded.
+Future<int> dvSeedStudioDocuments(
+  DVRecordAdapter records,
+  List<String> documents,
+) async {
+  await records.ensure(dvStudioPagesShape);
+  await records.ensure(_seededShape);
+  String canonical(Object? json) => jsonEncode(json);
+  String hashOf(String text) => sha256.convert(utf8.encode(text)).toString();
+  var written = 0;
+  for (final String text in documents) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(text);
+    } on FormatException {
+      continue;
+    }
+    if (decoded is! Map || decoded['route'] is! String) continue;
+    final String route = decoded['route']! as String;
+    final String bundled = hashOf(canonical(decoded));
+    final List<Map<String, Object?>> seededRows = await records.find(
+      dvStudioSeededTable,
+      where: DVFilter.equals('route', route),
+    );
+    final String? seeded =
+        seededRows.isEmpty ? null : '${seededRows.first['hash']}';
+    if (seeded == bundled) continue;
+    final List<Map<String, Object?>> current = await records.find(
+      dvStudioPagesTable,
+      where: DVFilter.equals('route', route),
+    );
+    final bool untouched = current.isEmpty
+        ? seeded == null
+        : seeded != null &&
+            hashOf(canonical(jsonDecode('${current.first['document']}'))) ==
+                seeded;
+    if (untouched) {
+      await records.delete(dvStudioPagesTable, where: DVFilter.equals('route', route));
+      await records.insert(dvStudioPagesTable, <String, Object?>{
+        'route': route,
+        'title': decoded['title'],
+        'document': canonical(decoded),
+      });
+      written++;
+    }
+    await records.delete(dvStudioSeededTable, where: DVFilter.equals('route', route));
+    await records.insert(dvStudioSeededTable, <String, Object?>{
+      'route': route,
+      'hash': bundled,
+    });
+  }
+  return written;
 }
