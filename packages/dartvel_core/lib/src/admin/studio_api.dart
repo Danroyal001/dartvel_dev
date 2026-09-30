@@ -534,6 +534,8 @@ class DVStudioApi {
             return await _cacheAt(method, segments.sublist(1));
           case 'graph':
             if (segments.length == 1) return _graph(method);
+          case 'me':
+            if (segments.length == 1) return await _me(request, method);
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -1564,6 +1566,21 @@ class DVStudioApi {
         'lastError': ?job.lastError,
         'tenant': ?job.tenant,
       };
+
+  // ---- the signed-in person ----------------------------------------------
+
+  /// Who this Studio is open to: the signed-in account and its address, so
+  /// Studio can say whose it is beside the control that signs out.
+  Future<Response> _me(Request request, String method) async {
+    if (method != 'GET' && method != 'HEAD') _notAllowed();
+    final String? userId = await _caller(request);
+    return _reply(<String, Object?>{
+      'userId': userId,
+      if (userId != null)
+        if (await _emailOf(_directory, userId) case final String email)
+          'email': email,
+    });
+  }
 
   // ---- project graph -----------------------------------------------------
 
