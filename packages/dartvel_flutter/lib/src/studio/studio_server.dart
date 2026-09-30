@@ -158,6 +158,12 @@ class DVStudioField {
       baseType.startsWith('Set') ||
       baseType.startsWith('Map');
 
+  /// Whether the field can be set here but never read back: a sensitive text
+  /// field, drawn like a password field. Its value is never sent to Studio,
+  /// so the input starts empty, and leaving it empty keeps what is stored.
+  bool get writeOnly =>
+      sensitive && options == null && relation == null && baseType == 'String';
+
   /// Whether Studio has a control for this type. Anything else is shown and
   /// left as it is.
   bool get editable =>
@@ -252,6 +258,13 @@ class DVStudioModel {
   List<DVStudioField> get visibleFields => <DVStudioField>[
         for (final DVStudioField field in fields)
           if (!field.sensitive) field,
+      ];
+
+  /// The fields a record's form has a control for: the visible ones, and
+  /// each sensitive one that can be written without being read.
+  List<DVStudioField> get formFields => <DVStudioField>[
+        for (final DVStudioField field in fields)
+          if (!field.sensitive || field.writeOnly) field,
       ];
 }
 
@@ -1620,8 +1633,11 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   /// What the form holds, as typed: text for a text control, a bool for a
   /// switch, JSON text for a list or map, a value for a choice.
   late final Map<String, Object?> _draft = <String, Object?>{
-    for (final DVStudioField field in widget.model.visibleFields)
-      field.name: _initial(field, widget.record.values[field.name]),
+    for (final DVStudioField field in widget.model.formFields)
+      // A write-only field starts empty whatever the record holds.
+      field.name: field.writeOnly
+          ? ''
+          : _initial(field, widget.record.values[field.name]),
   };
 
   /// The nullable fields set to empty, whatever their control holds.
@@ -1654,7 +1670,13 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   /// -- or every filled field, for a new record.
   Map<String, Object?> _changes() {
     final Map<String, Object?> changes = <String, Object?>{};
-    for (final DVStudioField field in widget.model.visibleFields) {
+    for (final DVStudioField field in widget.model.formFields) {
+      if (field.writeOnly) {
+        // Sent only when something was typed: empty keeps what is stored.
+        final String typed = '${_draft[field.name] ?? ''}';
+        if (typed.isNotEmpty) changes[field.name] = typed;
+        continue;
+      }
       if (!field.editable) continue;
       if (!_isNew && field.name == widget.model.key) continue;
       final Object? typed = _typed(field, _draft[field.name]);
@@ -1756,7 +1778,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           child: ListView(
             padding: const .all(DVStudioStyle.space4),
             children: <Widget>[
-              for (final DVStudioField field in widget.model.visibleFields)
+              for (final DVStudioField field in widget.model.formFields)
                 Padding(
                   padding: const .only(bottom: DVStudioStyle.space3),
                   child: Column(
@@ -1815,9 +1837,10 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                     ],
                   ),
                 ),
-              if (widget.model.fields.any((DVStudioField f) => f.sensitive))
+              if (widget.model.fields
+                  .any((DVStudioField f) => f.sensitive && !f.writeOnly))
                 DVStudioStyle.caption(
-                  'Sensitive fields are not shown or written here.',
+                  'Some sensitive fields are not shown or written here.',
                   color: DVStudioStyle.faint,
                 ),
               if (_error != null) ...<Widget>[
@@ -1869,6 +1892,25 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
 
   Widget _control(DVStudioField field) {
     final Key key = ValueKey<String>('dv-studio-field-${field.name}');
+    if (field.writeOnly) {
+      return Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          KeyedSubtree(
+            key: key,
+            child: DVStudioTextInput(
+              obscureText: true,
+              onChanged: (String value) => _draft[field.name] = value,
+            ),
+          ),
+          if (!_isNew) ...<Widget>[
+            const SizedBox(height: DVStudioStyle.space1),
+            DVStudioStyle.caption('Leave empty to keep the current value',
+                color: DVStudioStyle.faint),
+          ],
+        ],
+      );
+    }
     final bool locked =
         !field.editable || (!_isNew && field.name == widget.model.key);
     if (!locked && _empty.contains(field.name)) {
