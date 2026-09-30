@@ -1139,6 +1139,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
       "import 'package:flutter/widgets.dart' as dv_nav;",
       "import 'dartvel_config.g.dart';",
       "import 'dartvel_runtime.dart';",
+      "import 'studio_documents.g.dart' show dartvelStudioDocuments;",
       "import 'env.g.dart';",
       "import 'functions.g.dart';",
       "import 'models.g.dart';",
@@ -1999,6 +2000,9 @@ const Map<String, DVPageSitemap> dartvelSitemapEntries = $sitemapEntriesSrc;
 /// they end up in.
 void _dartvelSetUp(List<String> arguments) {
   configureDartvelRuntime(arguments: arguments);
+  // What was made in Studio and committed, for a route nothing else has --
+  // an application with no server to ask still ships it.
+  DVPageStore.bundled = dartvelStudioDocuments;
   // What each route can fetch and show before you go there, so DVNavLink can
   // preload a destination on hover and preview it on a rest. The link cannot
   // know how to build a route; the router does.
@@ -2284,6 +2288,11 @@ ${(() {
 
     // Every bundled file, as DVAsset: a page names one rather than typing a
     // path, so a renamed file is a compile error.
+    // Studio's documents from the project's studio/ files, bundled into
+    // this build: pure Dart, so the server seeds itself from the same list.
+    File(p.join(libClientDir.path, 'studio_documents.g.dart'))
+        .writeAsStringSync(_studioDocumentsSource(root));
+
     dvGenerateAssets(root: root);
 
     // The mounted modules, in two files for one reason: the registration
@@ -4730,3 +4739,33 @@ String _studioSplashArg(Map<Object?, Object?> dv, String root) {
 /// [value] as Dart source: `96`, not `96.0`, for a whole number.
 String _number(num value) =>
     value == value.roundToDouble() ? '${value.round()}' : '$value';
+
+/// `studio_documents.g.dart`: every document in the project's studio/
+/// directory, as the JSON the file holds.
+String _studioDocumentsSource(String root) {
+  final Directory studio = Directory(p.join(root, 'studio'));
+  final List<File> files = <File>[
+    if (studio.existsSync())
+      for (final FileSystemEntity e in studio.listSync(recursive: true))
+        if (e is File && e.path.endsWith('.json')) e,
+  ]..sort((File a, File b) => a.path.compareTo(b.path));
+  final StringBuffer out = StringBuffer()
+    ..writeln('// GENERATED – do not edit.')
+    ..writeln('//')
+    ..writeln("// Studio's documents from the project's studio/ files: what was")
+    ..writeln('// made in Studio and committed, bundled into this build.')
+    ..writeln('library;')
+    ..writeln();
+  if (files.isEmpty) {
+    out.writeln('const List<String> dartvelStudioDocuments = <String>[];');
+    return out.toString();
+  }
+  out.writeln('const List<String> dartvelStudioDocuments = <String>[');
+  for (final File file in files) {
+    // JSON's string escapes are Dart's, but for the dollar sign.
+    out.writeln(
+        '  ${jsonEncode(file.readAsStringSync()).replaceAll(r'$', r'\$')},');
+  }
+  out.writeln('];');
+  return out.toString();
+}

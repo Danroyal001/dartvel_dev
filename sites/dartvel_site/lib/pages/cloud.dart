@@ -216,9 +216,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             Eyebrow('STUDIO PRO'),
             Heading('Studio Pro comes with Dartvel Cloud.'),
             Bullets(<String>[
-              'Figma import, reusable components, revision history and team '
-                  'approval. The frontend and backend function builders are '
-                  'free, in the Studio your own binary serves.',
+              'Figma import, revision history and team approval. Components '
+                  'and the frontend and backend function builders are free, in '
+                  'the Studio your own binary serves.',
             ]),
             GhostLink('See Studio and Studio Pro', '/studio'),
           ],

@@ -53,7 +53,6 @@ Directory? enterpriseStudioPro() {
 /// What Studio Pro ships, as the page must badge it.
 const Map<String, bool> kProCards = <String, bool>{
   'Figma import': true,
-  'Reusable components': true,
   'Revision history': true,
   'Multi-user editing and approval': true,
   'Enterprise SSO': false,
@@ -181,7 +180,6 @@ void main() {
     ].join('\n');
     final Map<String, List<String>> evidence = <String, List<String>>{
       'Figma import': <String>['dvFigmaImportStudioSection'],
-      'Reusable components': <String>['dvComponentsStudioSection'],
       'Revision history': <String>['dvHistoryStudioSection'],
       'Multi-user editing and approval': <String>[
         'class DVStudioCollaboration',
