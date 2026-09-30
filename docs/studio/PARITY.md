@@ -58,6 +58,12 @@ gap: what comes out is a real Flutter widget tree, runs on every platform Dartve
 and is readable and editable as source. The cost is that Studio cannot offer anything the
 Dartvel widget set does not already have.
 
+One thing is no longer a gap at all: Studio used to be a second Flutter application, served
+as files under the mount, with no URL for any screen but the mount itself and an empty
+`<body>` the app painted over. It is now routes of the application, on the same render path
+as every public page, each with its own address and a document behind it. That is described
+in [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by).
+
 ---
 
 ## Against Figma
@@ -141,7 +147,7 @@ Dartvel widget set does not already have.
 | Notifications and approvals | **Partial** — the content workflow has approval states and a publish schedule; `DV.Notifications` exists in the framework, with no Studio screen to configure it | `studio_review.dart`, `packages/dartvel_core/lib/src/notifications/` |
 | Governance: solution checker, managed environments | **Missing** | — |
 | Keyboard/command shortcuts | **Done** — a Shortcuts section writes an app's keyboard shortcuts without code, plus Figma/Bubble/Power Apps shortcuts on the Ctrl+/ sheet | `studio_app_shortcuts.dart`, `studio_shortcuts` section `studio_screen.dart:186`, screenshot `docs/studio/nocode/shortcuts.png` |
-| Accessibility of what Studio produces | **Partial** — what Studio produces is a real Flutter widget tree, and the framework carries the accessibility surface. **Studio's own chrome is only partly described to an assistive technology.** What is there: list rows (`studio_style.dart:623`) are `button`/`selected` with an identifier, the text input (`studio_style.dart:815`) says it is enabled, and Studio's three routes go through `DVPageShell`, so Ctrl+F, text selection, keyboard scrolling, the D-pad and switch control are registered on Studio like on every other page (`studio_routes.dart` `_dvStudioPage`). What is missing: `DVStudioIconButton` (`studio_style.dart:509`, every rail item and toolbar action) and `DVStudioStyle.control` (`studio_style.dart:179`, every button) are a `GestureDetector` and a `Container` — no `button` role, not focusable, no keyboard activation, no visible focus ring — and `studio_screen.dart` has no `Semantics(` call at all | `studio_style.dart:509`, `:179`, `studio_screen.dart` |
+| Accessibility of what Studio produces | **Partial** — what Studio produces is a real Flutter widget tree, and the framework carries the accessibility surface. **Studio's own chrome is only partly described to an assistive technology.** What is there: list rows (`studio_style.dart:623`) are `button`/`selected` with an identifier, the text input (`studio_style.dart:815`) says it is enabled, Studio's three routes go through `DVPageShell`, so Ctrl+F, text selection, keyboard scrolling, the D-pad and switch control are registered on Studio like on every other page (`studio_routes.dart` `_dvStudioPage`), and every screen is served as a document a reader without the app can still read (see [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by)). What is missing: `DVStudioIconButton` (`studio_style.dart:509`, every rail item and toolbar action) and `DVStudioStyle.control` (`studio_style.dart:179`, every button) are a `GestureDetector` and a `Container` — no `button` role, not focusable, no keyboard activation, no visible focus ring — and `studio_screen.dart` has no `Semantics(` call at all | `studio_style.dart:509`, `:179`, `studio_screen.dart` |
 
 ---
 
@@ -152,6 +158,39 @@ Dartvel widget set does not already have.
 | Pages | Site overview, page list with thumbnails, the canvas editor, layers, insert panel, inspector, formula bar, deploy, review, export | The closest to Figma's canvas and Webflow's builder. Partial. |
 | Components | Reusable parts with props, an Insert panel, `Ctrl+Alt+K` | Done for the symbol case; variants missing (Figma) |
 | Shortcuts | The app's keyboard shortcuts, without code | Done (Power Apps has none) |
+
+### A URL for every screen, and what it is read by
+
+Every screen above is at its own address under the mount: `<mount>` is Pages,
+`<mount>/<screen>` is that screen, and `<mount>/<screen>/<object>` opens one
+thing inside it. Nothing in the rail is a state of the page it is on, so a
+Studio screen can be linked, bookmarked and reloaded, and the browser's Back
+button goes back through it. Nothing is a `#fragment`, and nothing is an
+application that fetches its own pages from the server.
+
+The three cases that are not screens are named too, and what each is for is
+said in the document it is served with:
+
+| Address | What it is | Where it comes from |
+| --- | --- | --- |
+| `<mount>` and `<mount>/pages` | Pages, the first screen | `studio_document.dart` `dvStudioScreens` |
+| `<mount>/<screen>` | The screen, with its own heading and the rail | `dvStudioScreenFor`, `dvStudioDocumentFor` |
+| `<mount>/<screen>/<object>` | One model, route, function, task, queue or module, named in the document as its `<h1>` | `_objectDocument` |
+| `<mount>/login` | Studio's sign-in, for anybody, carrying no project | `dvStudioSignInScreen`, `_noProjectDocument` |
+| `<mount>/setup` | The first-run setup, the same | `dvStudioSetupScreen` |
+| `<mount>/flags`, `<mount>/operations` | Flags and Operations, **client-side only** | not in `dvStudioScreens`: a server cannot know whether the project declared a flag runtime or an alerting engine, so it never prints a link to them. A project that has them opens them from the address bar | `studio_screen.dart:193`, `:203` |
+
+Every screen is served as the application's own shell rendered by
+`dvRenderRoutePage`, like every public page, carrying a document built from
+the same data Studio's API reads: names, counts, kinds and field schemas, and
+never a record's values or a grant. That is what a printer, a crawler, a
+reader with scripting off and the browser's own Ctrl+F read. `flags` and
+`operations` have no server-side document for the reason in the row above.
+
+The list of screens and the sections Studio actually puts on its rail are held
+to each other by `packages/dartvel_flutter/test/studio_sections_drift_test.dart`,
+so a screen cannot be printed by the server and missing from the client, or
+appear on the rail with no address.
 | Data | Models, records, the model designer | Done for Bubble's data types; no privacy-rule editor |
 | Site map | Every compiled and stored route | Done |
 | Frontend / Backend | Function builders, steps and runs | Done for Bubble workflows on the server; missing for page-level workflows |
