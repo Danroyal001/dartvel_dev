@@ -213,11 +213,7 @@ Widget _heroTerminal(BuildContext context) {
               ),
               TextSpan(text: 'cd shop && dartvel dev\n\n'),
               TextSpan(
-                text: 'dartvel dev: starting backend and Flutter app...\n',
-                style: TextStyle(color: Color(0xFF7080A8)),
-              ),
-              TextSpan(
-                text: '[backend] ',
+                text: '[dartvel] dartvel dev: starting backend and Flutter app...\n',
                 style: TextStyle(color: Color(0xFF7080A8)),
               ),
               TextSpan(text: 'dartvel backend listening on '),
@@ -226,12 +222,12 @@ Widget _heroTerminal(BuildContext context) {
                 style: TextStyle(color: Color(0xFF7DCFFF)),
               ),
               TextSpan(
-                text: '# you save lib/backend/functions/get_post.dart\n',
+                text: '# you save lib/backend/functions/hello.get.dart\n',
                 style: TextStyle(color: Color(0xFF7080A8)),
               ),
-              TextSpan(text: '[dev] regenerating...\n'),
+              TextSpan(text: '[dartvel] [dev] regenerating...\n'),
               TextSpan(
-                text: '[dev] restarting backend...',
+                text: '[dartvel] [dev] restarting backend...',
                 style: TextStyle(
                   color: Color(0xFF9ECE6A),
                   fontWeight: .w700,
@@ -252,25 +248,28 @@ Widget _proof(BuildContext context) => const Section(
     Eyebrow('DATA MODELS'),
     Heading('Write one class. Get its form, table, admin and typed client.'),
     CodeBlock(<String>[
-      '@DVModel()',
-      'class const _Post({',
+      "@DVModel(subject: DVSubject.field('authorId'))",
+      'class const _Article({',
+      '  required final String slug,',
       '  @DVModel.pageTitle() required final String title,',
       '  @DVModel.mainContent() required final String body,',
+      '  required final String authorId,',
       '  @DVModel.sensitiveField() required final String authorEmail,',
       '});',
     ]),
     Bullets(<String>[
       '`dartvel dev` regenerates the form, table, admin and typed client '
           'each time you save the class.',
-      'Post.Form(...) validates input against the fields you declared.',
-      'authorEmail stays out of logs, search and the admin until a policy '
-          'allows it.',
+      'Article.Form() is a form that creates an article, and article.Form() '
+          'one that edits it. Saving checks the rules each field declares.',
+      'authorEmail stays out of logs, search, public JSON and the admin until '
+          'a policy allows it, and erasing an author reaches it through authorId.',
     ]),
     DVBox.wrapLine(<Widget>[
-      SiteChip('Post.Form(...)'),
-      SiteChip('Post.Page.fromId(...)'),
-      SiteChip('Post.Table(...)'),
-      SiteChip('Post.Admin()'),
+      SiteChip('Article.Form()'),
+      SiteChip('Article.Page.fromId(...)'),
+      SiteChip('Article.Table(...)'),
+      SiteChip('Article.Admin()'),
     ], spacing: 8),
   ],
 );
@@ -281,12 +280,13 @@ Widget _backendProof(BuildContext context) => const Section(
     Eyebrow('BACKEND FUNCTIONS'),
     Heading('Call your server like a local Dart function.'),
     CodeBlock(<String>[
-      '// Server',
+      '// Server: lib/backend/functions/hello.get.dart',
       '@DVBackendFunction()',
-      'Future<Post?> _getPost(String id) => Post.find(id);',
+      'Future<Map<String, Object?>> _hello(String name) async =>',
+      "    <String, Object?>{'greeting': 'Hello, \$name'};",
       '',
       '// Client',
-      'final Post? post = await getPost(id);',
+      "final Map<String, Object?> greeting = await hello(name: 'Ada');",
     ]),
     Bullets(<String>[
       'The HTTP endpoint and its typed client are generated together.',
@@ -334,8 +334,8 @@ Widget _oneFileBackend(BuildContext context) => const Section(
       'Why not use PocketBase?',
       'PocketBase is also one file with its admin inside, and you extend it '
           'in Go or JavaScript. This binary carries its admin too: turn on '
-          'dartvel.admin.enabled, grant yourself access with `dartvel admin` '
-          'grant, and open it at /__studio. '
+          'dartvel.admin.enabled, grant yourself access with '
+          '`dartvel admin grant`, and open it at /__studio. '
           'Your backend stays in Dart beside your Flutter app, with a typed '
           'client generated for it.',
     ),
@@ -398,7 +398,8 @@ Widget _phoneLoop(BuildContext context) => const Section(
     Objection(
       'Does it work on an iPhone?',
       'Yes, with one limit. CI pairs an iOS simulator, an Android emulator '
-          'and a Linux desktop, edits a file and checks the change runs. On a '
+          'and Linux, macOS and Windows desktops, edits a file and checks the '
+          'change runs. On a '
           'physical iPhone a debug build only starts from Xcode or '
           '`flutter run`, so launch it from there and it pairs.',
     ),
@@ -471,7 +472,8 @@ Widget _routingProof(BuildContext context) => const Section(
     Objection(
       'Do I have to move my screens into lib/pages?',
       'No. Declare them in lib/routes.dart, or mount your GoRoute list inside '
-          'Dartvel\'s router with DVGoRoutes.',
+          'Dartvel\'s router with DVGoRoutes. Or keep your router: Dartvel\'s '
+          'pages mount into go_router, auto_route or Flutter\'s Navigator.',
     ),
     DVBox.wrapLine(<Widget>[GhostLink('Read the routing docs', '/docs/routing')]),
   ],
@@ -537,7 +539,8 @@ Widget _expoComparison(BuildContext context) => const Section(
       SiteCard(
         'Development builds',
         '`dartvel build <target> --profile development`, paired with '
-            '`dartvel dev` by a QR code. CI pairs Android, the iOS simulator and Linux.',
+            '`dartvel dev` by a QR code. CI pairs Android, the iOS simulator and '
+            'the Linux, macOS and Windows desktops.',
       ),
       SiteCard(
         'Over-the-air updates',
@@ -558,10 +561,10 @@ Widget _expoComparison(BuildContext context) => const Section(
 Widget _honest(BuildContext context) => const Section(
   children: <Widget>[
     Eyebrow('STATUS'),
-    Heading('25 spec sections ship today.'),
+    Heading('24 spec sections ship today.'),
     DVBox.wrapLine(<Widget>[
-      Stat('25', 'sections shipped'),
-      Stat('77', 'sections partial'),
+      Stat('24', 'sections shipped'),
+      Stat('78', 'sections partial'),
       Stat('0.9.3', 'current version'),
     ], spacing: 14),
     Bullets(<String>[
