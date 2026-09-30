@@ -132,6 +132,11 @@ basic_app (4.4 s). An edit saved in basic_app then hot reloaded into it
 in it ([linux-running-basic-app.png](2026-09-dartvel-preview/linux-running-basic-app.png)),
 and after the edit ([linux-hot-reloaded.png](2026-09-dartvel-preview/linux-hot-reloaded.png)).
 
+The web build of Preview was checked the same day in headless Chrome at
+phone width: opened with `?open=` and a Preview link carrying a web address,
+it went to its frame page and showed that web build under a back bar
+([web-framed.png](2026-09-dartvel-preview/web-framed.png)).
+
 One thing the run found: the Linux tunnel needs GIO's TLS module
 (`glib-networking`), and without it says so and retries.
 
