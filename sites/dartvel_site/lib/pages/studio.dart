@@ -37,10 +37,11 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Bullets(<String>[
           'Studio is free. It runs inside your web-server binary at /__studio, '
               'and never inside an app.',
-          'Build pages visually and edit model records without writing an '
-              'admin panel.',
-          'Studio Pro comes with Dartvel Cloud, and adds frontend and '
-              'backend functions built from steps and exported as plain Dart.',
+          'Build pages visually, design data models and edit their records '
+              'without writing an admin panel.',
+          'Frontend and backend functions built from steps are free too. '
+              'Studio Pro comes with Dartvel Cloud, and adds Figma import, '
+              'reusable components, revision history and team review.',
         ]),
         StudioShot(
           'assets/studio_shots/page-builder.png',
@@ -71,8 +72,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Only people you grant can open it. Studio has its own sign-in at '
               '/__studio/login, so it opens even with your app\'s account '
               'pages turned off.',
-          'Edit model records in a form. An edit made against a row that '
-              'changed after you opened it is refused.',
+          'Design a data model in the browser, with field types, rules, '
+              'relations, indexes and who may read and write it, and edit its '
+              'records in a form. An edit made against a row that changed after '
+              'you opened it is refused.',
           'Studio fits a phone: sections move to a bar along the bottom, and '
               'the editor shows Elements, Page or Style one at a time.',
         ]),
@@ -160,14 +163,14 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         DVBox.wrapLine(<Widget>[
           SiteCard(
             'Pages',
-            'Insert, Layers, the inspector, undo and redo, deploy, restore and '
-                'code export.',
+            'Every page, the ones in your code included. Insert, Layers, the '
+                'inspector, undo and redo, deploy, restore and code export.',
             section: 'Dartvel Studio',
           ),
           SiteCard(
             'Data',
-            'Browse and edit each model\'s records. Sensitive fields never '
-                'leave the server.',
+            'Design data models, and browse and edit each model\'s records. '
+                'Sensitive fields never leave the server.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
