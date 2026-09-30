@@ -635,6 +635,9 @@ class DVInMemorySearchProvider<TModel, TFacets>
 
     _read();
     final List<String> texts = _texts!;
+    // The words within a typo of each term, found once in the vocabulary of
+    // every record rather than once per record.
+    final Map<String, Set<String>> typos = _typos(terms);
 
     bool documentMatches(int i) {
       if (terms.isEmpty) return true;
@@ -643,11 +646,8 @@ class DVInMemorySearchProvider<TModel, TFacets>
         if (text.contains(term)) return true;
         // A typo has to be compared word by word: the whole document is never
         // within an edit or two of a single term.
-        for (final String word in _distinct![i]) {
-          if (dvTypoMatches(term, word, enabled: tuning.typoTolerance)) {
-            return true;
-          }
-        }
+        final Set<String> near = typos[term]!;
+        if (near.isNotEmpty && _distinct![i].any(near.contains)) return true;
       }
       return false;
     }
@@ -655,7 +655,7 @@ class DVInMemorySearchProvider<TModel, TFacets>
     // Facet counts describe what the text query found, before the facet
     // filter narrows it -- otherwise every count but the selected one is zero
     // and the UI can only ever narrow further.
-    final List<int> matchedAt = _ranked(
+    final List<int> matchedAt = _ranked(typos, 
       <int>[
         for (int i = 0; i < records.length; i++)
           if (documentMatches(i)) i,
@@ -719,7 +719,8 @@ class DVInMemorySearchProvider<TModel, TFacets>
   /// ranking that meant nothing. Rare terms weigh more than common ones, a
   /// term said again counts for less each time, and a long record does not
   /// win by being long. Records that score the same keep the stored order.
-  List<int> _ranked(List<int> matched, List<String> terms) {
+  List<int> _ranked(
+      Map<String, Set<String>> typos, List<int> matched, List<String> terms) {
     if (terms.isEmpty || matched.length < 2) return matched;
     final List<List<String>> words = <List<String>>[
       for (final int i in matched) _words![i],
@@ -741,8 +742,7 @@ class DVInMemorySearchProvider<TModel, TFacets>
                   word.value *
                       (word.key.contains(term)
                           ? 1
-                          : dvTypoMatches(term, word.key,
-                                  enabled: tuning.typoTolerance)
+                          : typos[term]!.contains(word.key)
                               ? 0.5
                               : 0),
             ),
@@ -783,6 +783,18 @@ class DVInMemorySearchProvider<TModel, TFacets>
   List<Set<String>>? _distinct;
   List<Map<String, int>>? _counts;
 
+  Set<String>? _vocabulary;
+
+  Map<String, Set<String>> _typos(List<String> terms) => <String, Set<String>>{
+        for (final String term in terms)
+          term: tuning.typoTolerance
+              ? <String>{
+                  for (final String word in _vocabulary!)
+                    if (!word.contains(term) && dvTypoMatches(term, word)) word,
+                }
+              : const <String>{},
+      };
+
   void _read() {
     if (_texts != null) return;
     final RegExp separator = RegExp(r'[^A-Za-z0-9]+');
@@ -793,6 +805,7 @@ class DVInMemorySearchProvider<TModel, TFacets>
         t.split(separator).where((String w) => w.isNotEmpty).toList(growable: false),
     ];
     _distinct = <Set<String>>[for (final List<String> w in _words!) w.toSet()];
+    _vocabulary = <String>{for (final Set<String> d in _distinct!) ...d};
     _counts = <Map<String, int>>[
       for (final List<String> w in _words!)
         () {
