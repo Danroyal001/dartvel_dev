@@ -16,15 +16,19 @@ import '../../dartvel_flutter.dart';
 
 /// Where, inside [mount], a person signing in is sent afterwards.
 ///
-/// Only a path inside the mount, and never the sign-in itself. Anything else
+/// Only a path inside the mount, or inside one of [also] -- the other mounts
+/// Studio's grant guards and sends here to sign in, such as a documentation
+/// site with `access: studio` -- and never the sign-in itself. Anything else
 /// -- another site, a protocol-relative `//host`, a page of the application
 /// -- is Studio's front page: a sign-in that could be pointed anywhere is a
 /// link somebody can send a person to.
-String dvStudioSignInTarget(String mount, String? from) {
+String dvStudioSignInTarget(String mount, String? from,
+    {List<String> also = const <String>[]}) {
   final String home = '$mount/';
   final String value = from ?? '';
   if (value.contains('//') || value.contains('\\')) return home;
-  final bool inside = value == mount || value.startsWith('$mount/');
+  bool under(String base) => value == base || value.startsWith('$base/');
+  final bool inside = under(mount) || also.any(under);
   final bool login =
       value == '$mount/login' || value.startsWith('$mount/login?');
   return inside && !login ? value : home;
@@ -148,7 +152,11 @@ class DVStudioSignInScreen extends StatefulWidget {
     this.from,
     this.title = 'Studio',
     required this.open,
+    this.returns = const <String>[],
   });
+
+  /// The other mounts a person signing in may be sent back to.
+  final List<String> returns;
 
   final DVStudioClient client;
 
@@ -225,7 +233,8 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
       if (access.status != 200 || body is! Map || body['granted'] != true) {
         return _say('This account may not open Studio.');
       }
-      widget.open(dvStudioSignInTarget(widget.mount, widget.from));
+      widget.open(dvStudioSignInTarget(widget.mount, widget.from,
+          also: widget.returns));
     } on Object {
       _say('Could not reach the server. Try again.');
     } finally {

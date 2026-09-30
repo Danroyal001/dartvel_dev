@@ -159,5 +159,23 @@ void main() {
       expect(find.text('Sign in to Studio'), findsOneWidget, reason: url);
     }
   });
-}
 
+  test('a sign-in returns only inside the mount, or inside another mount '
+      'Studio guards and names', () {
+    const List<String> also = <String>['/docs'];
+    expect(dvStudioSignInTarget('/__studio', '/docs/models', also: also),
+        '/docs/models');
+    expect(dvStudioSignInTarget('/__studio', '/docs', also: also), '/docs');
+    for (final String from in <String>[
+      '/docsx',
+      '/account',
+      '//evil.example/docs',
+      '/docs/..\\evil',
+    ]) {
+      expect(dvStudioSignInTarget('/__studio', from, also: also), '/__studio/',
+          reason: from);
+    }
+    // Nothing is named unless somebody names it.
+    expect(dvStudioSignInTarget('/__studio', '/docs/models'), '/__studio/');
+  });
+}
