@@ -37,6 +37,7 @@ DVInMemorySearchProvider<_Person, _Facets> providerWith({
 
 void main() {
   rankingTests();
+  cachingTests();
 
   test('a typo still finds the record', () async {
     final DVSearchResultPage<_Person> page =
@@ -163,5 +164,31 @@ void rankingTests() {
     ).query('shared');
 
     expect(page.items.map((_Page p) => p.title), <String>['Beta', 'Alpha']);
+  });
+}
+
+void cachingTests() {
+  test('a record is read into words once, not on every query', () async {
+    // The provider lower-cased and split every record on every query, twice:
+    // once to match and once to rank. On a site's 472 sections that was 150
+    // milliseconds a keystroke, which is the difference between a search box
+    // and a spinner.
+    int reads = 0;
+    final DVInMemorySearchProvider<_Page, Object?> provider =
+        DVInMemorySearchProvider<_Page, Object?>(
+      records: _pages,
+      document: (_Page p) {
+        reads++;
+        return '${p.title} ${p.body}';
+      },
+    );
+    await provider.query('deploy server');
+    final int afterFirst = reads;
+    await provider.query('signals widget');
+    await provider.query('how');
+
+    expect(afterFirst, lessThanOrEqualTo(_pages.length * 2));
+    expect(reads, afterFirst,
+        reason: 'the second and third queries read no record again');
   });
 }
