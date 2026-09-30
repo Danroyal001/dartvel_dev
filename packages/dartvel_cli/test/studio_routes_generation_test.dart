@@ -134,8 +134,10 @@ void main() {
   test('a page made in Studio is drawn in the site''s frame, on the site and '
       'on the canvas', () async {
     final String router = await routerSource('');
+    // Served by a route of its own, after every compiled page, so it has
+    // the router state the site's layouts read.
     expect(router,
-        contains('DVStudioPageRoute(state.uri.path, frame: _dartvelStoredFrame)'));
+        contains('routes: <RouteBase>[..._dartvelRouteList(), dvStudioPagesRoute(frame: _dartvelStoredFrame)],'));
     expect(router,
         contains('Widget _dartvelStoredFrame(Widget document, {bool layout = true})'));
     // An address the application has no page at: Studio's document, framed.
