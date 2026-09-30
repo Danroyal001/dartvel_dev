@@ -329,6 +329,7 @@ Future<List<String>> _notes() async => <String>[
       // Auth and access are intentionally public and carry no project data.
       const endpoints = <String, List<String>>{
         '/__studio/graph.json': ['GET', 'HEAD'],
+        '/__studio/api/graph': ['GET', 'HEAD'],
         '/__studio/api/models': ['GET', 'HEAD'],
         '/__studio/api/models/Note': ['GET', 'HEAD', 'PUT', 'DELETE'],
         '/__studio/api/models/Note/source': ['POST'],
@@ -373,16 +374,36 @@ Future<List<String>> _notes() async => <String>[
     }
   }, skip: skip);
 
-  test('the copied binary requires a Studio grant for project data and '
-      'serves the public login shell', () async {
+  test('the copied binary requires a Studio grant for Studio, its data and '
+      'its code, and serves the sign-in page to anybody', () async {
     // Carried, and not among the web files the binary serves to anybody.
     final DVBinaryPayload? payload = DVBinaryPayload.read(binary.path);
-    expect(payload?.names, contains('admin'), reason: buildOutput);
-    expect(
-        dvUnpackFiles(payload!.section('web'))
-            .keys
-            .where((String path) => path.startsWith('__admin/')),
+    expect(payload?.names, containsAll(<String>['admin', 'studio']),
+        reason: buildOutput);
+    final Map<String, List<int>> web = dvUnpackFiles(payload!.section('web'));
+    expect(web.keys.where((String path) => path.startsWith('__admin/')),
         isEmpty);
+    // Studio's code is the application's deferred library, carried in a
+    // section of its own: none of its parts is a web file, and nothing of
+    // Studio's screens is in main.dart.js or any public part.
+    final Map<String, List<int>> studioParts =
+        dvUnpackFiles(payload.section('studio'));
+    expect(studioParts, isNotEmpty);
+    for (final String part in studioParts.keys) {
+      expect(web.keys, isNot(contains(part)), reason: part);
+    }
+    const String screensOnly = 'dv-studio-record-save';
+    expect(
+        studioParts.values
+            .any((List<int> b) => utf8.decode(b, allowMalformed: true).contains(screensOnly)),
+        isTrue,
+        reason: "Studio's screens are in its own parts");
+    for (final MapEntry<String, List<int>> file in web.entries) {
+      if (!file.key.endsWith('.js')) continue;
+      expect(utf8.decode(file.value, allowMalformed: true), isNot(contains(screensOnly)),
+          reason: '${file.key} is public and carries Studio screen code');
+    }
+    final String studioPart = studioParts.keys.first;
 
     final run = await start();
     try {
@@ -399,13 +420,19 @@ Future<List<String>> _notes() async => <String>[
 
       await expectLogin();
       await expectLogin(bearer: 'dvs_not-a-session');
-      // The login screen needs the public Flutter shell and code.
-      for (final path in [
-        '/__studio/login', '/__studio/main.dart.js',
-      ]) {
-        final shell = await request(run.port, 'GET', path);
-        expect(shell.status, 200, reason: path);
-      }
+      // The sign-in is a page of the application, rendered from its shell,
+      // and its code is the application's own.
+      final signIn = await request(run.port, 'GET', '/__studio/login');
+      expect(signIn.status, 200);
+      expect(signIn.body, contains('<title>Studio · shop</title>'));
+      expect(signIn.body, contains('<meta name="robots" content="noindex, nofollow">'));
+      expect((await request(run.port, 'GET', '/main.dart.js')).status, 200);
+      // Studio's code, to a stranger, is a path that does not exist.
+      final hiddenPart = await request(run.port, 'GET', '/$studioPart');
+      final noPart = await request(run.port, 'GET', '/main.dart.js_99999.part.js');
+      expect(hiddenPart.status, noPart.status);
+      expect(hiddenPart.body.replaceAll(studioPart, 'X'),
+          noPart.body.replaceAll('main.dart.js_99999.part.js', 'X'));
       final access = await request(run.port, 'GET', '/__studio/api/access');
       expect(access.status, 200);
       expect(jsonDecode(access.body), {'granted': false});
@@ -445,6 +472,8 @@ Future<List<String>> _notes() async => <String>[
 
       // An application session alone grants no Studio access.
       await expectLogin(bearer: issued.token);
+      expect((await request(run.port, 'GET', '/$studioPart', bearer: issued.token)).status,
+          noPart.status);
       for (final path in ['/__studio/graph.json', '/__studio/api/models']) {
         final hidden = await request(run.port, 'GET', path, bearer: issued.token);
         expect(hidden.status, 404, reason: path);
@@ -474,16 +503,16 @@ Future<List<String>> _notes() async => <String>[
           await request(run.port, 'GET', '/__studio/', bearer: issued.token);
       expect(page.status, 200, reason: '${page.body}\n${run.output}');
       expect(page.type, 'text/html');
-      // Studio itself, compiled into the binary: its own shell, based at
-      // the mount, and the application it boots.
-      expect(page.body, contains('<title>Studio'),
-          reason: 'Studio, not the site shell');
-      expect(page.body, contains('<base href="/__studio/">'));
-      final studio = await request(run.port, 'GET', '/__studio/main.dart.js',
+      // Studio is a page of the application: its own shell, rendered for
+      // Studio's route, and the application's code, whose Studio library
+      // the binary now hands to this session.
+      expect(page.body, contains('<title>Studio · shop</title>'));
+      expect(page.body, isNot(contains('<base href="/__studio/">')));
+      final studio = await request(run.port, 'GET', '/$studioPart',
           bearer: issued.token);
       expect(studio.status, 200);
       expect(studio.type, 'text/javascript');
-      expect(studio.body, contains('dv-studio-record-save'));
+      expect(studio.cache, contains('no-store'));
       // And the records it shows: the model's table, read through the
       // admin mount, which a granted session reaches.
       final models = await request(run.port, 'GET', '/__studio/api/models',
@@ -495,11 +524,15 @@ Future<List<String>> _notes() async => <String>[
           bearer: issued.token);
       expect(records.status, 200, reason: records.body);
       expect(jsonDecode(records.body), containsPair('records', isA<List<Object?>>()));
-      final graph = await request(run.port, 'GET', '/__studio/graph.json',
+      final graph = await request(run.port, 'GET', '/__studio/api/graph',
           bearer: issued.token);
       expect(graph.status, 200);
       expect(graph.type, 'application/json');
       expect(jsonDecode(graph.body), isA<Map<String, Object?>>());
+      // Never a file under the mount, even to a granted session.
+      final file = await request(run.port, 'GET', '/__studio/graph.json',
+          bearer: issued.token);
+      expect(file.body, isNot(contains('"models"')));
 
       // The control: a token that is not a live session is nobody.
       final forged = await request(run.port, 'GET', '/__studio/graph.json',
