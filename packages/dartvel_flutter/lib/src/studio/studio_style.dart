@@ -180,6 +180,7 @@ abstract final class DVStudioStyle {
     required bool enabled,
     bool primary = false,
     IconData? icon,
+    bool focused = false,
   }) {
     final Color foreground = !enabled
         ? faint
@@ -195,13 +196,19 @@ abstract final class DVStudioStyle {
             : primary
                 ? accent
                 : surface,
-        border: Border.all(
-          color: !enabled
-              ? line
-              : primary
-                  ? accent
-                  : lineStrong,
-        ),
+        // The focus ring, drawn here rather than left to the theme's
+        // `focusColor`: a control that is only outlined by a platform
+        // highlight is a control a switch-control user cannot follow on a
+        // screen where that highlight is not drawn at all.
+        border: focused
+            ? Border.all(color: accent, width: 2)
+            : Border.all(
+                color: !enabled
+                    ? line
+                    : primary
+                        ? accent
+                        : lineStrong,
+              ),
         borderRadius: .circular(radiusSmall),
       ),
       child: Row(
@@ -508,6 +515,143 @@ abstract final class DVStudioStyle {
       );
 }
 
+/// A button in Studio: the look of [DVStudioStyle.control], and the behaviour
+/// a button has to have whatever it is drawn with.
+///
+/// [DVStudioStyle.control] is a picture -- a box and some words. Every caller
+/// put a `GestureDetector` around it, which made Studio reachable with a mouse
+/// and nothing else: Tab skipped every button in it, Enter and Space did
+/// nothing, and a screen reader read the words on a control without ever being
+/// told it was one. That is not a gap in Studio's own polish; it is the whole
+/// of what "reachable by keyboard" means.
+///
+/// So the behaviour lives here rather than in each of the thirty-odd call
+/// sites, once, for every button in the section it lands in: the focus, the
+/// key that presses it, the role a reader is told about, and a ring drawn on
+/// the control so the reader can see where they are.
+///
+/// `enabled: false` is the control that does nothing: it is not focusable, not
+/// announced as a button, and its keys do nothing -- Undo with no history,
+/// Publish while publishing.
+class DVStudioControl extends StatefulWidget {
+  const DVStudioControl({
+    super.key,
+    required this.label,
+    required this.enabled,
+    this.onTap,
+    this.primary = false,
+    this.icon,
+  });
+
+  /// What a person reads, and what a reader is told it is.
+  final String label;
+
+  /// Whether this control does anything. False for an action with nothing to
+  /// do, so that it says so rather than looking identical to one that works.
+  final bool enabled;
+
+  /// What pressing it does. Null is the same as not [enabled].
+  final VoidCallback? onTap;
+
+  /// The accented one: the action a panel wants taken.
+  final bool primary;
+
+  /// The glyph before the label.
+  final IconData? icon;
+
+  @override
+  State<DVStudioControl> createState() => _DVStudioControlState();
+}
+
+class _DVStudioControlState extends State<DVStudioControl> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = widget.enabled && widget.onTap != null;
+    // `excludeSemantics` on the label: the control already draws the words, and
+    // a reader that hears them twice says "Create page, Create page".
+    if (!enabled) {
+      return Semantics(
+        label: widget.label,
+        excludeSemantics: true,
+        child: DVStudioStyle.control(
+          widget.label,
+          enabled: false,
+          primary: widget.primary,
+          icon: widget.icon,
+        ),
+      );
+    }
+    // `Actions` outside `Focus`, not inside: a key is looked up by walking up
+    // from wherever the focus is, so a map below the focused node is a map
+    // nothing ever finds.
+    return Actions(
+      actions: dvStudioActivate(widget.onTap!),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: .opaque,
+            // The gesture is not announced separately: the [Semantics] below
+            // carries the one action a reader is offered, and two nodes both
+            // claiming the tap is one too many.
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              enabled: true,
+              label: widget.label,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              child: DVStudioStyle.control(
+                widget.label,
+                enabled: true,
+                primary: widget.primary,
+                icon: widget.icon,
+                // The ring is drawn by the control rather than taken from the
+                // theme, so it is the same on every surface Studio is drawn
+                // on: the canvas, a panel, a sheet.
+                focused: _focused,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The keys that press a focused control, on every platform.
+///
+/// Enter and Space are both here because Flutter binds them differently: the
+/// web binds Enter to [ButtonActivateIntent] and Space to [ActivateIntent],
+/// every other platform binds Enter to [ActivateIntent]. Handling one of the
+/// two is a button that does nothing on the other platform, and the web is
+/// where Studio is mostly used.
+///
+/// Public because a control that draws itself rather than through
+/// [DVStudioControl] -- a rail item, a list row, a page card -- is still a
+/// control, and gets the same keys for the same reason.
+Map<Type, Action<Intent>> dvStudioActivate(VoidCallback onTap) =>
+    <Type, Action<Intent>>{
+      ActivateIntent: CallbackAction<ActivateIntent>(
+        onInvoke: (ActivateIntent intent) {
+          onTap();
+          return null;
+        },
+      ),
+      ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+        onInvoke: (ButtonActivateIntent intent) {
+          onTap();
+          return null;
+        },
+      ),
+    };
+
 /// A square icon control with a hover state: toolbar actions, rail items,
 /// panel header actions.
 class DVStudioIconButton extends StatefulWidget {
@@ -520,6 +664,11 @@ class DVStudioIconButton extends StatefulWidget {
   final bool onRail;
   final double size;
 
+  /// The glyph's colour when the button is neither selected nor off, for the
+  /// toolbar, where the icons are the words of the button and are drawn in the
+  /// body ink rather than the muted one panel headers use.
+  final Color? ink;
+
   const DVStudioIconButton({
     super.key,
     required this.icon,
@@ -528,6 +677,7 @@ class DVStudioIconButton extends StatefulWidget {
     this.selected = false,
     this.onRail = false,
     this.size = 32,
+    this.ink,
   });
 
   @override
@@ -536,6 +686,7 @@ class DVStudioIconButton extends StatefulWidget {
 
 class _DVStudioIconButtonState extends State<DVStudioIconButton> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -551,23 +702,157 @@ class _DVStudioIconButtonState extends State<DVStudioIconButton> {
         ? DVStudioStyle.faint
         : widget.selected
             ? (widget.onRail ? const Color(0xFFFFFFFF) : DVStudioStyle.accent)
-            : (widget.onRail ? DVStudioStyle.railInk : DVStudioStyle.muted);
-    return DVStudioStyle.tooltip(
-      widget.tooltip,
-      MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: .circular(DVStudioStyle.radiusSmall),
+            : (widget.onRail
+                ? DVStudioStyle.railInk
+                : widget.ink ?? DVStudioStyle.muted);
+    // The icon is the whole control, so the name lives here: without it a
+    // reader hears "Refresh" nowhere, and the icon is announced as a glyph.
+    // The ring is drawn on the button rather than left to the theme, because
+    // the rail is drawn over a colour of its own where a platform highlight
+    // would not be seen.
+    final Widget button = Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: .circular(DVStudioStyle.radiusSmall),
+        border: _focused && enabled
+            ? Border.all(color: widget.onRail
+                ? const Color(0xFFFFFFFF)
+                : DVStudioStyle.accent, width: 2)
+            : null,
+      ),
+      child: Icon(widget.icon, size: 17, color: foreground),
+    );
+    // The label shows whether or not there is anything to press: a row of
+    // glyphs with no names is the part of a toolbar nobody can read, and the
+    // one that is off is exactly the one a person needs to be told what it is.
+    if (!enabled) {
+      return Semantics(
+        label: widget.tooltip,
+        excludeSemantics: true,
+        child: DVStudioStyle.tooltip(widget.tooltip, button),
+      );
+    }
+    return Actions(
+      actions: dvStudioActivate(widget.onTap!),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              enabled: true,
+              label: widget.tooltip,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              child: button,
             ),
-            child: Icon(widget.icon, size: 17, color: foreground),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A switch: the track and the thumb Studio draws, with the behaviour a switch
+/// has to have.
+///
+/// The one in the flags screen was a `GestureDetector` around an
+/// `AnimatedContainer`, which is the same picture-of-a-control the buttons were:
+/// Tab skipped it, Space did nothing, and a reader was told the words beside it
+/// and nothing about the thing that turns them on.
+///
+/// [builder] draws the track and thumb, so a switch that looks different — the
+/// debug override's amber track — keeps its own look and this keeps the focus,
+/// the keys, the ring and the description.
+class DVStudioSwitch extends StatefulWidget {
+  const DVStudioSwitch({
+    super.key,
+    required this.label,
+    required this.on,
+    this.onTap,
+    required this.builder,
+  });
+
+  /// What the switch is for, and which way it is set: the name a reader gets is
+  /// both, because "on" without a subject is not a name.
+  final String label;
+
+  /// Whether it is on.
+  final bool on;
+
+  /// What turning it does. Null is a switch nobody may turn.
+  final VoidCallback? onTap;
+
+  /// The track and the thumb, given the colour they should be drawn in.
+  final Widget Function(BuildContext context, bool on, Color track) builder;
+
+  @override
+  State<DVStudioSwitch> createState() => _DVStudioSwitchState();
+}
+
+class _DVStudioSwitchState extends State<DVStudioSwitch> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = widget.onTap != null;
+    final String name = '${widget.label}, ${widget.on ? 'on' : 'off'}';
+    final Widget drawn = widget.builder(
+      context,
+      widget.on,
+      !enabled
+          ? DVStudioStyle.line
+          : widget.on
+              ? DVStudioStyle.accent
+              : DVStudioStyle.lineStrong,
+    );
+    if (!enabled) {
+      return Semantics(
+        label: name,
+        excludeSemantics: true,
+        child: drawn,
+      );
+    }
+    return Actions(
+      actions: dvStudioActivate(widget.onTap!),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              enabled: true,
+              label: name,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              // The ring is on the track, so a reader can see which control is
+              // about to change rather than only hearing that one did.
+              child: _focused
+                  ? DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: .circular(99),
+                        border: Border.all(color: DVStudioStyle.accent, width: 2),
+                      ),
+                      child: drawn,
+                    )
+                  : drawn,
+            ),
           ),
         ),
       ),

@@ -471,6 +471,15 @@ Every other path under the mount sends a stranger to the sign-in, and Studio's
 code and its API answer a stranger as a path nobody serves. Nothing under the
 mount is ever a file.
 
+Every Studio screen has its own address under the mount — `<mount>` is Pages,
+`<mount>/<screen>` is that screen, `<mount>/<screen>/<object>` opens one thing
+inside it — so a screen can be linked, bookmarked and reloaded, and each is
+also served as a document a reader without the app can read. And Studio answers
+the keyboard: every control in it takes the focus, Enter and Space both press
+it, a screen reader is told its role and its name, and the focus is drawn as a
+ring on the control itself, so a control with nothing to do is off rather than
+looking live.
+
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own
 database, so you give them on the server:

@@ -533,66 +533,91 @@ class _DVStudioRailItem extends StatefulWidget {
 
 class _DVStudioRailItemState extends State<_DVStudioRailItem> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final bool selected = widget.selected;
     final Color foreground =
         selected ? const Color(0xFFFFFFFF) : DVStudioStyle.railInk;
-    return GestureDetector(
-      key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
-      behavior: .opaque,
-      onTap: widget.onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        // Compact: twelve sections and the account have to fit a laptop's
-        // height, where Team used to sit under the account block.
-        child: Container(
-          width: 64,
-          margin: const .symmetric(vertical: 1),
-          padding: const .symmetric(vertical: 5),
-          decoration: BoxDecoration(
-            color: selected
-                ? DVStudioStyle.railSelected
-                : _hover
-                    ? const Color(0xFF1F1F29)
-                    : const Color(0x00000000),
-            borderRadius: .circular(10),
-          ),
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: 32,
-                height: 24,
+    // A rail item is a control like any other: Tab has to reach it, Enter has
+    // to open the screen, and the focus has to be visible. It is the one way
+    // into another screen, so an item that only answers the mouse closes the
+    // whole of Studio to a keyboard or a switch-control user.
+    return Actions(
+      actions: dvStudioActivate(widget.onTap),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              selected: selected,
+              label: widget.section.label,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              child: Container(
+                width: 64,
+                margin: const .symmetric(vertical: 1),
+                padding: const .symmetric(vertical: 5),
                 decoration: BoxDecoration(
                   color: selected
-                      ? DVStudioStyle.accent
-                      : const Color(0x00000000),
-                  borderRadius: .circular(8),
+                      ? DVStudioStyle.railSelected
+                      : _hover
+                          ? const Color(0xFF1F1F29)
+                          : const Color(0x00000000),
+                  borderRadius: .circular(10),
+                  // Drawn on the item rather than taken from the theme: the
+                  // rail is drawn over its own colour, where a platform
+                  // highlight would not be seen.
+                  border: _focused
+                      ? Border.all(color: DVStudioStyle.accent, width: 2)
+                      : null,
                 ),
-                child: Icon(
-                  widget.section.icon ?? DVStudioIcons.section,
-                  size: 17,
-                  color: foreground,
+                child: Column(
+                  children: <Widget>[
+                    Container(
+                      width: 32,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? DVStudioStyle.accent
+                            : const Color(0x00000000),
+                        borderRadius: .circular(8),
+                      ),
+                      child: Icon(
+                        widget.section.icon ?? DVStudioIcons.section,
+                        size: 17,
+                        color: foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    // Scaled down rather than clipped: a section's name is how
+                    // the rail is read, and a longer one (or a larger system
+                    // font) must still fit the rail's width.
+                    FittedBox(
+                      fit: .scaleDown,
+                      child: DVText(widget.section.label).modifier(
+                        const DVModifier()
+                            .fontSize(10.5)
+                            .color(foreground)
+                            .fontWeight(
+                                selected ? FontWeight.w600 : FontWeight.w500),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 3),
-              // Scaled down rather than clipped: a section's name is how the
-              // rail is read, and a longer one (or a larger system font) must
-              // still fit the rail's width.
-              FittedBox(
-                fit: .scaleDown,
-                child: DVText(widget.section.label).modifier(
-                  const DVModifier()
-                      .fontSize(10.5)
-                      .color(foreground)
-                      .fontWeight(
-                          selected ? FontWeight.w600 : FontWeight.w500),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1425,18 +1450,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               onSubmitted: (_) => _create(),
             ),
             const SizedBox(height: DVStudioStyle.space2),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-create'),
+              label: 'Create page',
+              enabled: true,
               onTap: _create,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: DVStudioStyle.control(
-                  'Create page',
-                  enabled: true,
-                  primary: true,
-                  icon: DVStudioIcons.add,
-                ),
-              ),
+              primary: true,
+              icon: DVStudioIcons.add,
             ),
           ],
         ),
@@ -2855,26 +2875,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 /// ask the keyed widget whether it can be pressed, and an undo that says it
 /// can when there is no history is the bug that asking catches.
 Widget _keyedIcon(
-    String key, IconData icon, String tooltip, VoidCallback? onTap) {
-  return DVStudioStyle.tooltip(
-    tooltip,
-    GestureDetector(
+        String key, IconData icon, String tooltip, VoidCallback? onTap) =>
+    DVStudioIconButton(
       key: ValueKey<String>(key),
+      icon: icon,
+      tooltip: tooltip,
       onTap: onTap,
-      child: MouseRegion(
-        cursor:
-            onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(icon,
-              size: 18,
-              color: onTap == null ? DVStudioStyle.faint : DVStudioStyle.ink),
-        ),
-      ),
-    ),
-  );
-}
+      // Toolbar glyphs are the button's words, drawn in the body ink; a panel
+      // header's are secondary to the words beside them, and stay muted.
+      ink: DVStudioStyle.ink,
+    );
 
 /// The menu beside Deploy: where the page goes, deploy now, or put the page
 /// from the last build back. Each option says what a visitor will see, not
@@ -3143,18 +3153,15 @@ class _DVStudioDeployPlatformLine extends StatelessWidget {
 }
 
 Widget _keyedControl(String key, String label, VoidCallback? onTap,
-    {IconData? icon, bool primary = false}) {
-  return GestureDetector(
-    key: ValueKey<String>(key),
-    onTap: onTap,
-    child: MouseRegion(
-      cursor:
-          onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      child: DVStudioStyle.control(label,
-          enabled: onTap != null, primary: primary, icon: icon),
-    ),
-  );
-}
+        {IconData? icon, bool primary = false}) =>
+    DVStudioControl(
+      key: ValueKey<String>(key),
+      label: label,
+      enabled: onTap != null,
+      onTap: onTap,
+      primary: primary,
+      icon: icon,
+    );
 
 /// A page on the overview: a live thumbnail of the stored document, rendered
 /// by the same renderer the running application uses, and its name.

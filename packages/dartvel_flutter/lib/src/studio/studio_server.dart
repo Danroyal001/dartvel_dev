@@ -1469,11 +1469,13 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                 'records to it straight away.',
           ),
           const SizedBox(height: DVStudioStyle.space4),
-          GestureDetector(
+          DVStudioControl(
             key: const ValueKey<String>('dv-studio-model-new'),
+            label: 'New data model',
+            enabled: true,
             onTap: () => _design(fresh: true),
-            child: DVStudioStyle.control('New data model',
-                enabled: true, primary: true, icon: Icons.add),
+            primary: true,
+            icon: Icons.add,
           ),
         ],
       );
@@ -1581,22 +1583,22 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                   ? '1 record'
                   : '${records.length} records',
           actions: <Widget>[
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-model-design'),
+              label: model.designed ? 'Design' : 'Fields',
+              enabled: true,
               onTap: () => _design(fresh: false),
-              child: DVStudioStyle.control(
-                model.designed ? 'Design' : 'Fields',
-                enabled: true,
-                icon: Icons.schema_outlined,
-              ),
+              icon: Icons.schema_outlined,
             ),
             const SizedBox(width: DVStudioStyle.space2),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-record-new'),
+              label: 'New record',
+              enabled: true,
               onTap: () => setState(() => _editing = const DVStudioRecordData(
                   key: '', version: 0, values: <String, Object?>{})),
-              child: DVStudioStyle.control('New record',
-                  enabled: true, primary: true, icon: Icons.add),
+              primary: true,
+              icon: Icons.add,
             ),
           ],
         ),
@@ -1979,10 +1981,11 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                 if (_conflict)
                   Padding(
                     padding: const .only(top: DVStudioStyle.space2),
-                    child: GestureDetector(
+                    child: DVStudioControl(
+                      label: 'Reload records',
+                      enabled: true,
                       onTap: widget.onReload,
-                      child: DVStudioStyle.control('Reload records',
-                          enabled: true, icon: Icons.refresh),
+                      icon: Icons.refresh,
                     ),
                   ),
               ],
@@ -1997,21 +2000,20 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           child: Row(
             children: <Widget>[
               if (!_isNew)
-                GestureDetector(
+                DVStudioControl(
                   key: const ValueKey<String>('dv-studio-record-delete'),
+                  label: 'Delete',
+                  enabled: true,
                   onTap: () => unawaited(_delete()),
-                  child: DVStudioStyle.control('Delete',
-                      enabled: true, icon: Icons.delete_outline),
+                  icon: Icons.delete_outline,
                 ),
               const Spacer(),
-              GestureDetector(
+              DVStudioControl(
                 key: const ValueKey<String>('dv-studio-record-save'),
+                label: _saving ? 'Saving…' : (_isNew ? 'Create' : 'Save'),
+                enabled: !_saving,
                 onTap: _saving ? null : () => unawaited(_save()),
-                child: DVStudioStyle.control(
-                  _saving ? 'Saving…' : (_isNew ? 'Create' : 'Save'),
-                  enabled: !_saving,
-                  primary: true,
-                ),
+                primary: true,
               ),
             ],
           ),
@@ -2707,18 +2709,21 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
                   ],
                 ),
               ),
-              GestureDetector(
+              DVStudioControl(
                 key: ValueKey<String>('dv-studio-job-discard-$id'),
+                label: 'Discard',
+                enabled: !_busy,
                 onTap: _busy ? null : () => unawaited(_act(id, retry: false)),
-                child: DVStudioStyle.control('Discard',
-                    enabled: !_busy, icon: Icons.delete_outline),
+                icon: Icons.delete_outline,
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              GestureDetector(
+              DVStudioControl(
                 key: ValueKey<String>('dv-studio-job-retry-$id'),
+                label: 'Retry',
+                enabled: !_busy,
                 onTap: _busy ? null : () => unawaited(_act(id, retry: true)),
-                child: DVStudioStyle.control('Retry',
-                    enabled: !_busy, primary: true, icon: Icons.replay),
+                primary: true,
+                icon: Icons.replay,
               ),
             ],
           ),
@@ -2976,11 +2981,13 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                         ),
                       ),
                       const SizedBox(width: DVStudioStyle.space2),
-                      GestureDetector(
+                      DVStudioControl(
                         key: const ValueKey<String>('dv-studio-grant'),
+                        label: 'Grant',
+                        enabled: !_busy,
                         onTap: _busy ? null : () => unawaited(_grant()),
-                        child: DVStudioStyle.control('Grant',
-                            enabled: !_busy, primary: true, icon: Icons.add),
+                        primary: true,
+                        icon: Icons.add,
                       ),
                     ],
                   ),
@@ -3016,26 +3023,26 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                           Expanded(
                               child: DVStudioStyle.body(confirming.message)),
                           const SizedBox(width: DVStudioStyle.space2),
-                          GestureDetector(
+                          DVStudioControl(
                             key: const ValueKey<String>(
                                 'dv-studio-revoke-cancel'),
+                            label: 'Keep it',
+                            enabled: true,
                             onTap: () => setState(() => _confirming = null),
-                            child: DVStudioStyle.control('Keep it',
-                                enabled: true),
                           ),
                           const SizedBox(width: DVStudioStyle.space2),
-                          GestureDetector(
+                          DVStudioControl(
                             key: const ValueKey<String>(
                                 'dv-studio-revoke-confirm'),
+                            label: 'Revoke anyway',
+                            enabled: !_busy,
                             onTap: _busy
                                 ? null
                                 : () => unawaited(_revoke(
                                     confirming.userId, confirming.tenant,
                                     confirm: true)),
-                            child: DVStudioStyle.control('Revoke anyway',
-                                enabled: !_busy,
-                                primary: true,
-                                icon: Icons.remove_circle_outline),
+                            primary: true,
+                            icon: Icons.remove_circle_outline,
                           ),
                         ],
                       ),

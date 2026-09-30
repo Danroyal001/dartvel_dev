@@ -58,11 +58,18 @@ gap: what comes out is a real Flutter widget tree, runs on every platform Dartve
 and is readable and editable as source. The cost is that Studio cannot offer anything the
 Dartvel widget set does not already have.
 
-One thing is no longer a gap at all: Studio used to be a second Flutter application, served
-as files under the mount, with no URL for any screen but the mount itself and an empty
-`<body>` the app painted over. It is now routes of the application, on the same render path
-as every public page, each with its own address and a document behind it. That is described
-in [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by).
+Two things are no longer gaps at all. Studio used to be a second Flutter application,
+served as files under the mount, with no URL for any screen but the mount itself and an
+empty `<body>` the app painted over. It is now routes of the application, on the same render
+path as every public page, each with its own address and a document behind it, described in
+[A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by).
+
+And Studio's own controls used to be pictures of controls: a `GestureDetector` around a
+`Container`, which a mouse can press and nothing else — Tab skipped every button, Enter and
+Space did nothing, and a screen reader heard the words on a control without ever being told
+it was one. Every control in Studio is now drawn from three widgets that carry the behaviour
+a control has to have (`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch`), so the
+whole of Studio answers to the keyboard and describes itself.
 
 ---
 
@@ -147,7 +154,7 @@ in [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by).
 | Notifications and approvals | **Partial** — the content workflow has approval states and a publish schedule; `DV.Notifications` exists in the framework, with no Studio screen to configure it | `studio_review.dart`, `packages/dartvel_core/lib/src/notifications/` |
 | Governance: solution checker, managed environments | **Missing** | — |
 | Keyboard/command shortcuts | **Done** — a Shortcuts section writes an app's keyboard shortcuts without code, plus Figma/Bubble/Power Apps shortcuts on the Ctrl+/ sheet | `studio_app_shortcuts.dart`, `studio_shortcuts` section `studio_screen.dart:186`, screenshot `docs/studio/nocode/shortcuts.png` |
-| Accessibility of what Studio produces | **Partial** — what Studio produces is a real Flutter widget tree, and the framework carries the accessibility surface. **Studio's own chrome is only partly described to an assistive technology.** What is there: list rows (`studio_style.dart:623`) are `button`/`selected` with an identifier, the text input (`studio_style.dart:815`) says it is enabled, Studio's three routes go through `DVPageShell`, so Ctrl+F, text selection, keyboard scrolling, the D-pad and switch control are registered on Studio like on every other page (`studio_routes.dart` `_dvStudioPage`), and every screen is served as a document a reader without the app can still read (see [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by)). What is missing: `DVStudioIconButton` (`studio_style.dart:509`, every rail item and toolbar action) and `DVStudioStyle.control` (`studio_style.dart:179`, every button) are a `GestureDetector` and a `Container` — no `button` role, not focusable, no keyboard activation, no visible focus ring — and `studio_screen.dart` has no `Semantics(` call at all | `studio_style.dart:509`, `:179`, `studio_screen.dart` |
+| Accessibility of what Studio produces | **Done** — what Studio produces is a real Flutter widget tree, and the framework carries the accessibility surface: Studio's routes go through `DVPageShell`, so Ctrl+F, text selection, keyboard scrolling, a remote's D-pad and switch control are registered on Studio like on every other page (`studio_routes.dart` `_dvStudioPage`), and every screen is served as a document a reader without the app can still read (see [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by)). Studio's **own chrome** is now described too, in three widgets every control in it is drawn from: `DVStudioIconButton` (rail items, toolbar actions), `DVStudioControl` (every button) and `DVStudioSwitch` (the debug override) each declare `button`/name/enabled, take the focus, answer Enter *and* Space — both, because the web binds Enter to `ButtonActivateIntent` and every other platform to `ActivateIntent` — and draw a two-pixel ring on themselves so a reader can see where they are. A control with nothing to do says so and is not a focus stop, rather than looking live and doing nothing. Verified in `packages/dartvel_flutter/test/studio_accessibility_test.dart` against what a Material button announces, and on the real screen: Tab reaches Create page and Enter makes the page; the toolbar's Undo is skipped while there is no history and reachable once there is | `studio_style.dart` `DVStudioControl`, `DVStudioIconButton`, `DVStudioSwitch`, `dvStudioActivate`, `studio_screen.dart` `_DVStudioRailItemState`, `test/studio_accessibility_test.dart` |
 
 ---
 

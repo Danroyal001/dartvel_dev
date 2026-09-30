@@ -158,6 +158,31 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       tint: true,
       children: <Widget>[
+        Eyebrow('KEYBOARD AND SCREEN READER'),
+        Heading('Every control is a control, not a picture of one.'),
+        Bullets(<String>[
+          'Tab reaches every button, every icon on the rail and the toolbar, '
+              'and every toggle. Enter and Space both press one. The focus is '
+              'drawn as a ring on the control itself, so you can see where you '
+              'are.',
+          'A screen reader is told what each control is, what it is called and '
+              'whether it works. A control with nothing to do — Undo with no '
+              'history, Publish while publishing — says so and is skipped, '
+              'rather than looking live and doing nothing.',
+          'Ctrl+F works on a Studio screen, because Studio is a route of your '
+              'app rendered by the same server as every other page. So does '
+              'selecting text with the mouse, the arrow keys, a remote\'s '
+              'D-pad and switch control.',
+          'Each screen has its own address — /__studio is Pages, /__studio/'
+              'components is Components, /__studio/data/Product is one model — '
+              'so a screen can be linked, bookmarked and reloaded, and the '
+              'server sends a document with it for anything reading without '
+              'the app.',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
         Eyebrow('IN THE FREE STUDIO'),
         Heading('Records, routes and review in the same place as your pages.'),
         DVBox.wrapLine(<Widget>[

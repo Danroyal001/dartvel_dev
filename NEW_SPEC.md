@@ -1206,6 +1206,26 @@ claiming one invoice number (`DV-HISTORY-006`).
 
 ## Studio
 
+### It is part of the app, and it is reachable
+
+Studio's screens are routes of the application, rendered by the same
+`dvRenderRoutePage` as every public page, not a second Flutter application
+beside it. `<mount>` is Pages, `<mount>/<screen>` is that screen and
+`<mount>/<screen>/<object>` opens one thing inside it, so a screen can be
+linked, bookmarked and reloaded. Each is also served as a document built from
+the same data Studio's API reads, which is what a crawler, a printer and the
+browser's own Ctrl+F read.
+
+Every control in Studio is drawn from one of three widgets —
+`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch` — so the whole of it
+answers the keyboard: each takes the focus, answers Enter *and* Space (the web
+binds Enter to `ButtonActivateIntent` and every other platform to
+`ActivateIntent`, so a control answering only one does nothing on the other),
+declares its role and its name to a screen reader, and draws its own focus
+ring. A control with nothing to do says so and is not a focus stop.
+
+### Undo over page documents
+
 Studio's undo over page documents and this are the same mechanism seen twice:
 a versioned record with entries that can be reverted in a reversible
 transaction. Studio reads `history()` for any model with it enabled, so an

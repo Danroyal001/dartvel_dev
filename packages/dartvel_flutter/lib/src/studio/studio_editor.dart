@@ -1966,14 +1966,12 @@ class DVStudioInspector extends StatelessWidget {
               ),
           if (onEditComponent != null && component != null) ...<Widget>[
             const SizedBox(height: 8),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-edit-component'),
+              label: 'Edit $name',
+              enabled: true,
               onTap: () => onEditComponent!(name),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: DVStudioStyle.control('Edit $name',
-                    enabled: true, icon: DVStudioIcons.components),
-              ),
+              icon: DVStudioIcons.components,
             ),
           ],
         ],

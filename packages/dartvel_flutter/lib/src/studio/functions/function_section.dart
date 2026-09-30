@@ -369,18 +369,13 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 onSubmitted: (_) => unawaited(_create()),
               ),
               const SizedBox(height: DVStudioStyle.space2),
-              GestureDetector(
+              DVStudioControl(
                 key: const ValueKey<String>('dv-studio-function-create'),
+                label: 'Create function',
+                enabled: true,
                 onTap: () => unawaited(_create()),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: DVStudioStyle.control(
-                    'Create function',
-                    enabled: true,
-                    primary: true,
-                    icon: DVStudioIcons.add,
-                  ),
-                ),
+                primary: true,
+                icon: DVStudioIcons.add,
               ),
               // A name the other side has: said here, since with nothing
               // open there is no builder to say it over.
@@ -627,20 +622,13 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
             color: DVStudioStyle.line,
           ),
-          GestureDetector(
+          DVStudioControl(
             key: const ValueKey<String>('dv-studio-function-deploy'),
+            label: _saving ? 'Deploying…' : 'Deploy',
+            enabled: !_saving,
             onTap: _saving ? null : _publish,
-            child: MouseRegion(
-              cursor: _saving
-                  ? SystemMouseCursors.basic
-                  : SystemMouseCursors.click,
-              child: DVStudioStyle.control(
-                _saving ? 'Deploying…' : 'Deploy',
-                enabled: !_saving,
-                primary: true,
-                icon: DVStudioIcons.publish,
-              ),
-            ),
+            primary: true,
+            icon: DVStudioIcons.publish,
           ),
         ],
       ),
