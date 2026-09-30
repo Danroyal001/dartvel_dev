@@ -4,7 +4,12 @@ import 'dart:math' as math;
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
 import 'package:dartvel_core/dartvel.dart'
-    show DVAlerting, DVFlags, DVHealthReport, DVIncidents;
+    show
+        DVAlerting,
+        DVFlags,
+        DVHealthReport,
+        DVIncidents,
+        dvStudioIsReservedRoute;
 import 'package:flutter/material.dart'
     show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
 import 'package:flutter/services.dart';
@@ -134,6 +139,17 @@ class DVStudioSection {
 class _DVStudioScreenState extends State<DVStudioScreen> {
   String _selected = 'pages';
 
+  /// The component a use of it asked to have opened, and a count so asking
+  /// twice for the same one opens it again.
+  String? _component;
+  int _componentAsks = 0;
+
+  void _editComponent(String name) => setState(() {
+        _component = name;
+        _componentAsks++;
+        _selected = 'components';
+      });
+
   List<DVStudioSection> get _sections => <DVStudioSection>[
         DVStudioSection(
           id: 'pages',
@@ -151,6 +167,19 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             attached: <String>[
               for (final DVStudioSection section in _attached) section.label,
             ],
+            onEditComponent: _editComponent,
+          ),
+        ),
+        // Free Studio: a part designed once and put on any page.
+        DVStudioSection(
+          id: 'components',
+          label: 'Components',
+          icon: DVStudioIcons.components,
+          build: (BuildContext context) => DVStudioComponentsSection(
+            key: ValueKey<String>('dv-studio-components-$_componentAsks'),
+            store: widget.store,
+            palette: widget.palette,
+            open: _component,
           ),
         ),
         if (widget.flags case final DVFlags flags)
@@ -455,8 +484,12 @@ class _DVStudioPagesSection extends StatefulWidget {
   final Object? actor;
   final List<String> reviewers;
 
+  /// Opens a component where it is made, from a use of it on a page.
+  final void Function(String name)? onEditComponent;
+
   const _DVStudioPagesSection({
     super.key,
+    this.onEditComponent,
     required this.store,
     this.site,
     required this.palette,
@@ -478,6 +511,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   /// Every route the site answers, compiled and stored, each marked.
   List<DVStudioSitePage> _site = <DVStudioSitePage>[];
+
+  /// The project's components, for the Insert panel.
+  List<String> _components = <String>[];
+
+  /// What the Insert panel and the command palette offer: the elements, then
+  /// the project's components.
+  List<DVStudioPaletteItem> get _paletteItems => <DVStudioPaletteItem>[
+        ...(widget.palette.isEmpty ? DVStudioPaletteItem.defaults : widget.palette),
+        for (final String name in _components)
+          DVStudioPaletteItem(
+            label: name,
+            create: () => dvStudioComponentInstance(name),
+          ),
+      ];
 
   /// The compiled page open in the editor, overridden or not, or null for a
   /// page only Studio serves.
@@ -562,12 +609,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   }
 
   /// Ctrl+\ (Cmd+\): the side panels, both at once, while a page is open.
+  /// Ctrl+Alt+K (Cmd+Alt+K): the selection becomes a component, as in Figma.
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent || !mounted || _controller == null) {
       return false;
     }
     final bool command = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
+    if (command &&
+        HardwareKeyboard.instance.isAltPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyK &&
+        (ModalRoute.of(context)?.isCurrent ?? true)) {
+      unawaited(_makeComponent());
+      return true;
+    }
     if (!command || event.logicalKey != LogicalKeyboardKey.backslash) {
       return false;
     }
@@ -624,7 +679,15 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Future<void> _loadRoutes() async {
     try {
       final DVStudioContent? content = widget.content;
-      final List<String> stored = await widget.store.routes();
+      final List<String> everything = await widget.store.routes();
+      // Components live beside the pages and are not pages.
+      final List<String> stored = <String>[
+        for (final String route in everything)
+          if (!dvStudioIsReservedRoute(route)) route,
+      ];
+      final List<String> components = <String>[
+        for (final String route in everything) ?dvStudioComponentName(route),
+      ]..sort();
       // With the workflow attached the store holds only what is published,
       // so a page that has only been a draft is listed from its versions.
       final List<String> routes = content == null
@@ -681,6 +744,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           a.path.compareTo(b.path));
       if (!mounted) return;
       setState(() {
+        _components = components;
         _routes = routes;
         _site = site;
         _siteError = siteError;
@@ -897,6 +961,44 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     if (reload) unawaited(_loadRoutes());
   }
 
+  /// The selection becomes a component: kept beside the pages under the name
+  /// asked for, and used on this page where the selection was.
+  Future<void> _makeComponent() async {
+    final DVStudioEditorController? controller = _controller;
+    final DVPageNode? selected = controller?.selectedNode;
+    if (controller == null ||
+        controller.readOnly ||
+        selected == null ||
+        selected.id == controller.document.root.id ||
+        selected.type == dvStudioComponentType) {
+      return;
+    }
+    final String? name = await dvStudioAskComponentName(context);
+    if (name == null || !mounted) return;
+    if (_components.contains(name)) {
+      setState(() => _error = 'There is already a component called $name.');
+      return;
+    }
+    // A copy with ids of its own: the component and the page are two
+    // documents, and one id in both would be one selection in neither.
+    await widget.store.save(dvStudioComponent(
+      name,
+      root: dvStudioFreshCopy(selected),
+    ));
+    await DVPageStore.reload();
+    if (!mounted) return;
+    final DVPageNode use = dvStudioComponentInstance(name);
+    controller.update(
+      selected.id,
+      (_) => DVPageNode(
+        id: selected.id,
+        type: use.type,
+        properties: use.properties,
+      ),
+    );
+    await _loadRoutes();
+  }
+
   void _create() {
     final String route = _newRoute.trim();
     if (route.isEmpty) return;
@@ -1103,6 +1205,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   /// Where a new page is started: its address, and Create page.
   Widget _newPageField() => Padding(
+        key: const ValueKey<String>('dv-studio-new-page'),
         padding: const .all(DVStudioStyle.space3),
         child: Column(
           crossAxisAlignment: .stretch,
@@ -1636,6 +1739,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             run: controller.redo),
       if (editable && selected != null && selected != document.root.id) ...<DVStudioCommand>[
         DVStudioCommand(
+            id: 'make-component', title: 'Make a component from this element',
+            group: 'Element', shortcut: 'Ctrl+Alt+K',
+            keywords: const <String>['reuse', 'symbol', 'part'],
+            run: () => unawaited(_makeComponent())),
+        DVStudioCommand(
             id: 'duplicate', title: 'Duplicate element', group: 'Element',
             shortcut: 'Ctrl+D', run: () => controller.duplicate(selected)),
         DVStudioCommand(
@@ -1658,9 +1766,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             run: () => controller.select(node.id),
           ),
       if (editable)
-        for (final DVStudioPaletteItem item in widget.palette.isEmpty
-            ? DVStudioPaletteItem.defaults
-            : widget.palette)
+        for (final DVStudioPaletteItem item in _paletteItems)
           DVStudioCommand(
             id: 'insert-${item.label}',
             title: 'Insert ${item.label}',
@@ -1792,7 +1898,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             onSchedule: () => setState(() => _scheduling = true),
             onHistory: _toggleHistory,
           )
-        : DVStudioInspector(controller: controller);
+        : DVStudioInspector(
+            controller: controller,
+            onMakeComponent: controller.readOnly
+                ? null
+                : () => unawaited(_makeComponent()),
+            onEditComponent: widget.onEditComponent,
+          );
     if (_phone) {
       return Column(
         crossAxisAlignment: .stretch,
@@ -2083,7 +2195,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         Expanded(
           child: _left == _DVStudioLeftPanel.insert && !controller.readOnly
-              ? DVStudioPalette(items: widget.palette, controller: controller)
+              ? DVStudioPalette(items: _paletteItems, controller: controller)
               : DVStudioLayers(controller: controller),
         ),
       ],

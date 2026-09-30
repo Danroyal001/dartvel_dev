@@ -1007,6 +1007,8 @@ abstract final class DVStudioIcons {
   /// The glyph for a document node's type or layout.
   static IconData forNode(String type, String layout) {
     switch (type) {
+      case 'component':
+        return components;
       case 'text':
         return text;
       case 'image':
