@@ -33,6 +33,8 @@ import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
 /// `access: studio`, which the sign-in sends a person back to. [view] is the
 /// application's `dartvelPagePreview`: each page as its route builds it,
 /// which is how Studio's canvas draws a page exactly as the site does.
+/// [splash] is the application's splash, drawn while Studio's code loads
+/// and its grant is asked, where the first frame was an empty page.
 List<RouteBase> dvStudioRoutes({
   required String mount,
   String title = 'Studio',
@@ -41,6 +43,7 @@ List<RouteBase> dvStudioRoutes({
   Uri Function(GoRouterState state)? location,
   List<String> signInReturns = const <String>[],
   DVStudioPageView? view,
+  DVStudioSplash? splash,
 }) {
   // A transport and nothing more on this side of the deferred imports: an
   // object of Studio's made here would bring every method it has into
@@ -73,8 +76,10 @@ List<RouteBase> dvStudioRoutes({
             child: DVStudioHost(
               view: view,
               look: DVStudioAppLook.capture(context),
+              splash: splash,
               child: DVStudioDeferred(
               load: dartvel_studio.loadLibrary,
+              splash: splash,
               builder: (BuildContext context) => dartvel_studio.dvStudioAppFor(
                 transport: send,
                 title: title,
@@ -92,6 +97,7 @@ List<RouteBase> dvStudioRoutes({
             key: state.pageKey,
             child: DVStudioDeferred(
               load: dartvel_studio_sign_in.loadLibrary,
+              splash: splash,
               builder: (BuildContext context) =>
                   dartvel_studio_sign_in.dvStudioSignInFor(
                     transport: send,
@@ -113,6 +119,7 @@ List<RouteBase> dvStudioRoutes({
             key: state.pageKey,
             child: DVStudioDeferred(
               load: dartvel_studio_sign_in.loadLibrary,
+              splash: splash,
               builder: (BuildContext context) =>
                   dartvel_studio_sign_in.dvStudioSetupFor(
                     transport: send,
@@ -145,10 +152,14 @@ class DVStudioDeferred extends StatefulWidget {
     super.key,
     required this.load,
     required this.builder,
+    this.splash,
   });
 
   final Future<void> Function() load;
   final WidgetBuilder builder;
+
+  /// Drawn while the code loads; an empty page without one.
+  final DVStudioSplash? splash;
 
   @override
   State<DVStudioDeferred> createState() => _DVStudioDeferredState();
@@ -173,7 +184,10 @@ class _DVStudioDeferredState extends State<DVStudioDeferred> {
         );
       }
       if (snapshot.connectionState != ConnectionState.done) {
-        return const SizedBox.expand();
+        final DVStudioSplash? splash = widget.splash;
+        return splash == null
+            ? const SizedBox.expand()
+            : DVStudioSplashView(splash);
       }
       return widget.builder(context);
     },
