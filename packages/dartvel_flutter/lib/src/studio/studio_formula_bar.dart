@@ -283,7 +283,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
     return Material(
       color: theme.colorScheme.surface,
       child: Padding(
-        padding: const .symmetric(horizontal: 8, vertical: 6),
+        padding: const .symmetric(horizontal: 8, vertical: 4),
         child: Column(
           crossAxisAlignment: .stretch,
           mainAxisSize: .min,
@@ -298,7 +298,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                   children: <Widget>[
                     if (!narrow)
                       Padding(
-                        padding: const .only(top: 10, right: 6),
+                        padding: const .only(top: 6, right: 6),
                         child: Text(
                           'fx',
                           style: theme.textTheme.labelLarge?.copyWith(
@@ -311,6 +311,7 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                       child: DropdownButton<String>(
                         key: DVStudioFormulaBar.fieldKey,
                         isExpanded: true,
+                        isDense: true,
                         value: field?.name,
                         hint: const Text('Field'),
                         underline: const SizedBox.shrink(),
@@ -357,6 +358,8 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                     if (!narrow)
                       IconButton(
                         key: DVStudioFormulaBar.expandKey,
+                        visualDensity: VisualDensity.compact,
+                        iconSize: 18,
                         tooltip: _expanded ? 'One line' : 'Several lines',
                         icon: Icon(
                           _expanded ? Icons.unfold_less : Icons.unfold_more,
@@ -366,11 +369,15 @@ class _DVStudioFormulaBarState extends State<DVStudioFormulaBar> {
                             : null,
                       ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 18,
                       tooltip: 'Apply (Enter)',
                       icon: const Icon(Icons.check),
                       onPressed: enabled ? _apply : null,
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 18,
                       tooltip: 'Cancel (Esc)',
                       icon: const Icon(Icons.close),
                       onPressed: enabled ? _cancel : null,

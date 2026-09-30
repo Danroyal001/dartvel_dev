@@ -650,6 +650,9 @@ class _DVStudioAppState extends State<DVStudioApp> {
 
   @override
   Widget build(BuildContext context) {
+    // The application Studio is a route of: its page views and its look,
+    // so the canvas draws a page as the site does.
+    final DVStudioHost? host = DVStudioHost.maybeOf(context);
     return DVStudioFrame(
       title: widget.title,
       home: _settingUp
@@ -671,6 +674,8 @@ class _DVStudioAppState extends State<DVStudioApp> {
                     site: DVStudioSiteSource(
                       pages: widget.client.site,
                       structure: widget.client.structure,
+                      view: host?.view,
+                      look: host?.look,
                     ),
                     sections: dvStudioServerSections(widget.client),
                     account: DVStudioAccount(
@@ -1031,6 +1036,9 @@ class DVStudioInApp extends StatelessWidget {
         pages: client.site,
         structure: client.structure,
         preview: preview,
+        // Studio here is a page of the application, so the look in force
+        // is the application's.
+        look: DVStudioAppLook.capture(context),
       ),
       sections: <DVStudioSection>[
         dvStudioDataSection(client),
