@@ -53,6 +53,20 @@
   setup is drawn by `DVStudioApp`, like Studio's sign-in, and the rate limit,
   the CSRF check and the session rotation it relies on are the application's
   own rather than a second copy of each.
+- **Security: Studio's mount serves no files.** `DVAdminServer` answers
+  `<mount>` and `<mount>/login` with the application's shell rendered for
+  that route by `dvRenderRoutePage` (`webRoot:`, `title:`), `<mount>` only to
+  a caller with the Studio grant, and serves Studio's code -- the parts of
+  the application's deferred Studio library, `studioParts:` -- from memory,
+  by exact path from the site root, to that caller only. Whatever an older
+  build left under the admin root is never served.
+- `DVRoutePage.robots` puts a robots meta in a route's own head; Studio's
+  pages are `noindex, nofollow`.
+- `<mount>/api/graph` answers the project graph behind the grant.
+- The development grant's cookie is set for the site, since Studio's code
+  loads from the site root.
+- **Breaking:** `dvAdminAsset`, `DVAdminAsset` and `dvIsDeferredLibraryChunk`
+  are removed.
 
 ## 0.9.4
 
