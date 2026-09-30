@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **A data model may be called `Post`, `Route`, `Get`, `Put`, `Delete` or
+  `Patch`.** Those are also dartvel_core's HTTP annotations (and `Route` is
+  Flutter's), and the generated client imported the framework unprefixed
+  beside the models, so such a project did not compile: "'Post' is exported
+  from both". A generated client function returning one compiled against the
+  annotation instead. The barrel, the router, the functional widgets, the page
+  bodies and `functions.g.dart` now hide the application's model names from
+  every framework import and export, the client functions import the models
+  they name, and the router refers to Flutter's `Route`, `RouteSettings` and
+  `Page` by prefix. The model is the only `Post` an application sees; a page
+  that also imports Flutter's widgets library hides `Route` from it, as with
+  any two libraries that share a name.
+
 - **The build no longer overwrites an `.htaccess` somebody took over.** The
   generated file said it was only created when absent while every build
   rewrote it. Dartvel now rewrites only its own copy (first line
