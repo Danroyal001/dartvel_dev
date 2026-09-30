@@ -22,6 +22,14 @@ class _Server {
     switch ('$method $path') {
       case 'GET api/access':
         return DVStudioReply(200, <String, Object?>{'granted': granted});
+      case 'GET api/me':
+        return const DVStudioReply(200, <String, Object?>{
+          'userId': 'u-ops',
+          'email': 'ops@example.com',
+        });
+      case 'POST api/auth/sign-out':
+        granted = false;
+        return const DVStudioReply(204, null);
       case 'POST api/auth/sign-in':
         // The operator's account, which holds the grant.
         granted = true;
@@ -142,6 +150,31 @@ void main() {
     // Loaded from the server as a page, so the server decides on the grant
     // before Studio is rendered or its code is handed over.
     expect(opened, <String>['/__studio']);
+  });
+
+  testWidgets('Studio shows who is signed in, and signing out ends the '
+      'session and leaves Studio', (WidgetTester tester) async {
+    final _Server server = _Server(granted: true);
+    final List<String> opened = <String>[];
+    await _open(tester, server, '/__studio', opened: opened);
+
+    expect(find.byType(DVStudioScreen), findsOneWidget);
+    final Finder account =
+        find.byKey(const ValueKey<String>('dv-studio-account'));
+    expect(account, findsOneWidget);
+    expect(find.descendant(of: account, matching: find.text('ops@example.com')),
+        findsOneWidget);
+    final Finder signOut =
+        find.byKey(const ValueKey<String>('dv-studio-sign-out'));
+    expect(signOut, findsOneWidget);
+    expect(find.descendant(of: signOut, matching: find.text('Sign out')),
+        findsOneWidget);
+
+    await tester.tap(signOut);
+    await tester.pumpAndSettle();
+    // Ended on the server, then away to the sign-in as a page load.
+    expect(server.calls, contains('POST api/auth/sign-out'));
+    expect(opened, <String>['/__studio/login']);
   });
 
   testWidgets('the grant is asked again on every visit, not remembered', (
