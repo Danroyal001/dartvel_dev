@@ -956,6 +956,13 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
         build: (BuildContext context) => _DVStudioCacheSection(client: client),
       ),
       DVStudioSection(
+        id: 'repository',
+        label: 'GitHub',
+        icon: Icons.cloud_upload_outlined,
+        build: (BuildContext context) =>
+            DVStudioRepositorySection(client: client),
+      ),
+      DVStudioSection(
         id: 'access',
         label: 'Team',
         icon: Icons.admin_panel_settings_outlined,
