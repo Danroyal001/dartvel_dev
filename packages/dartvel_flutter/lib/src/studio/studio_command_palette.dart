@@ -141,7 +141,8 @@ class _DVStudioCommandScopeState extends State<DVStudioCommandScope> {
     if (event is! KeyDownEvent || !mounted) return false;
     final bool command = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
-    if (!command) return false;
+    // Ctrl+Alt+K is another shortcut's: making a component.
+    if (!command || HardwareKeyboard.instance.isAltPressed) return false;
     // Only for the Studio on top: not from under a dialog, not from a page
     // pushed over it.
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
@@ -313,6 +314,7 @@ const List<(String, String)> dvStudioShortcuts = <(String, String)>[
   ('Ctrl+Z', 'Undo'),
   ('Ctrl+Shift+Z', 'Redo'),
   ('Ctrl+D', 'Duplicate the selected element'),
+  ('Ctrl+Alt+K', 'Make a component from the selected element'),
   ('Delete', 'Delete the selected element'),
   ('Esc', 'Deselect; in the formula bar, put back what was there'),
   ('Enter', 'Apply the formula'),
