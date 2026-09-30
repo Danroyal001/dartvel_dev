@@ -162,6 +162,11 @@ void main() {
           await dvRunMiddlewares(const <String>['rateLimit'], caller);
       expect(third.allowed, isFalse);
       expect(third.status, 429);
+      // RFC 9110: a 429 may say when to come back, and a well-behaved client
+      // (or a search box) waits that long rather than retrying at once.
+      final int? retryAfter = int.tryParse(third.headers['Retry-After'] ?? '');
+      expect(retryAfter, isNotNull);
+      expect(retryAfter, inInclusiveRange(1, 60));
     });
 
     test('the counter survives between requests', () async {
