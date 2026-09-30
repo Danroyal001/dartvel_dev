@@ -77,7 +77,9 @@ Map<String, Object?> dvStudioRouteInfoJson(DVRouteInfo route) =>
 String dvStudioPageKindLabel(DVStudioSitePage page) => switch (page.kind) {
   DVStudioPageKind.code => 'Code',
   DVStudioPageKind.stored => 'Studio',
-  DVStudioPageKind.override => 'Override',
+  // Not 'Override': a person who has never written code knows what a copy
+  // is.
+  DVStudioPageKind.override => 'Studio copy',
 };
 
 /// The tone of a page's kind badge.
