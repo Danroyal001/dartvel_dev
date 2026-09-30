@@ -73,6 +73,11 @@ class DVStudioScreen extends StatefulWidget {
   /// running the application's registered health checks.
   final Future<DVHealthReport> Function()? statusHealth;
 
+  /// Who is signed in and the control that signs them out, at the foot of
+  /// the rail. Studio served by an application's backend always has one; a
+  /// Studio inside the application it manages has no session of its own.
+  final Widget? account;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
@@ -88,6 +93,7 @@ class DVStudioScreen extends StatefulWidget {
     this.incidents,
     this.clock,
     this.statusHealth,
+    this.account,
   });
 
   @override
@@ -323,6 +329,11 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               ),
             ),
           ),
+          if (widget.account case final Widget account) ...<Widget>[
+            Container(height: 1, width: 36, color: DVStudioStyle.railSelected),
+            account,
+            const SizedBox(height: DVStudioStyle.space3),
+          ],
         ],
       ),
     );
