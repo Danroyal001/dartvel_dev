@@ -4,7 +4,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
-import 'package:dartvel_core/dartvel.dart' show DVAdminMount, DVStudioDevGrant;
+import 'package:dartvel_core/dartvel.dart'
+    show DVAdminMount, DVPreviewAppLink, DVStudioDevGrant;
 import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
@@ -12,6 +13,7 @@ import '../config/dartvel_config.dart';
 import '../devclient/android_dev_client.dart';
 import '../devclient/dev_client_attach.dart';
 import '../devclient/dev_client_server.dart';
+import '../devclient/dev_preview_link.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
@@ -217,6 +219,8 @@ class DevCommand extends Command<void> {
     final webPortInput = (argResults?['web-port'] as String?) ??
         Platform.environment['DARTVEL_WEB_PORT'];
     int? webPort;
+    // The web build's address on the network, for the Dartvel Preview link.
+    Uri? lanWebUrl;
     if (webTarget || studioInApp) {
       webPort = await _resolveWebPort(webPortInput);
       if (webHostname != null && webHostname.isNotEmpty) {
@@ -230,6 +234,7 @@ class DevCommand extends Command<void> {
         port: webPort,
         lanHost: await dvDetectLanHost(),
       );
+      lanWebUrl = lanUrl;
       if (lanUrl != null) {
         _printQr('Open it on a phone on the same network:', lanUrl.toString());
       } else {
@@ -249,6 +254,19 @@ class DevCommand extends Command<void> {
       }
     }
     if (argResults?['verbose'] == true) flutterArgs.add('-v');
+
+    // Dartvel Preview: one code that runs this project in the Preview app,
+    // by its pairing on a device that can run code and by its web build
+    // where it cannot.
+    final Object? pubspecName = readPubspecYaml(root)?['name'];
+    final DVPreviewAppLink? previewLink = dvDevPreviewLink(
+      name: pubspecName is String ? pubspecName : null,
+      pairing: devClient?.pairing.link,
+      web: lanWebUrl,
+    );
+    if (previewLink != null) {
+      _printQr('Open it in Dartvel Preview:', previewLink.toString());
+    }
 
     final targetIsLinux = isLinuxDevice(deviceOpt);
     if (targetIsLinux) {

@@ -66,7 +66,7 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               columns: <String>['', 'Expo', 'Dartvel'],
               rows: <List<String>>[
                 <String>['Language', 'TypeScript or JavaScript, with React', 'Dart, front and back'],
-                <String>['Run on a device', '`npx expo start`, with Expo Go or a development build', 'A development build, paired by `dartvel dev` over a QR code'],
+                <String>['Run on a device', '`npx expo start`, with Expo Go or a development build', 'A development build, or Dartvel Preview, paired by `dartvel dev` over a QR code'],
                 <String>['Cloud builds', 'EAS Build, with a free tier and paid plans', '`dartvel build --cloud`. Cloud is not open yet'],
                 <String>['Local builds', '`npx expo run`, or eas build --local', '`dartvel build android`, ios, linux and the rest'],
                 <String>['Store submission', 'EAS Submit', "`dartvel deploy --store`, through each store's own tool"],
@@ -136,10 +136,11 @@ Widget _vsExpoPage(BuildContext context) => const SingleChildScrollView(
               "EAS Update reaches iOS and Android. Dartvel's over-the-air "
                   'patches are proven on Android only, and its own patch '
                   'source serves Android only.',
-              'Expo Go runs a project on a phone with no build of your own. '
-                  'Dartvel always needs a development build, and a physical '
-                  'iPhone pairs only when the app is started from Xcode or '
-                  '`flutter run`.',
+              'Expo Go is in the App Store and on Google Play and runs a '
+                  'project with no build of your own. Dartvel Preview does the '
+                  'same on Android and desktops, built from source and in no '
+                  'store yet, and a physical iPhone pairs only when the app is '
+                  'started from Xcode or `flutter run`.',
               'eas deploy puts API routes on a hosted server in one command. '
                   "Dartvel's web-server binary runs on a machine you provide.",
               "Expo's ecosystem of config plugins and prebuilt modules is "
