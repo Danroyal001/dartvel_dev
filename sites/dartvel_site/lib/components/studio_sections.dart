@@ -29,9 +29,10 @@ const List<StudioSection> kStudioSections = <StudioSection>[
   StudioSection(
     label: 'Pages',
     asset: 'assets/studio_shots/sections/pages.png',
-    summary: 'Every page you have built, and an overview of the app: how many '
-        'pages are stored, which sections Studio has, and when it last '
-        'deployed.',
+    summary: 'Every page: the ones in your code, marked Code, and the ones '
+        'built in Studio. A page from your code opens read-only until you '
+        'choose to edit it, and Restore compiled page takes the edit back. '
+        'Beside them, how many pages are stored and when Studio last deployed.',
     alt: 'The Pages section of Studio: a page list, a Create page field, and '
         'an overview with counts for pages, sections and the last deploy',
   ),
@@ -39,8 +40,9 @@ const List<StudioSection> kStudioSections = <StudioSection>[
     label: 'Data',
     asset: 'assets/studio_shots/sections/data.png',
     summary: 'Every data model in the app with its field count, and the '
-        'records in each one. A module\'s models are listed under the module '
-        'they came from.',
+        'records in each one. New data models are designed here, with field '
+        'types, rules, relations, indexes and access. A module\'s models are '
+        'listed under the module they came from.',
     alt: 'The Data section listing Order, Product, User and notes.Memo, with '
         'one model open and its records in a table',
   ),
