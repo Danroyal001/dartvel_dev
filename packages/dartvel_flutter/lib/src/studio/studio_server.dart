@@ -98,6 +98,20 @@ class DVStudioRemoteError implements Exception {
   String toString() => message;
 }
 
+/// A page was changed in code since Studio last saved it -- on a
+/// development server, where each page is also a file of the project -- and
+/// Studio did not write over it.
+class DVStudioChangedInCode extends DVStudioRemoteError {
+  const DVStudioChangedInCode(this.path, this.inCode, String message)
+      : super(409, 'changed_in_code', message);
+
+  /// The file, relative to the project.
+  final String path;
+
+  /// The page as the file has it now.
+  final DVPageDocument? inCode;
+}
+
 /// One field of a model, as the backend describes it.
 class DVStudioField {
   const DVStudioField({
@@ -157,6 +171,12 @@ class DVStudioField {
       baseType.startsWith('List') ||
       baseType.startsWith('Set') ||
       baseType.startsWith('Map');
+
+  /// Whether the field can be set here but never read back: a sensitive text
+  /// field, drawn like a password field. Its value is never sent to Studio,
+  /// so the input starts empty, and leaving it empty keeps what is stored.
+  bool get writeOnly =>
+      sensitive && options == null && relation == null && baseType == 'String';
 
   /// Whether Studio has a control for this type. Anything else is shown and
   /// left as it is.
@@ -253,6 +273,13 @@ class DVStudioModel {
         for (final DVStudioField field in fields)
           if (!field.sensitive) field,
       ];
+
+  /// The fields a record's form has a control for: the visible ones, and
+  /// each sensitive one that can be written without being read.
+  List<DVStudioField> get formFields => <DVStudioField>[
+        for (final DVStudioField field in fields)
+          if (!field.sensitive || field.writeOnly) field,
+      ];
 }
 
 /// One stored record, at the version it was read.
@@ -311,6 +338,16 @@ class DVStudioClient {
         '${error['message'] ?? 'The server answered ${reply.status}.'}';
     if (_isMarkupOrDump(message)) {
       message = 'The server answered ${reply.status}.';
+    }
+    if (error['error'] == 'changed_in_code') {
+      final Object? inCode = error['inCode'];
+      throw DVStudioChangedInCode(
+        '${error['path'] ?? ''}',
+        inCode is Map
+            ? DVPageDocument.fromJson(inCode.cast<String, Object?>())
+            : null,
+        message,
+      );
     }
     throw DVStudioRemoteError(
       reply.status,
@@ -440,10 +477,16 @@ class DVStudioClient {
                 (page['document']! as Map).cast<String, Object?>()),
       ];
 
-  Future<void> savePage(DVPageDocument document) => _send(
+  /// Saves [document]. On a development server, where the page is also a
+  /// file of the project, a file changed in code since Studio last saved it
+  /// is not written over: [DVStudioChangedInCode], unless [force].
+  Future<void> savePage(DVPageDocument document, {bool force = false}) => _send(
         'PUT',
         'api/pages',
-        body: <String, Object?>{'document': document.toJson()},
+        body: <String, Object?>{
+          'document': document.toJson(),
+          if (force) 'force': true,
+        },
       );
 
   Future<void> deletePage(String route) =>
@@ -523,6 +566,10 @@ class DVStudioRemotePageStore extends DVPageStore {
 
   @override
   Future<void> save(DVPageDocument document) => client.savePage(document);
+
+  /// Saves [document] over a version code changed, which [save] refuses.
+  Future<void> saveOverCode(DVPageDocument document) =>
+      client.savePage(document, force: true);
 
   @override
   Future<DVPageDocument?> load(String route) async {
@@ -637,6 +684,9 @@ class _DVStudioAppState extends State<DVStudioApp> {
 
   @override
   Widget build(BuildContext context) {
+    // The application Studio is a route of: its page views and its look,
+    // so the canvas draws a page as the site does.
+    final DVStudioHost? host = DVStudioHost.maybeOf(context);
     return DVStudioFrame(
       title: widget.title,
       home: _settingUp
@@ -647,10 +697,14 @@ class _DVStudioAppState extends State<DVStudioApp> {
               open: widget.open ?? dvOpenUrl,
             )
           : _granted == null
-          ? const Scaffold(
-              backgroundColor: DVStudioStyle.canvas,
-              body: SizedBox.shrink(),
-            )
+          // The application's splash while the grant is asked, carrying
+          // on from the one the route showed while the code loaded.
+          ? (host?.splash == null
+              ? const Scaffold(
+                  backgroundColor: DVStudioStyle.canvas,
+                  body: SizedBox.shrink(),
+                )
+              : DVStudioSplashView(host!.splash!))
           : (_granted == true
               ? Material(
                   child: DVStudioScreen(
@@ -658,6 +712,8 @@ class _DVStudioAppState extends State<DVStudioApp> {
                     site: DVStudioSiteSource(
                       pages: widget.client.site,
                       structure: widget.client.structure,
+                      view: host?.view,
+                      look: host?.look,
                     ),
                     sections: dvStudioServerSections(widget.client),
                     account: DVStudioAccount(
@@ -900,6 +956,13 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
         build: (BuildContext context) => _DVStudioCacheSection(client: client),
       ),
       DVStudioSection(
+        id: 'repository',
+        label: 'GitHub',
+        icon: Icons.cloud_upload_outlined,
+        build: (BuildContext context) =>
+            DVStudioRepositorySection(client: client),
+      ),
+      DVStudioSection(
         id: 'access',
         label: 'Team',
         icon: Icons.admin_panel_settings_outlined,
@@ -1018,6 +1081,9 @@ class DVStudioInApp extends StatelessWidget {
         pages: client.site,
         structure: client.structure,
         preview: preview,
+        // Studio here is a page of the application, so the look in force
+        // is the application's.
+        look: DVStudioAppLook.capture(context),
       ),
       sections: <DVStudioSection>[
         dvStudioDataSection(client),
@@ -1620,8 +1686,11 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   /// What the form holds, as typed: text for a text control, a bool for a
   /// switch, JSON text for a list or map, a value for a choice.
   late final Map<String, Object?> _draft = <String, Object?>{
-    for (final DVStudioField field in widget.model.visibleFields)
-      field.name: _initial(field, widget.record.values[field.name]),
+    for (final DVStudioField field in widget.model.formFields)
+      // A write-only field starts empty whatever the record holds.
+      field.name: field.writeOnly
+          ? ''
+          : _initial(field, widget.record.values[field.name]),
   };
 
   /// The nullable fields set to empty, whatever their control holds.
@@ -1654,7 +1723,13 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
   /// -- or every filled field, for a new record.
   Map<String, Object?> _changes() {
     final Map<String, Object?> changes = <String, Object?>{};
-    for (final DVStudioField field in widget.model.visibleFields) {
+    for (final DVStudioField field in widget.model.formFields) {
+      if (field.writeOnly) {
+        // Sent only when something was typed: empty keeps what is stored.
+        final String typed = '${_draft[field.name] ?? ''}';
+        if (typed.isNotEmpty) changes[field.name] = typed;
+        continue;
+      }
       if (!field.editable) continue;
       if (!_isNew && field.name == widget.model.key) continue;
       final Object? typed = _typed(field, _draft[field.name]);
@@ -1756,7 +1831,7 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           child: ListView(
             padding: const .all(DVStudioStyle.space4),
             children: <Widget>[
-              for (final DVStudioField field in widget.model.visibleFields)
+              for (final DVStudioField field in widget.model.formFields)
                 Padding(
                   padding: const .only(bottom: DVStudioStyle.space3),
                   child: Column(
@@ -1815,9 +1890,10 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                     ],
                   ),
                 ),
-              if (widget.model.fields.any((DVStudioField f) => f.sensitive))
+              if (widget.model.fields
+                  .any((DVStudioField f) => f.sensitive && !f.writeOnly))
                 DVStudioStyle.caption(
-                  'Sensitive fields are not shown or written here.',
+                  'Some sensitive fields are not shown or written here.',
                   color: DVStudioStyle.faint,
                 ),
               if (_error != null) ...<Widget>[
@@ -1869,6 +1945,25 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
 
   Widget _control(DVStudioField field) {
     final Key key = ValueKey<String>('dv-studio-field-${field.name}');
+    if (field.writeOnly) {
+      return Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          KeyedSubtree(
+            key: key,
+            child: DVStudioTextInput(
+              obscureText: true,
+              onChanged: (String value) => _draft[field.name] = value,
+            ),
+          ),
+          if (!_isNew) ...<Widget>[
+            const SizedBox(height: DVStudioStyle.space1),
+            DVStudioStyle.caption('Leave empty to keep the current value',
+                color: DVStudioStyle.faint),
+          ],
+        ],
+      );
+    }
     final bool locked =
         !field.editable || (!_isNew && field.name == widget.model.key);
     if (!locked && _empty.contains(field.name)) {
@@ -2592,10 +2687,10 @@ class _DVStudioCacheSectionState extends State<_DVStudioCacheSection> {
                         const SizedBox(height: DVStudioStyle.space4),
                       ],
                       if (tags.isEmpty)
-                        DVStudioStyle.body('Nothing on this server is cached '
-                            'under a tag right now. DV.Cache.set with tags: '
-                            'puts a key under one; revalidating the tag drops '
-                            'them all.')
+                        DVStudioStyle.body('Nothing is kept in the cache under '
+                            'a tag right now. When the app keeps something in '
+                            'its cache under a tag, the tag is listed here, '
+                            'and clearing it makes the app work it out afresh.')
                       else
                         _DVStudioTable(
                           headers: const <String>['Tag', 'Keys', 'Covers'],

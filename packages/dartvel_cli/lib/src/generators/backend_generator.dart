@@ -846,6 +846,7 @@ import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
+import 'package:$pkgName/dartvel_client/studio_documents.g.dart' show dartvelStudioDocuments;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
@@ -1101,7 +1102,7 @@ Future<dv.Response> _dvGuarded(
     // The message is fixed text chosen by the runtime. Nothing from the
     // request is echoed back into it.
     return dv.Response(mw.status,
-        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8', for (final MapEntry<String, String> h in mw.headers.entries) h.key: h.value}),
         body: Stream<List<int>>.value(conv.utf8.encode(mw.message)));
   }
   final dv.Response response = await run();
@@ -1742,6 +1743,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // returns without touching anything. serve() installs the same preview's
   // access gate around everything it answers.
   core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+  // The built site this process serves, for backend code that reads its
+  // pages with DVSitePages.load(): a site search, an llms.txt. Null when it
+  // serves none, which has no pages.
+  core.DVSitePages.webRoot = spaRoot;
   // What this process was told to be, validated: a DARTVEL_PORT that is not
   // a port refuses the start rather than binding the generated one, and a
   // worker or cron process refuses to serve the application as well.
@@ -1820,6 +1825,17 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // instead. A signed-in customer is not an operator. With no database there
   // is nowhere a grant could be, so nobody is.
   if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();
+  // What was made in Studio and committed, into this server's store: a
+  // release started on an empty database has the pages the repository holds.
+  if (dartvelDatabase != null) {
+    try {
+      await core.dvSeedStudioDocuments(dartvelDatabase, dartvelStudioDocuments);
+    } on Object {
+      // Not the error itself: a store's error can carry what it was writing,
+      // and nothing sensitive goes into a log line.
+      stderr.writeln('dartvel: could not seed the documents made in Studio into the database.');
+    }
+  }
   // Somebody to grant. Sign-up and sign-in authenticate through the provider
   // the application installed before this, and a web-server binary runs no
   // application code before this, so with nothing installed every one of

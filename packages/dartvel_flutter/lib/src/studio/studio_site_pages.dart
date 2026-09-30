@@ -15,8 +15,12 @@
 /// what the editor edits and what an override stores.
 library;
 
+import 'dart:async';
+
+import 'package:flutter/gestures.dart' show HitTestEntry, PointerSignalEvent;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show SemanticsProperties;
+import 'package:flutter/rendering.dart'
+    show BoxHitTestResult, SemanticsProperties;
 
 import '../../dartvel_flutter.dart';
 
@@ -26,7 +30,9 @@ class DVStudioSiteSource {
     required this.pages,
     this.structure,
     this.preview,
-  });
+    DVStudioPageView? view,
+    this.look,
+  }) : _view = view;
 
   /// Every route, compiled and stored.
   final Future<List<DVStudioSitePage>> Function() pages;
@@ -38,6 +44,23 @@ class DVStudioSiteSource {
   /// The compiled page itself, built as its route builds it, where the
   /// application's code is in the process: Studio inside the application.
   final Widget? Function(String path)? preview;
+
+  final DVStudioPageView? _view;
+
+  /// Each page as its route builds it -- the page, its layouts and its
+  /// shell -- with a document Studio is editing in place of the page's body
+  /// when one is given. The generated `dartvelPagePreview` is one, so a
+  /// [preview] that is one serves as both.
+  DVStudioPageView? get view {
+    final DVStudioPageView? given = _view;
+    if (given != null) return given;
+    final Widget? Function(String path)? preview = this.preview;
+    return preview is DVStudioPageView ? preview : null;
+  }
+
+  /// The application's themes and scroll behaviour, which a page on the
+  /// canvas is drawn with. Null draws it in whatever theme is in force.
+  final DVStudioAppLook? look;
 }
 
 /// [route] as the project graph describes a route.
@@ -54,7 +77,9 @@ Map<String, Object?> dvStudioRouteInfoJson(DVRouteInfo route) =>
 String dvStudioPageKindLabel(DVStudioSitePage page) => switch (page.kind) {
   DVStudioPageKind.code => 'Code',
   DVStudioPageKind.stored => 'Studio',
-  DVStudioPageKind.override => 'Override',
+  // Not 'Override': a person who has never written code knows what a copy
+  // is.
+  DVStudioPageKind.override => 'Studio copy',
 };
 
 /// The tone of a page's kind badge.
@@ -321,15 +346,20 @@ String _labelIn(List<Map<String, Object?>> nodes) => <String>[
 
 // --- the compiled page, live -------------------------------------------------
 
-/// A compiled page drawn on the artboard, as the application draws it, at a
-/// device's width. A preview: it is looked at, not clicked through.
+/// A compiled page drawn on the artboard, as the application draws it, in a
+/// window of a device's size. A preview: it is looked at and scrolled, not
+/// clicked through -- a tap on one of its links must not take Studio away.
 class DVStudioLivePage extends StatelessWidget {
   const DVStudioLivePage({
     super.key,
     required this.page,
     required this.width,
+    this.height,
     this.zoom,
     this.captureKey,
+    this.look,
+    this.appearance,
+    this.location,
   });
 
   /// The page, built as its route builds it.
@@ -338,11 +368,25 @@ class DVStudioLivePage extends StatelessWidget {
   /// The device width it is laid out at.
   final double width;
 
+  /// The device's height, or null to fill the space there is.
+  final double? height;
+
   /// How far it is magnified, or null to fit the space there is.
   final double? zoom;
 
   /// Where [dvStudioStructureOf] reads the page from.
   final GlobalKey? captureKey;
+
+  /// The page's address.
+  final String? location;
+
+  /// The application's look, which the page is drawn in. Without one, the
+  /// page takes whatever theme is in force.
+  final DVStudioAppLook? look;
+
+  /// The appearance somebody chose to see it in; null for the one the
+  /// application shows on this device.
+  final Brightness? appearance;
 
   @override
   Widget build(BuildContext context) {
@@ -351,9 +395,8 @@ class DVStudioLivePage extends StatelessWidget {
         final double fit =
             ((box.maxWidth - 48) / width).clamp(0.25, 1.0).toDouble();
         final double scale = zoom ?? fit;
-        final double height = box.maxHeight.isFinite
-            ? (box.maxHeight - 48) / scale
-            : 900;
+        final double h = height ??
+            (box.maxHeight.isFinite ? (box.maxHeight - 48) / scale : 900);
         return ColoredBox(
           color: DVStudioStyle.canvas,
           child: SingleChildScrollView(
@@ -361,34 +404,19 @@ class DVStudioLivePage extends StatelessWidget {
             child: Center(
               child: SizedBox(
                 width: width * scale,
-                height: height * scale,
+                height: h * scale,
                 child: FittedBox(
                   fit: .contain,
                   alignment: .topCenter,
-                  child: SizedBox(
+                  child: DVStudioPageWindow(
                     key: const ValueKey<String>('dv-studio-live-page'),
+                    location: location,
                     width: width,
-                    height: height,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF),
-                        border: Border.all(color: DVStudioStyle.line),
-                      ),
-                      child: ClipRect(
-                        child: AbsorbPointer(
-                          child: MediaQuery(
-                            data: MediaQuery.of(context).copyWith(
-                              size: Size(width, height),
-                            ),
-                            child: Material(
-                              child: KeyedSubtree(
-                                key: captureKey,
-                                child: page,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    height: h,
+                    look: look,
+                    appearance: appearance,
+                    child: _DVStudioLookOnly(
+                      child: KeyedSubtree(key: captureKey, child: page),
                     ),
                   ),
                 ),
@@ -400,3 +428,192 @@ class DVStudioLivePage extends StatelessWidget {
     );
   }
 }
+
+/// A page's window on the canvas: a device's size, the application's look,
+/// the device's MediaQuery, and nothing of Studio's -- so the page inside is
+/// laid out and painted as it is in a browser window that size.
+class DVStudioPageWindow extends StatelessWidget {
+  const DVStudioPageWindow({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.child,
+    this.look,
+    this.appearance,
+    this.location,
+  });
+
+  final double width;
+  final double height;
+  final Widget child;
+
+  /// The address the page is at, which the page reads its router state for.
+  final String? location;
+  final DVStudioAppLook? look;
+  final Brightness? appearance;
+
+  @override
+  Widget build(BuildContext context) {
+    final Brightness device = MediaQuery.platformBrightnessOf(context);
+    final DVStudioAppLook? look = this.look;
+    final Brightness shown = look?.resolve(device, chosen: appearance).brightness ??
+        appearance ??
+        device;
+    Widget inside = DVPagePreviewScope(
+      child: location == null
+          ? child
+          : DVStudioPreviewLocation(path: location!, child: child),
+    );
+    if (look != null) {
+      inside = look.wrap(inside, brightness: device, chosen: appearance);
+    }
+    return RepaintBoundary(
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: ClipRect(
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              size: Size(width, height),
+              platformBrightness: shown,
+              padding: EdgeInsets.zero,
+              viewPadding: EdgeInsets.zero,
+              viewInsets: EdgeInsets.zero,
+            ),
+            child: inside,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The page, to be looked at: a tap goes nowhere, and the mouse wheel
+/// scrolls whatever scrolls under it, as it does on the site.
+class _DVStudioLookOnly extends StatefulWidget {
+  const _DVStudioLookOnly({required this.child});
+  final Widget child;
+
+  @override
+  State<_DVStudioLookOnly> createState() => _DVStudioLookOnlyState();
+}
+
+class _DVStudioLookOnlyState extends State<_DVStudioLookOnly> {
+  final GlobalKey _inside = GlobalKey(debugLabel: 'dv-studio-look-only');
+
+  /// The wheel, handed to what is under the pointer in the page. The page
+  /// is behind an AbsorbPointer, so it is hit-tested here, by hand.
+  void _wheel(PointerSignalEvent event) {
+    final RenderObject? box = _inside.currentContext?.findRenderObject();
+    if (box is! RenderBox) return;
+    final BoxHitTestResult result = BoxHitTestResult();
+    box.hitTest(result, position: box.globalToLocal(event.position));
+    for (final HitTestEntry entry in result.path) {
+      entry.target.handleEvent(event.transformed(entry.transform), entry);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+        onPointerSignal: _wheel,
+        child: AbsorbPointer(
+          child: KeyedSubtree(key: _inside, child: widget.child),
+        ),
+      );
+}
+
+/// A page drawn on the canvas at [path], as far as the page can tell: the
+/// router's state under it is a state for [path], not for Studio.
+///
+/// A layout that lights up the link to the page being shown reads the path
+/// from `GoRouterState.of(context)`, which inside Studio found Studio's own
+/// route: the site's header on the canvas lit nothing, and the docs sidebar
+/// marked no page, where the live page marks both. go_router keys that state
+/// by the page a route was built for and keeps its registry to itself, so
+/// the preview is a page of its own, in a router of its own whose one route
+/// is [path].
+class DVStudioPreviewLocation extends StatefulWidget {
+  const DVStudioPreviewLocation({
+    super.key,
+    required this.path,
+    required this.child,
+  });
+
+  final String path;
+  final Widget child;
+
+  @override
+  State<DVStudioPreviewLocation> createState() =>
+      _DVStudioPreviewLocationState();
+}
+
+class _DVStudioPreviewLocationState extends State<DVStudioPreviewLocation> {
+  GoRouter? _router;
+  String? _path;
+
+  /// A router of the preview's own, with one route, [path], and already
+  /// there. Built again only when the path changes.
+  ///
+  /// Only its delegate is mounted -- no information provider, no parser --
+  /// so nothing it does reaches the browser's address bar, which is the
+  /// application's router's.
+  GoRouter _routerFor(String path) {
+    final GoRouter? built = _router;
+    if (built != null && _path == path) return built;
+    // After the frame: the Router still holds the old delegate until it is
+    // rebuilt with this one.
+    if (built != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => built.dispose());
+    }
+    final GoRouter router = GoRouter(
+      initialLocation: path,
+      routes: <RouteBase>[
+        GoRoute(
+          path: path,
+          pageBuilder: (BuildContext context, GoRouterState state) =>
+              const NoTransitionPage<void>(
+                child: Builder(builder: _DVStudioPreviewChild.of),
+              ),
+        ),
+      ],
+    );
+    unawaited(router.routerDelegate
+        .setNewRoutePath(router.configuration.findMatch(Uri(path: path))));
+    _path = path;
+    return _router = router;
+  }
+
+  @override
+  void dispose() {
+    _router?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Nothing to stand in for outside an application with a router.
+    if (GoRouter.maybeOf(context) == null) return widget.child;
+    final GoRouter router = _routerFor(widget.path);
+    return _DVStudioPreviewChild(
+      content: widget.child,
+      child: Router<RouteMatchList>(routerDelegate: router.routerDelegate),
+    );
+  }
+}
+
+/// Hands the preview's content to the page inside its router, which is
+/// built in that router's navigator rather than under this widget.
+class _DVStudioPreviewChild extends InheritedWidget {
+  const _DVStudioPreviewChild({required this.content, required super.child});
+
+  final Widget content;
+
+  static Widget of(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_DVStudioPreviewChild>()!
+      .content;
+
+  @override
+  bool updateShouldNotify(_DVStudioPreviewChild oldWidget) =>
+      content != oldWidget.content;
+}
+

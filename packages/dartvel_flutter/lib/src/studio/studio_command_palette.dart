@@ -141,7 +141,8 @@ class _DVStudioCommandScopeState extends State<DVStudioCommandScope> {
     if (event is! KeyDownEvent || !mounted) return false;
     final bool command = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
-    if (!command) return false;
+    // Ctrl+Alt+K is another shortcut's: making a component.
+    if (!command || HardwareKeyboard.instance.isAltPressed) return false;
     // Only for the Studio on top: not from under a dialog, not from a page
     // pushed over it.
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
@@ -312,12 +313,28 @@ const List<(String, String)> dvStudioShortcuts = <(String, String)>[
   ('Ctrl+K', 'Open the command palette'),
   ('Ctrl+Z', 'Undo'),
   ('Ctrl+Shift+Z', 'Redo'),
+  ('Ctrl+Y', 'Redo, as in Power Apps and Bubble'),
+  ('Ctrl+C', 'Copy the selected element'),
+  ('Ctrl+X', 'Cut the selected element'),
+  ('Ctrl+V', 'Paste after the selection, or into it when it holds others'),
+  ('Ctrl+G', 'Put the selection in a group'),
+  ('Ctrl+Shift+G', 'Take what a group holds out of it'),
+  ('Ctrl+]', 'Move the selection one place later'),
+  ('Ctrl+[', 'Move the selection one place earlier'),
+  ('Tab', 'Select the next element; Shift+Tab the previous one'),
+  ('Enter', 'Select what is inside the selection'),
+  ('Shift+Enter', 'Select what the selection is inside'),
+  ('Shift+0', 'Zoom to 100%'),
+  ('Shift+1', 'Zoom to fit'),
+  ('Ctrl+S', 'Deploy the page, or save the draft'),
   ('Ctrl+D', 'Duplicate the selected element'),
+  ('Ctrl+Alt+K', 'Make a component from the selected element'),
   ('Delete', 'Delete the selected element'),
   ('Esc', 'Deselect; in the formula bar, put back what was there'),
   ('Enter', 'Apply the formula'),
   ('Ctrl+Enter', 'Apply the formula when the bar has several lines'),
   ('Tab', 'Take the first completion in the formula bar'),
+  ('Ctrl+\\', 'Hide or show the side panels'),
   ('Ctrl+/', 'Show these shortcuts'),
 ];
 

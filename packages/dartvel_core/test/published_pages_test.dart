@@ -91,4 +91,42 @@ void main() {
 
     expect(await pages.routes(), <String>{'/menu'});
   });
+
+  test('a component made in Studio travels with the pages and is no page '
+      'of its own', () async {
+    // Components are documents the pages that use them are drawn from, so
+    // the application needs them; but an address under /_dartvel/ is
+    // Dartvel's, and nothing is served there as a page.
+    await publish('/menu', 'Menu');
+    await publish('/_dartvel/components/Card', 'Card');
+
+    expect(await pages.routes(), <String>{'/menu'});
+    final Response? response = await pages.respond(_get(dvPublishedPagesPath));
+    final Map<String, Object?> body =
+        jsonDecode(utf8.decode(await response!.body!.bytes()))
+            as Map<String, Object?>;
+    expect(
+      <Object?>[
+        for (final Object? page in body['pages']! as List<Object?>)
+          (page! as Map<String, Object?>)['route'],
+      ],
+      containsAll(<String>['/menu', '/_dartvel/components/Card']),
+    );
+    expect(dvStudioIsReservedRoute('/_dartvel/components/Card'), isTrue);
+    expect(dvStudioIsReservedRoute('/dartvel'), isFalse);
+  });
+
+  test('Studio''s list of the site leaves components out', () {
+    final List<DVStudioSitePage> site = dvStudioSitePages(
+      compiled: const <Map<String, Object?>>[
+        <String, Object?>{'path': '/'},
+      ],
+      stored: const <String, String?>{
+        '/landing': 'Landing',
+        '/_dartvel/components/Card': 'Card',
+      },
+    );
+    expect(<String>[for (final DVStudioSitePage p in site) p.path],
+        <String>['/', '/landing']);
+  });
 }

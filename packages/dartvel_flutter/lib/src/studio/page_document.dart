@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:dartvel_core/dartvel.dart' show dvStudioIsReservedRoute;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -494,6 +495,14 @@ extension DVPageDocumentSource on DVPageDocument {
       value == value.roundToDouble() ? '${value.toInt()}' : '$value';
 
   String _nodeSource(DVPageNode node, int depth) {
+    if (node.type == dvStudioComponentType) {
+      // A component's widgets, with this use's props: exported code has no
+      // components to look up.
+      final DVPageNode? drawn = dvStudioExpandComponent(node);
+      return drawn == null
+          ? 'const SizedBox.shrink()'
+          : _nodeSource(drawn, depth);
+    }
     final pad = '  ' * depth;
     String core;
     final leaf = dvStudioLeafTypeFor(node);
@@ -701,7 +710,10 @@ class DVPageDocumentRenderer extends StatelessWidget {
           );
     Widget built;
     final leaf = dvStudioLeafTypeFor(node);
-    if (leaf != null) {
+    if (node.type == dvStudioComponentType) {
+      // A use of a component: drawn from the component as it is now.
+      built = DVStudioComponentView(node);
+    } else if (leaf != null) {
       built = leaf.build(node);
     } else {
         // A stack's children can name where they sit. A design that does
@@ -1949,8 +1961,29 @@ class DVPageStore {
   /// stalling the transition or flashing the wrong page.
   /// The stored page for [route], when it was deployed to this app's
   /// target. A page deployed elsewhere leaves the compiled one serving.
+  /// The documents this build carries from the project's studio/ files,
+  /// by route: what was made in Studio and committed. The generated router
+  /// sets them. A document stored for the same route -- on this device or
+  /// on the server -- wins; these are drawn only where nothing else is.
+  static set bundled(List<String> documents) {
+    _bundled = <String, DVPageDocument>{};
+    for (final String text in documents) {
+      try {
+        final Object? json = jsonDecode(text);
+        if (json is! Map) continue;
+        final DVPageDocument document =
+            DVPageDocument.fromJson(json.cast<String, Object?>());
+        _bundled[document.route] = document;
+      } on Object {
+        // A file somebody broke by hand is not the whole build's problem.
+      }
+    }
+  }
+
+  static Map<String, DVPageDocument> _bundled = <String, DVPageDocument>{};
+
   static DVPageDocument? cached(String route) {
-    final DVPageDocument? document = _cache[route];
+    final DVPageDocument? document = _cache[route] ?? _bundled[route];
     if (document == null || !document.reaches(DVDeployTarget.current)) {
       return null;
     }
@@ -2144,11 +2177,19 @@ class DVStudioPageRoute extends StatefulWidget {
   /// Shown when neither a stored document nor a [fallback] claims the route.
   final Widget Function(String route)? notFound;
 
+  /// What a stored document is drawn inside, when it is drawn: the layouts
+  /// and shell of a page at this route. A route the application compiled
+  /// has them around it already; a page only Studio serves takes them from
+  /// here, so it sits in the site like any other page. Not applied to
+  /// [fallback] or [notFound].
+  final Widget Function(Widget document)? frame;
+
   const DVStudioPageRoute(
     this.route, {
     super.key,
     this.fallback,
     this.notFound,
+    this.frame,
   });
 
   @override
@@ -2196,11 +2237,55 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
   @override
   Widget build(BuildContext context) {
     final document = _document;
-    if (document != null) return DVPageDocumentRenderer(document);
+    // A component, or anything else Dartvel keeps under /_dartvel/, is not
+    // a page at an address.
+    if (document != null && !dvStudioIsReservedRoute(widget.route)) {
+      final Widget body = DVStudioPageBody(
+        scrolls: document.root.properties['scroll'] == true,
+        child: DVPageDocumentRenderer(document),
+      );
+      return widget.frame?.call(body) ?? body;
+    }
     final fallback = widget.fallback;
     if (fallback != null) return fallback;
     return widget.notFound?.call(widget.route) ??
         DVNotFoundPage(route: widget.route);
+  }
+}
+
+/// A stored page's body in the space its route gives it: scrolled when the
+/// page is taller than that space, at least as tall as it otherwise.
+///
+/// The editor lays a document out top to bottom with no height limit, and a
+/// route gives it the height of the window under the site's header. Without
+/// this a page that fit the editor overflowed the route; with it, the page
+/// on the canvas and the page on the site are laid out the same way, and a
+/// page that centres its content still centres it in the window.
+class DVStudioPageBody extends StatelessWidget {
+  const DVStudioPageBody({
+    super.key,
+    required this.scrolls,
+    required this.child,
+  });
+
+  /// Whether the page's root already scrolls itself.
+  final bool scrolls;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (scrolls) return child;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        if (!box.hasBoundedHeight) return child;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 }
 

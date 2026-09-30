@@ -1,3 +1,5 @@
+import 'dart:convert' show jsonEncode;
+
 import 'package:flutter/material.dart';
 
 import '../../../dartvel_flutter.dart';
@@ -16,12 +18,30 @@ class DVWorkflowEditorController extends ChangeNotifier {
 
   /// Edits [document], saving into [store] -- a database for an app or a
   /// server, the Studio API for the Studio a web-server binary serves.
+  ///
+  /// [deployed] says [document] is what the store already holds -- it was
+  /// opened from there -- rather than a function not yet deployed.
   DVWorkflowEditorController(
     DVWorkflowDocument document, {
     this.historyLimit = 100,
     DVFunctionStore store = const DVWorkflowStore(),
+    bool deployed = false,
   })  : _document = document,
-        _store = store;
+        _store = store,
+        _deployed = deployed ? jsonEncode(document.toJson()) : null;
+
+  /// What was last deployed, as JSON, or null when nothing has been.
+  String? _deployed;
+
+  /// Whether this function has ever been deployed from here or opened from
+  /// the store.
+  bool get isDeployed => _deployed != null;
+
+  /// Whether what is on the canvas differs from what is deployed. Not the
+  /// same as [canUndo]: an edit undone is no change, and a Deploy leaves the
+  /// history but not the change.
+  bool get changed =>
+      _deployed == null || jsonEncode(_document.toJson()) != _deployed;
 
   final DVFunctionStore _store;
 
@@ -170,7 +190,12 @@ class DVWorkflowEditorController extends ChangeNotifier {
   }
 
   /// Persists the workflow, which publishes it.
-  Future<void> save() => _store.save(_document);
+  Future<void> save() async {
+    final DVWorkflowDocument saving = _document;
+    await _store.save(saving);
+    _deployed = jsonEncode(saving.toJson());
+    notifyListeners();
+  }
 
   /// The Dart this workflow exports to — the view-code panel.
   String viewCode() => _document.toDartSource();

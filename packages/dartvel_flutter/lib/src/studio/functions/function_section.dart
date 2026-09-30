@@ -174,10 +174,14 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     }
   }
 
-  void _select(DVWorkflowDocument document) {
+  void _select(DVWorkflowDocument document, {bool deployed = true}) {
     setState(() {
       _controller?.dispose();
-      _controller = DVWorkflowEditorController(document, store: _store);
+      _controller = DVWorkflowEditorController(
+        document,
+        store: _store,
+        deployed: deployed,
+      );
       _problem = null;
       _showingCode = false;
     });
@@ -201,7 +205,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
           '${other.side.label.toLowerCase()} function called $name.');
       return;
     }
-    _select(DVWorkflowDocument(name: name, side: widget.side));
+    _select(DVWorkflowDocument(name: name, side: widget.side), deployed: false);
   }
 
   Future<void> _publish() async {
@@ -543,7 +547,19 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
               ),
             ),
           ),
-          if (controller.canUndo) ...<Widget>[
+          // Against what is deployed, not the undo history: the badge
+          // stayed on after a Deploy, and read as a change still to ship.
+          if (!controller.isDeployed) ...<Widget>[
+            const SizedBox(width: DVStudioStyle.space2),
+            // Scaled down rather than overflowing a narrow bar.
+            Flexible(
+              child: FittedBox(
+                fit: .scaleDown,
+                child: DVStudioStyle.badge('Not deployed',
+                    tone: DVStudioStyle.warning),
+              ),
+            ),
+          ] else if (controller.changed) ...<Widget>[
             const SizedBox(width: DVStudioStyle.space2),
             DVStudioStyle.badge('Edited', tone: DVStudioStyle.warning),
           ],

@@ -393,11 +393,11 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                       ),
                     ),
                 ]),
-                _section('Indexes', <Widget>[
+                _section('Fast lookups', <Widget>[
                   DVStudioStyle.caption(
-                    'Fields the database keeps in order, for fast lookups '
-                    'and sorting. A unique index keeps two records from '
-                    'sharing the same values.',
+                    'Fields the app looks records up and sorts them by, kept '
+                    'in order so it is quick. Turn on No two the same to keep '
+                    'two records from sharing the same values.',
                   ),
                   for (int i = 0; i < _indexes.length; i++) _indexRow(i),
                   if (!_locked)
@@ -648,7 +648,7 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
               ),
               _toggle('$prefix-required', 'Required', field.required,
                   (bool value) => setState(() => field.required = value)),
-              _toggle('$prefix-unique', 'Unique', field.unique,
+              _toggle('$prefix-unique', 'No two the same', field.unique,
                   (bool value) => setState(() => field.unique = value)),
               if (!_locked && field.name != _key)
                 DVStudioIconButton(
@@ -724,7 +724,7 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                   SizedBox(
                     width: 240,
                     child: _labelled(
-                      'Pattern',
+                      'Must look like',
                       _locked
                           ? DVStudioStyle.body(
                               field.pattern.isEmpty ? '—' : field.pattern)
@@ -763,7 +763,7 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                   onChanged: (String value) => index.fields = value,
                 ),
         ),
-        _toggle('dv-studio-index-$i-unique', 'Unique', index.unique,
+        _toggle('dv-studio-index-$i-unique', 'No two the same', index.unique,
             (bool value) => setState(() => index.unique = value)),
         if (!_locked)
           DVStudioIconButton(

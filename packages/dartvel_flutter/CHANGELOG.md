@@ -1,5 +1,23 @@
 ## Unreleased
 
+- Link previews close on outside touch/scroll and Back, and respect `preview:
+  .none` on a long press. `DVLinkPreview.widget(child)` supplies an interactive
+  custom card constrained to the safe screen area.
+- `DVShortcutScope` adds declarative page/app keyboard shortcuts with portable
+  `mod`, text-field protection, conflict checks and a `?` shortcut sheet.
+  `DVShortcut` definitions round-trip through JSON for future Studio editing.
+  The existing `DVShortcuts` native service is unchanged.
+- **A sensitive field is a write-only input on `Model.Form()` and in the
+  Studio record form, like a password field.** It used to have no input at
+  all. A field registered through `registerDVModelWriteOnlyFields<T>` gets an
+  obscured input that always starts empty and is never filled from the model
+  or a read. On an edit it says "Leave empty to keep the current value":
+  something typed is saved, and nothing typed keeps the value the record
+  holds. The input is emptied again after a save or reset. Studio's record
+  table still has no column for it.
+- `DVModifier.input` takes `helper:`, text shown under the field at all
+  times.
+
 - **`DVForm` keeps to the fields a model registers for forms.** With a list
   registered through `registerDVModelFormFields<T>`, a field outside it gets
   no input, is not prefilled, and keeps the value the model holds when the

@@ -97,9 +97,9 @@ List<String> _previews(Directory root) {
   final String router = File(
     p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'),
   ).readAsStringSync();
-  final int at = router.indexOf('Widget? dartvelPagePreview(String path)');
+  final int at = router.indexOf('Widget? dartvelPagePreview(String path');
   expect(at, isNot(-1), reason: 'no dartvelPagePreview');
-  final int end = router.indexOf('_ => null', at);
+  final int end = router.indexOf('_ => content', at);
   return <String>[
     for (final RegExpMatch m
         in RegExp(r"'([^']*)' =>").allMatches(router.substring(at, end)))

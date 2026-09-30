@@ -716,6 +716,9 @@ class DVStudioTextInput extends StatefulWidget {
   /// Drawn after the value: a unit such as `px`.
   final String? suffix;
 
+  /// Draws the text as dots, as a password field does.
+  final bool obscureText;
+
   const DVStudioTextInput({
     super.key,
     this.value = '',
@@ -725,6 +728,7 @@ class DVStudioTextInput extends StatefulWidget {
     this.label,
     this.icon,
     this.suffix,
+    this.obscureText = false,
   });
 
   @override
@@ -804,15 +808,23 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                       child: DVStudioStyle.caption(widget.placeholder!,
                           color: DVStudioStyle.faint),
                     ),
-                  EditableText(
-                    controller: _text,
-                    focusNode: _focus,
-                    style: const TextStyle(
-                        fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
-                    cursorColor: DVStudioStyle.accent,
-                    backgroundCursorColor: const Color(0xFFCCCCCC),
-                    onChanged: widget.onChanged,
-                    onSubmitted: widget.onSubmitted,
+                  // Enabled, said out loud: on the web the engine draws a
+                  // text field as an <input> and disables it unless the
+                  // field says it is enabled, and every key typed into
+                  // Studio was lost. Material's TextField says so itself.
+                  Semantics(
+                    enabled: true,
+                    child: EditableText(
+                      controller: _text,
+                      focusNode: _focus,
+                      obscureText: widget.obscureText,
+                      style: const TextStyle(
+                          fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
+                      cursorColor: DVStudioStyle.accent,
+                      backgroundCursorColor: const Color(0xFFCCCCCC),
+                      onChanged: widget.onChanged,
+                      onSubmitted: widget.onSubmitted,
+                    ),
                   ),
                 ],
               ),
@@ -995,6 +1007,8 @@ abstract final class DVStudioIcons {
   /// The glyph for a document node's type or layout.
   static IconData forNode(String type, String layout) {
     switch (type) {
+      case 'component':
+        return components;
       case 'text':
         return text;
       case 'image':
