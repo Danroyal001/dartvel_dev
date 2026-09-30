@@ -42,6 +42,7 @@ import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
 import 'studio_model_schema.dart';
+import 'studio_repository.dart';
 import 'studio_source_files.dart';
 import 'studio_site.dart';
 
@@ -463,7 +464,11 @@ class DVStudioApi {
     this.sourceRoot,
     List<Map<String, Object?>> Function()? compiledRoutes,
     String? structureRoot,
-  })  : _caller = caller ?? dvStudioSessionUserId,
+    DVGitHubTransport? gitHub,
+    String? gitHubToken,
+  })  : _gitHub = gitHub,
+        _gitHubToken = gitHubToken ?? Platform.environment[dvGitHubTokenVariable],
+        _caller = caller ?? dvStudioSessionUserId,
         _compiledRoutes = compiledRoutes ?? (() => dvStudioGraphRoutes(root)),
         _structureRoot = structureRoot ??
             (root == null
@@ -471,6 +476,11 @@ class DVStudioApi {
                 : '$root${Platform.pathSeparator}$dvStudioStructureDirectory'),
         _accounts = accounts,
         _queues = queues ?? (() => const <String>['default']);
+
+  final DVGitHubTransport? _gitHub;
+
+  /// The server's GitHub token, never answered to anybody.
+  final String? _gitHubToken;
 
   /// The queues the build declares, which Studio lists. Jobs are stored per
   /// queue, so there is nothing to enumerate them from but the build.
@@ -548,6 +558,8 @@ class DVStudioApi {
             if (segments.length == 1) return _graph(method);
           case 'me':
             if (segments.length == 1) return await _me(request, method);
+          case 'repository':
+            return await _repositoryAt(request, method, segments.sublist(1));
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -1392,6 +1404,73 @@ class DVStudioApi {
   }
 
   // ---- pages -------------------------------------------------------------
+
+  /// The project's GitHub repository: `GET repository` names it and lists
+  /// what would change, `PUT repository` names it, `POST repository/sync`
+  /// sends the changes as a pull request or a push. See studio_repository.
+  Future<Response> _repositoryAt(
+    Request request,
+    String method,
+    List<String> rest,
+  ) async {
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter == null) {
+      throw _StudioRefusal(409, 'no_database',
+          'This server has no database to keep the repository\'s name in.');
+    }
+    final DVStudioRepository repository = DVStudioRepository(
+      database: adapter,
+      storedModels: storedModels,
+      token: _gitHubToken,
+      transport: _gitHub,
+    );
+    try {
+      if (rest.isEmpty && method == 'GET') {
+        final ({String repository, String base})? settings =
+            await repository.settings();
+        final bool token = (_gitHubToken ?? '').isNotEmpty;
+        List<DVStudioFileChange> changes = const <DVStudioFileChange>[];
+        String? problem;
+        if (settings != null && token) {
+          try {
+            changes = await repository.changes();
+          } on DVStudioRepositoryRefusal catch (refusal) {
+            problem = refusal.message;
+          } on Object {
+            problem = 'GitHub could not be reached.';
+          }
+        }
+        return _reply(<String, Object?>{
+          'connected': settings != null,
+          'repository': settings?.repository,
+          'base': settings?.base,
+          'token': token,
+          'tokenHelp': 'Studio sends with the server\'s GitHub token, from '
+              '$dvGitHubTokenVariable in its environment, and never stores one.',
+          'changes': <Object?>[for (final DVStudioFileChange c in changes) c.toJson()],
+          'problem': ?problem,
+        });
+      }
+      if (rest.isEmpty && method == 'PUT') {
+        final Map<String, Object?> body = await _body(request);
+        await repository.connect(
+          '${body['repository'] ?? ''}'.trim(),
+          '${body['base'] ?? 'main'}'.trim(),
+        );
+        return _reply(<String, Object?>{'connected': true});
+      }
+      if (rest.length == 1 && rest.first == 'sync' && method == 'POST') {
+        final Map<String, Object?> body = await _body(request);
+        return _reply(await repository.sync(
+          pullRequest: body['mode'] != 'push',
+          message: body['message'] is String ? body['message']! as String : null,
+        ));
+      }
+    } on DVStudioRepositoryRefusal catch (refusal) {
+      throw _StudioRefusal(refusal.status, refusal.code, refusal.message);
+    }
+    _notAllowed();
+  }
 
   /// The project's studio/ files, on a development server; none on a
   /// deployed one.

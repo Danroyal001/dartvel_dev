@@ -66,6 +66,12 @@ String? dvStudioSourceRoute(String path) {
   return rest == 'index' ? '/' : '/$rest';
 }
 
+/// The text of a document's file: indented JSON and a final newline, the
+/// same whether Studio writes it to the project or to its repository, so
+/// the two never differ by whitespace.
+String dvStudioSourceText(Map<Object?, Object?> document) =>
+    '${const JsonEncoder.withIndent('  ').convert(document)}\n';
+
 /// The file at a route was changed in code since Studio last wrote it.
 class DVStudioSourceConflict implements Exception {
   DVStudioSourceConflict(this.path, this.inCode);
@@ -157,8 +163,7 @@ class DVStudioSourceFiles {
   }) async {
     final String? path = dvStudioSourcePath(route);
     if (path == null) return;
-    final String text =
-        '${const JsonEncoder.withIndent('  ').convert(document)}\n';
+    final String text = dvStudioSourceText(document);
     final File file = _file(path);
     if (file.existsSync() && file.readAsStringSync() == text) {
       await _remember(path, _hash(text));
