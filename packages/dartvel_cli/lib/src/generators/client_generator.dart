@@ -36,6 +36,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
+import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
 import '../build/page_text.dart';
 import '../build/render_backends.dart';
 
@@ -1694,11 +1695,17 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
     // phone or a desktop build tree-shakes the branch and carries none of
     // it. Not generated at all when the application turned Studio off.
     final String? studioMount = dvStudioRouteMount(dv);
+    // A documentation site behind Studio sends a signed-out reader to
+    // Studio's sign-in, which then brings them back to the page they wanted.
+    final DVDocsMount docsMount = dvDocsMount(dv);
+    final String signInReturns = docsMount.enabled && docsMount.requiresAuth
+        ? ", signInReturns: <String>['${esc(docsMount.path)}']"
+        : '';
     final String studioRoutesSrc = studioMount == null
         ? ''
         : '''
     if (const bool.fromEnvironment('$dvStudioDefine'))
-      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'),''';
+      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'$signInReturns),''';
 
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
