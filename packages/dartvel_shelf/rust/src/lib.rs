@@ -28,6 +28,8 @@ use rustls_pemfile::Item;
 
 mod codec;
 pub use codec::{aw_codec_decode, aw_codec_encode};
+mod units;
+pub use units::{aw_units_completed, aw_units_load, aw_units_loaded, aw_units_register, aw_units_supported};
 
 
 // ===== C ABI structs =====
