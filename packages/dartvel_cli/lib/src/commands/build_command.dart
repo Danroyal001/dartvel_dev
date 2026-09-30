@@ -1253,6 +1253,9 @@ class BuildCommand extends Command<void> {
       adminRoot: p.join(root, 'build', 'web', '__admin'),
       // dartvel.web.server.compression: how the web files are kept inside.
       compression: dvAssetCompression(_webServerSection(root)['compression']),
+      // Deferred imports compile to code units carried inside the binary and
+      // mapped when first used, where the host can build them.
+      units: true,
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
