@@ -846,6 +846,7 @@ import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
+import 'package:$pkgName/dartvel_client/studio_documents.g.dart' show dartvelStudioDocuments;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
@@ -1824,6 +1825,15 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // instead. A signed-in customer is not an operator. With no database there
   // is nowhere a grant could be, so nobody is.
   if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();
+  // What was made in Studio and committed, into this server's store: a
+  // release started on an empty database has the pages the repository holds.
+  if (dartvelDatabase != null) {
+    try {
+      await core.dvSeedStudioDocuments(dartvelDatabase, dartvelStudioDocuments);
+    } catch (error) {
+      stderr.writeln('dartvel: could not seed Studio\'s documents: \$error');
+    }
+  }
   // Somebody to grant. Sign-up and sign-in authenticate through the provider
   // the application installed before this, and a web-server binary runs no
   // application code before this, so with nothing installed every one of
