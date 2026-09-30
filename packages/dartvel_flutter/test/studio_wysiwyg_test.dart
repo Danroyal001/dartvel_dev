@@ -439,6 +439,23 @@ void main() {
         reason: 'the application stays where it is');
   });
 
+  testWidgets('fitted, the page\'s window fills the canvas from top to bottom',
+      (WidgetTester tester) async {
+    await const DVPageStore().save(_landing());
+    _screen(tester, const Size(1440, 900));
+    await tester.pumpWidget(_studio());
+    await tester.pumpAndSettle();
+    for (final String route in <String>['/about', '/landing']) {
+      await tester.tap(_key('dv-studio-route-$route'));
+      await tester.pumpAndSettle();
+      final Rect area = tester.getRect(_key('dv-studio-page-area'));
+      final Rect window = tester.getRect(_key(
+          route == '/about' ? 'dv-studio-live-page' : 'dv-studio-artboard'));
+      expect(area.bottom - window.bottom, lessThan(80), reason: route);
+      expect(window.width, lessThanOrEqualTo(area.width), reason: route);
+    }
+  });
+
   group('a page made in Studio on the live site', () {
     testWidgets('is drawn inside the frame it is given', (WidgetTester tester) async {
       await const DVPageStore().save(_landing());
