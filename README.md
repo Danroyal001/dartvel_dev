@@ -446,10 +446,15 @@ data.
 
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
 it): the page builder, a table of each model's records with an edit form, the
-build's routes, functions and jobs, and the list of Studio grants. The build
-compiles it with Flutter alongside the web app, and it reads and writes through
+build's routes, functions and jobs, and the list of Studio grants. Studio is
+not a second application: its screens are routes of your own app, rendered by
+the binary like every other page, and its code is a deferred library of your
+app whose parts the binary keeps in memory and hands only to a session with
+the Studio grant. A public page loads none of it. It reads and writes through
 the binary's own database. A development build serves it with no
-configuration. A release build includes it only when `pubspec.yaml` asks:
+configuration. A release build includes it only when `pubspec.yaml` asks
+(`enabled: false` leaves Studio out of the app altogether, and a static
+`dartvel build web` never carries it, since it has no server to guard it):
 
 ```yaml
 dartvel:
@@ -462,7 +467,9 @@ when that moves it), against the application's own accounts: a signed-out
 visit to a Studio page is sent there and comes back once signed in, with the
 second factor asked for when the account has one. It does not use the
 application's `/login`, so it works with `dartvel.auth.pages` turned off.
-Studio's files and its API still answer a stranger as a path nobody serves.
+Every other path under the mount sends a stranger to the sign-in, and Studio's
+code and its API answer a stranger as a path nobody serves. Nothing under the
+mount is ever a file.
 
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own

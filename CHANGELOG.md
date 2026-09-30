@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+**Security: Studio is part of the application, guarded by the server.**
+Studio was a second Flutter application, built on its own and served as
+files under its mount, and serving files by path is how
+`/__studio/index.html` reached a signed-out visitor with the whole Studio UI.
+Studio's screens are now routes of the project's own app, at `<mount>` and
+`<mount>/login`, and nothing under the mount is ever a file.
+
+### Changed
+
+- **Studio's pages are the application's pages.** The web-server binary (and
+  `dartvel preview`) answers `<mount>` and `<mount>/login` with the
+  application's own shell, rendered for that route by `dvRenderRoutePage`,
+  the function every page is rendered by, with `noindex, nofollow`,
+  `no-store` and no framing. `<mount>` goes only to a caller with the Studio
+  grant; everybody else is sent to `<mount>/login`, and the app checks the
+  grant again on every visit before it builds any Studio section.
+- **Studio's code is a deferred library of the application.** Its screens
+  and its sign-in are two deferred libraries, so a public page loads none of
+  Studio. `dartvel build web-server` compiles Studio in with the
+  `dartvel.studio` define, takes the parts only Studio's screens load out of
+  the web root, and the binary keeps them in memory and hands them only to a
+  session with the Studio grant; to anybody else they are a path that does
+  not exist. A build whose Studio code would land in a public file is
+  stopped.
+- **No Studio where nothing can guard it.** An application with
+  `dartvel.admin.enabled: false` has no Studio route generated at all, and a
+  static `dartvel build web` never carries Studio: it has no server to guard
+  it with.
+- **`dartvel dev` runs Studio in the app.** A web app is run with Studio's
+  routes, Flutter's development server passes `<mount>/api/` to the
+  development backend, and the grant link opens on the app itself.
+- Studio reads the project graph through `<mount>/api/graph`, behind the
+  grant, instead of as a file.
+
+### Removed
+
+- The separately built Studio (`dvBuildStudio`), the static admin dashboard
+  it replaced, and `dvAdminAsset`/`DVAdminAsset`, which resolved a request
+  under the mount to a file on disk.
+
 ## 0.9.3 — 2026-09-29
 
 **Studio lists every page the application has, and data models can be
