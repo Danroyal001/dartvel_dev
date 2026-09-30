@@ -170,7 +170,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           SiteCard(
             'Data',
             'Design data models, and browse and edit each model\'s records. '
-                'Sensitive fields never leave the server.',
+                'Sensitive fields can be set there but never read back.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(

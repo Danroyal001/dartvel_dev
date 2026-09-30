@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Sensitive fields are write-only, not hidden.** The generated client
+  registers each `@DVModel.sensitiveField()` (unless `showInForms: true`) as
+  a write-only form field, so `Model.Form()` draws it like a password field.
+  The GraphQL `save<Model>` mutation takes it as an optional argument and
+  keeps the stored value when it is left out or empty. Before, the mutation
+  replaced it with the generated default, so an update through GraphQL
+  blanked it. It is still not a field of the GraphQL type. Studio's model
+  specs mark `encrypted: true` fields, so Studio seals a value before it
+  stores it.
+
 - **A data model may be called `Post`, `Route`, `Get`, `Put`, `Delete` or
   `Patch`.** Those are also dartvel_core's HTTP annotations (and `Route` is
   Flutter's), and the generated client imported the framework unprefixed

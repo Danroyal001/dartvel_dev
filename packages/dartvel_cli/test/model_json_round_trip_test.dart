@@ -226,7 +226,9 @@ void main() {
       final String asked = before(field, 'Post.save(');
       // Ownership is judged on what exists, as the admin judges it: the
       // arguments must not be able to make somebody else's record editable.
-      expect(asked, contains("Post.find('\${candidate.id}')"));
+      // Found by the key argument, before the candidate is built, because a
+      // write-only field left out keeps the stored record's value.
+      expect(asked, contains("Post.find('\${args['id']}')"));
       expect(
         asked,
         contains("DVGraphQL.authorizeModel('Post.update', "

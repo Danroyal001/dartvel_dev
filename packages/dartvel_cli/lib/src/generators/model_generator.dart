@@ -2131,6 +2131,7 @@ class ModelGenerator {
                     name: f['name']!,
                     type: f['type']!,
                     sensitive: sensitiveFieldNames.contains(f['name']),
+                    encrypted: encryptedFieldNames.contains(f['name']),
                     options:
                         studioEnums[f['type']!.replaceAll('?', '').trim()],
                     relation: dvStudioRelationOf(
@@ -2159,7 +2160,7 @@ class ModelGenerator {
             "    table: '$tableName',\n"
             "    key: '$keyField',\n"
             '    fields: <DVStudioFieldSpec>[\n'
-            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}${dvStudioFieldRulesSource(fieldRules[f['name']])}),\n").join()}'
+            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${encryptedFieldNames.contains(f['name']) ? ', encrypted: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}${dvStudioFieldRulesSource(fieldRules[f['name']])}),\n").join()}'
             '    ],\n'
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
@@ -2479,10 +2480,27 @@ class ModelGenerator {
         sb.writeln(
           '  registerDVModelFormFields<$className>(const <String>{$formFieldNames});',
         );
+        // The sensitive fields left off that list are on the form all the
+        // same, as write-only inputs: obscured, never prefilled, set when
+        // something is typed and kept as stored when nothing is -- a
+        // password field, which is what a sensitive field is to a form.
+        final writeOnlyFieldNames = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) =>
+                sensitiveFieldNames.contains(name) &&
+                !sensitiveFormFields.contains(name))
+            .map((String name) => "'$name'")
+            .join(', ');
+        if (writeOnlyFieldNames.isNotEmpty) {
+          sb.writeln(
+            '  registerDVModelWriteOnlyFields<$className>(const <String>{$writeOnlyFieldNames});',
+          );
+        }
 
         // GraphQL: the generated API surface for this model. Sensitive fields
-        // stay out of the type, the resolvers, and the mutation arguments —
-        // GraphQL is a public API, so it reads through toPublicJson.
+        // stay out of the type and the resolvers -- GraphQL is a public API,
+        // so it reads through toPublicJson -- and are write-only arguments of
+        // the save mutation.
         if (keyField != null) {
           String sdlType(Map<String, String> f) {
             final base = f['type']!.replaceAll('?', '');
@@ -2559,8 +2577,12 @@ class ModelGenerator {
           sb.writeln('    },');
           sb.writeln('  ));');
 
-          // save<Model>: public fields as arguments; sensitive fields take
-          // their generated defaults rather than crossing the API.
+          // save<Model>: public fields as arguments. A sensitive field is a
+          // write-only argument, like a password field: optional, used when
+          // a value was sent, and otherwise the stored record's value -- or
+          // the generated default for a new one. It is never in the type, so
+          // no query reads it back. It used to take the default every time,
+          // which blanked it on every update.
           final constructorArgs = fields.map((Map<String, String> f) {
             final name = f['name']!;
             final type = f['type']!;
@@ -2571,7 +2593,14 @@ class ModelGenerator {
                 className: className,
                 enums: studioEnums,
               );
-              return '$name: $fallback';
+              final base = type.replaceAll('?', '').trim();
+              final sent = base == 'String'
+                  ? "args['$name'] is String && (args['$name'] as String).isNotEmpty"
+                  : "args['$name'] != null";
+              final kept = fallback == 'null'
+                  ? 'stored?.$name'
+                  : '(stored?.$name ?? $fallback)';
+              return "$name: $sent ? args['$name'] as $base : $kept";
             }
             return "$name: args['$name'] as $type";
           }).join(', ');
@@ -2582,18 +2611,24 @@ class ModelGenerator {
           for (final f in publicFields) {
             sb.writeln("      '${f['name']}': '${sdlType(f)}',");
           }
+          for (final f in fields) {
+            if (!sensitiveFieldNames.contains(f['name'])) continue;
+            final optional = sdlType(f).replaceAll('!', '');
+            sb.writeln("      '${f['name']}': '$optional',");
+          }
           sb.writeln("      'dvVersion': 'Int',");
           sb.writeln('    },');
           sb.writeln('    resolve: (args, parent) async {');
           // Runtime argument values: never const, whatever the source
           // class's constructor is.
-          sb.writeln('      final candidate = $className($constructorArgs);');
           // An update is asked about the stored record, not the arguments:
           // ownership is judged on what exists, so sending somebody else's
-          // value must not make their record editable.
+          // value must not make their record editable. Found first, because
+          // a write-only field nobody sent keeps its stored value.
           sb.writeln(
-            "      final stored = await $className.find('\${candidate.$keyField}');",
+            "      final stored = await $className.find('\${args['$keyField']}');",
           );
+          sb.writeln('      final candidate = $className($constructorArgs);');
           sb.writeln('      if (stored != null) {');
           sb.writeln(
             "        await DVGraphQL.authorizeModel('$className.update', resource: stored, $caller);",

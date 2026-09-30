@@ -36,8 +36,10 @@ class _Account {
   final String name;
   @DVModel.sensitiveField()
   final String secret;
+  @DVModel.sensitiveField(encrypted: true)
+  final String? taxNumber;
   final DateTime? joined;
-  const _Account({required this.rank, required this.id, required this.name, required this.secret, this.joined});
+  const _Account({required this.rank, required this.id, required this.name, required this.secret, this.taxNumber, this.joined});
 }
 ''');
   File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
@@ -86,6 +88,10 @@ void main() {
     expect(account,
         contains("DVStudioFieldSpec(name: 'secret', type: 'String', sensitive: true)"));
     expect(account, contains("DVStudioFieldSpec(name: 'joined', type: 'DateTime?')"));
+    // Studio writes a sensitive field without reading it, so it has to know
+    // which ones the model seals, or it would store one in the clear.
+    expect(account,
+        contains("DVStudioFieldSpec(name: 'taxNumber', type: 'String?', sensitive: true, encrypted: true)"));
 
     final String note = spec(pages, 'Note');
     // No String field: the first field is the key, as the model's own.
@@ -113,6 +119,14 @@ void main() {
     expect(
       account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'secret').sensitive,
       isTrue,
+    );
+    expect(
+      account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'taxNumber').encrypted,
+      isTrue,
+    );
+    expect(
+      account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'secret').encrypted,
+      isFalse,
     );
   });
 
