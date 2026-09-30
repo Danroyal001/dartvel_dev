@@ -49,18 +49,21 @@ DVStudioSection dvWorkflowStudioSection({
   DVFunctionStore? store,
   DVCodeFunctions? written,
 }) {
-  return DVStudioSection(
+  return DVStudioSection.opening(
     id: side == DVWorkflowSide.backend ? 'functions' : 'frontend',
     label: side.label,
     icon: side == DVWorkflowSide.backend
         ? DVStudioIcons.workflows
         : Icons.touch_app_outlined,
-    build: (BuildContext context) => _DVStudioWorkflowsSection(
+    build: (BuildContext context, DVStudioSelection selection) =>
+        _DVStudioWorkflowsSection(
       key: ValueKey<String>('dv-studio-workflows-${side.name}'),
       palette: palette,
       side: side,
       store: store ?? const DVWorkflowStore(),
       written: written,
+      open: selection.object,
+      onSelect: (String name) => selection.select?.call(name),
     ),
   );
 }
@@ -73,12 +76,21 @@ class _DVStudioWorkflowsSection extends StatefulWidget {
   final DVFunctionStore store;
   final DVCodeFunctions? written;
 
+  /// The function the address names, opened once the names are read: a
+  /// function cannot be found before the list of them is known.
+  final String? open;
+
+  /// Called with the function a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
+
   const _DVStudioWorkflowsSection({
     super.key,
     required this.palette,
     required this.side,
     required this.store,
     this.written,
+    this.open,
+    this.onSelect,
   });
 
   @override
@@ -106,8 +118,23 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadNames());
+    unawaited(_loadNames().then((_) {
+      final String? open = widget.open;
+      if (open != null && mounted) unawaited(_open(open, userChose: false));
+    }));
     unawaited(_loadWritten());
+  }
+
+  @override
+  void didUpdateWidget(_DVStudioWorkflowsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another function. Read again rather than opening
+    // from the list already held: a function deployed since this section
+    // was built is not in it, and the address is not the thing to argue
+    // with.
+    if (widget.open != oldWidget.open && widget.open != null) {
+      unawaited(_loadNames().then((_) => _open(widget.open!, userChose: false)));
+    }
   }
 
   @override
@@ -153,7 +180,11 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     }
   }
 
-  Future<void> _open(String name) async {
+  /// [userChose] says the person asked for this function rather than the
+  /// address naming it, which is the difference between putting the name in
+  /// the address and reading it from there.
+  Future<void> _open(String name, {bool userChose = true}) async {
+    if (userChose) widget.onSelect?.call(name);
     // A load that threw used to leave the panel reading "No function open"
     // beside a list with that very function in it, so a document that will
     // not parse was indistinguishable from a tap that missed. Found while

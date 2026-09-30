@@ -595,12 +595,33 @@ class DVStudioApp extends StatefulWidget {
     super.key,
     required this.client,
     this.title = 'Studio',
+    this.mount,
+    this.screen,
+    this.object,
     this.location,
     this.open,
+    this.onSelect,
   });
 
   final DVStudioClient client;
   final String title;
+
+  /// The mount Studio is served at, `/__studio`, with no trailing slash.
+  ///
+  /// The address alone no longer says where the mount ends: `<mount>` and
+  /// `<mount>/<screen>` and `<mount>/<screen>/<object>` are all Studio,
+  /// and only the route knows which part of the path the mount is. Worked
+  /// out from the address when the caller does not say, which is what a
+  /// build served on its own under a directory has to do.
+  final String? mount;
+
+  /// The screen the address names. Null for a caller that keeps the
+  /// selection in the app rather than in the address.
+  final String? screen;
+
+  /// What the address names inside [screen]: a page's route, a model's name,
+  /// a function's.
+  final String? object;
 
   /// The address the app was opened at; the browser's by default. At
   /// `<mount>/login` the app is Studio's sign-in.
@@ -608,6 +629,10 @@ class DVStudioApp extends StatefulWidget {
 
   /// Loads a path from the server as a page; a full navigation by default.
   final void Function(String path)? open;
+
+  /// Called when the person chooses another screen or another object, so
+  /// that the address can follow them.
+  final void Function(String screen, String? object)? onSelect;
 
   @override
   State<DVStudioApp> createState() => _DVStudioAppState();
@@ -624,10 +649,12 @@ class _DVStudioAppState extends State<DVStudioApp> {
   bool get _settingUp =>
       _here.path.endsWith('/setup') || _here.path.endsWith('/setup/');
 
-  /// The mount, from the address of its sign-in, its setup or a page:
+  /// The mount: the route's, or worked out from the address of its sign-in,
+  /// its setup or a page, which is what a build served on its own has.
   /// `/__studio/login` and `/__studio/setup` are both `/__studio`.
-  String get _mount {
-    final String path = _here.path;
+  String get _mount => widget.mount ?? _mountFromAddress(_here.path);
+
+  static String _mountFromAddress(String path) {
     for (final String page in const <String>[
       '/login',
       '/login/',
@@ -721,6 +748,9 @@ class _DVStudioAppState extends State<DVStudioApp> {
                       mount: _mount,
                       open: widget.open ?? dvOpenUrl,
                     ),
+                    selected: widget.screen,
+                    object: widget.object,
+                    onSelect: widget.onSelect,
                   ),
                 )
               : DVStudioSignInScreen(
@@ -972,11 +1002,17 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
 
 /// Data: every data model, compiled or designed in Studio, its records, and
 /// the designer that makes and changes one.
-DVStudioSection dvStudioDataSection(DVStudioClient client) => DVStudioSection(
+DVStudioSection dvStudioDataSection(DVStudioClient client) =>
+    DVStudioSection.opening(
       id: 'models',
       label: 'Data',
       icon: Icons.table_chart_outlined,
-      build: (BuildContext context) => DVStudioModelsSection(client: client),
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioModelsSection(
+        client: client,
+        model: selection.object,
+        onSelect: (String model) => selection.select?.call(model),
+      ),
     );
 
 /// Site map: every route the site answers, compiled and stored -- the list
@@ -1290,9 +1326,21 @@ class _DVStudioTable extends StatelessWidget {
 
 /// Every model the backend declares, a model's records, and a record's form.
 class DVStudioModelsSection extends StatefulWidget {
-  const DVStudioModelsSection({super.key, required this.client});
+  const DVStudioModelsSection({
+    super.key,
+    required this.client,
+    this.model,
+    this.onSelect,
+  });
 
   final DVStudioClient client;
+
+  /// The model the address names, opened once the catalog is read: a model
+  /// cannot be found before the list of them is known.
+  final String? model;
+
+  /// Called with the model a person chose, so the address can follow.
+  final void Function(String model)? onSelect;
 
   @override
   State<DVStudioModelsSection> createState() => _DVStudioModelsSectionState();
@@ -1319,9 +1367,24 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadModels());
+    unawaited(_loadModels(select: widget.model));
   }
 
+  @override
+  void didUpdateWidget(DVStudioModelsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another model. Read again rather than opening
+    // from the list already held: a model published since this section was
+    // built is not in it, and the address is not the thing to argue with.
+    if (widget.model != oldWidget.model) {
+      unawaited(_loadModels(select: widget.model));
+    }
+  }
+
+  /// [select] is the model to open once the catalog is read: named by the
+  /// address, or the one already open. A name the catalog does not have
+  /// falls back to the first model there is, which is what a person who
+  /// asked for a model this project does not have is shown.
   Future<void> _loadModels({String? select}) async {
     try {
       final ({List<DVStudioModel> models, bool sourceWritable}) catalog =
@@ -1350,6 +1413,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       });
 
   Future<void> _open(DVStudioModel model, {bool userChose = false}) async {
+    if (userChose) widget.onSelect?.call(model.model);
     setState(() {
       _model = model;
       _records = null;
