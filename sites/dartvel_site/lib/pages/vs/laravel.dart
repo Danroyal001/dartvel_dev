@@ -53,7 +53,7 @@ Widget _vsLaravelPage(BuildContext context) => const SingleChildScrollView(
               columns: <String>['', 'Laravel', 'Dartvel'],
               rows: <List<String>>[
                 <String>['Data models', 'Eloquent', '@DVModel: table, typed client, form, admin and a public page per record from one class'],
-                <String>['Migrations', 'php artisan make:migration, written by hand, then migrate', 'Generated from the model. SQLite is migrated on start; PostgreSQL and MySQL with dartvel db migrate'],
+                <String>['Migrations', 'php artisan make:migration, written by hand, then migrate', 'Generated from the model. SQLite is migrated on start; PostgreSQL and MySQL with `dartvel db migrate`'],
                 <String>['CLI', 'artisan', 'dartvel'],
                 <String>['Queues and jobs', 'Queues with delays, retries, backoff, unique jobs and batches; Horizon', 'DV.Jobs, DV.Queues, @DVJob: priorities, retries and dead letters on seven adapters. No delayed jobs, growing backoff or unique jobs yet'],
                 <String>['Scheduling', 'Task scheduling', '@DVBackendCron on the server, @DVClientCron in the app'],
