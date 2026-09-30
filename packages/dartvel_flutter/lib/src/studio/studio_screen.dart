@@ -182,6 +182,14 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             open: _component,
           ),
         ),
+        // Keys the application answers, set without code.
+        DVStudioSection(
+          id: 'shortcuts',
+          label: 'Shortcuts',
+          icon: Icons.keyboard_outlined,
+          build: (BuildContext context) =>
+              DVStudioShortcutsSection(store: widget.store),
+        ),
         if (widget.flags case final DVFlags flags)
           DVStudioSection(
             id: 'flags',
