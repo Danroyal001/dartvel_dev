@@ -10,6 +10,18 @@ Widget _linksPage(BuildContext context) => DVBox.list(<Widget>[
         child: const DVText('About us'),
       ),
       // docs:end
+      // docs:start routing-navlink-custom
+      DVNavLink(
+        to: DVRoutes.about,
+        preview: DVLinkPreview.widget(
+          const Padding(
+            padding: .all(16),
+            child: DVText('Meet the people building our app.'),
+          ),
+        ),
+        child: const DVText('About us'),
+      ),
+      // docs:end
       // docs:start routing-navlink-options
       DVNavLink(
         to: DVRoutes.blog(id: '42'),

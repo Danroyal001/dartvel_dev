@@ -1364,6 +1364,18 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '  child: const DVText(\'Dartvel on pub.dev\'),',
     '),',
   ],
+  'routing-navlink-custom': <String>[
+    'DVNavLink(',
+    '  to: DVRoutes.about,',
+    '  preview: DVLinkPreview.widget(',
+    '    const Padding(',
+    '      padding: .all(16),',
+    '      child: DVText(\'Meet the people building our app.\'),',
+    '    ),',
+    '  ),',
+    '  child: const DVText(\'About us\'),',
+    '),',
+  ],
   'routing-nested-layout': <String>[
     '// lib/pages/blog/_layout.dart wraps the pages under /blog,',
     '// inside the root layout.',
