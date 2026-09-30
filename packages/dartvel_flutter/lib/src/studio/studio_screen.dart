@@ -616,11 +616,34 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     }
     final bool command = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
     if (command &&
         HardwareKeyboard.instance.isAltPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyK &&
-        (ModalRoute.of(context)?.isCurrent ?? true)) {
+        event.logicalKey == LogicalKeyboardKey.keyK) {
       unawaited(_makeComponent());
+      return true;
+    }
+    // Ctrl+S (Cmd+S): deploy, or save the draft -- Power Apps' save, and
+    // what every editor's Ctrl+S is, even while typing.
+    if (command &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyS) {
+      if (!_controller!.readOnly) unawaited(_publish());
+      return true;
+    }
+    // Shift+0 and Shift+1, Figma's 100% and zoom to fit; not while typing,
+    // where they are a ) and a !.
+    final BuildContext? focused = FocusManager.instance.primaryFocus?.context;
+    final bool typing = focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null);
+    if (!command &&
+        !typing &&
+        HardwareKeyboard.instance.isShiftPressed &&
+        (event.logicalKey == LogicalKeyboardKey.digit0 ||
+            event.logicalKey == LogicalKeyboardKey.digit1)) {
+      setState(() =>
+          _zoom = event.logicalKey == LogicalKeyboardKey.digit0 ? 1.0 : null);
       return true;
     }
     if (!command || event.logicalKey != LogicalKeyboardKey.backslash) {
