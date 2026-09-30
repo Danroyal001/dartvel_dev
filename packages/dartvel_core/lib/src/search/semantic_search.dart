@@ -865,11 +865,18 @@ class DVSemanticIndex<T> {
 
   /// Searches the index. [where] holds conditions on [attributesOf]'s values,
   /// pushed into the vector query where the adapter can filter.
+  ///
+  /// [minScore] is the least cosine a semantic match may have. Everything
+  /// that shares a word with the query is at some positive angle, so without
+  /// one a query about one record comes back with the rest trailing after
+  /// it. In hybrid mode it drops only the semantic tail: what the keyword
+  /// ranking found stays.
   Future<DVSemanticPage<T>> query(
     String text, {
     DVSearchMode mode = DVSearchMode.keyword,
     int limit = 10,
     Map<String, String> where = const <String, String>{},
+    double minScore = 0,
   }) async {
     if (limit < 1) throw ArgumentError.value(limit, 'limit', 'must be positive');
     if (where.isNotEmpty && attributesOf == null) {
@@ -880,9 +887,9 @@ class DVSemanticIndex<T> {
       case DVSearchMode.keyword:
         return DVSemanticPage<T>(hits: await _keywordHits(text, limit, where));
       case DVSearchMode.semantic:
-        return _semantic(text, limit, where);
+        return _semantic(text, limit, where, minScore);
       case DVSearchMode.hybrid:
-        return _hybrid(text, limit, where);
+        return _hybrid(text, limit, where, minScore);
     }
   }
 
@@ -960,8 +967,8 @@ class DVSemanticIndex<T> {
     return hits;
   }
 
-  Future<DVSemanticPage<T>> _semantic(
-      String text, int limit, Map<String, String> where) async {
+  Future<DVSemanticPage<T>> _semantic(String text, int limit,
+      Map<String, String> where, double minScore) async {
     await _open();
     final String serving = _active!;
     final DVEmbedder? using = _embedderFor(serving);
@@ -999,7 +1006,7 @@ class DVSemanticIndex<T> {
       for (final DVVectorMatch match in matches) {
         // At no angle or facing away is not a match. Matches arrive nearest
         // first, so nothing after this one is either.
-        if (match.score <= 0) {
+        if (match.score <= 0 || match.score < minScore) {
           exhausted = true;
           break;
         }
@@ -1042,11 +1049,11 @@ class DVSemanticIndex<T> {
     return DVSemanticPage<T>(hits: hits, bounded: bounded, generation: serving);
   }
 
-  Future<DVSemanticPage<T>> _hybrid(
-      String text, int limit, Map<String, String> where) async {
+  Future<DVSemanticPage<T>> _hybrid(String text, int limit,
+      Map<String, String> where, double minScore) async {
     final List<DVSemanticHit<T>> byKeyword =
         await _keywordHits(text, limit * 2, where);
-    final DVSemanticPage<T> bySemantic = await _semantic(text, limit * 2, where);
+    final DVSemanticPage<T> bySemantic = await _semantic(text, limit * 2, where, minScore);
 
     // Reciprocal rank fusion: the two rankings combined by position rather
     // than by score, since a keyword score and a cosine are not on one scale.

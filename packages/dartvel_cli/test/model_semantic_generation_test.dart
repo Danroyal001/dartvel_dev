@@ -120,6 +120,14 @@ void semanticSurfaceTests() {
     // useSemanticSearch -- or by a process with no worker -- was never
     // found, and the model had no member to say "embed what is stored".
     expect(content, contains('static Future<int> semanticBackfill('));
+  });
+
+  test('semanticSearch takes the floor below which a match is not one',
+      () async {
+    final String content = await generated();
+    expect(content, contains('double minScore = 0,'));
+    expect(content,
+        contains('index.query(text, mode: mode, limit: limit, minScore: minScore)'));
     expect(content, contains('index.backfill(await Article.all(), complete: true)'));
   });
 }
