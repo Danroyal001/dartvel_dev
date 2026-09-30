@@ -960,8 +960,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
 
 /// The .htaccess dartvel build web writes, line by line.
 const List<String> kApacheConfig = <String>[
-  '# Written by dartvel build web. Edits are kept: this file is only created when',
-  '# it is absent.',
+  '# Written by dartvel build web. Rewritten on every build while this line is',
+  '# here. To keep your own edits, delete this line: the build then leaves the',
+  '# file alone. Or put your own in the project\'s web/.htaccess, which the build',
+  '# copies in place of this one.',
   '',
   '<IfModule mod_rewrite.c>',
   '  RewriteEngine On',

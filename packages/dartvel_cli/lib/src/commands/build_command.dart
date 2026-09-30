@@ -3420,14 +3420,10 @@ class BuildCommand extends Command<void> {
       // the last build. The generated router's own comment claimed this was
       // written and nothing wrote it, so a build uploaded to Apache answered
       // the host's 404 page.
-      final htaccess = File(p.join(web.path, '.htaccess'));
-      // Overwritten every build: build/web is output, and "only when absent"
-      // meant a fix to the generated file never reached anyone who had built
-      // once -- which is how a bad cache rule survived being fixed. A project
-      // supplies its own by putting the file in web/, which Flutter copies.
-      if (!File(p.join(root, 'web', '.htaccess')).existsSync()) {
-        htaccess.writeAsStringSync(dvApacheConfig());
-      }
+      // Dartvel's own copy is rewritten every build, so a fix to the rules
+      // reaches a project that has built before; a project's web/.htaccess,
+      // or an output copy whose marker line was deleted, is left alone.
+      dvWriteApacheConfig(web, projectRoot: root);
       Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
     } else {
       Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
@@ -3788,14 +3784,10 @@ class BuildCommand extends Command<void> {
       // the last build. The generated router's own comment claimed this was
       // written and nothing wrote it, so a build uploaded to Apache answered
       // the host's 404 page.
-      final htaccess = File(p.join(web.path, '.htaccess'));
-      // Overwritten every build: build/web is output, and "only when absent"
-      // meant a fix to the generated file never reached anyone who had built
-      // once -- which is how a bad cache rule survived being fixed. A project
-      // supplies its own by putting the file in web/, which Flutter copies.
-      if (!File(p.join(root, 'web', '.htaccess')).existsSync()) {
-        htaccess.writeAsStringSync(dvApacheConfig());
-      }
+      // Dartvel's own copy is rewritten every build, so a fix to the rules
+      // reaches a project that has built before; a project's web/.htaccess,
+      // or an output copy whose marker line was deleted, is left alone.
+      dvWriteApacheConfig(web, projectRoot: root);
     }
     Logger.log('   Wrote dartvel_routes.json for ${routes.length} routes; '
         'the server renders each page on request.');
