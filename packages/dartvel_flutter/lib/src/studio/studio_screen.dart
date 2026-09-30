@@ -1731,7 +1731,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints box) {
           final double fit =
-              ((box.maxWidth - (_phone ? 24 : 48)) / _device.width)
+              ((box.maxWidth - (_phone ? 24 : 96)) / _device.width)
                   .clamp(0.25, 1.0);
           final DVStudioSitePage? compiled = _compiled;
           if (_live != null && compiled != null && !_overriding) {
