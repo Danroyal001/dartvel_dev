@@ -20,6 +20,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' show sha256;
 
+import '../database/adapter.dart';
 import '../database/records.dart';
 import 'studio_api.dart' show dvStudioPagesShape, dvStudioPagesTable;
 import 'studio_site.dart' show dvStudioComponentsPrefix;
@@ -247,7 +248,7 @@ const DVRecordShape _seededShape = DVRecordShape(
 
 /// Seeds the documents a build bundled from the project's studio/ files --
 /// [documents], each a document's JSON -- into the store Studio's pages are
-/// kept in, [records], and returns how many it wrote.
+/// kept in, in [database], and returns how many it wrote.
 ///
 /// A release ships what was committed, so a server started on an empty
 /// database has what the repository holds. A document already seeded at
@@ -255,9 +256,10 @@ const DVRecordShape _seededShape = DVRecordShape(
 /// -- and a newer version replaces the stored one only when nobody changed
 /// that in Studio since it was seeded.
 Future<int> dvSeedStudioDocuments(
-  DVRecordAdapter records,
+  DVDatabaseAdapter database,
   List<String> documents,
 ) async {
+  final DVRecordAdapter records = DVRecordAdapter.over(database);
   await records.ensure(dvStudioPagesShape);
   await records.ensure(_seededShape);
   String canonical(Object? json) => jsonEncode(json);
