@@ -31,6 +31,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Signals, derived signals and globals', 'App'),
   DocsPageInfo(DVRoutes.docsaccessibility, 'Accessibility',
       'Build-time audit, switch control and remote keys', 'App'),
+  DocsPageInfo(DVRoutes.docsshortcuts, 'Keyboard shortcuts',
+      'Page and app shortcuts, safe typing and a shortcut sheet', 'App'),
   DocsPageInfo(DVRoutes.docslocalization, 'Localization',
       'Typed translation keys, plurals and ARB files', 'App'),
   DocsPageInfo(DVRoutes.docsdevices, 'Devices and desktop',
