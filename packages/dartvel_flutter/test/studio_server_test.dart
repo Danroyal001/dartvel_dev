@@ -531,6 +531,47 @@ void main() {
       expect(find.text('Ada Lovelace'), findsWidgets);
     });
 
+    testWidgets('a sensitive field is a write-only input on the record form',
+        (WidgetTester tester) async {
+      // Like a password field: it can set a value, it never shows one.
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_host(client));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-section-models')));
+      await tester.pumpAndSettle();
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-record-ada')));
+      await tester.pumpAndSettle();
+
+      final Finder password = find.descendant(
+        of: find.byKey(const ValueKey<String>('dv-studio-field-password')),
+        matching: find.byType(EditableText),
+      );
+      expect(password, findsOneWidget);
+      final EditableText input = tester.widget<EditableText>(password);
+      expect(input.obscureText, isTrue);
+      expect(input.controller.text, isEmpty);
+      expect(find.text('Leave empty to keep the current value'),
+          findsOneWidget);
+      expect(find.text('Some sensitive fields are not shown or written here.'),
+          findsNothing);
+
+      await tester.enterText(password, 'a-new-secret');
+      await tester
+          .tap(find.byKey(const ValueKey<String>('dv-studio-record-save')));
+      await tester.pumpAndSettle();
+
+      final _Call put =
+          server.calls.lastWhere((_Call c) => c.method == 'PUT');
+      expect(put.body, <String, Object?>{
+        'version': 1,
+        'values': <String, Object?>{'password': 'a-new-secret'},
+      });
+    });
+
     testWidgets('a date is shown as a date, not as epoch milliseconds',
         (WidgetTester tester) async {
       // Order.placedAt came out as 1789650000000: an int holding a moment is

@@ -688,6 +688,7 @@ export 'package:dartvel_core/dartvel.dart'
         dvModelReadCarriers,
         dvModelSerializers,
         dvModelFormFields,
+        dvModelWriteOnlyFields,
         // Documentation: the document `dartvel docs` writes and the app
         // draws. Reached from here because an application that hosts the
         // documentation under a mount of its own builds pages from it.
@@ -711,6 +712,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelFactory,
         registerDVModelSerializer,
         registerDVModelFormFields,
+        registerDVModelWriteOnlyFields,
         dvDocsNavigation,
         dvDocsPayloadFile;
 export 'package:go_router/go_router.dart';
@@ -983,6 +985,7 @@ class DVModifier {
   final bool inputValue;
   final String? inputLabelValue;
   final String? inputHintValue;
+  final String? inputHelperValue;
   final bool inputObscureText;
   final ValueChanged<String>? inputChanged;
 
@@ -1031,6 +1034,7 @@ class DVModifier {
     this.inputValue = false,
     this.inputLabelValue,
     this.inputHintValue,
+    this.inputHelperValue,
     this.inputObscureText = false,
     this.inputChanged,
   });
@@ -1080,6 +1084,7 @@ class DVModifier {
         inputValue = false,
         inputLabelValue = null,
         inputHintValue = null,
+        inputHelperValue = null,
         inputObscureText = false,
         inputChanged = null;
 
@@ -1129,6 +1134,7 @@ class DVModifier {
     bool? inputValue,
     String? inputLabelValue,
     String? inputHintValue,
+    String? inputHelperValue,
     bool? inputObscureText,
     ValueChanged<String>? inputChanged,
   }) {
@@ -1205,6 +1211,7 @@ class DVModifier {
       inputValue: inputValue ?? this.inputValue,
       inputLabelValue: inputLabelValue ?? this.inputLabelValue,
       inputHintValue: inputHintValue ?? this.inputHintValue,
+      inputHelperValue: inputHelperValue ?? this.inputHelperValue,
       inputObscureText: inputObscureText ?? this.inputObscureText,
       inputChanged: inputChanged ?? this.inputChanged,
     );
@@ -1531,6 +1538,7 @@ class DVModifier {
         inputValue: other.inputValue || inputValue,
         inputLabelValue: other.inputLabelValue ?? inputLabelValue,
         inputHintValue: other.inputHintValue ?? inputHintValue,
+        inputHelperValue: other.inputHelperValue ?? inputHelperValue,
         inputObscureText: other.inputObscureText || inputObscureText,
         inputChanged: other.inputChanged ?? inputChanged,
       );
@@ -1557,9 +1565,12 @@ class DVModifier {
   DVModifier onPressed(VoidCallback callback) =>
       _copyWith(onTapCallback: callback);
 
+  /// An editable text field. [helper] is shown under it at all times, where
+  /// [hint] shows only while it is empty and focused.
   DVModifier input({
     String? label,
     String? hint,
+    String? helper,
     bool obscureText = false,
     ValueChanged<String>? onChanged,
   }) =>
@@ -1567,6 +1578,7 @@ class DVModifier {
         inputValue: true,
         inputLabelValue: label,
         inputHintValue: hint,
+        inputHelperValue: helper,
         inputObscureText: obscureText,
         inputChanged: onChanged,
       );
@@ -3087,6 +3099,7 @@ class _DVInputFieldState extends State<_DVInputField> {
       decoration: InputDecoration(
         labelText: widget.modifier.inputLabelValue,
         hintText: widget.modifier.inputHintValue,
+        helperText: widget.modifier.inputHelperValue,
       ),
       onChanged: widget.modifier.inputChanged,
     );
@@ -3536,8 +3549,19 @@ class _DVFormState<T> extends State<DVForm<T>> {
   /// what its serializer returns, as it always did.
   bool _shows(String field) {
     final Set<String>? shown = dvModelFormFields[T];
-    return shown == null || shown.contains(field);
+    return shown == null || shown.contains(field) || _writeOnly(field);
   }
+
+  /// Whether [field] is write-only: a `@DVModel.sensitiveField()`, drawn like
+  /// a password field. Its input is obscured and always starts empty, so the
+  /// value the model holds is never on screen; something typed into it is
+  /// saved, and nothing typed keeps what the record holds.
+  bool _writeOnly(String field) =>
+      dvModelWriteOnlyFields[T]?.contains(field) ?? false;
+
+  /// Bumped on every save and reset, so a write-only input is rebuilt empty
+  /// rather than keeping what was typed into it on screen.
+  int _writeOnlyGeneration = 0;
 
   T _instantiateDefault() {
     final model = createDVModel<T>();
@@ -3577,6 +3601,28 @@ class _DVFormState<T> extends State<DVForm<T>> {
         // field, a sensitive one included. A field the model keeps out of
         // forms gets no input, so its value is neither drawn nor prefilled.
         if (!_shows(key)) return;
+        if (_writeOnly(key)) {
+          // Never the stored value, and never read back into the input:
+          // it starts empty on every build of a new generation.
+          fields.add(
+            KeyedSubtree(
+              key: ValueKey<String>('dv-form-$key-$_writeOnlyGeneration'),
+              child: const DVText('').modifier(
+                const DVModifier().input(
+                  label: key.toUpperCase(),
+                  helper: widget.initialValue == null
+                      ? null
+                      : 'Leave empty to keep the current value',
+                  obscureText: true,
+                  onChanged: (nextValue) {
+                    setState(() => _fieldValues[key] = nextValue);
+                  },
+                ),
+              ),
+            ),
+          );
+          return;
+        }
         final initialText = _fieldValues[key] ?? value?.toString() ?? '';
         fields.add(
           DVText(initialText).modifier(
@@ -3645,6 +3691,9 @@ class _DVFormState<T> extends State<DVForm<T>> {
       // of it keeps the value the model already holds -- an edit that
       // never showed a password hash neither blanks nor replaces it.
       if (!_shows(entry.key)) continue;
+      // A write-only field left empty keeps the value the model holds, as a
+      // password field left empty keeps the password.
+      if (_writeOnly(entry.key) && entry.value.isEmpty) continue;
       json[entry.key] = entry.value;
     }
     try {
@@ -3691,6 +3740,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
       formValue = value;
       _initialValue = value;
       _fieldValues.clear();
+      _writeOnlyGeneration++;
     });
     widget.onSubmit?.call(value);
   }
@@ -3699,6 +3749,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
     setState(() {
       formValue = _initialValue;
       _fieldValues.clear();
+      _writeOnlyGeneration++;
     });
   }
 }
