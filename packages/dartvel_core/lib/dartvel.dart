@@ -2,8 +2,8 @@ library dartvel_core;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
