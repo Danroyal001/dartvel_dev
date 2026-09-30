@@ -808,16 +808,23 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                       child: DVStudioStyle.caption(widget.placeholder!,
                           color: DVStudioStyle.faint),
                     ),
-                  EditableText(
-                    controller: _text,
-                    focusNode: _focus,
-                    obscureText: widget.obscureText,
-                    style: const TextStyle(
-                        fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
-                    cursorColor: DVStudioStyle.accent,
-                    backgroundCursorColor: const Color(0xFFCCCCCC),
-                    onChanged: widget.onChanged,
-                    onSubmitted: widget.onSubmitted,
+                  // Enabled, said out loud: on the web the engine draws a
+                  // text field as an <input> and disables it unless the
+                  // field says it is enabled, and every key typed into
+                  // Studio was lost. Material's TextField says so itself.
+                  Semantics(
+                    enabled: true,
+                    child: EditableText(
+                      controller: _text,
+                      focusNode: _focus,
+                      obscureText: widget.obscureText,
+                      style: const TextStyle(
+                          fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
+                      cursorColor: DVStudioStyle.accent,
+                      backgroundCursorColor: const Color(0xFFCCCCCC),
+                      onChanged: widget.onChanged,
+                      onSubmitted: widget.onSubmitted,
+                    ),
                   ),
                 ],
               ),
