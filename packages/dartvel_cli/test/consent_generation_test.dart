@@ -140,7 +140,7 @@ void main() {
       final Directory dir = project(_notTracking);
       await routes.generate(root_: dir.path);
       expect(router(dir),
-          contains('DVPageLifecycleHost(child: DVConsentBanner(child: overridable))'));
+          contains('DVPageLifecycleHost(child: DVConsentBanner(child: body))'));
     });
 
     test('is not on a page of an application with no analytics', () async {
