@@ -48,8 +48,11 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   ),
   (
     'Forms',
-    'DVForm<T>',
-    'Inputs, validation and error messages come from the model\'s fields.',
+    'Model.Form()',
+    'Article.Form() creates a record and article.Form() edits one, with an '
+        'input per field. Saving checks the rules each field declares with '
+        '@DVModel.validate. DVForm.builder lays it out with a typed getter per '
+        'field. Absent: validation messages shown beside the fields.',
   ),
   (
     'Backend',
@@ -71,7 +74,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
   (
     'Authentication',
     'Passkeys, SAML, LDAP, Web3',
-    'WebAuthn passkeys, SAML 2.0, LDAP and Sign-In with Ethereum. LDAP runs '
+    'Passwords, OAuth with PKCE, magic links, one-time codes, passkeys, SAML '
+        '2.0, LDAP and Sign-In with Ethereum. LDAP runs '
         'against a real server in CI. Absent: biometric sign-in.',
   ),
   (
@@ -86,12 +90,6 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     '`dartvel import openapi`',
     'Import an OpenAPI spec or a Postman collection as models and typed '
         'functions.',
-  ),
-  (
-    'Cache',
-    'Distributed cache',
-    'Keys spread across servers by rendezvous hashing. Adding a node moves '
-        'only that node\'s share of keys.',
   ),
   (
     'SEO',
@@ -127,7 +125,8 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Dartvel Studio',
     'Visual page builder',
     'Drag and drop, an inspector, undo and export to an ordinary @DVPage. '
-        'The workflow builder, Figma import, history and multi-user editing '
+        'Frontend and backend functions are built from steps, and data models '
+        'are designed in the browser. Figma import, history and multi-user editing '
         'are in the paid Pro tier.',
   ),
   (
@@ -177,9 +176,11 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Module Sources',
     '`dartvel add`',
-    'Present: `dartvel add` mounts a Dartvel project, and generates one from '
-        'an OpenAPI document or a GraphQL schema. Absent: every other '
-        'resolver, so a crate or an artifact is named and refused.',
+    'Present: `dartvel add` mounts a Dartvel project or wraps a Dart package '
+        'from pub, git or a path. It also generates one from an OpenAPI '
+        'document or a GraphQL schema, and carries npm, C, Rust, WebAssembly, '
+        'JVM and Swift sources to the targets each can reach. Absent: a .proto source, Node '
+        'on phones, and the JVM anywhere but Android.',
   ),
   (
     'Native Binding Graph',
@@ -193,6 +194,14 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Present: padding, corners, colour, type, shadows, blur and rotation on '
         'one DVModifier chain. Absent: hover, pressed, dark and breakpoint '
         'variants, and scale-valued padding and colour.',
+  ),
+  (
+    'Cache',
+    'DV.Cache',
+    'Present: get, set, has and delete with read-through, tags and stale '
+        'reads, on memory, a database, Redis or Memcached. Keys spread across '
+        'servers by rendezvous hashing. Absent: a cache shared between '
+        'a device and the server, and invalidation generated from model writes.',
   ),
   (
     'AI',
@@ -585,9 +594,10 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'File Storage',
-    'S3, Azure Blob, GCS',
-    'Present: one storage API over three object stores, run against Azurite '
-        'and fake-gcs-server in CI. Absent: a local disk adapter and streams.',
+    'Local disk, S3, Azure Blob, GCS',
+    'Present: one storage API over the local disk, S3, Azure Blob and GCS. '
+        'Azure and GCS run against Azurite and fake-gcs-server in CI. '
+        'Absent: putStream and getStream.',
   ),
   (
     'Generated Model Pages',
@@ -647,7 +657,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'App Store Deployment and Privacy Manifests',
     '`dartvel deploy --store`',
     'Present: `dartvel deploy --store` uploads an App Bundle to Play or an IPA to App '
-        'Store Connect. Absent: generated privacy manifests.',
+        'Store Connect. It drives the stores\' own tools. Absent: generated privacy '
+        'manifests, and an upload made from CI to a real store account.',
   ),
   (
     'Dartvel Cloud',
@@ -673,9 +684,9 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
-        Heading('Twenty-five shipped sections.', level: 1),
+        Heading('Twenty-four shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-seven more are partial, and each card says what is missing.',
+          'Seventy-eight more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
