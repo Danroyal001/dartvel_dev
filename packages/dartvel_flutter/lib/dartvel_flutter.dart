@@ -687,6 +687,7 @@ export 'package:dartvel_core/dartvel.dart'
         dvModelFactories,
         dvModelReadCarriers,
         dvModelSerializers,
+        dvModelFormFields,
         // Documentation: the document `dartvel docs` writes and the app
         // draws. Reached from here because an application that hosts the
         // documentation under a mount of its own builds pages from it.
@@ -709,6 +710,7 @@ export 'package:dartvel_core/dartvel.dart'
         registerDVModelReadCarrier,
         registerDVModelFactory,
         registerDVModelSerializer,
+        registerDVModelFormFields,
         dvDocsNavigation,
         dvDocsPayloadFile;
 export 'package:go_router/go_router.dart';
@@ -3521,6 +3523,17 @@ class _DVFormState<T> extends State<DVForm<T>> {
     _initialValue = formValue;
   }
 
+  /// Whether this form has an input for [field].
+  ///
+  /// A generated model registers the fields its form may show, which leaves
+  /// out every `@DVModel.sensitiveField()` not opted back in with
+  /// `showInForms: true`. A model registered by hand without that list shows
+  /// what its serializer returns, as it always did.
+  bool _shows(String field) {
+    final Set<String>? shown = dvModelFormFields[T];
+    return shown == null || shown.contains(field);
+  }
+
   T _instantiateDefault() {
     final model = createDVModel<T>();
     if (model == null) {
@@ -3555,6 +3568,10 @@ class _DVFormState<T> extends State<DVForm<T>> {
     final jsonMap = serializeDVModel<T>(formValue);
     if (jsonMap != null) {
       jsonMap.forEach((key, value) {
+        // The serializer is the model's internal one and carries every
+        // field, a sensitive one included. A field the model keeps out of
+        // forms gets no input, so its value is neither drawn nor prefilled.
+        if (!_shows(key)) return;
         final initialText = _fieldValues[key] ?? value?.toString() ?? '';
         fields.add(
           DVText(initialText).modifier(
@@ -3619,6 +3636,10 @@ class _DVFormState<T> extends State<DVForm<T>> {
     }
     final json = Map<String, Object?>.of(serialized);
     for (final entry in _fieldValues.entries) {
+      // Only a field the form shows takes a typed value. A field kept out
+      // of it keeps the value the model already holds -- an edit that
+      // never showed a password hash neither blanks nor replaces it.
+      if (!_shows(entry.key)) continue;
       json[entry.key] = entry.value;
     }
     try {

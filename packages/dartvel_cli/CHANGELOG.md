@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **`Model.Form()` never shows a sensitive field.** The form drew an input
+  for every field the model's internal serializer carried, so a
+  `@DVModel.sensitiveField()` appeared on the generated form prefilled with
+  its value, while a `DVForm.builder` form hid it. The generated client now
+  registers the fields a form may show (`registerDVModelFormFields`), and the
+  form neither draws, prefills nor accepts a value for any other: an edit
+  keeps the stored value as it was. `showInForms: true` still puts a field
+  back.
+
 - **The documentation site is off unless `pubspec.yaml` turns it on, and
   compiled when it is.** `dartvel.docs.enabled: true` makes a build compile
   `DVDocsApp` for `dartvel.docs.path` (default `/docs`) with the document

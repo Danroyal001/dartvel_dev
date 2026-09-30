@@ -1191,6 +1191,22 @@ Map<String, Object?>? serializeDVModel<T>(T model) {
   return serializer(model);
 }
 
+/// The fields a generated form may show for each model type.
+///
+/// The serializer a form reads is the model's internal one and carries every
+/// field, a `@DVModel.sensitiveField()` included, because it is also what
+/// persistence and sync use. A form must not render, prefill or accept a
+/// value for a sensitive field, so the generator registers the fields a form
+/// may show -- everything but the sensitive ones, unless a field opted back
+/// in with `@DVModel.sensitiveField(showInForms: true)` -- and the form keeps
+/// to that set.
+final Map<Type, Set<String>> dvModelFormFields = {};
+
+/// Registers the fields a generated form may show for a [T].
+void registerDVModelFormFields<T>(Iterable<String> fields) {
+  dvModelFormFields[T] = Set<String>.unmodifiable(fields);
+}
+
 /// Registers how a [T] is rebuilt from a JSON map.
 ///
 /// Serializing alone is one-way: a form can show a model's fields but cannot
