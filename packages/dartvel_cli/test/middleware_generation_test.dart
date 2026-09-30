@@ -103,6 +103,8 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // it is still a comment.
       expect(routes, contains('core.dvRunMiddlewares('));
       expect(routes, contains('mw.headers.forEach(response.headers.set)'));
+      // A refusal carries its own headers too: a 429 says when to come back.
+      expect(routes, contains('for (final MapEntry<String, String> h in mw.headers.entries) h.key: h.value'));
 
       // A route declaring nothing is not wrapped. Without this the test
       // would pass just as well if every route were guarded by an empty

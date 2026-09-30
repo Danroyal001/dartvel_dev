@@ -433,7 +433,13 @@ class JobGenerator {
     // by what it is rather than read: everything in it but this server
     // half is reached through the barrel, which exports dartvel_flutter.
     if (p.isWithin(clientDir, target)) {
-      if (p.basename(target) == 'jobs.g.dart') return null;
+      // The server halves: jobs, and the data models without their
+      // widgets (models_server.g.dart and the dartvel_server.dart barrel
+      // that exports it), written for a process with no Flutter.
+      if (const <String>{'jobs.g.dart', 'models_server.g.dart', 'dartvel_server.dart'}
+          .contains(p.basename(target))) {
+        return null;
+      }
       return '$uri, $generatedClient';
     }
     return _flutterReachedFrom(

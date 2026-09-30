@@ -6,6 +6,44 @@ import 'package:test/test.dart';
 
 void main() {
   group('CommonMiddleware.rateLimit', () {
+    test('a caller that has gone quiet is forgotten', () async {
+      // Every source that ever sent a request kept a list in memory for the
+      // life of the process. An attacker who rotates addresses grows that map
+      // without bound, which is a denial of service by the limiter itself.
+      DateTime now = DateTime.utc(2026, 9, 30, 12);
+      final middleware = CommonMiddleware.rateLimit(
+        maxRequests: 5,
+        window: const Duration(minutes: 1),
+        clock: () => now,
+      );
+      for (int i = 0; i < 500; i++) {
+        await middleware(_request(ip: '198.51.100.${i % 250}'), MiddlewareContext());
+        await middleware(_request(ip: '203.0.113.${i % 250}'), MiddlewareContext());
+      }
+      expect(dvRateLimitTrackedCallers(middleware), 500);
+
+      now = now.add(const Duration(minutes: 3));
+      await middleware(_request(ip: '192.0.2.1'), MiddlewareContext());
+      expect(dvRateLimitTrackedCallers(middleware), 1);
+    });
+
+    test('a refusal says when to try again', () async {
+      DateTime now = DateTime.utc(2026, 9, 30, 12);
+      final middleware = CommonMiddleware.rateLimit(
+        maxRequests: 1,
+        window: const Duration(minutes: 1),
+        clock: () => now,
+      );
+      await middleware(_request(ip: '203.0.113.20'), MiddlewareContext());
+      now = now.add(const Duration(seconds: 20));
+      final refused = MiddlewareContext();
+      await middleware(_request(ip: '203.0.113.20'), refused);
+
+      expect(refused.shouldContinue, isFalse);
+      // The first request leaves the window 40 seconds from now.
+      expect(refused.data['retryAfter'], 40);
+    });
+
     test('tracks clients by their connection, independently', () async {
       final middleware = CommonMiddleware.rateLimit(
         maxRequests: 1,
