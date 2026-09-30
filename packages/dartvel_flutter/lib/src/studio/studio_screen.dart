@@ -2285,7 +2285,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                         KeyedSubtree(
                           key: const ValueKey<String>('dv-studio-page-kind'),
                           child: _overriding || page.kind != DVStudioPageKind.code
-                              ? DVStudioStyle.badge('Override',
+                              ? DVStudioStyle.badge('Studio copy',
                                   tone: DVStudioStyle.warning)
                               : DVStudioStyle.badge('Code',
                                   tone: DVStudioStyle.muted),

@@ -110,7 +110,7 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.text('Override')),
+          matching: find.text('Studio copy')),
       findsOneWidget,
     );
     expect(
@@ -181,12 +181,12 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.byTooltip('Override')),
+          matching: find.byTooltip('Studio copy')),
       findsOneWidget,
     );
     expect(
       find.descendant(
-          of: _key('dv-studio-page-kind'), matching: find.text('Override')),
+          of: _key('dv-studio-page-kind'), matching: find.text('Studio copy')),
       findsOneWidget,
     );
     expect(find.text('Studio is serving this page'), findsOneWidget);

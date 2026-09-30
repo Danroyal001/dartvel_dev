@@ -2648,3 +2648,36 @@ Object? _parseProperty(DVStudioProperty property, String input) {
 /// palette's tap does.
 String dvStudioInsertTarget(DVStudioEditorController controller) =>
     _dvStudioInsertTarget(controller);
+
+/// What a field of an element is called for somebody who has never written
+/// code: the formula bar lists fields by these, where it listed `fontSize`
+/// and `crossAxis`.
+String dvStudioPlainFieldName(String name) =>
+    _dvStudioPlainNames[name] ??
+    _dvStudioLabels[name] ??
+    // `borderTopWidth` reads as "Border top width".
+    name
+        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
+            (Match m) => '${m[1]} ${m[2]!.toLowerCase()}')
+        .replaceFirstMapped(RegExp('^.'), (Match m) => m[0]!.toUpperCase());
+
+/// Names that need more than the inspector's label, which is read beside
+/// its group's heading and so can be one word.
+const Map<String, String> _dvStudioPlainNames = <String, String>{
+  'action': 'What a tap does',
+  'fontSize': 'Text size',
+  'fontWeight': 'Text weight',
+  'fontFamily': 'Font',
+  'color': 'Text colour',
+  'letterSpacing': 'Letter spacing',
+  'spacing': 'Gap between items',
+  'mainAxis': 'Spread items',
+  'crossAxis': 'Line items up',
+  'src': 'Picture address',
+  'alt': 'Picture description',
+  'rounded': 'Corner radius',
+  'borderWidth': 'Border width',
+  'borderColor': 'Border colour',
+  'align': 'Position',
+  'clip': 'Clip what overflows',
+};
