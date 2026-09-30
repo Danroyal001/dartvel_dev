@@ -836,7 +836,8 @@ class DVStudioCanvas extends StatefulWidget {
 
   /// The window's height, with [frame]: the page is laid out in a window
   /// this tall, inside its layouts, and scrolls inside it as it does on the
-  /// site. Without a frame the artboard is as tall as the page.
+  /// site; null for as tall as the canvas has room for. Without a frame the
+  /// artboard is as tall as the page.
   final double? viewportHeight;
 
   /// What the page is drawn inside: the layouts and shell its route draws
@@ -953,9 +954,13 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
         final DVPageDocument document = widget.controller.document;
         final String route = document.route.isEmpty ? 'Untitled' : document.route;
         final Widget Function(Widget content)? frame = widget.frame;
-        final double? windowHeight = widget.viewportHeight;
+        // Without a set height, as tall as the canvas has room for.
+        final double windowHeight = widget.viewportHeight ??
+            (constraints.maxHeight.isFinite
+                ? math.max(240, constraints.maxHeight - 72) / zoom
+                : 800);
         final Widget artboard;
-        if (frame != null && windowHeight != null) {
+        if (frame != null) {
           // The live route with the page's body editable in it: the page's
           // own layouts and shell, the application's theme, a window the
           // device's size. Laid out as the site lays it out, so what is on

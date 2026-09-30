@@ -1738,7 +1738,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             return DVStudioLivePage(
               page: _viewOf(compiled.path) ?? _live!,
               width: _device.width,
-              height: _device.height,
+              // Fitted, the window is as tall as the canvas has room for;
+              // at a set zoom it is the device's own height.
+              height: _zoom == null ? null : _device.height,
               zoom: _zoom,
               captureKey: _liveKey,
               location: compiled.path,
@@ -1758,7 +1760,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           return DVStudioCanvas(
             controller: controller,
             viewportWidth: _device.width,
-            viewportHeight: frame == null ? null : _device.height,
+            viewportHeight: _zoom == null ? null : _device.height,
             zoom: _zoom ?? fit,
             frame: frame,
             look: look,
