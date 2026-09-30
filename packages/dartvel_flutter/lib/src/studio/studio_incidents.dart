@@ -1273,20 +1273,24 @@ class _TextAreaState extends State<_TextArea> {
               ),
             SizedBox(
               width: double.infinity,
-              child: EditableText(
-                controller: _text,
-                focusNode: _focus,
-                maxLines: null,
-                minLines: 3,
-                keyboardType: TextInputType.multiline,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: DVStudioStyle.ink,
-                  height: 1.35,
+              // Enabled, said out loud: see DVStudioTextInput.
+              child: Semantics(
+                enabled: true,
+                child: EditableText(
+                  controller: _text,
+                  focusNode: _focus,
+                  maxLines: null,
+                  minLines: 3,
+                  keyboardType: TextInputType.multiline,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: DVStudioStyle.ink,
+                    height: 1.35,
+                  ),
+                  cursorColor: DVStudioStyle.accent,
+                  backgroundCursorColor: const Color(0xFFCCCCCC),
+                  onChanged: widget.onChanged,
                 ),
-                cursorColor: DVStudioStyle.accent,
-                backgroundCursorColor: const Color(0xFFCCCCCC),
-                onChanged: widget.onChanged,
               ),
             ),
           ],
