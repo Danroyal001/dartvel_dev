@@ -18,7 +18,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:ffi' show Abi;
+import 'dart:ffi' show Abi, DynamicLibrary;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -27,6 +27,7 @@ import 'package:path/path.dart' as p;
 
 import 'admin_mount.dart';
 import 'server_assets.dart';
+import 'server_compile.dart';
 
 export 'server_assets.dart' show DVAssetCompression, dvAssetCompression;
 
@@ -186,6 +187,7 @@ import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/asset_cache.dart';
 import 'package:dartvel_shelf/dartvel_shelf.dart' show embedNativeServerLibraryAt;
+import 'package:dartvel_shelf/loading_units.dart';
 
 import 'dartvel_backend_routes.g.dart' as gen;
 
@@ -200,6 +202,9 @@ Future<void> main(List<String> arguments) async {
   }
   embedNativeServerLibraryAt(payload.path,
       offset: native.offset, length: native.length);
+  // Code the program reaches only through deferred imports: mapped from
+  // this file the first time a request needs it, and never before.
+  await dvInstallLoadingUnits(payload);
 
   final String separator = Platform.pathSeparator;
   final String data = Platform.environment['DARTVEL_DATA_DIR'] ??
@@ -319,6 +324,8 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   String? adminRoot,
   String dart = 'dart',
   DVAssetCompression compression = DVAssetCompression.brotli,
+  bool units = false,
+  Map<String, String> defines = const <String, String>{},
 }) async {
   final File routes =
       File(p.join(root, '.dart_tool', 'dartvel_backend_routes.g.dart'));
@@ -331,21 +338,19 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   final File entry =
       File(p.join(root, '.dart_tool', 'dartvel_server_binary.dart'))
         ..writeAsStringSync(dvServerBinaryEntrypoint);
-  final File compiled =
-      File(p.join(root, '.dart_tool', 'dartvel_server_binary.exe'));
-
-  final ProcessResult result = await run(
-    dart,
-    <String>['compile', 'exe', entry.path, '-o', compiled.path],
-    workingDirectory: root,
+  // In loading units where the host and the native library can load them:
+  // what a request never needs is never mapped.
+  final bool split = units && dvServerLibraryLoadsUnits(library.path);
+  final DVCompiledServer compiled = await dvCompileServer(
+    root: root,
+    entry: entry.path,
+    run: run,
+    dart: dart,
+    units: split,
+    defines: defines,
   );
-  if (result.exitCode != 0) {
-    return DVServerBinaryResult(ok: false, lines: <String>[
-      'dart compile exe exited ${result.exitCode}:',
-      ...'${result.stdout}\n${result.stderr}'
-          .split('\n')
-          .where((String l) => l.trim().isNotEmpty),
-    ]);
+  if (!compiled.ok) {
+    return DVServerBinaryResult(ok: false, lines: compiled.lines);
   }
 
   final Map<String, List<int>> adminSections =
@@ -362,10 +367,18 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     'native': library.readAsBytesSync(),
     'assets': assets.pack,
     ...adminSections,
+    for (final MapEntry<int, Uint8List> unit in compiled.units.entries)
+      'unit.${unit.key}': unit.value,
   };
   final Uint8List spliced;
   try {
-    spliced = DVBinaryPayload.splice(compiled.readAsBytesSync(), sections);
+    spliced = DVBinaryPayload.splice(
+      compiled.executable!,
+      sections,
+      // Each unit on a 64 KiB boundary, so it is mapped straight from the
+      // file.
+      aligned: <String>{for (final int id in compiled.units.keys) 'unit.$id'},
+    );
   } on FormatException catch (error) {
     return DVServerBinaryResult(ok: false, lines: <String>[
       'The compiled backend cannot carry the web app: ${error.message}.',
@@ -375,7 +388,6 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
       p.join(root, dvServerBinaryPath(windows: Platform.isWindows));
   Directory(p.dirname(output)).createSync(recursive: true);
   final File binary = File(output)..writeAsBytesSync(spliced, flush: true);
-  compiled.deleteSync();
   if (!Platform.isWindows) {
     await Process.run('chmod', <String>['755', binary.path]);
   }
@@ -392,7 +404,19 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
           'and the native server, in one file.',
       'Run it anywhere: ./$shown. It keeps its data in dartvel_data beside '
           'itself, in SQLite unless DATABASE_URL is set.',
+      ...compiled.lines,
       ...assets.lines,
     ],
   );
+}
+
+/// Whether the native server library at [path] can load code units: the
+/// build splits the backend only when the library it embeds can load what
+/// it splits off.
+bool dvServerLibraryLoadsUnits(String path) {
+  try {
+    return DynamicLibrary.open(path).providesSymbol('aw_units_load');
+  } on Object {
+    return false;
+  }
 }

@@ -21,6 +21,7 @@ import 'dart:isolate';
 
 import 'package:dartvel_cli/src/build/admin_mount.dart';
 import 'package:dartvel_cli/src/build/server_binary.dart';
+import 'package:dartvel_core/binary_payload.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -127,12 +128,19 @@ Future<String> _ping() async => 'pong from one file';
       root: project.path,
       library: library,
       dart: Platform.resolvedExecutable,
+      units: true,
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           Process.run(executable, arguments,
               workingDirectory: workingDirectory),
     );
     expect(built.ok, isTrue, reason: built.lines.join('\n'));
+    if (Platform.isLinux) {
+      // The image resizer, which nothing here asks for, is a unit of its own
+      // inside the file and is never mapped.
+      expect(DVBinaryPayload.read(built.binary!.path)!.names.where((String n) => n.startsWith('unit.')),
+          isNotEmpty, reason: built.lines.join('\n'));
+    }
     final File binary = File(p.join(
         project.path, dvServerBinaryPath(windows: Platform.isWindows)));
     expect(built.binary?.path, binary.path);
@@ -239,6 +247,7 @@ Future<String> _ping() async => 'pong from one file';
         webRoot: web.path,
         admin: mount,
         adminRoot: p.join(web.path, '__admin'),
+        units: true,
         run: (String executable, List<String> arguments,
                 {String? workingDirectory}) =>
             Process.run(executable, arguments,
