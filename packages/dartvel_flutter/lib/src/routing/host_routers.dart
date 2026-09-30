@@ -1,17 +1,29 @@
-/// Dartvel's routes inside a host that does not route with go_router.
+/// Dartvel's routes inside an app that already routes some other way.
 ///
-/// A host that keeps its `GoRouter` mounts Dartvel's routes into it with
-/// `dartvelRoutes(at:)`. A host on Flutter's own Navigator -- 1.0's
-/// `onGenerateRoute`, or 2.0's pages -- or on auto_route cannot take a
-/// `GoRoute`, so it takes a page instead: [DVHostedPage] runs Dartvel's
-/// routes in a router of their own, under the host's route. Dartvel's
-/// guards and redirects run there as they do in a Dartvel app, the host's
-/// back button reaches Dartvel's stack before the host's, and on the web the
-/// address bar follows the Dartvel route.
+/// Five integrations, one rule: Dartvel's routes answer Dartvel's paths under
+/// the mount, and everything else goes to the app's own handler, which keeps
+/// its own types.
 ///
-/// The generated client wraps these as `dartvelOnGenerateRoute`,
-/// `dartvelPageFor` and, for a project that depends on auto_route,
-/// `dartvelAutoRoutes`.
+/// * go_router: [dvGoRouter] builds one `GoRouter` from Dartvel's routes and
+///   the app's own, with the app's redirect asked only about its own paths.
+/// * Navigator 1.0: [dvRouteFactory] wraps the app's `onGenerateRoute`.
+/// * Navigator 2.0: [dvPages] is the Dartvel entry in the pages an app's own
+///   `RouterDelegate` builds. It is one page that runs Dartvel's whole route
+///   table, follows the delegate's location and reports Dartvel's own
+///   navigation back to it.
+/// * `MaterialApp.router` / `CupertinoApp.router`: [dvRouterConfig] composes
+///   the app's `RouterConfig` -- its delegate and parser -- with Dartvel's.
+/// * auto_route: the generated `dartvelAutoRoutes(existing:)`, over
+///   [DVHostedPage].
+///
+/// A host that cannot take a `GoRoute` takes [DVHostedPage], which runs
+/// Dartvel's routes in a router of their own, under the host's route.
+/// Dartvel's guards and redirects run there as they do in a Dartvel app, and
+/// the host's back button reaches Dartvel's stack before the host's.
+///
+/// The generated client wraps each of these (`dartvelGoRouter`,
+/// `dartvelRouteFactory`, `dartvelPages`, `dartvelRouterConfig`,
+/// `dartvelAutoRoutes`) with the application's own route table.
 library;
 
 import 'dart:async' show unawaited;
@@ -23,7 +35,7 @@ import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:go_router/go_router.dart';
 
 import '../../dartvel_flutter.dart' show DVNavigation;
-import 'mount.dart' show dvRoutePaths;
+import 'mount.dart' show dvMountRoutes, dvRoutePaths;
 
 /// The Dartvel path a host [location] names under [at], or null when it is
 /// not one of [routes]: the host's own route, which the host handles.
@@ -74,16 +86,360 @@ Route<Object?>? dvOnGenerateRoute(
   );
 }
 
-/// For Navigator 2.0: the page for [uri] when it names a Dartvel page under
-/// [at], else null. The host puts it in its navigator's `pages`.
-Page<Object?>? dvPageFor(Uri uri, List<RouteBase> routes, {String at = '/'}) {
-  final String? location = dvHostedLocation(uri.toString(), routes, at: at);
-  if (location == null) return null;
-  return MaterialPage<Object?>(
-    key: ValueKey<String>('dartvel:$at'),
-    name: uri.toString(),
-    child: DVHostedPage(location: location, routes: routes, at: at),
+/// For Navigator 1.0: the app's own [existing] `onGenerateRoute`, with
+/// Dartvel's pages under [at] answered first.
+///
+/// A name that is one of Dartvel's paths gets Dartvel's page, even where
+/// [existing] would also answer it. Every other name, with its arguments, is
+/// [existing]'s, and a name neither answers is unknown as it was before.
+RouteFactory dvRouteFactory(
+  List<RouteBase> routes, {
+  String at = '/',
+  RouteFactory? existing,
+}) =>
+    (RouteSettings settings) =>
+        dvOnGenerateRoute(settings, routes, at: at) ?? existing?.call(settings);
+
+/// For go_router: one `GoRouter` with Dartvel's [routes] mounted at [at]
+/// beside the app's [existing] routes.
+///
+/// Dartvel's routes come first, so on a path both declare Dartvel's page
+/// wins (and `dartvel routes` reports the clash as DV-ADOPT-002). The app's
+/// [redirect] is asked about the app's own paths only; Dartvel's paths keep
+/// Dartvel's guards. DV.Navigation is attached to the router.
+GoRouter dvGoRouter(
+  List<RouteBase> routes, {
+  String at = '/',
+  List<RouteBase> existing = const <RouteBase>[],
+  GoRouterRedirect? redirect,
+  String? initialLocation,
+  GoRouterWidgetBuilder? errorBuilder,
+  List<NavigatorObserver>? observers,
+  GlobalKey<NavigatorState>? navigatorKey,
+  Listenable? refreshListenable,
+  int redirectLimit = 5,
+}) {
+  final List<RouteBase> mounted = dvMountRoutes(routes, at: at);
+  final GoRouter router = GoRouter(
+    routes: <RouteBase>[...mounted, ...existing],
+    initialLocation: initialLocation,
+    errorBuilder: errorBuilder,
+    observers: observers,
+    navigatorKey: navigatorKey,
+    refreshListenable: refreshListenable,
+    redirectLimit: redirectLimit,
+    redirect: redirect == null
+        ? null
+        : (BuildContext context, GoRouterState state) {
+            final bool ours =
+                dvHostedLocation(state.uri.toString(), routes, at: at) != null;
+            return ours ? null : redirect(context, state);
+          },
   );
+  DVNavigation.attach(router);
+  return router;
+}
+
+/// For Navigator 2.0: Dartvel's entry in the pages an app's own
+/// `RouterDelegate` builds for [location].
+///
+/// Empty when [location] is not one of Dartvel's paths under [at]. Otherwise
+/// one page -- always the same page, keyed by the mount -- that runs
+/// Dartvel's whole route table with its own stack inside it. When the
+/// delegate's location changes to another Dartvel path the page follows it,
+/// and when somebody navigates inside Dartvel the new location, under the
+/// mount, is handed to [onLocationChanged] so the delegate's configuration
+/// and the address bar keep up.
+List<Page<Object?>> dvPages(
+  Uri location,
+  List<RouteBase> routes, {
+  String at = '/',
+  ValueChanged<Uri>? onLocationChanged,
+}) {
+  final String? inner = dvHostedLocation(location.toString(), routes, at: at);
+  if (inner == null) return const <Page<Object?>>[];
+  return <Page<Object?>>[
+    MaterialPage<Object?>(
+      key: ValueKey<String>('dartvel:$at'),
+      name: location.toString(),
+      child: DVHostedPage(
+        location: inner,
+        routes: routes,
+        at: at,
+        onLocationChanged: onLocationChanged,
+      ),
+    ),
+  ];
+}
+
+/// For Navigator 2.0: the page for [uri] when it names a Dartvel page under
+/// [at], else null. [dvPages] is the same page, and also reports Dartvel's
+/// own navigation back to the delegate.
+Page<Object?>? dvPageFor(Uri uri, List<RouteBase> routes, {String at = '/'}) {
+  final List<Page<Object?>> pages = dvPages(uri, routes, at: at);
+  return pages.isEmpty ? null : pages.single;
+}
+
+/// For `MaterialApp.router` and `CupertinoApp.router`: the app's own
+/// [existing] `RouterConfig` composed with Dartvel's [routes] under [at].
+///
+/// A location that is one of Dartvel's paths is Dartvel's, and runs its whole
+/// route table; any other is parsed by [existing]'s parser and handed to
+/// [existing]'s delegate, in [existing]'s own configuration type. The app's
+/// screens stay built while a Dartvel page shows, and back from Dartvel's
+/// first page returns to them. With no [existing], the config is Dartvel's
+/// alone.
+RouterConfig<Object> dvRouterConfig<T extends Object>(
+  List<RouteBase> routes, {
+  String at = '/',
+  RouterConfig<T>? existing,
+}) {
+  if (existing == null) {
+    final GoRouter router = GoRouter(routes: dvMountRoutes(routes, at: at));
+    DVNavigation.attach(router);
+    return router;
+  }
+  final RouteInformationParser<T>? parser = existing.routeInformationParser;
+  if (parser == null) {
+    throw ArgumentError.value(
+      existing,
+      'existing',
+      'has no routeInformationParser, so the locations that are not '
+          "Dartvel's cannot be handed to it",
+    );
+  }
+  final RouteInformationProvider? provider = existing.routeInformationProvider;
+  return RouterConfig<Object>(
+    routeInformationProvider: provider == null
+        ? PlatformRouteInformationProvider(
+            initialRouteInformation: RouteInformation(
+              uri: Uri.parse(
+                WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+              ),
+            ),
+          )
+        : _DVComposedProvider(provider, routes, at),
+    routeInformationParser: _DVComposedParser<T>(routes, at, parser),
+    routerDelegate: _DVComposedDelegate<T>(routes, at, existing.routerDelegate),
+    backButtonDispatcher:
+        existing.backButtonDispatcher ?? RootBackButtonDispatcher(),
+  );
+}
+
+/// The app's own route information provider, with Dartvel's locations kept
+/// out of it.
+///
+/// The app's router still navigates through its provider -- `context.go` on
+/// a GoRouter is a change to it -- so the composed router listens to it. But
+/// a provider may only understand the information its own parser restores
+/// (go_router's refuses any without its state), so a Dartvel location the
+/// router reports is held here and sent to the platform directly.
+class _DVComposedProvider extends RouteInformationProvider with ChangeNotifier {
+  _DVComposedProvider(this.existing, this.routes, this.at) {
+    existing.addListener(_existingChanged);
+  }
+
+  final RouteInformationProvider existing;
+  final List<RouteBase> routes;
+  final String at;
+  RouteInformation? _dartvel;
+
+  void _existingChanged() {
+    _dartvel = null;
+    notifyListeners();
+  }
+
+  @override
+  RouteInformation get value => _dartvel ?? existing.value;
+
+  @override
+  void routerReportsNewRouteInformation(
+    RouteInformation routeInformation, {
+    RouteInformationReportingType type = RouteInformationReportingType.none,
+  }) {
+    if (dvHostedLocation(routeInformation.uri.toString(), routes, at: at) ==
+        null) {
+      _dartvel = null;
+      existing.routerReportsNewRouteInformation(routeInformation, type: type);
+      return;
+    }
+    _dartvel = routeInformation;
+    unawaited(SystemNavigator.selectMultiEntryHistory());
+    unawaited(
+      SystemNavigator.routeInformationUpdated(
+        uri: routeInformation.uri,
+        replace: type == RouteInformationReportingType.neglect,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    existing.removeListener(_existingChanged);
+    super.dispose();
+  }
+}
+
+/// A location of Dartvel's, as the host sees it: under the mount.
+class _DVLocation {
+  const _DVLocation(this.uri);
+  final Uri uri;
+}
+
+/// A configuration of the app's own router, in its own type.
+class _DVHostConfiguration<T> {
+  const _DVHostConfiguration(this.value);
+  final T value;
+}
+
+class _DVComposedParser<T extends Object> extends RouteInformationParser<Object> {
+  _DVComposedParser(this.routes, this.at, this.existing);
+
+  final List<RouteBase> routes;
+  final String at;
+  final RouteInformationParser<T> existing;
+
+  @override
+  Future<Object> parseRouteInformationWithDependencies(
+    RouteInformation routeInformation,
+    BuildContext context,
+  ) async {
+    final Uri uri = routeInformation.uri;
+    if (dvHostedLocation(uri.toString(), routes, at: at) != null) {
+      return _DVLocation(uri);
+    }
+    return _DVHostConfiguration<T>(
+      await existing.parseRouteInformationWithDependencies(
+        routeInformation,
+        context,
+      ),
+    );
+  }
+
+  @override
+  RouteInformation? restoreRouteInformation(Object configuration) =>
+      switch (configuration) {
+        _DVLocation(:final Uri uri) => RouteInformation(uri: uri),
+        _DVHostConfiguration<T>(:final T value) =>
+          existing.restoreRouteInformation(value),
+        _ => null,
+      };
+}
+
+class _DVComposedDelegate<T extends Object> extends RouterDelegate<Object>
+    with ChangeNotifier {
+  _DVComposedDelegate(this.routes, this.at, this.existing) {
+    existing.addListener(_existingChanged);
+  }
+
+  final List<RouteBase> routes;
+  final String at;
+  final RouterDelegate<T> existing;
+  final GlobalKey<_DVHostedPageState> _hosted =
+      GlobalKey<_DVHostedPageState>();
+
+  /// The Dartvel location showing, under the mount; null while the app's
+  /// own screens show.
+  Uri? _dartvel;
+
+  /// Whether the app's own screens have been shown, so back from Dartvel's
+  /// first page has somewhere to go.
+  bool _existingShown = false;
+
+  void _existingChanged() {
+    if (_dartvel == null) notifyListeners();
+  }
+
+  @override
+  Object? get currentConfiguration {
+    final Uri? dartvel = _dartvel;
+    if (dartvel != null) return _DVLocation(dartvel);
+    final T? value = existing.currentConfiguration;
+    return value == null ? null : _DVHostConfiguration<T>(value);
+  }
+
+  @override
+  Future<void> setNewRoutePath(Object configuration) async {
+    switch (configuration) {
+      case _DVLocation(:final Uri uri):
+        _dartvel = uri;
+        notifyListeners();
+      case _DVHostConfiguration<T>(:final T value):
+        _dartvel = null;
+        _existingShown = true;
+        await existing.setNewRoutePath(value);
+        notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> setInitialRoutePath(Object configuration) async {
+    switch (configuration) {
+      case _DVLocation(:final Uri uri):
+        _dartvel = uri;
+        notifyListeners();
+      case _DVHostConfiguration<T>(:final T value):
+        _dartvel = null;
+        _existingShown = true;
+        await existing.setInitialRoutePath(value);
+        notifyListeners();
+    }
+  }
+
+  @override
+  Future<bool> popRoute() async {
+    if (_dartvel == null) return existing.popRoute();
+    // Dartvel's own stack first, then back to the app's screens.
+    final _DVHostedPageState? hosted = _hosted.currentState;
+    if (hosted != null && hosted._router.canPop()) {
+      hosted._router.pop();
+      return true;
+    }
+    if (!_existingShown) return false;
+    _dartvel = null;
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Uri? dartvel = _dartvel;
+    final String? inner = dartvel == null
+        ? null
+        : dvHostedLocation(dartvel.toString(), routes, at: at);
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        // The app's screens stay built behind a Dartvel page, so returning
+        // to them finds them as they were.
+        if (_existingShown)
+          Offstage(
+            offstage: inner != null,
+            child: TickerMode(
+              enabled: inner == null,
+              child: existing.build(context),
+            ),
+          ),
+        if (inner != null)
+          DVHostedPage(
+            key: _hosted,
+            location: inner,
+            routes: routes,
+            at: at,
+            onLocationChanged: (Uri uri) {
+              _dartvel = uri;
+              notifyListeners();
+            },
+          ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    existing.removeListener(_existingChanged);
+    super.dispose();
+  }
 }
 
 /// Dartvel's routes, run by a router of their own inside a host's route.
@@ -93,14 +449,22 @@ class DVHostedPage extends StatefulWidget {
     required this.location,
     required this.routes,
     this.at = '/',
+    this.onLocationChanged,
   });
 
-  /// The Dartvel path to open, without the mount point.
+  /// The Dartvel path to open, without the mount point. A different one
+  /// given later is navigated to.
   final String location;
   final List<RouteBase> routes;
 
   /// Where the host serves Dartvel, for the address bar.
   final String at;
+
+  /// Told the location, under the mount, when somebody navigates inside
+  /// Dartvel. A host whose own router keeps the address -- a Navigator 2.0
+  /// delegate -- keeps its configuration in step with it; without one the
+  /// page updates the address bar on the web itself.
+  final ValueChanged<Uri>? onLocationChanged;
 
   @override
   State<DVHostedPage> createState() => _DVHostedPageState();
@@ -120,12 +484,39 @@ class _DVHostedPageState extends State<DVHostedPage> {
     DVNavigation.attach(_router);
   }
 
+  @override
+  void didUpdateWidget(DVHostedPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The host moved to another Dartvel location: go there, rather than
+    // staying on the one this page was first opened at.
+    if (widget.location != oldWidget.location &&
+        widget.location != _current) {
+      _router.go(widget.location);
+    }
+  }
+
+  /// Where Dartvel's router is now, without the mount point.
+  String get _current =>
+      _router.routerDelegate.currentConfiguration.uri.toString();
+
   void _changed() {
     // Whether Dartvel's stack can pop is known once its navigator has
     // rebuilt with the new page, a frame after the router says it changed.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
+    final ValueChanged<Uri>? report = widget.onLocationChanged;
+    if (report != null) {
+      final String current = _current;
+      if (current != widget.location) {
+        // After the frame: the host rebuilds on it, and this is called
+        // while Dartvel's router is still notifying.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) report(Uri.parse(dvHostedPath(current, at: widget.at)));
+        });
+      }
+      return;
+    }
     // The address bar follows the Dartvel route, under the host's mount.
     if (kIsWeb) {
       final String location = _router.routerDelegate.currentConfiguration.uri
