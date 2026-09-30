@@ -814,6 +814,7 @@ export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_routes.dart';
 export 'src/studio/studio_server.dart';
+export 'src/studio/studio_first_run.dart' show DVStudioFirstRunScreen;
 export 'src/studio/studio_sign_in.dart'
     show DVStudioFrame, DVStudioSignInScreen, dvStudioSignInTarget;
 export 'src/studio/studio_site_pages.dart';
