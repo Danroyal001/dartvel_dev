@@ -11,9 +11,10 @@
 /// A record goes through [DVRecordTable], the one write path the rest of the
 /// runtime reads, so an edit in Studio is checked against the version it was
 /// read at, lands in history and capture, and is scoped to the request's
-/// tenant exactly as a model's own save is. A sensitive field is never sent
-/// and cannot be written: Studio is one of the places the specification
-/// keeps those out of by default.
+/// tenant exactly as a model's own save is. A sensitive field is write-only
+/// here, like a password field: its value is never sent, a value typed for
+/// it is stored (sealed first when the field is encrypted), and an empty one
+/// leaves what is stored alone.
 library;
 
 import 'dart:async';
@@ -29,6 +30,7 @@ import '../auth/auth.dart'
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
 import '../auth/sessions.dart' show DVSessionCookie;
+import '../crypto/field_cipher.dart' show DVFieldEncryption;
 import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
@@ -53,6 +55,7 @@ class DVStudioFieldSpec {
     required this.name,
     required this.type,
     this.sensitive = false,
+    this.encrypted = false,
     this.options,
     this.relation,
     this.unique = false,
@@ -72,6 +75,7 @@ class DVStudioFieldSpec {
       name: '${json['name']}',
       type: '${json['type']}',
       sensitive: json['sensitive'] == true,
+      encrypted: json['encrypted'] == true,
       options: json['options'] is List
           ? <String>[
               for (final Object? option in json['options']! as List) '$option',
@@ -129,8 +133,14 @@ class DVStudioFieldSpec {
   /// Whether the field may be left empty.
   bool get nullable => type.trim().endsWith('?');
 
-  /// Never sent to Studio, and refused when Studio sends it.
+  /// Write-only in Studio: never sent to it, and set from it only when a
+  /// value is typed. An empty value leaves what is stored alone.
   final bool sensitive;
+
+  /// Declared `@DVModel.sensitiveField(encrypted: true)`: sealed with
+  /// [DVFieldEncryption] before it is stored, as the model's own save seals
+  /// it, so a value written here reads back through the model.
+  final bool encrypted;
 
   /// Whether the field carries a rule beyond its type.
   bool get hasRules =>
@@ -145,6 +155,7 @@ class DVStudioFieldSpec {
     'name': name,
     'type': type,
     if (sensitive) 'sensitive': true,
+    if (encrypted) 'encrypted': true,
     'options': ?options,
     'relation': ?relation,
     if (unique) 'unique': true,
@@ -1185,15 +1196,18 @@ class DVStudioApi {
         );
       }
       if (field.sensitive) {
-        throw _StudioRefusal(
-          400,
-          'sensitive',
-          '$name is sensitive, and Studio does not write sensitive fields.',
-        );
+        // Write-only, like a password field: Studio never had the value, so
+        // an empty one is "leave it as it is", not "clear it".
+        final Object? value = entry.value;
+        if (value == null || (value is String && value.isEmpty)) continue;
       }
       stored[name] = _stored(field, entry.value);
       final String? broken = dvStudioValueProblem(field, stored[name]);
       if (broken != null) throw _StudioRefusal(400, 'bad_values', broken);
+      if (field.encrypted && stored[name] != null) {
+        stored[name] =
+            DVFieldEncryption.encrypt(spec.model, name, '${stored[name]}');
+      }
       if (field.relation != null && stored[name] != null) {
         await _checkRelation(spec, field, stored[name]!);
       }
