@@ -1742,6 +1742,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // returns without touching anything. serve() installs the same preview's
   // access gate around everything it answers.
   core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+  // The built site this process serves, for backend code that reads its
+  // pages with DVSitePages.load(): a site search, an llms.txt. Null when it
+  // serves none, which has no pages.
+  core.DVSitePages.webRoot = spaRoot;
   // What this process was told to be, validated: a DARTVEL_PORT that is not
   // a port refuses the start rather than binding the generated one, and a
   // worker or cron process refuses to serve the application as well.
