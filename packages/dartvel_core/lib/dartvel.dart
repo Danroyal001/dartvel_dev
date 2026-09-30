@@ -262,6 +262,7 @@ export 'src/scheduling/scheduler.dart';
 export 'src/schema/schema.dart';
 export 'src/search/postgres_search.dart';
 export 'src/search/search_tuning.dart';
+export 'src/search/latent_semantic_embedder.dart';
 export 'src/search/semantic_search.dart' hide DVSemanticIndex;
 export 'src/secrets/env_format.dart';
 export 'src/secrets/public_env_library.dart';
