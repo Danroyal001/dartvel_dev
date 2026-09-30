@@ -38,7 +38,7 @@ void main() {
   }
 
   test('an empty server gets every bundled document', () async {
-    final int seeded = await dvSeedStudioDocuments(records, <String>[
+    final int seeded = await dvSeedStudioDocuments(database, <String>[
       _doc('/landing', 'Hello'),
       _doc('/_dartvel/components/Card', 'Card'),
     ]);
@@ -48,7 +48,7 @@ void main() {
 
   test('a newer commit updates what nobody changed in Studio, and leaves '
       'what somebody did', () async {
-    await dvSeedStudioDocuments(records, <String>[
+    await dvSeedStudioDocuments(database, <String>[
       _doc('/landing', 'Hello'),
       _doc('/about', 'About'),
     ]);
@@ -60,7 +60,7 @@ void main() {
       'document': _doc('/about', 'Changed on the server'),
     });
 
-    await dvSeedStudioDocuments(records, <String>[
+    await dvSeedStudioDocuments(database, <String>[
       _doc('/landing', 'Hello, from the next commit'),
       _doc('/about', 'About, from the next commit'),
     ]);
@@ -71,13 +71,13 @@ void main() {
 
   test('the same bundle twice writes nothing the second time, and a '
       'document deleted on the server stays deleted', () async {
-    await dvSeedStudioDocuments(records, <String>[_doc('/landing', 'Hello')]);
+    await dvSeedStudioDocuments(database, <String>[_doc('/landing', 'Hello')]);
     await records.delete(dvStudioPagesTable, where: DVFilter.equals('route', '/landing'));
-    expect(await dvSeedStudioDocuments(records, <String>[_doc('/landing', 'Hello')]), 0);
+    expect(await dvSeedStudioDocuments(database, <String>[_doc('/landing', 'Hello')]), 0);
     expect((await stored()).containsKey('/landing'), isFalse);
   });
 
   test('a document that is not JSON, or names no route, is skipped', () async {
-    expect(await dvSeedStudioDocuments(records, <String>['{', '{"title":"x"}']), 0);
+    expect(await dvSeedStudioDocuments(database, <String>['{', '{"title":"x"}']), 0);
   });
 }
