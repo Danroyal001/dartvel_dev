@@ -89,4 +89,20 @@ void main() {
     expect(router, isNot(contains('dvStudioRoutes')));
     expect(router, isNot(contains('dartvel.studio')));
   });
+
+  test('a documentation site behind Studio is where its sign-in returns to',
+      () async {
+    // The docs site with access: studio sends a signed-out reader to
+    // Studio's sign-in; signing in has to bring them back to the page they
+    // were reading, not to Studio.
+    final String router = await routerSource(
+        'docs:\n  enabled: true\n  path: /handbook\n  access: studio\n');
+    expect(
+        router,
+        contains("...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', "
+            "signInReturns: <String>['/handbook']),"));
+    final String public = await routerSource(
+        'docs:\n  enabled: true\n  path: /handbook\n  access: public\n');
+    expect(public, isNot(contains('signInReturns')));
+  });
 }
