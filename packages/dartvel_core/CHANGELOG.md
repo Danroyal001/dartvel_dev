@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **`registerDVModelFormFields<T>` and `dvModelFormFields`**: the fields a
+  generated form may show for a model, which leave out its sensitive fields.
+
 - **`DVDocsServer` serves the documentation site at its mount, the way Studio
   is served.** With `access: studio` a person without the Studio grant who
   opens a page of it is sent to Studio's sign-in, and the document, the graph

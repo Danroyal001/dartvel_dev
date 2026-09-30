@@ -223,6 +223,23 @@ class _User {
       expect(form, contains('String get recoveryEmail'));
       // Default sensitive fields stay off it.
       expect(form, isNot(contains('nationalId')));
+
+      // And off the form Model.Form() draws, which reads the internal
+      // serializer -- every field -- and showed nationalId as an input,
+      // prefilled, while the builder form above hid it. The generated client
+      // tells that form which fields it may show.
+      final registration = RegExp(
+        r'registerDVModelFormFields<User>\(const <String>\{([^}]*)\}\);',
+      ).firstMatch(content);
+      expect(registration, isNotNull,
+          reason: 'Model.Form() must be told which fields it may show');
+      final shown = registration!
+          .group(1)!
+          .split(',')
+          .map((String s) => s.trim().replaceAll("'", ''))
+          .where((String s) => s.isNotEmpty)
+          .toSet();
+      expect(shown, <String>{'id', 'recoveryEmail'});
     } finally {
       root.deleteSync(recursive: true);
     }
