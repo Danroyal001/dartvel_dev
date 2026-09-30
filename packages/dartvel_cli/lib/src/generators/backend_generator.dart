@@ -1831,7 +1831,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     try {
       await core.dvSeedStudioDocuments(dartvelDatabase, dartvelStudioDocuments);
     } catch (error) {
-      stderr.writeln('dartvel: could not seed Studio\'s documents: \$error');
+      stderr.writeln('dartvel: could not seed the documents made in Studio: \$error');
     }
   }
   // Somebody to grant. Sign-up and sign-in authenticate through the provider
