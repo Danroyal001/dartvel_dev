@@ -38,6 +38,7 @@ import 'package:yaml/yaml.dart';
 
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
+import '../build/native_splash.dart' show DVSplash;
 import '../build/page_text.dart';
 import '../build/render_backends.dart';
 
@@ -1725,11 +1726,14 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
     final String signInReturns = docsMount.enabled && docsMount.requiresAuth
         ? ", signInReturns: <String>['${esc(docsMount.path)}']"
         : '';
+    // The splash the web page shows, which Studio carries on showing while
+    // its own code loads: its first frame would otherwise be an empty page.
+    final String studioSplash = studioMount == null ? '' : _studioSplashArg(dv, root);
     final String studioRoutesSrc = studioMount == null
         ? ''
         : '''
     if (const bool.fromEnvironment('$dvStudioDefine'))
-      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'$signInReturns, view: dartvelPagePreview),''';
+      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'$signInReturns, view: dartvelPagePreview$studioSplash),''';
 
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
@@ -4703,3 +4707,26 @@ bool _dependsOn(String root, String package) {
   return <String>['dependencies', 'dev_dependencies'].any(
       (String section) => doc[section] is Map && (doc[section] as Map).containsKey(package));
 }
+
+/// `, splash: const DVStudioSplash(...)` for the project's splash, as the
+/// web build writes it, or nothing when the project turned the splash off.
+String _studioSplashArg(Map<Object?, Object?> dv, String root) {
+  final DVSplash splash = DVSplash.fromConfig(dv, root: root);
+  if (!splash.enabled) return '';
+  String colour(String hex) =>
+      'Color(0xFF${hex.replaceFirst('#', '').toUpperCase()})';
+  final List<String> args = <String>[
+    'color: ${colour(splash.color)}',
+    'darkColor: ${colour(splash.darkColor)}',
+    // The names dvWriteWebSplash gives the pictures beside index.html.
+    if (splash.image != null) "image: 'dartvel-splash.png'",
+    if (splash.darkImage != null) "darkImage: 'dartvel-splash-dark.png'",
+    'imageWidth: ${_number(splash.imageWidth ?? 96)}',
+    if (splash.progress) 'progressColor: ${colour(splash.progressColor)}',
+  ];
+  return ', splash: const DVStudioSplash(${args.join(', ')})';
+}
+
+/// [value] as Dart source: `96`, not `96.0`, for a whole number.
+String _number(num value) =>
+    value == value.roundToDouble() ? '${value.round()}' : '$value';

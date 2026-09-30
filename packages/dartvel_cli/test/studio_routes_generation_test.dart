@@ -74,13 +74,13 @@ void main() {
     expect(
         router,
         contains("if (const bool.fromEnvironment('dartvel.studio'))\n"
-            "      ...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', view: dartvelPagePreview),"));
+            "      ...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', view: dartvelPagePreview"));
   });
 
   test('a moved mount moves the routes', () async {
     final String router = await routerSource('admin:\n  path: /ops/desk/\n');
     expect(router,
-        contains("...dvStudioRoutes(mount: '/ops/desk', title: 'Studio · shop', view: dartvelPagePreview),"));
+        contains("...dvStudioRoutes(mount: '/ops/desk', title: 'Studio · shop', view: dartvelPagePreview"));
   });
 
   test('an application that turns Studio off has none of it generated',
@@ -100,7 +100,7 @@ void main() {
     expect(
         router,
         contains("...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', "
-            "signInReturns: <String>['/handbook'], view: dartvelPagePreview),"));
+            "signInReturns: <String>['/handbook'], view: dartvelPagePreview"));
     final String public = await routerSource(
         'docs:\n  enabled: true\n  path: /handbook\n  access: public\n');
     expect(public, isNot(contains('signInReturns')));
@@ -143,5 +143,18 @@ void main() {
     // An address the application has no page at: Studio's document, framed.
     expect(router,
         contains('_ => content == null ? null : _dartvelStoredFrame(content, layout: layout)'));
+  });
+
+  test("Studio is given the application's splash, to show while it loads",
+      () async {
+    final String router = await routerSource(
+        'pwa:\n  backgroundColor: "#FFF4E0"\nsplash:\n  darkColor: "#0A0D13"\n');
+    expect(
+        router,
+        contains('splash: const DVStudioSplash(color: Color(0xFFFFF4E0), '
+            'darkColor: Color(0xFF0A0D13), imageWidth: 96, '
+            'progressColor: Color(0xFF2F6BFF))'));
+    final String off = await routerSource('splash:\n  enabled: false\n');
+    expect(off, isNot(contains('DVStudioSplash')));
   });
 }
