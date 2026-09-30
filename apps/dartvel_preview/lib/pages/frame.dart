@@ -19,8 +19,11 @@ Widget _framePage(BuildContext context) {
   return Scaffold(
     appBar: AppBar(
       toolbarHeight: 44,
-      title: Text(url?.host ?? 'Dartvel Preview',
-          style: const TextStyle(fontSize: 15)),
+      title: Semantics(
+        headingLevel: 1,
+        child: Text(url?.host ?? 'Dartvel Preview',
+            style: const TextStyle(fontSize: 15)),
+      ),
       leading: IconButton(
         tooltip: 'Projects',
         icon: const Icon(Icons.arrow_back),

@@ -25,7 +25,8 @@ Widget _indexPage(BuildContext context) {
           DVBox.list(<Widget>[
             const DVText('Dartvel Preview').modifier(const DVModifier()
                 .fontSize(28)
-                .fontWeight(.w800)),
+                .fontWeight(.w800)
+                .semanticHeading(1)),
             DVText(how).modifier(const DVModifier()
                 .fontSize(16)
                 .lineHeight(1.5)
