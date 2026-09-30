@@ -17,11 +17,13 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:dartvel_core/framework.dart' show DVAssetFile, DVAssetSource, DVAssetSources, dvAssetPath;
 
 import 'asset_response.dart' show DVAssetCache;
+// Deferred: a binary compiled in loading units maps package:image the first
+// time an image is asked for, and never for a server that resizes nothing.
+import 'image_codec.dart' deferred as codec;
 import 'site_files.dart';
 
 /// Fetches a remote image's bytes, or null when it cannot be had.
@@ -74,8 +76,9 @@ Future<Response?> dvImageVariantResponse(
   }
 
   final Uint8List bytes = source is Uint8List ? source : Uint8List.fromList(source);
-  final img.ImageFormat format = img.findFormatForData(bytes);
-  if (format == img.ImageFormat.invalid) {
+  await codec.loadLibrary();
+  final String? format = codec.dvImageFormatOf(bytes);
+  if (format == null) {
     return _text(remote == null ? 415 : 502, 'that is not an image');
   }
   final bool acceptsWebP =
@@ -96,7 +99,7 @@ Future<Response?> dvImageVariantResponse(
     ..set('cache-control', 'public, max-age=86400, stale-while-revalidate=604800');
   // A PNG answers WebP or PNG by Accept, so a shared cache has to keep the
   // two apart. Nothing else varies.
-  if (format == img.ImageFormat.png || format == img.ImageFormat.webp) {
+  if (format == 'png' || format == 'webp') {
     headers.set('vary', 'Accept');
   }
   if (request.headers.get('if-none-match') == etag) {
@@ -168,11 +171,11 @@ String dvImageVariantCacheDir(String webRoot) => p.join(
 /// JPEG of a photograph. So a PNG becomes WebP for a browser that takes it,
 /// a JPEG stays a JPEG, and a GIF is passed through untouched -- resizing it
 /// would keep only the first frame of an animation.
-String _outputFormat(img.ImageFormat source, {required bool acceptsWebP}) =>
+String _outputFormat(String source, {required bool acceptsWebP}) =>
     switch (source) {
-      img.ImageFormat.jpg => 'jpeg',
-      img.ImageFormat.gif => 'gif',
-      img.ImageFormat.png || img.ImageFormat.webp =>
+      'jpg' => 'jpeg',
+      'gif' => 'gif',
+      'png' || 'webp' =>
         acceptsWebP ? 'webp' : 'png',
       _ => 'png',
     };
@@ -188,8 +191,11 @@ Future<Uint8List?> _variant(
   if (format == 'gif') return source;
   // Off the event loop: a large image takes long enough to decode that the
   // server would stop answering everybody else while it did.
-  final Uint8List? made = await Isolate.run(
-      () => _resize(source, width: width, quality: quality, format: format));
+  final Uint8List? made = await Isolate.run(() async {
+    // Its own isolate asks for the unit too; the group maps it once.
+    await codec.loadLibrary();
+    return codec.dvResizeImage(source, width: width, quality: quality, format: format);
+  });
   if (made != null && cache != null) {
     try {
       cache.parent.createSync(recursive: true);
@@ -203,26 +209,6 @@ Future<Uint8List?> _variant(
     }
   }
   return made;
-}
-
-Uint8List? _resize(
-  Uint8List source, {
-  required int width,
-  required int quality,
-  required String format,
-}) {
-  final img.Image? decoded = img.decodeImage(source);
-  if (decoded == null) return null;
-  // Never larger than it is: an upscaled copy is bigger and no sharper.
-  final img.Image sized = decoded.width > width
-      ? img.copyResize(decoded,
-          width: width, interpolation: img.Interpolation.average)
-      : decoded;
-  return switch (format) {
-    'jpeg' => img.encodeJpg(sized, quality: quality),
-    'webp' => img.encodeWebP(sized),
-    _ => img.encodePng(sized),
-  };
 }
 
 /// The bytes of [src] under [webRoot], or null when it is not there.
