@@ -15,6 +15,7 @@ import 'annotation_args.dart';
 import 'model_rules.dart';
 import 'policy_classes.dart';
 import 'primary_constructors.dart';
+import 'server_models.dart';
 import 'public_pages.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
@@ -3200,6 +3201,17 @@ class ModelGenerator {
             'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+    // The same library without the widgets, for a backend: it is compiled
+    // without Flutter and could not import the one above.
+    File(p.join(clientDir.path, 'models_server.g.dart'))
+        .writeAsStringSync(dvServerModelsSource(content));
+    // What backend code imports, as pages import dartvel_client.dart.
+    File(p.join(clientDir.path, 'dartvel_server.dart')).writeAsStringSync(
+      '${generatedHeader}/// The generated surface a backend function imports: the data\n'
+      '/// models, without the widgets a server has no Flutter to build.\n'
+      'library dartvel_client_server;\n\n'
+      "export 'models_server.g.dart';\n",
+    );
 
     // The schema, where something other than Dart can read it.
     //
