@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
     show Icon, IconData, Icons, PopupMenuItem, showMenu;
+import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
@@ -833,11 +834,32 @@ class DVStudioCanvas extends StatefulWidget {
   /// How far the artboard is magnified, from its top centre.
   final double zoom;
 
+  /// The window's height, with [frame]: the page is laid out in a window
+  /// this tall, inside its layouts, and scrolls inside it as it does on the
+  /// site. Without a frame the artboard is as tall as the page.
+  final double? viewportHeight;
+
+  /// What the page is drawn inside: the layouts and shell its route draws
+  /// it in, from the application's own view of the route. With one, the
+  /// artboard is the live route with the page's body editable in it.
+  final Widget Function(Widget content)? frame;
+
+  /// The application's look, which the page is drawn in.
+  final DVStudioAppLook? look;
+
+  /// The appearance somebody chose to see it in; null for the one the
+  /// application shows on this device.
+  final Brightness? appearance;
+
   const DVStudioCanvas({
     super.key,
     required this.controller,
     this.viewportWidth,
     this.zoom = 1.0,
+    this.viewportHeight,
+    this.frame,
+    this.look,
+    this.appearance,
   });
 
   @override
@@ -851,6 +873,10 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
   final FocusNode _focus = FocusNode(debugLabel: 'dv-studio-canvas');
   final ScrollController _vertical = ScrollController();
   final ScrollController _horizontal = ScrollController();
+
+  /// The page's body inside its frame: the part of the artboard that takes
+  /// a click.
+  final GlobalKey _content = GlobalKey(debugLabel: 'dv-studio-page-body');
 
   /// The artboard's minimum height, so an empty page is a page to drop onto
   /// rather than a strip.
@@ -926,40 +952,83 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
 
         final DVPageDocument document = widget.controller.document;
         final String route = document.route.isEmpty ? 'Untitled' : document.route;
-        final Widget artboard = SizedBox(
-          key: const ValueKey<String>('dv-studio-artboard'),
-          width: width,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              // The page's own white, in a dark Studio too: the document is
-              // drawn as it ships, and a page styled for a white background
-              // on Studio's dark surface is a page nobody can read.
-              color: const Color(0xFFFFFFFF),
-              borderRadius: .circular(3),
-              boxShadow: DVStudioStyle.shadowLarge,
+        final Widget Function(Widget content)? frame = widget.frame;
+        final double? windowHeight = widget.viewportHeight;
+        final Widget artboard;
+        if (frame != null && windowHeight != null) {
+          // The live route with the page's body editable in it: the page's
+          // own layouts and shell, the application's theme, a window the
+          // device's size. Laid out as the site lays it out, so what is on
+          // the artboard is what a visitor gets, pixel for pixel.
+          final Widget body = KeyedSubtree(
+            key: _content,
+            child: DVStudioPageBody(
+              scrolls: document.root.properties['scroll'] == true,
+              child: _buildNode(document.root, root: true, framed: true),
             ),
-            child: _buildNode(document.root, root: true),
-          ),
-        );
+          );
+          artboard = DecoratedBox(
+            decoration: const BoxDecoration(boxShadow: DVStudioStyle.shadowLarge),
+            child: DVStudioPageWindow(
+              key: const ValueKey<String>('dv-studio-artboard'),
+              width: width,
+              height: windowHeight,
+              location: document.route.isEmpty ? null : document.route,
+              look: widget.look,
+              appearance: widget.appearance,
+              // Only the page's body takes a click: the site's header and
+              // footer are drawn, not used, so a link in them does not take
+              // Studio away, and a click on them clears the selection.
+              child: _DVStudioBodyHits(content: _content, child: frame(body)),
+            ),
+          );
+        } else {
+          Widget page = _buildNode(document.root, root: true);
+          final DVStudioAppLook? look = widget.look;
+          if (look != null) {
+            page = look.wrap(page,
+                brightness: MediaQuery.platformBrightnessOf(context),
+                chosen: widget.appearance);
+          }
+          artboard = SizedBox(
+            key: const ValueKey<String>('dv-studio-artboard'),
+            width: width,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                // The page's own white, in a dark Studio too: the document is
+                // drawn as it ships, and a page styled for a white background
+                // on Studio's dark surface is a page nobody can read.
+                color: const Color(0xFFFFFFFF),
+                borderRadius: .circular(3),
+                boxShadow: DVStudioStyle.shadowLarge,
+              ),
+              child: page,
+            ),
+          );
+        }
         final Widget scaled = Column(
           mainAxisSize: .min,
           crossAxisAlignment: .start,
           children: <Widget>[
-            Padding(
-              padding: const .only(bottom: 10),
-              child: Row(
-                mainAxisSize: .min,
-                children: <Widget>[
-                  const Icon(DVStudioIcons.page,
-                      size: 13, color: DVStudioStyle.muted),
-                  const SizedBox(width: 5),
-                  DVStudioStyle.caption(
-                    '$route  ·  ${widget.viewportWidth == null ? 'Fill' : '${width.round()} px'}'
-                    '${zoom == 1 ? '' : '  ·  ${(zoom * 100).round()}%'}',
-                  ),
-                ],
+            // Where the page's name and size were, above a bare artboard. In
+            // its frame the page is its own label, and the toolbar says the
+            // rest.
+            if (frame == null)
+              Padding(
+                padding: const .only(bottom: 10),
+                child: Row(
+                  mainAxisSize: .min,
+                  children: <Widget>[
+                    const Icon(DVStudioIcons.page,
+                        size: 13, color: DVStudioStyle.muted),
+                    const SizedBox(width: 5),
+                    DVStudioStyle.caption(
+                      '$route  ·  ${widget.viewportWidth == null ? 'Fill' : '${width.round()} px'}'
+                      '${zoom == 1 ? '' : '  ·  ${(zoom * 100).round()}%'}',
+                    ),
+                  ],
+                ),
               ),
-            ),
             // Laid out at the device's width and drawn at the zoom, inside a
             // box the size of the drawing, so scrolling, centring and hit
             // testing all find the page where it is drawn. Scaling the drawing
@@ -1038,7 +1107,7 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     );
   }
 
-  Widget _buildNode(DVPageNode node, {bool root = false}) {
+  Widget _buildNode(DVPageNode node, {bool root = false, bool framed = false}) {
     final DVStudioEditorController controller = widget.controller;
     final bool isContainer = node.type == 'box';
     final String label = _dvStudioNodeLabel(node, controller.document);
@@ -1051,7 +1120,8 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
         : DVPageDocumentRenderer(
             DVPageDocument(route: '', root: node),
           );
-    if (root) {
+    if (root && !framed) {
+      // In its frame the page body is the window's height already.
       // The page is at least the artboard's height, so the whole artboard is
       // somewhere to drop onto and somewhere to click to select the page.
       rendered = ConstrainedBox(
@@ -1082,6 +1152,9 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
       // there is nowhere for it to go.
       return Draggable<String>(
         data: node.id,
+        // The root overlay: in its frame the page is inside a navigator of
+        // its own, clipped to the window, and the chip would be too.
+        rootOverlay: true,
         feedback: _dvStudioDragChip(icon, label),
         childWhenDragging: Opacity(opacity: 0.4, child: selectable),
         child: selectable,
@@ -1116,32 +1189,83 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     );
   }
 
-  Widget _buildContainer(DVPageNode node) {
-    // A stack's children name where they sit, the same way they do when the
-    // page runs. Without it a screen of hand-placed elements is a heap in the
-    // corner of the canvas and a design once it ships.
-    final bool places = node.layout == 'stack';
-    final List<Widget> children = <Widget>[
-      for (final DVPageNode child in node.children)
-        places
-            ? dvStudioPlace(child.properties, _buildNode(child))
-            : _buildNode(child),
-    ];
+  Widget _buildContainer(DVPageNode raw) {
+    // At the width the page is drawn at, as the page resolves it: a box
+    // that changes its padding or its layout on a phone showed its desktop
+    // form on the canvas's phone artboard, because the canvas read the base
+    // properties and the page the resolved ones.
+    return Builder(builder: (BuildContext context) {
+      final DVBreakpoint breakpoint = context.screen.breakpoint;
+      final DVPageNode node = raw.breakpoints.isEmpty
+          ? raw
+          : DVPageNode(
+              id: raw.id,
+              type: raw.type,
+              layout: raw.layout,
+              properties: raw.propertiesFor(breakpoint),
+              action: raw.action,
+              children: raw.children,
+            );
+      // A stack's children name where they sit, the same way they do when
+      // the page runs. Without it a screen of hand-placed elements is a heap
+      // in the corner of the canvas and a design once it ships.
+      final bool places = node.layout == 'stack';
+      final List<Widget> children = <Widget>[
+        for (final DVPageNode child in node.children)
+          places
+              ? dvStudioPlace(child.propertiesFor(breakpoint), _buildNode(child))
+              : _buildNode(child),
+      ];
 
-    // Drawn by the same two functions the page uses. This used to be a third
-    // switch over the layout name and nothing else -- no padding, no
-    // background, no radius, no spacing, no alignment -- so a card was a bare
-    // column while somebody was styling it and a card once the page ran, and
-    // the person styling it could not see what they were doing.
-    //
-    // The styling travels and the behaviour does not: a canvas that navigates
-    // away when somebody taps the card they are editing is worse than one
-    // that shows the card unstyled.
-    return dvStudioStyled(
-      node,
-      dvStudioLayoutBox(node, children),
-      withAction: false,
-    );
+      // Drawn by the same two functions the page uses. This used to be a
+      // third switch over the layout name and nothing else -- no padding, no
+      // background, no radius, no spacing, no alignment -- so a card was a
+      // bare column while somebody was styling it and a card once the page
+      // ran, and the person styling it could not see what they were doing.
+      //
+      // The styling travels and the behaviour does not: a canvas that
+      // navigates away when somebody taps the card they are editing is worse
+      // than one that shows the card unstyled.
+      return dvStudioStyled(
+        node,
+        dvStudioLayoutBox(node, children),
+        withAction: false,
+      );
+    });
+  }
+}
+
+/// Lets a click through only where it lands on the page's body: the frame
+/// around it -- the site's header, navigation and footer -- is drawn and not
+/// used, so none of its links can take Studio away, and a click on it falls
+/// through to the workspace, which clears the selection.
+class _DVStudioBodyHits extends SingleChildRenderObjectWidget {
+  const _DVStudioBodyHits({required this.content, required super.child});
+
+  final GlobalKey content;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _DVStudioRenderBodyHits(content);
+
+  @override
+  void updateRenderObject(
+          BuildContext context, _DVStudioRenderBodyHits renderObject) =>
+      renderObject.content = content;
+}
+
+class _DVStudioRenderBodyHits extends RenderProxyBox {
+  _DVStudioRenderBodyHits(this.content);
+
+  GlobalKey content;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final RenderObject? body = content.currentContext?.findRenderObject();
+    if (body is! RenderBox || !body.attached) return false;
+    final Offset inBody = body.globalToLocal(localToGlobal(position));
+    if (!(Offset.zero & body.size).contains(inBody)) return false;
+    return super.hitTest(result, position: position);
   }
 }
 

@@ -69,6 +69,7 @@ import 'src/scene3d/scene_viewport.dart';
 import 'src/seo_platform_memory.dart'
     if (dart.library.html) 'src/seo_platform_web.dart' as seo_platform;
 import 'src/studio/page_document.dart';
+import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/windowing/window.dart';
 
@@ -815,6 +816,7 @@ export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_routes.dart';
+export 'src/studio/studio_host.dart';
 export 'src/studio/studio_server.dart';
 export 'src/studio/studio_first_run.dart' show DVStudioFirstRunScreen;
 export 'src/studio/studio_sign_in.dart'
@@ -9616,7 +9618,11 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // A kiosk policy with textSelection: disabled has closed the question,
     // and a page declaring selectable: true is stating a preference rather
     // than overruling the device it is running on.
-    final bool selectable = spec.selectable && !dvKioskBlocksTextSelection;
+    // Nor on Studio's canvas, where a drag moves an element and a click
+    // selects one: a selection area there fought both, and paints nothing.
+    final bool selectable = spec.selectable &&
+        !dvKioskBlocksTextSelection &&
+        !DVPagePreviewScope.of(context);
     // A page covered by another route is not laid out, and a selection area
     // over it asked its text for sizes it did not have: a deep link to a page
     // pushed over another -- a book over its library, inside a tab -- threw
@@ -9781,7 +9787,9 @@ class DartvelSeo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
+    // A page drawn on Studio's canvas is not the page being visited: the
+    // tab's title and meta tags stay Studio's.
+    if (kIsWeb && !DVPagePreviewScope.of(context)) {
       final merged = defaults.merge(props);
       seo_platform.applySeo(merged);
     }
