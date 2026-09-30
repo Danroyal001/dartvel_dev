@@ -74,13 +74,13 @@ void main() {
     expect(
         router,
         contains("if (const bool.fromEnvironment('dartvel.studio'))\n"
-            "      ...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop'),"));
+            "      ...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', view: dartvelPagePreview),"));
   });
 
   test('a moved mount moves the routes', () async {
     final String router = await routerSource('admin:\n  path: /ops/desk/\n');
     expect(router,
-        contains("...dvStudioRoutes(mount: '/ops/desk', title: 'Studio · shop'),"));
+        contains("...dvStudioRoutes(mount: '/ops/desk', title: 'Studio · shop', view: dartvelPagePreview),"));
   });
 
   test('an application that turns Studio off has none of it generated',
@@ -100,9 +100,46 @@ void main() {
     expect(
         router,
         contains("...dvStudioRoutes(mount: '/__studio', title: 'Studio · shop', "
-            "signInReturns: <String>['/handbook']),"));
+            "signInReturns: <String>['/handbook'], view: dartvelPagePreview),"));
     final String public = await routerSource(
         'docs:\n  enabled: true\n  path: /handbook\n  access: public\n');
     expect(public, isNot(contains('signInReturns')));
+  });
+
+  test("the route and Studio's canvas build a page through one function, "
+      'so the canvas draws the page exactly as the route does', () async {
+    final String router = await routerSource('');
+    // Studio is handed the application's page views.
+    expect(router, contains('view: dartvelPagePreview'));
+    expect(
+        router,
+        contains('Widget? dartvelPagePreview(String path, '
+            '{Widget? content, bool layout = true})'));
+    // One view per page, which both the route and the preview call.
+    final RegExpMatch? view =
+        RegExp(r'Widget (_dvView\w+)\(Map<String, String> params, '
+                r'Map<String, String> query, Widget body, \{bool layout = true\}\)')
+            .firstMatch(router);
+    expect(view, isNotNull, reason: 'no page view function');
+    final String name = view!.group(1)!;
+    final int calls = RegExp('${RegExp.escape(name)}\\(').allMatches(router).length;
+    expect(calls, 3, reason: 'declared once, called by the route and the preview');
+    // The route still lets a stored document take its page over.
+    expect(router, contains("$name(params, query, DVStudioPageRoute('/', fallback: page))"));
+    // The preview draws the page itself, or what Studio is editing, in it.
+    expect(router, contains('$name(const <String, String>{}, '
+        'const <String, String>{}, content ?? const '));
+  });
+
+  test('a page made in Studio is drawn in the site''s frame, on the site and '
+      'on the canvas', () async {
+    final String router = await routerSource('');
+    expect(router,
+        contains('DVStudioPageRoute(state.uri.path, frame: _dartvelStoredFrame)'));
+    expect(router,
+        contains('Widget _dartvelStoredFrame(Widget document, {bool layout = true})'));
+    // An address the application has no page at: Studio's document, framed.
+    expect(router,
+        contains('_ => content == null ? null : _dartvelStoredFrame(content, layout: layout)'));
   });
 }
