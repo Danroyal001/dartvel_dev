@@ -75,6 +75,21 @@ class BackendGenerator {
     }
   }
 
+  /// Whether pubspec.yaml turns Studio off outright (`dartvel.admin.enabled:
+  /// false`). Then nothing of it is generated. Otherwise every reference is
+  /// generated behind `dartvelStudio`, a `bool.fromEnvironment` the release
+  /// build sets from the mount it resolved, so AOT drops Studio from a binary
+  /// that does not serve it -- a debug build, where Studio is on by default,
+  /// reads the same generated file.
+  static bool _dvStudioDeclaredOff(String root) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return false;
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    final Object? admin = dartvel is Map ? dartvel['admin'] : null;
+    return admin is Map && admin['enabled'] == false;
+  }
+
   /// `dartvel.capture`, with the runtime's own parser, or null when the
   /// pubspec declares none. A declaration it cannot honour stops generation
   /// (`DV-CDC-006`, `DV-CDC-007`).
@@ -790,6 +805,7 @@ $openApiJson\'\'\';
       return dartvel is Map ? PlatformApiGenerator.read(dartvel) : null;
     }();
     final bool authenticates = platformApi != null;
+    final bool studioOff = _dvStudioDeclaredOff(root);
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
     final String compressionLiteral = server.compression ? 'true' : 'false';
@@ -1667,6 +1683,9 @@ const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
 
 /// Whether responses are compressed, from `dartvel.server.compression`.
 const bool dartvelCompression = $compressionLiteral;
+/// Whether Studio is compiled into this backend. A build that does not serve
+/// it passes -Ddartvel.studio=false, and AOT drops every branch behind this.
+const bool dartvelStudio = ${studioOff ? 'false' : "bool.fromEnvironment('dartvel.studio', defaultValue: true)"};
 
 /// The proxies whose forwarded client address is believed, from
 /// `dartvel.server.trustedProxies`; a deployment adds more with
@@ -1811,7 +1830,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // application registered its own Studio.access policy, which is asked
   // instead. A signed-in customer is not an operator. With no database there
   // is nowhere a grant could be, so nobody is.
-  if (dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();
+${studioOff ? '  // Studio is off (dartvel.admin.enabled: false): no grants to read.' : '  if (dartvelStudio && dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();'}
   // Somebody to grant. Sign-up and sign-in authenticate through the provider
   // the application installed before this, and a web-server binary runs no
   // application code before this, so with nothing installed every one of
@@ -1894,7 +1913,13 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // [spaRoot] -- every file there is served to anybody. A caller who may not
   // see it falls through to the application, which answers the path exactly
   // as it answers any route it does not serve.
-  final core.DVAdminServer? adminServer = admin == null || adminRoot == null
+${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard, no published
+  // pages, no data API of models designed in it. Nothing of it is compiled in,
+  // and its mount is a path like any other the application does not serve.
+  final Future<dv.Response> Function(dv.Request) handler = application;
+  const core.DVPublishedPages? publishedPages = null;''' : '''  // Studio is behind dartvelStudio, which a release build without it sets
+  // false: AOT then compiles none of what follows into the binary.
+  final core.DVAdminServer? adminServer = !dartvelStudio || admin == null || adminRoot == null
       ? null
       : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot);
   final Future<dv.Response> Function(dv.Request) withAdmin = adminServer == null
@@ -1903,13 +1928,15 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // The page documents Studio published, which the web app reads to let a
   // stored page take over its route without a rebuild. Public: a published
   // page is what the site shows anybody.
-  final core.DVPublishedPages publishedPages = core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
+  final core.DVPublishedPages? publishedPages = !dartvelStudio ? null : core.DVPublishedPages(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
   // The data API of the models designed in Studio: their records, read and
   // written through the same checks Studio's own writes go through, for the
   // callers each model's access allows.
-  final core.DVModelDataApi modelData = core.DVModelDataApi(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
-  final Future<dv.Response> Function(dv.Request) handler = (dv.Request request) async => await publishedPages.respond(request) ?? await modelData.respond(request) ?? await withAdmin(request);
-  return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  final core.DVModelDataApi? modelData = !dartvelStudio ? null : core.DVModelDataApi(database: () => const core.DVDatabase().configuredAdapter ?? dartvelDatabase);
+  final Future<dv.Response> Function(dv.Request) handler = publishedPages == null || modelData == null
+      ? withAdmin
+      : (dv.Request request) async => await publishedPages.respond(request) ?? await modelData.respond(request) ?? await withAdmin(request);'''}
+  return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,
