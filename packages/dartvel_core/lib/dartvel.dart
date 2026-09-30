@@ -68,6 +68,7 @@ export 'src/admin/model_data_api.dart';
 export 'src/admin/studio_api.dart';
 export 'src/admin/studio_model_schema.dart';
 export 'src/admin/studio_site.dart';
+export 'src/admin/studio_source_files.dart';
 export 'src/admin/studio_dev_grant.dart';
 export 'src/auth/session_authentication.dart';
 export 'src/billing/invoice.dart';

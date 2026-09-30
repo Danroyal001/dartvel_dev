@@ -42,6 +42,7 @@ import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
 import 'studio_model_schema.dart';
+import 'studio_source_files.dart';
 import 'studio_site.dart';
 
 /// One field of a model, as Studio edits it.
@@ -1392,13 +1393,53 @@ class DVStudioApi {
 
   // ---- pages -------------------------------------------------------------
 
+  /// The project's studio/ files, on a development server; none on a
+  /// deployed one.
+  DVStudioSourceFiles? get _sourceFiles {
+    final String? root = sourceRoot;
+    return root == null
+        ? null
+        : DVStudioSourceFiles(root, DVRecordAdapter.over(_database));
+  }
+
+  /// A write refused because code changed the file: what is in the file,
+  /// for Studio to show beside its own.
+  Response _conflict(DVStudioSourceConflict conflict) => _reply(
+        <String, Object?>{
+          'error': 'changed_in_code',
+          'message': '${conflict.path} was changed in code since Studio '
+              'last saved it. Keep the version in code, or save Studio\'s '
+              'over it.',
+          'path': conflict.path,
+          'inCode': conflict.inCode,
+        },
+        status: 409,
+      );
+
   Future<Response> _pages(Request request, String method) async {
     // Records, not SQL: the same collection DVPageStore writes, on whatever
     // engine the server was given.
     final DVRecordAdapter records = DVRecordAdapter.over(_database);
     await records.ensure(dvStudioPagesShape);
+    final DVStudioSourceFiles? sources = _sourceFiles;
     switch (method) {
       case 'GET':
+        // What code changed in the project's studio/ files comes into
+        // Studio first, so both show the same pages.
+        if (sources != null) {
+          for (final MapEntry<String, Map<String, Object?>?> changed
+              in (await sources.changedInCode()).entries) {
+            await records.delete(dvStudioPagesTable,
+                where: DVFilter.equals('route', changed.key));
+            final Map<String, Object?>? document = changed.value;
+            if (document == null) continue;
+            await records.insert(dvStudioPagesTable, <String, Object?>{
+              'route': changed.key,
+              'title': document['title'],
+              'document': jsonEncode(document),
+            });
+          }
+        }
         final List<Map<String, Object?>> rows = await records.find(
           dvStudioPagesTable,
           fields: const <String>['route', 'title', 'document'],
@@ -1417,7 +1458,8 @@ class DVStudioApi {
             );
         return _reply(<String, Object?>{'pages': pages});
       case 'PUT':
-        final Object? document = (await _body(request))['document'];
+        final Map<String, Object?> body = await _body(request);
+        final Object? document = body['document'];
         if (document is! Map || document['route'] is! String) {
           throw _StudioRefusal(
             400,
@@ -1433,6 +1475,13 @@ class DVStudioApi {
             'A page route begins with "/".',
           );
         }
+        // The project's file first: when code changed it, nothing is
+        // stored, and Studio shows both.
+        try {
+          await sources?.write(route, document, force: body['force'] == true);
+        } on DVStudioSourceConflict catch (conflict) {
+          return _conflict(conflict);
+        }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
         await records.insert(dvStudioPagesTable, <String, Object?>{
@@ -1445,6 +1494,12 @@ class DVStudioApi {
         final String? route = request.url.queryParameters['route'];
         if (route == null || route.isEmpty) {
           throw _StudioRefusal(400, 'bad_route', 'Name the route to remove.');
+        }
+        try {
+          await sources?.remove(route,
+              force: request.url.queryParameters['force'] == 'true');
+        } on DVStudioSourceConflict catch (conflict) {
+          return _conflict(conflict);
         }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
