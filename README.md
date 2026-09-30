@@ -119,7 +119,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences . `dartvel test --impacted` and `--evals` are designed, not built | ⚠️ Partial |
 | **Deployment** | `dartvel build web-server` makes one executable with the backend, the web app and Studio. `dartvel deploy` ships to Firebase, Vercel, Netlify and Cloudflare, or writes a per-function artifact | ✅ Shipped |
 | **Dartvel Studio** | The admin dashboard and visual page editor. The web-server binary serves it at `/__studio`: always in a development build, and in a release build only when `dartvel.admin.enabled` is set | ✅ Shipped |
-| **Development Builds** | `dartvel dev` pairs with a `--profile development` build over TLS and hot reloads it on save, on Android, iOS, macOS, Linux and Windows | ⚠️ Partial |
+| **Development Builds & Preview** | Development builds pair with `dartvel dev` over TLS. **Dartvel Preview** (`apps/dartvel_preview`) runs any project on Android and desktops without building it first, with instant hot reload. iPhone, TV/embedded and store builds not built yet | ⚠️ Partial |
 | **Dartvel Cloud** | The CLI side of hosted builds and store deploys (`--cloud`). The hosted service has not launched | ⚠️ Partial |
 | **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
@@ -498,10 +498,54 @@ PostgreSQL and MySQL are not migrated automatically on start.
 
 ---
 
-## 📲 Development builds and pairing
+## 📲 Development builds and Dartvel Preview
 
-There is no separate dev-client app to install. A development build is an
-ordinary build with a profile:
+There are two ways to run and test your project on a device:
+
+1. **Dartvel Preview** (`apps/dartvel_preview`): the Expo Go equivalent for every
+   platform Dartvel builds for. Build Preview once, and it runs *any* Dartvel
+   project served by `dartvel dev` on your local network without having to compile
+   that project for the device first.
+2. **A project development build**: your own project built with `--profile development`,
+   including your custom native plugins and permissions.
+
+### Dartvel Preview (Expo Go for every platform)
+
+`dartvel dev` prints a Dartvel Preview code alongside its pairing links and QR code:
+
+```text
+dartvel-preview://open?name=shop&pair=dartvel-dev%3A%2F%2Fpair...&web=http%3A%2F%2F192.168.1.20%3A5000
+```
+
+Build Preview once for your device or machine:
+
+```bash
+cd apps/dartvel_preview
+dartvel build android --profile development   # a phone or emulator
+dartvel build linux --profile development     # or macos, windows
+dartvel build web                             # any browser
+```
+
+Then in any Dartvel project, run `dartvel dev` and connect:
+- **On a phone or tablet:** scan the QR code with Dartvel Preview or open the link.
+- **On desktop:** paste the link or launch Preview with the link argument:
+  `./build/linux/x64/debug/bundle/dartvel_preview 'dartvel-preview://open?...'`
+- **In a browser:** open Preview's web build, which embeds your project's web build in a responsive frame.
+
+On development builds (Android, Linux, macOS, Windows), Preview hands the pairing
+link to its native tunnel. `dartvel dev` attaches, hot-restarts Preview into your
+project's code, and hot-reloads on every save.
+
+**Limits today:** Preview is built from source and not yet distributed in app stores.
+It includes `dartvel_flutter` and the common native plugins it declares; if your project
+uses a native plugin Preview was not built with, build a project development build instead.
+iOS runs web builds or development builds via Xcode/simulator (iOS debug builds need a debugger
+attached, and store builds cannot run downloaded JIT code). TV and embedded targets are not yet supported.
+To return to Preview's launcher from a running project, restart the Preview app.
+
+### Project development builds
+
+A project development build is your own app compiled with a development profile:
 
 ```bash
 dartvel build android --profile development   # also ios, macos, linux, windows
@@ -1110,7 +1154,7 @@ want some of these:
 | An SDK of native modules: camera, location, notifications, SQLite, secure store, auth sessions | `DV.Platform.*` bindings, plus framework services you configure in `pubspec.yaml` and code. Nothing is copied into your project to maintain |
 | Server code: Expo Router API routes and server functions, hosted on EAS Hosting | `@DVBackendFunction` with a generated typed client, data models, auth and queues, served by the one binary `dartvel build web-server` makes. You host it; Cloud hosting is designed, not built |
 | Over-the-air updates | `dartvel updates` over Shorebird, with `DV.Updates` bound over FFI and an optional self-hosted patch source. Proven on Android; see [Over-the-air updates](#-over-the-air-updates) |
-| Development builds | `--profile development` builds that pair with `dartvel dev` by QR code. See [Development builds](#-development-builds-and-pairing) |
+| Development builds & Preview | `--profile development` builds for your project, plus **Dartvel Preview** (the Expo Go equivalent for every platform) to run any project without compiling it first. See [Development builds and Dartvel Preview](#-development-builds-and-dartvel-preview) |
 | Cloud builds, credentials and store submission (EAS) | The CLI for [Dartvel Cloud](#-dartvel-cloud) is built and the hosted service has not launched. Locally, `dartvel deploy --store` hands the upload for Play, the App Store, TestFlight or Firebase to that store's own tool |
 
 ---
