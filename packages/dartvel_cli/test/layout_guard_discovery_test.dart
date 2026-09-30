@@ -238,7 +238,7 @@ void nestedLayoutOrderTests() {
         final String router =
             File('${root.path}/lib/dartvel_client/router.g.dart')
                 .readAsStringSync();
-        final String wrapped = RegExp(r'final layoutWrapped = ([^;]+);')
+        final String wrapped = RegExp(r'final layoutWrapped = layout \? ([^;]+) : seoWrapped;')
             .firstMatch(router)!
             .group(1)!;
         final String rootAlias = RegExp(r"_layout\.dart' as (l\d+);")
@@ -309,7 +309,7 @@ void nestedLayoutOrderTests() {
           final String router = File(
             '${root.path}/lib/dartvel_client/router.g.dart',
           ).readAsStringSync();
-          final String wrapped = RegExp(r'final layoutWrapped = ([^;]+);')
+          final String wrapped = RegExp(r'final layoutWrapped = layout \? ([^;]+) : seoWrapped;')
               .firstMatch(router)!
               .group(1)!;
           expect(wrapped, contains('.RootLayout(child: '));

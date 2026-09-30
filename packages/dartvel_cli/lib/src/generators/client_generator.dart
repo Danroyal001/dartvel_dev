@@ -1287,6 +1287,96 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
         .join('\n');
 
 
+    // One page's view: everything its route draws -- lifecycle, route state,
+    // i18n, data, SEO, layouts, shell -- around [body], which is where the
+    // page goes. The route calls it with the page (or a Studio document that
+    // overrides it); Studio's canvas calls it through dartvelPagePreview, so
+    // a page on the canvas is drawn by the same code as the page on the site
+    // rather than by a copy of it that can drift.
+    String pageViewSrc(_PageEntry e) => '''
+/// The page at `${esc(e.route)}` as its route draws it, with [body] where the
+/// page goes and, unless [layout] is false, its layouts around it.
+Widget _dvView${e.generatedWidget}(Map<String, String> params, Map<String, String> query, Widget body, {bool layout = true}) {
+  final page = const ${e.generatedWidget}();
+  // The page's own lifecycle, so context.lifecycle.page reaches a
+  // signal that moves. Without this the getter threw: the enum, the
+  // signal type and the refusal message all existed, and nothing ever
+  // created one for a page.
+  //
+  // Inside the route rather than around the router, because two pages
+  // are alive at once whenever one is leaving as the next enters, and
+  // a single signal would report whichever moved last for both.
+  // Under the consent banner when the application declares analytics:
+  // a banner an application had to remember to place is one nobody
+  // sees, and every default-denied category would stay denied.
+  final withLifecycle = DVPageLifecycleHost(child: ${dv['analytics'] != null ? 'DVConsentBanner(child: body)' : 'body'});
+  final withState = DartvelRouteState(params: params, query: query, child: withLifecycle);
+
+  // i18n scope using the configured query parameter strategy.
+  final i18nParam = '${esc(i18nParam)}';
+  final i18nDefault = '${esc(i18nDefault)}';
+  final i18nLocales = <String>[$i18nLocalesLit];
+  final langRaw = query[i18nParam];
+  final langTag = (i18nLocales.isEmpty && i18nDefault.isEmpty)
+      ? (langRaw ?? '')
+      : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
+  final withI18n = DvI18nScope(localeTag: langTag, child: withState);
+
+  final loaderWrapped = DvDataLoader(
+    load: () => page.loadData(params, query),
+    child: withI18n,
+${(() {
+      final la = e.loadingAlias;
+      final ea = e.errorAlias;
+      // A class page names its companions after the class. A function
+      // page has no class, so they take the public name, capitalised:
+      // _aboutPage is answered by AboutPageLoading and AboutPageError.
+      final companion = e.isFunctional
+          ? '${e.publicName[0].toUpperCase()}${e.publicName.substring(1)}'
+          : e.className;
+      final lc = '${companion}Loading';
+      final ec = '${companion}Error';
+      final b = StringBuffer();
+      if (la != null && la.isNotEmpty) {
+        b.writeln("    loading: $la.$lc(),");
+      } else if (la != null) {
+        // A functional companion: the class is the client's own.
+        b.writeln("    loading: $lc(),");
+      } else {
+        b.writeln("    loading: const DvDefaultLoading(),");
+      }
+      if (ea != null && ea.isNotEmpty) {
+        b.writeln("    error: $ea.$ec(),");
+      } else if (ea != null) {
+        b.writeln("    error: $ec(),");
+      } else {
+        b.writeln("    error: const DvDefaultError(),");
+      }
+      return b.toString();
+    })()}  );
+
+  final seoWrapped = DartvelSeo(
+    // The title the page declared, underneath whatever its own
+    // buildWebSeo returns. dvStaticPage already writes that title into
+    // the prerendered index.html, so a crawler saw it and a person did
+    // not: Flutter boots, DartvelSeo applies SeoProps.empty, and the
+    // project default overwrites the route's own title in the tab.
+    //
+    // Taken from the scaffold spec rather than pasted in as a literal,
+    // so one declaration feeds the app bar, the static file and this.
+    props: SeoProps(title: page.pageScaffold.title)
+        .merge(page.buildWebSeo(params, query)),
+    defaults: _defaultSeo,
+    child: loaderWrapped,
+  );
+  final layoutWrapped = layout ? ${wrapWithLayouts(e.directory, 'seoWrapped')} : seoWrapped;
+  return DVPageShell(
+    spec: page.pageScaffold,
+    child: layoutWrapped,
+  );
+}
+''';
+
     // One page's route. [path] is relative when the page is nested under
     // another inside a tab; [pushed] pages take the platform's push, which is
     // what carries the iOS back swipe.
@@ -1306,90 +1396,11 @@ ${guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa)}      pageBuilder
         // A stored Studio document overrides this compiled page: the
         // compiled one is the entrypoint the app shipped with, and the
         // editor has to be able to change it.
-        final overridable = DVStudioPageRoute(
-          '${esc(e.route)}',
-          fallback: page,
-        );
-        // The page's own lifecycle, so context.lifecycle.page reaches a
-        // signal that moves. Without this the getter threw: the enum, the
-        // signal type and the refusal message all existed, and nothing ever
-        // created one for a page.
-        //
-        // Inside the route rather than around the router, because two pages
-        // are alive at once whenever one is leaving as the next enters, and
-        // a single signal would report whichever moved last for both.
-        // Under the consent banner when the application declares analytics:
-        // a banner an application had to remember to place is one nobody
-        // sees, and every default-denied category would stay denied.
-        final withLifecycle = DVPageLifecycleHost(child: ${dv['analytics'] != null ? 'DVConsentBanner(child: overridable)' : 'overridable'});
-        final withState = DartvelRouteState(params: params, query: query, child: withLifecycle);
-
-        // i18n scope using the configured query parameter strategy.
-        final i18nParam = '${esc(i18nParam)}';
-        final i18nDefault = '${esc(i18nDefault)}';
-        final i18nLocales = <String>[$i18nLocalesLit];
-        final langRaw = query[i18nParam];
-        final langTag = (i18nLocales.isEmpty && i18nDefault.isEmpty)
-            ? (langRaw ?? '')
-            : (DvI18n.normalize(langRaw, i18nLocales, i18nDefault.isEmpty ? (langRaw ?? '') : i18nDefault));
-        final withI18n = DvI18nScope(localeTag: langTag, child: withState);
-
-        final loaderWrapped = DvDataLoader(
-          load: () => page.loadData(params, query),
-          child: withI18n,
-${(() {
-            final la = e.loadingAlias;
-            final ea = e.errorAlias;
-            // A class page names its companions after the class. A function
-            // page has no class, so they take the public name, capitalised:
-            // _aboutPage is answered by AboutPageLoading and AboutPageError.
-            final companion = e.isFunctional
-                ? '${e.publicName[0].toUpperCase()}${e.publicName.substring(1)}'
-                : e.className;
-            final lc = '${companion}Loading';
-            final ec = '${companion}Error';
-            final b = StringBuffer();
-            if (la != null && la.isNotEmpty) {
-              b.writeln("          loading: $la.$lc(),");
-            } else if (la != null) {
-              // A functional companion: the class is the client's own.
-              b.writeln("          loading: $lc(),");
-            } else {
-              b.writeln("          loading: const DvDefaultLoading(),");
-            }
-            if (ea != null && ea.isNotEmpty) {
-              b.writeln("          error: $ea.$ec(),");
-            } else if (ea != null) {
-              b.writeln("          error: $ec(),");
-            } else {
-              b.writeln("          error: const DvDefaultError(),");
-            }
-            return b.toString();
-          })()}        );
-
-        final seoWrapped = DartvelSeo(
-          // The title the page declared, underneath whatever its own
-          // buildWebSeo returns. dvStaticPage already writes that title into
-          // the prerendered index.html, so a crawler saw it and a person did
-          // not: Flutter boots, DartvelSeo applies SeoProps.empty, and the
-          // project default overwrites the route's own title in the tab.
-          //
-          // Taken from the scaffold spec rather than pasted in as a literal,
-          // so one declaration feeds the app bar, the static file and this.
-          props: SeoProps(title: page.pageScaffold.title)
-              .merge(page.buildWebSeo(params, query)),
-          defaults: _defaultSeo,
-          child: loaderWrapped,
-        );
+        final pageShellWrapped = _dvView${e.generatedWidget}(params, query, DVStudioPageRoute('${esc(e.route)}', fallback: page));
 ${pushed && e.isFunctional ? '' : '''        final spec = ${e.isFunctional ? '_projectDefaultTransition' : '''page.transition == const PageTransitionSpec()
             ? _projectDefaultTransition
             : page.transition'''};
-'''}        final layoutWrapped = ${wrapWithLayouts(e.directory, 'seoWrapped')};
-        final pageShellWrapped = DVPageShell(
-          spec: page.pageScaffold,
-          child: layoutWrapped,
-        );
-${!pushed ? '' : e.isFunctional ? '        // Pushed inside a stack: the platform\'s push, with its back swipe.\n        return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n' : '        if (page.transition == const PageTransitionSpec()) {\n          return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n        }\n'}${pushed && e.isFunctional ? '' : '''        return dvTransitionPage(
+'''}${!pushed ? '' : e.isFunctional ? '        // Pushed inside a stack: the platform\'s push, with its back swipe.\n        return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n' : '        if (page.transition == const PageTransitionSpec()) {\n          return MaterialPage<void>(key: state.pageKey, child: pageShellWrapped);\n        }\n'}${pushed && e.isFunctional ? '' : '''        return dvTransitionPage(
           key: state.pageKey,
           child: pageShellWrapped,
           spec: spec,
@@ -1718,7 +1729,7 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
         ? ''
         : '''
     if (const bool.fromEnvironment('$dvStudioDefine'))
-      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'$signInReturns),''';
+      ...dvStudioRoutes(mount: '${esc(studioMount)}', title: '${esc('Studio · $pkgName')}'$signInReturns, view: dartvelPagePreview),''';
 
     final allRoutes = dvJoinRouteBlocks(<String>[
       routesSrc,
@@ -2061,13 +2072,13 @@ GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {
   // are still deciding, it paints a pending view where go_router paints
   // nothing, so a deep link onto a guarded page is never a blank screen.
   final router = DVRouter(
-    routes: _dartvelRouteList(),
+    // Every address no page claims, last: a page made in Studio is a page of
+    // the site, with its layouts, its shell and the router state they read.
+    routes: <RouteBase>[..._dartvelRouteList(), dvStudioPagesRoute(frame: _dartvelStoredFrame)],
     redirect: _globalRedirect,
-    // A route with no compiled page may still be a Studio page: builder
-    // documents are data, so saving one publishes it without a rebuild.
-    // Compiled routes always win — the store is only consulted here, after
-    // matching has already failed.
-    // A route with no compiled page at all may still be a Studio page.
+    // What the Studio pages route above does not reach -- an address the
+    // router could not parse -- is still looked up in the store, and is
+    // otherwise not found.
     errorBuilder: (BuildContext context, GoRouterState state) =>
         DVStudioPageRoute(state.uri.path),
   );
@@ -2232,29 +2243,33 @@ ${(() {
         sbRoutes.writeln('  ),');
       }
       sbRoutes.writeln('];');
-      // Each page without parameters, built the way its route builds it, so
-      // Studio inside the application can show a compiled page as the
-      // application draws it rather than guess at it.
+      // Each page's view, which its route and Studio's canvas both draw it
+      // with; then the preview Studio calls them through.
       sbRoutes.writeln();
-      sbRoutes.writeln('/// A page with no parameters, built as its route builds it, for');
-      sbRoutes.writeln("/// Studio's preview of a compiled page. Null for any other path.");
-      sbRoutes.writeln('Widget? dartvelPagePreview(String path) {');
-      sbRoutes.writeln('  final DartvelPage? page = switch (path) {');
+      for (final e in pageEntries) {
+        sbRoutes.write(pageViewSrc(e));
+        sbRoutes.writeln();
+      }
+      sbRoutes.writeln('/// A page Studio serves at an address the application has no page at,');
+      sbRoutes.writeln('/// in the frame every page of the application has: the root layouts,');
+      sbRoutes.writeln('/// unless [layout] is false, and the page shell.');
+      sbRoutes.writeln('Widget _dartvelStoredFrame(Widget document, {bool layout = true}) => DVPageShell(');
+      sbRoutes.writeln('      spec: const DVPageScaffoldSpec(),');
+      sbRoutes.writeln('      child: layout ? ${wrapWithLayouts(pagesDir, 'document')} : document,');
+      sbRoutes.writeln('    );');
+      sbRoutes.writeln();
+      sbRoutes.writeln('/// The page at [path] as its route draws it, for Studio\'s canvas: the');
+      sbRoutes.writeln('/// page itself, or [content] -- what Studio is editing -- in its place,');
+      sbRoutes.writeln('/// inside the same layouts and shell. Null for a path with parameters,');
+      sbRoutes.writeln('/// or an address with no page and nothing to put there.');
+      sbRoutes.writeln('Widget? dartvelPagePreview(String path, {Widget? content, bool layout = true}) {');
+      sbRoutes.writeln('  return switch (path) {');
       for (final e in pageEntries) {
         if (e.route.contains(':')) continue;
-        sbRoutes.writeln("    '${e.route}' => const ${e.generatedWidget}(),");
+        sbRoutes.writeln("    '${e.route}' => _dvView${e.generatedWidget}(const <String, String>{}, const <String, String>{}, content ?? const ${e.generatedWidget}(), layout: layout),");
       }
-      sbRoutes.writeln('    _ => null,');
+      sbRoutes.writeln('    _ => content == null ? null : _dartvelStoredFrame(content, layout: layout),');
       sbRoutes.writeln('  };');
-      sbRoutes.writeln('  if (page == null) return null;');
-      sbRoutes.writeln('  return DartvelRouteState(');
-      sbRoutes.writeln('    params: const <String, String>{},');
-      sbRoutes.writeln('    query: const <String, String>{},');
-      sbRoutes.writeln('    child: DvDataLoader(');
-      sbRoutes.writeln('      load: () => page.loadData(const <String, String>{}, const <String, String>{}),');
-      sbRoutes.writeln('      child: page,');
-      sbRoutes.writeln('    ),');
-      sbRoutes.writeln('  );');
       sbRoutes.writeln('}');
       return sbRoutes.toString();
     })()}

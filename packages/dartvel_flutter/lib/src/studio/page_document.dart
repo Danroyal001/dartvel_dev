@@ -2144,11 +2144,19 @@ class DVStudioPageRoute extends StatefulWidget {
   /// Shown when neither a stored document nor a [fallback] claims the route.
   final Widget Function(String route)? notFound;
 
+  /// What a stored document is drawn inside, when it is drawn: the layouts
+  /// and shell of a page at this route. A route the application compiled
+  /// has them around it already; a page only Studio serves takes them from
+  /// here, so it sits in the site like any other page. Not applied to
+  /// [fallback] or [notFound].
+  final Widget Function(Widget document)? frame;
+
   const DVStudioPageRoute(
     this.route, {
     super.key,
     this.fallback,
     this.notFound,
+    this.frame,
   });
 
   @override
@@ -2196,11 +2204,53 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
   @override
   Widget build(BuildContext context) {
     final document = _document;
-    if (document != null) return DVPageDocumentRenderer(document);
+    if (document != null) {
+      final Widget body = DVStudioPageBody(
+        scrolls: document.root.properties['scroll'] == true,
+        child: DVPageDocumentRenderer(document),
+      );
+      return widget.frame?.call(body) ?? body;
+    }
     final fallback = widget.fallback;
     if (fallback != null) return fallback;
     return widget.notFound?.call(widget.route) ??
         DVNotFoundPage(route: widget.route);
+  }
+}
+
+/// A stored page's body in the space its route gives it: scrolled when the
+/// page is taller than that space, at least as tall as it otherwise.
+///
+/// The editor lays a document out top to bottom with no height limit, and a
+/// route gives it the height of the window under the site's header. Without
+/// this a page that fit the editor overflowed the route; with it, the page
+/// on the canvas and the page on the site are laid out the same way, and a
+/// page that centres its content still centres it in the window.
+class DVStudioPageBody extends StatelessWidget {
+  const DVStudioPageBody({
+    super.key,
+    required this.scrolls,
+    required this.child,
+  });
+
+  /// Whether the page's root already scrolls itself.
+  final bool scrolls;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (scrolls) return child;
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        if (!box.hasBoundedHeight) return child;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 }
 

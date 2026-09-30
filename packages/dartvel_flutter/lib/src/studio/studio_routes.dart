@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 
 import '../routing/url_strategy.dart' show dvOpenUrl;
 import 'studio_app_entry.dart' deferred as dartvel_studio;
+import 'studio_host.dart';
 import 'studio_server.dart'
     show DVStudioReply, DVStudioTransport, dvStudioBrowserTransport;
 import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
@@ -29,7 +30,9 @@ import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
 /// grant again before it renders anything. [location] is the address a
 /// Studio page was opened at; the browser's by default. [signInReturns] are
 /// the other mounts Studio's grant guards, such as a documentation site with
-/// `access: studio`, which the sign-in sends a person back to.
+/// `access: studio`, which the sign-in sends a person back to. [view] is the
+/// application's `dartvelPagePreview`: each page as its route builds it,
+/// which is how Studio's canvas draws a page exactly as the site does.
 List<RouteBase> dvStudioRoutes({
   required String mount,
   String title = 'Studio',
@@ -37,6 +40,7 @@ List<RouteBase> dvStudioRoutes({
   void Function(String path)? open,
   Uri Function(GoRouterState state)? location,
   List<String> signInReturns = const <String>[],
+  DVStudioPageView? view,
 }) {
   // A transport and nothing more on this side of the deferred imports: an
   // object of Studio's made here would bring every method it has into
@@ -64,7 +68,12 @@ List<RouteBase> dvStudioRoutes({
       pageBuilder: (BuildContext context, GoRouterState state) =>
           NoTransitionPage<void>(
             key: state.pageKey,
-            child: DVStudioDeferred(
+            // The application's page views and its look, taken here, under
+            // the application's MaterialApp and above Studio's own frame.
+            child: DVStudioHost(
+              view: view,
+              look: DVStudioAppLook.capture(context),
+              child: DVStudioDeferred(
               load: dartvel_studio.loadLibrary,
               builder: (BuildContext context) => dartvel_studio.dvStudioAppFor(
                 transport: send,
@@ -72,6 +81,7 @@ List<RouteBase> dvStudioRoutes({
                 location: location?.call(state),
                 open: open,
               ),
+            ),
             ),
           ),
     ),
