@@ -435,6 +435,85 @@ void main() {
     });
   });
 
+  group('who is signed in, and signing out', () {
+    // An operator has to see whose Studio this is and be able to leave it:
+    // a browser left signed in -- a shared machine, a private window that
+    // was not -- is Studio open to whoever sits down next.
+    late DVSessions sessions;
+    late DVStudioGrants grants;
+    late LocalAuthProvider accounts;
+    late String userId;
+
+    Request post(String path, {String? token, bool csrf = true}) => Request(
+          method: 'POST',
+          url: Uri.parse('http://localhost:8080$path'),
+          headers: Headers(<String, String>{
+            if (csrf) 'x-dartvel-csrf-token': 'c' * 32,
+            if (token != null) 'authorization': 'Bearer $token',
+          }),
+          bodyStream: const Stream<List<int>>.empty(),
+        );
+
+    setUp(() async {
+      sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      grants = DVStudioGrants(SqliteDVDatabaseAdapter.memory())..install();
+      accounts = LocalAuthProvider();
+      final AuthUser? user =
+          await accounts.signUp('ops@example.com', 'a-long-enough-password-1');
+      userId = user!.id;
+      DVAuthEndpoints.install(
+          credentials: DVCredentialGuard(provider: accounts, refusalFloor: .zero));
+      addTearDown(DVAuthEndpoints.uninstall);
+      await grants.grant(userId);
+    });
+
+    test('<mount>/api/me names the signed-in person to a granted session only',
+        () async {
+      final DVIssuedSession issued = await sessions.create(userId);
+      final DVAdminServer server = _server(_guarded);
+      final Response? me = await server.respond(_get('/__studio/api/me',
+          headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
+      expect(me?.status, 200);
+      expect(me!.headers.get('cache-control'), 'no-store');
+      expect(jsonDecode(await _body(me)),
+          <String, Object?>{'userId': userId, 'email': 'ops@example.com'});
+      expect(await server.respond(_get('/__studio/api/me')), isNull);
+    });
+
+    test('signing out ends the session on the server and clears the cookie',
+        () async {
+      final DVIssuedSession issued = await sessions.create(userId);
+      final DVAdminServer server = _server(_guarded);
+      Future<bool> granted() async {
+        final Response? r = await server.respond(_get('/__studio/api/access',
+            headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
+        return (jsonDecode(await _body(r!)) as Map)['granted'] == true;
+      }
+
+      expect(await granted(), isTrue);
+      // A cross-site form cannot sign anybody out either.
+      expect(
+          (await server.respond(post('/__studio/api/auth/sign-out',
+                  token: issued.token, csrf: false)))
+              ?.status,
+          403);
+      expect(await granted(), isTrue);
+
+      final Response? out = await server
+          .respond(post('/__studio/api/auth/sign-out', token: issued.token));
+      expect(out?.status, 204);
+      expect(out!.headers.get('set-cookie'), contains('Max-Age=0'));
+      // The token is dead, not merely forgotten by this browser.
+      expect(await granted(), isFalse);
+      expect((await sessions.check(issued.token)).session, isNull);
+      // And a Studio page sends it to the sign-in again.
+      final Response? page = await server.respond(_get('/__studio/',
+          headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
+      expect(page?.status, 302);
+    });
+  });
+
   group('a mount that requires a sign-in', () {
     test('answers nothing to a caller with no session', () async {
       DVSessionAuthentication.install(sessions: DVSessions());
