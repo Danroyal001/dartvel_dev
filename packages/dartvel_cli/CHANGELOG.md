@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **The build no longer overwrites an `.htaccess` somebody took over.** The
+  generated file said it was only created when absent while every build
+  rewrote it. Dartvel now rewrites only its own copy (first line
+  `# Written by dartvel build web.`), so fixes to the generated rules still
+  reach every project; delete that line to keep your edits, or keep your own
+  in `web/.htaccess`, which wins as before. The header says so.
+
 - **`Model.Form()` never shows a sensitive field.** The form drew an input
   for every field the model's internal serializer carried, so a
   `@DVModel.sensitiveField()` appeared on the generated form prefilled with
