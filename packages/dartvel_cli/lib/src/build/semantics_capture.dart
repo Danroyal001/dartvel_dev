@@ -114,6 +114,14 @@ shelf.Handler dvCaptureHandler(String webRoot) {
   );
 
   return (shelf.Request request) async {
+    // The capture measures what a page asks for by itself. The last
+    // build's manifest would have each page prefetch what its links need,
+    // and those requests would be recorded as the page's own -- growing the
+    // manifest, and every page's preloads, on every rebuild in one tree.
+    if (request.url.path == dvPrefetchManifestFile ||
+        request.url.path.endsWith('/$dvPrefetchManifestFile')) {
+      return shelf.Response.notFound('');
+    }
     final shelf.Response response = await static(request);
     if (response.statusCode != 404) return response;
 
