@@ -36,6 +36,9 @@ DVInMemorySearchProvider<_Person, _Facets> providerWith({
     );
 
 void main() {
+  rankingTests();
+  cachingTests();
+
   test('a typo still finds the record', () async {
     final DVSearchResultPage<_Person> page =
         await providerWith().query('lovelice');
@@ -100,5 +103,92 @@ void main() {
     );
 
     expect((await plain.query('ada')).facetCounts, isEmpty);
+  });
+}
+
+// A keyword search is one half of a hybrid one, and reciprocal rank fusion
+// reads only positions. A provider that returned its matches in the order
+// they were stored handed the fusion a ranking that meant nothing.
+class _Page {
+  const _Page(this.title, this.body);
+  final String title;
+  final String body;
+}
+
+const List<_Page> _pages = <_Page>[
+  _Page('Routing', 'How pages link to each other and how a layout wraps them.'),
+  _Page('State', 'How signals rebuild a widget, and how a global is read.'),
+  _Page('Deploying', 'How to deploy the server binary to your own server.'),
+  _Page('Secrets', 'How a key reaches the server and never the browser.'),
+];
+
+DVInMemorySearchProvider<_Page, Object?> pagesProvider() =>
+    DVInMemorySearchProvider<_Page, Object?>(
+      records: _pages,
+      document: (_Page p) => '${p.title} ${p.body}',
+    );
+
+void rankingTests() {
+  test('the record matching the most, and the rarest, terms comes first',
+      () async {
+    // Every page says "how"; only one says "deploy". Stored order would put
+    // Routing first.
+    final DVSearchResultPage<_Page> page =
+        await pagesProvider().query('how do i deploy a server');
+
+    expect(page.items.first.title, 'Deploying');
+  });
+
+  test('a word said twice outranks the same word said once', () async {
+    final DVSearchResultPage<_Page> page =
+        await DVInMemorySearchProvider<_Page, Object?>(
+      records: const <_Page>[
+        _Page('Once', 'the server is here now'),
+        _Page('Twice', 'the server is a server'),
+      ],
+      document: (_Page p) => p.body,
+    ).query('server');
+
+    expect(page.items.map((_Page p) => p.title), <String>['Twice', 'Once']);
+  });
+
+  test('records that score the same keep the order they were stored in',
+      () async {
+    final DVSearchResultPage<_Page> page =
+        await DVInMemorySearchProvider<_Page, Object?>(
+      records: const <_Page>[
+        _Page('Beta', 'one shared word'),
+        _Page('Alpha', 'one shared word'),
+      ],
+      document: (_Page p) => p.body,
+    ).query('shared');
+
+    expect(page.items.map((_Page p) => p.title), <String>['Beta', 'Alpha']);
+  });
+}
+
+void cachingTests() {
+  test('a record is read into words once, not on every query', () async {
+    // The provider lower-cased and split every record on every query, twice:
+    // once to match and once to rank. On a site's 472 sections that was 150
+    // milliseconds a keystroke, which is the difference between a search box
+    // and a spinner.
+    int reads = 0;
+    final DVInMemorySearchProvider<_Page, Object?> provider =
+        DVInMemorySearchProvider<_Page, Object?>(
+      records: _pages,
+      document: (_Page p) {
+        reads++;
+        return '${p.title} ${p.body}';
+      },
+    );
+    await provider.query('deploy server');
+    final int afterFirst = reads;
+    await provider.query('signals widget');
+    await provider.query('how');
+
+    expect(afterFirst, lessThanOrEqualTo(_pages.length * 2));
+    expect(reads, afterFirst,
+        reason: 'the second and third queries read no record again');
   });
 }

@@ -15,6 +15,7 @@ import 'annotation_args.dart';
 import 'model_rules.dart';
 import 'policy_classes.dart';
 import 'primary_constructors.dart';
+import 'server_models.dart';
 import 'public_pages.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
@@ -1705,7 +1706,14 @@ class ModelGenerator {
           final Set<String> semanticNames = <String>{
             ...searchableFields.map((Map<String, String> f) => f['name']!),
             if (pageTitleField != null) pageTitleField,
-            ...mainContentCandidates,
+            // The annotated main content, or with none the page's fallback of
+            // every text field -- but only when the model declared no
+            // searchable fields. A model that said which fields are prose has
+            // said it; the fallback embedded its paths and slugs as well.
+            if (mainContentField != null)
+              mainContentField
+            else if (searchableFields.isEmpty)
+              ...mainContentCandidates,
           };
           final semanticFields = fields
               .where(
@@ -1759,6 +1767,13 @@ class ModelGenerator {
               '      tenantOf: ($className record) => record.tenantId,',
             );
           }
+          if (isSearchableModel || searchableFields.isNotEmpty) {
+            // The model's own keyword search, for keyword and hybrid modes,
+            // read when a query runs so a provider set later is the one used.
+            sb.writeln(
+              '      keyword: DVDeferredSearchProvider<$className>(() => _searchProvider),',
+            );
+          }
           sb.writeln(
             '      toJson: ($className record) => record.toPublicJson(),',
           );
@@ -1775,6 +1790,7 @@ class ModelGenerator {
           sb.writeln('    String text, {');
           sb.writeln('    DVSearchMode mode = DVSearchMode.semantic,');
           sb.writeln('    int limit = 10,');
+          sb.writeln('    double minScore = 0,');
           sb.writeln('  }) async {');
           sb.writeln('    final index = _dvSemanticIndex;');
           sb.writeln('    if (index == null) {');
@@ -1785,8 +1801,30 @@ class ModelGenerator {
           sb.writeln('      );');
           sb.writeln('    }');
           sb.writeln(
-            '    return index.query(text, mode: mode, limit: limit);',
+            '    return index.query(text, mode: mode, limit: limit, minScore: minScore);',
           );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Embeds every stored [$className] the index does not');
+          sb.writeln('  /// have yet, now, and returns how many records it holds.');
+          sb.writeln('  ///');
+          sb.writeln('  /// Saving enqueues the embedding for a worker, so records');
+          sb.writeln('  /// stored before [useSemanticSearch], or by a process with');
+          sb.writeln('  /// no worker, are found only after this. A run that stops');
+          sb.writeln('  /// part-way resumes rather than paying twice.');
+          sb.writeln('  static Future<int> semanticBackfill() async {');
+          sb.writeln('    final index = _dvSemanticIndex;');
+          sb.writeln('    if (index == null) {');
+          sb.writeln('      throw StateError(');
+          sb.writeln(
+            "        '$className.semanticBackfill needs $className.useSemanticSearch(...) first.',",
+          );
+          sb.writeln('      );');
+          sb.writeln('    }');
+          sb.writeln(
+            '    final result = await index.backfill(await $className.all(), complete: true);',
+          );
+          sb.writeln('    return result.processed;');
           sb.writeln('  }');
         }
         sb.writeln('}');
@@ -3164,6 +3202,17 @@ class ModelGenerator {
             'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+    // The same library without the widgets, for a backend: it is compiled
+    // without Flutter and could not import the one above.
+    File(p.join(clientDir.path, 'models_server.g.dart'))
+        .writeAsStringSync(dvServerModelsSource(content));
+    // What backend code imports, as pages import dartvel_client.dart.
+    File(p.join(clientDir.path, 'dartvel_server.dart')).writeAsStringSync(
+      '${generatedHeader}/// The generated surface a backend function imports: the data\n'
+      '/// models, without the widgets a server has no Flutter to build.\n'
+      'library dartvel_client_server;\n\n'
+      "export 'models_server.g.dart';\n",
+    );
 
     // The schema, where something other than Dart can read it.
     //
