@@ -865,11 +865,18 @@ class DVSemanticIndex<T> {
 
   /// Searches the index. [where] holds conditions on [attributesOf]'s values,
   /// pushed into the vector query where the adapter can filter.
+  ///
+  /// [minScore] is the least cosine a semantic match may have. Everything
+  /// that shares a word with the query is at some positive angle, so without
+  /// one a query about one record comes back with the rest trailing after
+  /// it. In hybrid mode it drops only the semantic tail: what the keyword
+  /// ranking found stays.
   Future<DVSemanticPage<T>> query(
     String text, {
     DVSearchMode mode = DVSearchMode.keyword,
     int limit = 10,
     Map<String, String> where = const <String, String>{},
+    double minScore = 0,
   }) async {
     if (limit < 1) throw ArgumentError.value(limit, 'limit', 'must be positive');
     if (where.isNotEmpty && attributesOf == null) {
@@ -880,9 +887,9 @@ class DVSemanticIndex<T> {
       case DVSearchMode.keyword:
         return DVSemanticPage<T>(hits: await _keywordHits(text, limit, where));
       case DVSearchMode.semantic:
-        return _semantic(text, limit, where);
+        return _semantic(text, limit, where, minScore);
       case DVSearchMode.hybrid:
-        return _hybrid(text, limit, where);
+        return _hybrid(text, limit, where, minScore);
     }
   }
 
@@ -960,8 +967,8 @@ class DVSemanticIndex<T> {
     return hits;
   }
 
-  Future<DVSemanticPage<T>> _semantic(
-      String text, int limit, Map<String, String> where) async {
+  Future<DVSemanticPage<T>> _semantic(String text, int limit,
+      Map<String, String> where, double minScore) async {
     await _open();
     final String serving = _active!;
     final DVEmbedder? using = _embedderFor(serving);
@@ -978,6 +985,11 @@ class DVSemanticIndex<T> {
       throw DVSemanticDimensionError(
           embedder: using.id, expected: using.dimensions, actual: vector.length);
     }
+    // Nothing is near the zero vector: every cosine with it is 0, and "the k
+    // nearest" would be k records in whatever order they were stored.
+    if (vector.every((double x) => x == 0)) {
+      return DVSemanticPage<T>(hits: <DVSemanticHit<T>>[], generation: serving);
+    }
 
     final DVVectorFilter? filter = vectors.canFilter
         ? DVVectorFilter(tenant: tenant, equals: where)
@@ -990,8 +1002,14 @@ class DVSemanticIndex<T> {
     while (true) {
       final List<DVVectorMatch> matches =
           await vectors.nearest(serving, vector, k: k, filter: filter);
-      final bool exhausted = matches.length < k;
+      bool exhausted = matches.length < k;
       for (final DVVectorMatch match in matches) {
+        // At no angle or facing away is not a match. Matches arrive nearest
+        // first, so nothing after this one is either.
+        if (match.score <= 0 || match.score < minScore) {
+          exhausted = true;
+          break;
+        }
         // Matches arrive nearest first, so a record's first chunk seen is its
         // best: one row per record however many of its chunks matched.
         if (!seen.add(match.entry.recordId)) continue;
@@ -1031,11 +1049,11 @@ class DVSemanticIndex<T> {
     return DVSemanticPage<T>(hits: hits, bounded: bounded, generation: serving);
   }
 
-  Future<DVSemanticPage<T>> _hybrid(
-      String text, int limit, Map<String, String> where) async {
+  Future<DVSemanticPage<T>> _hybrid(String text, int limit,
+      Map<String, String> where, double minScore) async {
     final List<DVSemanticHit<T>> byKeyword =
         await _keywordHits(text, limit * 2, where);
-    final DVSemanticPage<T> bySemantic = await _semantic(text, limit * 2, where);
+    final DVSemanticPage<T> bySemantic = await _semantic(text, limit * 2, where, minScore);
 
     // Reciprocal rank fusion: the two rankings combined by position rather
     // than by score, since a keyword score and a cosine are not on one scale.
@@ -1074,4 +1092,28 @@ class DVSemanticIndex<T> {
       ],
     );
   }
+}
+
+/// A model's keyword search, looked up when a query runs.
+///
+/// The generated `useSemanticSearch` hands this to the index rather than the
+/// provider itself, because `useSearchProvider` may be called after it, and
+/// an index holding the provider of the moment it was built would keep
+/// searching the unconfigured one. Framework machinery: not in the barrel an
+/// application imports.
+class DVDeferredSearchProvider<T> implements DVSearchProvider<T, Object?> {
+  const DVDeferredSearchProvider(this.current);
+
+  final DVSearchProvider<T, Object?> Function() current;
+
+  @override
+  Future<DVSearchResultPage<T>> query(
+    String query, {
+    Object? facets,
+    int page = 1,
+    int perPage = 20,
+  }) =>
+      // No facets: the semantic index scopes by its own conditions, and the
+      // model's facet type is not this one.
+      current().query(query, page: page, perPage: perPage);
 }

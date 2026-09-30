@@ -1,0 +1,303 @@
+[
+  {
+    "q": "run my app on a phone",
+    "want": [
+      "/docs/dev-client"
+    ]
+  },
+  {
+    "q": "hot reload on device",
+    "want": [
+      "/docs/dev-client"
+    ]
+  },
+  {
+    "q": "deploy to production server",
+    "want": [
+      "/docs/deploying"
+    ]
+  },
+  {
+    "q": "rate limiting",
+    "want": [
+      "/docs/backend-functions",
+      "/docs/edge-security"
+    ]
+  },
+  {
+    "q": "sign in with google",
+    "want": [
+      "/docs/auth"
+    ]
+  },
+  {
+    "q": "send an email",
+    "want": [
+      "/docs/notifications"
+    ]
+  },
+  {
+    "q": "push notifications",
+    "want": [
+      "/docs/notifications"
+    ]
+  },
+  {
+    "q": "background jobs with retries",
+    "want": [
+      "/docs/queues"
+    ]
+  },
+  {
+    "q": "work offline and sync later",
+    "want": [
+      "/docs/sync"
+    ]
+  },
+  {
+    "q": "multi tenant saas",
+    "want": [
+      "/docs/tenancy"
+    ]
+  },
+  {
+    "q": "stripe subscriptions",
+    "want": [
+      "/docs/billing"
+    ]
+  },
+  {
+    "q": "search by meaning",
+    "want": [
+      "/docs/search"
+    ]
+  },
+  {
+    "q": "postgres database",
+    "want": [
+      "/docs/database"
+    ]
+  },
+  {
+    "q": "upload files to s3",
+    "want": [
+      "/docs/storage"
+    ]
+  },
+  {
+    "q": "cache invalidation by tag",
+    "want": [
+      "/docs/cache"
+    ]
+  },
+  {
+    "q": "how is it different from expo",
+    "want": [
+      "/vs/expo"
+    ]
+  },
+  {
+    "q": "build ios app without a mac",
+    "want": [
+      "/flutter-without-a-mac"
+    ]
+  },
+  {
+    "q": "pricing",
+    "want": [
+      "/cloud"
+    ]
+  },
+  {
+    "q": "admin panel for my data",
+    "want": [
+      "/studio"
+    ]
+  },
+  {
+    "q": "form validation",
+    "want": [
+      "/docs/forms"
+    ]
+  },
+  {
+    "q": "translate my app into other languages",
+    "want": [
+      "/docs/localization"
+    ]
+  },
+  {
+    "q": "delete a user's personal data gdpr",
+    "want": [
+      "/docs/privacy"
+    ]
+  },
+  {
+    "q": "verify webhook signatures",
+    "want": [
+      "/docs/webhooks"
+    ]
+  },
+  {
+    "q": "graphql api",
+    "want": [
+      "/docs/graphql"
+    ]
+  },
+  {
+    "q": "fake services in unit tests",
+    "want": [
+      "/docs/testing"
+    ]
+  },
+  {
+    "q": "host on apache shared hosting",
+    "want": [
+      "/docs/web-hosting"
+    ]
+  },
+  {
+    "q": "crash reports and alerts",
+    "want": [
+      "/docs/monitoring"
+    ]
+  },
+  {
+    "q": "chat with an llm",
+    "want": [
+      "/docs/ai"
+    ]
+  },
+  {
+    "q": "feature flags and gradual rollout",
+    "want": [
+      "/docs/releases"
+    ]
+  },
+  {
+    "q": "screen reader and keyboard navigation",
+    "want": [
+      "/docs/accessibility"
+    ]
+  },
+  {
+    "q": "install the cli",
+    "want": [
+      "/docs"
+    ]
+  },
+  {
+    "q": "typed navigation between pages",
+    "want": [
+      "/docs/routing"
+    ]
+  },
+  {
+    "q": "global state signals",
+    "want": [
+      "/docs/state"
+    ]
+  },
+  {
+    "q": "add to an existing flutter app",
+    "want": [
+      "/docs/adopting"
+    ]
+  },
+  {
+    "q": "samsung tv app",
+    "want": [
+      "/docs/building"
+    ]
+  },
+  {
+    "q": "keep api keys secret",
+    "want": [
+      "/docs/secrets"
+    ]
+  },
+  {
+    "q": "show a 3d model",
+    "want": [
+      "/docs/media-3d"
+    ]
+  },
+  {
+    "q": "make money from my app",
+    "want": [
+      "/docs/billing"
+    ]
+  },
+  {
+    "q": "who is allowed to edit a record",
+    "want": [
+      "/docs/authorization"
+    ]
+  },
+  {
+    "q": "heavy computation without freezing the ui",
+    "want": [
+      "/docs/workers"
+    ]
+  },
+  {
+    "q": "DVBox modifiers",
+    "want": [
+      "/docs/ui"
+    ]
+  },
+  {
+    "q": "pgvector",
+    "want": [
+      "/docs/search"
+    ]
+  },
+  {
+    "q": "Meilisearch",
+    "want": [
+      "/docs/search"
+    ]
+  },
+  {
+    "q": "DV.Cache",
+    "want": [
+      "/docs/cache"
+    ]
+  },
+  {
+    "q": "@DVBackendFunction",
+    "want": [
+      "/docs/backend-functions"
+    ]
+  },
+  {
+    "q": "dartvel build tizen",
+    "want": [
+      "/docs/building"
+    ]
+  },
+  {
+    "q": "SAML",
+    "want": [
+      "/docs/auth"
+    ]
+  },
+  {
+    "q": "DVConflict",
+    "want": [
+      "/docs/sync"
+    ]
+  },
+  {
+    "q": "pairing-port",
+    "want": [
+      "/docs/dev-client"
+    ]
+  },
+  {
+    "q": "HMAC",
+    "want": [
+      "/docs/webhooks"
+    ]
+  }
+]
