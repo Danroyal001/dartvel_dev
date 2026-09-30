@@ -1086,3 +1086,27 @@ class DVSemanticIndex<T> {
     );
   }
 }
+
+/// A model's keyword search, looked up when a query runs.
+///
+/// The generated `useSemanticSearch` hands this to the index rather than the
+/// provider itself, because `useSearchProvider` may be called after it, and
+/// an index holding the provider of the moment it was built would keep
+/// searching the unconfigured one. Framework machinery: not in the barrel an
+/// application imports.
+class DVDeferredSearchProvider<T> implements DVSearchProvider<T, Object?> {
+  const DVDeferredSearchProvider(this.current);
+
+  final DVSearchProvider<T, Object?> Function() current;
+
+  @override
+  Future<DVSearchResultPage<T>> query(
+    String query, {
+    Object? facets,
+    int page = 1,
+    int perPage = 20,
+  }) =>
+      // No facets: the semantic index scopes by its own conditions, and the
+      // model's facet type is not this one.
+      current().query(query, page: page, perPage: perPage);
+}

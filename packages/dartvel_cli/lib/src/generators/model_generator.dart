@@ -1759,6 +1759,13 @@ class ModelGenerator {
               '      tenantOf: ($className record) => record.tenantId,',
             );
           }
+          if (isSearchableModel || searchableFields.isNotEmpty) {
+            // The model's own keyword search, for keyword and hybrid modes,
+            // read when a query runs so a provider set later is the one used.
+            sb.writeln(
+              '      keyword: DVDeferredSearchProvider<$className>(() => _searchProvider),',
+            );
+          }
           sb.writeln(
             '      toJson: ($className record) => record.toPublicJson(),',
           );
@@ -1787,6 +1794,28 @@ class ModelGenerator {
           sb.writeln(
             '    return index.query(text, mode: mode, limit: limit);',
           );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Embeds every stored [$className] the index does not');
+          sb.writeln('  /// have yet, now, and returns how many records it holds.');
+          sb.writeln('  ///');
+          sb.writeln('  /// Saving enqueues the embedding for a worker, so records');
+          sb.writeln('  /// stored before [useSemanticSearch], or by a process with');
+          sb.writeln('  /// no worker, are found only after this. A run that stops');
+          sb.writeln('  /// part-way resumes rather than paying twice.');
+          sb.writeln('  static Future<int> semanticBackfill() async {');
+          sb.writeln('    final index = _dvSemanticIndex;');
+          sb.writeln('    if (index == null) {');
+          sb.writeln('      throw StateError(');
+          sb.writeln(
+            "        '$className.semanticBackfill needs $className.useSemanticSearch(...) first.',",
+          );
+          sb.writeln('      );');
+          sb.writeln('    }');
+          sb.writeln(
+            '    final result = await index.backfill(await $className.all(), complete: true);',
+          );
+          sb.writeln('    return result.processed;');
           sb.writeln('  }');
         }
         sb.writeln('}');
