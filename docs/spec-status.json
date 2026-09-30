@@ -1421,8 +1421,11 @@
         "packages/dartvel_flutter/test/model_admin_test.dart",
         "packages/dartvel_core/lib/src/admin/studio_api.dart",
         "packages/dartvel_core/test/studio_api_test.dart",
-        "packages/dartvel_cli/lib/src/build/studio_build.dart",
-        "packages/dartvel_cli/test/studio_build_test.dart",
+        "packages/dartvel_cli/lib/src/build/dev_studio.dart",
+        "packages/dartvel_cli/lib/src/build/studio_data.dart",
+        "packages/dartvel_cli/lib/src/build/studio_parts.dart",
+        "packages/dartvel_cli/test/dev_studio_test.dart",
+        "packages/dartvel_cli/test/studio_data_test.dart",
         "packages/dartvel_cli/test/studio_models_generation_test.dart",
         "packages/dartvel_flutter/lib/src/studio/studio_server.dart",
         "packages/dartvel_flutter/test/studio_server_test.dart"

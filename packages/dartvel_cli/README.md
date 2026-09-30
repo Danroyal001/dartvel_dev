@@ -149,7 +149,7 @@ session: a new app, a page, a data model, the dev server and a web build.
 
 | Command | What it does |
 |---|---|
-| `dev` | Run the app, the backend and Studio with hot reload. Aliases `run`, `start`. Prints a QR code that development builds pair with. |
+| `dev` | Run the app, the backend and Studio with hot reload. Aliases `run`, `start`. Prints QR and pairing links for development builds and Dartvel Preview (`dartvel-preview://open`). |
 | `routes` | Run the generator: routes, the typed client, models, backend glue. |
 | `generate page\|model\|form\|backend-function <name>` | Write a starter file. `generate --check` fails when generated output is stale. |
 | `test` | Run `dart test` or `flutter test`, with `--watch`, sharding and golden updates. |
@@ -216,11 +216,12 @@ dartvel build web
 dartvel build web-server             # one executable: backend, web app and Studio
 dartvel build android --format aab   # the App Bundle Google Play takes
 dartvel build ios --format ipa       # the IPA App Store Connect takes
-dartvel build android --profile development   # a build `dartvel dev` pairs with
+dartvel build android --profile development   # a build `dartvel dev` pairs with (or apps/dartvel_preview for universal preview)
 ```
 
 `--profile` is `development` (Flutter debug, with dev-client pairing on
-Android, iOS, macOS, Linux and Windows), `profile`, or `release` (the default).
+Android, iOS, macOS, Linux and Windows; used by project builds and Dartvel Preview),
+`profile`, or `release` (the default).
 
 Targets: `web`, `web-server`, `android`, `fireos`, `ios`, `macos`, `windows`,
 `linux`, `tvos`, `tizen` (alias `tpk`), `sony-elinux` (with `--format bundle|iso|img`),
