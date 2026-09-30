@@ -6,7 +6,10 @@
 // unknown paths, which is what the .htaccess and dartvel deploy configuration
 // do", and no .htaccess existed. A build uploaded to Apache answered the
 // host's 404 page for anything the build had not prerendered.
+import 'dart:io';
+
 import 'package:dartvel_cli/src/build/server_config.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -92,6 +95,71 @@ void main() {
       final int swAt = config.indexOf('flutter_service_worker.js');
       expect(swAt, greaterThan(-1));
       expect(config.substring(swAt).contains('no-cache'), isTrue);
+    });
+  });
+
+  // The header said "Edits are kept: this file is only created when it is
+  // absent", and every build overwrote it, so an edit made on the strength of
+  // that comment was lost on the next deploy without a word. The build keeps
+  // any .htaccess it did not write, and the header says exactly what happens.
+  group('writing the .htaccess into a build', () {
+    late Directory root;
+    late Directory web;
+    late File output;
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('dv_htaccess_');
+      web = Directory(p.join(root.path, 'build', 'web'))
+        ..createSync(recursive: true);
+      output = File(p.join(web.path, '.htaccess'));
+    });
+
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('the header says what the build does with the file', () {
+      final String header = dvApacheConfig().split('\n<IfModule').first;
+      expect(header.split('\n').first, startsWith(dvApacheConfigMarker));
+      expect(header, isNot(contains('only created when')));
+      expect(header, contains('every build'));
+      expect(header, contains('web/.htaccess'));
+    });
+
+    test('it is written when the build has none', () {
+      expect(dvWriteApacheConfig(web, projectRoot: root.path), isTrue);
+      expect(output.readAsStringSync(), dvApacheConfig());
+    });
+
+    test('a copy Dartvel wrote is brought up to date', () {
+      // A fix to the generated rules has to reach a project that has built
+      // before -- that is how a bad cache rule survived being fixed.
+      output.writeAsStringSync('$dvApacheConfigMarker stale\nold rules\n');
+      expect(dvWriteApacheConfig(web, projectRoot: root.path), isTrue);
+      expect(output.readAsStringSync(), dvApacheConfig());
+    });
+
+    test('a copy written in an earlier release is brought up to date', () {
+      // The header before the marker existed; it is still Dartvel's.
+      output.writeAsStringSync('# Written by dartvel build web. Edits are '
+          'kept: this file is only created when it is\n# absent.\n');
+      expect(dvWriteApacheConfig(web, projectRoot: root.path), isTrue);
+      expect(output.readAsStringSync(), dvApacheConfig());
+    });
+
+    test('an edited copy without the marker line is left alone', () {
+      const String mine = '# my host\nRewriteEngine On\n';
+      output.writeAsStringSync(mine);
+      expect(dvWriteApacheConfig(web, projectRoot: root.path), isFalse);
+      expect(output.readAsStringSync(), mine);
+    });
+
+    test("the project's own web/.htaccess wins", () {
+      Directory(p.join(root.path, 'web')).createSync();
+      File(p.join(root.path, 'web', '.htaccess'))
+          .writeAsStringSync('# the project\'s\n');
+      // Flutter copied it into the build before this runs.
+      output.writeAsStringSync('# the project\'s\n');
+      expect(dvWriteApacheConfig(web, projectRoot: root.path), isFalse);
+      expect(output.readAsStringSync(), '# the project\'s\n');
     });
   });
 }
