@@ -80,6 +80,9 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
                   'returning visitors.',
               'Put your own web/.htaccess in the project and the build copies '
                   'yours instead.',
+              'The build rewrites its own .htaccess every time, so fixes to '
+                  'the rules reach you. Delete the first line of the copy in '
+                  'build/web and later builds leave your edits alone.',
             ]),
           ],
         ),
