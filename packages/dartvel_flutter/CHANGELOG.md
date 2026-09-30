@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Link previews close on outside touch/scroll and Back, and respect `preview:
+  .none` on a long press. `DVLinkPreview.widget(child)` supplies an interactive
+  custom card constrained to the safe screen area.
+- `DVShortcutScope` adds declarative page/app keyboard shortcuts with portable
+  `mod`, text-field protection, conflict checks and a `?` shortcut sheet.
+  `DVShortcut` definitions round-trip through JSON for future Studio editing.
+  The existing `DVShortcuts` native service is unchanged.
+
 - **`DVForm` keeps to the fields a model registers for forms.** With a list
   registered through `registerDVModelFormFields<T>`, a field outside it gets
   no input, is not prefilled, and keeps the value the model holds when the
