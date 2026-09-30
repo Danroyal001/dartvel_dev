@@ -76,6 +76,13 @@ const List<VersusPage> kVersusPages = <VersusPage>[
     summary: 'Phones, desktops, TVs and embedded Linux from one codebase, in '
         'Dart, with a backend and no per-seat licence.',
   ),
+  VersusPage(
+    path: '/vs/power-apps',
+    name: 'Power Apps',
+    phrase: 'Dartvel vs Power Apps',
+    summary: 'Pages, data models and functions built in a browser, in a '
+        'project you host, with no per-user licence.',
+  ),
 ];
 
 /// The other comparison pages, linked at the foot of one of them.
