@@ -58,14 +58,18 @@ enum DVLinkPreload {
 }
 
 /// Whether a link shows what it points at.
-enum DVLinkPreview {
+class const DVLinkPreview({final Widget? child, final bool enabled = true}) {
+
   /// No preview.
-  none,
+  static const none = DVLinkPreview(enabled: false);
 
   /// On a resting pointer, and on a long press where there is no pointer.
   /// The default, because a link that shows you where you are going is
   /// better than one that does not, on every platform rather than one.
-  auto,
+  static const auto = DVLinkPreview();
+
+  /// A custom, interactive card laid out in the available preview space.
+  const DVLinkPreview.widget(Widget child) : this(child: child);
 }
 
 /// Called with the destination when the pointer enters a link, and null when
@@ -183,6 +187,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   /// turns a hover into a burst of requests.
   bool _preloaded = false;
   Timer? _previewTimer;
+  Timer? _previewExitTimer;
 
   /// Whether a preview is waiting for an idle moment to be built.
   bool _previewPending = false;
@@ -194,6 +199,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   bool _checkScheduled = false;
   OverlayEntry? _previewEntry;
   LocalHistoryEntry? _previewHistory;
+  final GlobalKey _previewCardKey = GlobalKey();
   FocusNode? _ownedFocusNode;
   bool _focused = false;
 
@@ -347,6 +353,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _enter(PointerEnterEvent _) {
+    _previewExitTimer?.cancel();
     widget.onPreview?.call(widget.to.path);
     if (widget.preload == DVLinkPreload.hover ||
         widget.preload == DVLinkPreload.visible) {
@@ -359,11 +366,15 @@ class _DVNavLinkState extends State<DVNavLink> {
     widget.onPreview?.call(null);
     _previewTimer?.cancel();
     _previewPending = false;
-    _removePreview();
+    if (widget.preview.child != null && _previewEntry != null) {
+      _previewExitTimer = Timer(const Duration(milliseconds: 150), _removePreview);
+    } else {
+      _removePreview();
+    }
   }
 
   void _schedulePreview() {
-    if (widget.preview == DVLinkPreview.none || !widget.enabled) return;
+    if (!widget.preview.enabled || !widget.enabled) return;
     _previewTimer?.cancel();
     _previewPending = false;
     _previewTimer = Timer(dvLinkPreviewDelay, _previewWhenIdle);
@@ -383,12 +394,14 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _showPreview() {
-    if (!mounted || !widget.enabled || widget.preview == .none ||
-        _previewEntry != null) return;
+    if (!mounted || !widget.enabled || !widget.preview.enabled ||
+        _previewEntry != null) {
+      return;
+    }
     final builder = DVRoutePreviews.forPath(widget.to.path);
     // Nothing registered for this route. Quietly nothing, rather than an
     // empty card that looks like a failure.
-    if (builder == null) return;
+    if (builder == null && widget.preview.child == null) return;
     // Not the page already on screen. The preview is that page built live, so
     // it shows nothing new, and a second copy of a page holding GlobalKeys
     // takes their content from the page itself.
@@ -407,7 +420,13 @@ class _DVNavLinkState extends State<DVNavLink> {
           box.size.height,
         ),
         path: widget.to.path,
-        child: Builder(builder: builder),
+        cardKey: _previewCardKey,
+        custom: widget.preview.child != null,
+        child: widget.preview.child == null ? Builder(builder: builder!) : MouseRegion(
+          onEnter: (_) => _previewExitTimer?.cancel(),
+          onExit: (_) => _removePreview(),
+          child: widget.preview.child!,
+        ),
       ),
     );
     Overlay.of(context, rootOverlay: true).insert(_previewEntry!);
@@ -425,6 +444,11 @@ class _DVNavLinkState extends State<DVNavLink> {
   // Observe without taking the gesture: an outside drag still scrolls the page.
   void _previewPointer(PointerEvent event) {
     if (event is PointerDownEvent || event is PointerScrollEvent) {
+      final box = _previewCardKey.currentContext?.findRenderObject();
+      if (box is RenderBox &&
+          (box.localToGlobal(.zero) & box.size).contains(event.position)) {
+        return;
+      }
       _removePreview();
     }
   }
@@ -441,6 +465,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   void _removePreview() {
+    _previewExitTimer?.cancel();
     if (_previewEntry == null) return;
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_previewPointer);
     _previewEntry?.remove();
@@ -653,39 +678,55 @@ class _DVLinkPreviewCard extends StatelessWidget {
     required this.anchor,
     required this.path,
     required this.child,
+    required this.cardKey,
+    required this.custom,
   });
 
   final Rect anchor;
   final String path;
   final Widget child;
+  final GlobalKey cardKey;
+  final bool custom;
 
   static const Size _size = Size(340, 240);
 
   @override
   Widget build(BuildContext context) {
-    final screen = MediaQuery.sizeOf(context);
+    final media = MediaQuery.of(context);
+    final screen = media.size;
+    final safe = media.padding;
+    final leftEdge = safe.left + 8;
+    final topEdge = safe.top + 8;
+    final rightEdge = screen.width - safe.right - 8;
+    final bottomEdge = screen.height - safe.bottom - media.viewInsets.bottom - 8;
+    final size = Size(
+      _size.width.clamp(0.0, (rightEdge - leftEdge).clamp(0.0, double.infinity)),
+      _size.height.clamp(0.0, (bottomEdge - topEdge).clamp(0.0, double.infinity)),
+    );
     // Below the link where there is room, above it where there is not, and
     // never off the side.
     final below = anchor.bottom + 10;
-    final top = below + _size.height > screen.height
-        ? (anchor.top - _size.height - 10).clamp(8.0, screen.height)
-        : below;
-    final left =
-        anchor.left.clamp(8.0, (screen.width - _size.width - 8).clamp(8.0, screen.width));
+    final top = (below + size.height > bottomEdge
+        ? anchor.top - size.height - 10 : below)
+        .clamp(topEdge, (bottomEdge - size.height).clamp(topEdge, double.infinity));
+    final left = anchor.left.clamp(leftEdge,
+        (rightEdge - size.width).clamp(leftEdge, double.infinity));
 
     return Positioned(
       left: left,
       top: top,
       child: IgnorePointer(
+        ignoring: !custom,
         // It is a picture of a destination, not the destination. A stray tap
         // inside must not activate whatever it happens to be showing.
         child: Material(
+          key: cardKey,
           elevation: 12,
           borderRadius: .circular(12),
           clipBehavior: .antiAlias,
           child: SizedBox.fromSize(
-            size: _size,
-            child: Column(
+            size: size,
+            child: custom ? child : Column(
               crossAxisAlignment: .stretch,
               children: <Widget>[
                 Expanded(
