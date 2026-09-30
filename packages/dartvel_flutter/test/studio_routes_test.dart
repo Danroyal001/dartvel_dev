@@ -7,6 +7,7 @@
 // guard has let the caller through, so a caller with no grant never has a
 // Studio section built -- or its code fetched.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/find/find_in_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,6 +118,66 @@ void main() {
     expect(router.state.uri.path, '/__studio');
     expect(find.byType(DVStudioScreen), findsOneWidget);
     expect(find.byType(DVStudioSignInScreen), findsNothing);
+  });
+
+  testWidgets('Studio is on the shared page shell: the browser''s find '
+      'reaches it and its text can be selected', (
+    WidgetTester tester,
+  ) async {
+    // Studio built its route straight to DVStudioHost, with no DVPageShell
+    // above it. Everything the shell carries -- the find registration the
+    // browser matches against, the selection area, keyboard scrolling, the
+    // D-pad -- was therefore missing on exactly the screen a person spends
+    // their day in, and Ctrl+F over Studio found nothing. A Studio screen is
+    // a page; it goes through the page.
+    final _Server server = _Server(granted: true);
+    await _open(tester, server, '/__studio');
+
+    expect(find.byType(DVStudioScreen), findsOneWidget);
+    final Finder shell = find.byType(DVPageShell);
+    expect(shell, findsOneWidget,
+        reason: 'Studio must be drawn through DVPageShell, not beside it');
+    // The shell must be above Studio's frame, not inside it, or the
+    // registrar the selection needs is Studio's own.
+    expect(
+      find.descendant(of: shell, matching: find.byType(DVStudioScreen)),
+      findsOneWidget,
+    );
+    // Registered, and findable: the block the browser matches is written
+    // from the page, and a Studio page that is not findable would opt out
+    // of the one thing every page gets by default.
+    final DVPageScaffoldSpec spec =
+        tester.widget<DVPageShell>(shell).spec;
+    expect(spec.findable, isTrue);
+    expect(spec.selectable, isTrue);
+    // And the find copy is not empty: Studio drew its section names, and
+    // they are what a person searching for "Site map" is looking for.
+    expect(DVFindInPage.paragraphs(), isNotEmpty);
+    expect(
+      DVFindInPage.paragraphs().map((DVFoundParagraph p) => p.block.text),
+      contains('Site map'),
+    );
+    // A selection area above Studio's text, so a drag selects it.
+    expect(find.byType(SelectionArea), findsWidgets);
+  });
+
+  testWidgets('the sign-in is a page too, and registers the same way', (
+    WidgetTester tester,
+  ) async {
+    // The sign-in is a route like any other. It was drawn without the shell
+    // for the same reason Studio was, so the one field on it that a person
+    // pastes a password into was not part of any find or selection surface.
+    final _Server server = _Server(granted: false);
+    await _open(tester, server, '/__studio');
+
+    expect(find.byType(DVStudioSignInScreen), findsOneWidget);
+    final Finder shell = find.byType(DVPageShell);
+    expect(shell, findsOneWidget);
+    expect(
+      find.descendant(of: shell, matching: find.byType(DVStudioSignInScreen)),
+      findsOneWidget,
+    );
+    expect(DVFindInPage.paragraphs(), isNotEmpty);
   });
 
   testWidgets('the sign-in is a route for anybody, and sends a signed-in, '

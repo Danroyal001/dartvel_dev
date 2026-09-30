@@ -11,6 +11,8 @@
 /// the server hands them to a granted session and to nobody else.
 library;
 
+import 'package:dartvel_flutter/dartvel_flutter.dart'
+    show DVPageScaffoldSpec, DVPageShell;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -73,20 +75,22 @@ List<RouteBase> dvStudioRoutes({
             key: state.pageKey,
             // The application's page views and its look, taken here, under
             // the application's MaterialApp and above Studio's own frame.
-            child: DVStudioHost(
-              view: view,
-              look: DVStudioAppLook.capture(context),
-              splash: splash,
-              child: DVStudioDeferred(
-              load: dartvel_studio.loadLibrary,
-              splash: splash,
-              builder: (BuildContext context) => dartvel_studio.dvStudioAppFor(
-                transport: send,
-                title: title,
-                location: location?.call(state),
-                open: open,
+            child: _dvStudioPage(
+              child: DVStudioHost(
+                view: view,
+                look: DVStudioAppLook.capture(context),
+                splash: splash,
+                child: DVStudioDeferred(
+                  load: dartvel_studio.loadLibrary,
+                  splash: splash,
+                  builder: (BuildContext context) => dartvel_studio.dvStudioAppFor(
+                    transport: send,
+                    title: title,
+                    location: location?.call(state),
+                    open: open,
+                  ),
+                ),
               ),
-            ),
             ),
           ),
     ),
@@ -95,18 +99,20 @@ List<RouteBase> dvStudioRoutes({
       pageBuilder: (BuildContext context, GoRouterState state) =>
           NoTransitionPage<void>(
             key: state.pageKey,
-            child: DVStudioDeferred(
-              load: dartvel_studio_sign_in.loadLibrary,
-              splash: splash,
-              builder: (BuildContext context) =>
-                  dartvel_studio_sign_in.dvStudioSignInFor(
-                    transport: send,
-                    mount: mount,
-                    from: state.uri.queryParameters['from'],
-                    title: title,
-                    open: open ?? dvOpenUrl,
-                    returns: signInReturns,
-                  ),
+            child: _dvStudioPage(
+              child: DVStudioDeferred(
+                load: dartvel_studio_sign_in.loadLibrary,
+                splash: splash,
+                builder: (BuildContext context) =>
+                    dartvel_studio_sign_in.dvStudioSignInFor(
+                      transport: send,
+                      mount: mount,
+                      from: state.uri.queryParameters['from'],
+                      title: title,
+                      open: open ?? dvOpenUrl,
+                      returns: signInReturns,
+                    ),
+              ),
             ),
           ),
     ),
@@ -117,21 +123,50 @@ List<RouteBase> dvStudioRoutes({
       pageBuilder: (BuildContext context, GoRouterState state) =>
           NoTransitionPage<void>(
             key: state.pageKey,
-            child: DVStudioDeferred(
-              load: dartvel_studio_sign_in.loadLibrary,
-              splash: splash,
-              builder: (BuildContext context) =>
-                  dartvel_studio_sign_in.dvStudioSetupFor(
-                    transport: send,
-                    mount: mount,
-                    title: title,
-                    open: open ?? dvOpenUrl,
-                  ),
+            child: _dvStudioPage(
+              child: DVStudioDeferred(
+                load: dartvel_studio_sign_in.loadLibrary,
+                splash: splash,
+                builder: (BuildContext context) =>
+                    dartvel_studio_sign_in.dvStudioSetupFor(
+                      transport: send,
+                      mount: mount,
+                      title: title,
+                      open: open ?? dvOpenUrl,
+                    ),
+              ),
             ),
           ),
     ),
   ];
 }
+
+/// A Studio screen through the page shell every other page of the
+/// application goes through, so Studio is not a second kind of page.
+///
+/// Without this Studio's route built straight to its own frame, and
+/// everything the shell carries stopped at the router: Ctrl+F had no page
+/// registered to match against and found nothing over Studio, a drag
+/// selected nothing, and the keyboard arrows, a remote's D-pad and switch
+/// control had nothing to move. Every one of those is inert until a page
+/// declares it, so a Studio screen -- the screen a person spends their day
+/// in -- had to be reachable by mouse alone.
+///
+/// [scaffold] off, because Studio draws its own chrome and a bar or a
+/// Material scaffold above it would be a second one. [safeArea] off for the
+/// same reason: Studio's sign-in and its first-run setup each draw their
+/// own, and a safe area on the outside would inset everything Studio
+/// measures against the screen edge a second time.
+///
+/// Selectable and findable, the default every page gets. The one place
+/// that fights both is the canvas, where a drag moves an element and a
+/// click selects one; that is inside a `DVPagePreviewScope`, which is what
+/// the shell reads to stand down, and it did so before Studio had a shell
+/// above it at all.
+Widget _dvStudioPage({required Widget child}) => DVPageShell(
+      spec: const DVPageScaffoldSpec(scaffold: false, safeArea: false),
+      child: child,
+    );
 
 /// Whether the caller [send] speaks for may open Studio: `api/access`, and
 /// no on anything but a clear yes.
