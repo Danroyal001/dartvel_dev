@@ -282,6 +282,14 @@ class DVStudioClient {
 
   final DVStudioTransport transport;
 
+  /// The signed-in account, `{userId, email}`.
+  Future<Map<String, Object?>> me() async => _map(await _send('GET', 'api/me'));
+
+  /// Ends this session on the server and clears its cookie.
+  Future<void> signOut() async {
+    await transport('POST', 'api/auth/sign-out');
+  }
+
   /// Whether this caller has a granted session to open Studio.
   Future<bool> access() async {
     try {
@@ -652,6 +660,11 @@ class _DVStudioAppState extends State<DVStudioApp> {
                       structure: widget.client.structure,
                     ),
                     sections: dvStudioServerSections(widget.client),
+                    account: DVStudioAccount(
+                      client: widget.client,
+                      mount: _mount,
+                      open: widget.open ?? dvOpenUrl,
+                    ),
                   ),
                 )
               : DVStudioSignInScreen(
@@ -662,6 +675,132 @@ class _DVStudioAppState extends State<DVStudioApp> {
                   title: widget.title,
                   open: widget.open ?? dvOpenUrl,
                 )),
+    );
+  }
+}
+
+/// Who is signed in to Studio, and the control that signs them out: at the
+/// foot of Studio's rail, always in sight.
+///
+/// Signing out ends the session on the server -- not only in this browser --
+/// and then loads Studio's sign-in as a page, so nothing of Studio stays on
+/// screen for whoever sits down next.
+class DVStudioAccount extends StatefulWidget {
+  const DVStudioAccount({
+    super.key,
+    required this.client,
+    required this.mount,
+    required this.open,
+  });
+
+  final DVStudioClient client;
+
+  /// The admin mount, with no trailing slash.
+  final String mount;
+
+  /// Loads a path from the server as a page.
+  final void Function(String path) open;
+
+  @override
+  State<DVStudioAccount> createState() => _DVStudioAccountState();
+}
+
+class _DVStudioAccountState extends State<DVStudioAccount> {
+  String? _email;
+  bool _leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.client.me().then((Map<String, Object?> me) {
+      if (!mounted) return;
+      final Object? email = me['email'] ?? me['userId'];
+      setState(() => _email = email is String ? email : null);
+    }, onError: (Object _) {});
+  }
+
+  Future<void> _signOut() async {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    try {
+      await widget.client.signOut();
+    } on Object {
+      // Away to the sign-in regardless: the server refuses Studio to a
+      // session it no longer has, and one it still has is asked again there.
+    }
+    widget.open('${widget.mount}/login');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String who = _email ?? '';
+    final String initial = who.isEmpty ? '?' : who.substring(0, 1).toUpperCase();
+    return Semantics(
+      container: true,
+      label: who.isEmpty ? 'Signed in' : 'Signed in as $who',
+      child: Container(
+        key: const ValueKey<String>('dv-studio-account'),
+        width: 72,
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Tooltip(
+              message: who.isEmpty ? 'Signed in' : 'Signed in as $who',
+              child: Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: DVStudioStyle.accent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(initial,
+                    style: const TextStyle(
+                        color: Color(0xFFFFFFFF),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (who.isNotEmpty)
+              Text(
+                who,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, color: DVStudioStyle.railInk),
+              ),
+            const SizedBox(height: 4),
+            Semantics(
+              button: true,
+              label: 'Sign out',
+              excludeSemantics: true,
+              child: GestureDetector(
+                key: const ValueKey<String>('dv-studio-sign-out'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _leaving ? null : _signOut,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(Icons.logout, size: 18, color: DVStudioStyle.railInk),
+                        const SizedBox(height: 2),
+                        Text(_leaving ? 'Signing out' : 'Sign out',
+                            style: const TextStyle(
+                                fontSize: 11, color: DVStudioStyle.railInk)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
