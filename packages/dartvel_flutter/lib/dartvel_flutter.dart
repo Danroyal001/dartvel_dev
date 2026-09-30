@@ -813,6 +813,7 @@ export 'src/studio/page_document.dart';
 export 'src/studio/studio_app_shortcuts.dart';
 export 'src/studio/studio_components.dart';
 export 'src/studio/studio_components_section.dart';
+export 'src/studio/studio_repository_section.dart';
 export 'src/studio/studio_content.dart';
 export 'src/studio/studio_edit.dart';
 export 'src/studio/studio_editor.dart';
