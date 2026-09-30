@@ -98,6 +98,20 @@ class DVStudioRemoteError implements Exception {
   String toString() => message;
 }
 
+/// A page was changed in code since Studio last saved it -- on a
+/// development server, where each page is also a file of the project -- and
+/// Studio did not write over it.
+class DVStudioChangedInCode extends DVStudioRemoteError {
+  const DVStudioChangedInCode(this.path, this.inCode, String message)
+      : super(409, 'changed_in_code', message);
+
+  /// The file, relative to the project.
+  final String path;
+
+  /// The page as the file has it now.
+  final DVPageDocument? inCode;
+}
+
 /// One field of a model, as the backend describes it.
 class DVStudioField {
   const DVStudioField({
@@ -325,6 +339,16 @@ class DVStudioClient {
     if (_isMarkupOrDump(message)) {
       message = 'The server answered ${reply.status}.';
     }
+    if (error['error'] == 'changed_in_code') {
+      final Object? inCode = error['inCode'];
+      throw DVStudioChangedInCode(
+        '${error['path'] ?? ''}',
+        inCode is Map
+            ? DVPageDocument.fromJson(inCode.cast<String, Object?>())
+            : null,
+        message,
+      );
+    }
     throw DVStudioRemoteError(
       reply.status,
       '${error['error'] ?? 'http_${reply.status}'}',
@@ -453,10 +477,16 @@ class DVStudioClient {
                 (page['document']! as Map).cast<String, Object?>()),
       ];
 
-  Future<void> savePage(DVPageDocument document) => _send(
+  /// Saves [document]. On a development server, where the page is also a
+  /// file of the project, a file changed in code since Studio last saved it
+  /// is not written over: [DVStudioChangedInCode], unless [force].
+  Future<void> savePage(DVPageDocument document, {bool force = false}) => _send(
         'PUT',
         'api/pages',
-        body: <String, Object?>{'document': document.toJson()},
+        body: <String, Object?>{
+          'document': document.toJson(),
+          if (force) 'force': true,
+        },
       );
 
   Future<void> deletePage(String route) =>
@@ -536,6 +566,10 @@ class DVStudioRemotePageStore extends DVPageStore {
 
   @override
   Future<void> save(DVPageDocument document) => client.savePage(document);
+
+  /// Saves [document] over a version code changed, which [save] refuses.
+  Future<void> saveOverCode(DVPageDocument document) =>
+      client.savePage(document, force: true);
 
   @override
   Future<DVPageDocument?> load(String route) async {

@@ -409,10 +409,12 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
+        // Compact: twelve sections and the account have to fit a laptop's
+        // height, where Team used to sit under the account block.
         child: Container(
           width: 64,
-          margin: const .symmetric(vertical: 2),
-          padding: const .symmetric(vertical: 8),
+          margin: const .symmetric(vertical: 1),
+          padding: const .symmetric(vertical: 5),
           decoration: BoxDecoration(
             color: selected
                 ? DVStudioStyle.railSelected
@@ -425,7 +427,7 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
             children: <Widget>[
               Container(
                 width: 32,
-                height: 26,
+                height: 24,
                 decoration: BoxDecoration(
                   color: selected
                       ? DVStudioStyle.accent
@@ -438,7 +440,7 @@ class _DVStudioRailItemState extends State<_DVStudioRailItem> {
                   color: foreground,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 3),
               // Scaled down rather than clipped: a section's name is how the
               // rail is read, and a longer one (or a larger system font) must
               // still fit the rail's width.
@@ -545,6 +547,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   /// Whether the open compiled page is being edited into an override.
   bool _overriding = false;
+
+  /// The last save refused because code changed the page's file.
+  DVStudioChangedInCode? _changedInCode;
 
   /// The site's route list could not be read; the stored pages are shown.
   String? _siteError;
@@ -1056,7 +1061,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     try {
       await controller.save();
       _lastPublished = DateTime.now();
+      if (mounted) setState(() => _changedInCode = null);
       await _loadRoutes();
+    } on DVStudioChangedInCode catch (conflict) {
+      // Code changed the page's file since Studio last saved it: nothing
+      // is written over it, and the choice is shown.
+      if (mounted) setState(() => _changedInCode = conflict);
     } catch (error) {
       if (mounted) setState(() => _error = _cleanError(error));
     } finally {
@@ -1835,6 +1845,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                 if (!page.isDynamic) page.path,
             ]),
           ),
+        ?_changedInCodeBanner(controller),
         if (review != null) ..._banners(review),
         Expanded(
           child: _showingCode
@@ -2129,6 +2140,52 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       );
     }
     return null;
+  }
+
+  /// The page changed in code since Studio last saved it: keep the code's
+  /// version, or save Studio's over it. Studio never picks for anybody.
+  Widget? _changedInCodeBanner(DVStudioEditorController controller) {
+    final DVStudioChangedInCode? conflict = _changedInCode;
+    if (conflict == null) return null;
+    final DVPageDocument? inCode = conflict.inCode;
+    final DVPageStore store = widget.store;
+    return studioBanner(
+      key: const ValueKey<String>('dv-studio-changed-in-code'),
+      tone: DVStudioStyle.warning,
+      icon: Icons.merge_type,
+      title: 'Changed in code since Studio last saved it',
+      detail: '${conflict.path} was edited in the project. Keep that '
+          'version, or save the one on the canvas over it.',
+      onDismiss: () => setState(() => _changedInCode = null),
+      action: Row(
+        mainAxisSize: .min,
+        children: <Widget>[
+          if (inCode != null)
+            studioActionControl(
+              'dv-studio-use-code-version',
+              'Use the version in code',
+              () {
+                setState(() => _changedInCode = null);
+                _select(inCode, compiled: _compiled, live: _live,
+                    overriding: _overriding);
+              },
+            ),
+          const SizedBox(width: DVStudioStyle.space2),
+          if (store is DVStudioRemotePageStore)
+            studioActionControl(
+              'dv-studio-save-over-code',
+              'Save mine over it',
+              () async {
+                await store.saveOverCode(controller.document);
+                if (!mounted) return;
+                setState(() => _changedInCode = null);
+                await _loadRoutes();
+              },
+              primary: true,
+            ),
+        ],
+      ),
+    );
   }
 
   /// A refusal, and the warning that the open version changed after its
