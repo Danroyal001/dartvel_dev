@@ -393,7 +393,8 @@ Widget _phoneLoop(BuildContext context) => const Section(
           'plugin you added is in it.',
       'Scan the code, and each save hot reloads every paired phone over your '
           'local network.',
-      'No USB cable and no emulator. No store-approved Go app to wait for.',
+      'Or run in Dartvel Preview to test any project instantly without '
+          'building it for the device first.',
     ]),
     Objection(
       'Does it work on an iPhone?',
@@ -401,8 +402,12 @@ Widget _phoneLoop(BuildContext context) => const Section(
           'and Linux, macOS and Windows desktops, edits a file and checks the '
           'change runs. On a '
           'physical iPhone a debug build only starts from Xcode or '
-          '`flutter run`, so launch it from there and it pairs.',
+          '`flutter run`, so launch it from there and it pairs. Dartvel '
+          'Preview runs on Android and desktops and is not on an iPhone yet.',
     ),
+    DVBox.wrapLine(<Widget>[
+      GhostLink('See Dev Client and Preview', '/docs/dev-client'),
+    ]),
   ],
 );
 
