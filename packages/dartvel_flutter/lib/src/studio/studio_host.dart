@@ -107,8 +107,12 @@ class DVStudioHost extends InheritedWidget {
     super.key,
     this.view,
     this.look,
+    this.splash,
     required super.child,
   });
+
+  /// The application's splash, which Studio shows while it loads.
+  final DVStudioSplash? splash;
 
   /// The application's page views, `dartvelPagePreview`.
   final DVStudioPageView? view;
@@ -121,7 +125,9 @@ class DVStudioHost extends InheritedWidget {
 
   @override
   bool updateShouldNotify(DVStudioHost oldWidget) =>
-      view != oldWidget.view || look != oldWidget.look;
+      view != oldWidget.view ||
+      look != oldWidget.look ||
+      splash != oldWidget.splash;
 }
 
 /// Marks a page drawn as a preview, on Studio's canvas: it is looked at, and
@@ -135,4 +141,86 @@ class DVPagePreviewScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(DVPagePreviewScope oldWidget) => false;
+}
+
+/// The application's splash, as the build writes it for the web page:
+/// `dartvel.splash`'s colours and image, and the loading bar's colour.
+///
+/// The web page's splash is removed at Flutter's first frame, which for
+/// Studio is before Studio has anything to draw: its code is fetched after
+/// its route opens, and the grant is asked again. Studio draws this until it
+/// is ready, so nobody opening it looks at a blank page.
+@immutable
+class DVStudioSplash {
+  const DVStudioSplash({
+    required this.color,
+    required this.darkColor,
+    this.image,
+    this.darkImage,
+    this.imageWidth = 96,
+    this.progressColor,
+  });
+
+  /// The page's colour, and in dark mode.
+  final Color color;
+  final Color darkColor;
+
+  /// The picture in the middle, as the web page serves it
+  /// (`dartvel-splash.png`), and its dark version; none when the project
+  /// has no image.
+  final String? image;
+  final String? darkImage;
+  final double imageWidth;
+
+  /// The loading bar's colour; no bar when null.
+  final Color? progressColor;
+}
+
+/// [splash], filling the space it is given: the colour for the device's
+/// appearance, the picture in the middle, and a loading bar along the top.
+class DVStudioSplashView extends StatelessWidget {
+  const DVStudioSplashView(this.splash, {super.key});
+
+  final DVStudioSplash splash;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark =
+        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final String? image =
+        dark ? (splash.darkImage ?? splash.image) : splash.image;
+    final Color? bar = splash.progressColor;
+    return Semantics(
+      label: 'Loading',
+      child: ColoredBox(
+        color: dark ? splash.darkColor : splash.color,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (image != null)
+              Center(
+                child: SizedBox(
+                  width: splash.imageWidth,
+                  child: Image.network(
+                    image,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            if (bar != null)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  color: bar,
+                  backgroundColor: const Color(0x00000000),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -663,10 +663,14 @@ class _DVStudioAppState extends State<DVStudioApp> {
               open: widget.open ?? dvOpenUrl,
             )
           : _granted == null
-          ? const Scaffold(
-              backgroundColor: DVStudioStyle.canvas,
-              body: SizedBox.shrink(),
-            )
+          // The application's splash while the grant is asked, carrying
+          // on from the one the route showed while the code loaded.
+          ? (host?.splash == null
+              ? const Scaffold(
+                  backgroundColor: DVStudioStyle.canvas,
+                  body: SizedBox.shrink(),
+                )
+              : DVStudioSplashView(host!.splash!))
           : (_granted == true
               ? Material(
                   child: DVStudioScreen(
