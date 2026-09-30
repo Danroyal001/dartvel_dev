@@ -1790,6 +1790,7 @@ class ModelGenerator {
           sb.writeln('    String text, {');
           sb.writeln('    DVSearchMode mode = DVSearchMode.semantic,');
           sb.writeln('    int limit = 10,');
+          sb.writeln('    double minScore = 0,');
           sb.writeln('  }) async {');
           sb.writeln('    final index = _dvSemanticIndex;');
           sb.writeln('    if (index == null) {');
@@ -1800,7 +1801,7 @@ class ModelGenerator {
           sb.writeln('      );');
           sb.writeln('    }');
           sb.writeln(
-            '    return index.query(text, mode: mode, limit: limit);',
+            '    return index.query(text, mode: mode, limit: limit, minScore: minScore);',
           );
           sb.writeln('  }');
           sb.writeln();
