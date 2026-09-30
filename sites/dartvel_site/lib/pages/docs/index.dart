@@ -54,7 +54,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
               '`dartvel update` installs the latest release later.',
             ]),
             DocsNote('Prebuilt binaries are Linux only for now',
-                'The v0.9.3 release binaries behind Homebrew and npm are Linux '
+                'The release binaries behind Homebrew and npm (v0.9.3 today) are Linux '
                 'only, for x64 and arm64. The macOS and Windows binaries follow '
                 'when the release workflow can run again.'),
             ExternalLink('Download a release', kReleasesUrl),
