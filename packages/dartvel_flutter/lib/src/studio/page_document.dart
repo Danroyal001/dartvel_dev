@@ -1961,8 +1961,29 @@ class DVPageStore {
   /// stalling the transition or flashing the wrong page.
   /// The stored page for [route], when it was deployed to this app's
   /// target. A page deployed elsewhere leaves the compiled one serving.
+  /// The documents this build carries from the project's studio/ files,
+  /// by route: what was made in Studio and committed. The generated router
+  /// sets them. A document stored for the same route -- on this device or
+  /// on the server -- wins; these are drawn only where nothing else is.
+  static set bundled(List<String> documents) {
+    _bundled = <String, DVPageDocument>{};
+    for (final String text in documents) {
+      try {
+        final Object? json = jsonDecode(text);
+        if (json is! Map) continue;
+        final DVPageDocument document =
+            DVPageDocument.fromJson(json.cast<String, Object?>());
+        _bundled[document.route] = document;
+      } on Object {
+        // A file somebody broke by hand is not the whole build's problem.
+      }
+    }
+  }
+
+  static Map<String, DVPageDocument> _bundled = <String, DVPageDocument>{};
+
   static DVPageDocument? cached(String route) {
-    final DVPageDocument? document = _cache[route];
+    final DVPageDocument? document = _cache[route] ?? _bundled[route];
     if (document == null || !document.reaches(DVDeployTarget.current)) {
       return null;
     }
