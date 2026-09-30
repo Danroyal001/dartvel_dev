@@ -978,6 +978,11 @@ class DVSemanticIndex<T> {
       throw DVSemanticDimensionError(
           embedder: using.id, expected: using.dimensions, actual: vector.length);
     }
+    // Nothing is near the zero vector: every cosine with it is 0, and "the k
+    // nearest" would be k records in whatever order they were stored.
+    if (vector.every((double x) => x == 0)) {
+      return DVSemanticPage<T>(hits: <DVSemanticHit<T>>[], generation: serving);
+    }
 
     final DVVectorFilter? filter = vectors.canFilter
         ? DVVectorFilter(tenant: tenant, equals: where)
@@ -990,8 +995,14 @@ class DVSemanticIndex<T> {
     while (true) {
       final List<DVVectorMatch> matches =
           await vectors.nearest(serving, vector, k: k, filter: filter);
-      final bool exhausted = matches.length < k;
+      bool exhausted = matches.length < k;
       for (final DVVectorMatch match in matches) {
+        // At no angle or facing away is not a match. Matches arrive nearest
+        // first, so nothing after this one is either.
+        if (match.score <= 0) {
+          exhausted = true;
+          break;
+        }
         // Matches arrive nearest first, so a record's first chunk seen is its
         // best: one row per record however many of its chunks matched.
         if (!seen.add(match.entry.recordId)) continue;

@@ -604,6 +604,32 @@ void main() {
     });
   });
 
+  test('a query that embeds to nothing finds nothing', () async {
+    // Every stored vector is at cosine 0 from the zero vector, so "the k
+    // nearest" is k records chosen by insertion order and handed back as
+    // results. A search for gibberish answered with a confident first hit.
+    final DVSemanticIndex<Ticket> idx = index();
+    await save(idx, Ticket('t1', 'late delivery'));
+    await save(idx, Ticket('t2', 'broken invoice'));
+    await drain();
+
+    final DVSemanticPage<Ticket> page =
+        await idx.query('zebra quantum', mode: DVSearchMode.semantic);
+    expect(page.hits, isEmpty);
+  });
+
+  test('a stored chunk at no angle to the query is not a match', () async {
+    final DVSemanticIndex<Ticket> idx = index();
+    await save(idx, Ticket('t1', 'late delivery'));
+    await save(idx, Ticket('t2', 'broken invoice'));
+    await drain();
+
+    // "late" shares a dimension with t1 and none with t2: t2 scores 0.
+    final DVSemanticPage<Ticket> page =
+        await idx.query('late', mode: DVSearchMode.semantic);
+    expect(page.items.map((Ticket t) => t.id), <String>['t1']);
+  });
+
   test('cosine similarity is the ranking', () async {
     // A sanity check on the reference adapter the other tests rely on.
     await vectors.upsert('s', <DVVectorEntry>[
