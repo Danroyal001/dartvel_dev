@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:dartvel_core/dartvel.dart' show dvStudioIsReservedRoute;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -494,6 +495,14 @@ extension DVPageDocumentSource on DVPageDocument {
       value == value.roundToDouble() ? '${value.toInt()}' : '$value';
 
   String _nodeSource(DVPageNode node, int depth) {
+    if (node.type == dvStudioComponentType) {
+      // A component's widgets, with this use's props: exported code has no
+      // components to look up.
+      final DVPageNode? drawn = dvStudioExpandComponent(node);
+      return drawn == null
+          ? 'const SizedBox.shrink()'
+          : _nodeSource(drawn, depth);
+    }
     final pad = '  ' * depth;
     String core;
     final leaf = dvStudioLeafTypeFor(node);
@@ -701,7 +710,10 @@ class DVPageDocumentRenderer extends StatelessWidget {
           );
     Widget built;
     final leaf = dvStudioLeafTypeFor(node);
-    if (leaf != null) {
+    if (node.type == dvStudioComponentType) {
+      // A use of a component: drawn from the component as it is now.
+      built = DVStudioComponentView(node);
+    } else if (leaf != null) {
       built = leaf.build(node);
     } else {
         // A stack's children can name where they sit. A design that does
@@ -2204,7 +2216,9 @@ class _DVStudioPageRouteState extends State<DVStudioPageRoute> {
   @override
   Widget build(BuildContext context) {
     final document = _document;
-    if (document != null) {
+    // A component, or anything else Dartvel keeps under /_dartvel/, is not
+    // a page at an address.
+    if (document != null && !dvStudioIsReservedRoute(widget.route)) {
       final Widget body = DVStudioPageBody(
         scrolls: document.root.properties['scroll'] == true,
         child: DVPageDocumentRenderer(document),
