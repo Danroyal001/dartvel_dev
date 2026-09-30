@@ -1705,7 +1705,14 @@ class ModelGenerator {
           final Set<String> semanticNames = <String>{
             ...searchableFields.map((Map<String, String> f) => f['name']!),
             if (pageTitleField != null) pageTitleField,
-            ...mainContentCandidates,
+            // The annotated main content, or with none the page's fallback of
+            // every text field -- but only when the model declared no
+            // searchable fields. A model that said which fields are prose has
+            // said it; the fallback embedded its paths and slugs as well.
+            if (mainContentField != null)
+              mainContentField
+            else if (searchableFields.isEmpty)
+              ...mainContentCandidates,
           };
           final semanticFields = fields
               .where(

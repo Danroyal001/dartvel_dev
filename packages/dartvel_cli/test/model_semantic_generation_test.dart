@@ -50,6 +50,7 @@ class _Article {
 
 void main() {
   semanticSurfaceTests();
+  semanticFieldTests();
 
   test('the index is configured through the model', () async {
     final String content = await generated();
@@ -120,5 +121,41 @@ void semanticSurfaceTests() {
     // found, and the model had no member to say "embed what is stored".
     expect(content, contains('static Future<int> semanticBackfill('));
     expect(content, contains('index.backfill(await Article.all(), complete: true)'));
+  });
+}
+
+void semanticFieldTests() {
+  test('declared searchable fields are what is embedded, and nothing else',
+      () async {
+    final Directory root =
+        await Directory.systemTemp.createTemp('dartvel_semantic_fields_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(searchable: true, semantic: true)
+class const _Note({
+  required final String id,
+  required final String path,
+  @DVModel.searchableField() required final String heading,
+  @DVModel.searchableField() required final String body,
+});
+''');
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'fields_app', buildId: 'test-build');
+    final String content =
+        File(p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'))
+            .readAsStringSync();
+
+    // With no @DVModel.mainContent(), the page falls back to every String
+    // field as a content candidate, and the semantic index took that
+    // fallback too: a path, a slug or a status was embedded as prose and
+    // matched queries that happened to share a word with it.
+    expect(content, contains("'heading': (Note record) => record.heading"));
+    expect(content, contains("'body': (Note record) => record.body"));
+    expect(content, isNot(contains("'path': (Note record) => record.path")));
   });
 }
