@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -102,5 +103,31 @@ void main() {
     final Directory root = await _project(const <String, String>{});
     expect(_read(root, 'router.g.dart'),
         contains('DVPageStore.bundled = dartvelStudioDocuments;'));
+  });
+
+  test('the server seeds itself from them when it starts, in Dart that '
+      'compiles', () async {
+    // The seeding line once carried Studio\'s with its quote unescaped
+    // inside the generator\'s template, and every web-server binary failed
+    // to compile.
+    final Directory root = await _project(const <String, String>{});
+    Directory(p.join(root.path, 'lib', 'backend')).createSync(recursive: true);
+    await BackendGenerator.generate(
+      root: root.path,
+      backendDir: 'lib/backend',
+      pkgName: 'shop',
+      backendHost: '127.0.0.1',
+      backendPort: 8080,
+      apiBasePath: '/api',
+    );
+    final String server = File(p.join(root.path, '.dart_tool',
+            'dartvel_backend_routes.g.dart'))
+        .readAsStringSync();
+    expect(server, contains('core.dvSeedStudioDocuments(dartvelDatabase, dartvelStudioDocuments)'));
+    for (final String line in server.split('\n').where((String l) => l.contains('seed') && l.contains('writeln'))) {
+      // One single-quoted string: its quotes are the first and last.
+      final String inner = line.substring(line.indexOf('\'') + 1, line.lastIndexOf('\''));
+      expect(inner.replaceAll(r"\'", ''), isNot(contains("'")), reason: line);
+    }
   });
 }
