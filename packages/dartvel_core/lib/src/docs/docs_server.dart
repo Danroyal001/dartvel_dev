@@ -14,8 +14,11 @@
 ///   one application with its own routes.
 library;
 
+import 'dart:io';
+import 'dart:typed_data';
+
 import '../admin/admin_server.dart'
-    show DVAdminAsset, DVAdminMount, dvAdminAsset, dvAdminAuthorized;
+    show DVAdminMount, dvAdminAuthorized, dvAdminContentType;
 import '../http/wintercg.dart';
 import 'docs_mount.dart';
 
@@ -79,7 +82,7 @@ class DVDocsServer {
 
     // Resolved exactly as Studio's files are: decoded before it is checked,
     // never outside [root], and the shell for a path that is no file.
-    final DVAdminAsset? asset = dvAdminAsset(
+    final _DocsAsset? asset = _docsAsset(
       root,
       DVAdminMount(path: mount.path, enabled: true, requiresAuth: false),
       path,
@@ -94,3 +97,63 @@ class DVDocsServer {
     );
   }
 }
+
+/// One file of the documentation site, ready to send.
+///
+/// The docs site is its own compiled application, served from the files the
+/// build wrote for it. Studio serves no files at all; this resolution is the
+/// docs site's alone.
+class _DocsAsset {
+  const _DocsAsset(this.bytes, this.contentType);
+
+  final Uint8List bytes;
+  final String contentType;
+
+  /// The headers it goes out with.
+  ///
+  /// Never stored by a shared cache: a dashboard kept by a proxy after one
+  /// signed-in request is served to the next person who asks, signed in or
+  /// not.
+  Map<String, String> get headers => <String, String>{
+        'content-type': contentType,
+        'cache-control': 'no-store',
+      };
+}
+
+/// The file under [root] that [path], a request path under [mount], names.
+///
+/// The mount itself is `index.html`, and a path under it that is no file is
+/// the shell too: the admin is one application with its own routes. Null
+/// when the path tries to leave [root] or there is no shell to fall back to.
+_DocsAsset? _docsAsset(String root, DVAdminMount mount, String path) {
+  final String rest = path.substring(mount.path.length);
+  final String relative =
+      rest.isEmpty || rest == '/' ? 'index.html' : rest.substring(1);
+  // Decoded before it is checked, so %2e%2e is the same two dots here as it
+  // is to any proxy in front of this. An invalid escape is not a filename.
+  final String decoded;
+  try {
+    decoded = Uri.decodeComponent(relative).replaceAll(r'\', '/');
+  } on ArgumentError {
+    return null;
+  }
+  final List<String> segments = <String>[];
+  for (final String segment in decoded.split('/')) {
+    if (segment.isEmpty || segment == '.') continue;
+    // Refused rather than resolved. A dot-dot that stays inside the root is
+    // still a request nobody's dashboard makes.
+    if (segment == '..' || segment.contains(':')) return null;
+    segments.add(segment);
+  }
+  if (decoded.startsWith('/')) return null;
+  final String separator = Platform.pathSeparator;
+  final File asset = File(<String>[root, ...segments].join(separator));
+  if (segments.isNotEmpty && asset.existsSync()) {
+    return _DocsAsset(
+        asset.readAsBytesSync(), dvAdminContentType(segments.last));
+  }
+  final File shell = File('$root${separator}index.html');
+  if (!shell.existsSync()) return null;
+  return _DocsAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
+}
+
