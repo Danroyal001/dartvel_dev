@@ -716,6 +716,9 @@ class DVStudioTextInput extends StatefulWidget {
   /// Drawn after the value: a unit such as `px`.
   final String? suffix;
 
+  /// Draws the text as dots, as a password field does.
+  final bool obscureText;
+
   const DVStudioTextInput({
     super.key,
     this.value = '',
@@ -725,6 +728,7 @@ class DVStudioTextInput extends StatefulWidget {
     this.label,
     this.icon,
     this.suffix,
+    this.obscureText = false,
   });
 
   @override
@@ -807,6 +811,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                   EditableText(
                     controller: _text,
                     focusNode: _focus,
+                    obscureText: widget.obscureText,
                     style: const TextStyle(
                         fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
                     cursorColor: DVStudioStyle.accent,
