@@ -824,6 +824,7 @@ export 'src/updates/shorebird_updates.dart'
     show DVShorebirdNative, DVShorebirdUpdates;
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/home_widgets.dart';
+export 'src/widgets/shortcuts.dart';
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';
 export 'src/windowing/displays.dart';
