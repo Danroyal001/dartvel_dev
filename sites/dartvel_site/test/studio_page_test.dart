@@ -141,7 +141,13 @@ void main() {
       '../../packages/dartvel_flutter/lib/src/studio/studio_server.dart',
     ).readAsStringSync();
     final List<String> labels = <String>[
-      for (final Match m in RegExp(r"label: '([^']+)'").allMatches(rail)) m[1]!,
+      // The sections' own labels, not every label in the file: the account
+      // control's Semantics(label: 'Sign out') is not a section, and matching
+      // any label: made the page promise a card for it.
+      for (final Match m in RegExp(
+        r"DVStudioSection\(\s*id: '[^']+',\s*label: '([^']+)'",
+      ).allMatches(rail))
+        m[1]!,
     ];
     expect(labels, isNotEmpty);
     final String free = sectionFrom(code(page), "Eyebrow('IN THE FREE STUDIO'");
