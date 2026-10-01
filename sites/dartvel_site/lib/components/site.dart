@@ -211,6 +211,8 @@ Widget _siteFooter(BuildContext context) {
           // The embedders and packages Dartvel forks, with their authors and
           // licences, on every page.
           AcknowledgementsLink(),
+          FooterLink('Privacy', '/privacy'),
+          FooterLink('Terms', '/terms'),
         ], spacing: 20),
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two
@@ -242,6 +244,17 @@ Widget _siteFooter(BuildContext context) {
         .paddingSymmetric(horizontal: gutterFor(context), vertical: 32),
   );
 }
+
+/// A link to one of the site's own pages, styled like the other footer links.
+@DVFunctionalWidget()
+Widget _footerLink(BuildContext context, String label, String href) =>
+    DVNavLink(
+      to: DVRouteTarget(href),
+      child: Prose(label, const DVModifier()
+          .fontSize(14)
+          .fontWeight(.w600)
+          .color(Palette.of(context).accent)),
+    );
 
 /// A band of content, optionally on the tinted surface.
 ///
