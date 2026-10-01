@@ -14568,6 +14568,78 @@ be out of date with the code, so what it can be is pointed at something gone.
 
 ---
 
+# Roadmap
+
+Accepted 1 October 2026, after comparing Dartvel with Expo SDK 58, Next.js 16.3, Qt 6.11, Flutter Agent Kit
+and ApparenceKit. Each item becomes, or extends, a section of this specification and lands as its own pull
+request; the section it lands in carries the usual Stability and Status labels, and this list says only what
+was decided and in what order. Nothing here is claimed as shipped until its section says so.
+
+Every item is framework-level, generic for every Dartvel project, and must pass the Definition of done in
+~/agent-context/AGENTS.md (one render path, own URLs, keyboard and screen-reader accessible, checked in a
+real browser on a web-server build, diffed against live, README + NEW_SPEC + site docs + CHANGELOG in the
+same PR, no over-claiming). Background: ~/dartvel-proposals/2026-10-01-competitive-proposal.md.
+
+## Track A: agents and docs (beats Flutter Agent Kit, matches Expo/Next.js agent tooling)
+1. `dartvel create`/`init` set up every major agent: AGENTS.md, CLAUDE.md, GEMINI.md, .cursor/rules,
+   .github/copilot-instructions.md, .devin, OpenCode and ChatGPT/Codex config, all pointing at one source.
+   `dartvel dev` keeps a version-matched block updated, pointing at the docs bundled with the installed
+   Dartvel version (like Next.js 16.3).
+2. Opinionated architecture docs written into every project: initialisation, data, HTTP, UI, naming,
+   setup, Git, process (plus Dartvel-specific: models, backend functions, Studio, modules).
+3. Skills (SKILL.md) shipped inside each module and collected by `dartvel agent skills sync`: auth,
+   routing (the 5 router integrations), local and cloud data, payments, ads, push, AI chat, analytics,
+   translations, crash reporting, structured reporting and logging, maps, camera, onboarding, offline,
+   Studio.
+4. `dartvel agent status|dev|smoke|screenshot|logs` on top of `dartvel mcp`.
+5. Much more complete llms.txt / llms-full.txt for web builds (every page, model, API and doc section).
+
+## Track B: speed and navigation (Next.js parity)
+1. Build cache for every platform target (web, web-server, Android, iOS, desktop): repeat builds reuse
+   unchanged artifacts; target dartvel.dev repeat web-server build under 3 minutes. CI cache recipes
+   (GitHub Actions, GitLab, Codemagic) written by `dartvel create`.
+2. Render on first request, then cache (ISR with an instant shell) for web-server builds.
+3. Instant navigation tooling: `dartvel dev` insights that flag navigations blocking on the network,
+   a navigation inspector that pauses at the loading shell, and `DVTest.instant()` that fails a test
+   when a navigation stops being instant.
+4. Device dashboard: `dartvel dev` + Flutter DevTools and the inspector, wired together: running
+   simulators/emulators/Preview devices with live screen, CPU, memory, network.
+
+## Track C: native reach
+1. App Intents (iOS: Siri, Shortcuts, Spotlight, Apple Intelligence) and Android App Functions /
+   Jetpack Compose surfaces, generated from `@DVAITool` on functions. No separate DVAppIntents API
+   (owner, 2026-10-01). Backend functions turn it on in their own declaration, e.g.
+   `@DVBackendFunction(aiTool: ...)`, instead of being annotated twice; `@DVAITool` stays for other
+   functions. One declaration feeds the AI tool registry, MCP, App Intents, App Functions and
+   WebMCP: web builds (static and web-server) automatically expose the same tools to in-browser
+   agents through WebMCP (`navigator.modelContext` tool registration), with the tool's policy and
+   auth enforced exactly as for the backend call. No extra annotation.
+2. `@DVHomeWidget.liveNotification` (not "Live Activity": avoid Apple's term): Live Activities and
+   Dynamic Island on iOS, and live-activity-style ongoing notifications on Android (Material look) and
+   the equivalent on desktop and web, each in the platform's own look.
+3. Platform views plus `DVPreferredRenderingMode` on DVBox/DVText and other primitives:
+   `.preferPlatformNative`, `.auto` (framework picks per area/use case), `.default` (Flutter-rendered).
+4. Finish Home Widgets (iOS WidgetKit, Android App Widgets).
+
+## Track D: ecosystem and adapters
+1. `dartvel add <package>`: the Dartvel ecosystem command (modules, plus wrapping pub.dev and native
+   packages through the module system).
+2. Hosting adapters around the one binary: `.htaccess`/PHP shim so cPanel/shared hosts (e.g. Namecheap)
+   route to the binary or static output, plus adapters for common hosts; docs per host.
+3. Auth adapters: Firebase Auth and Supabase Auth as DVAuthProvider adapters; add Sign in with Apple,
+   Facebook, X/Twitter and phone (SMS OTP) sign-in. Model storage adapters: Firestore and MongoDB beside
+   SQL and the existing NoSQL support.
+4. Observability and analytics adapters: Sentry, Mixpanel, Firebase Analytics, Meta Pixel + Conversions
+   API, PostHog, behind the existing consent model.
+5. Growth screens, editable in Studio: onboarding with permission explainers, in-app review prompts,
+   feature voting, paywalls (RevenueCat-compatible entitlements), AI chat page. The built-in notification
+   model gets its own predesigned `.Page` (notification history) tailored to each platform, extendable
+   and customisable like any model page.
+6. `dartvel create --template saas|consumer` that assembles the above.
+
+## Order
+A and B first (they make every later PR faster and better). C and D after, one PR per numbered item.
+
 # Mental Model
 
 ```text
