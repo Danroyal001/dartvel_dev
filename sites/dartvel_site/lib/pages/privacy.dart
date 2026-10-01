@@ -23,8 +23,7 @@ Widget _privacyPage(BuildContext context) => const SingleChildScrollView(
             Body('Last updated 1 October 2026.'),
             Body('Dartvel and dartvel.dev are made by SigmaDev Digital, a '
                 'business registered in Nigeria with the Corporate Affairs '
-                'Commission (BN 8969161), 3 Mkpok Lane, Idua, Eket, Akwa Ibom '
-                'State. For anything in this policy, email '
+                'Commission (BN 8969161). For anything in this policy, email '
                 'info@sigmadev.digital.'),
           ],
         ),
@@ -91,5 +90,6 @@ Widget _privacyPage(BuildContext context) => const SingleChildScrollView(
                 'at the top.'),
           ],
         ),
+        SiteFooter(),
       ]),
     );

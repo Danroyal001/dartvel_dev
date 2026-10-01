@@ -79,5 +79,6 @@ Widget _termsPage(BuildContext context) => const SingleChildScrollView(
                 'the date at the top, is the one that applies.'),
           ],
         ),
+        SiteFooter(),
       ]),
     );
