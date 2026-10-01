@@ -1,4 +1,4 @@
-// Preview Environments, where the server starts.
+// Branch deployments, where the server starts.
 //
 // The access gate has to sit outside everything serve() answers, not just the
 // router it was handed: the built site's files and its assembled pages are

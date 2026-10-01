@@ -1,4 +1,4 @@
-// Preview Environments: what `dartvel.preview` says, what a branch's
+// Branch deployments: what `dartvel.preview` says, what a branch's
 // environment is called, and which secret values a preview may hold.
 //
 // The three are the plan-time half of the section. Each refusal here happens

@@ -171,7 +171,7 @@ List<String> dvWebServerStaleFiles({required List<String> present}) =>
 ///
 /// Written because `dvServeRoute` had no caller: the build wrote a manifest,
 /// deleted the static files it would otherwise have shadowed, and left
-/// nothing that read either. `dartvel preview` fell through to files the same
+/// nothing that read either. `dartvel dev --release` fell through to files the same
 /// build had just removed.
 ///
 /// Assets are served from disk. Anything that is not a file on disk is a
@@ -244,7 +244,7 @@ Handler dvWebServerHandler({
   // A mounted micro-site's routes, and where each one really answers. The
   // build has written these since federation landed and the deployed backend
   // has acted on them; this server read the same file and skipped the key,
-  // so `dartvel preview` handed back the parent's own empty shell for a
+  // so `dartvel dev --release` handed back the parent's own empty shell for a
   // module path and gave the developer nothing to go on.
   final locations = <String, String>{
     for (final MapEntry<String, Object?> e in routeMap.entries)

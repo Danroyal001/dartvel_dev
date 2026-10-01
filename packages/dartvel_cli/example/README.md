@@ -250,7 +250,7 @@ ended with:
 and exits 1. Give the page a heading, or record a waiver under
 `dartvel.accessibility.waivers` with a `route`, a `rule` and a `reason`.
 
-`dartvel preview` serves the finished build locally on port 8080.
+`dartvel dev --release` serves the finished build locally on port 8080.
 
 ## Where next
 
