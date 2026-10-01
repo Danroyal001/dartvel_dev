@@ -464,6 +464,10 @@ not a focus stop, rather than looking live and doing nothing. What these three
 widgets are and what they deliberately do not cover is written down in
 [`docs/studio/PARITY.md`](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/studio/PARITY.md).
 
+Sign-in uses the same focusable control. Tab from the password reaches Sign
+in; Enter activates it. Submitting the password field also signs in, and both
+fields expose their labels to assistive technology.
+
 ## Platform notes
 
 - **Web.** dartvel.dev is built with this package, and runs as a static

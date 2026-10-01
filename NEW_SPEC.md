@@ -1224,6 +1224,11 @@ binds Enter to `ButtonActivateIntent` and every other platform to
 declares its role and its name to a screen reader, and draws its own focus
 ring. A control with nothing to do says so and is not a focus stop.
 
+The sign-in page follows that contract too: its email and password fields
+have accessible labels, Tab from the password reaches Sign in, and Enter
+activates the focused action or submits the password field. Signing in
+returns to the guarded deep link only after the server admits the account.
+
 ### Undo over page documents
 
 Studio's undo over page documents and this are the same mechanism seen twice:

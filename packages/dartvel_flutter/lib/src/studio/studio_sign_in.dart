@@ -267,6 +267,7 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
           onSubmitted: (_) => _submit(),
           style: const TextStyle(fontSize: 14, color: DVStudioStyle.ink),
           decoration: InputDecoration(
+            labelText: label,
             isDense: true,
             filled: true,
             fillColor: DVStudioStyle.canvas,
@@ -331,34 +332,14 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
             child: Text(_problem!,
                 style: DVStudioStyle.bannerText(DVStudioStyle.danger)),
           ),
-        Semantics(
-          button: true,
-          label: _askingForCode ? 'Continue' : 'Sign in',
-          child: GestureDetector(
-            key: const ValueKey<String>('dv-studio-sign-in-submit'),
-            behavior: .opaque,
-            onTap: _busy ? null : _submit,
-            child: MouseRegion(
-              cursor: _busy ? SystemMouseCursors.basic : SystemMouseCursors.click,
-              child: Container(
-                height: 40,
-                alignment: .center,
-                decoration: BoxDecoration(
-                  color: _busy ? DVStudioStyle.accentSoft : DVStudioStyle.accent,
-                  borderRadius: .circular(DVStudioStyle.radius),
-                ),
-                child: DVText(_busy
-                        ? 'Signing in…'
-                        : _askingForCode
-                            ? 'Continue'
-                            : 'Sign in')
-                    .modifier(const DVModifier()
-                        .fontSize(14)
-                        .color(const Color(0xFFFFFFFF))
-                        .fontWeight(.w600)),
-              ),
-            ),
-          ),
+        DVStudioControl(
+          key: const ValueKey<String>('dv-studio-sign-in-submit'),
+          label: _busy
+              ? 'Signing in…'
+              : _askingForCode ? 'Continue' : 'Sign in',
+          enabled: !_busy,
+          primary: true,
+          onTap: _submit,
         ),
       ],
       spacing: DVStudioStyle.space5,

@@ -478,7 +478,9 @@ also served as a document a reader without the app can read. And Studio answers
 the keyboard: every control in it takes the focus, Enter and Space both press
 it, a screen reader is told its role and its name, and the focus is drawn as a
 ring on the control itself, so a control with nothing to do is off rather than
-looking live.
+looking live. The sign-in action uses the same focusable control: Tab from
+the password reaches Sign in, Enter activates it, and submitting the password
+field also signs in. Email and password fields have accessible labels.
 
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own

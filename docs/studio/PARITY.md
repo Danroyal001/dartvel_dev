@@ -221,6 +221,12 @@ appear on the rail with no address.
 
 ## How this file stays honest
 
+Sign-in regression coverage: `test/studio_sign_in_test.dart` now checks Tab
+from password followed by Enter, and the password's submit action. The Tab
+test failed with the old gesture-only action and passes with
+`DVStudioControl`; sign-in fields now expose their labels. This widget test
+does not establish browser parity for every Studio control.
+
 - Every verdict names a file. A row without one is not built.
 - "Partial" is used whenever part of the feature exists and part does not; the missing half
   is named in the row.

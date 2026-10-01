@@ -161,6 +161,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('KEYBOARD AND SCREEN READER'),
         Heading('Every control is a control, not a picture of one.'),
         Bullets(<String>[
+          'On sign-in, the email and password fields have accessible labels. '
+              'Tab from the password reaches Sign in; Enter submits it.',
           'Tab reaches every button, every icon on the rail and the toolbar, '
               'and every toggle. Enter and Space both press one. The focus is '
               'drawn as a ring on the control itself, so you can see where you '
