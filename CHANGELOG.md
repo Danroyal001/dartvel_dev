@@ -15,6 +15,27 @@ changes are called out explicitly below.
 - `dartvel preview` is hidden from help and forwards to the new commands
   with a deprecation message for one release.
 
+**Coding agents are set up from one source.** A Dartvel project had no agent
+documentation at all, so whichever agent you opened it in inferred the rules
+for itself, and eleven tools each wanted a differently named file to be told
+the same thing. `dartvel create` and `dartvel init` now write `AGENTS.md`,
+`CLAUDE.md`, `GEMINI.md`, `AGENT.md`, `CONVENTIONS.md`, `.cursorrules`,
+`.cursor/rules/dartvel.mdc`, `.windsurfrules`, `.clinerules`,
+`.kiro/steering/dartvel.md`, `.github/copilot-instructions.md` and
+`.aider.conf.yml`, each carrying one block generated from
+`docs/agents/rules.md` as it ships with the CLI, and `dartvel dev` replaces
+that block so the rules an agent reads match the Dartvel version installed.
+
+Everything between `<!-- dartvel:begin agents -->` and
+`<!-- dartvel:end agents -->` is Dartvel's. Everything outside is the project's
+and a refresh never touches it: a `CLAUDE.md` written before Dartvel was
+adopted keeps all of its text and gains the block below it, a file deleted by
+hand comes back, and a refresh that changes nothing writes nothing and prints
+nothing. Codex, OpenCode, Devin and ChatGPT read the root `AGENTS.md` and get no
+file of their own, which `AGENTS.md` states. The block names the documentation
+shipped with the installed CLI, and `dartvel docs` when there is none beside it,
+so it never points at a path that does not exist.
+
 **Security: Studio is part of the application, guarded by the server.**
 Studio was a second Flutter application, built on its own and served as
 files under its mount, and serving files by path is how

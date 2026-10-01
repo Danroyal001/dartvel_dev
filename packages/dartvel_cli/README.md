@@ -127,6 +127,37 @@ To add Dartvel to a Flutter project that already exists, use `dartvel init`
 rather than `create`. See [example/README.md](example/README.md) for a full
 session: a new app, a page, a data model, the dev server and a web build.
 
+## Coding agents
+
+`create` and `init` also set the project up for whichever coding agent you open
+it in, from one generated block:
+
+| File | Read by |
+|---|---|
+| `AGENTS.md` | Codex, OpenCode, Devin, ChatGPT, and anything else that reads `AGENTS.md` |
+| `CLAUDE.md` | Claude Code |
+| `GEMINI.md` | Gemini CLI |
+| `AGENT.md` | agents that read the singular name |
+| `CONVENTIONS.md` | aider, and tools that read a conventions file |
+| `.cursorrules`, `.cursor/rules/dartvel.mdc` | Cursor |
+| `.windsurfrules` | Windsurf |
+| `.clinerules` | Cline |
+| `.kiro/steering/dartvel.md` | Kiro |
+| `.github/copilot-instructions.md` | GitHub Copilot, and ChatGPT in a repository |
+| `.aider.conf.yml` | aider, told which files to read |
+
+Codex, OpenCode and Devin get no file of their own: they read the project
+root's `AGENTS.md`, and four more copies would be four more files that can
+disagree with it.
+
+Everything between `<!-- dartvel:begin agents -->` and
+`<!-- dartvel:end agents -->` is Dartvel's, and `dartvel dev` replaces it so it
+matches the Dartvel version installed. Everything outside the markers belongs
+to you and is never read again, and a file that had no block gains one below
+its existing text. The rules come from [`docs/agents/rules.md`](docs/agents/rules.md),
+which ships with the CLI, so a published Dartvel carries the rules that version
+had.
+
 ## Commands
 
 `dartvel --help` lists every command, and `dartvel help <command>` (or
@@ -136,8 +167,8 @@ session: a new app, a page, a data model, the dev server and a web build.
 
 | Command | What it does |
 |---|---|
-| `create [dir]` | Scaffold a new project. Alias `new`. Refuses to write over a project it did not create. |
-| `init` | Add Dartvel to an existing project: the dependency and the `dartvel:` key, nothing else. `--dry-run`, `--yes`. |
+| `create [dir]` | Scaffold a new project. Alias `new`. Refuses to write over a project it did not create. Also writes the coding-agent files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, the Cursor, Windsurf, Cline, Kiro and Copilot files, and `.aider.conf.yml`. |
+| `init` | Add Dartvel to an existing project: the dependency and the `dartvel:` key, then the same coding-agent files. `--dry-run`, `--yes`. |
 | `doctor` | Check the environment and the project. `--target <t>` checks one build target's toolchain. |
 | `upgrade --plan` | Report what upgrading this project to this CLI's release changes. Writes nothing. |
 | `migrate-code` | Rewrite deprecated Dartvel names. A dry run unless `--apply`. |
@@ -149,7 +180,7 @@ session: a new app, a page, a data model, the dev server and a web build.
 
 | Command | What it does |
 |---|---|
-| `dev` | Run the app, the backend and Studio with hot reload. Aliases `run`, `start`. Prints QR and pairing links for development builds and Dartvel Preview (`dartvel-preview://open`). |
+| `dev` | Run the app, the backend and Studio with hot reload. Aliases `run`, `start`. Prints QR and pairing links for development builds and Dartvel Preview (`dartvel-preview://open`). Refreshes each coding-agent file's Dartvel block first, so the rules an agent reads match the version installed. `--release` refreshes it too. |
 | `routes` | Run the generator: routes, the typed client, models, backend glue. |
 | `generate page\|model\|form\|backend-function <name>` | Write a starter file. `generate --check` fails when generated output is stale. |
 | `test` | Run `dart test` or `flutter test`, with `--watch`, sharding and golden updates. |

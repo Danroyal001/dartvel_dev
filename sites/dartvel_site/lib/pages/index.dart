@@ -569,7 +569,7 @@ Widget _honest(BuildContext context) => const Section(
     Heading('24 spec sections ship today.'),
     DVBox.wrapLine(<Widget>[
       Stat('24', 'sections shipped'),
-      Stat('78', 'sections partial'),
+      Stat('79', 'sections partial'),
       Stat('0.9.3', 'current version'),
     ], spacing: 14),
     Bullets(<String>[
