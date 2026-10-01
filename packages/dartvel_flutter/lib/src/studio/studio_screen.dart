@@ -2653,9 +2653,10 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         if (widget.site?.look?.hasDark ?? false) ...<Widget>[
           const SizedBox(width: DVStudioStyle.space1),
           Builder(builder: (BuildContext context) {
+            final DVStudioAppLook? look = widget.site?.look;
+            if (look == null) return const SizedBox.shrink();
             final bool dark = (_appearance ??
-                    widget.site!.look!
-                        .resolve(MediaQuery.platformBrightnessOf(context))
+                    look.resolve(MediaQuery.platformBrightnessOf(context))
                         .brightness) ==
                 Brightness.dark;
             return _keyedIcon(
