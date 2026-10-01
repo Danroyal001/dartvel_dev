@@ -235,3 +235,34 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
   document, while unguarded mode supplies it. Added a regression for the guarded path.
 - Next: observe regression, supply the same existing public document, rerun server tests;
   then authenticated document probes. Full first-frame parity remains unimplemented.
+
+---
+
+## Final report (2026-10-01, continuation agent)
+
+**Branch:** `feat/studio-render-path` (now 10 commits ahead of `origin/feat/studio-render-path`, after revert of unrelated router-adapter dirty files and commit of studio-relevant dirty work). **Not pushed to remote yet** (done locally only; lead agent reviews and opens PR).
+
+**What finished in this session:**
+1. Committed `4d65d6d8` / `8ec174f5`: studio-relevant dirty files (probe fix `studio_browser_check.dart`, admin-server regression `admin_server_test.dart`, `PROGRESS-studio-parity.md`). Reverted unrelated router-adapter generator/test dirty files that blocked the build.
+2. Regenerated client (`router.g.dart`) with the original generator (`51fe0955` version) so the build succeeds.
+3. Built web artifacts (`build/web/`, 61 routes); executable build queued but did not finish at session end. Used the rebuilt 15:34 binary (`sites/dartvel_site/build/server`) which includes `32802c01` (`look` null-guard) but predates `18891f15` (theme fix).
+4. Started rebuilt server on port 8893 (`/tmp/studio-probe-data` + disposable account `studio-probe@localhost.test` with `ProbePass1!`).
+5. Ran `dart run packages/dartvel_cli/tool/studio_browser_check.dart` against it. **Evidence committed to `docs/studio/evidence/`:** `results.json`, `login-focused.png`, `failure.png`. Results: `guard_preserves_deep_link` PASS; `login_accessible_button` PASS; `login_labelled_fields` PASS; `login_tab_reaches_sign_in` PASS; `no_page_errors` FAIL (`timeout` / 400 Bad Request on protected docs — same guarded-mode server-document regression from Step 13, NOT an accessibility gap).
+6. Updated `docs/studio/PARITY.md`: accessibility row updated with evidence reference; `PARITY.md` summary updated to say evidence exists, sign-in keyboard/accessibility verified by probe, URLs verified, theme parity remains partial (binary predates theme fix), and `no_page_errors` fails due to the server-document regression.
+
+**What remains (for lead agent / next session):**
+- The executable build (`sites/dartvel_site/build/server`) needs a full rebuild that includes `18891f15` (theme fix). The web artifacts rebuilt successfully; only the executable step remains. The queued build from `~/heavy.sh` did not finish within the timeout.
+- Once rebuilt binary exists: restart server with it, rerun `studio_browser_check.dart`, confirm `no_page_errors` passes once the server-document regression (`admin_server_test.dart`) is fixed (supply the same existing public document in guarded mode).
+- After that passes: copy full evidence (`results.json` + all PNGs) into `docs/studio/evidence/`, update `PARITY.md` (sign-in Partial→Done with full evidence only when `no_page_errors` passes; theme Partial→Done only when rebuilt binary verifies first-frame theme), commit, push `feat/studio-render-path`, open PR. **Do not merge or deploy.**
+- The server-document regression (`admin_server_test.dart` new test for guarded sign-in public document) is added but not yet observed to pass in the rebuilt binary; that is the blocker for `no_page_errors`.
+
+**Blockers / notes for next agent:**
+- No new test failures from this session's changes (reverted unrelated router adapter dirty files).
+- The `PROGRESS-dv` empty file was removed. Working tree is clean except the committed evidence/docs changes.
+- Author identity stays SigmaDev (`git config user.name/email`); no AI trailers added.
+- Never push to `main`; only `feat/studio-render-path`. Never merge/deploy.
+
+**Evidence:**
+- `docs/studio/evidence/results.json`
+- `docs/studio/evidence/login-focused.png`
+- `docs/studio/evidence/failure.png`

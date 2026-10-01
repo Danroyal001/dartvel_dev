@@ -155,7 +155,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Notifications and approvals | **Partial** — the content workflow has approval states and a publish schedule; `DV.Notifications` exists in the framework, with no Studio screen to configure it | `studio_review.dart`, `packages/dartvel_core/lib/src/notifications/` |
 | Governance: solution checker, managed environments | **Missing** | — |
 | Keyboard/command shortcuts | **Done** — a Shortcuts section writes an app's keyboard shortcuts without code, plus Figma/Bubble/Power Apps shortcuts on the Ctrl+/ sheet | `studio_app_shortcuts.dart`, `studio_shortcuts` section `studio_screen.dart:186`, screenshot `docs/studio/nocode/shortcuts.png` |
-| Accessibility of Studio and its output | **Partial** — shared controls provide roles, labels, keyboard activation and focus rings; routes use the page shell. Sign-in and record navigation have regression tests. Setup, every dialog and editor, and complete assistive-technology workflows are not all verified. | `studio_style.dart`, `studio_routes.dart`, `test/studio_accessibility_test.dart`, `test/studio_sign_in_test.dart`, `test/studio_selection_test.dart` |
+| Accessibility of Studio and its output | **Partial** — shared controls (`DVStudioControl`, `DVStudioIconButton`, `DVStudioSwitch`) provide roles, labels, keyboard activation and focus rings (`studio_style.dart`). The rebuilt binary probe (`docs/studio/evidence/results.json`, 2026-10-01) confirms sign-in keyboard (`login_accessible_button`, `login_labelled_fields`, `login_tab_reaches_sign_in` PASS) and deep-link (`guard_preserves_deep_link` PASS). `no_page_errors` FAILS (`results.json`: timeout / 400 Bad Request on protected docs — the guarded-mode server-document regression from Step 13, `admin_server_test.dart` regression). Setup, dialogs, component editing and full assistive-technology flows remain unverified; the row stays Partial. Evidence: `results.json`, `login-focused.png`, `docs/studio/evidence/`. | `studio_style.dart`, `studio_routes.dart`, `test/studio_accessibility_test.dart`, `test/studio_sign_in_test.dart`, `test/studio_selection_test.dart`, `packages/dartvel_core/test/admin_server_test.dart`, `docs/studio/evidence/results.json` |
 
 ---
 
@@ -228,11 +228,7 @@ Dartvel site, including its bundled Manrope font. Full theme parity is still
 partial: Studio’s custom color tokens and the visible server-rendered first
 frame have not yet been migrated.
 
-The current server document is a separate hand-authored summary in
-`studio_document.dart`, inserted by the shared renderer. Shared fallback CSS
-clips it during normal scripted browsing. This does **not** satisfy the owner’s
-requirement for the same visible app document from the first frame; the earlier
-server-rendering description above covers summaries, not visual parity.
+The rebuilt binary (15:34, includes `32802c01` null-guard) and the browser probe (`docs/studio/evidence/results.json`, 2026-10-01) confirm sign-in keyboard/accessibility and URL/deep-link fixes. `no_page_errors` still FAILS (`results.json`: 400 Bad Request on protected docs — the guarded-mode server-document regression from Step 13, `admin_server_test.dart`). Theme parity remains partial: the binary predates the theme fix (`18891f15`); a full build that includes it is queued but not finished at the time of writing. Evidence: `docs/studio/evidence/` (`results.json`, `login-focused.png`, `failure.png`).
 
 Readable aliases are supported for `/__studio/data`, `/__studio/sitemap` and
 `/__studio/team`; existing `/models`, `/routes` and `/access` links remain valid.
