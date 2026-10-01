@@ -298,6 +298,8 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
 - Theme inheritance / default theme (`18891f15`): code committed; verification requires rebuilt binary.
 - Server-document regression (`admin_server.dart`): fixed in `15fff6ee`; test passes locally.
 
+**Build result (2026-10-01 20:56):** Web artifacts rebuilt (`sites/dartvel_site/build/web/`, 61 routes, `✓ Built build/web`). Executable build (`sites/dartvel_site/build/server`) timed out before finishing (`flutter build web` completed at 101.7s, executable compilation did not complete within 300s). Binary remains the previous 15:34 artifact; it does NOT include `18891f15` or `85381c52`. Queue the executable build again (longer timeout) before running the final browser probes.
+
 **Notes:**
 - No unrelated dirty files committed; `PROGRESS-dv` removed; working tree clean.
 - Never wrote `.py` or `python3` inline; all tooling is Dart (`dart test`, `dart run`).
