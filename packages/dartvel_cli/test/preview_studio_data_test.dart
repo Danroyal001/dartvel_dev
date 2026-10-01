@@ -1,4 +1,4 @@
-// Studio's data on `dartvel preview`.
+// Studio's data on `dartvel dev --release`.
 //
 // Preview served Studio's files and not its API, so every section opened on
 // "The server did not answer". Given an admin server, the preview handler

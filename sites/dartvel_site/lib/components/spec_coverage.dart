@@ -250,8 +250,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Feature Flags and Staged Rollout', 'Operations', DVRoutes.docsreleases,
       'Roll a feature out with typed flags', anchor: 'flags'),
 
-  SpecCoverage('Preview Environments', 'Operations', DVRoutes.docsreleases,
-      'Give every branch its own preview', anchor: 'previews'),
+  SpecCoverage('Branch deployments', 'Operations', DVRoutes.docsreleases,
+      'Give every branch its own deployment', anchor: 'previews'),
 
   SpecCoverage('Backend Release Management', 'Operations', DVRoutes.docsreleases,
       'Release a backend behind health gates', anchor: 'backend-releases'),

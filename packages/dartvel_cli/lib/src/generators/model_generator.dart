@@ -95,7 +95,7 @@ class ModelGenerator {
     // Where each model's records are, for Studio on the same backend.
     final List<String> studioSpecs = <String>[];
     // The same specs as data, for a development server that has no
-    // generated code to import: `dartvel preview`.
+    // generated code to import: `dartvel dev --release`.
     final List<Map<String, Object?>> studioManifest = <Map<String, Object?>>[];
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");

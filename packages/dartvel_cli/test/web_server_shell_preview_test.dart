@@ -1,4 +1,4 @@
-// `dartvel preview` under `dartvel.web.server.streaming: shell`.
+// `dartvel dev --release` under `dartvel.web.server.streaming: shell`.
 //
 // The deployed server sends the shell's head before a route's data resolves.
 // The preview server did not: it had only the older split, head after the
