@@ -15,7 +15,7 @@
 library;
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVStudioScreenSpec, dvStudioScreens;
+    show DVStudioScreenSpec, dvStudioScreens, dvStudioScreenAliases;
 import 'package:dartvel_flutter/dartvel_flutter.dart'
     show DVPageScaffoldSpec, DVPageShell;
 import 'package:flutter/widgets.dart';
@@ -38,6 +38,7 @@ import 'studio_sign_in_entry.dart' deferred as dartvel_studio_sign_in;
 /// halves of the address would disagree about which paths are Studio's.
 final List<String> _studioScreenIds = <String>[
   for (final DVStudioScreenSpec screen in dvStudioScreens) screen.id,
+  ...dvStudioScreenAliases.keys,
   // Declared by the project rather than by the server, which is why the
   // server never prints them: a screen only some builds have. The client
   // answers them anyway, because a build that declared one does have it.
@@ -116,7 +117,7 @@ List<RouteBase> dvStudioRoutes({
                 transport: send,
                 title: title,
                 mount: mount,
-                screen: id,
+                screen: dvStudioScreenAliases[id] ?? id,
                 object: object,
                 location: location?.call(state),
                 open: open,
@@ -245,6 +246,10 @@ void _openStudio({
   required String section,
   String? object,
 }) {
+  // Keep a readable alias when navigating within the screen it names.
+  final current = router.state.uri.path.substring(mount.length).split('/');
+  final alias = current.length > 1 ? current[1] : '';
+  if (dvStudioScreenAliases[alias] == section) section = alias;
   final String path = object == null
       ? '$mount/$section'
       : '$mount/$section/${object.replaceFirst(RegExp('^/+'), '')}';

@@ -481,6 +481,9 @@ ring on the control itself, so a control with nothing to do is off rather than
 looking live. The sign-in action uses the same focusable control: Tab from
 the password reaches Sign in, Enter activates it, and submitting the password
 field also signs in. Email and password fields have accessible labels.
+Readable aliases include `/__studio/data`, `/__studio/sitemap` and
+`/__studio/team`. A record has a deep link too, such as
+`/__studio/data/Product/p-1`; selecting or closing it updates the address.
 
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own

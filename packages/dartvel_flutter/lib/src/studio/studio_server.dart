@@ -1023,7 +1023,10 @@ DVStudioSection dvStudioDataSection(DVStudioClient client) =>
       build: (BuildContext context, DVStudioSelection selection) =>
           DVStudioModelsSection(
         client: client,
-        model: selection.object,
+        model: selection.object?.split('/').first,
+        record: selection.object?.contains('/') == true
+            ? selection.object!.substring(selection.object!.indexOf('/') + 1)
+            : null,
         onSelect: (String model) => selection.select?.call(model),
       ),
     );
@@ -1344,6 +1347,7 @@ class DVStudioModelsSection extends StatefulWidget {
     required this.client,
     this.model,
     this.onSelect,
+    this.record,
   });
 
   final DVStudioClient client;
@@ -1351,6 +1355,9 @@ class DVStudioModelsSection extends StatefulWidget {
   /// The model the address names, opened once the catalog is read: a model
   /// cannot be found before the list of them is known.
   final String? model;
+
+  /// The record named by a deep link, opened after its model is loaded.
+  final String? record;
 
   /// Called with the model a person chose, so the address can follow.
   final void Function(String model)? onSelect;
@@ -1389,7 +1396,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     // The address moved to another model. Read again rather than opening
     // from the list already held: a model published since this section was
     // built is not in it, and the address is not the thing to argue with.
-    if (widget.model != oldWidget.model) {
+    if (widget.model != oldWidget.model || widget.record != oldWidget.record) {
       unawaited(_loadModels(select: widget.model));
     }
   }
@@ -1411,7 +1418,14 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       final DVStudioModel? chosen = models
               .where((DVStudioModel m) => m.model == (select ?? _model?.model))
               .firstOrNull ??
-          models.firstOrNull;
+          (select == null ? models.firstOrNull : null);
+      if (chosen == null && select != null) {
+        setState(() {
+          _model = null;
+          _editing = null;
+          _error = 'Data model not found.';
+        });
+      }
       if (chosen != null) await _open(chosen);
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -1439,7 +1453,13 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     try {
       final List<DVStudioRecordData> records =
           await widget.client.records(model.model);
-      if (mounted && _model == model) setState(() => _records = records);
+      if (mounted && _model == model) {
+        setState(() {
+          _records = records;
+          _editing = records.where((r) => r.key == widget.record).firstOrNull;
+          if (widget.model != null) _phoneDetail = true;
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
@@ -1566,7 +1586,9 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
 
   Widget _detail() {
     final DVStudioModel? model = _model;
-    if (model == null) return DVStudioStyle.placeholder('Choose a model.');
+    if (model == null) {
+      return DVStudioStyle.placeholder(_error?.toString() ?? 'Choose a model.');
+    }
     final List<DVStudioRecordData>? records = _records;
     final DVStudioRecordData? editing = _editing;
     final List<DVStudioField> fields = model.visibleFields;
@@ -1575,6 +1597,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     return Column(
       crossAxisAlignment: .stretch,
       children: <Widget>[
+        if (widget.record != null && records != null && editing == null)
+          DVStudioStyle.body('Record not found.'),
         DVStudioStyle.panelHeader(
           title: model.model,
           subtitle: records == null
@@ -1680,8 +1704,11 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                                         : shown.indexWhere(
                                             (DVStudioRecordData r) =>
                                                 r.key == editing.key),
-                                    onTap: (int index) => setState(
-                                        () => _editing = shown[index]),
+                                    onTap: (int index) {
+                                      setState(() => _editing = shown[index]);
+                                      widget.onSelect?.call(
+                                          '${model.model}/${shown[index].key}');
+                                    },
                                   ),
                                 ],
                               );
@@ -1702,7 +1729,10 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                     client: widget.client,
                     model: model,
                     record: editing,
-                    onClose: () => setState(() => _editing = null),
+                    onClose: () {
+                      setState(() => _editing = null);
+                      widget.onSelect?.call(model.model);
+                    },
                     onSaved: (DVStudioRecordData saved) {
                       setState(() {
                         final List<DVStudioRecordData> next =
@@ -1717,14 +1747,18 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                         _records = next;
                         _editing = saved;
                       });
+                      widget.onSelect?.call('${model.model}/${saved.key}');
                     },
-                    onDeleted: (String key) => setState(() {
+                    onDeleted: (String key) {
+                      setState(() {
                       _records = <DVStudioRecordData>[
                         for (final DVStudioRecordData r in _records ?? const <DVStudioRecordData>[])
                           if (r.key != key) r,
                       ];
                       _editing = null;
-                    }),
+                      });
+                      widget.onSelect?.call(model.model);
+                    },
                     onReload: () => unawaited(_open(model)),
                   ),
                 ),

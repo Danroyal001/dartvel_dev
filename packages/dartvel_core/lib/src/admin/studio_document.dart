@@ -165,7 +165,14 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
 ];
 
 /// The screen [id] names, or null when it names none.
+const Map<String, String> dvStudioScreenAliases = <String, String>{
+  'data': 'models',
+  'sitemap': 'routes',
+  'team': 'access',
+};
+
 DVStudioScreenSpec? dvStudioScreenFor(String id) {
+  id = dvStudioScreenAliases[id] ?? id;
   for (final DVStudioScreenSpec screen in dvStudioScreens) {
     if (screen.id == id) return screen;
   }

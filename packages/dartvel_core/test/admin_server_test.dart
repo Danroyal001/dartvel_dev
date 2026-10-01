@@ -249,6 +249,16 @@ void main() {
     DVAdminServer project() =>
         _server(_open, models: const <DVStudioModelSpec>[_product]);
 
+    test('readable screen aliases are guarded documents', () async {
+      for (final (alias, label) in [
+        ('data', 'Data'), ('sitemap', 'Site map'), ('team', 'Team'),
+      ]) {
+        final response = await project().respond(_get('/__studio/$alias'));
+        expect(response?.status, 200);
+        expect(await _body(response!), contains('<h1>$label</h1>'));
+      }
+    });
+
     test(
       'every screen has its own URL, and answers with its own document',
       () async {

@@ -1229,6 +1229,12 @@ have accessible labels, Tab from the password reaches Sign in, and Enter
 activates the focused action or submits the password field. Signing in
 returns to the guarded deep link only after the server admits the account.
 
+Data, Site map and Team also answer the readable `/data`, `/sitemap` and
+`/team` paths beneath the configured mount. Existing `/models`, `/routes` and
+`/access` addresses remain valid. A data record opens at
+`<mount>/data/<model>/<record>`; selecting, saving and closing its form updates
+the address. A missing model or record must not silently open another object.
+
 ### Undo over page documents
 
 Studio's undo over page documents and this are the same mechanism seen twice:

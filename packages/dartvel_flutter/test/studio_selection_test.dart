@@ -180,6 +180,58 @@ bool _selected(WidgetTester tester, String key) {
 void main() {
   setUpAll(dvStudioLoadLibrariesForTest);
 
+  testWidgets('readable screen URLs open their sections', (tester) async {
+    for (final (path, section) in [
+      ('data', 'models'), ('sitemap', 'routes'), ('team', 'access'),
+    ]) {
+      await _at(tester, _Server(granted: true), '/__studio/$path');
+      expect(openSection(tester), section);
+    }
+  });
+
+  testWidgets('record deep link opens the named record form', (tester) async {
+    await _at(tester, _Server(granted: true), '/__studio/data/Product/p-1');
+    expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')),
+        findsOneWidget);
+  });
+
+  testWidgets('choosing a record gives its form an address', (tester) async {
+    final router = await _at(tester, _Server(granted: true),
+        '/__studio/models/Product');
+    await tester.tap(find.byKey(const ValueKey('dv-studio-record-p-1')));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/__studio/models/Product/p-1');
+    expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')),
+        findsOneWidget);
+  });
+
+  testWidgets('a missing model never silently opens the first model', (tester) async {
+    await _at(tester, _Server(granted: true), '/__studio/data/Missing/p-1');
+    expect(find.text('Chair'), findsNothing);
+    expect(find.text('Data model not found.'), findsOneWidget);
+  });
+
+  testWidgets('a missing record is reported and opens no form', (tester) async {
+    await _at(tester, _Server(granted: true), '/__studio/data/Product/missing');
+    expect(find.text('Record not found.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')), findsNothing);
+  });
+
+  testWidgets('closing a record returns to its model and a deep link reopens it',
+      (tester) async {
+    final router = await _at(tester, _Server(granted: true),
+        '/__studio/data/Product/p-1');
+    final close = find.byWidgetPredicate((w) =>
+        w is DVStudioIconButton && w.tooltip == 'Close');
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/__studio/data/Product');
+    expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')), findsNothing);
+    router.go('/__studio/data/Product/p-1');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('dv-studio-form-Product-p-1-1')), findsOneWidget);
+  });
+
   testWidgets('the address names the section, and the mount is Pages', (
     WidgetTester tester,
   ) async {

@@ -467,6 +467,9 @@ widgets are and what they deliberately do not cover is written down in
 Sign-in uses the same focusable control. Tab from the password reaches Sign
 in; Enter activates it. Submitting the password field also signs in, and both
 fields expose their labels to assistive technology.
+The readable `/data`, `/sitemap` and `/team` aliases under the Studio mount
+preserve existing `/models`, `/routes` and `/access` links. Data record forms
+open at `<mount>/data/<model>/<record>` and report stale links explicitly.
 
 ## Platform notes
 

@@ -176,7 +176,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'selecting text with the mouse, the arrow keys, a remote\'s '
               'D-pad and switch control.',
           'Each screen has its own address — /__studio is Pages, /__studio/'
-              'components is Components, /__studio/data/Product is one model — '
+              'components is Components, /__studio/data/Product is one model '
+              'and /__studio/data/Product/p-1 opens one record — '
               'so a screen can be linked, bookmarked and reloaded, and the '
               'server sends a document with it for anything reading without '
               'the app.',

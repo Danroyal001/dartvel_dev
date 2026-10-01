@@ -20,7 +20,7 @@ the thing, not that it works the way the tool it is compared to does it.
 against the source, not against a demo, and a screenshot is only evidence for the screen
 it shows.
 
-**What "free Studio" means.** Studio is free and complete on its own terms: it ships in
+**What "free Studio" means.** Studio is free: it ships in
 every `web-server` binary with no cloud account. Features marked *Pro* are not in this
 repository and are not counted as Done anywhere below.
 
@@ -58,7 +58,7 @@ gap: what comes out is a real Flutter widget tree, runs on every platform Dartve
 and is readable and editable as source. The cost is that Studio cannot offer anything the
 Dartvel widget set does not already have.
 
-Two things are no longer gaps at all. Studio used to be a second Flutter application,
+Two foundations have improved. Studio used to be a second Flutter application,
 served as files under the mount, with no URL for any screen but the mount itself and an
 empty `<body>` the app painted over. It is now routes of the application, on the same render
 path as every public page, each with its own address and a document behind it, described in
@@ -67,9 +67,10 @@ path as every public page, each with its own address and a document behind it, d
 And Studio's own controls used to be pictures of controls: a `GestureDetector` around a
 `Container`, which a mouse can press and nothing else — Tab skipped every button, Enter and
 Space did nothing, and a screen reader heard the words on a control without ever being told
-it was one. Every control in Studio is now drawn from three widgets that carry the behaviour
-a control has to have (`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch`), so the
-whole of Studio answers to the keyboard and describes itself.
+it was one. Shared controls now carry keyboard and semantic behaviour
+(`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch`). Coverage of those widgets
+and the main screens does not prove every editor, dialog or setup step accessible.
+Full accessibility remains **Partial** until those flows are verified too.
 
 ---
 
@@ -130,7 +131,7 @@ whole of Studio answers to the keyboard and describes itself.
 | Page workflows (on page load, button action chains) | **Partial** — a node's action is a navigation; there is no page-load workflow editor or chained action list | `page_document.dart:174`, `:581` |
 | Roles and permissions in the UI | **Partial** — the Team section grants and lists access by address, but there is no role editor with per-action permissions | `studio_server.dart:966` (`access` → "Team") |
 | Responsive and mobile preview | **Partial** — device switcher, and Dartvel pages are responsive Flutter layouts; no mobile preview UI of its own | `studio_screen.dart:469` |
-| API connector (Bubble calls outside services) | **Done, and different** — Dartvel's backend functions, written in Dart or built as workflows, and the page client is generated | `packages/dartvel_cli/lib/src/generators/backend_generator.dart` |
+| API connector (Bubble calls outside services) | **Partial** — there is no visual API connector; Dartvel's backend functions, written in Dart or built as workflows, and the page client is generated | `packages/dartvel_cli/lib/src/generators/backend_generator.dart` |
 | Plugins and marketplace | **Missing** — the Modules section only shows text to paste into `pubspec.yaml` | `studio_modules.dart` |
 | Debugger / logs | **Partial** — Operations has service levels, alert rules, incidents and a status-page preview; there is no request log or workflow run log viewer | `studio_operations.dart`, `studio_incidents.dart` |
 | Scheduled triggers | **Partial** — a publish slot can be scheduled (`studio_review.dart:1468`), and queues and jobs exist, but there is no trigger editor | `studio_review.dart`, `studio_server.dart:932` (Jobs → "Tasks") |
@@ -148,13 +149,13 @@ whole of Studio answers to the keyboard and describes itself.
 | Power Fx expressions | **Partial** — a Dart expression evaluator over the field's kind, not the Power Fx language; no user-defined functions or relative references | `studio_formula.dart` |
 | Conditions and branching logic | **Partial** — conditions exist in backend function steps; no condition builder for page data | `functions/functions.dart` |
 | App lifecycle (Start, Update, Fix data) | **Missing** | no lifecycle editor in Studio |
-| Connectors and APIs | **Done, and different** — backend functions, Dart FFI, and HTTP clients; no connector gallery | `packages/dartvel_core/lib/src/http/`, `NEW_SPEC.md` |
+| Connectors and APIs | **Partial** — backend functions, Dart FFI, and HTTP clients exist in the framework; Studio has no connector gallery | `packages/dartvel_core/lib/src/http/`, `NEW_SPEC.md` |
 | Environments (dev/test/prod) | **Partial** — `dartvel dev` writes to the repository and Deploy publishes to the running binary; there is no environment switcher with separate data | `studio_repository_section.dart` |
 | Roles and security (per app, per screen) | **Partial** — grants exist (Team); no per-screen or per-field security editor | `studio_server.dart:966` |
 | Notifications and approvals | **Partial** — the content workflow has approval states and a publish schedule; `DV.Notifications` exists in the framework, with no Studio screen to configure it | `studio_review.dart`, `packages/dartvel_core/lib/src/notifications/` |
 | Governance: solution checker, managed environments | **Missing** | — |
 | Keyboard/command shortcuts | **Done** — a Shortcuts section writes an app's keyboard shortcuts without code, plus Figma/Bubble/Power Apps shortcuts on the Ctrl+/ sheet | `studio_app_shortcuts.dart`, `studio_shortcuts` section `studio_screen.dart:186`, screenshot `docs/studio/nocode/shortcuts.png` |
-| Accessibility of what Studio produces | **Done** — what Studio produces is a real Flutter widget tree, and the framework carries the accessibility surface: Studio's routes go through `DVPageShell`, so Ctrl+F, text selection, keyboard scrolling, a remote's D-pad and switch control are registered on Studio like on every other page (`studio_routes.dart` `_dvStudioPage`), and every screen is served as a document a reader without the app can still read (see [A URL for every screen](#a-url-for-every-screen-and-what-it-is-read-by)). Studio's **own chrome** is now described too, in three widgets every control in it is drawn from: `DVStudioIconButton` (rail items, toolbar actions), `DVStudioControl` (every button) and `DVStudioSwitch` (the debug override) each declare `button`/name/enabled, take the focus, answer Enter *and* Space — both, because the web binds Enter to `ButtonActivateIntent` and every other platform to `ActivateIntent` — and draw a two-pixel ring on themselves so a reader can see where they are. A control with nothing to do says so and is not a focus stop, rather than looking live and doing nothing. Verified in `packages/dartvel_flutter/test/studio_accessibility_test.dart` against what a Material button announces, and on the real screen: Tab reaches Create page and Enter makes the page; the toolbar's Undo is skipped while there is no history and reachable once there is | `studio_style.dart` `DVStudioControl`, `DVStudioIconButton`, `DVStudioSwitch`, `dvStudioActivate`, `studio_screen.dart` `_DVStudioRailItemState`, `test/studio_accessibility_test.dart` |
+| Accessibility of Studio and its output | **Partial** — shared controls provide roles, labels, keyboard activation and focus rings; routes use the page shell. Sign-in and record navigation have regression tests. Setup, every dialog and editor, and complete assistive-technology workflows are not all verified. | `studio_style.dart`, `studio_routes.dart`, `test/studio_accessibility_test.dart`, `test/studio_sign_in_test.dart`, `test/studio_selection_test.dart` |
 
 ---
 
@@ -220,6 +221,29 @@ so a screen cannot be printed by the server and missing from the client, or
 appear on the rail with no address.
 
 ## How this file stays honest
+
+Readable aliases are supported for `/__studio/data`, `/__studio/sitemap` and
+`/__studio/team`; existing `/models`, `/routes` and `/access` links remain valid.
+`/__studio/data/Product/p-1` opens the record form. Selecting and closing a record
+updates its address; a missing model or record is reported instead of silently
+opening a different one. Tests: `studio_selection_test.dart` and
+`admin_server_test.dart`. Settings do not yet have a dedicated screen hierarchy.
+
+### Next parity slices, in order
+
+1. Finish accessibility and URL coverage for setup, dialogs, new-object forms and
+   component editing; verify keyboard, copy, browser history and assistive tree in
+   the production server build for each flow.
+2. Add a numeric box-model inspector with per-side padding/margin and breakpoint
+   overrides. Verify saved values survive reload, export and a narrow viewport.
+3. Add data-model galleries and forms to the page palette, with policy-aware data
+   binding. Verify a real create/edit flow and denied access in two projects.
+4. Add a page condition/action builder over typed data-model fields, then reusable
+   component variants. Verify invalid expressions and export/runtime parity.
+5. Add comments and review threads before multiplayer cursors or concurrent edits.
+   Verify authorization and conflicting writes before calling collaboration Done.
+
+These are proposed slices, not shipped capabilities or commitments to a release date.
 
 Sign-in regression coverage: `test/studio_sign_in_test.dart` now checks Tab
 from password followed by Enter, and the password's submit action. The Tab
