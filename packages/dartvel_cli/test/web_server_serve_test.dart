@@ -3,7 +3,7 @@
 // That target writes dartvel_routes.json instead of prerendering a file per
 // route, and dvServeRoute knows how to build a page from it. Nothing called
 // dvServeRoute: the manifest was written, unit-tested, and never read, so the
-// target produced a description of a site nobody served. `dartvel preview`
+// target produced a description of a site nobody served. `dartvel dev --release`
 // fell through to the static files that the same build had just deleted.
 //
 // These drive a real HTTP server over a real request, because the whole point

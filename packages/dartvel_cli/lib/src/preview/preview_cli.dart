@@ -1,5 +1,4 @@
-/// `dartvel preview create | list | open | destroy | sweep`: the lifecycle
-/// half of `dartvel preview`, over a deployment adapter.
+/// Branch deployment lifecycle, over a deployment adapter.
 ///
 /// The command decides the things only a project checkout knows -- the
 /// branch, the declared secrets and their preview values, the models that
@@ -65,11 +64,12 @@ Future<String> dvRunGit(List<String> args) async {
   return '${result.stdout}';
 }
 
-/// The verbs `dartvel preview` dispatches to the lifecycle.
+/// The verbs `dartvel deploy --preview` dispatches to the lifecycle.
 const Set<String> dvPreviewVerbs = <String>{
   'create',
   'list',
   'open',
+  'logs',
   'destroy',
   'sweep',
 };
@@ -246,12 +246,13 @@ Future<int> dvRunPreviewLifecycle(
     environment: environment,
   );
   final CommandRunner<int> runner = CommandRunner<int>(
-    'dartvel preview',
+    'dartvel deploy --preview',
     'A branch\'s own deployment, for as long as somebody is looking at it.',
   )
     ..addCommand(_Create(context))
     ..addCommand(_List(context))
     ..addCommand(_Open(context))
+    ..addCommand(_Logs(context))
     ..addCommand(_Destroy(context))
     ..addCommand(_Sweep(context));
   try {
@@ -283,7 +284,7 @@ final class _Context {
   Map<Object?, Object?>? _dartvel() {
     final File pubspec = File(p.join(root, 'pubspec.yaml'));
     if (!pubspec.existsSync()) {
-      throw const FormatException('no pubspec.yaml here; run dartvel preview from the project');
+      throw const FormatException('no pubspec.yaml here; run dartvel deploy --preview from the project');
     }
     final Object? document = loadYaml(pubspec.readAsStringSync());
     final Object? dartvel = document is Map ? document['dartvel'] : null;
@@ -373,8 +374,8 @@ abstract class _Verb extends Command<int> {
 final class _Create extends _Verb {
   _Create(super.context) {
     argParser
-      ..addOption('branch', help: 'The branch to preview. Defaults to CI\'s head branch, then the checkout.')
-      ..addOption('from-pr', help: 'The pull request this preview is for. It is destroyed when that closes.');
+      ..addOption('branch', help: 'The branch to deploy. Defaults to CI\'s head branch, then the checkout.')
+      ..addOption('from-pr', help: 'The pull request this deployment is for. It is destroyed when that closes.');
   }
 
   @override
@@ -382,7 +383,7 @@ final class _Create extends _Verb {
 
   @override
   String get description =>
-      'Create or redeploy the preview of a branch, and print its URL.';
+      'Create or redeploy a branch deployment, and print its URL.';
 
   @override
   Future<int> verb() async {
@@ -431,14 +432,14 @@ final class _List extends _Verb {
   String get name => 'list';
 
   @override
-  String get description => 'List this project\'s previews.';
+  String get description => 'List this project\'s branch deployments.';
 
   @override
   Future<int> verb() async {
     final DVPreviews previews = await context.previews(context.config());
     final List<DVPreviewRecord> records = await previews.list();
     if (records.isEmpty) {
-      context.out('No previews.');
+      context.out('No branch deployments.');
       return 0;
     }
     for (final DVPreviewRecord r in records) {
@@ -457,14 +458,14 @@ final class _List extends _Verb {
 
 final class _Open extends _Verb {
   _Open(super.context) {
-    argParser.addOption('branch', help: 'The branch whose preview to open.');
+    argParser.addOption('branch', help: 'The branch whose deployment to open.');
   }
 
   @override
   String get name => 'open';
 
   @override
-  String get description => 'Print the URL of a branch\'s preview, link token included.';
+  String get description => 'Print the URL of a branch\'s deployment, link token included.';
 
   @override
   Future<int> verb() async {
@@ -474,7 +475,7 @@ final class _Open extends _Verb {
         .find(DVPreviewIdentity.forBranch(app: context.appName(), branch: branch).name);
     final String? url = record?.openUrl;
     if (url == null) {
-      context.out('error: $branch has no deployed preview');
+      context.out('error: $branch has no branch deployment');
       return 1;
     }
     context.out(url);
@@ -482,9 +483,28 @@ final class _Open extends _Verb {
   }
 }
 
+/// Reserved surface: no adapter log contract exists yet. Fail explicitly,
+/// rather than falling through to a create or claiming an empty log stream.
+final class _Logs extends _Verb {
+  _Logs(super.context) {
+    argParser
+      ..addOption('branch')
+      ..addFlag('follow', negatable: false);
+  }
+  @override
+  String get name => 'logs';
+  @override
+  String get description => 'Report log retrieval support for branch deployments.';
+  @override
+  Future<int> verb() async {
+    context.out('Branch deployment logs are not supported yet by deployment adapters.');
+    return 1;
+  }
+}
+
 final class _Destroy extends _Verb {
   _Destroy(super.context) {
-    argParser.addOption('branch', help: 'The branch whose preview to destroy.');
+    argParser.addOption('branch', help: 'The branch whose deployment to destroy.');
   }
 
   @override
@@ -492,7 +512,7 @@ final class _Destroy extends _Verb {
 
   @override
   String get description =>
-      'Destroy a branch\'s preview: its deployment, database and storage.';
+      'Destroy a branch\'s deployment: its deployment, database and storage.';
 
   @override
   Future<int> verb() async {
@@ -509,7 +529,7 @@ final class _Destroy extends _Verb {
 final class _Sweep extends _Verb {
   _Sweep(super.context) {
     argParser.addMultiOption('closed-pr',
-        help: 'A pull request that closed; its preview is destroyed.');
+        help: 'A pull request that closed; its deployment is destroyed.');
   }
 
   @override
@@ -517,7 +537,7 @@ final class _Sweep extends _Verb {
 
   @override
   String get description =>
-      'Destroy previews whose branch is gone, whose pull request closed or whose ttl passed; suspend idle ones.';
+      'Destroy deployments whose branch is gone, whose pull request closed or whose ttl passed; suspend idle ones.';
 
   @override
   Future<int> verb() async {
@@ -540,7 +560,7 @@ final class _Sweep extends _Verb {
     }
     if (live == null) {
       context.out('Branches were not checked: the remote could not be listed. '
-          'Previews are still expired by ttl and closed pull request.');
+          'Branch deployments are still expired by ttl and closed pull request.');
     }
 
     final Set<int> closed = <int>{};
@@ -564,7 +584,7 @@ final class _Sweep extends _Verb {
         if (r.state == DVPreviewState.destroying) r,
     ];
     for (final DVPreviewRecord r in stuck) {
-      context.out('error: preview ${r.identity.name} is not destroyed; '
+      context.out('error: branch deployment ${r.identity.name} is not destroyed; '
           '${r.remaining.map((DVPreviewResource x) => x.name).join(', ')} remain');
     }
     return stuck.isEmpty ? 0 : 1;

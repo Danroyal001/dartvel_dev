@@ -1,7 +1,7 @@
 /// Studio in development, for the person running the development server.
 ///
 /// A deployment opens Studio to accounts granted `Studio.access`. `dartvel
-/// dev` and `dartvel preview` have no accounts to speak of, and bind to
+/// dev` and `dartvel dev --release` have no accounts to speak of, and bind to
 /// 0.0.0.0 so a phone on the network can reach the app -- which would hand
 /// Studio, with the project's records and its page builder, to anybody on
 /// the same network. So a development server makes a grant token and prints

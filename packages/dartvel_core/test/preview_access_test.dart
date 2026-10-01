@@ -1,4 +1,4 @@
-// Preview Environments: who can open a preview, and that no search engine
+// Branch deployments: who can open a preview, and that no search engine
 // indexes it whatever the answer.
 //
 // Run against the WinterCG Request and Response the backend handlers use, so

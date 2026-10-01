@@ -1734,7 +1734,7 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// at its mount: to anybody with `access: public`, and otherwise exactly as
 /// Studio is, behind [admin]'s sign-in and the Studio grant.
 Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
-  // Preview Environments, before anything else runs. In a process deployed
+  // Branch deployments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
   // own database -- and refuses to start at all when any of that cannot be

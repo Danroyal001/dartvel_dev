@@ -1,4 +1,4 @@
-// `dartvel preview create | list | destroy | sweep`.
+// Branch deployments through deploy --preview, plus the compatibility shim.
 //
 // Run against a project on disk and an in-memory adapter, because what the
 // command gets wrong is the glue: which branch it names, which secret values
@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/preview_command.dart';
+import 'package:dartvel_cli/src/commands/deploy_command.dart';
 import 'package:dartvel_cli/src/preview/preview_cli.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:path/path.dart' as p;
@@ -153,10 +154,12 @@ void main() {
   Future<int> run(
     List<String> args, {
     DVPreviewHost? Function(String root)? host,
+    bool legacy = false,
   }) async {
     exitCode = 0;
-    final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
-      ..addCommand(PreviewCommand(
+    final command = DeployCommand(
+        processRun: (executable, arguments, {runInShell = false}) async =>
+            throw StateError('Branch deployment reached production process: $executable'),
         root: root.path,
         previewHost: host ??
             (String root) => DVPreviewHost(
@@ -172,10 +175,52 @@ void main() {
         clock: () => now,
         out: out.add,
         environment: environment,
-      ));
-    await runner.run(<String>['preview', ...args]);
+      );
+    final runner = CommandRunner<void>('dartvel', 'test')..addCommand(command);
+    if (legacy) {
+      runner.addCommand(PreviewCommand(root: root.path,
+        previewHost: host ?? (root) => DVPreviewHost(adapter: adapter, registry: DVFilePreviewRegistry(root)),
+        git: (args) async => '$currentBranch\n', clock: () => now,
+        out: out.add, environment: environment));
+      await runner.run(['preview', ...args]);
+    } else {
+      await runner.run(['deploy', '--preview',
+        if (args.first == '--help') '--help'
+        else ...[if (args.first != 'create') '--${args.first}', ...args.skip(1)]]);
+    }
     return exitCode;
   }
+
+  test('dartvel preview forwards lifecycle actions with one deprecation line', () async {
+    expect(await run(['create', '--from-pr', '412'], legacy: true), 0);
+    expect(out.where((line) => line.startsWith('Deprecated:')).single,
+        contains('dartvel deploy --preview'));
+    expect(adapter.deployments, hasLength(1));
+    out.clear();
+    expect(await run(['list'], legacy: true), 0);
+    expect(out.first, contains('dartvel deploy --preview --list'));
+    expect(out.join('\n'), contains('feature/cart'));
+    out.clear();
+    expect(await run(['destroy'], legacy: true), 0);
+    expect(adapter.deployments, isEmpty);
+  });
+
+  test('logs and follow report the existing adapter limitation without deploying', () async {
+    expect(await run(['logs', '--follow']), 1);
+    expect(out.single, contains('not supported yet'));
+    expect(adapter.calls, isEmpty);
+    expect(gitCalls, isEmpty);
+  });
+
+  test('open prints the same deployment URL without redeploying', () async {
+    expect(await run(['create']), 0);
+    final url = out.last;
+    final calls = adapter.calls.length;
+    out.clear();
+    expect(await run(['open']), 0);
+    expect(out.single, url);
+    expect(adapter.calls.length, calls);
+  });
 
   test('--help is a successful exit, not a usage error', () async {
     // The serve options moved to a parser of their own when the verbs

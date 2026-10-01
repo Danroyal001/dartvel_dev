@@ -1,4 +1,4 @@
-/// Preview Environments: a branch's own deployment, for as long as somebody
+/// Branch deployments: a branch's own deployment, for as long as somebody
 /// is looking at it.
 library;
 

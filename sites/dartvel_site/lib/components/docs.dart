@@ -214,7 +214,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Platform API: Keys, Scopes and OAuth Provider': 'Partial',
   'Platform Memory': 'Partial',
   'Platform': 'Partial',
-  'Preview Environments': 'Partial',
+  'Branch deployments': 'Partial',
   'Product Analytics and Consent': 'Partial',
   'Project Structure': 'Partial',
   'Protocol Versioning and Client Compatibility': 'Partial',

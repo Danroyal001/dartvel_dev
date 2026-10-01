@@ -8,7 +8,7 @@ A simple example demonstrating the core features of the Dartvel framework.
 - **Data Loading**: Using `DartvelPage.loadData()` for async data fetching
 - **Generated Client**: `dartvel routes` writes the whole client -- the barrel, the router, each page's body, widgets, models and function clients
 - **Web Build**: Production builds with `dartvel build web`
-- **Preview Server**: Preview builds with `dartvel preview`
+- **Release server**: Serve production builds with `dartvel dev --release`
 
 ## Getting Started
 
@@ -47,7 +47,7 @@ and a plain Flutter build writes none of them.
 
 ### 5. Preview Production Build
 ```bash
-dartvel preview
+dartvel dev --release
 ```
 
 ## Project Structure

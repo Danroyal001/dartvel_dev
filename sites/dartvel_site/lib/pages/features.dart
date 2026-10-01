@@ -514,10 +514,10 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         '`dartvel ci init`.',
   ),
   (
-    'Preview Environments',
-    'dartvel.preview',
-    'Present: per-branch preview identities and secret checks. Absent: an '
-        'adapter that hosts a preview.',
+    'Branch deployments',
+    '`dartvel deploy --preview`',
+    'Present: per-branch identities and secret checks. Absent: an '
+        'adapter that hosts a branch deployment.',
   ),
   (
     'Dev Client',

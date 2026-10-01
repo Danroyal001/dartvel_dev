@@ -1,4 +1,4 @@
-// Preview Environments, as a generated backend actually runs.
+// Branch deployments, as a generated backend actually runs.
 //
 // The preview runtime -- capture, access, schedules -- was built and tested
 // in isolation, and nothing on a server called any of it: a process deployed
