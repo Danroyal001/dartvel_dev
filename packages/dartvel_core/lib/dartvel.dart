@@ -3219,7 +3219,7 @@ class DVNotificationMail {
   Future<void> send(DVMailMessage message) {
     // A preview captures before a provider is even looked up, so the
     // application's real provider -- registered before or after the preview
-    // started -- is never handed a message from one (Preview Environments,
+    // started -- is never handed a message from one (Branch deployments,
     // DV-PREVIEW-006).
     if (DVPreviewOutbound.isActive) return DVPreviewOutbound.captureMail(message);
     final provider = _provider;

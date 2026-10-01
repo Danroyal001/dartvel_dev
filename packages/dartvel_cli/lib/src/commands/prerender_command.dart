@@ -55,7 +55,7 @@ class PrerenderCommand extends Command<void> {
     try {
       // We assume the app is already running or served.
       // For a robust implementation, we might want to start a server here if not running.
-      // But for now, let's assume the user ran `dartvel preview` or similar, or we start a temp server.
+      // But for now, let's assume the user ran `dartvel dev --release` or similar, or we start a temp server.
       // Actually, let's start a temp server to be safe.
       final server = await _startTempServer(buildDir.path, port);
 

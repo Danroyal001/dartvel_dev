@@ -1,4 +1,4 @@
-/// Studio on a development server: `dartvel preview` and `dartvel dev`.
+/// Studio on a development server: `dartvel dev --release` and `dartvel dev`.
 ///
 /// A web-server binary serves Studio with the generated specs and its own
 /// database, to accounts granted `Studio.access`. A development server has

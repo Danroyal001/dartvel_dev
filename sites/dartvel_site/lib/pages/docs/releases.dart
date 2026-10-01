@@ -6,9 +6,9 @@ import '../../dartvel_client/dartvel_client.dart';
 // backend release passes, and old clients kept working. Status boxes follow
 // the "absent" notes in docs/spec-status.json.
 @DVPage(
-  title: 'Dartvel releases: flags, previews, rollouts and old clients',
+  title: 'Dartvel releases: flags, branch deployments, rollouts and old clients',
   description: 'Turn a feature on for a slice of users, try a branch on its '
-      'own preview URL, and keep old app versions working after the '
+      'own deployment URL, and keep old app versions working after the '
       'backend changes.',
   showAppBar: false,
 )
@@ -17,7 +17,7 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsreleases,
       lead: <String>[
         'Turn a feature on for a slice of users, try a branch on its own '
-            'preview, and keep old app versions working after the backend '
+            'deployment, and keep old app versions working after the backend '
             'changes.',
       ],
       sections: <DocsSection>[
@@ -49,27 +49,30 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'previews',
-          title: 'Give every branch its own preview',
+          title: 'Give every branch its own deployment',
           children: <Widget>[
             DocsShell(<String>[
-              'dartvel preview create',
-              'dartvel preview list',
-              'dartvel preview sweep',
+              'dartvel deploy --preview',
+              'dartvel deploy --preview --from-pr 412',
+              'dartvel deploy --preview --list',
+              'dartvel deploy --preview --open',
+              'dartvel deploy --preview --destroy',
+              'dartvel deploy --preview --sweep',
             ]),
             Bullets(<String>[
               'Each branch gets its own host, database, bucket and queues. A '
                   'branch copy of production data must declare how sensitive '
                   'columns are cleaned, or it is refused.',
-              'Production secrets are never deployed to a preview, and a '
-                  'preview secret equal to production\'s stops the create.',
-              'Previews send no real mail, skip undeclared schedules, are '
+              'Production secrets are never deployed to a branch, and a '
+                  'branch secret equal to production\'s stops the create.',
+              'Branch deployments send no real mail, skip undeclared schedules, are '
                   'hidden from search engines, and are swept when the branch '
                   'is gone.',
             ]),
-            DocsStatus('Preview Environments', missing: <String>[
+            DocsStatus('Branch deployments', missing: <String>[
               'No hosting adapter ships yet, so create reports that there is '
-                  'nowhere to host a preview.',
-              'No preview logs or captured-mail view.',
+                  'nowhere to host a branch deployment.',
+              '--logs [--follow] reports that log retrieval is not supported yet. No captured-mail view.',
             ]),
           ],
         ),

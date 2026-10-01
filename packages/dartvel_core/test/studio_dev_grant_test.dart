@@ -1,4 +1,4 @@
-// Studio in development: `dartvel dev` and `dartvel preview`.
+// Studio in development: `dartvel dev` and `dartvel dev --release`.
 //
 // A deployment opens Studio to accounts granted Studio.access. A development
 // server has no accounts to speak of, and serving Studio -- records, grants,
