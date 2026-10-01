@@ -22,6 +22,7 @@ class _Server {
     this.functions,
     this.graph = const <String, Object?>{},
     this.queues = const <Object?>[],
+    this.grants = const <Object?>[],
   });
 
   bool granted;
@@ -29,6 +30,9 @@ class _Server {
   /// The pages Studio has published, as their routes.
   final List<String> routes;
   final List<Object?>? functions;
+
+  /// What `api/grants` answers: the people who may open Studio.
+  final List<Object?> grants;
 
   /// What `api/graph` answers: `jobs`, `modules` and whatever else the build
   /// wrote, keyed the way the build writes it.
@@ -98,6 +102,8 @@ class _Server {
         return DVStudioReply(200, graph);
       case 'GET api/queues':
         return DVStudioReply(200, <String, Object?>{'queues': queues});
+      case 'GET api/grants':
+        return DVStudioReply(200, <String, Object?>{'grants': grants});
     }
     return const DVStudioReply(404, <String, Object?>{'error': 'not_found'});
   }
@@ -552,5 +558,55 @@ void main() {
 
     expect(router.state.uri.path, '/__studio/login');
     expect(router.state.uri.queryParameters['from'], '/__studio/models');
+  });
+
+  testWidgets('the Team screen lists who holds a grant', (
+    WidgetTester tester,
+  ) async {
+    // The browser once raised a null-check opening Team: the screen reads
+    // the grants table, so a grant row has to render from what the server
+    // answers, not from what a widget test assumes.
+    final _Server server = _Server(
+      granted: true,
+      grants: <Object?>[
+        <String, Object?>{
+          'userId': 'acct_52gmXwHpETsSbDx0t6evi89zt4ILmi50',
+          'email': 'studio-probe@localhost.test',
+          'tenant': 'default',
+          'grantedAt': '2026-10-01T14:00:25.600Z',
+          'you': true,
+        },
+      ],
+    );
+    await _at(tester, server, '/__studio/access');
+
+    expect(openSection(tester), 'access');
+    expect(find.text('studio-probe@localhost.test'), findsOneWidget);
+  });
+
+  testWidgets('choosing Team through the rail builds the screen', (
+    WidgetTester tester,
+  ) async {
+    final _Server server = _Server(
+      granted: true,
+      grants: <Object?>[
+        <String, Object?>{
+          'userId': 'acct_52gmXwHpETsSbDx0t6evi89zt4ILmi50',
+          'email': 'studio-probe@localhost.test',
+          'tenant': 'default',
+          'grantedAt': '2026-10-01T14:00:25.600Z',
+          'you': true,
+        },
+      ],
+    );
+    final GoRouter router = await _at(tester, server, '/__studio/data');
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('dv-studio-section-access')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/__studio/access');
+    expect(find.text('studio-probe@localhost.test'), findsOneWidget);
   });
 }
