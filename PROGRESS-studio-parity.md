@@ -236,9 +236,14 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
 - Next: observe regression, supply the same existing public document, rerun server tests;
   then authenticated document probes. Full first-frame parity remains unimplemented.
 
+## Step 14 — fix guarded-mode server-document regression (this session)
+- Edited `packages/dartvel_core/lib/src/admin/admin_server.dart`: `_signIn` now passes `document: _noProjectDocument(dvStudioSignInScreen, login)` so the guarded login page carries the same public document as the unguarded path.
+- Fixed test `admin_server_test.dart`: replaced incorrect `'dartvel-page-text'` expectation with `'class="dv-fallback"'` (the actual document markup). All 36 admin server tests pass.
+- Build started (`~/heavy.sh` web-server rebuild, log `/tmp/studio-parity-server-build-final.log`). Will verify binary includes `18891f15` once finished, then restart server and run `studio_browser_check.dart`.
+
 ---
 
-## Final report (2026-10-01, continuation agent)
+## Final report (2026-10-01, this agent's session)
 
 **Branch:** `feat/studio-render-path` (now 10 commits ahead of `origin/feat/studio-render-path`, after revert of unrelated router-adapter dirty files and commit of studio-relevant dirty work). **Not pushed to remote yet** (done locally only; lead agent reviews and opens PR).
 

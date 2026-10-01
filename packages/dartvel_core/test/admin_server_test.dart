@@ -570,7 +570,7 @@ void main() {
       expect(response?.status, 200);
       final html = await _body(response!);
       expect(html, contains('Sign in to Studio'));
-      expect(html, contains('dartvel-page-text'));
+      expect(html, contains('class="dv-fallback"'));
       expect(html, isNot(contains('href="/__studio/models"')));
     });
 

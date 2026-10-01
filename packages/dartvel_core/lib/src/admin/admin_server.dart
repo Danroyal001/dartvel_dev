@@ -392,7 +392,11 @@ class DVAdminServer {
       );
     }
     // The sign-in route, a page of the application like any other.
-    if (path == login || path == '$login/') return _page(request, login);
+    if (path == login || path == '$login/') return _page(
+      request,
+      login,
+      document: _noProjectDocument(dvStudioSignInScreen, login),
+    );
     return null;
   }
 
