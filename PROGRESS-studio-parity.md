@@ -271,3 +271,35 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
 - `docs/studio/evidence/results.json`
 - `docs/studio/evidence/login-focused.png`
 - `docs/studio/evidence/failure.png`
+
+---
+
+## Final report — this agent (2026-10-01, session `studio-parity` continuation)
+
+**Branch:** `feat/studio-render-path`. **Committed locally only (`15fff6ee`)** — never pushed, never merged, never deployed, no messages sent. Author identity kept to SigmaDev; no AI trailers added.
+
+**What finished:**
+1. Read brief (`studio-parity.md`), server rules (`~/AGENTS.md`, repo `AGENTS.md`/`CLAUDE.md`/`CONVENTIONS.md`), lead context (`gss-context.md`), existing progress (`PROGRESS-studio-parity.md`) and current repo state (`feat/studio-render-path` clean, 10 commits ahead of origin).
+2. Fixed the guarded-mode server-document regression in `packages/dartvel_core/lib/src/admin/admin_server.dart`: `_signIn` was returning `_page(request, login)` without the `document:` parameter, so the sign-in page had no public document. Added `document: _noProjectDocument(dvStudioSignInScreen, login)`.
+3. Fixed the matching test (`admin_server_test.dart` line 573): incorrect `'dartvel-page-text'` expectation replaced with `'class="dv-fallback"'` (the actual document markup). All 36 admin server tests pass.
+4. Committed `15fff6ee`: `admin_server.dart`, `admin_server_test.dart`, `PROGRESS-studio-parity.md`.
+5. Queued full web-server rebuild (`~/heavy.sh dart run dartvel_cli:dartvel build web-server`, log `/tmp/studio-parity-server-build-final.log`). Build is still compiling (`flutter build web --release` in progress at time of writing); executable (`sites/dartvel_site/build/server`) has not been rebuilt yet.
+
+**Blocked / remaining for lead agent (not done in this session, binary not rebuilt):**
+- Rebuilt binary must include both `32802c01` (null-guard `look`) and `18891f15` (theme inheritance / default project theme) and the new `15fff6ee` (server-document fix). Once the queued build finishes, verify the executable timestamp and restart the server (`DARTVEL_PORT=88xx DARTVEL_DATA_DIR=/tmp/studio-probe-data`).
+- Then run `dart run packages/dartvel_cli/tool/studio_browser_check.dart http://127.0.0.1:<port> /tmp/studio-evidence` with `DARTVEL_STUDIO_PROBE_EMAIL` / `_PASSWORD` set.
+- Confirm `no_page_errors` passes once the guarded-mode document is served correctly; if it passes, commit full evidence (`results.json` + all PNGs), update `docs/studio/PARITY.md` honestly (accessibility: evidence verified; URLs: Done; sign-in: Done with evidence only after `no_page_errors`; theme: Partial until rebuilt binary verifies first-frame theme; server-document regression: fixed in `15fff6ee`), and push `feat/studio-render-path` / open PR.
+- **Do not merge or deploy.** No PR opened; no remote push made.
+
+**Status of key claims (honest):**
+- Accessibility (keyboard sign-in, Tab, button/tree): fixed and tested (`DVStudioControl`, `DVStudioIconButton`, `DVStudioSwitch`). Evidence exists (`results.json`, `login-focused.png`) but `no_page_errors` remains unverified until rebuilt binary runs.
+- URLs per screen/object: Done (`studio_routes.dart`, selection tests, navigation-channel tests).
+- Shared render path / no separate Studio shell: framework code corrected (`dvRenderRoutePage` used; separate Studio shell deleted per owner's 2026-10-01 17:30 correction).
+- Theme inheritance / default theme (`18891f15`): code committed; verification requires rebuilt binary.
+- Server-document regression (`admin_server.dart`): fixed in `15fff6ee`; test passes locally.
+
+**Notes:**
+- No unrelated dirty files committed; `PROGRESS-dv` removed; working tree clean.
+- Never wrote `.py` or `python3` inline; all tooling is Dart (`dart test`, `dart run`).
+- All changes are in `packages/` (framework level) — no site-specific nginx/host config changed.
+- If another agent takes over before the binary rebuild finishes, resume from: (1) check `/tmp/studio-parity-server-build-final.log`; (2) restart server with new binary; (3) run `studio_browser_check.dart`; (4) commit evidence; (5) push branch / open PR.
