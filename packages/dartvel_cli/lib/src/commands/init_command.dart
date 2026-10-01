@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../agents/agent_docs.dart';
 import '../templates/project_templates.dart';
 import '../utils/logger.dart';
 
@@ -306,6 +307,21 @@ class InitCommand extends Command<void> {
     // Create README.md
     File(p.join(root, 'README.md'))
         .writeAsStringSync(ProjectTemplates.readmeTemplate(projectName));
+
+    // Set up every coding agent the project is going to be opened in, from one
+    // source. A project with no rules file is read by whichever agent happens
+    // to be opened, and eleven tools each want a differently named file; the
+    // generated block is matched to this Dartvel's version and refreshed by
+    // `dartvel dev` from then on.
+    final agentDocs =
+        await dvSyncAgentDocs(root: root, projectName: projectName);
+    if (agentDocs.created.isNotEmpty) {
+      Logger.log('🤖 Agent rules set up: ${agentDocs.created.join(', ')}');
+    }
+    if (agentDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not write ${agentDocs.failed.join(', ')} — the project\'s own text was left alone.');
+    }
 
     Logger.log('✅ Project structure created');
     Logger.log('📦 Running: flutter pub get');

@@ -14568,6 +14568,129 @@ be out of date with the code, so what it can be is pointed at something gone.
 
 ---
 
+# Coding Agent Documentation
+
+Stability: `Draft` · Status: `Partial`
+
+Dartvel is a framework a coding agent builds with, so the project has to tell
+that agent the rules. It did not. `dartvel create` wrote a `README.md` and
+nothing else, and eleven tools each wanted a differently named file to be told
+the same thing — `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`,
+`.cursorrules`, `.windsurfrules`, `.clinerules`, Kiro steering, Copilot
+instructions, a Cursor rule file. Whichever file a project happened to have was
+what the agent got; the rest inferred the rules for itself, and inferred them
+from whatever it could read.
+
+Next.js solved the version half of this in 16.3: `next dev` keeps a generated
+block in `AGENTS.md` matched to the installed package, so the rules an agent
+reads are the rules of the version actually in `node_modules`. The same answer
+fits Dartvel, because the failure is identical — a rules file written for a
+Dartvel that is not the Dartvel installed is worse than no file, since an agent
+treats it as current.
+
+`dartvel create` and `dartvel init` write the block; `dartvel dev` refreshes it.
+
+## One source, generated copies
+
+The block is rendered once, from `docs/agents/rules.md` shipped with the CLI,
+and every file gets a copy of it. The copies are generated, so they cannot
+drift: there is no eleventh copy to keep in step because there is no eleventh
+copy to edit. A rule that changes in one version is in every file the next
+`dartvel dev` runs, or the version is wrong.
+
+Tools that read the project root's `AGENTS.md` — Codex, OpenCode, Devin and
+ChatGPT — get no file of their own. Four more copies would be four more files
+that can disagree with the canonical one, so `AGENTS.md` names the tools it
+serves and a test holds that list to what the writer actually writes.
+
+`.aider.conf.yml` is YAML, not markdown: a `#` line in it is a comment, so
+markdown rules pasted there are either a parse error or something aider never
+reads. It is written as a `read:` list pointing at the files that hold them,
+and a refresh appends that list to a developer's existing configuration rather
+than replacing it, because the same file carries their model, endpoint and API
+key settings.
+
+## The block, and what a refresh will not touch
+
+```markdown
+<!-- dartvel:begin agents -->
+... the rules, the version they were written for, where to read more
+<!-- dartvel:end agents -->
+```
+
+Everything between the markers is Dartvel's and is replaced. Everything outside
+them belongs to the project and is never read again: a team that wrote "do not
+merge without a review" above the block keeps it. A file that had no block
+gains one below its existing text, so a `CLAUDE.md` written before Dartvel was
+adopted is not overwritten — clobbering a project's own rules is the one
+outcome this must never have.
+
+The merge emits exactly one trailing newline, so a refresh that changes nothing
+writes nothing: twelve rewritten files on every `dartvel dev` start would train
+everyone to ignore the line it prints when something did change.
+
+Every `dartvel dev` refreshes it, `--release` included, and none of the
+argument checking comes after the first write: a command that fixed a project's
+documentation and then rejected its arguments has half-run, and that half is the
+one nobody can undo from the command line.
+
+The block names the documentation shipped with the installed CLI when there is
+one beside it, because that describes the API as this version has it rather
+than as the newest website describes it. When there is not — a CLI running from
+a checkout without its `docs/` — the block names `dartvel docs`, which builds
+the project's own reference from its graph. It never prints a path that does not
+exist.
+
+## Where the rules come from
+
+`docs/agents/rules.md` in the CLI package. It is the load-bearing half of this
+repository's own rules — the barrel import, data models as the only way to
+write data, typed routes, private annotation inputs, one generator, FFI rather
+than platform channels — because those are the rules an agent breaks without
+being told, and they are the ones a code review would otherwise catch. The
+body of Dartvel's development conventions is not copied into every project; it
+is about this repository, and a project generated from it would inherit
+constraints that are not its business.
+
+When the installed package ships no rules file, a short fallback block still
+goes out, so an agent opening a project gets the shape rules rather than
+nothing. Where the rules came from is reported by the sync, because a project
+quietly pointed at another version's rules is how the drift this section exists
+to stop starts.
+
+## Deliberately absent
+
+- **Agents running the application.** This is documentation for agents building
+  it. An agent a product serves to its users is the AI section's business, over
+  `DV.AI.registerTool`, and it is a different surface with different rules.
+- **Prose the agent must obey.** The block states rules. An agent that needs to
+  be *told* to follow them is a different product, and one the specification
+  does not want.
+
+## What is designed and not built
+
+The block is the first of five pieces, and it is the only one that ships. The
+rest are designed here and have no code:
+
+- **Opinionated architecture documents**, written into every project at
+  `docs/architecture/` — initialisation, data, HTTP, UI, naming, setup, Git
+  and process — because a project without them has agents that agree about the
+  API and nothing else. They are generated from the project graph where the
+  graph knows the answer, and written where it does not, which is the only split
+  that keeps them true.
+- **`SKILL.md` per module**, synced by `dartvel agent skills sync`, so an agent
+  working on one module is given that module's public surface rather than the
+  whole application's.
+- **`dartvel agent status`, `dev`, `smoke`, `screenshot` and `logs`** — the
+  commands that let an agent see what it built. A framework that asks an agent
+  to write code and never shows it running has left the last step to a human.
+- **`llms.txt` and `llms-full.txt`** for web builds, so a model can be pointed
+  at a project's own pages rather than at a marketing site. They are rendered
+  from the same `DVSitePages` graph the sitemap is, because a second list of
+  pages maintained by hand is a second thing to go stale.
+
+---
+
 # Mental Model
 
 ```text

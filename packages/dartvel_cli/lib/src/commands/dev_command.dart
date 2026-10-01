@@ -9,6 +9,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
+import '../agents/agent_docs.dart';
 import '../config/dartvel_config.dart';
 import '../build/release_server.dart';
 import '../devclient/android_dev_client.dart';
@@ -68,23 +69,54 @@ class DevCommand extends Command<void> {
   Future<void> run() async {
     final args = argResults!;
     if (args.rest.isNotEmpty) usageException('Unexpected arguments: ${args.rest.join(' ')}');
-    if (args['release'] == true) {
+    final root = this.root ?? Directory.current.path;
+
+    // Every check that can reject the invocation, before anything is written.
+    // A command that fixed a project's documentation and then complained about
+    // its arguments has half-run, and the half it ran is the half that cannot
+    // be undone from the command line.
+    final release = args['release'] == true;
+    var releaseHost = '127.0.0.1';
+    int? releasePort;
+    if (release) {
       final incompatible = [
         for (final option in ['device', 'profile', 'debug', 'dart-define',
           'dart-define-from-file', 'web-renderer', 'web-hostname', 'web-port', 'pairing-port'])
           if (args.wasParsed(option)) '--$option',
       ];
       if (incompatible.isNotEmpty) usageException('--release serves the existing build; it cannot use ${incompatible.join(', ')}.');
-      final port = int.tryParse(args['port'] as String);
-      if (port == null || port < 0 || port > 65535) usageException('--port must be between 0 and 65535.');
-      await dvServeRelease(root: this.root ?? Directory.current.path,
-          host: args['host'] as String, port: port);
-      return;
-    }
-    if (args.wasParsed('host') || args.wasParsed('port')) {
+      releasePort = int.tryParse(args['port'] as String);
+      if (releasePort == null || releasePort < 0 || releasePort > 65535) usageException('--port must be between 0 and 65535.');
+      releaseHost = args['host'] as String;
+    } else if (args.wasParsed('host') || args.wasParsed('port')) {
       usageException('--host and --port require --release; use --web-hostname and --web-port for development.');
     }
-    final root = this.root ?? Directory.current.path;
+
+    // Keep the project's agent rules matched to the Dartvel it is running.
+    // This is the half that has to be automatic: a block written at create and
+    // never refreshed names the API as it was on the day the project was made,
+    // which is how an agent ends up writing code against a version that has
+    // since moved. It runs before anything else that runs, so the rules are in
+    // place whatever else the developer does next -- including
+    // `dartvel dev --release`, which is still `dartvel dev`.
+    final agentDocs = await dvSyncAgentDocs(root: root);
+    if (agentDocs.isQuiet) {
+      // Nothing to say. Saying "agent rules updated" on every start teaches
+      // people to ignore the line that matters when it does change.
+    } else if (agentDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not refresh ${agentDocs.failed.join(', ')} — the files are unchanged, not empty.');
+    } else {
+      Logger.log(
+          '🤖 Agent rules updated for Dartvel ${agentDocs.version}: ${agentDocs.allWritten.join(', ')}');
+    }
+
+    if (release) {
+      await dvServeRelease(
+          root: root, host: releaseHost, port: releasePort!);
+      return;
+    }
+
     await generate();
 
     // Ensure a dev server entry under .dart_tool
