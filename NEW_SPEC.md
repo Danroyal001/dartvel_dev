@@ -10756,6 +10756,49 @@ Not built yet:
   argument, because nothing on a runner can answer the "Open in app" prompt a
   scanned link raises.
 
+## Dartvel Preview
+
+A development build runs one project, your own. Dartvel Preview is one app
+that runs any project a `dartvel dev` on the same network serves, so a project
+reaches a device without being built for it first: Expo Go's job, for every
+platform Dartvel builds for. It lives in `apps/dartvel_preview` and is itself
+a Dartvel application.
+
+`dartvel dev` prints a Dartvel Preview code beside its others:
+
+```text
+dartvel-preview://open?name=shop&pair=dartvel-dev%3A%2F%2Fpair...&web=http%3A%2F%2F192.168.1.20%3A5000
+```
+
+It carries up to two ways in, and Preview uses the one its build can:
+
+| Preview build | How a project runs in it |
+|---|---|
+| A development build on Android, macOS, Linux or Windows | Preview hands the `pair` link to its tunnel. `dartvel dev` attaches, and the pairing hot restart replaces Preview's own program with the project's development entrypoint, compiled from the project's sources and assets. Every save after that is a hot reload |
+| A web build, in a browser | Preview shows the `web` address, the project's web build on the network, in a frame |
+| A profile or release build | Preview shows the `web` address, for a browser on the device |
+
+Preview reads a link before it acts on it. A web address that is not http or
+https is refused, because it is loaded into the app. The pairing is parsed as
+the tunnel parses it, so a link the tunnel would refuse is refused where the
+reader can see why. A pasted `dartvel-dev://pair` link or web address is a
+link too. On a desktop the tunnel reads the pairing from the command line, so
+Preview starts itself again with the pairing and exits; on Android it calls the
+build's own `DartvelDevClient.pair`.
+
+What a project needs natively has to be in Preview. Preview is built with
+`dartvel_flutter` and the plugins its pubspec declares; a project that calls a
+plugin Preview was not built with fails at the call, as it would in Expo Go
+without a development build. Checking the project's plugins against the
+paired device's binding manifest before attaching, with `DV-DEVCLIENT-002`, is
+designed and not built.
+
+Not built yet: Preview on an iPhone (iOS runs a debug build only under a
+debugger, and a store build cannot run downloaded code, so the plan is page
+bundles and the web build there); Preview on TV and embedded targets; a
+Preview in any store; and a way back from a project to Preview's own screen
+other than starting Preview again.
+
 ## Distribution
 
 Development builds are distributed as internal builds through the tracks App
@@ -10782,8 +10825,10 @@ for Play alpha, beta and production and for the App Store with
   development build that skipped the check would be the one people then use
   to demonstrate the product.
 - **A release-mode dev menu.** Separate build profile, no runtime flag.
-- **A store-hosted universal shell like Expo Go.** A development build is your
-  own app.
+- **Downloaded code in a store build.** Dartvel Preview runs a project's code
+  only as a development build, which `DV-DEVCLIENT-003` keeps off public
+  store tracks. A store build of Preview opens web builds and page bundles,
+  which are data.
 
 ---
 
@@ -14963,7 +15008,7 @@ cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
 | Internal distribution | `dartvel deploy --store firebase-app-distribution`, `dartvel deploy --store testflight` | An install page per development or profile build, printed with a QR code | Android built, and in the same CI run the install page served the APK as `application/vnd.android.package-archive`. iOS ad hoc (device registration, signed IPA) designed |
 | EAS Insights, Observe | Crash Reporting and Release Health; `dartvel logs`, `traces`, `metrics` | A dashboard across builds, releases and crashes | Designed |
 | EAS Metadata | Store metadata in the repository, screenshots from goldens (App Store Deployment) | Uploading it after a store deploy | Designed |
-| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. A tvOS simulator app built on a macOS worker. iOS simulator builds from Cloud designed |
+| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. Dartvel Preview runs any project on Android and desktops, built from source | `--cloud --profile development` builds one without the SDK | Android built. A tvOS simulator app built on a macOS worker. iOS simulator builds from Cloud designed |
 | Expo Orbit | Artifacts land in `build/` | Artifacts land in `build/cloud/<target>`; install page and QR | Download built. Installing onto a running simulator designed |
 | Config plugins, prebuild (CNG) | Platform folders are committed. Dartvel writes the native pieces it owns: deep-link files, splash, PWA icons, widget targets, kiosk manifests | Nothing extra | Regenerating whole platform folders is not designed |
 | `app.json` | The `dartvel:` block in `pubspec.yaml` | The same file | Built |
@@ -15052,8 +15097,9 @@ against them.
 
 - **A free Cloud tier.** Local builds, store deploys, OTA from your own binary
   and self-hosting your application are the free path, and they are complete.
-- **A Cloud-hosted universal dev shell like Expo Go.** It is gated by store
-  review. A development build is your own app.
+- **A Cloud-hosted universal dev shell.** Dartvel Preview is built from source
+  and paired with `dartvel dev` on the developer's own network; Cloud does not
+  host or relay it.
 - **New commands.** Cloud is options on `build`, `deploy` and `key`.
 
 # Takeaway
