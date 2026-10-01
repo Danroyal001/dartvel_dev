@@ -563,6 +563,17 @@ void main() {
       }
     });
 
+    test('guarded sign-in contains its public document before Flutter loads', () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final server = _server(_guarded);
+      final response = await server.respond(_get('/__studio/login'));
+      expect(response?.status, 200);
+      final html = await _body(response!);
+      expect(html, contains('Sign in to Studio'));
+      expect(html, contains('dartvel-page-text'));
+      expect(html, isNot(contains('href="/__studio/models"')));
+    });
+
     test('a signed-out caller gets nothing of Studio but the sign-in page and '
         'the sign-in API', () async {
       DVSessionAuthentication.install(sessions: DVSessions());

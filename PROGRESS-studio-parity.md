@@ -226,3 +226,12 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
 - Baseline browser probe now running against a COPY of the existing 15:34 binary,
   port 8897, disposable SQLite under /tmp/studio-parity-review. This artifact predates
   this theme change; its results cannot validate the new implementation.
+
+### Step 13 — authenticated server-document regression
+- Baseline browser: sign-in button/labels/Tab, redirect, rail URL, Back/Forward and
+  tested deep links pass on the 15:34 artifact. Probe itself wrongly asks for protected
+  documents BEFORE signing in; correcting probe order, not weakening the server guard.
+- Found a real server bug: authenticated-mode login returns _page without its public
+  document, while unguarded mode supplies it. Added a regression for the guarded path.
+- Next: observe regression, supply the same existing public document, rerun server tests;
+  then authenticated document probes. Full first-frame parity remains unimplemented.

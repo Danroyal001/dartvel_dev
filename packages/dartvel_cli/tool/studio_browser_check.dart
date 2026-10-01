@@ -114,6 +114,19 @@ Future<void> main(List<String> args) async {
     await ready();
   }
   try {
+    await visit('/__studio/data');
+    check('guard_preserves_deep_link', await page.evaluate<bool>(
+        '() => location.pathname.endsWith("/login") && new URLSearchParams(location.search).get("from") === "/__studio/data"'));
+    final ax = await page.accessibility.snapshot();
+    File('${out.path}/login-accessibility.txt').writeAsStringSync('$ax');
+    check('login_accessible_button', '$ax'.contains('role: button, name: Sign in'));
+    check('login_labelled_fields', await page.evaluate<bool>(r'''() =>
+      [...document.querySelectorAll('input')].every(i =>
+        (i.getAttribute('aria-label') || i.getAttribute('placeholder') ||
+         (i.labels && i.labels.length)).toString().length > 0)'''));
+    await login(tab: true);
+    check('login_returns_to_data', await path() == '/__studio/data', await path());
+    await shot('data');
     // The render path, read with scripting switched off: what a reader with
     // JavaScript disabled, a crawler or a printer is served is the document,
     // not an empty body Flutter has yet to paint over.
@@ -132,18 +145,6 @@ Future<void> main(List<String> args) async {
     await page.setJavaScriptEnabled(true);
 
     await visit('/__studio/data');
-    check('guard_preserves_deep_link', await page.evaluate<bool>(
-        '() => location.pathname.endsWith("/login") && new URLSearchParams(location.search).get("from") === "/__studio/data"'));
-    final ax = await page.accessibility.snapshot();
-    File('${out.path}/login-accessibility.txt').writeAsStringSync('$ax');
-    check('login_accessible_button', '$ax'.contains('role: button, name: Sign in'));
-    check('login_labelled_fields', await page.evaluate<bool>(r'''() =>
-      [...document.querySelectorAll('input')].every(i =>
-        (i.getAttribute('aria-label') || i.getAttribute('placeholder') ||
-         (i.labels && i.labels.length)).toString().length > 0)'''));
-    await login(tab: true);
-    check('login_returns_to_data', await path() == '/__studio/data', await path());
-    await shot('data');
     await control('Team');
     final teamPath = await path();
     check('rail_updates_address', teamPath == '/__studio/access', teamPath);
