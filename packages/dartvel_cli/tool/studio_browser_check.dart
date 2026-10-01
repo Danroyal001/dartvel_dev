@@ -1,11 +1,32 @@
-// Local production-build verification. No live writes: require a loopback URL.
-// DARTVEL_STUDIO_PROBE_EMAIL / DARTVEL_STUDIO_PROBE_PASSWORD name a disposable
-// account already granted Studio access. Run with: dart run packages/dartvel_cli/tool/studio_browser_check.dart
-// http://127.0.0.1:8826 /tmp/studio-evidence
+// Local production-build verification for Studio. No live writes: the probe
+// refuses any target that is not loopback, so it can only ever be pointed at a
+// disposable server started from a build in this repository.
+//
+// DARTVEL_STUDIO_PROBE_EMAIL / DARTVEL_STUDIO_PROBE_PASSWORD name a
+// disposable account that already holds the Studio grant.
+//
+//   dart run dartvel_cli:dartvel build web-server
+//   DARTVEL_PORT=8826 DARTVEL_DATA_DIR=/tmp/probe build/server &
+//   dart run packages/dartvel_cli/tool/studio_browser_check.dart \
+//     http://127.0.0.1:8826 /tmp/studio-evidence
+//
+// It writes results.json, a summary.md and screenshots. A failure is a failure:
+// the exit code is non-zero when any check fails, so this is usable from a
+// script rather than by reading a log.
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:puppeteer/puppeteer.dart';
+
+/// Every Studio address the probe reads, with a word that must be in the
+/// document the server sends for it.
+const List<(String, String)> _screens = <(String, String)>[
+  ('/__studio/pages', 'Pages'),
+  ('/__studio/components', 'Components'),
+  ('/__studio/sitemap', 'Site map'),
+  ('/__studio/team', 'Team'),
+  ('/__studio/data', 'Data'),
+];
 
 Future<void> main(List<String> args) async {
   final base = args.first;
@@ -24,8 +45,21 @@ Future<void> main(List<String> args) async {
   await page.setViewport(const DeviceViewport(width: 1440, height: 1000));
   final errors = <String>[];
   final results = <String, Object?>{};
-  page.onError.listen((e) => errors.add('$e'));
-  page.onConsole.listen((e) {
+  page.onError.listen((ClientError e) {
+    // The message alone says what went wrong; the stack says where, and a
+    // web-server-only null error is the kind that cannot be found from a
+    // widget test because nothing in the widget tree is null in it.
+    final StringBuffer buffer = StringBuffer(e.message ?? 'page error');
+    final frames = e.details?.stackTrace?.callFrames;
+    if (frames != null) {
+      for (final callFrame in frames.take(6)) {
+        buffer.write('\n    at ${callFrame.functionName.isEmpty ? '<anonymous>' : callFrame.functionName}'
+            ' (${callFrame.url}:${callFrame.lineNumber}:${callFrame.columnNumber})');
+      }
+    }
+    errors.add(buffer.toString());
+  });
+  page.onConsole.listen((ConsoleMessage e) {
     if (e.type == ConsoleMessageType.error) errors.add(e.text ?? 'Console error');
   });
   Future<void> shot(String name) async =>
@@ -38,12 +72,12 @@ Future<void> main(List<String> args) async {
     await Future<void>.delayed(const Duration(seconds: 2));
   }
   Future<void> visit(String route) async {
-    await page.goto('$base$route', wait: Until.networkIdle,
-        timeout: const Duration(seconds: 60));
+    await page.goto('$base$route',
+        wait: Until.networkIdle, timeout: const Duration(seconds: 60));
     await ready();
   }
   void check(String name, bool value, [Object? detail]) {
-    results[name] = {'pass': value, if (detail != null) 'detail': detail};
+    results[name] = <String, Object?>{'pass': value, if (detail != null) 'detail': detail};
     stdout.writeln('$name: ${value ? 'PASS' : 'FAIL'}');
   }
   Future<void> control(String label) async {
@@ -80,12 +114,33 @@ Future<void> main(List<String> args) async {
     await ready();
   }
   try {
+    // The render path, read with scripting switched off: what a reader with
+    // JavaScript disabled, a crawler or a printer is served is the document,
+    // not an empty body Flutter has yet to paint over.
+    await page.setJavaScriptEnabled(false);
+    for (final (route, word) in _screens) {
+      final response = await page.goto('$base$route',
+          timeout: const Duration(seconds: 30));
+      final body = _visibleText(await page.content ?? '');
+      final int? status = response?.status;
+      check('server_renders_$route', status == 200 && body.contains(word),
+          '$status, ${body.length} chars, "${_excerpt(body, word)}"');
+    }
+    await page.goto('$base/__studio/login', timeout: const Duration(seconds: 30));
+    File('${out.path}/server-rendered-login.html')
+        .writeAsStringSync(await page.content ?? '');
+    await page.setJavaScriptEnabled(true);
+
     await visit('/__studio/data');
     check('guard_preserves_deep_link', await page.evaluate<bool>(
         '() => location.pathname.endsWith("/login") && new URLSearchParams(location.search).get("from") === "/__studio/data"'));
     final ax = await page.accessibility.snapshot();
     File('${out.path}/login-accessibility.txt').writeAsStringSync('$ax');
     check('login_accessible_button', '$ax'.contains('role: button, name: Sign in'));
+    check('login_labelled_fields', await page.evaluate<bool>(r'''() =>
+      [...document.querySelectorAll('input')].every(i =>
+        (i.getAttribute('aria-label') || i.getAttribute('placeholder') ||
+         (i.labels && i.labels.length)).toString().length > 0)'''));
     await login(tab: true);
     check('login_returns_to_data', await path() == '/__studio/data', await path());
     await shot('data');
@@ -123,6 +178,8 @@ Future<void> main(List<String> args) async {
       }'''));
     }
     check('tab_visits_controls', tabs.toSet().length > 3, tabs);
+    check('tab_reaches_a_control',
+        tabs.any((String t) => t.startsWith('button:')), tabs);
     await shot('pages-focused');
     final tree = await page.accessibility.snapshot();
     File('${out.path}/pages-accessibility.txt').writeAsStringSync('$tree');
@@ -145,12 +202,11 @@ Future<void> main(List<String> args) async {
       await page.mouse.move(Point(x + width - 2, y + 9), steps: 20);
       await page.mouse.up();
       await shot('selection');
+      await browser.defaultBrowserContext.overridePermissions(base,
+          [PermissionType.clipboardReadWrite, PermissionType.clipboardSanitizedWrite]);
       await page.keyboard.down(Key.controlLeft);
       await page.keyboard.press(Key.keyC);
       await page.keyboard.up(Key.controlLeft);
-      // Chrome clipboard permission is granted through CDP in the local probe.
-      await browser.defaultBrowserContext.overridePermissions(base,
-          [PermissionType.clipboardReadWrite, PermissionType.clipboardSanitizedWrite]);
       final copied = await page.evaluate<String>('() => navigator.clipboard.readText()');
       check('selection_copy', copied.trim().isNotEmpty, copied);
     } else {
@@ -169,7 +225,50 @@ Future<void> main(List<String> args) async {
     check('no_page_errors', errors.isEmpty, errors);
     File('${out.path}/results.json').writeAsStringSync(
         const JsonEncoder.withIndent('  ').convert(results));
+    File('${out.path}/summary.md').writeAsStringSync(_summary(results));
     await browser.close();
   }
-  if (results.values.any((v) => v is Map && v['pass'] == false)) exitCode = 1;
+  if (results.values
+      .any((Object? v) => v is Map && v['pass'] == false)) {
+    exitCode = 1;
+  }
+}
+
+/// The text a reader sees in a document, tags removed.
+String _visibleText(String html) => html
+    .replaceAll(RegExp(r'<script[\s\S]*?</script>', caseSensitive: false), ' ')
+    .replaceAll(RegExp(r'<style[\s\S]*?</style>', caseSensitive: false), ' ')
+    .replaceAll(RegExp('<[^>]*>'), ' ')
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+/// What the document says around [word], so a failure says what it did serve.
+String _excerpt(String text, String word) {
+  final at = text.indexOf(word);
+  if (at < 0) return '(no "$word")';
+  final from = at < 40 ? 0 : at - 40;
+  return text.substring(from, (at + word.length + 60).clamp(0, text.length));
+}
+
+/// The table a person reads instead of the JSON.
+String _summary(Map<String, Object?> results) {
+  final buffer = StringBuffer('# Studio browser probe\n\n');
+  var failures = 0;
+  for (final entry in results.entries) {
+    final Object? value = entry.value;
+    if (value is! Map || !value.containsKey('pass')) continue;
+    final bool pass = value['pass'] == true;
+    if (!pass) failures++;
+    buffer.writeln('- **${pass ? 'pass' : 'FAIL'}** `${entry.key}`'
+        '${value['detail'] == null ? '' : ' — ${value['detail']}'}');
+  }
+  if (results['probe_exception'] != null) {
+    buffer.writeln('\n```\n${results['probe_exception']}\n```');
+  }
+  buffer.writeln('\n$failures failing check(s).');
+  return buffer.toString();
 }
