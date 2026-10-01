@@ -224,6 +224,16 @@ Widget _siteFooter(BuildContext context) {
           const DVText('FSL-1.1-MIT licensed. Built with Dartvel.')
               .modifier(const DVModifier().fontSize(13).color(palette.faint)),
         ], spacing: 8),
+        // Who makes it, on every page, linking to Dartvel's page on the
+        // maker's own site (which links back here).
+        DVBox.wrapLine(<Widget>[
+          const DVText('Dartvel is made by')
+              .modifier(const DVModifier().fontSize(13).color(palette.faint)),
+          const ExternalLink(
+            'SigmaDev Digital',
+            'https://sigmadev.digital/tools/dartvel/',
+          ),
+        ], spacing: 6),
       ], spacing: 12),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
