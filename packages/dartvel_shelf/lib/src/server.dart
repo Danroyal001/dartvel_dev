@@ -203,7 +203,7 @@ Future<ServerHandle> serve(
   // it runs before the first request can arrive rather than lazily.
   dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
 
-  // Preview Environments. A generated backend starts the preview before
+  // Branch deployments. A generated backend starts the preview before
   // anything else runs; a hand-written entrypoint that calls serve() directly
   // gets it here. Either way a process deployed as a preview does not serve
   // until it has established it is one -- and outside a preview this is null

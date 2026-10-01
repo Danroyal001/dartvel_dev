@@ -1,7 +1,7 @@
 // The preview server answering Studio.
 //
 // The decision about who may see Studio is asserted beside DVAdminServer.
-// This is the half that turns it into a response on `dartvel preview`, and
+// This is the half that turns it into a response on `dartvel dev --release`, and
 // the property that matters is the one a unit test of the decision cannot
 // reach: a hidden Studio has to produce the same nothing as a route the
 // application does not serve, all the way out of the handler. And Studio is
