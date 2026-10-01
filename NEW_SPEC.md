@@ -1206,6 +1206,12 @@ claiming one invoice number (`DV-HISTORY-006`).
 
 ## Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 ### It is part of the app, and it is reachable
 
 Studio's screens are routes of the application, rendered by the same

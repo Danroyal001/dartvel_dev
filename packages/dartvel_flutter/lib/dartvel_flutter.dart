@@ -1,5 +1,7 @@
 library dartvel_flutter;
 
+export 'src/default_theme.dart';
+
 import 'dart:async';
 import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;

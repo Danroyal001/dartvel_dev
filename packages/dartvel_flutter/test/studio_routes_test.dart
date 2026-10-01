@@ -404,11 +404,11 @@ void main() {
     expect(host.look!.theme, same(light));
     expect(host.look!.darkTheme, same(dark));
     expect(host.look!.themeMode, ThemeMode.light);
-    // Studio itself is drawn in its own theme, not the shop's.
+    // Studio inherits the shop's effective theme, including explicit light mode.
     expect(
       Theme.of(tester.element(find.byKey(const ValueKey<String>('dv-studio-rail'))))
           .scaffoldBackgroundColor,
-      isNot(const Color(0xFF123456)),
+      const Color(0xFF123456),
     );
   });
 }

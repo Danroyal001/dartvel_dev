@@ -222,6 +222,18 @@ appear on the rail with no address.
 
 ## How this file stays honest
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
+The current server document is a separate hand-authored summary in
+`studio_document.dart`, inserted by the shared renderer. Shared fallback CSS
+clips it during normal scripted browsing. This does **not** satisfy the owner’s
+requirement for the same visible app document from the first frame; the earlier
+server-rendering description above covers summaries, not visual parity.
+
 Readable aliases are supported for `/__studio/data`, `/__studio/sitemap` and
 `/__studio/team`; existing `/models`, `/routes` and `/access` links remain valid.
 `/__studio/data/Product/p-1` opens the record form. Selecting and closing a record

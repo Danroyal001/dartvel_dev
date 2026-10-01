@@ -426,6 +426,12 @@ reaches the page it names.
 
 ## Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 Dartvel Studio is a visual page builder and data editor. It lives in this
 package and is served by a web-server build at `/__studio`, to accounts that
 have been granted access; it is never compiled into an app:

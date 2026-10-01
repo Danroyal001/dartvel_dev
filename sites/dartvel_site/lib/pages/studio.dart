@@ -158,6 +158,11 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       tint: true,
       children: <Widget>[
+        Bullets(<String>[
+          'Studio inherits your app’s Material theme. New projects start with '
+          'Dartvel’s light and dark theme. Custom Studio colors and the visible '
+          'server-rendered first frame are still being brought into parity.',
+        ]),
         Eyebrow('KEYBOARD AND SCREEN READER'),
         Heading('Every control is a control, not a picture of one.'),
         Bullets(<String>[
@@ -169,7 +174,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'are.',
           'A screen reader is told what each control is, what it is called and '
               'whether it works. A control with nothing to do — Undo with no '
-              'history, Publish while publishing — says so and is skipped, '
+              'history, Sign in while signing in — says so and is skipped, '
               'rather than looking live and doing nothing.',
           'Ctrl+F works on a Studio screen, because Studio is a route of your '
               'app rendered by the same server as every other page. So does '

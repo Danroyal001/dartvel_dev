@@ -427,6 +427,12 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 
 ## 🖥️ One binary: web-server and Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 `dartvel build web-server` writes `build/server`, a single executable that
 carries the backend, the native server library and the web app. It runs on
 the operating system and CPU it was built on, so build on the kind of machine

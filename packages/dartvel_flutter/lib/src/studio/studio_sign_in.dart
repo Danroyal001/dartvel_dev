@@ -34,7 +34,7 @@ String dvStudioSignInTarget(String mount, String? from,
   return inside && !login ? value : home;
 }
 
-/// Studio's frame: its theme, light or dark as the system is, around [home].
+/// Studio's frame, inheriting the application's effective theme around [home].
 ///
 /// Shared by Studio's screens and its sign-in, which are separate deferred
 /// libraries, so both look the same without either reaching the other.
@@ -66,24 +66,9 @@ class _DVStudioFrameState extends State<DVStudioFrame> {
     super.dispose();
   }
 
-  static ThemeData _theme(Brightness brightness) => ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: brightness == Brightness.dark
-              ? const Color(0xFF8E74F8)
-              : const Color(0xFF6C4BF4),
-          brightness: brightness,
-        ),
-        scaffoldBackgroundColor: DVStudioStyle.canvas,
-        canvasColor: DVStudioStyle.canvas,
-      );
-
-  /// The system's setting: prefers-color-scheme in a browser. Studio's
-  /// colours read DVStudioStyle.dark when they paint, and the subtree is
-  /// rebuilt under a new key when it changes, so no widget built for the
-  /// other mode is kept.
+  /// Follow the effective app theme, including an explicit theme mode.
   static Widget _keyed(BuildContext context, Widget child) {
-    final bool dark =
-        MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
     DVStudioStyle.dark = dark;
     return KeyedSubtree(key: ValueKey<bool>(dark), child: child);
   }
@@ -94,33 +79,29 @@ class _DVStudioFrameState extends State<DVStudioFrame> {
       return MaterialApp(
         title: widget.title,
         debugShowCheckedModeBanner: false,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
+        theme: dartvelDefaultTheme(.light),
+        darkTheme: dartvelDefaultTheme(.dark),
         builder: (BuildContext context, Widget? child) =>
             _keyed(context, child ?? const SizedBox.shrink()),
         home: widget.home,
       );
     }
-    final Brightness brightness = MediaQuery.platformBrightnessOf(context);
     Widget frame = Title(
       title: widget.title,
-      color: const Color(0xFF6C4BF4),
-      child: Theme(
-        data: _theme(brightness),
-        child: ScaffoldMessenger(
-          child: HeroControllerScope(
-            controller: _heroes,
-            child: Navigator(
-              // Not the application's route: the browser's address is the
-              // application router's to keep.
-              reportsRouteUpdateToEngine: false,
-              onGenerateRoute: (RouteSettings settings) =>
-                  MaterialPageRoute<void>(
-                settings: settings,
-                builder: (BuildContext context) =>
-                    _keyed(context, widget.home),
-              ),
-            ),
+      color: Theme.of(context).colorScheme.primary,
+      child: ScaffoldMessenger(
+        child: HeroControllerScope(
+          controller: _heroes,
+          child: Navigator(
+            // Not the application's route: the browser's address is the
+            // application router's to keep.
+            reportsRouteUpdateToEngine: false,
+            onGenerateRoute: (RouteSettings settings) =>
+                MaterialPageRoute<void>(
+                  settings: settings,
+                  builder: (BuildContext context) =>
+                      _keyed(context, widget.home),
+                ),
           ),
         ),
       ),
@@ -128,7 +109,9 @@ class _DVStudioFrameState extends State<DVStudioFrame> {
     // An application with no Material localizations of its own still gets
     // Studio's dialogs and fields labelled.
     if (Localizations.of<MaterialLocalizations>(
-            context, MaterialLocalizations) ==
+          context,
+          MaterialLocalizations,
+        ) ==
         null) {
       frame = Localizations(
         locale: const Locale('en', 'US'),
