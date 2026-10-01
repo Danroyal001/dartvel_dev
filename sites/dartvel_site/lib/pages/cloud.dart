@@ -227,11 +227,16 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           key: keys['plans'],
           child: const Section(
             children: <Widget>[
-              Eyebrow('PLANS'),
-              Heading('Cloud builds are paid only.'),
+              Eyebrow('PRICING · COMING SOON'),
+              Heading('Dartvel Cloud and Studio Pro: one price per project.'),
               Bullets(<String>[
-                'There is no free tier for cloud builds.',
-                'Plans open when the hosted service launches.',
+                '\$35 per project per month for the first 100 people who sign '
+                    'up in the first week after launch.',
+                '\$40 per project per month after that.',
+                'Includes Dartvel Cloud and Studio Pro for that project. There '
+                    'is no free tier for cloud builds.',
+                'Not open yet. Prices may be reviewed before launch, and the '
+                    'final price is shown before you pay.',
               ]),
             ],
           ),
