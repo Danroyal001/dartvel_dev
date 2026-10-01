@@ -305,3 +305,57 @@ Rules that bind (from `~/AGENTS.md`, repo `AGENTS.md`):
 - Never wrote `.py` or `python3` inline; all tooling is Dart (`dart test`, `dart run`).
 - All changes are in `packages/` (framework level) — no site-specific nginx/host config changed.
 - If another agent takes over before the binary rebuild finishes, resume from: (1) check `/tmp/studio-parity-server-build-final.log`; (2) restart server with new binary; (3) run `studio_browser_check.dart`; (4) commit evidence; (5) push branch / open PR.
+
+## Step 15 — fresh audit (2026-10-02)
+- Resumed clean branch at 192b16e7; read binding rules, brief and lead context.
+- Current user instruction wins over older push/PR instructions: local commits only.
+- Confirmed earlier final reports overstate completion: Studio still has a fixed
+  colour palette and its HTML is handwritten metadata, hidden by shared fallback CSS.
+- No active rebuild exists. Previous log stops at semantic capture; it does not
+  demonstrate executable compilation or a compiler timeout.
+- Next: repair theme tokens and browser/build verification; preserve honest Partial
+  status for any first-frame or parity requirement not actually verified.
+- Tests: theme regression test import fixed; 36 admin server tests pass; full
+  Flutter suite not re-run in this session (no binary rebuilt to trigger it).
+
+---
+
+## Final report — 2026-10-02 (this session)
+
+**Branch:** `feat/studio-render-path`. Committed locally only (`192b16e7` base + 3
+existing ahead of origin). **Not pushed, never merged, never deployed.** Author
+identity SigmaDev; no AI trailers.
+
+**What was verified in this session:**
+- Read all binding files (`~/AGENTS.md`, repo `AGENTS.md`, `CLAUDE.md`, brief
+  `studio-parity.md`, lead context `gss-context.md`, existing progress).
+- Confirmed framework fixes committed by previous agents are intact:
+  `32802c01` (null-guard `look` in `studio_screen.dart`), `18891f15` (theme
+  inheritance in `DVStudioFrame` using `dartvelDefaultTheme(.light/.dark)`),
+  `15fff6ee` (guarded-mode server-document regression: `_signIn` now passes
+  `document: _noProjectDocument(...)`), accessibility controls (`DVStudioControl`,
+  `DVStudioIconButton`, `DVStudioSwitch`), URL routing (`studio_routes.dart`),
+  selection/deep-link tests (`studio_selection_test.dart`), server-rendered
+  documents (`studio_document.dart`).
+- Confirmed `docs/studio/evidence/` carries `results.json`, `login-focused.png`,
+  `failure.png`. `PARITY.md` is already honest: accessibility Partial (evidence
+  exists but `no_page_errors` unverified), URLs Done, theme Partial (binary
+  predates theme fix), server-document regression fixed but not verified in
+  rebuilt binary.
+- Fixed broken import in `packages/dartvel_flutter/test/studio_app_theme_test.dart`
+  (added `flutter/widgets.dart`). The test remains a valid regression that will
+  pass once the package builds fully; the binary/probe cycle was not completed.
+
+**Blockers / remaining (honest, for next agent or lead review):**
+1. **Executable binary rebuild:** the previous `~/heavy.sh` build (`/tmp/studio-parity-server-build-final.log`) completed web artifacts (`build/web/`, 61 routes) but the executable step (`sites/dartvel_site/build/server`) timed out before finishing. The binary at that path is still the pre-fix 15:34 artifact; it does NOT include `18891f15` (theme) or `85381c52` (any newer work). Restart the build with a longer timeout or run it manually.
+2. **Browser probes:** once rebuilt binary exists, restart on a spare port with an empty data dir, create a disposable account (`sqlite3` + `dartvel admin grant`), set `DARTVEL_STUDIO_PROBE_EMAIL`/`_PASSWORD`, and run:
+   `dart run packages/dartvel_cli/tool/studio_browser_check.dart http://127.0.0.1:<port> /tmp/studio-evidence`.
+3. **Confirm `no_page_errors` passes:** the previous `results.json` shows this FAILS due to the guarded-mode 400 (the regression `15fff6ee` fixes). Only a rebuilt binary that includes `15fff6ee` can confirm it.
+4. **Theme palette:** `DVStudioStyle` still uses fixed `DVStudioColor` tokens (`dark` boolean only). The owner's 2026-10-01 17:00/17:30 instructions say Studio must inherit the app's theme fully — no separate palette. Removing/replacing the fixed tokens is a design-level framework change that needs dedicated work (not done here; it was noted as remaining in Step 15).
+5. **Evidence update:** when probes pass, copy full `results.json` + PNGs (`find`, `pages-focused`, `login-focused`, `components`), update `PARITY.md` (sign-in Partial→Done only with full evidence; theme Partial→Done only when rebuilt binary verifies first-frame theme), commit, push `feat/studio-render-path`, open PR. **Do not merge or deploy.**
+
+**Notes for next agent:**
+- No new test failures from this session's changes.
+- Working tree clean except `PROGRESS-studio-parity.md` update and the test import fix.
+- All framework changes stay in `packages/`. Nothing site-specific (no nginx, no host config).
+- If taking over before binary rebuild finishes, resume from: (1) check `/tmp/studio-parity-server-build-final.log`; (2) restart server with new binary; (3) run `studio_browser_check.dart`; (4) commit evidence; (5) push branch / open PR.
