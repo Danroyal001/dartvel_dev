@@ -7,6 +7,14 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- `dartvel dev --release` serves an existing production web build locally,
+  with `--host` and `--port`. It uses the same route renderer as web-server.
+- Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,
+  `--list`, `--open`, `--logs`, `--destroy` and `--sweep`. Log retrieval remains
+  unsupported; `--logs [--follow]` reports that limitation.
+- `dartvel preview` is hidden from help and forwards to the new commands
+  with a deprecation message for one release.
+
 **Security: Studio is part of the application, guarded by the server.**
 Studio was a second Flutter application, built on its own and served as
 files under its mount, and serving files by path is how

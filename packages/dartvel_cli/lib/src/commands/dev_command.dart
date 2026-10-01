@@ -4,14 +4,17 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
-import 'package:dartvel_core/dartvel.dart' show DVAdminMount, DVStudioDevGrant;
+import 'package:dartvel_core/dartvel.dart'
+    show DVAdminMount, DVPreviewAppLink, DVStudioDevGrant;
 import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
 import '../config/dartvel_config.dart';
+import '../build/release_server.dart';
 import '../devclient/android_dev_client.dart';
 import '../devclient/dev_client_attach.dart';
 import '../devclient/dev_client_server.dart';
+import '../devclient/dev_preview_link.dart';
 import '../generators/routes_generator.dart';
 import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
@@ -31,11 +34,15 @@ class DevCommand extends Command<void> {
   @override
   final List<String> aliases = ['run', 'start'];
 
-  DevCommand() {
+  final String? root;
+
+  DevCommand({this.root}) {
     argParser
       ..addOption('device',
           abbr: 'd', help: 'Target device id or name (prefixes allowed)')
-      ..addFlag('release', defaultsTo: false, help: 'Build in release mode')
+      ..addFlag('release', defaultsTo: false, help: 'Serve the existing production build locally (build/web), without hot reload')
+      ..addOption('port', abbr: 'p', defaultsTo: '8080', help: 'With --release: port to serve on')
+      ..addOption('host', defaultsTo: '127.0.0.1', help: 'With --release: host to bind to')
       ..addFlag('profile', defaultsTo: false, help: 'Build in profile mode')
       ..addFlag('debug', defaultsTo: false, help: 'Build in debug mode')
       ..addMultiOption('dart-define',
@@ -51,7 +58,7 @@ class DevCommand extends Command<void> {
           abbr: 'v', defaultsTo: false, help: 'Verbose output')
       ..addOption('pairing-port',
           defaultsTo: '8787',
-          help: 'Port development builds pair on. dartvel dev always serves '
+          help: 'Port development builds pair on. debug development serves '
               'pairing: it prints a QR code to scan with a development build '
               '(dartvel build <target> --profile development) and hot reloads '
               'every paired device on save.');
@@ -59,7 +66,25 @@ class DevCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final root = Directory.current.path;
+    final args = argResults!;
+    if (args.rest.isNotEmpty) usageException('Unexpected arguments: ${args.rest.join(' ')}');
+    if (args['release'] == true) {
+      final incompatible = [
+        for (final option in ['device', 'profile', 'debug', 'dart-define',
+          'dart-define-from-file', 'web-renderer', 'web-hostname', 'web-port', 'pairing-port'])
+          if (args.wasParsed(option)) '--$option',
+      ];
+      if (incompatible.isNotEmpty) usageException('--release serves the existing build; it cannot use ${incompatible.join(', ')}.');
+      final port = int.tryParse(args['port'] as String);
+      if (port == null || port < 0 || port > 65535) usageException('--port must be between 0 and 65535.');
+      await dvServeRelease(root: this.root ?? Directory.current.path,
+          host: args['host'] as String, port: port);
+      return;
+    }
+    if (args.wasParsed('host') || args.wasParsed('port')) {
+      usageException('--host and --port require --release; use --web-hostname and --web-port for development.');
+    }
+    final root = this.root ?? Directory.current.path;
     await generate();
 
     // Ensure a dev server entry under .dart_tool
@@ -172,7 +197,6 @@ class DevCommand extends Command<void> {
         Logger.log('Added a viewport meta to web/index.html.');
       }
     }
-    if (argResults?['release'] == true) flutterArgs.add('--release');
     if (argResults?['profile'] == true) flutterArgs.add('--profile');
     if (argResults?['debug'] == true) flutterArgs.add('--debug');
     for (final dd
@@ -217,6 +241,8 @@ class DevCommand extends Command<void> {
     final webPortInput = (argResults?['web-port'] as String?) ??
         Platform.environment['DARTVEL_WEB_PORT'];
     int? webPort;
+    // The web build's address on the network, for the Dartvel Preview link.
+    Uri? lanWebUrl;
     if (webTarget || studioInApp) {
       webPort = await _resolveWebPort(webPortInput);
       if (webHostname != null && webHostname.isNotEmpty) {
@@ -230,6 +256,7 @@ class DevCommand extends Command<void> {
         port: webPort,
         lanHost: await dvDetectLanHost(),
       );
+      lanWebUrl = lanUrl;
       if (lanUrl != null) {
         _printQr('Open it on a phone on the same network:', lanUrl.toString());
       } else {
@@ -249,6 +276,19 @@ class DevCommand extends Command<void> {
       }
     }
     if (argResults?['verbose'] == true) flutterArgs.add('-v');
+
+    // Dartvel Preview: one code that runs this project in the Preview app,
+    // by its pairing on a device that can run code and by its web build
+    // where it cannot.
+    final Object? pubspecName = readPubspecYaml(root)?['name'];
+    final DVPreviewAppLink? previewLink = dvDevPreviewLink(
+      name: pubspecName is String ? pubspecName : null,
+      pairing: devClient?.pairing.link,
+      web: lanWebUrl,
+    );
+    if (previewLink != null) {
+      _printQr('Open it in Dartvel Preview:', previewLink.toString());
+    }
 
     final targetIsLinux = isLinuxDevice(deviceOpt);
     if (targetIsLinux) {

@@ -1,7 +1,7 @@
 /// Studio at its mount, answered by whatever serves the backend: its pages,
 /// which are routes of the application, its API, and its code.
 ///
-/// `dartvel preview` served Studio and the web-server binary, which is
+/// `dartvel dev --release` served Studio and the web-server binary, which is
 /// the deployment, did not: the rules lived in the CLI and the generated
 /// backend cannot depend on the CLI. They live here so both servers answer
 /// the same request the same way, rather than as two copies that drift.

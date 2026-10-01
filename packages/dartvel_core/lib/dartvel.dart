@@ -193,6 +193,7 @@ export 'src/devclient/dev_backend_url.dart';
 export 'src/devclient/dev_client.dart';
 export 'src/devclient/dev_client_certificate.dart';
 export 'src/devclient/dev_client_tls.dart';
+export 'src/devclient/preview_app_link.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';
@@ -3220,7 +3221,7 @@ class DVNotificationMail {
   Future<void> send(DVMailMessage message) {
     // A preview captures before a provider is even looked up, so the
     // application's real provider -- registered before or after the preview
-    // started -- is never handed a message from one (Preview Environments,
+    // started -- is never handed a message from one (Branch deployments,
     // DV-PREVIEW-006).
     if (DVPreviewOutbound.isActive) return DVPreviewOutbound.captureMail(message);
     final provider = _provider;

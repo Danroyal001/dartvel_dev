@@ -9652,7 +9652,7 @@ dartvel:
   studio. Everything under the mount is hidden with it. Admin responses are
   never stored by a shared cache.
 
-`DVAdminServer` in `dartvel_core` makes these decisions, and `dartvel preview`
+`DVAdminServer` in `dartvel_core` makes these decisions, and `dartvel dev --release`
 and the generated backend both call it.
 
 What the mount serves is Studio: `DVStudioApp`, compiled by `dartvel build
@@ -9707,10 +9707,8 @@ open Studio gets the missing-route answer there too. Writes must carry the
 
 Not built yet: queues and cache tags in Studio, grant and revoke from Studio
 (they are CLI only), editing fields whose type is not a scalar, and the models
-of a mounted module. `dartvel preview` serves Studio's files but not its API,
-so its sections show an error there. `dartvel dev` does not serve Studio. A
-page published from Studio is stored on the server, and the web client does
-not read `dartvel_pages` from the server yet.
+of a mounted module. `dartvel dev --release` serves Studio routes and its API
+through the shared web-server handler, with a local development grant.
 
 ## Still to generate
 
@@ -10496,7 +10494,7 @@ project's pipeline is still written by hand.
 
 ---
 
-# Preview Environments
+# Branch deployments
 
 Stability: `Draft` · Status: `Partial`
 
@@ -10504,32 +10502,33 @@ Deployment says where a backend runs and Backend Release Management says how a
 new one replaces it. This says how a branch gets one of its own, for as long as
 somebody is looking at it.
 
-A preview is a whole deployment: the backend, its database, its storage, and
+A branch deployment is a whole deployment: the backend, its database, its storage, and
 the web build, at a URL nobody has to configure. It exists because the question
 a reviewer actually has is "what does this do", and a diff does not answer it.
 
 ```bash
-dartvel preview create                 # from the current branch
-dartvel preview create --from-pr 412
-dartvel preview list
-dartvel preview open
-dartvel preview logs --follow
-dartvel preview destroy
+dartvel deploy --preview                 # from the current branch
+dartvel deploy --preview --from-pr 412
+dartvel deploy --preview --list
+dartvel deploy --preview --open
+dartvel deploy --preview --logs --follow
+dartvel deploy --preview --destroy
 ```
 
-`create`, `list`, `open`, `destroy` and `sweep` are built. `preview logs` is
-designed and not built.
+`deploy --preview` creates or redeploys a branch. `--list`, `--open`,
+`--destroy` and `--sweep` manage it. No hosting adapter ships yet.
+`--logs [--follow]` reports that log retrieval is not supported yet.
 
 ## The database is fresh, and that is not a limitation
 
-A preview gets an empty database, migrated by the project's own migration plan
+A branch deployment gets an empty database, migrated by the project's own migration plan
 and filled by the project's own seeds. **It is never a copy of production.**
 
 That is the decision this section exists to make, because the other answer is
 tempting and irreversible. Production data in an environment with a generated
 URL, a short life and none of production's controls is a leak that cannot be
 walked back, and "it was only for a review" is not a thing anyone gets to say
-afterwards. The seeds are also the better test: a preview built from seeds
+afterwards. The seeds are also the better test: a branch deployment built from seeds
 fails when the seeds have rotted, which is the moment to find out.
 
 Where a provider offers database branching — Neon, PlanetScale, and the
@@ -10538,7 +10537,7 @@ schema**. Branching one that holds `@DVModel.sensitiveField()` values is
 refused unless a sanitization step is declared and runs first
 (`DV-PREVIEW-003`). A refusal here is not conservatism: the field annotation
 already says these values need a policy decision to reach a client, and a
-preview is a client with a guessable address.
+branch deployment is a client with a guessable address.
 
 ```yaml
 dartvel:
@@ -10553,118 +10552,118 @@ dartvel:
 
 ## Secrets
 
-A preview is its own environment, named `preview`, and Secrets and
+A branch deployment is its own environment, named `preview`, and Secrets and
 Environments' `required:` lists apply to it like any other. A secret required
-in production and absent for previews is a **plan-time refusal**
+in production and absent for branch deployments is a **plan-time refusal**
 (`DV-PREVIEW-002`), not a runtime failure in front of the reviewer.
 
-Production values are never resolved for a preview. The reason is narrower
-than "hygiene": a preview holding a live payment key takes real money from
+Production values are never resolved for a branch deployment. The reason is narrower
+than "hygiene": a branch deployment holding a live payment key takes real money from
 whoever clicks the button, and the first anyone knows is the settlement report.
 
-## A preview does not send anything to anybody
+## A branch deployment does not send anything to anybody
 
-Notifications, queues and schedules are the part of a preview that can reach
+Notifications, queues and schedules are the part of a branch deployment that can reach
 the outside world, so they default to the providers that cannot.
 
 - Mail goes to a capture inbox, and every capture reports `DV-PREVIEW-006`.
-  The inbox is process memory today. Reading it with `dartvel preview mail`
+  The inbox is process memory today. Reading it with the planned captured-mail view
   or in Studio is designed and not built.
 - Push notifications are a no-op with the same report.
-- Queues are the preview's own; a preview never consumes a production queue.
-- Scheduled jobs do not run unless the preview declares which ones should,
-  because a preview left open over a weekend should not send a week of digests
+- Queues are the branch deployment's own; a branch deployment never consumes a production queue.
+- Scheduled jobs do not run unless the branch deployment declares which ones should,
+  because a branch deployment left open over a weekend should not send a week of digests
   to a seeded address list (`DV-PREVIEW-008`).
 
-Each default is overridable per preview, and overriding is a declaration in
+Each default is overridable per branch deployment, and overriding is a declaration in
 the project rather than a flag somebody passes once.
 
 ## Who can see it
 
-`visibility: members` is the default: the preview is behind the deployment's
+`visibility: members` is the default: the branch deployment is behind the deployment's
 own organization membership, so opening it asks for a sign-in and a person who
 is not a member does not get in. `link` gives an unguessable URL to anyone
 holding it. `public` is a declaration, reported as `DV-PREVIEW-007`, for the
-case where the preview is the demo.
+case where the branch deployment is the demo.
 
-Every preview is excluded from indexing whatever its visibility —
+Every branch deployment is excluded from indexing whatever its visibility —
 `X-Robots-Tag: noindex`, a matching `robots.txt`, and the canonical link the
-SEO section writes pointing at production. A preview outranking the product it
-previews is a well-attested way to lose traffic, and it happens because
+SEO section writes pointing at production. A branch deployment outranking the product it
+represents is a well-attested way to lose traffic, and it happens because
 indexing is opt-out everywhere else.
 
 ## The client half
 
-A preview builds the web target and serves it against the preview backend, so
+A branch deployment builds the web target and serves it against the branch deployment backend, so
 the URL is the whole of what a reviewer needs.
 
-For mobile there is no preview install, and Dartvel does not pretend
-otherwise: it does not push a build to a store or a device. What a preview
+For mobile there is no branch deployment install, and Dartvel does not pretend
+otherwise: it does not push a build to a store or a device. What a branch deployment
 gives a native application is a backend a debug build can be pointed at, and
 the web build to look at meanwhile. Reviewing a native change on a device is
 the OTA channel's job.
 
-A preview's generated protocol version is free to differ from production's. It
+A branch deployment's generated protocol version is free to differ from production's. It
 serves only its own clients, so Protocol Versioning's window is not in play,
-and a preview is where a protocol change should be found to be breaking.
+and a branch deployment is where a protocol change should be found to be breaking.
 
 ## Lifetime and cost
 
-A preview is destroyed when its branch merges or its pull request closes, and
+A branch deployment is destroyed when its branch merges or its pull request closes, and
 after `ttl:` otherwise. It suspends after `idle:` and wakes on the next
-request — a preview nobody has opened in an hour should not be holding a
+request — a branch deployment nobody has opened in an hour should not be holding a
 machine.
 
-`max:` caps how many exist at once. At the cap the oldest idle preview is
+`max:` caps how many exist at once. At the cap the oldest idle branch deployment is
 suspended rather than destroyed, and `DV-PREVIEW-004` says which: destroying
 somebody's environment to make room for another is a surprise, suspending it
 is a slow first request.
 
 Destroying takes the database and the storage bucket with it
-(`DV-PREVIEW-009`). Nothing about a preview is meant to outlive it.
+(`DV-PREVIEW-009`). Nothing about a branch deployment is meant to outlive it.
 
 ## What the adapter decides
 
-Whether previews are available at all is the deployment adapter's answer, the
+Whether branch deployments are available at all is the deployment adapter's answer, the
 same way traffic weighting is in Backend Release Management. An adapter that
 cannot create an isolated environment on demand — a bare-metal target, an edge
 runtime with a single fixed deployment — reports `DV-PREVIEW-010` and
-`dartvel preview` is unavailable, rather than producing something called a
-preview that shares production's database.
+`dartvel deploy --preview` is unavailable, rather than producing something called a
+branch deployment that shares production's database.
 
 ## CI
 
-`dartvel preview create --from-pr` is one step in a workflow, and the URL it
-prints is what the workflow comments. The preview's own diagnostics — a failed
-migration, a missing preview secret, a refused branch — are the step's exit
-code, so a preview that could not be built fails the check instead of leaving
+`dartvel deploy --preview --from-pr` is one step in a workflow, and the URL it
+prints is what the workflow comments. The branch deployment's own diagnostics — a failed
+migration, a missing branch deployment secret, a refused branch — are the step's exit
+code, so a branch deployment that could not be built fails the check instead of leaving
 a stale link from the last successful run.
 
 ## Diagnostics
 
 | Code | Reason | Level |
 |---|---|---|
-| `DV-PREVIEW-001` | preview created; it is destroyed when the branch merges or its TTL expires | `info` |
-| `DV-PREVIEW-002` | a secret required for previews has no value; the preview was not deployed | `error` |
+| `DV-PREVIEW-001` | branch deployment created; it is destroyed when the branch merges or its TTL expires | `info` |
+| `DV-PREVIEW-002` | a secret required for branch deployments has no value; the branch deployment was not deployed | `error` |
 | `DV-PREVIEW-003` | database branching refused: the source holds sensitive fields and no sanitization is declared | `error` |
-| `DV-PREVIEW-004` | the concurrent preview cap was reached; the oldest idle preview was suspended | `warning` |
-| `DV-PREVIEW-005` | preview suspended after the declared idle interval | `info` |
-| `DV-PREVIEW-006` | an outbound notification was captured rather than sent, because this is a preview | `info` |
-| `DV-PREVIEW-007` | the preview is declared publicly visible; it is excluded from indexing but not from visitors | `warning` |
-| `DV-PREVIEW-008` | a scheduled job did not run: schedules are off in previews unless declared | `info` |
-| `DV-PREVIEW-009` | preview destroyed; its database and storage went with it | `info` |
-| `DV-PREVIEW-010` | the deployment adapter cannot host previews | `warning` |
+| `DV-PREVIEW-004` | the concurrent branch deployment cap was reached; the oldest idle branch deployment was suspended | `warning` |
+| `DV-PREVIEW-005` | branch deployment suspended after the declared idle interval | `info` |
+| `DV-PREVIEW-006` | an outbound notification was captured rather than sent, because this is a branch deployment | `info` |
+| `DV-PREVIEW-007` | the branch deployment is declared publicly visible; it is excluded from indexing but not from visitors | `warning` |
+| `DV-PREVIEW-008` | a scheduled job did not run: schedules are off in branch deployments unless declared | `info` |
+| `DV-PREVIEW-009` | branch deployment destroyed; its database and storage went with it | `info` |
+| `DV-PREVIEW-010` | the deployment adapter cannot host branch deployments | `warning` |
 
 ## Deliberately absent
 
-- **Production data in a preview.** Covered above, and it is the line the rest
+- **Production data in a branch deployment.** Covered above, and it is the line the rest
   of this section is arranged around.
-- **A preview of a native build on a device.** Stores and signing are real
+- **A branch deployment of a native build on a device.** Stores and signing are real
   constraints, and a command that claimed to install a branch on a phone would
   be doing something else.
 - **Sharing production's database "just for reads".** A read of a real
   person's row is the leak; the write was never the only risk.
-- **Previews of a preview.** A branch gets one environment. Stacking them is a
+- **Branch deployments of a branch deployment.** A branch gets one environment. Stacking them is a
   cost story with no reviewer asking for it.
 
 ---
@@ -10777,6 +10776,49 @@ Not built yet:
   argument, because nothing on a runner can answer the "Open in app" prompt a
   scanned link raises.
 
+## Dartvel Preview
+
+A development build runs one project, your own. Dartvel Preview is one app
+that runs any project a `dartvel dev` on the same network serves, so a project
+reaches a device without being built for it first: Expo Go's job, for every
+platform Dartvel builds for. It lives in `apps/dartvel_preview` and is itself
+a Dartvel application.
+
+`dartvel dev` prints a Dartvel Preview code beside its others:
+
+```text
+dartvel-preview://open?name=shop&pair=dartvel-dev%3A%2F%2Fpair...&web=http%3A%2F%2F192.168.1.20%3A5000
+```
+
+It carries up to two ways in, and Preview uses the one its build can:
+
+| Preview build | How a project runs in it |
+|---|---|
+| A development build on Android, macOS, Linux or Windows | Preview hands the `pair` link to its tunnel. `dartvel dev` attaches, and the pairing hot restart replaces Preview's own program with the project's development entrypoint, compiled from the project's sources and assets. Every save after that is a hot reload |
+| A web build, in a browser | Preview shows the `web` address, the project's web build on the network, in a frame |
+| A profile or release build | Preview shows the `web` address, for a browser on the device |
+
+Preview reads a link before it acts on it. A web address that is not http or
+https is refused, because it is loaded into the app. The pairing is parsed as
+the tunnel parses it, so a link the tunnel would refuse is refused where the
+reader can see why. A pasted `dartvel-dev://pair` link or web address is a
+link too. On a desktop the tunnel reads the pairing from the command line, so
+Preview starts itself again with the pairing and exits; on Android it calls the
+build's own `DartvelDevClient.pair`.
+
+What a project needs natively has to be in Preview. Preview is built with
+`dartvel_flutter` and the plugins its pubspec declares; a project that calls a
+plugin Preview was not built with fails at the call, as it would in Expo Go
+without a development build. Checking the project's plugins against the
+paired device's binding manifest before attaching, with `DV-DEVCLIENT-002`, is
+designed and not built.
+
+Not built yet: Preview on an iPhone (iOS runs a debug build only under a
+debugger, and a store build cannot run downloaded code, so the plan is page
+bundles and the web build there); Preview on TV and embedded targets; a
+Preview in any store; and a way back from a project to Preview's own screen
+other than starting Preview again.
+
 ## Distribution
 
 Development builds are distributed as internal builds through the tracks App
@@ -10803,8 +10845,10 @@ for Play alpha, beta and production and for the App Store with
   development build that skipped the check would be the one people then use
   to demonstrate the product.
 - **A release-mode dev menu.** Separate build profile, no runtime flag.
-- **A store-hosted universal shell like Expo Go.** A development build is your
-  own app.
+- **Downloaded code in a store build.** Dartvel Preview runs a project's code
+  only as a development build, which `DV-DEVCLIENT-003` keeps off public
+  store tracks. A store build of Preview opens web builds and page bundles,
+  which are data.
 
 ---
 
@@ -10885,6 +10929,18 @@ Build
 dartvel build
 ```
 
+Serve the production build locally (no hot reload or device pairing):
+
+```bash
+dartvel build web-server                 # or dartvel build web for static output
+dartvel dev --release --host 127.0.0.1 --port 8080
+```
+
+This serves the existing minified release output in `build/web`; it does not
+rebuild it. Static output keeps its prerendered pages, while web-server output
+renders each route on request through the same renderer as the deployed binary.
+Build flags and device selection belong to the build or ordinary `dev` command.
+
 Deploy and release
 
 ```bash
@@ -10897,11 +10953,11 @@ dartvel updates release --patch-source https://app.example.com
 dartvel updates patch --patch-source https://app.example.com --channel beta
 dartvel updates rollback --patch-source https://app.example.com
 dartvel deploy --store play --dry-run
-dartvel preview create --from-pr 412
-dartvel preview list
-dartvel preview open
-dartvel preview destroy
-dartvel preview sweep
+dartvel deploy --preview --from-pr 412
+dartvel deploy --preview --list
+dartvel deploy --preview --open
+dartvel deploy --preview --destroy
+dartvel deploy --preview --sweep
 dartvel privacy check
 dartvel privacy export --subject user:1042 --out user-1042.zip
 dartvel privacy erase --subject user:1042 --reason "DSAR 2026-114"
@@ -11065,7 +11121,7 @@ running one prints the usual unknown-command error:
 | Command | Specified in |
 |---|---|
 | `dartvel deploy --plan`, `dartvel deploy rollback` | Backend Release Management |
-| `dartvel preview logs --follow`, `dartvel preview mail` | Preview Environments |
+| `dartvel deploy --preview --logs --follow`, the planned captured-mail view | Branch deployments |
 | `dartvel flags status\|set\|rollout\|off` | Feature Flags and Staged Rollout |
 | `dartvel crashes list\|show\|symbols upload\|health` | Crash Reporting and Release Health |
 | `dartvel meters list\|usage\|reconcile` | Usage Metering and Quotas |
@@ -14972,7 +15028,7 @@ cloud.dartvel.dev is serving it: the hosted deployment does not exist yet.
 | Internal distribution | `dartvel deploy --store firebase-app-distribution`, `dartvel deploy --store testflight` | An install page per development or profile build, printed with a QR code | Android built, and in the same CI run the install page served the APK as `application/vnd.android.package-archive`. iOS ad hoc (device registration, signed IPA) designed |
 | EAS Insights, Observe | Crash Reporting and Release Health; `dartvel logs`, `traces`, `metrics` | A dashboard across builds, releases and crashes | Designed |
 | EAS Metadata | Store metadata in the repository, screenshots from goldens (App Store Deployment) | Uploading it after a store deploy | Designed |
-| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. No store-hosted shell, on purpose | `--cloud --profile development` builds one without the SDK | Android built. A tvOS simulator app built on a macOS worker. iOS simulator builds from Cloud designed |
+| Expo Go, development builds | `dartvel build <target> --profile development` and `dartvel dev` pairing by QR. Dartvel Preview runs any project on Android and desktops, built from source | `--cloud --profile development` builds one without the SDK | Android built. A tvOS simulator app built on a macOS worker. iOS simulator builds from Cloud designed |
 | Expo Orbit | Artifacts land in `build/` | Artifacts land in `build/cloud/<target>`; install page and QR | Download built. Installing onto a running simulator designed |
 | Config plugins, prebuild (CNG) | Platform folders are committed. Dartvel writes the native pieces it owns: deep-link files, splash, PWA icons, widget targets, kiosk manifests | Nothing extra | Regenerating whole platform folders is not designed |
 | `app.json` | The `dartvel:` block in `pubspec.yaml` | The same file | Built |
@@ -15061,8 +15117,9 @@ against them.
 
 - **A free Cloud tier.** Local builds, store deploys, OTA from your own binary
   and self-hosting your application are the free path, and they are complete.
-- **A Cloud-hosted universal dev shell like Expo Go.** It is gated by store
-  review. A development build is your own app.
+- **A Cloud-hosted universal dev shell.** Dartvel Preview is built from source
+  and paired with `dartvel dev` on the developer's own network; Cloud does not
+  host or relay it.
 - **New commands.** Cloud is options on `build`, `deploy` and `key`.
 
 # Takeaway

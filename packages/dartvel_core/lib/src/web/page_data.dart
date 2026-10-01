@@ -603,7 +603,7 @@ String dvWithPreloads(String page, String links) {
 ///
 /// Null when the shell has no head to split, and the caller falls back to
 /// waiting for the data. One function for both servers -- the deployed one
-/// and `dartvel preview` -- because two copies of this drifted once already.
+/// and `dartvel dev --release` -- because two copies of this drifted once already.
 Stream<String>? dvShellFirstChunks({
   required String shell,
   required String path,

@@ -9,6 +9,7 @@ import '../cloud/cloud_build.dart';
 import '../deploy/store_deploy.dart';
 import '../deploy/store_plan.dart';
 import '../utils/logger.dart';
+import '../preview/preview_cli.dart';
 
 typedef DeployProcessRun = Future<ProcessResult> Function(
   String executable,
@@ -23,7 +24,18 @@ class DeployCommand extends Command<void> {
     DeployProcessRun? processRun,
     String? root,
     DVCloudBuilder? cloud,
-  })  : _processRun = processRun ?? Process.run,
+    DVPreviewHostResolver? previewHost,
+    DVPreviewGit? git,
+    DateTime Function()? clock,
+    void Function(String line)? out,
+    Map<String, String>? environment,
+  })  : _root = root,
+        _previewHost = previewHost ?? dvNoPreviewHost,
+        _git = git ?? dvRunGit,
+        _clock = clock ?? DateTime.now,
+        _out = out ?? print,
+        _environment = environment ?? Platform.environment,
+        _processRun = processRun ?? Process.run,
         _store = DVStoreDeploy(
           // The upload runs in the project, which is the working directory
           // this command already runs everything else in.
@@ -36,6 +48,16 @@ class DeployCommand extends Command<void> {
           cloud: cloud,
         ) {
     argParser
+      ..addFlag('preview', negatable: false, help: 'Create or redeploy an isolated branch deployment')
+      ..addFlag('list', negatable: false, help: 'With --preview: list branch deployments')
+      ..addFlag('open', negatable: false, help: 'With --preview: print the branch deployment URL')
+      ..addFlag('logs', negatable: false, help: 'With --preview: request logs (not yet supported by adapters)')
+      ..addFlag('follow', negatable: false, help: 'With --preview --logs: follow logs (not yet supported)')
+      ..addFlag('destroy', negatable: false, help: 'With --preview: destroy the branch deployment and its resources')
+      ..addFlag('sweep', negatable: false, help: 'With --preview: destroy expired deployments and suspend idle ones')
+      ..addOption('branch', help: 'With --preview: branch name (defaults to CI head, then checkout)')
+      ..addOption('from-pr', help: 'With --preview: pull request number for creation')
+      ..addMultiOption('closed-pr', help: 'With --preview --sweep: closed pull request numbers')
       ..addOption('target',
           abbr: 't',
           allowed: ['web', 'server', 'all'],
@@ -99,6 +121,16 @@ class DeployCommand extends Command<void> {
               'DARTVEL_CLOUD_TOKEN, which keeps it out of shell history.');
   }
 
+  final String? _root;
+  final DVPreviewHostResolver _previewHost;
+  final DVPreviewGit _git;
+  final DateTime Function() _clock;
+  final void Function(String line) _out;
+  final Map<String, String> _environment;
+
+  static const _branchActions = ['list', 'open', 'logs', 'destroy', 'sweep'];
+  static const _branchOptions = [..._branchActions, 'branch', 'from-pr', 'closed-pr', 'follow'];
+
   final DeployProcessRun _processRun;
   final DVStoreDeploy _store;
 
@@ -131,11 +163,46 @@ class DeployCommand extends Command<void> {
   @override
   String get description =>
       'Deploy to production: a web build or a server (--provider), or an '
-      'application to a store (--store).';
+      'application to a store (--store), or an isolated branch (--preview).';
 
   @override
   Future<void> run() async {
     final ArgResults args = argResults!;
+    if (args['preview'] == true) {
+      final incompatible = [
+        for (final option in [..._storeOnly, ..._hostOnly, 'store', 'environment', 'build', 'verify'])
+          if (args.wasParsed(option)) '--$option',
+      ];
+      if (incompatible.isNotEmpty) usageException('--preview cannot be combined with ${incompatible.join(', ')}.');
+      if (args.rest.isNotEmpty) usageException('--preview takes flags, not positional arguments.');
+      final actions = [for (final action in _branchActions) if (args[action] == true) action];
+      if (actions.length > 1) usageException('Choose only one branch deployment action.');
+      final action = actions.isEmpty ? 'create' : actions.single;
+      final allowed = switch (action) {
+        'create' => ['branch', 'from-pr'],
+        'open' || 'destroy' => ['branch'],
+        'logs' => ['branch', 'follow'],
+        'sweep' => ['closed-pr'],
+        _ => <String>[],
+      };
+      for (final option in ['branch', 'from-pr', 'closed-pr', 'follow']) {
+        if (args.wasParsed(option) && !allowed.contains(option)) {
+          usageException('--$option is not valid for $action.');
+        }
+      }
+      exitCode = await dvRunPreviewLifecycle([
+        action,
+        for (final option in ['branch', 'from-pr'])
+          if (args.wasParsed(option)) ...['--$option', args[option] as String],
+        for (final value in args['closed-pr'] as List<String>) ...['--closed-pr', value],
+        if (args['follow'] == true) '--follow',
+      ], root: _root ?? Directory.current.path, host: _previewHost, git: _git,
+          clock: _clock, out: _out, environment: _environment);
+      return;
+    }
+    for (final option in _branchOptions) {
+      if (args.wasParsed(option)) usageException('--$option requires --preview.');
+    }
     final String? store = args['store'] as String?;
     // Refused rather than ignored: a --dry-run that a web deploy did not
     // honour would ship while the person thought they were looking.

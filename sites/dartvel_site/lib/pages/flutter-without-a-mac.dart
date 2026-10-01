@@ -82,7 +82,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                 'started from Xcode or `flutter run`, and in CI the iOS '
                 'pairing is proven on the simulator, which also needs a Mac. '
                 'Expo users are used to scanning a code with Expo Go on an '
-                'iPhone and no Mac; Dartvel has no equivalent of Expo Go.'),
+                'iPhone and no Mac. Dartvel Preview, its equivalent, runs on '
+                'Android and desktops and does not run on an iPhone yet.'),
             CodeBlock(<String>[
               'dartvel build android --profile development',
               'dartvel dev',
@@ -136,7 +137,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'Is Expo ahead here?',
               'Yes. Expo Go runs a project on an iPhone with no Mac, and EAS '
                   'Build makes iOS builds on its own machines today. Dartvel '
-                  'has no Expo Go, and its Cloud is not open.',
+                  'Preview does not run on an iPhone yet, and its Cloud is not '
+                  'open.',
             ),
             Objection(
               'So why is this better than plain Flutter?',
