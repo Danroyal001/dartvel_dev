@@ -59,6 +59,36 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'preview',
+          title: 'Or run it in Dartvel Preview',
+          children: <Widget>[
+            DocsText('Dartvel Preview is one app that runs any project '
+                '`dartvel dev` serves on your network, so you do not build '
+                'each project for the device first. It is our Expo Go, for '
+                'every platform Dartvel builds for.'),
+            DocsShell(<String>[
+              'cd apps/dartvel_preview',
+              'dartvel build android --profile development',
+              'dartvel build linux --profile development',
+              'dartvel build web',
+            ]),
+            Bullets(<String>[
+              '`dartvel dev` prints a Dartvel Preview code. Scan it, or paste '
+                  'its link into Preview.',
+              'On Android, macOS, Linux and Windows, Preview pairs like a '
+                  'development build and `dartvel dev` restarts it into your '
+                  'project. Each save hot reloads it.',
+              'In a browser, Preview opens your project\'s web build. Run '
+                  '`dartvel dev -d web-server` so the code carries its '
+                  'address.',
+            ]),
+            DocsNote('What Preview cannot run',
+                'Preview carries the native plugins it was built with. A '
+                'project that needs another one needs its own development '
+                'build, as with Expo Go.'),
+          ],
+        ),
+        DocsSection(
           id: 'security',
           title: 'Who can connect',
           children: <Widget>[
@@ -67,6 +97,9 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
               'The connection is TLS, and the app checks that the server holds '
                   'the key from the code before it sends the token.',
               'A request without the token gets 401.',
+              'Dartvel Preview opens only http and https web addresses, and '
+                  'checks a pairing link the way the tunnel does before it '
+                  'acts on it.',
             ]),
           ],
         ),
@@ -91,6 +124,9 @@ Widget _docsDevClientPage(BuildContext context) => const DocsArticle(
                   '`flutter run`.',
               'TV and embedded targets have no development build.',
               'A development build cannot connect to a preview environment.',
+              'Dartvel Preview is built from source and is in no store. It '
+                  'does not run on an iPhone yet, and it does not yet check a '
+                  'project\'s plugins against its own before it runs one.',
             ]),
           ],
         ),

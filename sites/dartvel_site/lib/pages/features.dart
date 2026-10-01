@@ -523,7 +523,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Dev Client',
     '`dartvel dev`',
     'Present: Android, iOS, macOS, Linux and Windows development builds pair '
-        'over TLS and hot reload on every save. Absent: connecting to a preview '
+        'over TLS and hot reload on every save. Dartvel Preview runs any project on Android and desktops without building it first. Absent: connecting to a preview '
         'environment, and embedded and TV development builds.',
   ),
   (

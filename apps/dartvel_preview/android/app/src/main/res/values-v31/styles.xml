@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dartvel:splash: written by dartvel build from dartvel.splash in
+     pubspec.yaml, and rewritten by every build. To design this file by
+     hand, delete this comment and Dartvel will leave it alone. -->
+<resources>
+    <!-- From API 31 the system draws its own splash and ignores a
+         layer-list window background, so it is told the colour here. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/dartvel_splash_background</item>
+    </style>
+</resources>
