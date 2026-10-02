@@ -196,5 +196,22 @@ flutter:
       expect(cache.has('flutter-web', 'old'), isFalse);
       expect(cache.has('semantics', 'new'), isTrue);
     });
+      test('many entries from one build all survive: groups are pruned, not entries', () async {
+      final DVBuildCache cache = DVBuildCache(project.path, keepPerStage: 3);
+      for (int route = 0; route < 65; route++) {
+        cache.store('semantics-build1', 'route$route', output, prune: false);
+      }
+      cache.pruneGroups('semantics-');
+      for (int route = 0; route < 65; route++) {
+        expect(cache.has('semantics-build1', 'route$route'), isTrue, reason: 'route$route');
+      }
+      for (final String build in <String>['build2', 'build3', 'build4']) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        cache.store('semantics-$build', 'route0', output, prune: false);
+        cache.pruneGroups('semantics-');
+      }
+      expect(cache.has('semantics-build1', 'route0'), isFalse, reason: 'the oldest build goes');
+      expect(cache.has('semantics-build4', 'route0'), isTrue);
+    });
   });
 }

@@ -249,7 +249,11 @@ class DVBuildCache {
   /// Copies every file of [source] into entry [key] of [stage]. The manifest
   /// is written last, so an entry interrupted half way has none and is never
   /// read.
-  void store(String stage, String key, Directory source) {
+  ///
+  /// [prune] false leaves pruning to the caller: a stage that holds many
+  /// entries from one build (a capture per route) prunes by group instead,
+  /// with [pruneGroups].
+  void store(String stage, String key, Directory source, {bool prune = true}) {
     if (!enabled || !source.existsSync()) return;
     final Directory entry = _entry(stage, key);
     final Directory staging = Directory('${entry.path}.partial-$pid');
@@ -269,7 +273,23 @@ class DVBuildCache {
     if (entry.existsSync()) entry.deleteSync(recursive: true);
     entry.parent.createSync(recursive: true);
     staging.renameSync(entry.path);
-    prune(stage);
+    if (prune) this.prune(stage);
+  }
+
+  /// Keeps the newest [keep] stages whose names start with [prefix], each
+  /// stage being one group of entries (every route's capture of one web
+  /// build), then trims the whole cache to [maxBytes].
+  void pruneGroups(String prefix, {int keep = 3}) {
+    final Directory all = Directory(p.join(projectRoot, dvBuildCacheDirectory));
+    if (!all.existsSync()) return;
+    final List<Directory> groups = <Directory>[
+      for (final FileSystemEntity entity in all.listSync())
+        if (entity is Directory && p.basename(entity.path).startsWith(prefix)) entity,
+    ]..sort((Directory a, Directory b) => b.statSync().modified.compareTo(a.statSync().modified));
+    for (final Directory old in groups.skip(keep)) {
+      old.deleteSync(recursive: true);
+    }
+    prune('');
   }
 
   /// Whether entry [key] of [stage] is there and valid.
@@ -311,7 +331,7 @@ class DVBuildCache {
   /// cache to [maxBytes], oldest first.
   void prune(String stage) {
     final Directory stageDirectory = Directory(p.join(projectRoot, dvBuildCacheDirectory, stage));
-    if (stageDirectory.existsSync()) {
+    if (stage.isNotEmpty && stageDirectory.existsSync()) {
       final List<Directory> entries = _entriesNewestFirst(stageDirectory);
       for (final Directory old in entries.skip(keepPerStage)) {
         old.deleteSync(recursive: true);

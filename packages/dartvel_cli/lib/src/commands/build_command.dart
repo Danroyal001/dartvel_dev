@@ -3220,11 +3220,14 @@ class BuildCommand extends Command<void> {
         ..addText('route', route)
         ..addText('capture', '$dvSemanticsCaptureVersion')
         ..addText('dartvel', dartvelCliVersion);
+    // One stage per web output: every route's capture of one build is a
+    // group, and the newest three groups are kept.
+    final String captureStage = 'semantics-${webHash.isEmpty ? 'off' : webHash.substring(0, 16)}';
     final List<String> toCapture = <String>[];
     int reused = 0;
     for (final String route in routes) {
       final Directory outputs = Directory(p.join(root, '.dart_tool', 'dartvel_capture_restore', '${route.hashCode}'));
-      if (cache.enabled && cache.restore('semantics', captureKey(route).digest, outputs)) {
+      if (cache.enabled && cache.restore(captureStage, captureKey(route).digest, outputs)) {
         _placeCaptureOutputs(root, route, outputs);
         reused++;
       } else {
@@ -3247,11 +3250,12 @@ class BuildCommand extends Command<void> {
         for (final String route in toCapture) {
           final Directory outputs = _collectCaptureOutputs(root, route);
           if (outputs.listSync().isNotEmpty) {
-            cache.store('semantics', captureKey(route).digest, outputs);
+            cache.store(captureStage, captureKey(route).digest, outputs, prune: false);
           }
           outputs.deleteSync(recursive: true);
         }
       }
+      if (cache.enabled) cache.pruneGroups('semantics-');
     } else {
       Logger.log('   Semantics trees: all ${routes.length} routes unchanged, reused.');
     }
