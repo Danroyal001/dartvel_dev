@@ -11217,6 +11217,251 @@ Rust behind it yet, and no float, string or struct type.
 ---
 
 
+# Server State (`initServerState`)
+
+Stability: `Draft` · Status: `Planned` (accepted 2 October 2026)
+
+A widget can name a backend function that produces its data. The function always runs on the server,
+never in the browser or on the device. Its result is typed, reaches the widget through `DVContext`, and
+is part of the first frame wherever the target renders on the server.
+
+## Declaring it
+
+`initServerState:` takes the **generated client function** of an `@DVBackendFunction` (`getDashboard`,
+not the private `_getDashboard` you write). That generated function is what every target calls. The
+backend function behind it is the single implementation; nothing generates a second one.
+
+```dart
+@DVBackendFunction(policy: 'dashboard.view')
+Future<DashboardState> _getDashboard(DVContext context) async => DashboardState(
+      openWorkOrders: await WorkOrder.where((order) => order.isOpen).count(),
+      dueThisWeek: await Asset.dueWithin(const Duration(days: 7)), // a list of DVModels
+      overdueTotal: await Order.where((order) => order.isOverdue).sum((order) => order.cost),
+    );
+
+@DVPage('/dashboard')
+@DVFunctionalWidget(initServerState: getDashboard) // the generated client function
+Widget _dashboard(BuildContext context) {
+  final DashboardState state = context.serverState; // typed as DashboardState
+  return DVBox.list([
+    DVText('Open work orders: ${state.openWorkOrders}'),
+    for (final Asset asset in state.dueThisWeek) AssetRow(asset),
+  ]);
+}
+```
+
+The class form, which the annotation expands to:
+
+```dart
+class DashboardPage extends DVClassWidget<DashboardState> {
+  const DashboardPage({super.key});
+
+  // DVContext is injected on the server, so the client call takes only the function's own
+  // arguments (route params and query are passed through automatically).
+  @override
+  Future<DashboardState> initServerState() => getDashboard();
+
+  @override
+  Widget build(BuildContext context) {
+    final DashboardState state = context.dvContext.getServerState();
+    ...
+  }
+}
+```
+
+### Reading and refreshing
+
+| Full form | Shorthand on `BuildContext` |
+|---|---|
+| `context.dvContext.getServerState()` | `context.serverState` |
+| `context.dvContext.refreshServerState()` | `context.refreshServerState()` |
+
+- **Typed in both forms.** For a functional widget, the generator emits a typed `DVContext` view for that
+  widget. Both forms then return the named backend function's type, the same type a class widget
+  declares with `DVClassWidget<T>`. A mismatch is a build error.
+- **When it runs again:**
+  - when the route's params or query change;
+  - when it is refreshed;
+  - when its cache expires.
+  It never runs again just because the widget rebuilds.
+
+### Generation order: a dependency graph
+
+A widget annotation refers to a client function that is itself generated from another annotation.
+So the generator builds a dependency graph of everything it generates, and emits in that order, the
+way Terraform resolves resources:
+- models;
+- backend functions, then their generated client functions;
+- then the widgets and pages that use them;
+- then the routes.
+
+The rules:
+- **References resolve whatever the file order:** a widget may refer to a client function declared in
+  any file, before or after it.
+- **A cycle fails the build** with `DV-GEN-CYCLE`, naming every step of the cycle. One example is a
+  backend function that needs a widget's generated type.
+- **Unchanged parts aren't regenerated:** the graph is cached, so only the changed part of it is
+  regenerated in `dartvel dev`.
+
+## One code path
+
+The named backend function's generated handler is the only server code. Each target reaches that
+same handler:
+
+| Target | How the handler is reached | Result |
+|---|---|---|
+| web-server | Called in-process by the render, through the same handler the HTTP route uses (no HTTP hop) | The HTML has the data on the first frame. The state is embedded as data, so Flutter takes over without calling again. |
+| web (static) | Called on the build machine for each path in `staticPaths` | Prerendered HTML with the data. A refresh calls the HTTP route. |
+| iOS, Android, desktop, web after takeover | The generated client function (`getDashboard()`), which calls the HTTP route | `.loading`, then the widget. The state is cached for back/forward. |
+| No server reachable | Nothing runs | The last state, marked stale, or the widget's `.offline` companion (`.error` if it has none). |
+
+Because the handler already exists as a backend function, these come with it, with no new mechanism:
+- policies, MFA, rate limits, CSRF (for the HTTP route), logging and tracing;
+- the AI-tool exposure;
+- tests.
+
+On every target, the function body and anything only it imports stay out of client bundles. The
+build fails with `DV-SERVER-STATE-001` naming the symbol if one leaks.
+
+## Database access in the function
+
+- **Model queries work on every driver.** Use them by default (`where`, `count`, `sum`, ...): they
+  compile to SQL on a SQL driver and to a filter document on MongoDB.
+- **Raw queries are driver-specific.** `DV.Database.query(sql)` and `execute(sql)` exist only when the
+  project's driver is SQL (SQLite, PostgreSQL, MySQL):
+  ```dart
+  // Only on a SQL driver:
+  final rows = await DV.Database.query('select sum(cost) as total from orders where overdue');
+  ```
+  On a MongoDB project, the SQL methods are not there at all, and calling them is a build error that
+  names the driver. MongoDB gets its own native query API instead.
+
+## What it can return
+
+- **Data:** anything a backend function can return:
+  - `DVModel`s and lists of `DVModel`s, which serialise across every target;
+  - records, maps, lists and primitives;
+  - `DateTime`, `Money` and enums.
+- **UI, built from Dartvel UI primitives only** (`DVBox`, `DVText`, `DVImageView`, `DVButton`,
+  `DVForm`, ... and components made from them):
+  ```dart
+  @DVBackendFunction()
+  Future<DVBox> _getPromoBanner(DVContext context) async => DVBox.list([
+        DVText(await Promo.current().headline()),
+        DVButton('See offers', to: '/offers'),
+      ]);
+  ```
+  - The returned tree is described in Dartvel's own UI format.
+  - It renders as server HTML on web-server, and as native Flutter widgets everywhere else.
+  - Those primitives are designed to work on every target, which is why arbitrary Flutter widgets
+    can't be returned: a build error names the widget that isn't a Dartvel primitive.
+  - Actions in returned UI, such as navigation, forms and backend calls, use the same primitives as
+    hand-written UI. So they go through policies and CSRF like any other call.
+- **A model directly,** for example `initServerState: getOrder` (generated from `_getOrder`)
+  returning `Order`.
+- **Anything that can't cross** fails the build, naming the field.
+
+## Security
+
+- **The function body is server code.** It may use secrets (`DV.Secrets`), raw database calls,
+  sensitive actions, other backend functions and admin-only queries. None of it reaches the client.
+- **What reaches the client is only the returned state.** The build flags (and `dartvel doctor`
+  reports) a returned value that carries:
+  - a field marked `@DVModel.sensitiveField()`;
+  - a value read from `DV.Secrets`.
+  You fix it by not returning it, or with an explicit, documented
+  `@DVSendsToClient(reason: '...')` on the field.
+- **The function's policy is checked before it runs,** on every path, including the in-process
+  web-server call.
+
+## Caching
+
+`@DVBackendFunction(cache: ...)` on the function itself, so the HTTP route and the in-process call share
+one cache:
+- `perRequest`;
+- `forDuration(Duration)`;
+- `tags([...])`, invalidated by model writes (`Order.saved` invalidates `'orders'`) or by
+  `DV.cache.invalidate('orders')`.
+
+## Loading, errors, offline
+
+These reuse the page companions `.loading`, `.error` and the new `.offline`. On web-server, a server
+error renders `.error` as HTML.
+
+## Works without JavaScript
+
+On web-server, every page using server state is complete with scripts off. That includes `DVForm`, and
+everything built on it (`Model.Form`, generated create/edit pages, Studio forms, sign-in):
+
+Today (checked 2 October 2026) the server-rendered HTML has no `<form>`, `<input>` or `<button>`: a
+`DVForm` reaches a no-script browser as text only. This section is new work, not a description.
+- **It renders as a normal, working HTML form:** real `<form method="post">`, `<label>`, `<input>`
+  and `<button type="submit">`, with a CSRF field.
+- **It posts to the form's backend function.** That function validates on the server and answers
+  with the next page, or with the same form showing its errors and the user's values filled back in.
+- **When Flutter takes over,** the same form keeps the user's input and focus.
+
+## Testing and Studio
+
+- **Tests:**
+  - `DVTest.pumpWidget(DashboardPage, serverState: fakeState)`;
+  - the function itself is tested like any backend function;
+  - a no-script test submits each `DVForm` as plain HTML.
+- **Studio:**
+  - the inspector shows a widget's server state, the function behind it, and a refresh button;
+  - a page built in Studio can bind to any existing backend function's generated client function as its
+    server state, without code.
+
+## `loadData` is deprecated now
+
+`DartvelPage.loadData()` is untyped, runs on the client, and the static generator skips it for
+functional widgets.
+- It is **deprecated as of the release that ships server state**.
+- From that release, `dartvel doctor` and the build warn on every use, naming the file and showing
+  the `initServerState` version.
+- It is removed in the next release.
+
+## Definition of done
+
+1. **One code path.** The web-server render calls the same handler as the HTTP route. There is a test
+   that fails if a second implementation appears.
+2. **The dependency graph:**
+   - generation follows the graph;
+   - out-of-order references work;
+   - a cycle fails with `DV-GEN-CYCLE` naming its steps.
+3. **Typed state.** Both forms are typed through `context.dvContext.getServerState()` and
+   `context.serverState`, and a type mismatch fails the build.
+4. **Every target.** Web-server HTML has the data with JS off, and every `DVForm` submits and shows
+   errors without JS. Static web, Android, iOS and desktop work, and the offline behaviour is as
+   described.
+5. **Returned UI** from Dartvel primitives renders on every target, and anything else fails the build.
+6. **Builds and the database:**
+   - there is no server code in any client bundle (the build check);
+   - returning sensitive data is flagged;
+   - raw SQL is a build error on a non-SQL driver.
+7. **`loadData` is deprecated** with warnings.
+8. **Docs and output:** README, NEW_SPEC and the site docs are updated in the same PR, and dartvel.dev's
+   output is diffed before and after.
+
+## Compared with others (checked 2 October 2026; recheck before publishing)
+
+- **Expo Router server components:**
+  - run on iOS, Android and web, as an early preview;
+  - Expo's docs say production deployment is "limited and not recommended yet" and "Server rendering
+    RSC payloads to HTML is not supported yet";
+  - EAS Update doesn't work with them yet;
+  - offline works only for build-time routes.
+  https://docs.expo.dev/guides/server-components/
+- **Flutter server-driven UI packages** (rfw, Stac, Duit) send UI descriptions in their own formats.
+  Server state sends typed data, or UI made of Dartvel's own primitives, to ordinary Dart widgets.
+- **What we can claim once built:**
+  - typed server data, or server-built UI, for Flutter apps in one language, reusing backend
+    functions;
+  - HTML from the first frame on web-server, including forms that work without JavaScript;
+  - the same widget on desktop.
+
+---
+
 # Home Widgets
 
 Stability: `Draft` · Status: `Partial`
