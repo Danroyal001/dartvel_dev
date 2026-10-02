@@ -48,7 +48,6 @@ Future<String> _routerFor(Directory root) async {
     normalizeTrailing: true,
     notFoundRedirect: '',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap.wrap(<String, Object?>{}),
   );

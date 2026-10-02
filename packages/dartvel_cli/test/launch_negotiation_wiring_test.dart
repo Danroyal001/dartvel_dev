@@ -50,7 +50,6 @@ Future<String> runtimeFor({bool terminal = false}) async {
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: terminal ? YamlMap.wrap(<String, Object?>{'terminal': true}) : YamlMap(),
   );

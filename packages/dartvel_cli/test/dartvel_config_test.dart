@@ -39,7 +39,6 @@ dartvel:
     durationMs: 300
   plugins:
     - auth
-  webPrerender: yes
   ota: true
 ''');
 
@@ -57,7 +56,6 @@ dartvel:
       expect(config.transitions.defaultTransition, 'slideLeft');
       expect(config.transitions.durationMs, 300);
       expect(config.plugins, <String>['auth']);
-      expect(config.webPrerender, isTrue);
       expect(config.ota, isTrue);
     });
 
@@ -241,6 +239,31 @@ dartvel:
           ),
         ),
       );
+    });
+
+    test('webPrerender is ignored (deprecated)', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: deprecated_app
+dartvel:
+  webPrerender: true
+''');
+
+      final config = await DartvelConfig.load(temp);
+      expect(config.ota, isFalse); // default
+      final List<String> warnings = dvDeprecatedConfigWarnings(config.raw, 'pubspec.yaml');
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains('dartvel.webPrerender'));
+      expect(warnings.single, contains('always on'));
+    });
+
+    test('no deprecation warning when the key is absent', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: current_app
+dartvel:
+  ota: true
+''');
+      final config = await DartvelConfig.load(temp);
+      expect(dvDeprecatedConfigWarnings(config.raw, 'pubspec.yaml'), isEmpty);
     });
   });
 }
