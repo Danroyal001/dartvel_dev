@@ -251,15 +251,32 @@ void main() {
     expect(find.text('legacy'), findsOneWidget);
   });
 
-  test('a preview is registered for an open route and not a guarded one', () {
+  test('every config route has a preview', () {
     dvConfigRoutes(configRoutes());
     expect(DVRoutePreviews.forPath('/settings'), isNotNull);
     expect(DVRoutePreviews.forPath('/orders'), isNotNull);
-    // Parameterised: a link names a concrete path, never the pattern.
-    expect(DVRoutePreviews.forPath('/orders/:id'), isNull);
-    // Behind the shell's redirect. A preview is the page built live, and
-    // building it for somebody the guard would refuse shows them the page.
-    expect(DVRoutePreviews.forPath('/admin/reports'), isNull);
+    // A link names a concrete path; the parameter route answers it.
+    expect(DVRoutePreviews.forPath('/orders/9'), isNotNull);
+    // Behind the shell's redirect: previewed, but safely (see below).
+    expect(DVRoutePreviews.forPath('/admin/reports'), isNotNull);
+  });
+
+  testWidgets('a parameter config route previews with its parameters', (
+    WidgetTester tester,
+  ) async {
+    dvConfigRoutes(configRoutes());
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: DVRoutePreviews.forPath('/orders/9')!)));
+    expect(find.text('order 9 /orders/:id'), findsOneWidget);
+  });
+
+  testWidgets('a guarded config route previews only a sign-in card, never '
+      'the page the guard protects', (WidgetTester tester) async {
+    dvConfigRoutes(configRoutes());
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: DVRoutePreviews.forPath('/admin/reports')!)));
+    expect(find.byType(DVGuardedRoutePreview), findsOneWidget);
+    expect(find.text('reports'), findsNothing);
   });
 
   test('preview: false keeps a route out of the preview registry', () {

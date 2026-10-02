@@ -7,6 +7,7 @@ import '../agents/agent_docs.dart';
 import '../agents/architecture_docs.dart';
 import '../templates/project_templates.dart';
 import '../utils/logger.dart';
+import 'adopt_command.dart' show dvAdoptFromTerminal;
 
 /// Why `create` must not scaffold in [root], or null when it may.
 ///
@@ -140,7 +141,7 @@ class InitCommand extends Command<void> {
 
   @override
   String get description =>
-      'Initialize a new Dartvel project with best practices.${aliases.isEmpty ? '' : ' (Aliases: ${aliases.join(', ')})'}';
+      'Create a Dartvel project, or add Dartvel to the project already in the folder (the same as dartvel init).${aliases.isEmpty ? '' : ' (Aliases: ${aliases.join(', ')})'}';
 
   // Not `init`: that initializes Dartvel inside a project that already
   // exists, and is AdoptCommand. As an alias of this command it replaced
@@ -160,11 +161,36 @@ class InitCommand extends Command<void> {
           help: 'The package name, when it should differ from the folder\'s. '
               'Lowercase with underscores, as `flutter create` requires.')
       ..addOption('org',
-          abbr: 'o', defaultsTo: 'com.example', help: 'Organization domain');
+          abbr: 'o', defaultsTo: 'com.example', help: 'Organization domain')
+      // The same two as `dartvel init`: in a project Dartvel did not make,
+      // create adopts it exactly as init does.
+      ..addFlag('dry-run',
+          negatable: false,
+          help: 'In an existing project: print the adoption plan; write nothing.')
+      ..addFlag('yes',
+          abbr: 'y',
+          negatable: false,
+          help: 'In an existing project: apply the adoption plan without asking.');
   }
 
   @override
   Future<void> run() async {
+    // `create` and `init` are one command: a project that is already there
+    // -- here, or in the folder named -- is adopted, the plan first and
+    // nothing of its own overwritten, never scaffolded over. Before naming
+    // anything: an existing project already has its name.
+    final String existingRoot = argResults!.rest.isEmpty
+        ? Directory.current.path
+        : p.absolute(argResults!.rest.first);
+    if (dvForeignProjectRefusal(existingRoot) != null) {
+      final int code = await dvAdoptFromTerminal(
+        existingRoot,
+        dryRun: argResults!['dry-run'] as bool,
+        assumeYes: argResults!['yes'] as bool,
+      );
+      if (code != 0) exitCode = code;
+      return;
+    }
     final DVCreateTarget target = dvResolveCreateTarget(
       cwd: Directory.current.path,
       folder: argResults!.rest.isEmpty ? null : argResults!.rest.first,
@@ -198,14 +224,7 @@ class InitCommand extends Command<void> {
     // Before anything writes. `flutter create` runs next and produces a
     // pubspec of its own, so after that point there is no way to tell whose
     // file is on disk.
-    final String? refusal = dvForeignProjectRefusal(root);
-    if (refusal != null) {
-      Logger.log(refusal);
-      throw UsageException(
-        'refusing to scaffold over a project Dartvel did not create',
-        'dartvel create [<folder>]',
-      );
-    }
+
 
     Logger.log('🚀 Initializing Dartvel project: $projectName in $root');
 

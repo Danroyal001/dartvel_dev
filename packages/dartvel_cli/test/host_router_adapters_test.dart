@@ -30,7 +30,8 @@ void main() {
       expect(beamer.router, isNull);
       for (final String named in <String>[
         'beamer', 'go_router', 'auto_route', 'Navigator',
-        'dartvelOnGenerateRoute', 'dartvelPageFor', 'dartvelAutoRoutes',
+        'dartvelGoRouter', 'dartvelRouteFactory', 'dartvelNavigator2_0Routes',
+        'dartvelRouterConfig', 'dartvelAutoRoutes',
       ]) {
         expect(beamer.message, contains(named));
       }
@@ -38,12 +39,25 @@ void main() {
   });
 
   group('the generated client', () {
-    test('mounts into Navigator 1.0 and 2.0 in every project', () async {
+    test('mounts into go_router, Navigator 1.0 and 2.0 and a RouterConfig '
+        'in every project, each beside the app\'s own handler', () async {
       final Directory root = workspace();
       await generate(root);
       final String router = read(root, 'router.g.dart');
       expect(router, contains('Route<Object?>? dartvelOnGenerateRoute('));
-      expect(router, contains('Page<Object?>? dartvelPageFor('));
+      expect(router, contains('RouteFactory dartvelRouteFactory('));
+      expect(router, contains('dv_nav.RouteFactory? existing,'));
+      expect(router, contains('GoRouter dartvelGoRouter('));
+      expect(router, contains('List<RouteBase> existing = const <RouteBase>[],'));
+      // Navigator 2.0 gets every route as a list to spread into the app's own
+      // table, never a per-location lookup.
+      expect(router, contains('List<DVNavigatorRoute> dartvelNavigator2_0Routes('));
+      expect(router, isNot(contains('dartvelPages(')));
+      expect(router, isNot(contains('dartvelPageFor(')));
+      expect(router, isNot(contains('dartvelRouteFor(')));
+      expect(router,
+          contains('RouterConfig<Object> dartvelRouterConfig<T extends Object>('));
+      expect(router, contains('RouterConfig<T>? existing,'));
       expect(router, isNot(contains('auto_route')));
     });
 
@@ -58,7 +72,11 @@ void main() {
       expect(router,
           contains("import 'package:auto_route/auto_route.dart' as auto_route;"));
       expect(router, contains('List<auto_route.AutoRoute> dartvelAutoRoutes('));
-      expect(router, contains(r"path: '$at/*'"));
+      expect(router, contains(
+          'List<auto_route.AutoRoute> existing = const <auto_route.AutoRoute>[],'));
+      // One route per Dartvel path, not a wildcard that would take every
+      // path under the mount from the app's own routes.
+      expect(router, isNot(contains(r"path: '$at/*'")));
     });
   });
 }

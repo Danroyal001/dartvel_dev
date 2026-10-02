@@ -54,10 +54,26 @@ class AdoptCommand extends Command<void> {
       await runner!.run(['create', ...argResults!.rest]);
       return;
     }
-    final int code = await dvRunInit(
+    final int code = await dvAdoptFromTerminal(
       Directory.current.path,
       dryRun: argResults!['dry-run'] as bool,
       assumeYes: argResults!['yes'] as bool,
+    );
+    if (code != 0) exitCode = code;
+  }
+}
+
+/// [dvRunInit] at a terminal: the one adoption path `dartvel init` and
+/// `dartvel create` both take in a project Dartvel did not make.
+Future<int> dvAdoptFromTerminal(
+  String root, {
+  required bool dryRun,
+  required bool assumeYes,
+}) async =>
+    dvRunInit(
+      root,
+      dryRun: dryRun,
+      assumeYes: assumeYes,
       interactive: stdin.hasTerminal,
       confirm: () async {
         stdout.write('Apply these changes to pubspec.yaml? [y/N] ');
@@ -67,9 +83,6 @@ class AdoptCommand extends Command<void> {
       out: stdout.writeln,
       localPackagesDir: await dvLocalPackagesDir(),
     );
-    if (code != 0) exitCode = code;
-  }
-}
 
 /// The body of `dartvel init`, returning the exit code.
 ///

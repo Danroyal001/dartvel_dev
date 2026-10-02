@@ -759,7 +759,8 @@ that folder and does not. The root guard runs first, then the route's own
 redirects from the outside in.
 
 A config route behind any redirect is listed in `dartvelGuardedRoutes`, so it
-is left out of `sitemap.xml`, and gets no link preview.
+is left out of `sitemap.xml`, and its link preview is a sign-in card: its
+`title:` and that it needs signing in, never the screen the redirect protects.
 
 ### Nesting
 
@@ -849,9 +850,41 @@ any page.
 A link to a config route is a link: an anchor in the semantics tree, keyboard
 focus, middle click to a new tab. Preload has nothing of its own to fetch —
 there is no deferred library — so it is the web document prefetch every
-route gets. Preview builds the route's screen: a parameterless config route
-with no redirect over it registers one, and `preview: false` turns it off for
+route gets. Every route has a preview. An open route's preview builds its
+screen for the location the link names, parameters included (`/orders/9`
+previews `/orders/:id` with `id` = `9`). A guarded route -- a page under a
+guard or with a policy, or a config route behind a redirect -- previews only
+its public title and that it needs signing in, so a hover never shows a
+signed-out reader what the guard protects. `preview: false` turns it off for
 a screen too heavy or too live to build on a hover.
+
+### A Navigator 2.0 app
+
+An app with its own `RouterDelegate` keeps it, and keeps its own route table.
+`dartvelNavigator2_0Routes` returns every Dartvel route, mounted under `at`, as
+entries for that table -- all of them, as a list to spread, not a lookup per
+location:
+
+```dart
+late final List<DVNavigatorRoute> table = <DVNavigatorRoute>[
+  DVNavigatorRoute('/settings', (Uri uri) => const MaterialPage(child: SettingsScreen())),
+  ...dartvelNavigator2_0Routes(at: '/app', onLocationChanged: go),
+];
+
+// RouterDelegate.build:
+Navigator(pages: [homePage, ...dvNavigatorPages(location, table)], onDidRemovePage: (_) {})
+```
+
+The delegate owns the location, the stack and the address bar. The first entry
+that matches a location answers. Under a prefix a final `<at>/**` entry gives
+an unknown path under the mount Dartvel's not-found page. Every Dartvel entry
+builds the same page, keyed by the mount, so moving between Dartvel locations
+keeps it; guards, parameters, the query and back behave as in a Dartvel app,
+and navigation inside Dartvel is reported to `onLocationChanged`.
+
+`MaterialApp.router` and `CupertinoApp.router` compose instead:
+`dartvelRouterConfig(at: '/app', existing: yourConfig)` answers Dartvel's paths
+and hands every other location to the app's own parser and delegate.
 
 ### Bringing an existing go_router app
 
@@ -11846,11 +11879,12 @@ That is a change, and the change is the point. **`init` was an alias of
 Run in an existing application — which is exactly where somebody adopting
 Dartvel would run it, and exactly what the word invites — it replaced every
 dependency the project declared and reported it as an information line. The two
-words mean different things and must stop being synonyms: `create` makes a
-project that did not exist, `init` initializes Dartvel inside one that does.
-`dartvel create` refuses rather than overwrites when it finds a `pubspec.yaml`
-it did not write (`DV-ADOPT-005`), and points at `dartvel init`, which adds
-Dartvel to that project without scaffolding over it.
+fix is one command that does the right thing wherever it is run: `create`
+and `init` both make a project where there is none, and both adopt the one
+that is there -- the plan first (`--dry-run` to only see it, `--yes` to apply
+without asking), the dependency and the `dartvel:` key added, nothing of the
+project's own overwritten. Neither ever scaffolds over a `pubspec.yaml` it did
+not write.
 
 ## Usage decides what is linked
 
