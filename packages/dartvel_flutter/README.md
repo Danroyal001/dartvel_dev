@@ -510,3 +510,8 @@ open at `<mount>/data/<model>/<record>` and report stale links explicitly.
 The framework is Dartvel and the command is `dartvel`. The pub.dev package for
 the CLI is `dartvel_dev` because `dartvel` was taken on 2026-08-06 by an
 unrelated package.
+
+## Forms and accessibility (framework-level)
+
+- `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own.
+- Every `DVForm` is keyboard-accessible with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region and puts the focus on the field at fault. `DVFormScope` is the public piece for inputs a form does not draw itself.

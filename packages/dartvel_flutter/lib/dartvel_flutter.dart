@@ -16,7 +16,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, TextInput;
+import 'package:flutter/services.dart'
+    show Clipboard,
+        ClipboardData,
+        KeyDownEvent,
+        KeyEvent,
+        KeyRepeatEvent,
+        LogicalKeyboardKey,
+        TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
@@ -851,6 +858,77 @@ export 'src/xr/xr.dart';
 // UI & Styling Primitives (NEW_SPEC.md)
 // ==========================================
 
+/// Draws the control that shows and hides an obscured value.
+///
+/// Given the state it is drawing for and a way to change it, so the same call
+/// works for the button an application wants and for the one it replaces:
+///
+/// ```dart
+/// visibilityToggle: .custom(
+///   (BuildContext context, bool obscured, VoidCallback toggle) => TextButton(
+///     onPressed: toggle,
+///     child: Text(obscured ? 'Show it' : 'Hide it'),
+///   ),
+/// ),
+/// ```
+typedef DVVisibilityToggleBuilder = Widget Function(
+  BuildContext context,
+  bool obscured,
+  VoidCallback toggle,
+);
+
+/// Whether an obscured value can be revealed, and by what.
+///
+/// On a field that hides what is typed into it -- a password, or a
+/// `@DVModel.sensitiveField()` a form lets a person set -- the default is an
+/// eye in the field. Typing a password twice is the ordinary way to get a
+/// capital wrong, and a field that cannot be read back cannot be corrected
+/// without losing everything already typed into it.
+///
+/// Nothing here draws on a field that is not obscured: `.eye` is a promise
+/// about a password field, and a field showing its text has nothing to
+/// reveal.
+sealed class DVVisibilityToggle {
+  const DVVisibilityToggle();
+
+  /// An eye in the field, labelled with what pressing it will do.
+  ///
+  /// The default on `.input(obscureText: true)`.
+  static const DVVisibilityToggle eye = DVEyeVisibilityToggle();
+
+  /// No toggle: the value stays hidden for as long as the field is.
+  static const DVVisibilityToggle none = DVNoneVisibilityToggle();
+
+  /// Any control of the application's own, given the current state and a
+  /// callback that flips it.
+  static DVCustomVisibilityToggle custom(DVVisibilityToggleBuilder builder) =>
+      DVCustomVisibilityToggle(builder);
+}
+
+/// The default: an eye button inside the field, saying "Show password" until
+/// the value is showing and "Hide password" after it.
+final class DVEyeVisibilityToggle extends DVVisibilityToggle {
+  const DVEyeVisibilityToggle();
+}
+
+/// Off: an obscured field with no way to reveal what was typed into it.
+final class DVNoneVisibilityToggle extends DVVisibilityToggle {
+  const DVNoneVisibilityToggle();
+}
+
+/// A control of the application's own, drawn in the field instead of the eye.
+final class DVCustomVisibilityToggle extends DVVisibilityToggle {
+  const DVCustomVisibilityToggle(this.builder);
+
+  /// What is drawn, given whether the value is hidden and a way to show it.
+  final DVVisibilityToggleBuilder builder;
+}
+
+/// The "not given" marker for a modifier option whose value may be null and
+/// whose absence means something -- `input(error: null)` clears an error, and
+/// `.copyWith()` without it leaves one alone.
+const Object _unset = Object();
+
 class DVModifier {
   final EdgeInsetsGeometry? paddingValue;
   final EdgeInsetsGeometry? marginValue;
@@ -997,6 +1075,23 @@ class DVModifier {
   final String? inputHintValue;
   final String? inputHelperValue;
   final bool inputObscureText;
+
+  /// What reveals an obscured value in this field. [DVVisibilityToggle.none]
+  /// until `.input()` says otherwise, which is `.eye` on a password field.
+  final DVVisibilityToggle inputVisibilityToggle;
+
+  /// A field that takes more than one line: Enter is a newline in it, and
+  /// never a submit.
+  final bool inputMultiline;
+
+  /// Called when Enter arrives in this field and the form has been asked to
+  /// do something about it.
+  final VoidCallback? inputSubmitted;
+
+  /// What is wrong with what was typed here, shown under the field and read
+  /// out with it.
+  final String? inputErrorText;
+
   final ValueChanged<String>? inputChanged;
 
   const DVModifier({
@@ -1046,6 +1141,10 @@ class DVModifier {
     this.inputHintValue,
     this.inputHelperValue,
     this.inputObscureText = false,
+    this.inputVisibilityToggle = DVVisibilityToggle.none,
+    this.inputMultiline = false,
+    this.inputSubmitted,
+    this.inputErrorText,
     this.inputChanged,
   });
 
@@ -1096,6 +1195,10 @@ class DVModifier {
         inputHintValue = null,
         inputHelperValue = null,
         inputObscureText = false,
+        inputVisibilityToggle = DVVisibilityToggle.none,
+        inputMultiline = false,
+        inputSubmitted = null,
+        inputErrorText = null,
         inputChanged = null;
 
   DVModifier _copyWith({
@@ -1146,6 +1249,10 @@ class DVModifier {
     String? inputHintValue,
     String? inputHelperValue,
     bool? inputObscureText,
+    DVVisibilityToggle? inputVisibilityToggle,
+    bool? inputMultiline,
+    VoidCallback? inputSubmitted,
+    Object? inputErrorText = _unset,
     ValueChanged<String>? inputChanged,
   }) {
     assert(
@@ -1223,6 +1330,12 @@ class DVModifier {
       inputHintValue: inputHintValue ?? this.inputHintValue,
       inputHelperValue: inputHelperValue ?? this.inputHelperValue,
       inputObscureText: inputObscureText ?? this.inputObscureText,
+      inputVisibilityToggle: inputVisibilityToggle ?? this.inputVisibilityToggle,
+      inputMultiline: inputMultiline ?? this.inputMultiline,
+      inputSubmitted: inputSubmitted ?? this.inputSubmitted,
+      inputErrorText: identical(inputErrorText, _unset)
+          ? this.inputErrorText
+          : inputErrorText as String?,
       inputChanged: inputChanged ?? this.inputChanged,
     );
   }
@@ -1577,11 +1690,29 @@ class DVModifier {
 
   /// An editable text field. [helper] is shown under it at all times, where
   /// [hint] shows only while it is empty and focused.
+  ///
+  /// Inside a [DVFormScope] -- which every [DVForm] is, and [DVForm.builder]
+  /// is too -- the field is part of the keyboard: Enter moves to the next
+  /// field and submits from the last one, and [DVForm] marks the field at
+  /// fault when a save is refused. That is all arrangement, so nothing here
+  /// asks for it.
+  ///
+  /// An obscured field gets a [DVVisibilityToggle.eye] by default, so a
+  /// password can be read back before it is sent. `.none` turns that off and
+  /// `.custom(builder)` replaces the eye with a control of your own.
+  ///
+  /// [multiline] is for a field that takes more than one line, where Enter is
+  /// a newline and must not submit anything. [error] is what is wrong with
+  /// what has been typed here, shown under the field and announced with it.
   DVModifier input({
     String? label,
     String? hint,
     String? helper,
     bool obscureText = false,
+    DVVisibilityToggle? visibilityToggle,
+    bool multiline = false,
+    String? error,
+    VoidCallback? onSubmitted,
     ValueChanged<String>? onChanged,
   }) =>
       _copyWith(
@@ -1590,6 +1721,13 @@ class DVModifier {
         inputHintValue: hint,
         inputHelperValue: helper,
         inputObscureText: obscureText,
+        inputVisibilityToggle: visibilityToggle ??
+            // The eye is the default on a field that hides what is typed into
+            // it, and means nothing on one that does not.
+            (obscureText ? DVVisibilityToggle.eye : DVVisibilityToggle.none),
+        inputMultiline: multiline,
+        inputSubmitted: onSubmitted,
+        inputErrorText: error,
         inputChanged: onChanged,
       );
 
@@ -2437,8 +2575,16 @@ class DVBox<T> extends StatelessWidget {
     }
 
     if (m?.onTapCallback != null) {
-      result = GestureDetector(
-        onTap: m!.onTapCallback,
+      result = _DVPressable(
+        onTap: m!.onTapCallback!,
+        name: m.semanticLabelValue,
+        // A control the application said is a button, and a tappable thing
+        // that never said: a tap callback is a control someone is meant to be
+        // able to operate, and on a keyboard or a remote the only way to
+        // operate it is to reach it. Both `semanticButton()` and a bare
+        // `.onTap()` get the focus, the keys and the ring from here.
+        button: m.semanticButtonValue ?? true,
+        borderRadius: m.borderRadius,
         child: result,
       );
     }
@@ -3067,6 +3213,316 @@ class _DVRevealState extends State<_DVReveal> {
   }
 }
 
+/// What a form's fields share: which one is last, what Enter does from here,
+/// and where the focus goes when a submit is refused.
+///
+/// [DVForm] puts every one of its fields inside one of these, and so does
+/// [DVForm.builder] -- which is why a builder form's fields chain with Enter
+/// and submit from the last one without the builder knowing anything about
+/// it. An application's own form wraps itself in one.
+///
+/// Nothing in an application has to be told about it: a field finds the scope
+/// above it, and a field outside one behaves the way a lone text field always
+/// did.
+class DVFormScope extends StatefulWidget {
+  const DVFormScope({super.key, required this.child, this.onSubmit});
+
+  final Widget child;
+
+  /// What Enter from the last field does, and what the form's own submit
+  /// control does.
+  final VoidCallback? onSubmit;
+
+  @override
+  State<DVFormScope> createState() => _DVFormScopeState();
+}
+
+/// The fields above a [DVFormScope], in the order they were built.
+///
+/// The list is what makes Enter move to the next field rather than the next
+/// focusable widget on the page: a field's action button is drawn inside it,
+/// so "the next field" and "the next focusable thing" are not the same thing.
+class _DVFormScopeState extends State<DVFormScope> {
+  final FocusScopeNode _scope = FocusScopeNode(debugLabel: 'DVFormScope');
+
+  /// The focus node of each field, in build order.
+  final List<FocusNode> _fields = <FocusNode>[];
+
+  /// Which field is last, by position in [_fields].
+  ///
+  /// A field cannot answer this for itself while it builds: it has registered,
+  /// so it is trivially the last of everything it can see, and every field
+  /// would draw itself as the last. So the scope publishes the answer once the
+  /// frame that collected the fields is over, and the fields that guessed wrong
+  /// redraw with the action key that is true. A field outside a scope is the
+  /// last field of a form of one, which is what it always was.
+  final ValueNotifier<int> _lastField = ValueNotifier<int>(-1);
+
+  bool _publishing = false;
+
+  @override
+  void dispose() {
+    _lastField.dispose();
+    _scope.dispose();
+    super.dispose();
+  }
+
+  /// Called by a field as it builds.
+  ///
+  /// Not in a build method of its own, and not by asking a caller: a form
+  /// that had to register its fields could get the order wrong, and the wrong
+  /// order here is Enter jumping backwards.
+  void register(FocusNode field) {
+    if (_fields.contains(field)) return;
+    _fields.add(field);
+    _publishLastField();
+  }
+
+  void unregister(FocusNode field) {
+    if (_fields.remove(field)) _publishLastField();
+  }
+
+  /// Tells the fields which one is last, once this frame has drawn them all.
+  ///
+  /// After the frame rather than during it: a field asking this in its own
+  /// build would be building before its later siblings exist.
+  void _publishLastField() {
+    if (_publishing) return;
+    _publishing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _publishing = false;
+      if (!mounted) return;
+      final int last = _fields.isEmpty ? -1 : _fields.length - 1;
+      if (_lastField.value != last) _lastField.value = last;
+    });
+  }
+
+  /// What a field listens to for the answer, which is a [ValueListenable]
+  /// because the answer changes without the scope rebuilding.
+  ValueListenable<int> get lastField => _lastField;
+
+  /// Whether [field] is the last field of this form.
+  bool isLast(FocusNode field) =>
+      _lastField.value >= 0 &&
+      _lastField.value == _fields.length - 1 &&
+      identical(_fields.last, field);
+
+  /// Moves the focus on to the next field. False when this was the last one,
+  /// which is the form's cue to submit instead.
+  bool focusNext(FocusNode field) {
+    final int at = _fields.indexOf(field);
+    if (at < 0 || at + 1 >= _fields.length) return false;
+    _fields[at + 1].requestFocus();
+    return true;
+  }
+
+  /// The focus node of the field called [label], or null when this form has no
+  /// such field.
+  FocusNode? fieldNamed(String? label) {
+    if (label == null) return null;
+    for (final FocusNode field in _fields) {
+      if (field.debugLabel == label) return field;
+    }
+    return null;
+  }
+
+  /// The first field of this form, for a refused submit that names none.
+  FocusNode? get first => _fields.isEmpty ? null : _fields.first;
+
+  void submit() => widget.onSubmit?.call();
+
+  @override
+  Widget build(BuildContext context) =>
+      FocusScope(node: _scope, child: widget.child);
+}
+
+/// Finds the form a field is part of, if it is part of one.
+extension _DVFormScopeLookup on BuildContext {
+  _DVFormScopeState? get formScope =>
+      findAncestorStateOfType<_DVFormScopeState>();
+}
+
+/// A thing somebody can press, built as a control rather than as a picture of
+/// one.
+///
+/// Every `onTap`/`onPressed`/`semanticButton` in Dartvel lands here, so the
+/// keyboard, a remote and a switch user get the same answer as a pointer:
+/// the control takes the focus, Enter and Space press it, it announces itself
+/// as a button with the name the caller gave it, and it draws a ring on itself
+/// while it holds the focus.
+///
+/// Without this, `DVText('Sign in').modifier(DVModifier().onTap(submit))` was
+/// reachable by nothing but a finger -- no node in the tab order, no key, and
+/// a screen reader told there was a label on a piece of text. That is not a gap
+/// in an application's own code: it is what the modifier chain produced.
+///
+/// Enter and Space are both handled because Flutter binds them differently by
+/// platform (see `ButtonActivateIntent` on the web and `ActivateIntent`
+/// elsewhere). Answering one is a button that does nothing on the other, and
+/// which one a reader gets is not something the framework gets to choose.
+/// Switch control's `ActivateIntent` lands on the same pair, so a switch user
+/// presses this too.
+class _DVPressable extends StatefulWidget {
+  const _DVPressable({
+    required this.onTap,
+    required this.child,
+    required this.name,
+    this.button = true,
+    this.borderRadius,
+  });
+
+  final VoidCallback onTap;
+
+  final Widget child;
+
+  /// What a reader is told this control is called. Used as the key for the
+  /// focus ring, so a test can find the ring without knowing the tree.
+  final String? name;
+
+  /// Announced as a button. A caller that did not say gets a button, because
+  /// a tap callback on a piece of text is one.
+  final bool button;
+
+  final BorderRadiusGeometry? borderRadius;
+
+  @override
+  State<_DVPressable> createState() => _DVPressableState();
+}
+
+class _DVPressableState extends State<_DVPressable> {
+  bool _focused = false;
+
+  /// Named for the control, the way a field is named for its label. What the
+  /// keyboard is on is otherwise unnameable from a test, and a test that
+  /// cannot say what it focused asserts nothing about focus order.
+  late final FocusNode _focus = FocusNode(
+    debugLabel: 'control:${widget.name}',
+    skipTraversal: false,
+  );
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  /// The keys that press a focused control, on every platform.
+  ///
+  /// Outside `Focus`: an intent is looked up by walking up from wherever the
+  /// focus actually is, so an actions map inside the focused widget's subtree
+  /// is one nothing finds.
+  Map<Type, Action<Intent>> _activate() => <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (ActivateIntent _) {
+            widget.onTap();
+            return null;
+          },
+        ),
+        ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+          onInvoke: (ButtonActivateIntent _) {
+            widget.onTap();
+            return null;
+          },
+        ),
+      };
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    // Key up must not press it again, and neither must a key this control has
+    // no business answering -- an arrow key belongs to the page.
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    return switch (event.logicalKey) {
+      LogicalKeyboardKey.enter ||
+      LogicalKeyboardKey.numpadEnter ||
+      LogicalKeyboardKey.space =>
+        _press(),
+      _ => KeyEventResult.ignored,
+    };
+  }
+
+  KeyEventResult _press() {
+    widget.onTap();
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Actions(
+      actions: _activate(),
+      child: Focus(
+        focusNode: _focus,
+        // Can request focus: this is the point of the widget. Traversal is
+        // left on, so Tab reaches it in the order it is drawn.
+        skipTraversal: false,
+        // [Focus] contributes a semantics node of its own, which stacks a
+        // second, nameless button on top of the one below -- a reader
+        // announces the control twice and [find.bySemanticsLabel] finds
+        // nothing. The single node is the [Semantics] below, which is told
+        // about focus by [focused].
+        includeSemantics: false,
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        onKeyEvent: _onKey,
+        child: Builder(
+          builder: (BuildContext context) => Semantics(
+            button: widget.button,
+            enabled: true,
+            label: widget.name,
+            // The one action a reader is offered. Without it the node is a
+            // button that a screen reader can see but not press, which is
+            // worse than not being a button.
+            onTap: widget.onTap,
+            // [Focus] is told not to bring a node of its own, so the control
+            // says here what a reader needs to hear: that this is focusable,
+            // that it is the thing the keyboard is on, and that asking for the
+            // focus should move it here. Without the last one a reader can see
+            // the focus ring and cannot get to it.
+            onFocus: _focus.requestFocus,
+            focusable: true,
+            focused: _focused,
+            excludeSemantics: true,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: .opaque,
+                // The gesture is not announced separately: the [Semantics]
+                // above carries the one action a reader is offered, and two
+                // nodes both claiming the tap is one too many.
+                excludeFromSemantics: true,
+                onTap: widget.onTap,
+                child: Container(
+                  // Keyed by the control rather than only when it holds the
+                  // focus, so the widget under it is the same widget either
+                  // way. A subtree that appeared and vanished with the focus
+                  // would throw away whatever state was in it -- the caret in a
+                  // field inside a box somebody can tap, say.
+                  key: ValueKey<String>('dv-control:${widget.name}'),
+                  // The ring is drawn by the control rather than taken from a
+                  // theme that may not exist: an application that never
+                  // installed Material widgets still gets a visible focus,
+                  // because an invisible one is a keyboard user guessing.
+                  foregroundDecoration: _focused
+                      ? BoxDecoration(
+                          border: Border.all(
+                            color: const Color(0xFF1D4ED8),
+                            width: 2,
+                          ),
+                          borderRadius: widget.borderRadius,
+                        )
+                      : null,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The editable form of [DVText], which needs state a stateless widget cannot
 /// hold: a controller rebuilt every frame would reset the cursor on each
 /// keystroke.
@@ -3084,6 +3540,39 @@ class _DVInputFieldState extends State<_DVInputField> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.value);
 
+  /// Named for the label the field is drawn with, so a form can put the focus
+  /// back on the field a refused save named.
+  late final FocusNode _focus = FocusNode(
+    debugLabel: widget.modifier.inputLabelValue,
+    skipTraversal: false,
+  );
+
+  /// Whether the value in an obscured field is showing. A field that is not
+  /// obscured has no reason to hold this.
+  bool _revealed = false;
+
+  _DVFormScopeState? _scope;
+  bool get _obscure => widget.modifier.inputObscureText && !_revealed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The form above this field, if there is one. Re-read on every dependency
+    // change because a form is rebuilt rather than moved.
+    final _DVFormScopeState? scope = context.formScope;
+    if (identical(scope, _scope)) return;
+    _scope?.lastField.removeListener(_fieldsChanged);
+    _scope?.unregister(_focus);
+    _scope = scope;
+    _scope?.lastField.addListener(_fieldsChanged);
+    _scope?.register(_focus);
+  }
+
+  /// The form now knows every field, so this one can say whether it is last.
+  void _fieldsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didUpdateWidget(_DVInputField oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -3093,25 +3582,131 @@ class _DVInputFieldState extends State<_DVInputField> {
     if (widget.value != oldWidget.value && widget.value != _controller.text) {
       _controller.text = widget.value;
     }
+    // A field that stopped obscuring its value has nothing to reveal, so the
+    // eye goes with it rather than sitting there over readable text.
+    if (!widget.modifier.inputObscureText) _revealed = false;
   }
 
   @override
   void dispose() {
+    _scope?.lastField.removeListener(_fieldsChanged);
+    _scope?.unregister(_focus);
+    _focus.dispose();
     _controller.dispose();
     super.dispose();
   }
 
+  void _reveal() => setState(() => _revealed = !_revealed);
+
+  /// Enter in this field: on to the next one, or the form's own submit.
+  ///
+  /// Three answers, in order of how specific they are: the next field, then
+  /// the callback this field was given, then the form's own submit. The last
+  /// one is what a generated field gets, and it is why Enter in the last field
+  /// of a [DVForm] saves without the form having told that field anything.
+  void _onSubmitted(String _) {
+    if (_scope?.focusNext(_focus) ?? false) return;
+    final VoidCallback? own = widget.modifier.inputSubmitted;
+    if (own != null) {
+      own();
+      return;
+    }
+    _scope?.submit();
+  }
+
+  /// The control that reveals the value, or null when this field has none.
+  ///
+  /// Null for a field that is not obscured: an eye over readable text is a
+  /// control that does nothing.
+  Widget? _toggle() {
+    final DVModifier modifier = widget.modifier;
+    if (!modifier.inputObscureText) return null;
+    final DVVisibilityToggle toggle = modifier.inputVisibilityToggle;
+    if (toggle is DVNoneVisibilityToggle) return null;
+    if (toggle is DVCustomVisibilityToggle) {
+      return toggle.builder(context, _obscure, _reveal);
+    }
+    return _DVVisibilityEyeButton(
+      obscured: _obscure,
+      onPressed: _reveal,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final DVModifier modifier = widget.modifier;
+    final _DVFormScopeState? scope = _scope;
+    // A field that is not the last of a form offers Next on the keyboard: it
+    // is what the key means here, and it is what makes Enter walk the form
+    // rather than submit from the middle of it.
+    final TextInputAction action = modifier.inputMultiline
+        ? TextInputAction.newline
+        : (scope != null && !scope.isLast(_focus)
+            ? TextInputAction.next
+            : TextInputAction.done);
     return TextField(
       controller: _controller,
-      obscureText: widget.modifier.inputObscureText,
+      focusNode: _focus,
+      obscureText: _obscure,
+      maxLines: modifier.inputMultiline ? null : 1,
+      minLines: modifier.inputMultiline ? 3 : 1,
+      textInputAction: action,
       decoration: InputDecoration(
-        labelText: widget.modifier.inputLabelValue,
-        hintText: widget.modifier.inputHintValue,
-        helperText: widget.modifier.inputHelperValue,
+        labelText: modifier.inputLabelValue,
+        hintText: modifier.inputHintValue,
+        helperText: modifier.inputErrorText == null
+            ? modifier.inputHelperValue
+            : null,
+        // The message a refused save left on this field. Also read out with
+        // it, so a reader is told what is wrong where they are rather than
+        // being sent to a line under the form to find it.
+        errorText: modifier.inputErrorText,
+        suffixIcon: _toggle(),
       ),
-      onChanged: widget.modifier.inputChanged,
+      onChanged: modifier.inputChanged,
+      onSubmitted: modifier.inputSubmitted == null && scope == null
+          ? null
+          : _onSubmitted,
+    );
+  }
+}
+
+/// The eye that reveals a password, saying what pressing it will do.
+///
+/// A button, not an icon: an icon inside a field that only a pointer can reach
+/// is the same picture-of-a-control the rest of this work removed, and the
+/// person who most needs to check a password is often the one typing with a
+/// keyboard. Its label changes with what it does, because a control labelled
+/// "show password" that is currently showing one is a control lying.
+class _DVVisibilityEyeButton extends StatelessWidget {
+  const _DVVisibilityEyeButton({
+    required this.obscured,
+    required this.onPressed,
+  });
+
+  final bool obscured;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = obscured ? 'Show password' : 'Hide password';
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          size: 20,
+        ),
+        tooltip: label,
+        visualDensity: VisualDensity.compact,
+        // The keyboard's own affordance: the ring Material draws around a
+        // focused button, which this field's own decoration would otherwise
+        // cover with its label.
+        focusColor: Theme.of(context).focusColor,
+      ),
     );
   }
 }
@@ -3156,8 +3751,16 @@ class DVText extends StatelessWidget {
     if (modifier != null &&
         modifier.onTapCallback != null &&
         modifier.inputValue == false) {
-      result = GestureDetector(
-        onTap: modifier.onTapCallback,
+      // A `DVText` a person can press is a control, and is built as one:
+      // reachable with Tab, pressed with Enter or Space, named to a screen
+      // reader, and showing where the focus is. `DVBox` does the same for a
+      // tap on the box, so a button is a button whichever of the two an
+      // application reached for.
+      result = _DVPressable(
+        onTap: modifier.onTapCallback!,
+        name: modifier.semanticLabelValue ?? text,
+        button: modifier.semanticButtonValue ?? true,
+        borderRadius: modifier.borderRadius,
         child: result,
       );
     }
@@ -3544,6 +4147,20 @@ class _DVFormState<T> extends State<DVForm<T>> {
   late T _initialValue;
   final Map<String, String> _fieldValues = <String, String>{};
 
+  /// The key the form's own fields are registered under, so a refused submit
+  /// can find the field it named.
+  final GlobalKey<_DVFormScopeState> _scopeKey =
+      GlobalKey<_DVFormScopeState>(debugLabel: 'DVFormScope');
+
+  /// What the last submit was refused for, said in the form's own words.
+  ///
+  /// Null whenever the last submit was accepted, so an accepted save takes the
+  /// message with it rather than leaving a reader with a stale complaint.
+  String? _problem;
+
+  /// The field [_problem] is about, named as the form labels it.
+  String? _problemField;
+
   @override
   void initState() {
     super.initState();
@@ -3599,8 +4216,11 @@ class _DVFormState<T> extends State<DVForm<T>> {
             onReset: _reset,
           );
 
+    // Wrapping the builder's own layout, not only the generated one: a form
+    // laid out by hand has the same keyboard obligations as a generated one,
+    // and the scope is what makes Enter chain and the last field submit.
     if (widget.builder != null) {
-      return widget.builder!(formControls);
+      return _formScope(child: widget.builder!(formControls));
     }
 
     final fields = <Widget>[];
@@ -3623,7 +4243,11 @@ class _DVFormState<T> extends State<DVForm<T>> {
                   helper: widget.initialValue == null
                       ? null
                       : 'Leave empty to keep the current value',
+                  // A password field, so it gets the eye by default. The
+                  // previous call passed `.eye` explicitly, which was the same
+                  // answer with one more thing for an application to write.
                   obscureText: true,
+                  error: _errorFor(key),
                   onChanged: (nextValue) {
                     setState(() => _fieldValues[key] = nextValue);
                   },
@@ -3638,6 +4262,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
           DVText(initialText).modifier(
             const DVModifier().input(
               label: key.toUpperCase(),
+              error: _errorFor(key),
               onChanged: (nextValue) {
                 setState(() => _fieldValues[key] = nextValue);
               },
@@ -3649,6 +4274,24 @@ class _DVFormState<T> extends State<DVForm<T>> {
       fields.add(DVText(
         'No generated form controls registered for $T.',
       ));
+    }
+
+    // The refusal, where a reader meets it and where a screen reader announces
+    // it: a live region, because it appears after the person has decided the
+    // form was ready and nothing else on the page has changed to draw the eye.
+    if (_problem != null) {
+      fields.add(
+        KeyedSubtree(
+          key: const ValueKey<String>('dv-form-error'),
+          child: Semantics(
+            liveRegion: true,
+            child: DVText(
+              _problem!,
+              const DVModifier().semanticLabel(_problem!),
+            ),
+          ),
+        ),
+      );
     }
 
     // Fields with nothing to press are a display, not a form. The controls
@@ -3673,11 +4316,21 @@ class _DVFormState<T> extends State<DVForm<T>> {
       );
     }
 
-    return Form(
-      key: const ValueKey<String>('dv-form'),
-      child: DVBox.list(fields),
+    return _formScope(
+      child: Form(
+        key: const ValueKey<String>('dv-form'),
+        child: DVBox.list(fields),
+      ),
     );
   }
+
+  Widget _formScope({required Widget child}) =>
+      DVFormScope(key: _scopeKey, onSubmit: _submit, child: child);
+
+  /// The refusal shown on [field], or null when this form has none, or it is
+  /// about another field.
+  String? _errorFor(String field) =>
+      _problemField == field ? _problem : null;
 
   /// The model the fields currently describe.
   ///
@@ -3689,7 +4342,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
     if (_fieldValues.isEmpty) return formValue;
     final serialized = serializeDVModel<T>(formValue);
     if (serialized == null) {
-      throw StateError(
+      throw _DVFormRefusal(
         'No generated serializer registered for $T, so the edits to this '
         'form cannot be read back. Run dartvel build after annotating the '
         'model with @DVModel().',
@@ -3709,7 +4362,7 @@ class _DVFormState<T> extends State<DVForm<T>> {
     try {
       final value = deserializeDVModel<T>(json);
       if (value == null) {
-        throw StateError(
+        throw _DVFormRefusal(
           'No generated deserializer registered for $T, so this form can '
           'show a $T but cannot return an edited one. Run dartvel build '
           'after annotating the model with @DVModel().',
@@ -3736,23 +4389,84 @@ class _DVFormState<T> extends State<DVForm<T>> {
       final where =
           offending.map((MapEntry<String, String> e) => e.key).join(', ');
       final value = offending.isEmpty ? error.message : offending.first.value;
-      throw StateError(
+      throw _DVFormRefusal(
         'Cannot build $T from this form: '
         '${where.isEmpty ? 'a field' : where} '
         'holds "$value", which is not a valid value for it.',
+        // One field, when there is one to name: the focus goes there rather
+        // than to the first field, which on a long form is nowhere near the
+        // thing the reader just got wrong.
+        field: offending.isEmpty ? null : offending.first.key,
       );
     }
   }
 
   void _submit() {
-    final value = _edited();
+    try {
+      final value = _edited();
+      setState(() {
+        formValue = value;
+        _initialValue = value;
+        _fieldValues.clear();
+        _writeOnlyGeneration++;
+        // An accepted submit takes any previous refusal with it.
+        _problem = null;
+        _problemField = null;
+      });
+      widget.onSubmit?.call(value);
+    } on _DVFormRefusal catch (refusal) {
+      _refuse(refusal.message, field: refusal.field);
+    } on Object catch (error) {
+      // The caller's own save refused this -- the model's `@DVModel.validate`
+      // rules, a policy, a conflict. It has already said what is wrong in
+      // words meant for a person; this makes sure the person is told, is told
+      // where the focus should be, and is not left with a form that silently
+      // did nothing.
+      _refuse('$error');
+    }
+  }
+
+  /// Shows [message] on the field it names, announces it, and puts the focus
+  /// there.
+  ///
+  /// The focus is the part that cannot be left to the application: a person
+  /// who pressed Enter on the last field and was refused is looking at a form
+  /// that looks unchanged, and the fix is somewhere above the fold.
+  void _refuse(String message, {String? field}) {
+    final _DVFormScopeState? scope = _scopeKey.currentState;
+    // The field the message names, or the first one: a refusal that names no
+    // field is still about the form, and the first field is where a reader
+    // starts.
+    final String? named = field ?? _fieldNamedBy(message);
+    final FocusNode? target =
+        scope?.fieldNamed(named?.toUpperCase()) ?? scope?.first;
     setState(() {
-      formValue = value;
-      _initialValue = value;
-      _fieldValues.clear();
-      _writeOnlyGeneration++;
+      _problem = message;
+      _problemField = named;
     });
-    widget.onSubmit?.call(value);
+    if (target == null) return;
+    // After the frame: the field has to be laid out before it can take focus,
+    // and a message that is about a field is drawn on the frame this sets.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) target.requestFocus();
+    });
+  }
+
+  /// The field [message] names, when it names one.
+  ///
+  /// The models' own refusals say which field: `DVModelRuleError` carries the
+  /// field, and the wording names it. Matching on the word is what is left
+  /// when a caller throws its own error, and a wrong guess costs a person
+  /// looking at the wrong field rather than a wrong save.
+  String? _fieldNamedBy(String message) {
+    final String lower = message.toLowerCase();
+    final Iterable<String> shown = serializeDVModel<T>(formValue)?.keys
+            .where(_shows) ??
+        const <String>[];
+    for (final String field in shown) {
+      if (lower.contains(field.toLowerCase())) return field;
+    }
+    return null;
   }
 
   void _reset() {
@@ -3760,8 +4474,27 @@ class _DVFormState<T> extends State<DVForm<T>> {
       formValue = _initialValue;
       _fieldValues.clear();
       _writeOnlyGeneration++;
+      // A reset returns the form to the record it opened, so a complaint
+      // about what was typed into it is no longer true.
+      _problem = null;
+      _problemField = null;
     });
   }
+}
+
+/// A refusal this form raises itself, rather than one a caller's save raised.
+///
+/// Carries the field so the focus lands on the thing at fault instead of the
+/// first one. Anything else is a plain message, and the form says it and puts
+/// the focus where a reader would look.
+class _DVFormRefusal implements Exception {
+  const _DVFormRefusal(this.message, {this.field});
+
+  final String message;
+  final String? field;
+
+  @override
+  String toString() => message;
 }
 
 // ==========================================
@@ -7333,11 +8066,10 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                   AutofillHints.email,
                 ],
               ),
-              TextField(
-                key: const ValueKey<String>('dv-auth-password'),
+              _DVPasswordField(
+                fieldKey: const ValueKey<String>('dv-auth-password'),
                 controller: _password,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
+                label: 'Password',
                 autofillHints: const <String>[AutofillHints.password],
                 textInputAction: .done,
                 onSubmitted: (_) => unawaited(_submit()),
@@ -7351,6 +8083,8 @@ class _EmailPasswordAuthPageState extends State<_EmailPasswordAuthPage> {
                 ),
                 keyboardType: TextInputType.number,
                 autofillHints: const <String>[AutofillHints.oneTimeCode],
+                textInputAction: .done,
+                onSubmitted: (_) => unawaited(_submit()),
               ),
             if (_deletionCancelled)
               const KeyedSubtree(
@@ -7471,6 +8205,10 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
                 controller: _recovery,
                 decoration: const InputDecoration(labelText: 'Recovery code'),
                 autocorrect: false,
+                // The only field in this form, so Enter checks the code rather
+                // than doing nothing, which is what it used to do here.
+                textInputAction: .done,
+                onSubmitted: (_) => unawaited(_submit()),
               )
             else
               TextField(
@@ -7479,6 +8217,8 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
                 decoration: const InputDecoration(labelText: 'Code'),
                 keyboardType: TextInputType.number,
                 autofillHints: const <String>[AutofillHints.oneTimeCode],
+                textInputAction: .done,
+                onSubmitted: (_) => unawaited(_submit()),
               ),
             if (error != null)
               KeyedSubtree(
@@ -7511,6 +8251,69 @@ class _SecondFactorPageState extends State<_SecondFactorPage> {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// A password field on an account page, with the eye every other password
+/// field in Dartvel has.
+///
+/// These pages are Material [TextField]s rather than `DVText(...).input(...)`
+/// because they are autofill-aware, and Material is where a browser and a
+/// password manager get the hints they save against. That left them with no way
+/// to check a mistyped character, which matters most for someone typing on a
+/// keyboard and least able to reach for a mouse -- so the toggle is added here
+/// rather than being something each page has to remember.
+class _DVPasswordField extends StatefulWidget {
+  const _DVPasswordField({
+    required this.fieldKey,
+    required this.controller,
+    required this.label,
+    required this.autofillHints,
+    this.textInputAction = .next,
+    this.onSubmitted,
+  });
+
+  /// On the [TextField] itself rather than on this widget, because it is the
+  /// field these pages have always been found by, and a key on both widgets
+  /// makes every finder for it match two.
+  final Key fieldKey;
+
+  final TextEditingController controller;
+  final String label;
+  final List<String> autofillHints;
+
+  /// What the keyboard's action key does in this field. `.done` on the last
+  /// field of a form, so Enter submits it rather than inserting a newline.
+  final TextInputAction textInputAction;
+
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<_DVPasswordField> createState() => _DVPasswordFieldState();
+}
+
+class _DVPasswordFieldState extends State<_DVPasswordField> {
+  /// Whether what was typed is showing. Off until somebody asks.
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool obscured = !_revealed;
+    return TextField(
+      key: widget.fieldKey,
+      controller: widget.controller,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffixIcon: _DVVisibilityEyeButton(
+          obscured: obscured,
+          onPressed: () => setState(() => _revealed = !_revealed),
+        ),
+      ),
+      obscureText: obscured,
+      autofillHints: widget.autofillHints,
+      textInputAction: widget.textInputAction,
+      onSubmitted: widget.onSubmitted,
     );
   }
 }
@@ -7854,19 +8657,23 @@ class _SecurityPageState extends State<_SecurityPage> {
             'dv-security-remove', 'Remove', () => unawaited(_remove())),
       ],
       const DVText('Password'),
-      TextField(
-        key: const ValueKey<String>('dv-security-password-current'),
+      _DVPasswordField(
+        fieldKey: const ValueKey<String>('dv-security-password-current'),
         controller: _currentPassword,
-        decoration: const InputDecoration(labelText: 'Current password'),
-        obscureText: true,
+        label: 'Current password',
         autofillHints: const <String>[AutofillHints.password],
       ),
-      TextField(
-        key: const ValueKey<String>('dv-security-password-new'),
+      _DVPasswordField(
+        fieldKey: const ValueKey<String>('dv-security-password-new'),
         controller: _newPassword,
-        decoration: const InputDecoration(labelText: 'New password'),
-        obscureText: true,
+        label: 'New password',
         autofillHints: const <String>[AutofillHints.newPassword],
+        // The last field of the password form, unless a second factor is on --
+        // in which case the code below it is the last, and it submits.
+        textInputAction: (status?.totp ?? false) ? .next : .done,
+        onSubmitted: (status?.totp ?? false)
+            ? null
+            : (_) => unawaited(_changePassword()),
       ),
       if (status != null && status.totp)
         TextField(
@@ -7876,6 +8683,10 @@ class _SecurityPageState extends State<_SecurityPage> {
               labelText: 'Code from the app or a recovery code'),
           autocorrect: false,
           autofillHints: const <String>[AutofillHints.oneTimeCode],
+          // With a second factor in the way this is the last field of the
+          // password form, so Enter is the button.
+          textInputAction: .done,
+          onSubmitted: (_) => unawaited(_changePassword()),
         ),
       const DVText('Changing your password signs out every other device.'),
       _dvAccountButton('dv-security-password-submit', 'Change password',
@@ -8067,11 +8878,10 @@ class _SignUpPageState extends State<_SignUpPage> {
           AutofillHints.email,
         ],
       ),
-      TextField(
-        key: const ValueKey<String>('dv-signup-password'),
+      _DVPasswordField(
+        fieldKey: const ValueKey<String>('dv-signup-password'),
         controller: _password,
-        decoration: const InputDecoration(labelText: 'Password'),
-        obscureText: true,
+        label: 'Password',
         autofillHints: const <String>[AutofillHints.newPassword],
         textInputAction: .done,
         onSubmitted: (_) => unawaited(_submit()),
@@ -8168,12 +8978,17 @@ class _ProfilePageState extends State<_ProfilePage> {
                 'enter it.'),
           ),
           TextField(
-            key: const ValueKey<String>('dv-profile-email-code'),
-            controller: _code,
-            decoration: const InputDecoration(labelText: 'Code from the e-mail'),
-            keyboardType: TextInputType.number,
-            autofillHints: const <String>[AutofillHints.oneTimeCode],
-          ),
+          key: const ValueKey<String>('dv-profile-email-code'),
+          controller: _code,
+          decoration: const InputDecoration(labelText: 'Code from the e-mail'),
+          keyboardType: TextInputType.number,
+          autofillHints: const <String>[AutofillHints.oneTimeCode],
+          textInputAction: .done,
+          onSubmitted: (_) => unawaited(_run(() async {
+                await widget.auth.confirmEmailChange(_code.text.trim());
+                _code.clear();
+              })),
+        ),
           _dvAccountButton('dv-profile-verify-email', 'Confirm new address',
               () => unawaited(_run(() async {
                     await widget.auth.confirmEmailChange(_code.text.trim());
@@ -8185,6 +9000,13 @@ class _ProfilePageState extends State<_ProfilePage> {
           controller: _newEmail,
           decoration: const InputDecoration(labelText: 'New email'),
           keyboardType: TextInputType.emailAddress,
+          // The last field of the page, so Enter asks for the change instead of
+          // leaving the keyboard user to find the button behind the field.
+          textInputAction: .done,
+          onSubmitted: (_) => unawaited(_run(() async {
+                await widget.auth.requestEmailChange(_newEmail.text.trim());
+                _newEmail.clear();
+              })),
         ),
         _dvAccountButton('dv-profile-change-email', 'Change email',
             () => unawaited(_run(() async {
@@ -8321,13 +9143,16 @@ class _DeletePageState extends State<_DeletePage> {
         controller: _confirm,
         decoration: const InputDecoration(labelText: 'Type $_phrase to confirm'),
         autocorrect: false,
+        textInputAction: .next,
       ),
-      TextField(
-        key: const ValueKey<String>('dv-delete-password'),
+      _DVPasswordField(
+        fieldKey: const ValueKey<String>('dv-delete-password'),
         controller: _password,
-        decoration: const InputDecoration(labelText: 'Password'),
-        obscureText: true,
+        label: 'Password',
         autofillHints: const <String>[AutofillHints.password],
+        // The code below is the last field when there is one, so Enter there.
+        textInputAction: _hasFactor ? .next : .done,
+        onSubmitted: _hasFactor ? null : (_) => unawaited(_submit()),
       ),
       if (_hasFactor)
         TextField(
@@ -8336,6 +9161,8 @@ class _DeletePageState extends State<_DeletePage> {
           decoration:
               const InputDecoration(labelText: 'Code from the app or a recovery code'),
           autocorrect: false,
+          textInputAction: .done,
+          onSubmitted: (_) => unawaited(_submit()),
         ),
       if (error != null) _dvAccountKeyed('dv-delete-error', DVText(error)),
       _dvAccountButton('dv-delete-submit', _busy ? 'Deleting...' : 'Delete my account',
