@@ -7,6 +7,60 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
+  cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
+  customer's current subscription.
+- Every form is now a keyboard form with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region, written under the field it names, and given the focus.
+- `DVVisibilityToggle` (sealed: `eye`, `none`, `custom(builder)`) for password/sensitive field visibility toggles. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it.
+
+## 0.10.0 — 2026-10-02
+
+Packages: dartvel_core, dartvel_shelf, dartvel_flutter, dartvel_cli and
+dartvel_dev 0.10.0; dartvel_generator 1.4.3 (constraint only).
+
+### Highlights
+
+- **Studio is part of the application** (details below), and it passes the
+  browser check on a real web-server build: sign-in by keyboard, every screen
+  server-rendered with its own address, back and forward, deep links, Ctrl+F,
+  text selection and copy, Tab order, screen-reader labels, Enter submits the
+  sign-in, and no page errors.
+- **Typing keys reach text fields on every Dartvel page.** Space, Enter, the
+  arrows, Home and End were taken by the page before a focused field saw them,
+  so Enter did not submit forms. Fixed in `dartvel_flutter`.
+- **Studio:** reusable components in free Studio with an Insert panel, the
+  canvas draws a page exactly as the site does, the app's own splash while
+  Studio loads, Figma/Bubble/Power Apps keyboard shortcuts, and syncing
+  Studio's changes to the repository (file writes in `dartvel dev`, bundled in
+  builds, GitHub pull request or push).
+- **Sensitive model fields are write-only inputs**, like a password field, in
+  `Model.Form()` and Studio's record form.
+- **Dartvel Preview**, the app that opens a `dartvel dev` project on a device,
+  first slice; `dartvel preview` folds into `dartvel dev --release` and
+  `dartvel deploy --preview`.
+- **`@DVBackendFunction(aiTool: DVAITool(...))`** makes a backend function an
+  AI tool without exposing every backend function.
+- **Keyboard shortcuts** (`DVShortcutScope`) and interactive link previews.
+- Docs: a `/docs/platform` page for `DV.Platform`, adopting Dartvel in an
+  existing native app, and the accepted Server State (`initServerState`)
+  design in the spec.
+
+### Deprecated (no breakage)
+
+- `dartvel.webPrerender` is ignored with a warning; it never did anything.
+- `DV.Platform`'s capitalised members (`Window`, `Camera`, `DeepLinking`, ...)
+  are `@Deprecated` aliases of the lowerCamel ones (`window`, `camera`,
+  `deepLinks`, ...) for one release. `Notifications` and `notifications` are
+  different members and both stay.
+- `dartvel preview` forwards to the new commands for one release.
+
+### Breaking
+
+- `dvAdminAsset`/`DVAdminAsset` and the separately built Studio
+  (`dvBuildStudio`) are removed (see Removed below).
+
+### Details
+
 - `dartvel dev --release` serves an existing production web build locally,
   with `--host` and `--port`. It uses the same route renderer as web-server.
 - Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,

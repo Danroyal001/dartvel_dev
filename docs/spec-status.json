@@ -1670,6 +1670,13 @@
       "absent": "Absent: most of DV.Rust. The barrels all exist under dartvel_dev and each re-exports its implementation package. The Rust bindings are one integer type: DVRust and DVRustInt in dartvel_flutter, reached by constructing DVRust and not through any DV.Rust member, and nothing further -- no float, no string, no struct, and no way to write a kernel in Rust and call it. Until this audit every import path in the section named package:dartvel/, a package that does not exist and cannot: the name was taken on pub.dev on 2026-08-06. Newly specified and unbuilt: the native/ tree as the one place a target-specific or runtime-specific implementation lives, including web/, wasm/ and nodejs/, and the rule against a top-level integration tree beside it."
     },
     {
+      "section": "Server State (`initServerState`)",
+      "stability": "Draft",
+      "status": "Designed",
+      "evidence": [],
+      "absent": "Accepted 2 October 2026; nothing is built yet. Planned: initServerState on @DVFunctionalWidget and DVClassWidget<T> taking a backend function's generated client function, one handler shared by the web-server render and the HTTP route, typed context.dvContext.getServerState()/context.serverState, dependency-graph generation, Dartvel-primitive UI returns, DVForm (and Model.Form) as working no-JS HTML forms, and loadData deprecated."
+    },
+    {
       "section": "Home Widgets",
       "stability": "Draft",
       "status": "Partial",

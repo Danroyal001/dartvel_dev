@@ -1374,6 +1374,89 @@ someone who abandoned a form deliberately should not find it waiting.
 
 None of this is built. `DVForm` takes no `autosave` argument yet.
 
+## A form is driven from the keyboard
+
+Stability: `Contract` · Status: `Shipped`
+
+Nothing is added and nothing is wrapped. Every form Dartvel draws — the
+automatic form, `DVForm.builder`, a generated model page's form, the auth
+screens — is a keyboard form by construction:
+
+- Tab and Shift+Tab walk the fields and the controls in the order the form is
+  drawn. Enter in a single-line field moves to the next one; Enter in the last
+  field submits. In a field drawn `.input(multiline: true)` Enter is a
+  newline, because a paragraph of text does not want to save itself.
+- Anything drawn with `.onTap()` or `.onPressed()` is a real control: it takes
+  the focus, Enter or Space presses it, it announces itself as a button with
+  the name it was given, and it draws a focus ring while it holds the focus.
+  The ring is drawn by the control rather than taken from a theme, so it is
+  there in an application that never installed Material widgets.
+- A save the model refuses is shown on the form in a live region, written
+  under the field it names, and given the focus. A person who pressed Enter
+  and was refused is looking at a form that otherwise looks unchanged.
+
+`DVFormScope` is the public piece of this, for inputs a form does not draw
+itself. It holds the field order and the submit; an application that lays out
+its own inputs inside one gets the same behaviour:
+
+```dart
+DVFormScope(
+  onSubmit: save,
+  child: DVBox.list(<Widget>[
+    DVText(name).modifier(const DVModifier().input(label: 'NAME')),
+    const DVText('Save').modifier(
+      DVModifier().semanticButton().onTap(save),
+    ),
+  ]),
+)
+```
+
+A field outside a scope behaves the way a lone text field always did.
+
+## An obscured field can be read back
+
+Stability: `Contract` · Status: `Shipped`
+
+A field drawn `.input(obscureText: true)` — a password, or a
+`@DVModel.sensitiveField()` a form lets a person set — starts with a Show
+password control. Someone typing on a keyboard is the person most likely to
+mistype and least able to reach for a mouse, and a field that cannot be read
+back cannot be corrected without losing everything typed into it.
+
+The control is a button, not an icon: Tab reaches it and Enter or Space
+presses it, and its label says what pressing it will do right now — "Show
+password" until the value is showing, "Hide password" after.
+
+`DVVisibilityToggle` is the option, on the field and as a form-wide default:
+
+```dart
+DVModifier().input(
+  label: 'PASSWORD',
+  obscureText: true,
+  visibilityToggle: .eye,                          // the default
+)
+
+DVModifier().input(
+  label: 'UNLOCK KEY',
+  obscureText: true,
+  visibilityToggle: .none,                         // turned off
+)
+
+DVModifier().input(
+  label: 'PASSWORD',
+  obscureText: true,
+  visibilityToggle: .custom((context, obscured, toggle) =>
+      DVText(obscured ? 'Show' : 'Hide').modifier(
+        DVModifier().semanticButton().onPressed(toggle),
+      )),
+)
+```
+
+The custom builder is given whether the field is obscured and the way to
+change that, so it cannot get the state wrong. Nothing draws on a field that
+is not obscured: `.eye` is a promise about a password field, and a field
+showing its text has nothing to reveal.
+
 ---
 
 # Backend
@@ -6206,6 +6289,23 @@ overridden.
 
 ---
 
+## Subscription lifecycle (Stripe and Paddle)
+
+Every billing provider answers the same lifecycle calls, acting on the customer's current subscription
+(active, trialing, past due or paused, else the newest), never a guess:
+
+| Call | Stripe | Paddle |
+|---|---|---|
+| `changeSubscriptionPlan(plan, prorate)` | replaces the item; `create_prorations` or `none` | `PATCH` items; `prorated_immediately` or `full_next_billing_period` |
+| `cancelSubscription(atPeriodEnd)` | `cancel_at_period_end`, or delete now | `/cancel`, `next_billing_period` or `immediately` |
+| `pauseSubscription()` | `pause_collection[behavior]=void` | `/pause` from the next billing period |
+| `resumeSubscription()` | clears the pause and any pending cancel | `/resume`, or removes a scheduled cancel |
+| `subscriptionStatus()` | status, paused, cancel at period end, period end | status, scheduled cancel, period end |
+| `customerPortalUrl()` | Billing portal session returning to the app | portal session's general overview |
+
+The local provider refuses each with a message naming what it cannot do. Lemon Squeezy, Paystack,
+Flutterwave and RevenueCat follow the same calls (planned).
+
 # Purchases and Entitlements
 
 Stability: `Draft` · Status: `Partial`
@@ -6858,6 +6958,13 @@ Runtime and tooling:
   accessible only when somebody remembered is not accessible. What a reader
   chooses -- which keys their switches send, an auto-scan interval, whether
   switch control is on at all -- is on `DV.Accessibility.switchControl`
+- every form is a keyboard form with nothing added: Tab walks the fields and
+  the controls in the order they are drawn, Enter moves to the next field and
+  submits from the last one, every `.onTap()` and `.onPressed()` control is a
+  focusable button with a visible focus ring and a name, and a refused save is
+  announced in a live region and puts the focus on the field at fault. An
+  obscured field starts with a Show password control, turnable off or
+  replaceable with `DVVisibilityToggle`
 - accessibility regressions fail the release gate unless explicitly waived with
   a documented reason
 
@@ -11275,7 +11382,9 @@ Rust behind it yet, and no float, string or struct type.
 
 # Server State (`initServerState`)
 
-Stability: `Draft` · Status: `Planned` (accepted 2 October 2026)
+Stability: `Draft` · Status: `Designed`
+
+Accepted 2 October 2026.
 
 A widget can name a backend function that produces its data. The function always runs on the server,
 never in the browser or on the device. Its result is typed, reaches the widget through `DVContext`, and

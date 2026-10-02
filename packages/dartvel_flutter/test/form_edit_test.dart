@@ -196,10 +196,12 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
 
-    final error = tester.takeException();
-    expect(error, isA<StateError>());
-    expect((error as StateError).message,
-        allOf(contains('deserializer'), contains('Legacy')));
+    // Said to the person who pressed Save, in the form, rather than thrown past
+    // them: an exception escaping the tap reaches the console, not the screen,
+    // and the form looked like it had done nothing at all.
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('deserializer'), findsWidgets);
+    expect(find.textContaining('Legacy'), findsWidgets);
   });
 
   testWidgets('a value the model cannot hold names the field',
@@ -213,10 +215,14 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
 
-    final error = tester.takeException();
-    expect(error, isA<StateError>());
-    expect((error as StateError).message,
-        allOf(contains('seats'), contains('not-a-number')));
+    // The field at fault is named on the form, and takes the focus, so a person
+    // who pressed Save with a keyboard is told what to correct rather than
+    // being left looking at a form that did nothing.
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('seats'), findsWidgets);
+    expect(find.textContaining('not-a-number'), findsWidgets);
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'SEATS');
   });
 
   testWidgets('the fields show the record, not a grey hint of it',

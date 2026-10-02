@@ -124,7 +124,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
 | **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
-| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced | ✅ Shipped |
+| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced. Every form is a keyboard form too: Tab walks it, Enter submits from the last field, and password fields get a `DVVisibilityToggle` eye by default | ✅ Shipped |
 | **Terminal Rendering** | `-cli`/`-tui` targets, build-time backend selection, terminal size and graphics detection. The renderer lives in the `dartvel_cli_flt` fork, which a build needs installed | ⚠️ Partial |
 | **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
 | **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
@@ -305,7 +305,7 @@ run as a global command.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
-and Windows on x64, Linux and macOS on arm64. (0.9.3, released 2026-09-29,
+and Windows on x64, Linux and macOS on arm64. (0.10.0, released 2026-10-02,
 ships Linux binaries first; macOS and Windows follow when the release workflow
 runs.) Then put it on your PATH:
 
@@ -324,7 +324,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.9.3
+  dartvel_dev: ^0.10.0
 ```
 
 Or the pieces directly, where you want only some of them:
