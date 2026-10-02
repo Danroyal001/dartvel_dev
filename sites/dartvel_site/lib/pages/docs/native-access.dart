@@ -5,14 +5,14 @@ import '../../dartvel_client/dartvel_client.dart';
 /// Native platform access through DV.Platform: every member that exists,
 /// what each platform supports, permissions, and where the spec plans more.
 @DVPage(
-  title: 'DV.Platform: native platform access',
+  title: 'Native device access',
   description: 'Reach the device through DV.Platform. Every member listed here '
       'exists in code; planned members are marked as planned.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
-Widget _docsPlatformPage(BuildContext context) => const DocsArticle(
-      page: DVRoutes.docsplatform,
+Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
+      page: DVRoutes.docsnativeaccess,
       lead: <String>[
         'DV.Platform is how an application reaches the device it runs on: '
         'native APIs through FFI and JNI, never platform channels.',
@@ -22,7 +22,7 @@ Widget _docsPlatformPage(BuildContext context) => const DocsArticle(
       sections: <DocsSection>[
         DocsSection(
           id: 'what-is-it',
-          title: 'What DV.Platform is',
+          title: 'What it is',
           children: <Widget>[
             DocsText('DV.Platform holds the native capabilities the framework '
                 'registers for the current target. A desktop binds clipboard, '
