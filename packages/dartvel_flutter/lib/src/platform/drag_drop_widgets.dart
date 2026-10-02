@@ -134,6 +134,11 @@ class DVDraggable extends StatelessWidget {
       // Set before the platform asks: iPadOS and browsers start their own
       // drag from the pointer and ask what it carries at that moment.
       onPointerDown: (_) => DVDragDrop.pendingPayload = payload,
+      // And taken back when the press ends, or a later long press on
+      // something else would drag this. A drag the platform started has
+      // already read it by then.
+      onPointerUp: (_) => DVDragDrop.pendingPayload = null,
+      onPointerCancel: (_) => DVDragDrop.pendingPayload = null,
       child: GestureDetector(
         // A finger holds before it drags, so a scroll stays a scroll; a
         // mouse drags at once, as it does on a desktop.

@@ -158,6 +158,28 @@ void main() {
     });
   });
 
+  group('a draggable on a platform that starts its own drag', () {
+    testWidgets('sets the payload on press and takes it back on release', (WidgetTester tester) async {
+      final List<Object?> pending = <Object?>[];
+      DVNativeBridge.register('dragDrop.setPending', (Object? arguments) {
+        pending.add(arguments);
+        return true;
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: Center(
+          child: DVBox(const SizedBox(width: 80, height: 80, child: Text('drag me')))
+              .modifier(DVModifier().draggable(const DVDragPayload(text: 'carried'))),
+        ),
+      ));
+      final TestGesture gesture = await tester.startGesture(tester.getCenter(find.text('drag me')));
+      expect((pending.single! as Map<Object?, Object?>)['text'], 'carried');
+      await gesture.up();
+      await tester.pump();
+      expect(pending.last, isNull, reason: 'a later long press elsewhere must not drag this');
+      expect(DVDragDrop.pendingPayload, isNull);
+    });
+  });
+
   group('where there is no drag and drop', () {
     test('choosing files instead delivers them as a drop to the same handler', () async {
       DVNativeBridge.register('dialogs.openFile', (Object? _) => <Object?>['/tmp/one.txt', '/tmp/two.txt']);
