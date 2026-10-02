@@ -7,6 +7,17 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Navigator 2.0: `dartvelNavigator2_0Routes(at:, onLocationChanged:)` returns
+  every Dartvel route as `DVNavigatorRoute` entries to spread into an app's own
+  route table, with `dvNavigatorPages(location, table)` for its RouterDelegate.
+  Replaces the per-location `dartvelPages` and `dartvelPageFor` (removed).
+- Every link has a preview: parameter routes preview the concrete path with its
+  parameters, and guarded pages and config routes preview a sign-in card with
+  their public title instead of building the protected page.
+- `dartvel create` and `dartvel init` are one command: in an existing project
+  both adopt it (plan first, `--dry-run`/`--yes`, nothing overwritten); where
+  there is no project both create one. `create` no longer refuses.
+
 - Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
   cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
   customer's current subscription.

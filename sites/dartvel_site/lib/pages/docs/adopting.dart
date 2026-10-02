@@ -40,59 +40,173 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
-          id: 'mount',
-          title: 'Keep your GoRouter',
+          id: 'routers',
+          title: 'Keep your router',
           children: <Widget>[
-            DocsShell(<String>[
-              'GoRouter(routes: <RouteBase>[',
-              '  ...myRoutes,',
-              '  ...dartvelRoutes(at: \'/app\'),',
-              '])',
-            ]),
+            DocsText('Dartvel works with five kinds of routing: go_router, '
+                'auto_route, Navigator 1.0, Navigator 2.0, and '
+                'MaterialApp.router or CupertinoApp.router with a RouterConfig. '
+                '`dartvel init` says which one your app uses.'),
+            DocsText('Each one works the same way. You pass your existing '
+                'routes or handler as `existing:`, in its own type. Dartvel '
+                'answers its own paths under the mount, such as /app. Every '
+                'other path goes to your handler, as it did before.'),
             Bullets(<String>[
-              'dartvelRoutes(at:) mounts the generated pages under a prefix in '
-                  'your own router.',
-              'DVGoRoutes goes the other way and puts your GoRoute list inside '
-                  'the generated router.',
-              'A GoRoute path that matches a generated page stops `dartvel routes` '
-                  'with DV-ADOPT-002 before it writes anything.',
+              'On a path both declare, Dartvel\'s page wins. `dartvel routes` '
+                  'also stops with DV-ADOPT-002 when a GoRoute of yours has '
+                  'the path of a generated page.',
+              'Dartvel\'s routes stay typed: open one with '
+                  '`dvHostedPath(DVRoutes.users(id: \'7\').path, at: \'/app\')` '
+                  'or `DV.Navigation.navigate(DVRoutes.about)`. Your routes keep '
+                  'their own argument types.',
+              'Dartvel\'s guards and redirects run on Dartvel\'s paths. Back '
+                  'goes through Dartvel\'s stack first, then yours.',
             ]),
           ],
         ),
         DocsSection(
-          id: 'other-routers',
-          title: 'Keep your auto_route or Navigator',
+          id: 'go-router',
+          title: 'go_router',
           children: <Widget>[
-            DocsText('Dartvel mounts into three routers: go_router, auto_route and '
-                'Flutter\'s own Navigator. `dartvel init` says which one your app '
-                'uses. Any other router is named, with these three.'),
             DocsShell(<String>[
-              '// auto_route',
-              'List<AutoRoute> get routes => <AutoRoute>[',
-              '  ...myRoutes,',
-              '  ...dartvelAutoRoutes(at: \'/app\'),',
-              '];',
-              '',
-              '// Navigator 1.0',
-              'MaterialApp(',
-              '  onGenerateRoute: (RouteSettings settings) =>',
-              '      dartvelOnGenerateRoute(settings, at: \'/app\') ?? myRoute(settings),',
+              'final GoRouter router = dartvelGoRouter(',
+              '  at: \'/app\',',
+              '  existing: myRoutes,        // List<RouteBase>',
+              '  redirect: myRedirect,      // GoRouterRedirect',
               ');',
-              'Navigator.pushNamed(context, dvHostedPath(DVRoutes.about.path, at: \'/app\'));',
-              '',
-              '// Navigator 2.0, in your RouterDelegate',
-              'Navigator(pages: <Page<Object?>>[',
-              '  ...myPages,',
-              '  ?dartvelPageFor(location, at: \'/app\'),',
-              '])',
+              'MaterialApp.router(routerConfig: router);',
             ]),
             Bullets(<String>[
-              'Dartvel\'s pages run in a router of their own under the prefix, '
-                  'with their own guards and redirects.',
-              'Back goes through Dartvel\'s stack first, then yours. On the web '
-                  'the address bar follows the Dartvel page.',
-              'Deep links to /app/... open the page; a path that is not a '
-                  'Dartvel page is left to your router.',
+              'One GoRouter holds Dartvel\'s routes and yours. '
+                  'DV.Navigation is attached to it.',
+              'Your redirect runs only on your paths. Dartvel\'s paths keep '
+                  'Dartvel\'s guards.',
+              'Building the GoRouter yourself still works: '
+                  '`GoRouter(routes: [...myRoutes, ...dartvelRoutes(at: \'/app\')])`, '
+                  'then `DVNavigation.attach(router)`.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'auto-route',
+          title: 'auto_route',
+          children: <Widget>[
+            DocsShell(<String>[
+              'class AppRouter extends RootStackRouter {',
+              '  @override',
+              '  List<AutoRoute> get routes => dartvelAutoRoutes(',
+              '        at: \'/app\',',
+              '        existing: <AutoRoute>[',
+              '          AutoRoute(page: HomeRoute.page, path: \'/\', initial: true),',
+              '          AutoRoute(page: ProfileRoute.page, path: \'/profile\'),',
+              '        ],',
+              '      );',
+              '}',
+            ]),
+            Bullets(<String>[
+              'dartvelAutoRoutes is generated when your project depends on '
+                  'auto_route. It adds one route for each Dartvel path under '
+                  '/app, before yours.',
+              'Your pages keep their generated route classes and typed '
+                  'arguments.',
+              'auto_route and go_router both define RouteData and RouteMatch. '
+                  'Import the Dartvel client with '
+                  '`hide RouteData, RouteMatch` in files that use auto_route.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'navigator-1',
+          title: 'Navigator 1.0',
+          children: <Widget>[
+            DocsShell(<String>[
+              'MaterialApp(',
+              '  onGenerateRoute: dartvelRouteFactory(',
+              '    at: \'/app\',',
+              '    existing: myOnGenerateRoute, // RouteFactory',
+              '  ),',
+              ');',
+              'Navigator.pushNamed(context, dvHostedPath(DVRoutes.about.path, at: \'/app\'));',
+            ]),
+            Bullets(<String>[
+              'A route name that is a Dartvel path gets the Dartvel page. '
+                  'Any other name goes to your onGenerateRoute, with its '
+                  'arguments.',
+              'A name that neither handles goes to onUnknownRoute, as '
+                  'before.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'navigator-2',
+          title: 'Navigator 2.0',
+          children: <Widget>[
+            DocsText('If you wrote your own RouterDelegate, keep your routes in '
+                'one table and spread Dartvel\'s into it. '
+                'dartvelNavigator2_0Routes returns all of Dartvel\'s routes '
+                'as a list:'),
+            DocsShell(<String>[
+              'late final List<DVNavigatorRoute> table = <DVNavigatorRoute>[',
+              '  DVNavigatorRoute(\'/settings\', (uri) => const MaterialPage(child: SettingsScreen())),',
+              '  ...dartvelNavigator2_0Routes(at: \'/app\', onLocationChanged: go),',
+              '];',
+              '',
+              '@override',
+              'Widget build(BuildContext context) => Navigator(',
+              '  key: navigatorKey,',
+              '  pages: <Page<Object?>>[',
+              '    const MaterialPage(child: HomeScreen()),',
+              '    ...dvNavigatorPages(location, table),',
+              '  ],',
+              '  onDidRemovePage: (_) {},',
+              ');',
+            ]),
+            Bullets(<String>[
+              'Your delegate stays in charge: it keeps the location and the '
+                  'stack, and asks the table which page a location is. The '
+                  'first entry that matches answers.',
+              'Every Dartvel route is an entry, under the prefix. Guards, '
+                  'parameters, the query and back work as in a Dartvel app.',
+              'Under a prefix there is one more entry, /app/**, so an unknown '
+                  'path under /app gets Dartvel\'s not-found page, not yours.',
+              'All of Dartvel\'s entries build the same page, so moving between '
+                  'two Dartvel paths keeps that page and its state.',
+              'When someone navigates inside Dartvel, onLocationChanged gets '
+                  'the new location, such as /app/users/7. Store it, so your '
+                  'currentConfiguration and the address bar stay correct.',
+              'You can also keep your delegate and parser unchanged, and pass '
+                  'them to dartvelRouterConfig (next section).',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'router-config',
+          title: 'MaterialApp.router and CupertinoApp.router',
+          children: <Widget>[
+            DocsShell(<String>[
+              'MaterialApp.router(',
+              '  routerConfig: dartvelRouterConfig(at: \'/app\', existing: myConfig),',
+              ');',
+              '',
+              '// A delegate and a parser of your own:',
+              'dartvelRouterConfig(',
+              '  at: \'/app\',',
+              '  existing: RouterConfig<MyConfiguration>(',
+              '    routerDelegate: myDelegate,',
+              '    routeInformationParser: myParser,',
+              '  ),',
+              ');',
+            ]),
+            Bullets(<String>[
+              'Your RouterConfig can come from go_router, auto_route or your '
+                  'own delegate and parser. Its configuration type stays '
+                  'its own.',
+              'A Dartvel path is handled by Dartvel. Every other location goes '
+                  'to your parser and delegate.',
+              'Your screens stay loaded while a Dartvel page shows. Back from '
+                  'the first Dartvel page returns to them.',
+              'With no existing config, dartvelRouterConfig() is the app\'s '
+                  'own Dartvel router.',
             ]),
           ],
         ),
@@ -177,8 +291,8 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Adoption', missing: <String>[
               'No bridges between signals and Riverpod providers or streams.',
               'No auth adapters for Firebase Auth or Supabase Auth.',
-              'No mount for routers other than go_router, auto_route and '
-                  'Flutter\'s Navigator.',
+              'Routing packages other than go_router and auto_route are not '
+                  'tested. They can only join through dartvelRouterConfig.',
             ]),
           ],
         ),

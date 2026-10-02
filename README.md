@@ -336,8 +336,13 @@ signals, native platform APIs),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
 dev server, deploy). Every package needs Dart 3.13 and Flutter 3.47 or newer.
 
-To add Dartvel to a Flutter project you already have, run `dartvel init`. It
-adds the dependency and the `dartvel:` key and nothing else.
+To add Dartvel to a Flutter project you already have, run `dartvel init` (or
+`dartvel create`: they are one command). It shows its plan, then adds the
+dependency and the `dartvel:` key and nothing else. Your router stays yours:
+`dartvelGoRouter` for go_router, `dartvelAutoRoutes` for auto_route,
+`dartvelRouteFactory` for Navigator 1.0, `dartvelNavigator2_0Routes` spread into
+a Navigator 2.0 route table, and `dartvelRouterConfig` for
+`MaterialApp.router`.
 
 ### 3. Start it
 
