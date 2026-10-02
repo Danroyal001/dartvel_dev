@@ -48,6 +48,10 @@ void main() {
     await routes.generate(root_: dir.path);
     final String runtime = runtimeFile(dir).readAsStringSync();
     expect(runtime, contains('DVDeviceStorage.declare('));
+    // Named in the runtime's imports: the runtime shows only what it uses,
+    // and a name it calls without importing fails the app's compile, not this.
+    expect(RegExp(r"import 'package:dartvel_core/dartvel.dart' show [^;]*\bDVFileStorageConfig\b").hasMatch(runtime), isTrue);
+    expect(RegExp(r"import 'package:dartvel_flutter/dartvel_flutter.dart' show [^;]*\bDVDeviceStorage\b").hasMatch(runtime), isTrue);
     expect(runtime, contains("appId: 'file_storage_probe'"));
     expect(runtime, contains("'photos'"));
     expect(runtime, contains("'documents'"));
