@@ -666,6 +666,14 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'Present: the --cloud options on build, deploy and key. Absent: the '
         'hosted machines that run cloud builds.',
   ),
+  (
+    'Coding Agent Documentation',
+    'AGENTS.md and the rest',
+    'Present: create and init write one rules block into every agent\'s file; '
+        'dev keeps it matched to your version. Absent: '
+        'architecture documents, per-module SKILL.md, the `dartvel agent` '
+        'commands, and `llms.txt`.',
+  ),
 ];
 
 @DVPage(
@@ -686,7 +694,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('WHAT WORKS TODAY'),
         Heading('Twenty-four shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-eight more are partial, and each card says what is missing.',
+          'Seventy-nine more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
