@@ -660,7 +660,7 @@ void main() {
 
     test('two pictures become a two-page PDF', () async {
       final String path = '${dir.path}${Platform.pathSeparator}out.pdf';
-      final DVPrintResult result = await DV.Platform.Printing.toFile(
+      final DVPrintResult result = await DV.Platform.printing.toFile(
         path,
         pages: <Uint8List>[await page(const Color(0xFFFFEEDD), 'Page one'), await page(const Color(0xFFDDEEFF), 'Page two')],
       );
@@ -675,7 +675,7 @@ void main() {
     test('a page that is not a picture is refused, and no file is written', () async {
       final String path = '${dir.path}${Platform.pathSeparator}bad.pdf';
       await expectLater(
-        DV.Platform.Printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
+        DV.Platform.printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
         throwsA(isA<StateError>()),
       );
       expect(File(path).existsSync(), isFalse);
@@ -720,7 +720,7 @@ void main() {
         dialog.selectPath('${dir.path}\\notes.txt');
         dialog.accept();
       });
-      final List<String> picked = await DV.Platform.Dialogs.openFile(
+      final List<String> picked = await DV.Platform.dialogs.openFile(
         title: 'Pick a note',
         filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
         initialDirectory: dir.path,
@@ -747,7 +747,7 @@ void main() {
 
     test('open: cancel is no files, not an error', () async {
       DVWindowsDialogs.automate((DVWindowsDialog dialog) => dialog.cancel());
-      expect(await DV.Platform.Dialogs.openFile(initialDirectory: dir.path), isEmpty);
+      expect(await DV.Platform.dialogs.openFile(initialDirectory: dir.path), isEmpty);
     });
 
     test('save: the suggested name is offered and the chosen path returned', () async {
@@ -756,7 +756,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      final String? path = await DV.Platform.Dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
+      final String? path = await DV.Platform.dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
       expect(seen.currentName, 'report.pdf');
       expect(path?.toLowerCase(), '${dir.path}\\report.pdf'.toLowerCase());
     });
@@ -766,7 +766,7 @@ void main() {
         dialog.selectPath(dir.path);
         dialog.accept();
       });
-      final String? chosen = await DV.Platform.Dialogs.chooseDirectory();
+      final String? chosen = await DV.Platform.dialogs.chooseDirectory();
       expect(chosen, isNotNull, reason: 'dialog: ${DVWindowsDialogs.lastError}');
       // The same directory, not the same spelling: see the open test above.
       expect(
@@ -781,7 +781,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      await DV.Platform.Dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
+      await DV.Platform.dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
       expect(seen.title, 'Saved');
       expect(seen.messageText, contains('Your report was saved.'));
     });

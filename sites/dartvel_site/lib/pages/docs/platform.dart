@@ -53,13 +53,17 @@ Widget _docsPlatformPage(BuildContext context) => const DocsArticle(
             DocsShell(<String>[
               'DV.Platform.screen.screenWidth, screenHeight',
               'DV.Platform.screen.safeAreas',
-              'DV.Platform.Window.setTitle(), .maximize(), .minimize(), .restore(), .setSize()',
+              'DV.Platform.window.setTitle(), .maximize(), .minimize(), .restore(), .setSize()',
             ]),
-            DocsSubheading('Device namespaces (lowerCamel is primary; upperCamel aliases are deprecated)'),
-            DocsText('Use the lowerCamel names (`DV.Platform.camera`, '
-                '`DV.Platform.media`, etc.). The upperCamel versions '
-                '(`Camera`, `Media`, etc.) remain as `@Deprecated` aliases '
-                'for one release cycle.'),
+            DocsSubheading('Device namespaces'),
+            DocsText('Every DV.Platform member is lowerCamel, like the rest of '
+                '`DV.*`: `DV.Platform.camera`, `DV.Platform.window`, '
+                '`DV.Platform.fileStorage`. The older capitalised names '
+                '(`Camera`, `Window`, `Tray`, `FileStorage` and the rest) '
+                'still compile as `@Deprecated` aliases for one release. '
+                'One pair is not a renaming: `DV.Platform.Notifications` is the '
+                'notifications service, and `DV.Platform.notifications` is '
+                'device-local notifications.'),
             DocsShell(<String>[
               'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share',
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
@@ -69,8 +73,8 @@ Widget _docsPlatformPage(BuildContext context) => const DocsArticle(
             DocsSubheading('Desktop-only'),
             DocsShell(<String>[
               'DV.Platform.associations  // file associations',
-              'DV.Platform.DragDrop',
-              'DV.Platform.Tray, Menus, Shortcuts, Printing',
+              'DV.Platform.dragDrop',
+              'DV.Platform.tray, Menus, Shortcuts, Printing',
             ]),
             DocsSubheading('Surface'),
             DocsShell(<String>[
@@ -80,8 +84,8 @@ Widget _docsPlatformPage(BuildContext context) => const DocsArticle(
             ]),
             DocsSubheading('File, storage and notifications proxies'),
             DocsShell(<String>[
-              'DV.Platform.FileStorage    // proxy to DV.FileStorage',
-              'DV.Platform.Notifications  // proxy to DV.Notifications',
+              'DV.Platform.fileStorage    // proxy to DV.FileStorage',
+              'DV.Platform.notifications  // proxy to DV.Notifications',
             ]),
           ],
         ),

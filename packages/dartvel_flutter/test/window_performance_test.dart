@@ -48,7 +48,7 @@ void main() {
   });
 
   Future<DVWindow> open(String path, {DVWindowOptions? options}) =>
-      DV.Platform.Window.open(DVRouteTarget(path),
+      DV.Platform.window.open(DVRouteTarget(path),
           options: options ?? const DVWindowOptions());
 
   group('open() to ready', () {
@@ -190,15 +190,15 @@ void main() {
       DVWindowManager.useSharedStore(store);
       final workspace = DVTabWorkspaceController(
           tabs: const <DVTab>[DVTab(DVRouteTarget('/a')), DVTab(DVRouteTarget('/b'))]);
-      await DV.Platform.Window.persistWorkspace('main', workspaces: <DVTabWorkspaceController>[workspace]);
+      await DV.Platform.window.persistWorkspace('main', workspaces: <DVTabWorkspaceController>[workspace]);
 
-      await DV.Platform.Window.restoreWorkspace('main');
+      await DV.Platform.window.restoreWorkspace('main');
       expect(perf.restores.single.name, 'main');
       expect(perf.restores.single.tabs, 2);
       expect(perf.findings, isEmpty);
 
       final slow = install(const Duration(milliseconds: 600));
-      await DV.Platform.Window.restoreWorkspace('main');
+      await DV.Platform.window.restoreWorkspace('main');
       final finding = slow.findings.singleWhere(
           (DVWindowPerformanceFinding f) => f.kind == DVWindowPerformanceIssue.restoreOverBudget);
       expect(finding.subject, 'main');

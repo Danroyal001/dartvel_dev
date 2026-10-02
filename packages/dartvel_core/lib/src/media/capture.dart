@@ -1,4 +1,4 @@
-/// `DV.Platform.Media.recordAudio(...)` and `recordVideo(...)`.
+/// `DV.Platform.media.recordAudio(...)` and `recordVideo(...)`.
 library;
 
 import 'dart:async';
@@ -95,7 +95,7 @@ final class DVCaptureFailure implements Exception {
 /// One recording.
 ///
 /// Awaiting it gives the finished [DVFile]; holding it gives [stop], [dispose]
-/// and the signals. Both, so `await DV.Platform.Media.recordAudio(...)` reads
+/// and the signals. Both, so `await DV.Platform.media.recordAudio(...)` reads
 /// as the specification writes it and a recording can still be stopped early.
 ///
 /// A recording that nothing awaits does not raise an unhandled error when it
@@ -382,7 +382,7 @@ final class DVCaptureSession implements Future<DVFile> {
       _completer.future.whenComplete(action);
 }
 
-/// The capture runtime behind `DV.Platform.Media`.
+/// The capture runtime behind `DV.Platform.media`.
 ///
 /// One recording at a time: a second is refused with [DVCaptureBusy] rather
 /// than handed a device the first still holds.

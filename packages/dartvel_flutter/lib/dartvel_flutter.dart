@@ -374,7 +374,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVImageSource,
         DVImageVariants,
         // Media playback and capture: the player behind DVBox.video and
-        // DVBox.audio, DV.Platform.Media capture, and the backend contracts a
+        // DVBox.audio, DV.Platform.media capture, and the backend contracts a
         // native binding implements, with the fakes a test drives them with.
         DVAudioFocus,
         DVAudioFocusBackend,
@@ -6175,14 +6175,35 @@ class DVPlatform {
   String get type => deviceType;
   Orientation get deviceOrientation => orientation;
   DVScreen get screen => DVScreen(this);
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVWindowManager get window => DVWindowManager(this);
+  @Deprecated('Use DV.Platform.window instead')
   DVWindowManager get Window => DVWindowManager(this);
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVTray get tray => const DVTray();
+  @Deprecated('Use DV.Platform.tray instead')
   DVTray get Tray => const DVTray();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVMenus get menus => const DVMenus();
+  @Deprecated('Use DV.Platform.menus instead')
   DVMenus get Menus => const DVMenus();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVShortcuts get shortcuts => const DVShortcuts();
+  @Deprecated('Use DV.Platform.shortcuts instead')
   DVShortcuts get Shortcuts => const DVShortcuts();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVPrinting get printing => const DVPrinting();
+  @Deprecated('Use DV.Platform.printing instead')
   DVPrinting get Printing => const DVPrinting();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVDialogs get dialogs => const DVDialogs();
+  @Deprecated('Use DV.Platform.dialogs instead')
   DVDialogs get Dialogs => const DVDialogs();
 
   /// What the desktop dropped onto the window.
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVDragDrop get dragDrop => const DVDragDrop();
+  @Deprecated('Use DV.Platform.dragDrop instead')
   DVDragDrop get DragDrop => const DVDragDrop();
 
   /// What this application opens: registering its own file types with the
@@ -6246,6 +6267,9 @@ class DVPlatform {
 
   /// Proxies to [DV.FileStorage], so media and files are one API rather than a
   /// platform-local duplicate of it.
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVStorage get fileStorage => DV.FileStorage;
+  @Deprecated('Use DV.Platform.fileStorage instead')
   DVStorage get FileStorage => DV.FileStorage;
 
   /// Proxies to [DV.Notifications]. Device-local notifications remain on the
@@ -8782,16 +8806,16 @@ class DV {
   // Top-level proxies onto the `DV.Platform` device namespaces. Everything
   // still lives under `DV.Platform.*`; these only save a hop for the device
   // APIs the spec proxies by name.
-  static DVLocation get Location => Platform.Location;
-  static DVBluetooth get Bluetooth => Platform.Bluetooth;
-  static DVNfc get NFC => Platform.NFC;
-  static DVClipboard get Clipboard => Platform.Clipboard;
-  static DVShare get Share => Platform.Share;
-  static DVSensors get Sensors => Platform.Sensors;
-  static DVBiometrics get Biometrics => Platform.Biometrics;
-  static DVDeepLinks get DeepLinking => Platform.DeepLinking;
-  static DVHaptics get Haptics => Platform.Haptics;
-  static DVContacts get Contacts => Platform.Contacts;
+  static DVLocation get Location => Platform.location;
+  static DVBluetooth get Bluetooth => Platform.bluetooth;
+  static DVNfc get NFC => Platform.nfc;
+  static DVClipboard get Clipboard => Platform.clipboard;
+  static DVShare get Share => Platform.share;
+  static DVSensors get Sensors => Platform.sensors;
+  static DVBiometrics get Biometrics => Platform.biometrics;
+  static DVDeepLinks get DeepLinking => Platform.deepLinks;
+  static DVHaptics get Haptics => Platform.haptics;
+  static DVContacts get Contacts => Platform.contacts;
 
   static DVAuth get Auth => const DVAuth();
 

@@ -81,7 +81,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           title: 'Open more windows and tabs',
           children: <Widget>[
             Bullets(<String>[
-              'DV.Platform.Window.open opens a page in its own window on Linux, '
+              'DV.Platform.window.open opens a page in its own window on Linux, '
                   'once: opening it again focuses the one that is open. A second '
                   'launch of the app hands its arguments to the first.',
               'Tab workspaces keep tabs in order, let you drag one out into a '

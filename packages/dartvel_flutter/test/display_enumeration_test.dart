@@ -19,7 +19,7 @@ void main() {
     DVWindowManager.reset();
   });
 
-  DVWindowManager manager() => DV.Platform.Window;
+  DVWindowManager manager() => DV.Platform.window;
 
   test('displays start empty, before anything has enumerated them', () {
     expect(manager().displays.value, isEmpty);
@@ -196,7 +196,7 @@ void _openWiring() {
     });
 
     test('the resolved display id is handed to the platform', () async {
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: const DVWindowOptions(display: DVDisplayHint.secondary),
       );
@@ -208,9 +208,9 @@ void _openWiring() {
     test('a hint enumerates displays when nothing has yet', () async {
       // Otherwise the first window of the process always lands on the primary
       // display, because the list it resolves against is still empty.
-      expect(DV.Platform.Window.displays.value, isEmpty);
+      expect(DV.Platform.window.displays.value, isEmpty);
 
-      await DV.Platform.Window.open(
+      await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Customer')),
       );
@@ -223,7 +223,7 @@ void _openWiring() {
       // the output on the operator's own screen, and it would look like it had
       // worked; letting the OS place the window is the same thing that would
       // have happened with no hint at all.
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Missing')),
       );
@@ -235,7 +235,7 @@ void _openWiring() {
     });
 
     test('no hint sends no display id', () async {
-      await DV.Platform.Window.open(const DVRouteTarget('/orders'));
+      await DV.Platform.window.open(const DVRouteTarget('/orders'));
       expect(opens.single.containsKey('displayId'), isFalse);
     });
 
@@ -247,7 +247,7 @@ void _openWiring() {
       DVNativeBridge.unregister('window.open');
       DVNativeBridge.register('window.open', (Object? _) => null);
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Missing')),
       );

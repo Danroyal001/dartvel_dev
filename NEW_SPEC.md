@@ -2408,7 +2408,7 @@ Provides:
 - Safe areas (DV.Platform.screen.safeAreaBounds)
 - Breakpoints (DV.Platform.screen.breakPoints)
 - Orientation (DV.Platform.deviceOrientation)
-- Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
+- Window (DV.Platform.window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
 - Device type (DV.Platform.type, a string: `phone`, `tablet`, `foldable`, `desktop`, `tv`, `watch` or `web`. Laptop, embedded display and watch-shape kinds are designed)
 - Screen shape (DV.Platform.screen.shape, `DVScreenShape`: square, verticalRectangle, horizontalRectangle, round, custom)
 - Full-screen and kiosk display control:
@@ -2446,19 +2446,19 @@ Native APIs, including:
   - `context.screen.folds` lists each fold or hinge as a `DVFold` (bounds in window coordinates, `isVertical`, `occludes`, `state`), read from the display features Flutter reports, and rebuilds the widget when the device folds. `context.screen.isSpanned` and `context.screen.posture` (`flat`, `book`, `tabletop`) are read from the first fold. `DVBox.twoPane` lays one pane each side of it and never in a hinge that covers pixels.
   - Android foldables report their folds through Flutter today. Apple's iPhone Duo (iOS 27.1) exposes its fold as `UIView.reservedRegions(kind: .division)` and its hinge through `onHingeChange`; Dartvel binds those through FFI, never a platform channel, into the same display features, so an app written against `context.screen.folds` needs no change for it.
 - Native APIs, Expo-style. (DV.Platform.*)
-- Camera (`DV.Platform.camera` - deprecated alias `DV.Platform.Camera`)
-- Media and Files (DV.Platform.FileStorage, proxy to DV.FileStorage)
-- Location (`DV.Platform.location`, deprecated alias `DV.Platform.Location`, and `DV.Location` proxy)
-- Bluetooth (`DV.Platform.bluetooth`, deprecated alias `DV.Platform.Bluetooth`, and `DV.Bluetooth` proxy)
-- NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.NFC`, and `DV.NFC` proxy)
-- Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.Clipboard`, and `DV.Clipboard` proxy)
-- Share (`DV.Platform.share`, deprecated alias `DV.Platform.Share`, or `DV.Share` proxy)
+- Camera (`DV.Platform.camera` - deprecated alias `DV.Platform.camera`)
+- Media and Files (DV.Platform.fileStorage, proxy to DV.FileStorage)
+- Location (`DV.Platform.location`, deprecated alias `DV.Platform.location`, and `DV.Location` proxy)
+- Bluetooth (`DV.Platform.bluetooth`, deprecated alias `DV.Platform.bluetooth`, and `DV.Bluetooth` proxy)
+- NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.nfc`, and `DV.NFC` proxy)
+- Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.clipboard`, and `DV.Clipboard` proxy)
+- Share (`DV.Platform.share`, deprecated alias `DV.Platform.share`, or `DV.Share` proxy)
 - Notifications (`DV.Platform.notifications` / `DV.Notifications` proxy) - device-local notifications; mail is `DV.Notifications.mail`
-- Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.Sensors`, and `DV.Sensors` proxy)
-- Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.Biometrics`, and `DV.Biometrics` proxy)
-- Deep Links (`DV.Platform.deepLinks`, deprecated alias `DV.Platform.DeepLinking`, and `DV.DeepLinks` proxy)
-- Haptics (`DV.Platform.haptics`, deprecated alias `DV.Platform.Haptics`, and `DV.Haptics` proxy)
-- Contacts (`DV.Platform.contacts`, deprecated alias `DV.Platform.Contacts`, and `DV.Contacts` proxy)
+- Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.sensors`, and `DV.Sensors` proxy)
+- Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.biometrics`, and `DV.Biometrics` proxy)
+- Deep Links (`DV.Platform.deepLinks`, deprecated alias `DV.Platform.deepLinks`, and `DV.DeepLinks` proxy)
+- Haptics (`DV.Platform.haptics`, deprecated alias `DV.Platform.haptics`, and `DV.Haptics` proxy)
+- Contacts (`DV.Platform.contacts`, deprecated alias `DV.Platform.contacts`, and `DV.Contacts` proxy)
 - Browser extension detection:
   - `DV.Platform.isChromiumExtension`
   - `DV.Platform.isFirefoxExtension`
@@ -6853,18 +6853,18 @@ Desktop:
 Desktop APIs live under `DV.Platform.*` and generated app services:
 
 ```dart
-await DV.Platform.Window.setTitle('Dartvel Admin');
-await DV.Platform.Window.persistState('main');
-await DV.Platform.Window.restoreState('main');
-await DV.Platform.Tray.show(icon: DVAsset.tray); // a generated asset, never a path string
-await DV.Platform.Tray.show(
+await DV.Platform.window.setTitle('Dartvel Admin');
+await DV.Platform.window.persistState('main');
+await DV.Platform.window.restoreState('main');
+await DV.Platform.tray.show(icon: DVAsset.tray); // a generated asset, never a path string
+await DV.Platform.tray.show(
   icon: DVAsset.tray,
   tooltip: 'Dartvel',
   menu: const <DVTrayMenuItem>[
     DVTrayMenuItem(id: 'open', label: 'Open'),
   ],
 );
-await DV.Platform.Menus.setApplicationMenu(
+await DV.Platform.menus.setApplicationMenu(
   const DVApplicationMenu(<DVMenuItem>[
     DVMenuItem(
       id: 'file',
@@ -6875,7 +6875,7 @@ await DV.Platform.Menus.setApplicationMenu(
     ),
   ]),
 );
-await DV.Platform.Shortcuts.register(
+await DV.Platform.shortcuts.register(
   const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
 );
 ```
@@ -8514,7 +8514,7 @@ view state and do not create a second window.
 
 ## Surface
 
-`DV.Platform.Window` grows from "the current window" into the window manager,
+`DV.Platform.window` grows from "the current window" into the window manager,
 with `DV.Window` as its alias per the established proxy pattern. There is one
 namespace; the existing `setTitle` / `persistState` / `restoreState` members
 read as sugar over `DV.Window.current` and remain valid.
@@ -8946,7 +8946,7 @@ first thing a workspace's shared store could not represent, and a per-window
 tenant would be a data-isolation hole with a friendly name.
 
 **Shortcuts** are focus-scoped by default: a page's shortcuts fire only when
-its window is `active`. `DV.Platform.Shortcuts.register` (global shortcuts)
+its window is `active`. `DV.Platform.shortcuts.register` (global shortcuts)
 stays global and fires regardless of focus, as its name says.
 
 **Accessibility**: each real window is its own semantics tree and announces
@@ -9103,7 +9103,7 @@ and owned windows outliving the frame budget on close.
 
 ## Compatibility
 
-`DV.Platform.Window.setTitle` / `persistState` / `restoreState` continue to
+`DV.Platform.window.setTitle` / `persistState` / `restoreState` continue to
 work as sugar over `DV.Window.current`. No existing surface is removed, so no
 project has to move. `dartvel migrate-code` exists and deliberately does not
 carry a rewrite to the explicit form: `DVWindow` has `setTitle` but no
@@ -9115,7 +9115,7 @@ that does not compile. See *Upgrade and compatibility*.
 
 Closed as a list so they are not reopened item by item:
 
-- **A second windowing namespace.** `DV.Window` (= `DV.Platform.Window`) is
+- **A second windowing namespace.** `DV.Window` (= `DV.Platform.window`) is
   the whole surface. No `DVWindowManager`, no `DV.Windows`, no `DVWindowing` —
   not as a public type, not as a documented name, ever. Anything the
   implementation needs beyond `DV.Window` and `DVWindow` is private.

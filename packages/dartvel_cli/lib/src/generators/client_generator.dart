@@ -789,7 +789,7 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // the rest. Registered here rather than left to the application, because a
   // separate call the application had to remember is exactly how every real
   // app on Linux was throwing "binding not registered" from
-  // DV.Platform.Clipboard.copy().
+  // DV.Platform.clipboard.copy().
   registerPlatformBindings();
   DVStartupProfile.current.mark('bindings');
   // Crash reporting, after the bindings: on Android the directory the records
@@ -954,7 +954,7 @@ ${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
     appId: '$pkgName',
     arguments: arguments,
     open: (String route) async {
-      await DV.Platform.Window.open(DVRouteTarget(route), options: DVWindowOptions.external);
+      await DV.Platform.window.open(DVRouteTarget(route), options: DVWindowOptions.external);
     },
   ).then((result) {
     // A second launch has done its job once its arguments are handed over;
@@ -962,7 +962,7 @@ ${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
     if (!result.isPrimary) exit(0);
     // The one that stays publishes what it has open beside its lock, for
     // `dartvel inspect windows` to read while it runs.
-    DV.Platform.Window.publishLiveWindows(dvLiveWindowsPathFor('$pkgName'), app: '$pkgName');
+    DV.Platform.window.publishLiveWindows(dvLiveWindowsPathFor('$pkgName'), app: '$pkgName');
   }));
 }
 

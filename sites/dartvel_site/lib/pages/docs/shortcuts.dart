@@ -95,7 +95,7 @@ Widget _docsShortcutsPage(BuildContext context) => const DocsArticle(
         ),
         DocsNote(
           'System-wide shortcuts',
-          'DV.Platform.Shortcuts and the existing '
+          'DV.Platform.shortcuts and the existing '
               'DVShortcuts service register native system-wide shortcuts. '
               'DVShortcutScope is the widget for keys inside your app.',
         ),
