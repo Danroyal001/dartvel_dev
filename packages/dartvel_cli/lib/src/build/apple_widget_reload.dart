@@ -40,8 +40,6 @@ const String dvAppleWidgetReloadFileName = 'DartvelWidgetCenter.swift';
 /// removing one remove the other.
 const String dvAppleWidgetReloadIdPrefix = 'DA97E1DA97E2';
 
-final String _fileRefId = '${dvAppleWidgetReloadIdPrefix}000000000001';
-final String _buildFileId = '${dvAppleWidgetReloadIdPrefix}000000000002';
 
 /// The shim, as Swift.
 ///
@@ -103,8 +101,28 @@ String dvApplePbxprojWithWidgetReload(
   required bool hasWidgets,
   required String platform,
 }) {
-  final String stripped = _strip(pbxproj);
-  if (!hasWidgets) return stripped;
+  return dvApplePbxprojWithSwiftFile(
+    pbxproj,
+    fileName: dvAppleWidgetReloadFileName,
+    idPrefix: dvAppleWidgetReloadIdPrefix,
+    include: hasWidgets,
+  );
+}
+
+/// [pbxproj] with the Swift file [fileName], written in the `Runner` folder,
+/// compiled into the application -- or, when [include] is false, with it
+/// taken back out.
+///
+/// Every object this adds carries [idPrefix], one per generated file, so
+/// files are added and removed independently.
+String dvApplePbxprojWithSwiftFile(
+  String pbxproj, {
+  required String fileName,
+  required String idPrefix,
+  required bool include,
+}) {
+  final String stripped = _strip(pbxproj, idPrefix);
+  if (!include) return stripped;
 
   // Everything below hangs off the application target. A project without one
   // is not a project this understands, and writing into it anyway trades a
@@ -112,15 +130,17 @@ String dvApplePbxprojWithWidgetReload(
   final String? sources = _applicationSourcesPhaseId(stripped);
   if (sources == null) return stripped;
 
-  const String path = dvAppleWidgetReloadFileName;
+  final String path = fileName;
+  final String fileRefId = '${idPrefix}000000000001';
+  final String buildFileId = '${idPrefix}000000000002';
 
   String out = stripped;
   out = _beforeSectionEnd(out, 'PBXBuildFile', <String>[
-    '\t\t$_buildFileId /* $path in Sources */ = {isa = PBXBuildFile; '
-        'fileRef = $_fileRefId /* $path */; };',
+    '\t\t$buildFileId /* $path in Sources */ = {isa = PBXBuildFile; '
+        'fileRef = $fileRefId /* $path */; };',
   ]);
   out = _beforeSectionEnd(out, 'PBXFileReference', <String>[
-    '\t\t$_fileRefId /* $path */ = {isa = PBXFileReference; '
+    '\t\t$fileRefId /* $path */ = {isa = PBXFileReference; '
         'lastKnownFileType = sourcecode.swift; path = $path; '
         'sourceTree = "<group>"; };',
   ]);
@@ -130,10 +150,10 @@ String dvApplePbxprojWithWidgetReload(
   // open from the navigator.
   final String? group = _applicationGroupId(out);
   if (group != null) {
-    out = _intoList(out, group, 'children', '\t\t\t\t$_fileRefId /* $path */,');
+    out = _intoList(out, group, 'children', '\t\t\t\t$fileRefId /* $path */,');
   }
   out = _intoList(
-      out, sources, 'files', '\t\t\t\t$_buildFileId /* $path in Sources */,');
+      out, sources, 'files', '\t\t\t\t$buildFileId /* $path in Sources */,');
   return out;
 }
 
@@ -145,9 +165,9 @@ String dvApplePbxprojWithWidgetReload(
 /// were added -- which matters, because the pbxproj is checked in and a
 /// build that rewrote it differently each time would put a diff on every
 /// branch.
-String _strip(String pbxproj) => pbxproj
+String _strip(String pbxproj, String idPrefix) => pbxproj
     .split('\n')
-    .where((String line) => !line.contains(dvAppleWidgetReloadIdPrefix))
+    .where((String line) => !line.contains(idPrefix))
     .join('\n');
 
 /// The id of the Sources phase of the target that builds the `.app`.

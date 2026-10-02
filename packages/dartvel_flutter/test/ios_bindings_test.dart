@@ -33,6 +33,14 @@ void main() {
         // version, answering -1 where it cannot be shown, so a category is
         // never granted on a prompt nobody saw.
         'tracking.requestAuthorization',
+        // Drag and drop through the Swift bridge the build compiles in:
+        // UIDropInteraction for drops from Files, Photos or Safari in Split
+        // View, Slide Over or Stage Manager, and UIDragInteraction for drags
+        // out, which UIKit starts from its own long press -- so the payload
+        // is set ahead of it rather than a drag started from Dart.
+        'dragDrop.accept',
+        'dragDrop.stop',
+        'dragDrop.setPending',
 
       });
     });

@@ -31,6 +31,7 @@ import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
 import 'ios_capabilities.dart';
+import 'ios_drag_drop_ffi.dart';
 
 typedef _ObjcGetClassNative = Pointer<Void> Function(Pointer<Utf8> name);
 typedef _ObjcGetClassDart = Pointer<Void> Function(Pointer<Utf8> name);
@@ -187,6 +188,11 @@ class DVIosBindings {
         return null;
       });
     }
+
+    // Drag and drop, when the build compiled the Swift bridge in. Absent
+    // from an application built with plain `flutter build`, which then
+    // keeps drags between its own widgets and the file picker.
+    DVIosDragDrop.register(_objc, DVNativeBridge.register);
 
     _registered = true;
     return true;
