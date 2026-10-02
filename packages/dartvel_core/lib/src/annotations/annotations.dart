@@ -891,10 +891,11 @@ class DVBackendFunction {
   /// Mutually exclusive with [rawPath].
   final String? rawPathSuffix;
 
-  /// Declares this backend function as an AI tool: feeds the AI tool registry,
-  /// MCP, App Intents, App Functions and WebMCP. No separate DVAppIntents API.
-  /// When set, the function is exposed as a tool regardless of the global
-  /// `exposeBackendFunctionsAsTools` setting.
+  /// Declares this backend function an AI tool, the same as `@DVAITool` on any
+  /// other function: it is added to the generated AI tool registry
+  /// (`ai_tools.g.dart`) with this description, even when the project does not
+  /// expose every backend function as a tool. MCP, WebMCP, App Intents and App
+  /// Functions are planned to read this one registry; none exists yet.
   final DVAITool? aiTool;
 
   const DVBackendFunction({

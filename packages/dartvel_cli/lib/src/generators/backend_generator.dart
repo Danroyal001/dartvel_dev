@@ -4098,36 +4098,49 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required Map<String, _AIToolEntry> entriesByName,
     bool exposeBackendFunctions = false,
   }) {
-    final pattern = RegExp(
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\((?:[^()]|\([^)]*\))*\))?\s*)*'
-      r'@DVBackendFunction(?:\((?:[^()]|\([^)]*\))*\))?\s*'
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\((?:[^()]|\([^)]*\))*\))?\s*)*'
+    // Annotations are scanned with balanced brackets, not a regular
+    // expression: `aiTool: DVAITool(description: 'Find a product (by id)')`
+    // nests brackets inside a string inside a call, which a pattern with a
+    // fixed nesting depth silently skips -- and a skipped function is a tool
+    // that never appears, with nothing saying why.
+    final signature = RegExp(
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
-      dotAll: true,
     );
-    for (final match in pattern.allMatches(source)) {
-      final declaration = match.group(0) ?? '';
+    for (int annotationAt = source.indexOf('@DVBackendFunction');
+        annotationAt >= 0;
+        annotationAt = source.indexOf('@DVBackendFunction', annotationAt + 1)) {
+      final int afterName = annotationAt + '@DVBackendFunction'.length;
+      if (afterName < source.length &&
+          RegExp(r'[A-Za-z0-9_]').hasMatch(source[afterName])) {
+        continue; // a longer identifier, such as @DVBackendFunctionGroup
+      }
+      int cursor = _dvSkipAnnotationArguments(source, afterName);
+      // Any further annotations between this one and the declaration.
+      while (true) {
+        final Match? next = RegExp(r'\s*@[A-Za-z_][A-Za-z0-9_.]*').matchAsPrefix(source, cursor);
+        if (next == null) break;
+        cursor = _dvSkipAnnotationArguments(source, next.end);
+      }
+      final Match? match = signature.matchAsPrefix(source, _dvSkipSpace(source, cursor));
+      if (match == null) continue;
+      // The declaration runs from the end of whatever came before it, so an
+      // annotation written above @DVBackendFunction (such as @DVAIHidden) is
+      // part of it.
+      final int previousEnd = source.lastIndexOf(RegExp(r'[;}]'), annotationAt) + 1;
+      final String declaration = source.substring(previousEnd, match.end);
       final name = match.group(1)!;
       final publicName = name.startsWith('_') ? name.substring(1) : name;
       final hasExplicitAITool = declaration.contains('aiTool');
       String description = '';
       if (hasExplicitAITool) {
-        final toolPartMatch = RegExp(
-          r"aiTool\s*:\s*(DVAITool\s*\([^)]*\))",
-        ).firstMatch(declaration);
-        if (toolPartMatch != null) {
-          final descStr = toolPartMatch.group(1)!;
-          final descDq = RegExp(
-            r'description\s*:\s*"(.*?)"',
-            dotAll: true,
-          ).firstMatch(descStr);
-          final descSq = RegExp(
-            r"description\s*:\s*'(.*?)'",
-            dotAll: true,
-          ).firstMatch(descStr);
-          description = descDq?.group(1) ?? descSq?.group(1) ?? '';
-        }
+        // The description is the string literal after `description:` inside
+        // `aiTool: DVAITool(...)`, read as a literal so a ')' in it is text.
+        final aiToolStart = declaration.indexOf('aiTool');
+        final descriptionMatch = RegExp(
+          r'''description\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+        ).firstMatch(declaration.substring(aiToolStart));
+        description = descriptionMatch?.group(1) ?? descriptionMatch?.group(2) ?? '';
       }
       if (!hasExplicitAITool && !exposeBackendFunctions) {
         continue;
@@ -4158,6 +4171,39 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         declaredName: name,
       );
     }
+  }
+
+  /// The index just past an annotation's argument list starting at [from], or
+  /// [from] itself when no `(` follows. String literals are skipped whole, so a
+  /// bracket inside a description does not end the list.
+  static int _dvSkipAnnotationArguments(String source, int from) {
+    final int open = _dvSkipSpace(source, from);
+    if (open >= source.length || source[open] != '(') return from;
+    int depth = 0;
+    for (int index = open; index < source.length; index++) {
+      final String character = source[index];
+      if (character == "'" || character == '"') {
+        index++;
+        while (index < source.length && source[index] != character) {
+          if (source[index] == '\\') index++;
+          index++;
+        }
+      } else if (character == '(') {
+        depth++;
+      } else if (character == ')') {
+        depth--;
+        if (depth == 0) return index + 1;
+      }
+    }
+    return source.length;
+  }
+
+  static int _dvSkipSpace(String source, int from) {
+    int index = from;
+    while (index < source.length && source[index].trim().isEmpty) {
+      index++;
+    }
+    return index;
   }
 
   static bool _shouldExposeBackendFunctionsAsAITools(String root) {
