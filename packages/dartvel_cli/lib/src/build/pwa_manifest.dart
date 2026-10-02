@@ -72,6 +72,7 @@ Map<String, Object?> dvPwaManifest({
   String themeColor = '#000000',
   String? description,
   List<DVPwaIcon> icons = _defaultIcons,
+  List<Map<String, Object?>> fileHandlers = const <Map<String, Object?>>[],
 }) =>
     <String, Object?>{
       'name': name,
@@ -84,6 +85,9 @@ Map<String, Object?> dvPwaManifest({
       'theme_color': themeColor,
       if (description != null) 'description': description,
       'icons': icons.map((DVPwaIcon icon) => icon.toJson()).toList(),
+      // An installed PWA is offered to open these types; the files arrive
+      // through launchQueue. Absent rather than empty when there are none.
+      if (fileHandlers.isNotEmpty) 'file_handlers': fileHandlers,
     };
 
 /// Why a manifest would or would not be installable.
