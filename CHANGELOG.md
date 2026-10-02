@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
+  cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
+  customer's current subscription.
+- Every form is now a keyboard form with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region, written under the field it names, and given the focus.
+- `DVVisibilityToggle` (sealed: `eye`, `none`, `custom(builder)`) for password/sensitive field visibility toggles. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it.
+
 ## 0.10.0 — 2026-10-02
 
 Packages: dartvel_core, dartvel_shelf, dartvel_flutter, dartvel_cli and
@@ -53,17 +61,11 @@ dartvel_dev 0.10.0; dartvel_generator 1.4.3 (constraint only).
 
 ### Details
 
-- Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
-  cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
-  customer's current subscription.
-
 - `dartvel dev --release` serves an existing production web build locally,
   with `--host` and `--port`. It uses the same route renderer as web-server.
 - Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,
   `--list`, `--open`, `--logs`, `--destroy` and `--sweep`. Log retrieval remains
   unsupported; `--logs [--follow]` reports that limitation.
-- Every form is now a keyboard form with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region, written under the field it names, and given the focus.
-- `DVVisibilityToggle` (sealed: `eye`, `none`, `custom(builder)`) for password/sensitive field visibility toggles. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it.
 - `dartvel preview` is hidden from help and forwards to the new commands
   with a deprecation message for one release.
 
