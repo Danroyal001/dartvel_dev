@@ -11256,6 +11256,29 @@ Dartvel should own the full build orchestration:
 `dartvel build` and `dartvel dev` run `dartvel routes` first. Users do not
 need to remember a separate generation command for normal workflows.
 
+### The build cache
+
+Stability: `Draft` · Status: `Partial` (web and web-server)
+
+A step whose inputs are byte-for-byte unchanged reuses what it produced. Two
+steps are cached today, the two slow ones of a web build:
+
+- **Flutter's web build**, keyed by a SHA-256 over the contents of `lib/`
+  (generated client included), `web/`, the assets `flutter: assets:` declares,
+  `pubspec.yaml`, `pubspec.lock`, the source of every package resolved by path,
+  the Flutter framework, engine and Dart revisions, the Dartvel version, the
+  target, the profile and the Flutter arguments. The cached snapshot is the raw
+  output, so every step after it (Studio code separation, image variants, SEO
+  head, minification, the server binary) still runs.
+- **Each route's semantics capture**, keyed by the hash of the web output it is
+  read from, the route, and the capture's version.
+
+Never stale: content hashes, not names or times; an entry is used only when
+every file matches its manifest, written last, and anything else is deleted and
+rebuilt. `.dartvel/cache`, three entries per step, 2 GB cap, oldest first.
+`--no-cache` reads and writes nothing. Other targets opt in by keying their
+step the same way.
+
 ## Designed commands
 
 Other sections specify these commands. The CLI does not have them yet, and

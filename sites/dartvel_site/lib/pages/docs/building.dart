@@ -38,6 +38,50 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'cache',
+          title: 'Repeat builds reuse what did not change',
+          children: <Widget>[
+            Bullets(<String>[
+              'dartvel build web and web-server skip Flutter\'s web build when '
+                  'nothing it reads has changed, and skip reading a route\'s '
+                  'semantics tree when the web output it was read from is the '
+                  'same.',
+              'The key is a hash of the contents of every input: lib/, web/, '
+                  'the assets the pubspec declares, pubspec.yaml and its lock, '
+                  'the source of packages used by path, the Flutter and Dartvel '
+                  'versions and the build flags. One changed byte is a fresh '
+                  'build.',
+              'Kept in .dartvel/cache (gitignored), three entries per step, two '
+                  'GB at most, oldest first. An entry that does not match what '
+                  'was stored is deleted and rebuilt, never served.',
+              '--no-cache builds everything afresh and writes nothing.',
+            ]),
+            DocsText('In CI, keep .dartvel/cache between runs:'),
+            DocsShell(<String>[
+              '# GitHub Actions',
+              '- uses: actions/cache@v4',
+              '  with:',
+              '    path: .dartvel/cache',
+              "    key: dartvel-\${{ runner.os }}-\${{ hashFiles('pubspec.lock') }}",
+              '    restore-keys: dartvel-\${{ runner.os }}-',
+              '',
+              '# GitLab CI',
+              'cache:',
+              '  key: dartvel-\$CI_COMMIT_REF_SLUG',
+              '  paths: [.dartvel/cache/]',
+              '',
+              '# Codemagic',
+              'cache:',
+              '  cache_paths:',
+              '    - \$CM_BUILD_DIR/.dartvel/cache',
+            ]),
+            DocsText('The CI key only decides which copy to restore: Dartvel '
+                'checks every entry against its own content hash, so a restored '
+                'cache from another commit is reused only where the inputs '
+                'really are the same.'),
+          ],
+        ),
+        DocsSection(
           id: 'tools',
           title: 'Check tools before you build',
           children: <Widget>[
