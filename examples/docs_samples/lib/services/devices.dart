@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
@@ -67,4 +69,26 @@ Future<void> installDesktopChrome() async {
     onPressed: () => DV.Platform.window.open(DVRoutes.cart),
   );
 }
+// docs:end
+
+// docs:start devices-drag-drop
+// One handler for a drop from anywhere: another app in split screen, Files
+// on an iPad, a file manager, a browser tab.
+Widget photoDrop(void Function(String name, Uint8List bytes) attach) =>
+    DVBox(const DVText('Drop a photo here')).modifier(
+      DVModifier().dropTarget(
+        types: const <DVDropType>{.files},
+        onDrop: (DVDropEvent drop) async {
+          for (final DVIncomingFile file in drop.files) {
+            attach(file.name, await file.readBytes());
+          }
+        },
+      ),
+    );
+
+// And out: to another app on the web, Android and iOS, and to another
+// widget everywhere.
+Widget orderReference(String reference) => DVText(reference).modifier(
+      DVModifier().draggable(DVDragPayload(text: reference)),
+    );
 // docs:end

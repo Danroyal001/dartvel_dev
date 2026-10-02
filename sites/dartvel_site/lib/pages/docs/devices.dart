@@ -121,11 +121,23 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Add a tray icon with a menu, app menus and global shortcuts on '
                   'Linux, Windows and macOS.',
-              'A window can accept dropped files or text, and gets what was '
-                  'dropped and where.',
+              'Drag and drop works on every target. A window or one widget '
+                  '(`DVModifier().dropTarget(...)`) takes dropped files, links '
+                  'and text, with where they landed: from a file manager on '
+                  'the desktop, from another app in split screen, a freeform '
+                  'or desktop window on Android 7 and later, from Files or '
+                  'Photos in Split View, Slide Over or Stage Manager on iPad, '
+                  'and onto a browser tab.',
+              '`DVModifier().draggable(...)` drags text, links or files out '
+                  'to another app on the web, Android and iOS; on the desktop '
+                  'and on targets with no system drag and drop it drags '
+                  'between widgets inside the app. Where there is no drop at '
+                  'all, `DV.Platform.dragDrop.chooseInstead()` opens the file '
+                  'picker and runs the same handler.',
               'Native print and file dialogs are bound on Linux first.',
             ]),
             DocsCode('devices-desktop'),
+            DocsCode('devices-drag-drop'),
             DocsNote('Platform access',
                 'Every native feature on this page reaches the device through '
                 '`DV.Platform`. See the platform page for the full member list, '
