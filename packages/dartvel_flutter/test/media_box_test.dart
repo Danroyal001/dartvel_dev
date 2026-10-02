@@ -308,15 +308,15 @@ void main() {
     });
   });
 
-  group('DV.Platform.Media', () {
+  group('DV.Platform.media', () {
     tearDown(() {
       DVNativeBridge.unregister('permissions.request');
     });
 
     test('refuses capture on a target with no capture binding', () async {
-      final DVCaptureSession session = DV.Platform.Media.recordAudio();
+      final DVCaptureSession session = DV.Platform.media.recordAudio();
       await expectLater(session, throwsA(isA<DVCaptureUnsupported>()));
-      expect(DV.Platform.Media.captureCapabilities.microphone, isFalse);
+      expect(DV.Platform.media.captureCapabilities.microphone, isFalse);
     });
 
     test('records through the bound backend, asking the platform permission '
@@ -336,7 +336,7 @@ void main() {
       );
 
       final DVCaptureSession session =
-          DV.Platform.Media.recordAudio(format: DVAudioFormat.opus);
+          DV.Platform.media.recordAudio(format: DVAudioFormat.opus);
       addTearDown(session.dispose);
       for (int i = 0; i < 5 && device.starts.isEmpty; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));

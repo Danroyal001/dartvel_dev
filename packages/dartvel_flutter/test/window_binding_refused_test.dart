@@ -24,7 +24,7 @@ void main() {
   });
 
   test('a binding that is claimed but not registered is a defect, not a refusal', () async {
-    final DVWindow win = await DV.Platform.Window.open(orders);
+    final DVWindow win = await DV.Platform.window.open(orders);
 
     expect(win.degradation, DVWindowDegradation.bindingRefused);
     expect(win.degradation.code, 'DV-WINDOW-006');
@@ -36,7 +36,7 @@ void main() {
   test('a binding that throws is the binding refusing', () async {
     DVNativeBridge.register('window.open', (Object? _) => throw StateError('ffi symbol missing'));
 
-    final DVWindow win = await DV.Platform.Window.open(orders);
+    final DVWindow win = await DV.Platform.window.open(orders);
 
     expect(win.degradation, DVWindowDegradation.bindingRefused);
   });
@@ -44,7 +44,7 @@ void main() {
   test('a binding that answers nothing is the platform refusing', () async {
     DVNativeBridge.register('window.open', (Object? _) => null);
 
-    final DVWindow win = await DV.Platform.Window.open(orders);
+    final DVWindow win = await DV.Platform.window.open(orders);
 
     expect(win.degradation, DVWindowDegradation.platformRefused);
     expect(win.degradation.code, 'DV-WINDOW-004');

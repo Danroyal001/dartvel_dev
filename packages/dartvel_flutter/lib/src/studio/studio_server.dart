@@ -595,12 +595,33 @@ class DVStudioApp extends StatefulWidget {
     super.key,
     required this.client,
     this.title = 'Studio',
+    this.mount,
+    this.screen,
+    this.object,
     this.location,
     this.open,
+    this.onSelect,
   });
 
   final DVStudioClient client;
   final String title;
+
+  /// The mount Studio is served at, `/__studio`, with no trailing slash.
+  ///
+  /// The address alone no longer says where the mount ends: `<mount>` and
+  /// `<mount>/<screen>` and `<mount>/<screen>/<object>` are all Studio,
+  /// and only the route knows which part of the path the mount is. Worked
+  /// out from the address when the caller does not say, which is what a
+  /// build served on its own under a directory has to do.
+  final String? mount;
+
+  /// The screen the address names. Null for a caller that keeps the
+  /// selection in the app rather than in the address.
+  final String? screen;
+
+  /// What the address names inside [screen]: a page's route, a model's name,
+  /// a function's.
+  final String? object;
 
   /// The address the app was opened at; the browser's by default. At
   /// `<mount>/login` the app is Studio's sign-in.
@@ -608,6 +629,10 @@ class DVStudioApp extends StatefulWidget {
 
   /// Loads a path from the server as a page; a full navigation by default.
   final void Function(String path)? open;
+
+  /// Called when the person chooses another screen or another object, so
+  /// that the address can follow them.
+  final void Function(String screen, String? object)? onSelect;
 
   @override
   State<DVStudioApp> createState() => _DVStudioAppState();
@@ -624,10 +649,12 @@ class _DVStudioAppState extends State<DVStudioApp> {
   bool get _settingUp =>
       _here.path.endsWith('/setup') || _here.path.endsWith('/setup/');
 
-  /// The mount, from the address of its sign-in, its setup or a page:
+  /// The mount: the route's, or worked out from the address of its sign-in,
+  /// its setup or a page, which is what a build served on its own has.
   /// `/__studio/login` and `/__studio/setup` are both `/__studio`.
-  String get _mount {
-    final String path = _here.path;
+  String get _mount => widget.mount ?? _mountFromAddress(_here.path);
+
+  static String _mountFromAddress(String path) {
     for (final String page in const <String>[
       '/login',
       '/login/',
@@ -721,6 +748,9 @@ class _DVStudioAppState extends State<DVStudioApp> {
                       mount: _mount,
                       open: widget.open ?? dvOpenUrl,
                     ),
+                    selected: widget.screen,
+                    object: widget.object,
+                    onSelect: widget.onSelect,
                   ),
                 )
               : DVStudioSignInScreen(
@@ -921,33 +951,46 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
           ];
         },
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'modules',
         label: 'Modules',
         icon: Icons.extension_outlined,
-        build: (BuildContext context) =>
-            DVStudioModulesSection(manifest: client.manifest),
+        build: (BuildContext context, DVStudioSelection selection) =>
+            DVStudioModulesSection(
+          manifest: client.manifest,
+          module: selection.object,
+          onSelect: (String id) => selection.select?.call(id),
+        ),
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'jobs',
         label: 'Tasks',
         icon: Icons.work_history_outlined,
-        build: (BuildContext context) => _DVStudioManifestSection(
+        build: (BuildContext context, DVStudioSelection selection) =>
+            _DVStudioManifestSection(
           client: client,
           kind: 'jobs',
+          name: 'job',
           title: 'Background tasks',
           columns: const <List<String>>[
             <String>['name', 'Task'],
             <String>['queue', 'Queue'],
             <String>['source', 'File'],
           ],
+          object: selection.object,
+          onSelect: (String name) => selection.select?.call(name),
         ),
       ),
-      DVStudioSection(
+      DVStudioSection.opening(
         id: 'queues',
         label: 'Queue',
         icon: Icons.inbox_outlined,
-        build: (BuildContext context) => _DVStudioQueuesSection(client: client),
+        build: (BuildContext context, DVStudioSelection selection) =>
+            _DVStudioQueuesSection(
+          client: client,
+          queue: selection.object,
+          onSelect: (String name) => selection.select?.call(name),
+        ),
       ),
       DVStudioSection(
         id: 'cache',
@@ -972,11 +1015,20 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
 
 /// Data: every data model, compiled or designed in Studio, its records, and
 /// the designer that makes and changes one.
-DVStudioSection dvStudioDataSection(DVStudioClient client) => DVStudioSection(
+DVStudioSection dvStudioDataSection(DVStudioClient client) =>
+    DVStudioSection.opening(
       id: 'models',
       label: 'Data',
       icon: Icons.table_chart_outlined,
-      build: (BuildContext context) => DVStudioModelsSection(client: client),
+      build: (BuildContext context, DVStudioSelection selection) =>
+          DVStudioModelsSection(
+        client: client,
+        model: selection.object?.split('/').first,
+        record: selection.object?.contains('/') == true
+            ? selection.object!.substring(selection.object!.indexOf('/') + 1)
+            : null,
+        onSelect: (String model) => selection.select?.call(model),
+      ),
     );
 
 /// Site map: every route the site answers, compiled and stored -- the list
@@ -1121,7 +1173,7 @@ String _fieldLabel(String name) {
   if (name.isEmpty) return name;
   final String spaced = name.replaceAllMapped(
     RegExp('([a-z0-9])([A-Z])'),
-    (Match m) => '${m[1]} ${m[2]!.toLowerCase()}',
+    (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}',
   );
   return spaced[0].toUpperCase() + spaced.substring(1);
 }
@@ -1201,11 +1253,8 @@ class _DVStudioTable extends StatelessWidget {
         if (!box.maxWidth.isFinite || box.maxWidth >= needed) {
           return _table();
         }
-        return Scrollbar(
-          child: SingleChildScrollView(
-            scrollDirection: .horizontal,
-            child: SizedBox(width: needed, child: _table()),
-          ),
+        return _DVStudioSidewaysScroll(
+          child: SizedBox(width: needed, child: _table()),
         );
       },
     );
@@ -1290,9 +1339,25 @@ class _DVStudioTable extends StatelessWidget {
 
 /// Every model the backend declares, a model's records, and a record's form.
 class DVStudioModelsSection extends StatefulWidget {
-  const DVStudioModelsSection({super.key, required this.client});
+  const DVStudioModelsSection({
+    super.key,
+    required this.client,
+    this.model,
+    this.onSelect,
+    this.record,
+  });
 
   final DVStudioClient client;
+
+  /// The model the address names, opened once the catalog is read: a model
+  /// cannot be found before the list of them is known.
+  final String? model;
+
+  /// The record named by a deep link, opened after its model is loaded.
+  final String? record;
+
+  /// Called with the model a person chose, so the address can follow.
+  final void Function(String model)? onSelect;
 
   @override
   State<DVStudioModelsSection> createState() => _DVStudioModelsSectionState();
@@ -1319,9 +1384,24 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadModels());
+    unawaited(_loadModels(select: widget.model));
   }
 
+  @override
+  void didUpdateWidget(DVStudioModelsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another model. Read again rather than opening
+    // from the list already held: a model published since this section was
+    // built is not in it, and the address is not the thing to argue with.
+    if (widget.model != oldWidget.model || widget.record != oldWidget.record) {
+      unawaited(_loadModels(select: widget.model));
+    }
+  }
+
+  /// [select] is the model to open once the catalog is read: named by the
+  /// address, or the one already open. A name the catalog does not have
+  /// falls back to the first model there is, which is what a person who
+  /// asked for a model this project does not have is shown.
   Future<void> _loadModels({String? select}) async {
     try {
       final ({List<DVStudioModel> models, bool sourceWritable}) catalog =
@@ -1335,7 +1415,14 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       final DVStudioModel? chosen = models
               .where((DVStudioModel m) => m.model == (select ?? _model?.model))
               .firstOrNull ??
-          models.firstOrNull;
+          (select == null ? models.firstOrNull : null);
+      if (chosen == null && select != null) {
+        setState(() {
+          _model = null;
+          _editing = null;
+          _error = 'Data model not found.';
+        });
+      }
       if (chosen != null) await _open(chosen);
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -1350,6 +1437,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
       });
 
   Future<void> _open(DVStudioModel model, {bool userChose = false}) async {
+    if (userChose) widget.onSelect?.call(model.model);
     setState(() {
       _model = model;
       _records = null;
@@ -1362,7 +1450,13 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     try {
       final List<DVStudioRecordData> records =
           await widget.client.records(model.model);
-      if (mounted && _model == model) setState(() => _records = records);
+      if (mounted && _model == model) {
+        setState(() {
+          _records = records;
+          _editing = records.where((r) => r.key == widget.record).firstOrNull;
+          if (widget.model != null) _phoneDetail = true;
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
@@ -1392,11 +1486,13 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                 'records to it straight away.',
           ),
           const SizedBox(height: DVStudioStyle.space4),
-          GestureDetector(
+          DVStudioControl(
             key: const ValueKey<String>('dv-studio-model-new'),
+            label: 'New data model',
+            enabled: true,
             onTap: () => _design(fresh: true),
-            child: DVStudioStyle.control('New data model',
-                enabled: true, primary: true, icon: Icons.add),
+            primary: true,
+            icon: Icons.add,
           ),
         ],
       );
@@ -1487,7 +1583,9 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
 
   Widget _detail() {
     final DVStudioModel? model = _model;
-    if (model == null) return DVStudioStyle.placeholder('Choose a model.');
+    if (model == null) {
+      return DVStudioStyle.placeholder(_error?.toString() ?? 'Choose a model.');
+    }
     final List<DVStudioRecordData>? records = _records;
     final DVStudioRecordData? editing = _editing;
     final List<DVStudioField> fields = model.visibleFields;
@@ -1496,6 +1594,8 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
     return Column(
       crossAxisAlignment: .stretch,
       children: <Widget>[
+        if (widget.record != null && records != null && editing == null)
+          DVStudioStyle.body('Record not found.'),
         DVStudioStyle.panelHeader(
           title: model.model,
           subtitle: records == null
@@ -1504,22 +1604,22 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                   ? '1 record'
                   : '${records.length} records',
           actions: <Widget>[
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-model-design'),
+              label: model.designed ? 'Design' : 'Fields',
+              enabled: true,
               onTap: () => _design(fresh: false),
-              child: DVStudioStyle.control(
-                model.designed ? 'Design' : 'Fields',
-                enabled: true,
-                icon: Icons.schema_outlined,
-              ),
+              icon: Icons.schema_outlined,
             ),
             const SizedBox(width: DVStudioStyle.space2),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-record-new'),
+              label: 'New record',
+              enabled: true,
               onTap: () => setState(() => _editing = const DVStudioRecordData(
                   key: '', version: 0, values: <String, Object?>{})),
-              child: DVStudioStyle.control('New record',
-                  enabled: true, primary: true, icon: Icons.add),
+              primary: true,
+              icon: Icons.add,
             ),
           ],
         ),
@@ -1601,8 +1701,11 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                                         : shown.indexWhere(
                                             (DVStudioRecordData r) =>
                                                 r.key == editing.key),
-                                    onTap: (int index) => setState(
-                                        () => _editing = shown[index]),
+                                    onTap: (int index) {
+                                      setState(() => _editing = shown[index]);
+                                      widget.onSelect?.call(
+                                          '${model.model}/${shown[index].key}');
+                                    },
                                   ),
                                 ],
                               );
@@ -1623,7 +1726,10 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                     client: widget.client,
                     model: model,
                     record: editing,
-                    onClose: () => setState(() => _editing = null),
+                    onClose: () {
+                      setState(() => _editing = null);
+                      widget.onSelect?.call(model.model);
+                    },
                     onSaved: (DVStudioRecordData saved) {
                       setState(() {
                         final List<DVStudioRecordData> next =
@@ -1638,14 +1744,18 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                         _records = next;
                         _editing = saved;
                       });
+                      widget.onSelect?.call('${model.model}/${saved.key}');
                     },
-                    onDeleted: (String key) => setState(() {
+                    onDeleted: (String key) {
+                      setState(() {
                       _records = <DVStudioRecordData>[
                         for (final DVStudioRecordData r in _records ?? const <DVStudioRecordData>[])
                           if (r.key != key) r,
                       ];
                       _editing = null;
-                    }),
+                      });
+                      widget.onSelect?.call(model.model);
+                    },
                     onReload: () => unawaited(_open(model)),
                   ),
                 ),
@@ -1902,10 +2012,11 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
                 if (_conflict)
                   Padding(
                     padding: const .only(top: DVStudioStyle.space2),
-                    child: GestureDetector(
+                    child: DVStudioControl(
+                      label: 'Reload records',
+                      enabled: true,
                       onTap: widget.onReload,
-                      child: DVStudioStyle.control('Reload records',
-                          enabled: true, icon: Icons.refresh),
+                      icon: Icons.refresh,
                     ),
                   ),
               ],
@@ -1920,21 +2031,20 @@ class _DVStudioRecordFormState extends State<_DVStudioRecordForm> {
           child: Row(
             children: <Widget>[
               if (!_isNew)
-                GestureDetector(
+                DVStudioControl(
                   key: const ValueKey<String>('dv-studio-record-delete'),
+                  label: 'Delete',
+                  enabled: true,
                   onTap: () => unawaited(_delete()),
-                  child: DVStudioStyle.control('Delete',
-                      enabled: true, icon: Icons.delete_outline),
+                  icon: Icons.delete_outline,
                 ),
               const Spacer(),
-              GestureDetector(
+              DVStudioControl(
                 key: const ValueKey<String>('dv-studio-record-save'),
+                label: _saving ? 'Saving…' : (_isNew ? 'Create' : 'Save'),
+                enabled: !_saving,
                 onTap: _saving ? null : () => unawaited(_save()),
-                child: DVStudioStyle.control(
-                  _saving ? 'Saving…' : (_isNew ? 'Create' : 'Save'),
-                  enabled: !_saving,
-                  primary: true,
-                ),
+                primary: true,
               ),
             ],
           ),
@@ -2216,16 +2326,30 @@ class _DVStudioManifestSection extends StatefulWidget {
   const _DVStudioManifestSection({
     required this.client,
     required this.kind,
+    required this.name,
     required this.title,
     required this.columns,
+    this.object,
+    this.onSelect,
   });
 
   final DVStudioClient client;
   final String kind;
   final String title;
 
+  /// What a row of this screen is called in a URL: `<mount>/jobs/<name>` and
+  /// `<mount>/queues/<name>` both name the thing, so a row's key and the
+  /// address are the same word. Read off the first column, which is its name.
+  final String name;
+
   /// Each column's key in the graph and its heading.
   final List<List<String>> columns;
+
+  /// The row the address names, marked in the list.
+  final String? object;
+
+  /// Called with the row a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
 
   @override
   State<_DVStudioManifestSection> createState() =>
@@ -2270,6 +2394,23 @@ class _DVStudioManifestSectionState extends State<_DVStudioManifestSection> {
                               _cell(row[c[0]]),
                           ],
                       ],
+                      rowKeys: <Key>[
+                        for (final Map<String, Object?> row in rows)
+                          ValueKey<String>(
+                            'dv-studio-${widget.name}-${row['name']}'),
+                      ],
+                      // A row the address names is marked, and every row can
+                      // be tapped to put itself in the address, so a task is
+                      // linkable the same way a page and a model are.
+                      selected: widget.object == null
+                          ? null
+                          : rows.indexWhere(
+                              (Map<String, Object?> row) =>
+                                  row['name'] == widget.object),
+                      onTap: widget.onSelect == null
+                          ? null
+                          : (int index) => widget.onSelect!(
+                              '${rows[index]['name']}'),
                     ),
                   ),
           ),
@@ -2350,9 +2491,19 @@ class _DVStudioSiteMapSectionState extends State<_DVStudioSiteMapSection> {
 /// The build's queues: what waits, what died and why, and the two things an
 /// operator can do about a dead letter.
 class _DVStudioQueuesSection extends StatefulWidget {
-  const _DVStudioQueuesSection({required this.client});
+  const _DVStudioQueuesSection({
+    required this.client,
+    this.queue,
+    this.onSelect,
+  });
 
   final DVStudioClient client;
+
+  /// The queue the address names, opened once the list is read.
+  final String? queue;
+
+  /// Called with the queue a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
 
   @override
   State<_DVStudioQueuesSection> createState() => _DVStudioQueuesSectionState();
@@ -2371,6 +2522,16 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
     unawaited(_load());
   }
 
+  @override
+  void didUpdateWidget(_DVStudioQueuesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another queue: open it rather than keep the one
+    // the person was already reading.
+    if (widget.queue != oldWidget.queue && widget.queue != null) {
+      _open = widget.queue;
+    }
+  }
+
   Future<void> _load() async {
     try {
       final List<Map<String, Object?>> queues = await widget.client.queues();
@@ -2378,14 +2539,23 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
       setState(() {
         _queues = queues;
         _error = null;
-        // The first queue with something dead in it is what somebody opening
-        // this is most likely here for.
-        _open ??= (queues.firstWhere(
-                  (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
-                  orElse: () => queues.isEmpty
-                      ? const <String, Object?>{}
-                      : queues.first,
-                )['name'] as String?);
+        // The queue the address names, or the first queue with something
+        // dead in it, which is what somebody opening this is most likely here
+        // for. A queue this build has no list of yet still keeps its address:
+        // the detail pane says it is not here rather than the screen changing.
+        final Map<String, Object?>? named = widget.queue == null
+            ? null
+            : queues
+                .where((Map<String, Object?> q) => q['name'] == widget.queue)
+                .firstOrNull;
+        final String? here = named == null ? null : '${named['name']}';
+        _open ??= here ??
+            (queues.firstWhere(
+              (Map<String, Object?> q) => _jobs(q, 'deadLetters').isNotEmpty,
+              orElse: () => queues.isEmpty
+                  ? const <String, Object?>{}
+                  : queues.first,
+            )['name'] as String?);
       });
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -2456,7 +2626,10 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
               trailing: _jobs(queue, 'deadLetters').isEmpty
                   ? null
                   : DVStudioStyle.dot(DVStudioStyle.danger),
-              onTap: () => setState(() => _open = '${queue['name']}'),
+              onTap: () {
+                setState(() => _open = '${queue['name']}');
+                widget.onSelect?.call('${queue['name']}');
+              },
             ),
         ],
       ),
@@ -2567,18 +2740,21 @@ class _DVStudioQueuesSectionState extends State<_DVStudioQueuesSection> {
                   ],
                 ),
               ),
-              GestureDetector(
+              DVStudioControl(
                 key: ValueKey<String>('dv-studio-job-discard-$id'),
+                label: 'Discard',
+                enabled: !_busy,
                 onTap: _busy ? null : () => unawaited(_act(id, retry: false)),
-                child: DVStudioStyle.control('Discard',
-                    enabled: !_busy, icon: Icons.delete_outline),
+                icon: Icons.delete_outline,
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              GestureDetector(
+              DVStudioControl(
                 key: ValueKey<String>('dv-studio-job-retry-$id'),
+                label: 'Retry',
+                enabled: !_busy,
                 onTap: _busy ? null : () => unawaited(_act(id, retry: true)),
-                child: DVStudioStyle.control('Retry',
-                    enabled: !_busy, primary: true, icon: Icons.replay),
+                primary: true,
+                icon: Icons.replay,
               ),
             ],
           ),
@@ -2836,11 +3012,13 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                         ),
                       ),
                       const SizedBox(width: DVStudioStyle.space2),
-                      GestureDetector(
+                      DVStudioControl(
                         key: const ValueKey<String>('dv-studio-grant'),
+                        label: 'Grant',
+                        enabled: !_busy,
                         onTap: _busy ? null : () => unawaited(_grant()),
-                        child: DVStudioStyle.control('Grant',
-                            enabled: !_busy, primary: true, icon: Icons.add),
+                        primary: true,
+                        icon: Icons.add,
                       ),
                     ],
                   ),
@@ -2876,26 +3054,26 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
                           Expanded(
                               child: DVStudioStyle.body(confirming.message)),
                           const SizedBox(width: DVStudioStyle.space2),
-                          GestureDetector(
+                          DVStudioControl(
                             key: const ValueKey<String>(
                                 'dv-studio-revoke-cancel'),
+                            label: 'Keep it',
+                            enabled: true,
                             onTap: () => setState(() => _confirming = null),
-                            child: DVStudioStyle.control('Keep it',
-                                enabled: true),
                           ),
                           const SizedBox(width: DVStudioStyle.space2),
-                          GestureDetector(
+                          DVStudioControl(
                             key: const ValueKey<String>(
                                 'dv-studio-revoke-confirm'),
+                            label: 'Revoke anyway',
+                            enabled: !_busy,
                             onTap: _busy
                                 ? null
                                 : () => unawaited(_revoke(
                                     confirming.userId, confirming.tenant,
                                     confirm: true)),
-                            child: DVStudioStyle.control('Revoke anyway',
-                                enabled: !_busy,
-                                primary: true,
-                                icon: Icons.remove_circle_outline),
+                            primary: true,
+                            icon: Icons.remove_circle_outline,
                           ),
                         ],
                       ),
@@ -2961,4 +3139,40 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
     final DateTime? at = DateTime.tryParse('${value ?? ''}');
     return at == null ? _cell(value) : _formatMoment(at);
   }
+}
+
+/// A table too wide for its space, scrolled sideways with a scrollbar that
+/// knows which scroll view it belongs to.
+///
+/// The scrollbar had no controller of its own, and a sideways scroll view is
+/// never the primary one, so the first narrow table -- the model table beside
+/// an open record -- failed an assertion: "A ScrollController is required
+/// when the scrollbar is interactive".
+class _DVStudioSidewaysScroll extends StatefulWidget {
+  const _DVStudioSidewaysScroll({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_DVStudioSidewaysScroll> createState() => _DVStudioSidewaysScrollState();
+}
+
+class _DVStudioSidewaysScrollState extends State<_DVStudioSidewaysScroll> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scrollbar(
+        controller: _controller,
+        child: SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: .horizontal,
+          child: widget.child,
+        ),
+      );
 }

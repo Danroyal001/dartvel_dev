@@ -211,6 +211,8 @@ Widget _siteFooter(BuildContext context) {
           // The embedders and packages Dartvel forks, with their authors and
           // licences, on every page.
           AcknowledgementsLink(),
+          FooterLink('Privacy', '/privacy'),
+          FooterLink('Terms', '/terms'),
         ], spacing: 20),
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two
@@ -224,6 +226,16 @@ Widget _siteFooter(BuildContext context) {
           const DVText('FSL-1.1-MIT licensed. Built with Dartvel.')
               .modifier(const DVModifier().fontSize(13).color(palette.faint)),
         ], spacing: 8),
+        // Who makes it, on every page, linking to Dartvel's page on the
+        // maker's own site (which links back here).
+        DVBox.wrapLine(<Widget>[
+          const DVText('Dartvel is made by')
+              .modifier(const DVModifier().fontSize(13).color(palette.faint)),
+          const ExternalLink(
+            'SigmaDev Digital',
+            'https://sigmadev.digital/tools/dartvel/',
+          ),
+        ], spacing: 6),
       ], spacing: 12),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
@@ -232,6 +244,17 @@ Widget _siteFooter(BuildContext context) {
         .paddingSymmetric(horizontal: gutterFor(context), vertical: 32),
   );
 }
+
+/// A link to one of the site's own pages, styled like the other footer links.
+@DVFunctionalWidget()
+Widget _footerLink(BuildContext context, String label, String href) =>
+    DVNavLink(
+      to: DVRouteTarget(href),
+      child: Prose(label, const DVModifier()
+          .fontSize(14)
+          .fontWeight(.w600)
+          .color(Palette.of(context).accent)),
+    );
 
 /// A band of content, optionally on the tinted surface.
 ///

@@ -74,7 +74,6 @@ Future<Map<String, bool>> handler() async => <String, bool>{'ok': true};
         normalizeTrailing: true,
         notFoundRedirect: '',
         plugins: const <String>[],
-        webPrerender: false,
         ota: false,
         dv: YamlMap.wrap(<String, Object?>{}),
       );
@@ -159,7 +158,6 @@ Widget featureCard(String title) => DVText(title);
           normalizeTrailing: true,
           notFoundRedirect: '',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
         ),
@@ -222,7 +220,6 @@ Widget _featureCard(String title) => DVText(title);
           normalizeTrailing: true,
           notFoundRedirect: '',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
         );
@@ -293,7 +290,6 @@ Widget _FeatureCard(String title) => DVText(title);
             normalizeTrailing: true,
             notFoundRedirect: '',
             plugins: const <String>[],
-            webPrerender: false,
             ota: false,
             dv: YamlMap.wrap(<String, Object?>{}),
           ),
@@ -369,7 +365,6 @@ Widget _featureCard(String title) => DVText(title).modifier(cardStyle);
           normalizeTrailing: true,
           notFoundRedirect: '',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
         );
@@ -444,7 +439,6 @@ Widget _featureCard(String title) {
           normalizeTrailing: true,
           notFoundRedirect: '',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
         );
@@ -505,7 +499,6 @@ final pageStyle = const DVModifier();
         normalizeTrailing: true,
         notFoundRedirect: '',
         plugins: const <String>[],
-        webPrerender: false,
         ota: false,
         dv: YamlMap.wrap(<String, Object?>{}),
       );
@@ -583,7 +576,6 @@ Widget _indexPage(BuildContext context) {
           normalizeTrailing: true,
           notFoundRedirect: '',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap.wrap(<String, Object?>{}),
       );

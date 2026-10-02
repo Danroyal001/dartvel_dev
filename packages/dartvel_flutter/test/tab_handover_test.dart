@@ -309,11 +309,11 @@ void main() {
     test('the platform says which kind of handover it can do', () {
       DVWindowManager.capabilityOverride =
           const DVWindowingCapability(multiWindow: true, sameEngine: true);
-      expect(DV.Platform.Window.handover, DVWindowHandover.sameEngine);
+      expect(DV.Platform.window.handover, DVWindowHandover.sameEngine);
 
       DVWindowManager.capabilityOverride =
           const DVWindowingCapability(multiWindow: true, sameEngine: false);
-      expect(DV.Platform.Window.handover, DVWindowHandover.shared);
+      expect(DV.Platform.window.handover, DVWindowHandover.shared);
     });
   });
 

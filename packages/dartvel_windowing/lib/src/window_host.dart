@@ -4,7 +4,7 @@ part of '../dartvel_windowing.dart';
 ///
 /// Pass this to `runWidget` in place of `runApp`. The application's own
 /// content renders in the window the runner created, and every window opened
-/// through `DV.Platform.Window.open` renders alongside it in the same widget
+/// through `DV.Platform.window.open` renders alongside it in the same widget
 /// tree — so state shared between the operator surface and a projector surface
 /// is ordinary Dartvel state, read in two places, rather than a protocol.
 ///
@@ -67,7 +67,7 @@ class _DVWindowHostState extends State<DVWindowHost> {
       ),
     );
 
-    _windows = DV.Platform.Window.all;
+    _windows = DV.Platform.window.all;
     _windows.addListener(_onWindowsChanged);
 
     // Windows are held until the first frame has been **rasterized**, not

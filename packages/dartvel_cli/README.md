@@ -314,7 +314,6 @@ dartvel:
   prodBackendHost: https://api.example.com
   apiBasePath: /api
   envFiles: [.env, .env.local]
-  webPrerender: false
   ota: false
   transitions:
     default: fade
@@ -343,7 +342,6 @@ dartvel:
 | `routingNormalizeTrailingSlash` | `true` | Treat `/about/` as `/about`. |
 | `notFoundRedirect` | empty | Where an unknown route redirects. |
 | `plugins` | `[]` | Enabled Dartvel plugins. |
-| `webPrerender` | `false` | Prerender pages on a web build. |
 | `ota` | `false` | Over-the-air updates. |
 
 Other sections are read by the commands that need them, for example

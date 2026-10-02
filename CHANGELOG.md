@@ -300,7 +300,7 @@ changelogs list every change; the ones below need action.
 
 ### Breaking
 
-- **`DV.Platform.Tray.show(icon:)` takes a generated asset.** The icon is a
+- **`DV.Platform.tray.show(icon:)` takes a generated asset.** The icon is a
   `DVAssetRef`, the `DVAsset` value `dartvel routes` generates, instead of a
   path string, so a renamed or unlisted icon is a compile error rather than an
   empty tray slot. Rewrite `icon: 'assets/tray.png'` as `icon: DVAsset.tray`.
@@ -761,9 +761,9 @@ clean checkout could actually do.
 - **`DVImage`.** The spec declares `final DVImage? avatar` on a model; the type
   did not exist. It is a value so models can serialize it, with `DVImageView`
   as the rendering half, and `fromJson` accepts a bare URL string.
-- **Platform device namespaces.** `DV.Platform.Location`, `.NFC`, `.Camera` and
+- **Platform device namespaces.** `DV.Platform.location`, `.NFC`, `.Camera` and
   the rest now carry the names the spec uses, each with a top-level `DV.X`
-  proxy. `DV.Platform.FileStorage` and `.Notifications` return the `DV.*`
+  proxy. `DV.Platform.fileStorage` and `.Notifications` return the `DV.*`
   surfaces rather than a parallel platform-local copy.
 - **Generated jobs.** `@DVJob` was an annotation nothing read. The generator now
   emits the public payload with `fromJson`/`toJson`, a `dispatch()` carrying the
