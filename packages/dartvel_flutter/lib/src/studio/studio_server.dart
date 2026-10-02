@@ -1173,7 +1173,7 @@ String _fieldLabel(String name) {
   if (name.isEmpty) return name;
   final String spaced = name.replaceAllMapped(
     RegExp('([a-z0-9])([A-Z])'),
-    (Match m) => '${m[1]} ${m[2]!.toLowerCase()}',
+    (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}',
   );
   return spaced[0].toUpperCase() + spaced.substring(1);
 }

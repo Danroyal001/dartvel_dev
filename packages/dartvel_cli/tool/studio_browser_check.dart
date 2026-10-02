@@ -229,8 +229,8 @@ Future<void> main(List<String> args) async {
     File('${out.path}/summary.md').writeAsStringSync(_summary(results));
     await browser.close();
   }
-  if (results.values
-      .any((Object? v) => v is Map && v['pass'] == false)) {
+  if (results['probe_exception'] != null ||
+      results.values.any((Object? v) => v is Map && v['pass'] == false)) {
     exitCode = 1;
   }
 }

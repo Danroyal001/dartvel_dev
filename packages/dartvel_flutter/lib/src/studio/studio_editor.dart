@@ -420,7 +420,7 @@ String _dvStudioHumanise(String name) {
   if (name.isEmpty) return name;
   final String spaced = name.replaceAllMapped(
     RegExp('([a-z0-9])([A-Z])'),
-    (Match m) => '${m[1]} ${m[2]!.toLowerCase()}',
+    (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}',
   );
   return spaced[0].toUpperCase() + spaced.substring(1);
 }
@@ -2656,8 +2656,8 @@ String dvStudioPlainFieldName(String name) =>
     // `borderTopWidth` reads as "Border top width".
     name
         .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
-            (Match m) => '${m[1]} ${m[2]!.toLowerCase()}')
-        .replaceFirstMapped(RegExp('^.'), (Match m) => m[0]!.toUpperCase());
+            (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}')
+        .replaceFirstMapped(RegExp('^.'), (Match m) => (m[0] ?? '').toUpperCase());
 
 /// Names that need more than the inspector's label, which is read beside
 /// its group's heading and so can be one word.
