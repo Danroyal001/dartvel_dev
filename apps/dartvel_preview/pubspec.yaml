@@ -12,8 +12,8 @@ dependencies:
   flutter:
     sdk: flutter
   go_router: ^14.2.0
-  dartvel_core: ^0.9.3
-  dartvel_flutter: ^0.9.3
+  dartvel_core: ^0.10.0
+  dartvel_flutter: ^0.10.0
   flutter_web_plugins:
     sdk: flutter
   # The Android half of pairing: the development build's own Java class,
@@ -26,7 +26,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ^0.9.3
+  dartvel_cli: ^0.10.0
 
 flutter:
   uses-material-design: true
