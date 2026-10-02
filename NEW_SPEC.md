@@ -2446,19 +2446,19 @@ Native APIs, including:
   - `context.screen.folds` lists each fold or hinge as a `DVFold` (bounds in window coordinates, `isVertical`, `occludes`, `state`), read from the display features Flutter reports, and rebuilds the widget when the device folds. `context.screen.isSpanned` and `context.screen.posture` (`flat`, `book`, `tabletop`) are read from the first fold. `DVBox.twoPane` lays one pane each side of it and never in a hinge that covers pixels.
   - Android foldables report their folds through Flutter today. Apple's iPhone Duo (iOS 27.1) exposes its fold as `UIView.reservedRegions(kind: .division)` and its hinge through `onHingeChange`; Dartvel binds those through FFI, never a platform channel, into the same display features, so an app written against `context.screen.folds` needs no change for it.
 - Native APIs, Expo-style. (DV.Platform.*)
-- Camera (DV.Platform.Camera)
+- Camera (`DV.Platform.camera` - deprecated alias `DV.Platform.Camera`)
 - Media and Files (DV.Platform.FileStorage, proxy to DV.FileStorage)
-- Location (DV.Platform.Location and DV.Location proxy)
-- Bluetooth (DV.Platform.Bluetooth and DV.Bluetooth proxy)
-- NFC (DV.Platform.NFC and DV.NFC proxy)
-- Clipboard (DV.Platform.Clipboard, and DV.Clipboard proxy)
-- Share (DV.Platform.Share or DV.Share proxy)
-- Notifications (DV.Platform.Notifications and DV.Notifications proxy)
-- Sensors (DV.Platform.Sensors and DV.Sensors proxy)
-- Biometrics (DV.Platform.Biometrics and DV.Biometrics proxy)
-- Deep Links (DV.Platform.DeepLinking and DV.DeepLinking proxy)
-- Haptics (DV.Platform.Haptics and DV.Haptics proxy)
-- Contacts (DV.Platform.Contacts and DV.Contacts proxy)
+- Location (`DV.Platform.location`, deprecated alias `DV.Platform.Location`, and `DV.Location` proxy)
+- Bluetooth (`DV.Platform.bluetooth`, deprecated alias `DV.Platform.Bluetooth`, and `DV.Bluetooth` proxy)
+- NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.NFC`, and `DV.NFC` proxy)
+- Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.Clipboard`, and `DV.Clipboard` proxy)
+- Share (`DV.Platform.share`, deprecated alias `DV.Platform.Share`, or `DV.Share` proxy)
+- Notifications (`DV.Platform.notifications` / `DV.Notifications` proxy) - device-local notifications; mail is `DV.Notifications.mail`
+- Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.Sensors`, and `DV.Sensors` proxy)
+- Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.Biometrics`, and `DV.Biometrics` proxy)
+- Deep Links (`DV.Platform.deepLinks`, deprecated alias `DV.Platform.DeepLinking`, and `DV.DeepLinks` proxy)
+- Haptics (`DV.Platform.haptics`, deprecated alias `DV.Platform.Haptics`, and `DV.Haptics` proxy)
+- Contacts (`DV.Platform.contacts`, deprecated alias `DV.Platform.Contacts`, and `DV.Contacts` proxy)
 - Browser extension detection:
   - `DV.Platform.isChromiumExtension`
   - `DV.Platform.isFirefoxExtension`
@@ -3809,11 +3809,11 @@ The unglamorous half, which is the half applications are judged on:
 ## Capture
 
 ```dart
-final recording = await DV.Platform.Media.recordAudio(
+final recording = await DV.Platform.media.recordAudio(
   format: DVAudioFormat.aac,
   maxDuration: Duration(minutes: 5),
 );
-final clip = await DV.Platform.Media.recordVideo(quality: DVVideoQuality.hd720);
+final clip = await DV.Platform.media.recordVideo(quality: DVVideoQuality.hd720);
 ```
 
 Capture is a platform capability behind generated bindings like every other —
@@ -3864,7 +3864,7 @@ vendor's player integration has not been verified against, and until
   platform and the provider supply; Media Pipeline does what processing there
   is, and it says where that stops.
 - **A second player namespace.** `DVBox.video` / `DVBox.audio` and
-  `DV.Platform.Media`; no `DV.Player`, no `DV.Video`.
+  `DV.Platform.media`; no `DV.Player`, no `DV.Video`.
 - **Editing.** Trimming, filters and composition are an application concern
   built on capture output, not a framework surface.
 

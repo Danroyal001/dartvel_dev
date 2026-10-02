@@ -126,6 +126,10 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Native print and file dialogs are bound on Linux first.',
             ]),
             DocsCode('devices-desktop'),
+            DocsNote('Platform access',
+                'Every native feature on this page reaches the device through '
+                '`DV.Platform`. See the platform page for the full member list, '
+                'binding status per platform, and planned capabilities.'),
             DocsStatus('Desktop, Embedded, and Qt-Critical Capabilities'),
           ],
         ),

@@ -6219,17 +6219,29 @@ class DVPlatform {
   // The spec names these device namespaces in capitals, matching `Window`,
   // `Tray` and `Menus` above, and `DV` proxies each one at the top level. The
   // lowerCamel getters stay as-is so existing call sites keep working.
+  @Deprecated('Use DV.Platform.camera instead')
   DVCamera get Camera => camera;
+  @Deprecated('Use DV.Platform.media instead')
   DVMedia get Media => media;
+  @Deprecated('Use DV.Platform.location instead')
   DVLocation get Location => location;
+  @Deprecated('Use DV.Platform.bluetooth instead')
   DVBluetooth get Bluetooth => bluetooth;
+  @Deprecated('Use DV.Platform.nfc instead')
   DVNfc get NFC => nfc;
+  @Deprecated('Use DV.Platform.clipboard instead')
   DVClipboard get Clipboard => clipboard;
+  @Deprecated('Use DV.Platform.share instead')
   DVShare get Share => share;
+  @Deprecated('Use DV.Platform.sensors instead')
   DVSensors get Sensors => sensors;
+  @Deprecated('Use DV.Platform.biometrics instead')
   DVBiometrics get Biometrics => biometrics;
+  @Deprecated('Use DV.Platform.deepLinks instead')
   DVDeepLinks get DeepLinking => deepLinks;
+  @Deprecated('Use DV.Platform.haptics instead')
   DVHaptics get Haptics => haptics;
+  @Deprecated('Use DV.Platform.contacts instead')
   DVContacts get Contacts => contacts;
 
   /// Proxies to [DV.FileStorage], so media and files are one API rather than a
