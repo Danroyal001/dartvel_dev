@@ -55,6 +55,7 @@ import 'src/media/media_box.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
+import 'src/platform/storage/device_storage.dart';
 import 'src/platform/drag_drop.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/network.dart';
@@ -298,6 +299,9 @@ export 'package:dartvel_core/dartvel.dart'
         DVKioskTarget,
         DVMemoryAppKeyStore,
         DVMemoryFileStorageAdapter,
+        // DV.Platform.fileStorage: what it may reach, as dartvel.fileStorage declares it.
+        DVDeviceFileAccess,
+        DVFileStorageConfig,
         DVOAuth2Authorization,
         DVOAuth2Client,
         DVOAuth2Config,
@@ -778,6 +782,7 @@ export 'src/platform/android/android_bindings.dart';
 export 'src/platform/desktop_permissions.dart';
 export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
+export 'src/platform/storage/device_storage.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/file_associations.dart';
 export 'src/platform/file_bindings.dart';
@@ -6948,6 +6953,10 @@ class DVPlatform {
 
   DVCamera get camera => const DVCamera();
   DVMedia get media => const DVMedia();
+  /// The app's private files through the `files.*` bindings (Android and
+  /// web only). Superseded by [fileStorage], which is the same place on
+  /// those two targets and works on every other one.
+  @Deprecated('Use DV.Platform.fileStorage (put/get/delete); removed in the next release')
   DVFiles get files => const DVFiles();
   DVLocation get location => const DVLocation();
   DVNotifications get notifications => const DVNotifications();
@@ -7001,12 +7010,15 @@ class DVPlatform {
   @Deprecated('Use DV.Platform.contacts instead')
   DVContacts get Contacts => contacts;
 
-  /// Proxies to [DV.FileStorage], so media and files are one API rather than a
-  /// platform-local duplicate of it.
-  /// The lowerCamel name, matching the rest of `DV.*`.
-  DVStorage get fileStorage => DV.FileStorage;
+  /// `DV.FileStorage` on the device's own disk: the same calls (`put`,
+  /// `get`, `delete`, `exists`, `list`), bound to the local adapter whatever
+  /// the app's default adapter is. App-private by default; files and folders
+  /// the person picks, and the access declared under `dartvel.fileStorage`,
+  /// come through [DVDeviceStorage.pick], [DVDeviceStorage.pickDirectory]
+  /// and [DVDeviceStorage.requestAccess].
+  DVDeviceStorage get fileStorage => DVDeviceStorage.instance;
   @Deprecated('Use DV.Platform.fileStorage instead')
-  DVStorage get FileStorage => DV.FileStorage;
+  DVDeviceStorage get FileStorage => DVDeviceStorage.instance;
 
   /// Proxies to [DV.Notifications]. Device-local notifications remain on the
   /// lowerCamel [notifications] getter.
@@ -9394,8 +9406,16 @@ class DVAI {
 }
 
 class DVStorage {
-  const DVStorage();
+  const DVStorage() : _bound = null;
+
+  /// Storage bound to [adapter] for good, whatever `DV.FileStorage` is
+  /// configured with. `DV.Platform.fileStorage` is one: the same calls, on
+  /// the device's own disk.
+  const DVStorage.bound(DVFileStorageAdapter adapter) : _bound = adapter;
+
   static DVFileStorageAdapter _adapter = DVMemoryFileStorageAdapter();
+
+  final DVFileStorageAdapter? _bound;
 
   /// Swaps the storage behind `DV.FileStorage`. Defaults to
   /// [DVMemoryFileStorageAdapter]; pass an [S3FileStorageAdapter] for an
@@ -9404,38 +9424,50 @@ class DVStorage {
   /// Browser-extension storage still takes precedence where the host provides
   /// it, since that is the only storage such a target can reach.
   void configure(DVFileStorageAdapter adapter) {
+    if (_bound != null) {
+      throw StateError(
+        'This storage is bound to ${_bound.runtimeType} and cannot be '
+        'reconfigured. DV.FileStorage.configure changes the app default; '
+        'DV.Platform.fileStorage is always the device disk.',
+      );
+    }
     _adapter = adapter;
   }
 
-  DVFileStorageAdapter get adapter => _adapter;
+  DVFileStorageAdapter get adapter => _bound ?? _adapter;
+
+  // Browser-extension storage replaces the app default only. A bound
+  // storage names its adapter on purpose.
+  bool get _extension =>
+      _bound == null && browser_extension_platform.supportsFileStorage();
 
   Future<void> put(String key, List<int> bytes, {String? contentType}) async {
-    if (browser_extension_platform.supportsFileStorage()) {
+    if (_extension) {
       await browser_extension_platform.fileStoragePut(key, bytes);
       return;
     }
-    await _adapter.put(key, bytes, contentType: contentType);
+    await adapter.put(key, bytes, contentType: contentType);
   }
 
   Future<List<int>> get(String key) async {
-    if (browser_extension_platform.supportsFileStorage()) {
+    if (_extension) {
       return browser_extension_platform.fileStorageGet(key);
     }
-    return _adapter.get(key);
+    return adapter.get(key);
   }
 
   Future<void> delete(String key) async {
-    if (browser_extension_platform.supportsFileStorage()) {
+    if (_extension) {
       await browser_extension_platform.fileStorageDelete(key);
       return;
     }
-    await _adapter.delete(key);
+    await adapter.delete(key);
   }
 
-  Future<bool> exists(String key) => _adapter.exists(key);
+  Future<bool> exists(String key) => adapter.exists(key);
 
   Future<List<String>> list({String prefix = ''}) =>
-      _adapter.list(prefix: prefix);
+      adapter.list(prefix: prefix);
 }
 
 class DVRustInt {
