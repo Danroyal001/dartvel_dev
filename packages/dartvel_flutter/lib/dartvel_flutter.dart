@@ -56,6 +56,7 @@ import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
 import 'src/platform/dialogs.dart';
 import 'src/platform/drag_drop.dart';
+import 'src/platform/drag_drop_widgets.dart';
 import 'src/platform/file_associations.dart';
 import 'src/platform/network.dart';
 import 'src/platform/printing.dart';
@@ -779,6 +780,8 @@ export 'src/platform/desktop_permissions.dart';
 export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
 export 'src/platform/drag_drop.dart';
+export 'src/platform/drag_drop_widgets.dart';
+export 'src/platform/incoming_file.dart';
 export 'src/platform/file_associations.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
@@ -1055,6 +1058,12 @@ class DVModifier {
   final AlignmentGeometry? alignmentValue;
   final List<BoxShadow>? shadows;
   final VoidCallback? onTapCallback;
+
+  /// What `.dropTarget(...)` takes, or null.
+  final DVDropTargetSpec? dropTargetValue;
+
+  /// What `.draggable(...)` carries out, or null.
+  final DVDragPayload? draggableValue;
   final DecorationImage? bgImage;
 
   /// A video behind the box's content, muted and looping.
@@ -1128,6 +1137,8 @@ class DVModifier {
     this.alignmentValue,
     this.shadows,
     this.onTapCallback,
+    this.dropTargetValue,
+    this.draggableValue,
     this.bgImage,
     this.bgVideo,
     this.semanticLabelValue,
@@ -1182,6 +1193,8 @@ class DVModifier {
         alignmentValue = null,
         shadows = null,
         onTapCallback = null,
+        dropTargetValue = null,
+        draggableValue = null,
         bgImage = null,
         bgVideo = null,
         semanticLabelValue = null,
@@ -1236,6 +1249,8 @@ class DVModifier {
     AlignmentGeometry? alignmentValue,
     List<BoxShadow>? shadows,
     VoidCallback? onTapCallback,
+    DVDropTargetSpec? dropTargetValue,
+    DVDragPayload? draggableValue,
     DecorationImage? bgImage,
     DVMediaSource? bgVideo,
     String? semanticLabelValue,
@@ -1306,6 +1321,10 @@ class DVModifier {
       shadows: shadows ?? this.shadows,
       onTapCallback:
           clearInteraction ? null : (onTapCallback ?? this.onTapCallback),
+      dropTargetValue:
+          clearInteraction ? null : (dropTargetValue ?? this.dropTargetValue),
+      draggableValue:
+          clearInteraction ? null : (draggableValue ?? this.draggableValue),
       bgImage: bgImage ?? this.bgImage,
       bgVideo: bgVideo ?? this.bgVideo,
       semanticLabelValue: clearInteraction
@@ -1649,6 +1668,8 @@ class DVModifier {
         alignmentValue: other.alignmentValue ?? alignmentValue,
         shadows: other.shadows ?? shadows,
         onTapCallback: other.onTapCallback ?? onTapCallback,
+        dropTargetValue: other.dropTargetValue ?? dropTargetValue,
+        draggableValue: other.draggableValue ?? draggableValue,
         bgImage: other.bgImage ?? bgImage,
         semanticLabelValue: other.semanticLabelValue ?? semanticLabelValue,
         semanticHintValue: other.semanticHintValue ?? semanticHintValue,
@@ -1685,6 +1706,21 @@ class DVModifier {
       );
 
   DVModifier onTap(VoidCallback callback) => _copyWith(onTapCallback: callback);
+
+  /// Takes what is dropped on this widget: files, links or text, from another
+  /// application where the platform has drag and drop, and from another
+  /// widget in this one everywhere. [types] narrows what it admits.
+  DVModifier dropTarget({
+    required void Function(DVDropEvent event) onDrop,
+    Set<DVDropType> types = const <DVDropType>{DVDropType.files, DVDropType.text, DVDropType.urls},
+    void Function(bool hovering)? onHover,
+  }) =>
+      _copyWith(dropTargetValue: DVDropTargetSpec(onDrop: onDrop, types: types, onHover: onHover));
+
+  /// Lets this widget be dragged, carrying [payload] out: to another
+  /// application where the platform allows it, and to a `.dropTarget(...)`
+  /// in this one everywhere.
+  DVModifier draggable(DVDragPayload payload) => _copyWith(draggableValue: payload);
   DVModifier onPressed(VoidCallback callback) =>
       _copyWith(onTapCallback: callback);
 
@@ -2588,6 +2624,8 @@ class DVBox<T> extends StatelessWidget {
         child: result,
       );
     }
+
+    result = dvWrapDragDrop(result, m?.dropTargetValue, m?.draggableValue);
 
     final minimumTapTarget = m?.minimumTapTargetValue;
     if (minimumTapTarget != null) {
@@ -3764,6 +3802,8 @@ class DVText extends StatelessWidget {
         child: result,
       );
     }
+
+    result = dvWrapDragDrop(result, modifier?.dropTargetValue, modifier?.draggableValue);
 
     // Semantics on the text itself, not only on a DVBox wrapping it. A
     // heading is text, so `DVText(...).modifier(DVModifier().semanticHeading(2))`
