@@ -36,7 +36,7 @@ import 'webhooks.dart';
 
 /// Stripe Checkout for subscriptions, with entitlements kept from webhooks.
 class DVStripeBillingProvider
-    implements DVBillingProvider, DVBillingWebhookReceiver {
+    implements DVBillingProvider, DVBillingWebhookReceiver, DVSubscriptionLifecycle {
   DVStripeBillingProvider({
     required String secretKey,
     required String webhookSecret,
