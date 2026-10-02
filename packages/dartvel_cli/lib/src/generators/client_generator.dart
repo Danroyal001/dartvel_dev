@@ -1503,11 +1503,26 @@ ${shell.branches.map((b) => '        StatefulShellBranch(routes: <RouteBase>[\n$
     final routeCapabilities = pageEntries
         .map((e) {
           final widgetName = _generatedPageWidgetName(e.publicName);
-          return '''
+          final String preload = '''
   DVRoutePreloaders.register(
     '${esc(e.route)}',
     $widgetName.loadLibrary,
-  );
+  );''';
+          // A guarded page previews only what is public about it -- its
+          // title and that it needs signing in. Building the page on a hover
+          // would show a signed-out reader what the guard protects.
+          if (guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa).isNotEmpty) {
+            final String? title = RegExp(
+              r"""title: ('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")""",
+            ).firstMatch(e.pageScaffold)?.group(1);
+            return '''
+$preload
+  DVRoutePreviews.registerGuarded(
+    '${esc(e.route)}',${title == null ? '' : '\n    title: $title,'}
+  );''';
+          }
+          return '''
+$preload
   DVRoutePreviews.register(
     '${esc(e.route)}',
     (BuildContext context) => const $widgetName(),
@@ -1927,25 +1942,51 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
     final String autoRouteSource = autoRoute
         ? r'''
 
-/// This application's pages for a host on auto_route:
-/// `routes: [...hostRoutes, ...dartvelAutoRoutes(at: '/app')]`. Dartvel's
-/// routes run in a router of their own under [at], with their own guards;
+/// This application's pages for a host on auto_route, followed by the
+/// host's own [existing] routes:
+/// `List<AutoRoute> get routes => dartvelAutoRoutes(at: '/app', existing: [...])`.
+///
+/// One route per Dartvel path under [at], listed first, so Dartvel's page
+/// wins on its own paths and every other path is matched by [existing] as
+/// before. Dartvel's routes run in a router of their own under [at], with
+/// their own guards;
 /// `context.router.pushPath(dvHostedPath(DVRoutes.about.path, at: '/app'))`
 /// opens one by its typed route.
-List<auto_route.AutoRoute> dartvelAutoRoutes(
-    {String at = '/app', List<String> arguments = const <String>[]}) {
+List<auto_route.AutoRoute> dartvelAutoRoutes({
+  String at = '/app',
+  List<auto_route.AutoRoute> existing = const <auto_route.AutoRoute>[],
+  List<String> arguments = const <String>[],
+}) {
   final List<RouteBase> routes = _dartvelHosted(arguments);
-  final auto_route.PageInfo page = auto_route.PageInfo(
-    'DartvelHostedPage',
-    builder: (auto_route.RouteData data) => DVHostedPage(
-      location: dvHostedLocation(data.match, routes, at: at) ?? '/',
-      routes: routes,
-      at: at,
-    ),
-  );
+  // auto_route names a route after its page, and refuses two with one name,
+  // so each Dartvel path has a page of its own, all building the one host.
+  auto_route.PageInfo page(String path) => auto_route.PageInfo(
+        'Dartvel:$path',
+        builder: (auto_route.RouteData data) {
+          final Map<String, dynamic> query = data.queryParams.rawMap;
+          final Uri uri = Uri(
+            path: data.match,
+            queryParameters: query.isEmpty
+                ? null
+                : <String, String>{
+                    for (final MapEntry<String, dynamic> e in query.entries)
+                      e.key: '${e.value}',
+                  },
+          );
+          return DVHostedPage(
+            location: dvHostedLocation(uri.toString(), routes, at: at) ?? '/',
+            routes: routes,
+            at: at,
+          );
+        },
+      );
   return <auto_route.AutoRoute>[
-    auto_route.AutoRoute(page: page, path: at),
-    auto_route.AutoRoute(page: page, path: '$at/*'),
+    for (final String path in <String>{...dvRoutePaths(routes)})
+      auto_route.AutoRoute(
+        page: page(path),
+        path: dvHostedPath(path, at: at),
+      ),
+    ...existing,
   ];
 }'''
         : '';
@@ -2053,11 +2094,78 @@ dv_nav.Route<Object?>? dartvelOnGenerateRoute(dv_nav.RouteSettings settings,
         {String at = '/', List<String> arguments = const <String>[]}) =>
     dvOnGenerateRoute(settings, _dartvelHosted(arguments), at: at);
 
-/// The page for [uri] for a host on Navigator 2.0, to put in its
-/// navigator's `pages`; null when [uri] is not one of these pages under [at].
-dv_nav.Page<Object?>? dartvelPageFor(Uri uri,
-        {String at = '/', List<String> arguments = const <String>[]}) =>
-    dvPageFor(uri, _dartvelHosted(arguments), at: at);
+/// For a host on Navigator 1.0: its own [existing] `onGenerateRoute`, with
+/// these pages under [at] answered first.
+/// `MaterialApp(onGenerateRoute: dartvelRouteFactory(at: '/app', existing: myRoutes))`.
+/// Every name that is not one of these pages, with its arguments, is
+/// [existing]'s.
+dv_nav.RouteFactory dartvelRouteFactory({
+  String at = '/',
+  dv_nav.RouteFactory? existing,
+  List<String> arguments = const <String>[],
+}) =>
+    dvRouteFactory(_dartvelHosted(arguments), at: at, existing: existing);
+
+/// For a host on go_router: one GoRouter with these pages mounted at [at]
+/// and the host's own [existing] routes beside them.
+/// `MaterialApp.router(routerConfig: dartvelGoRouter(at: '/app', existing: myRoutes, redirect: myRedirect))`.
+/// On a path both declare, Dartvel's page wins; the host's [redirect] is
+/// asked about the host's own paths only, and DV.Navigation is attached.
+GoRouter dartvelGoRouter({
+  String at = '/',
+  List<RouteBase> existing = const <RouteBase>[],
+  GoRouterRedirect? redirect,
+  String? initialLocation,
+  GoRouterWidgetBuilder? errorBuilder,
+  List<String> arguments = const <String>[],
+}) {
+  _dartvelSetUp(arguments);
+  return dvGoRouter(
+    _dartvelRouteList(),
+    at: at,
+    existing: existing,
+    redirect: redirect,
+    initialLocation: initialLocation,
+    errorBuilder: errorBuilder,
+  );
+}
+
+/// For a host on Navigator 2.0: every one of this application's routes,
+/// mounted at [at], as entries for the host's own route table -- spread them
+/// in beside the host's:
+/// `final table = <DVNavigatorRoute>[...hostRoutes, ...dartvelNavigator2_0Routes(at: '/app', onLocationChanged: go)];`
+/// then `Navigator(pages: [homePage, ...dvNavigatorPages(location, table)])`
+/// in the host's RouterDelegate, which keeps the location and the stack.
+/// Guards, parameters, query, not-found under the mount and back behave as
+/// in a Dartvel app; [onLocationChanged] is told where somebody navigated
+/// inside Dartvel, so the delegate keeps the address bar in step.
+List<DVNavigatorRoute> dartvelNavigator2_0Routes({
+  String at = '/',
+  ValueChanged<Uri>? onLocationChanged,
+  List<String> arguments = const <String>[],
+}) =>
+    dvNavigator2Routes(
+      _dartvelHosted(arguments),
+      at: at,
+      onLocationChanged: onLocationChanged,
+    );
+
+/// For `MaterialApp.router` and `CupertinoApp.router`: the host's own
+/// [existing] RouterConfig composed with these pages under [at].
+/// `MaterialApp.router(routerConfig: dartvelRouterConfig(at: '/app', existing: myConfig))`.
+/// A location that is one of these pages is Dartvel's; any other is parsed
+/// and shown by [existing], in its own configuration type. With no
+/// [existing] this is the application's own router.
+RouterConfig<Object> dartvelRouterConfig<T extends Object>({
+  String at = '/',
+  RouterConfig<T>? existing,
+  List<String> arguments = const <String>[],
+}) {
+  if (existing == null && at == '/') {
+    return createDartvelRouter(arguments: arguments);
+  }
+  return dvRouterConfig<T>(_dartvelHosted(arguments), at: at, existing: existing);
+}
 $autoRouteSource
 
 GoRouter createDartvelRouter({List<String> arguments = const <String>[]}) {

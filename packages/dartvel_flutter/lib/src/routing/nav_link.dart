@@ -23,7 +23,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
 
-import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget;
+import '../../dartvel_flutter.dart' show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'link_interception.dart' show DVPressedLink;
 import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
@@ -887,22 +887,151 @@ class DVRoutePreloaders {
   static int get count => _loaders.length;
 }
 
+/// Builds a route's preview for the concrete [location] a link names, with the
+/// [params] taken from it.
+typedef DVLocationPreviewBuilder = Widget Function(
+    BuildContext context, String location, Map<String, String> params);
+
 /// Route builders, so a link can show what it points at.
+///
+/// Every route can have a preview. A route with parameters is registered by
+/// its pattern (`/articles/:slug`) and previews any path it matches, with the
+/// parameters in its [DartvelRouteState]. A guarded route is registered with
+/// [registerGuarded] and previews only what is public about it -- its title
+/// and that it needs signing in -- so hovering a link never shows a signed-out
+/// reader what the guard protects.
 class DVRoutePreviews {
   const DVRoutePreviews._();
 
   static final Map<String, WidgetBuilder> _builders = <String, WidgetBuilder>{};
+  static final Map<String, DVLocationPreviewBuilder> _locationBuilders =
+      <String, DVLocationPreviewBuilder>{};
+  static final Map<String, String?> _guarded = <String, String?>{};
 
-  /// Register the builder for a path. Called by the generated router.
+  /// Register the builder for a path or pattern. Called by the generated
+  /// router.
   static void register(String path, WidgetBuilder builder) =>
       _builders[path] = builder;
 
-  /// The builder for a path, or null when nothing registered one.
-  static WidgetBuilder? forPath(String path) => _builders[path];
+  /// Register a builder for a pattern that is given the concrete location a
+  /// link names and the parameters taken from it.
+  static void registerForLocation(String pattern, DVLocationPreviewBuilder builder) =>
+      _locationBuilders[pattern] = builder;
+
+  /// Mark a path or pattern as guarded: its preview is a card naming
+  /// [title], never the page. Wins over any builder registered for it.
+  static void registerGuarded(String path, {String? title}) =>
+      _guarded[path] = title;
+
+  /// The preview for a concrete [path], or null when no route answers it.
+  static WidgetBuilder? forPath(String location) {
+    // A link may carry a query; the route is the path.
+    final String path = location.split('?').first.split('#').first;
+    final String? pattern = _patternFor(
+        path, <String>{..._builders.keys, ..._locationBuilders.keys, ..._guarded.keys});
+    if (pattern == null) return null;
+    if (_guarded.containsKey(pattern)) {
+      final String? title = _guarded[pattern];
+      return (BuildContext context) => DVGuardedRoutePreview(title: title);
+    }
+    final Map<String, String> params = _paramsFor(path, pattern);
+    final DVLocationPreviewBuilder? forLocation = _locationBuilders[pattern];
+    if (forLocation != null) {
+      return (BuildContext context) => forLocation(context, location, params);
+    }
+    final WidgetBuilder builder = _builders[pattern]!;
+    if (params.isEmpty) return builder;
+    return (BuildContext context) => DartvelRouteState(
+          params: params,
+          query: const <String, String>{},
+          child: Builder(builder: builder),
+        );
+  }
+
+  /// The registered pattern that answers [path]: an exact path first, then
+  /// the pattern with the most fixed segments.
+  static String? _patternFor(String path, Set<String> patterns) {
+    if (patterns.contains(path)) return path;
+    String? best;
+    int bestFixed = -1;
+    for (final String pattern in patterns) {
+      if (!_matches(path, pattern)) continue;
+      final int fixed = _segments(pattern)
+          .where((String segment) => !segment.startsWith(':') && !segment.startsWith('*'))
+          .length;
+      if (fixed > bestFixed) {
+        best = pattern;
+        bestFixed = fixed;
+      }
+    }
+    return best;
+  }
+
+  static List<String> _segments(String path) =>
+      path.split('/').where((String segment) => segment.isNotEmpty).toList();
+
+  static bool _matches(String path, String pattern) {
+    final List<String> pathSegments = _segments(path);
+    final List<String> patternSegments = _segments(pattern);
+    for (int index = 0; index < patternSegments.length; index++) {
+      final String segment = patternSegments[index];
+      if (segment.startsWith('*')) return true;
+      if (index >= pathSegments.length) return false;
+      if (segment.startsWith(':')) continue;
+      if (segment != pathSegments[index]) return false;
+    }
+    return pathSegments.length == patternSegments.length;
+  }
+
+  static Map<String, String> _paramsFor(String path, String pattern) {
+    final List<String> pathSegments = _segments(path);
+    final List<String> patternSegments = _segments(pattern);
+    return <String, String>{
+      for (int index = 0; index < patternSegments.length && index < pathSegments.length; index++)
+        if (patternSegments[index].startsWith(':'))
+          patternSegments[index].substring(1): Uri.decodeComponent(pathSegments[index]),
+    };
+  }
 
   /// Forget everything, for tests and for a router being replaced.
-  static void clear() => _builders.clear();
+  static void clear() {
+    _builders.clear();
+    _locationBuilders.clear();
+    _guarded.clear();
+  }
 
   @visibleForTesting
-  static int get count => _builders.length;
+  static int get count =>
+      <String>{..._builders.keys, ..._locationBuilders.keys, ..._guarded.keys}.length;
+}
+
+/// The preview of a guarded route: its public title and that it needs
+/// signing in. Nothing the guard protects is built.
+class DVGuardedRoutePreview extends StatelessWidget {
+  const DVGuardedRoutePreview({super.key, this.title});
+
+  /// The route's public title, from its `@DVPage(title:)`, if it has one.
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (title != null && title!.isNotEmpty)
+            Text(title!, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+            Icon(Icons.lock_outline, size: 16, color: theme.hintColor),
+            const SizedBox(width: 6),
+            Text('Sign in to view this page.', style: theme.textTheme.bodySmall),
+          ]),
+        ],
+      ),
+    );
+  }
 }

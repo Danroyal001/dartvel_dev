@@ -477,8 +477,8 @@ Widget _routingProof(BuildContext context) => const Section(
     Objection(
       'Do I have to move my screens into lib/pages?',
       'No. Declare them in lib/routes.dart, or mount your GoRoute list inside '
-          'Dartvel\'s router with DVGoRoutes. Or keep your router: Dartvel\'s '
-          'pages mount into go_router, auto_route or Flutter\'s Navigator.',
+          'Dartvel\'s router with DVGoRoutes. Or keep your router: go_router, '
+          'auto_route, Navigator 1.0 or 2.0, or a RouterConfig of your own.',
     ),
     DVBox.wrapLine(<Widget>[GhostLink('Read the routing docs', '/docs/routing')]),
   ],
