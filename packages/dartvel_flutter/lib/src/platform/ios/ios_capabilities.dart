@@ -20,6 +20,9 @@ library dartvel_flutter.platform.ios.capabilities;
 ///   * **Window controls** do not exist: an iOS app does not own a resizable
 ///     window.
 const Set<String> dvIosImplementedBindings = <String>{
+  // Files opened from Files or shared, which the app delegate block
+  // copies out of their security scope.
+  'associations.opened',
   // UIPasteboard through the Objective-C runtime.
   'clipboard.copy',
   'clipboard.paste',

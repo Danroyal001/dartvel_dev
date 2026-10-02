@@ -84,11 +84,21 @@ String dvAndroidPermissionRequest(String permission) =>
 ///
 /// The same two keys `media.pick` takes everywhere else, so the Android and
 /// the Linux binding can be called from one piece of application code.
+///
+/// [accept] narrows the picker to MIME types, from
+/// `DV.Platform.associations.pick`; extensions in it are dropped, because
+/// Android's picker filters by type alone.
 String dvAndroidMediaRequest({
   required String type,
   required bool multiple,
+  List<String> accept = const <String>[],
 }) =>
-    jsonEncode(<String, Object?>{'type': type, 'multiple': multiple});
+    jsonEncode(<String, Object?>{
+      'type': type,
+      'multiple': multiple,
+      if (accept.any((String entry) => entry.contains('/')))
+        'accept': <String>[for (final String entry in accept) if (entry.contains('/')) entry],
+    });
 
 /// The argument `location.current` carries.
 String dvAndroidLocationRequest({

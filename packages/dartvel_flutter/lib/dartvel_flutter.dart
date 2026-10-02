@@ -780,6 +780,7 @@ export 'src/platform/device_runtime.dart';
 export 'src/platform/dialogs.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/file_associations.dart';
+export 'src/platform/opened_files.dart' show DVOpenedFile;
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';

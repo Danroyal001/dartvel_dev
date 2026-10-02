@@ -26,7 +26,8 @@ import 'package:dartvel_core/dartvel.dart'
         dvHomeWidgetAppGroup,
         dvHomeWidgetAppleReloadClass,
         dvHomeWidgetAppleReloadSelector,
-        dvIosLaunchUrlKey;
+        dvIosLaunchUrlKey,
+        dvIosOpenedFilesKey;
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
@@ -144,6 +145,9 @@ class DVIosBindings {
     // worked, and is a shortcut rather than a widget. The capture itself is
     // in AppDelegate.swift, written by the build.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => _initialLink());
+    // The files the app delegate block copied out of their security scope,
+    // as JSON, taken once like the launch link.
+    DVNativeBridge.register('associations.opened', (Object? _) => _takeDefault(dvIosOpenedFilesKey));
 
     // What a home-screen widget shows. The extension is a separate process
     // that cannot host a Flutter engine, so the tree and the state stay in
@@ -173,6 +177,7 @@ class DVIosBindings {
       DVNativeBridge.unregister('clipboard.copy');
       DVNativeBridge.unregister('clipboard.paste');
       DVNativeBridge.unregister('deepLinks.initial');
+      DVNativeBridge.unregister('associations.opened');
       DVNativeBridge.unregister('homeWidgets.publish');
       DVNativeBridge.unregister('tracking.requestAuthorization');
       return false;
@@ -438,7 +443,12 @@ class DVIosBindings {
   /// link left behind would be opened on every later start, taking somebody
   /// back to a page they had navigated away from days ago -- which is a
   /// stranger bug to be handed than a widget that does nothing.
-  static String? _initialLink() {
+  static String? _initialLink() => _takeDefault(dvIosLaunchUrlKey);
+
+  /// The string under [name] in the standard defaults, removed as it is
+  /// read. What the generated app delegate leaves for Dart: the launch link,
+  /// and the files the application was opened with.
+  static String? _takeDefault(String name) {
     final send0 =
         _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');
     final send1 =
@@ -452,19 +462,20 @@ class DVIosBindings {
         send0(_class('NSUserDefaults'), _selector('standardUserDefaults'));
     if (defaults == nullptr) return null;
 
-    final key = _nsString(dvIosLaunchUrlKey);
+    final key = _nsString(name);
     final value = send1(defaults, _selector('stringForKey:'), key);
     // Nil is the ordinary case: an application opened from its own icon was
-    // launched with no link, and that is not a failure.
+    // launched with no link and no file, and that is not a failure.
     if (value == nullptr) return null;
 
     final utf8 = sendUtf8(value, _selector('UTF8String'));
     if (utf8 == nullptr) return null;
-    final String link = utf8.toDartString();
+    final String text = utf8.toDartString();
 
     sendVoid(defaults, _selector('removeObjectForKey:'), key);
-    return link.isEmpty ? null : link;
+    return text.isEmpty ? null : text;
   }
+
   static String? _paste() {
     final send0 =
         _objc.lookupFunction<_MsgSend0Native, _MsgSend0Dart>('objc_msgSend');

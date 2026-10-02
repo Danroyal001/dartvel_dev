@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:dartvel_cli/src/build/android_capture_bridge.dart';
 import 'package:dartvel_cli/src/build/android_context_provider.dart';
 import 'package:dartvel_cli/src/build/android_home_widget.dart';
+import 'package:dartvel_cli/src/build/file_associations.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -50,6 +51,7 @@ void main() {
   final Map<String, String> java = <String, String>{
     dvAndroidContextClass: dvAndroidContextProviderSource(),
     dvAndroidCaptureBridgeClass: dvAndroidCaptureBridgeSource(),
+    dvAndroidOpenActivityClass: dvAndroidOpenActivitySource(),
     dvHomeWidgetAndroidClass:
         dvAndroidWidgetPublisherSource('com.example.app', const []),
   };
@@ -63,6 +65,7 @@ void main() {
     expect(lookups.length, greaterThanOrEqualTo(4));
     expect(lookups.map((_Lookup l) => l.name), contains('context'));
     expect(lookups.map((_Lookup l) => l.name), contains('begin'));
+    expect(lookups.map((_Lookup l) => l.name), contains('take'));
   });
 
   test('the signature reader can tell a wrong signature from a right one', () {
@@ -146,6 +149,7 @@ List<_Lookup> _lookupsInDartSource(Set<String> known) {
   final RegExp literal = RegExp(r"JClass\.forName\(\s*'([^']+)'");
   final Map<String, String> constants = <String, String>{
     'dvAndroidCaptureBridgeClass': dvAndroidCaptureBridgeClass,
+    'dvAndroidOpenActivityClass': dvAndroidOpenActivityClass,
     'dvHomeWidgetAndroidClass': dvHomeWidgetAndroidClass,
     '_contextHolder': dvAndroidContextClass,
     '_widgetPublisher': dvHomeWidgetAndroidClass,

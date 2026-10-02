@@ -896,6 +896,15 @@ public final class DartvelBridgeActivity extends Activity {
     if (multiple) {
       pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
     }
+    // The types DV.Platform.associations.pick narrows to, when it does.
+    JSONArray accept = options.optJSONArray("accept");
+    if (accept != null && accept.length() > 0) {
+      String[] types = new String[accept.length()];
+      for (int i = 0; i < accept.length(); i++) {
+        types[i] = accept.optString(i, "*/*");
+      }
+      pick.putExtra(Intent.EXTRA_MIME_TYPES, types);
+    }
     startActivityForResult(pick, MEDIA);
   }
 

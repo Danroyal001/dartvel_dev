@@ -136,6 +136,7 @@ class DVAndroidCapture {
         dvAndroidMediaRequest(
           type: '${map['type'] ?? 'image'}',
           multiple: map['multiple'] == true,
+          accept: <String>[if (map['accept'] case final List<Object?> accept) for (final Object? entry in accept) '$entry'],
         ),
       ));
     });

@@ -14,6 +14,7 @@ import 'package:dartvel_core/dartvel.dart'
     show DVInstanceLock, DVSingleInstance, dvHomeWidgetRouteForLink;
 
 import '../../dartvel_flutter.dart' show DVDeepLinks;
+import '../platform/opened_files.dart';
 
 /// What [DVAppLaunch.start] decided.
 class DVAppLaunchResult {
@@ -117,6 +118,13 @@ class DVAppLaunch {
     final String path =
         '/${<String>[if (uri.host.isNotEmpty) uri.host, ...uri.pathSegments].join('/')}';
     return _pathAndQuery(path, uri.query);
+  }
+
+  /// The file a [filesRoute] route carries, or null for any other route.
+  static String? fileIn(String route, {String filesRoute = '/open'}) {
+    if (!route.startsWith('$filesRoute?')) return null;
+    final String? path = Uri.tryParse(route)?.queryParameters['path'];
+    return path == null || path.isEmpty ? null : path;
   }
 
   static String _pathAndQuery(String path, String query) =>
@@ -249,6 +257,11 @@ class DVAppLaunch {
           // Written by another process, so not trusted as a route outright.
           final String path = route.trim();
           if (!path.startsWith('/') || path.startsWith('//')) continue;
+          // A file is also delivered where every target delivers one, so an
+          // application that handles DV.Platform.associations.opened works
+          // the same here as on a phone or an installed web app.
+          final String? file = fileIn(path, filesRoute: filesRoute);
+          if (file != null) DVOpenedFiles.deliver(<DVOpenedFile>[DVOpenedFile.atPath(file)]);
           await open(path);
         }
       } finally {

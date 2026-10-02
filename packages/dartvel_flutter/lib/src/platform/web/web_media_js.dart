@@ -66,6 +66,9 @@ class DVWebMedia {
       input.multiple = multiple;
       final String? accept = _accept[type];
       if (accept != null) input.accept = accept;
+      // Named types and extensions, from DV.Platform.associations.pick.
+      final Object? named = map['accept'];
+      if (named is List && named.isNotEmpty) input.accept = named.join(',');
       // Off-screen rather than display:none. A hidden input is ignored by
       // some engines when it is clicked from script, and the failure is a
       // picker that never opens and never errors.

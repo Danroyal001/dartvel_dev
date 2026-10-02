@@ -1946,9 +1946,16 @@ class BuildCommand extends Command<void> {
     final String before = manifest.readAsStringSync();
     final String after = dvAndroidFileAssociationsManifest(before, declared.associations);
     if (after != before) manifest.writeAsStringSync(after);
-    if (!declared.isEmpty) {
-      Logger.log('   File types: ${declared.associations.length} registered as intent filters on the launcher activity.');
+    // Dartvel's own file, so it is written whole and removed with the
+    // declaration rather than left as a class nothing starts.
+    final File activity = File(p.join(root, dvAndroidOpenActivityPath));
+    if (declared.isEmpty) {
+      if (activity.existsSync()) activity.deleteSync();
+      return;
     }
+    activity.parent.createSync(recursive: true);
+    activity.writeAsStringSync(dvAndroidOpenActivitySource());
+    Logger.log('   File types: ${declared.associations.length} registered to open and share into the app.');
   }
 
   void _writeIosFileAssociations(String root) {
@@ -2202,7 +2209,7 @@ class BuildCommand extends Command<void> {
       return;
     }
     final String before = delegate.readAsStringSync();
-    final String after = dvIosAppDelegate(before, enabled: true);
+    final String after = dvIosAppDelegate(before, enabled: true, files: !_fileAssociations(root).isEmpty);
     if (after == before) return;
     if (!after.contains(dvIosLaunchUrlKey)) {
       // The delegate has been rewritten into something this does not
