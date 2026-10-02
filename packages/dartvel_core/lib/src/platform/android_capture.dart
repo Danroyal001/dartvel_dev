@@ -108,10 +108,31 @@ const Map<String, DVAndroidPermissionGroup> dvAndroidPermissions =
   'storage': DVAndroidPermissionGroup(<DVAndroidPermission>[
     DVAndroidPermission('android.permission.READ_EXTERNAL_STORAGE', maxSdk: 32),
   ]),
+  // READ_MEDIA_VISUAL_USER_SELECTED is Android 14's "selected photos only"
+  // answer. Declared beside READ_MEDIA_IMAGES so a person can choose it, and
+  // in an anyOf group so holding it counts as access rather than a refusal.
   'photos': DVAndroidPermissionGroup(<DVAndroidPermission>[
     DVAndroidPermission('android.permission.READ_MEDIA_IMAGES', minSdk: 33),
+    DVAndroidPermission('android.permission.READ_MEDIA_VISUAL_USER_SELECTED', minSdk: 34),
     DVAndroidPermission('android.permission.READ_EXTERNAL_STORAGE', maxSdk: 32),
   ], anyOf: true),
+  // Pictures, video and audio the person keeps on the device.
+  'media': DVAndroidPermissionGroup(<DVAndroidPermission>[
+    DVAndroidPermission('android.permission.READ_MEDIA_IMAGES', minSdk: 33),
+    DVAndroidPermission('android.permission.READ_MEDIA_VIDEO', minSdk: 33),
+    DVAndroidPermission('android.permission.READ_MEDIA_AUDIO', minSdk: 33),
+    DVAndroidPermission('android.permission.READ_MEDIA_VISUAL_USER_SELECTED', minSdk: 34),
+    DVAndroidPermission('android.permission.READ_EXTERNAL_STORAGE', maxSdk: 32),
+  ], anyOf: true),
+  // Every file on shared storage. From API 30 this is special app access the
+  // person grants in Settings, not a dialog, and Google Play allows it only
+  // for file managers, backup and similar apps; the build says so when it is
+  // declared. Below API 30 it is the two old storage permissions.
+  'allFiles': DVAndroidPermissionGroup(<DVAndroidPermission>[
+    DVAndroidPermission('android.permission.MANAGE_EXTERNAL_STORAGE', minSdk: 30),
+    DVAndroidPermission('android.permission.READ_EXTERNAL_STORAGE', maxSdk: 29),
+    DVAndroidPermission('android.permission.WRITE_EXTERNAL_STORAGE', maxSdk: 29),
+  ]),
   'bluetooth': DVAndroidPermissionGroup(<DVAndroidPermission>[
     DVAndroidPermission('android.permission.BLUETOOTH_CONNECT', minSdk: 31),
     DVAndroidPermission('android.permission.BLUETOOTH_SCAN', minSdk: 31),
