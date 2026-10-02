@@ -1,0 +1,48 @@
+name: dartvel_preview
+description: >-
+  Dartvel Preview: one app that runs any Dartvel project a `dartvel dev` on
+  the same network serves, without building the project for the device.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  dartvel_core: ^0.10.0
+  dartvel_flutter: ^0.10.0
+  flutter_web_plugins:
+    sdk: flutter
+  # The Android half of pairing: the development build's own Java class,
+  # called from Dart. Already in the app through dartvel_flutter.
+  jni: ^1.0.3
+  # The frame a web build of a project is shown in, in a browser.
+  web: ^1.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0
+  dartvel_cli: ^0.10.0
+
+flutter:
+  uses-material-design: true
+
+dartvel:
+  pagesDir: lib/pages
+  plugins: []
+  ota: false
+  # A launcher with no backend of its own and nobody to sign in.
+  auth:
+    pages: false
+  transitions:
+    default: fade
+    durationMs: 150
+    curve: easeInOut
+  seo:
+    siteName: Dartvel Preview
+    defaultTitle: Dartvel Preview
+    defaultDescription: Run a Dartvel project from dartvel dev on this device.

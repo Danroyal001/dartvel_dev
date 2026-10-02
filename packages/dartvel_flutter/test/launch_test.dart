@@ -219,7 +219,7 @@ void main() {
       'a link the app was launched with is the initial link, and is delivered as one',
       () async {
         final List<String> links = <String>[];
-        final StreamSubscription<String> sub = DV.Platform.DeepLinking
+        final StreamSubscription<String> sub = DV.Platform.deepLinks
             .getLinkStream()
             .listen(links.add);
         addTearDown(sub.cancel);

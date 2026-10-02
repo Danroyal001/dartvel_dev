@@ -5,10 +5,11 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Dartvel compared with Expo, Laravel, Hasura, Rails, Bubble, '
-      'PocketBase and Qt',
+      'PocketBase, Qt and Power Apps',
   description: 'How Dartvel compares with the tools people already use: Expo '
       'for Flutter, Laravel for Flutter, Hasura for Flutter, Ruby on Rails '
-      'for Flutter, Bubble, PocketBase and Qt. Each page says where the '
+      'for Flutter, Bubble, PocketBase, Qt and Power Apps. Each page says '
+      'where the '
       'other one wins.',
   showAppBar: false,
   sitemap: DVPageSitemap(
@@ -41,7 +42,7 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
           tint: true,
           children: <Widget>[
             const Eyebrow('THE PAGES'),
-            const Heading('Seven comparisons.'),
+            const Heading('Eight comparisons.'),
             DVBox.wrapLine(<Widget>[
               for (final VersusPage page in kVersusPages)
                 SiteCard(page.phrase, page.summary, href: page.path),
@@ -53,8 +54,8 @@ Widget _vsIndexPage(BuildContext context) => SingleChildScrollView(
             Eyebrow('ALSO ASKED'),
             Heading('Can I build a Flutter app without a Mac?'),
             Body('Mostly yes, and the honest answer has a shape: everything '
-                'except an iOS or macOS build runs on any computer today, '
-                'and the two that do not have a route that is not buying a '
+                'except an iOS, macOS or Apple TV build needs no Mac today, '
+                'and the three that do have a route that is not buying a '
                 'Mac.'),
             DVBox.wrapLine(<Widget>[
               PrimaryLink('Flutter without a Mac', '/flutter-without-a-mac'),

@@ -93,7 +93,7 @@ void main() {
   group('the preview server', () {
     // The build writes the location and the deployed backend acts on it.
     // This server read the same manifest and had no idea the key existed, so
-    // `dartvel preview` answered /store with the parent's own shell: a page
+    // `dartvel dev --release` answered /store with the parent's own shell: a page
     // titled with the site name, no module content, and no sign anything was
     // wrong. A developer checking a mounted micro-site locally saw a blank
     // app and had nothing to go on.

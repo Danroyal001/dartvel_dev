@@ -1520,7 +1520,7 @@ jobs:
           # The deployment is one file. Copied alone into an empty directory
           # and started with nothing configured, it has to serve the web app
           # from inside itself, assemble each page when it is asked for, and
-          # create its SQLite database on the first run. `dartvel preview`
+          # create its SQLite database on the first run. `dartvel dev --release`
           # serves build/web beside the project, so it proves none of that.
           test -x sites/dartvel_site/build/server
           DEPLOY=$(mktemp -d)
@@ -1581,15 +1581,15 @@ jobs:
           test -f build/web/__admin/main.dart.js
           test ! -f build/web/__admin/admin.js
 
-          dart run dartvel_cli:dartvel preview --port 8098 \
-            > /tmp/diag/preview.log 2>&1 &
+          dart run dartvel_cli:dartvel dev --release --port 8098 \
+            > /tmp/diag/release.log 2>&1 &
           SERVER=$!
           for i in $(seq 1 30); do
             curl -sf -o /dev/null http://127.0.0.1:8098/ && break
             sleep 1
           done
 
-          # Studio is not open to whoever reaches the port. The preview server
+          # Studio is not open to whoever reaches the port. The release server
           # prints a one-time link and only a request carrying that grant is
           # answered; everybody else gets what a missing route gets. This
           # step used to curl the mount with nothing and expect the dashboard,
@@ -1605,10 +1605,10 @@ jobs:
           # Then the browser's path: open the printed link, which sets the
           # cookie for the mount and redirects without the token in the URL.
           GRANT=$(grep -o 'http://localhost:8098/__studio/?dev_grant=[A-Za-z0-9._~-]*' \
-            /tmp/diag/preview.log | head -1 | sed 's|http://localhost|http://127.0.0.1|')
+            /tmp/diag/release.log | head -1 | sed 's|http://localhost|http://127.0.0.1|')
           if [ -z "$GRANT" ]; then
-            echo "::error::the preview printed no development grant link"
-            cat /tmp/diag/preview.log
+            echo "::error::the release server printed no development grant link"
+            cat /tmp/diag/release.log
             exit 1
           fi
           curl -sf -c /tmp/diag/studio-cookies -o /dev/null -L "$GRANT"

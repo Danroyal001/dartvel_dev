@@ -28,7 +28,7 @@ export 'src/data/record_history.dart'
 // application saves the model.
 export 'src/data/offline_store.dart';
 export 'src/privacy/privacy.dart' show DVOfflineStorePrivacyAdapter;
-export 'src/search/semantic_search.dart' show DVSemanticIndex;
+export 'src/search/semantic_search.dart' show DVSemanticIndex, DVDeferredSearchProvider;
 export 'src/sync/model_sync.dart' show DVModelSync, DVModelSyncTransport;
 export 'src/sync/presence.dart' show DVPresenceTransport;
 // Change capture: the log, its consumers, the store destination, the jobs,

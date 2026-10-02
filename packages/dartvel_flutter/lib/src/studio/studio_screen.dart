@@ -4,9 +4,15 @@ import 'dart:math' as math;
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list.
 import 'package:dartvel_core/dartvel.dart'
-    show DVAlerting, DVFlags, DVHealthReport, DVIncidents;
+    show
+        DVAlerting,
+        DVFlags,
+        DVHealthReport,
+        DVIncidents,
+        dvStudioIsReservedRoute;
 import 'package:flutter/material.dart'
     show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -73,6 +79,32 @@ class DVStudioScreen extends StatefulWidget {
   /// running the application's registered health checks.
   final Future<DVHealthReport> Function()? statusHealth;
 
+  /// Who is signed in and the control that signs them out, at the foot of
+  /// the rail. Studio served by an application's backend always has one; a
+  /// Studio inside the application it manages has no session of its own.
+  final Widget? account;
+
+  /// The section the address names, as the id of one of [sections] or of the
+  /// ones Studio draws itself. Null, or an id this build has no section for,
+  /// draws the first.
+  ///
+  /// The selection is the address on the server -- `/__studio/models` is the
+  /// Data section, and the server writes a document for it there -- so a
+  /// Studio with a [selected] reads the address rather than keeping the
+  /// selection to itself. Without one, the selection is state inside the
+  /// page, which is what a Studio inside the application it manages has,
+  /// and what Studio had before its screens had addresses.
+  final String? selected;
+
+  /// What the address names inside [selected]: a page's route, a model's
+  /// name, a function's. Only the sections that can open one are told.
+  final String? object;
+
+  /// Called when the person chooses another section, or another thing inside
+  /// one, so that the address can follow them. The sections that can open
+  /// something call it; the rest never can.
+  final void Function(String section, String? object)? onSelect;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
@@ -88,10 +120,38 @@ class DVStudioScreen extends StatefulWidget {
     this.incidents,
     this.clock,
     this.statusHealth,
+    this.account,
+    this.selected,
+    this.object,
+    this.onSelect,
   });
 
   @override
   State<DVStudioScreen> createState() => _DVStudioScreenState();
+}
+
+/// What the address says about where a person is inside a screen, and how a
+/// section says where they went.
+///
+/// A screen has an address -- `<mount>/<screen>` -- and some of them have
+/// something inside them with an address of its own,
+/// `<mount>/<screen>/<object>`: the page open in Pages, the model open in
+/// Data, the function open in the builder. A section that can open one is
+/// handed the name the address gives and asked to report what the person
+/// chose; a section that cannot open one is handed nothing and is never
+/// asked. The name is the object's own -- a route, a model, a function --
+/// rather than a path, so a section reads it as the thing it lists.
+class DVStudioSelection {
+  const DVStudioSelection({this.object, this.select});
+
+  /// What the address names inside the screen, or null when it names only
+  /// the screen.
+  final String? object;
+
+  /// Called with what the person chose, so the address can follow. Null
+  /// where nothing follows it: a Studio with no [DVStudioScreen.onSelect],
+  /// which keeps its selection to itself.
+  final void Function(String? object)? select;
 }
 
 /// A section in Studio's switcher.
@@ -113,26 +173,101 @@ class DVStudioSection {
   /// generic extension glyph rather than no way to be told apart.
   final IconData? icon;
 
-  /// Builds the section body when its tab is selected.
-  final Widget Function(BuildContext context) build;
+  /// Builds the section body when its tab is selected, told what the address
+  /// names inside the section and how to report what the person chose. Null
+  /// on a section built the plain way, which opens nothing; read the body
+  /// through [body] rather than here.
+  final Widget Function(BuildContext context, DVStudioSelection selection)?
+      build;
 
+  /// A section that lists, counts or reports: it opens nothing, so it has
+  /// nothing to name in an address and its `build` takes only the context.
   const DVStudioSection({
+    required this.id,
+    required this.label,
+    required Widget Function(BuildContext context) build,
+    this.icon,
+  }) : build = null,
+       _build = build;
+
+  /// A section that can open one thing, and so has an address for it: the
+  /// page in Pages, the model in Data, the function in the builder.
+  ///
+  /// [build] is told what the address names in the section and is given the
+  /// way to say what the person chose, which is what puts the new address.
+  const DVStudioSection.opening({
     required this.id,
     required this.label,
     required this.build,
     this.icon,
-  });
+  }) : _build = null;
+
+  /// The plain form's builder, kept under a name of its own so that the
+  /// plain constructor can stay `const`: adapting a one-argument closure to
+  /// two would mean storing a tear-off, and a tear-off is not a constant.
+  final Widget Function(BuildContext context)? _build;
+
+  /// The section's body, with the selection given to a section that asked
+  /// for it and dropped for one that did not. The one field a caller reads:
+  /// which of the two constructors built the section is an implementation
+  /// detail, not a question anyone has to answer to draw it.
+  Widget body(BuildContext context, DVStudioSelection selection) =>
+      build?.call(context, selection) ?? _build!(context);
 }
 
 class _DVStudioScreenState extends State<DVStudioScreen> {
+  /// The section on screen. The address's while there is one, the first
+  /// section otherwise, and Pages before either: a Studio with no address
+  /// for its selection opens on Pages, as it always did.
   String _selected = 'pages';
 
+  @override
+  void initState() {
+    super.initState();
+    final String? selected = widget.selected;
+    if (selected != null) _selected = selected;
+  }
+
+  @override
+  void didUpdateWidget(DVStudioScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved, and the person is somewhere else because of it.
+    // Only when it says otherwise: a section that has just reported what
+    // the person chose is already there, and following the address back
+    // would undo the very click that moved it.
+    final String? selected = widget.selected;
+    if (selected != null && selected != _selected) {
+      setState(() => _selected = selected);
+    }
+  }
+
+  /// A person chose [id], or something inside it: drawn now, and put in the
+  /// address by whoever owns it when there is one.
+  void _select(String id, [String? object]) {
+    setState(() => _selected = id);
+    widget.onSelect?.call(id, object);
+  }
+
+  /// The component a use of it asked to have opened, and a count so asking
+  /// twice for the same one opens it again.
+  String? _component;
+  int _componentAsks = 0;
+
+  void _editComponent(String name) {
+    setState(() {
+      _component = name;
+      _componentAsks++;
+    });
+    _select('components', name);
+  }
+
   List<DVStudioSection> get _sections => <DVStudioSection>[
-        DVStudioSection(
+        DVStudioSection.opening(
           id: 'pages',
           label: 'Pages',
           icon: DVStudioIcons.pages,
-          build: (BuildContext context) => _DVStudioPagesSection(
+          build: (BuildContext context, DVStudioSelection selection) =>
+              _DVStudioPagesSection(
             key: const ValueKey<String>('dv-studio-pages'),
             store: widget.store,
             site: widget.site,
@@ -144,7 +279,38 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             attached: <String>[
               for (final DVStudioSection section in _attached) section.label,
             ],
+            onEditComponent: _editComponent,
+            // A page's route in an address is the route without the slash
+            // the address already carries: `<mount>/pages/shop/product` names
+            // the page at `/shop/product`. The root page is the screen with
+            // nothing open, which is what the server prints for it too.
+            route: selection.object == null ? null : '/${selection.object}',
+            onSelect: (String route) => selection.select?.call(route),
           ),
+        ),
+        // Free Studio: a part designed once and put on any page.
+        DVStudioSection.opening(
+          id: 'components',
+          label: 'Components',
+          icon: DVStudioIcons.components,
+          build: (BuildContext context, DVStudioSelection selection) =>
+              DVStudioComponentsSection(
+            key: ValueKey<String>('dv-studio-components-$_componentAsks'),
+            store: widget.store,
+            palette: widget.palette,
+            // A component named in the address, and the one a use of it
+            // asked to edit, which is the same thing said twice.
+            open: selection.object ?? _component,
+            onSelect: (String name) => selection.select?.call(name),
+          ),
+        ),
+        // Keys the application answers, set without code.
+        DVStudioSection(
+          id: 'shortcuts',
+          label: 'Shortcuts',
+          icon: Icons.keyboard_outlined,
+          build: (BuildContext context) =>
+              DVStudioShortcutsSection(store: widget.store),
         ),
         if (widget.flags case final DVFlags flags)
           DVStudioSection(
@@ -199,7 +365,20 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     final List<DVStudioSection> sections = _sections;
     final DVStudioSection current = sections.firstWhere(
       (DVStudioSection section) => section.id == _selected,
+      // An address naming a screen this build has no section for: the two
+      // screens only a project that declared the runtime behind them get.
+      // Drawn as the first section rather than rewritten, because a person
+      // who asked for `/__studio/flags` on a project with no flags should
+      // be told what the project has, not have their address changed under
+      // them.
       orElse: () => sections.first,
+    );
+    // What the address names inside the open section, and how that section
+    // reports what the person chose. `current`, not `_selected`: a section
+    // reports where the person is, and where they are is what is drawn.
+    final DVStudioSelection selection = DVStudioSelection(
+      object: widget.object,
+      select: (String? object) => _select(current.id, object),
     );
     // A Material, not a coloured box: sections are free to use material
     // widgets, and a ColoredBox between a ListTile and its nearest Material
@@ -209,7 +388,10 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     final Widget body = Expanded(
       child: KeyedSubtree(
         key: ValueKey<String>('dv-studio-body-${current.id}'),
-        child: Builder(builder: current.build),
+        child: Builder(
+          builder: (BuildContext context) =>
+              current.body(context, selection),
+        ),
       ),
     );
     // On a phone the rail's 76 points are a fifth of the screen, so the
@@ -226,7 +408,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                   id: 'go-${section.id}',
                   title: 'Go to ${section.label}',
                   group: 'Go to',
-                  run: () => setState(() => _selected = section.id),
+                  run: () => _select(section.id),
                 ),
               DVStudioCommand(
                 id: 'shortcuts',
@@ -251,7 +433,13 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             )
           : Row(
               crossAxisAlignment: .stretch,
-              children: <Widget>[_rail(sections), body],
+              children: <Widget>[
+                // The rail is one column for selection: its items reach
+                // further down the screen than a line of the workspace beside
+                // it, and a drag across that line stopped in the rail.
+                DVSelectionColumn(child: _rail(sections)),
+                body,
+              ],
             ),
     );
   }
@@ -274,7 +462,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                 child: _DVStudioRailItem(
                   section: section,
                   selected: section.id == _selected,
-                  onTap: () => setState(() => _selected = section.id),
+                  onTap: () => _select(section.id),
                 ),
               ),
           ],
@@ -317,12 +505,17 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                     _DVStudioRailItem(
                       section: section,
                       selected: section.id == _selected,
-                      onTap: () => setState(() => _selected = section.id),
+                      onTap: () => _select(section.id),
                     ),
                 ],
               ),
             ),
           ),
+          if (widget.account case final Widget account) ...<Widget>[
+            Container(height: 1, width: 36, color: DVStudioStyle.railSelected),
+            account,
+            const SizedBox(height: DVStudioStyle.space3),
+          ],
         ],
       ),
     );
@@ -346,64 +539,91 @@ class _DVStudioRailItem extends StatefulWidget {
 
 class _DVStudioRailItemState extends State<_DVStudioRailItem> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final bool selected = widget.selected;
     final Color foreground =
         selected ? const Color(0xFFFFFFFF) : DVStudioStyle.railInk;
-    return GestureDetector(
-      key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
-      behavior: .opaque,
-      onTap: widget.onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: Container(
-          width: 64,
-          margin: const .symmetric(vertical: 2),
-          padding: const .symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? DVStudioStyle.railSelected
-                : _hover
-                    ? const Color(0xFF1F1F29)
-                    : const Color(0x00000000),
-            borderRadius: .circular(10),
-          ),
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: 32,
-                height: 26,
+    // A rail item is a control like any other: Tab has to reach it, Enter has
+    // to open the screen, and the focus has to be visible. It is the one way
+    // into another screen, so an item that only answers the mouse closes the
+    // whole of Studio to a keyboard or a switch-control user.
+    return Actions(
+      actions: dvStudioActivate(widget.onTap),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              selected: selected,
+              label: widget.section.label,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              child: Container(
+                width: 64,
+                margin: const .symmetric(vertical: 1),
+                padding: const .symmetric(vertical: 5),
                 decoration: BoxDecoration(
                   color: selected
-                      ? DVStudioStyle.accent
-                      : const Color(0x00000000),
-                  borderRadius: .circular(8),
+                      ? DVStudioStyle.railSelected
+                      : _hover
+                          ? const Color(0xFF1F1F29)
+                          : const Color(0x00000000),
+                  borderRadius: .circular(10),
+                  // Drawn on the item rather than taken from the theme: the
+                  // rail is drawn over its own colour, where a platform
+                  // highlight would not be seen.
+                  border: _focused
+                      ? Border.all(color: DVStudioStyle.accent, width: 2)
+                      : null,
                 ),
-                child: Icon(
-                  widget.section.icon ?? DVStudioIcons.section,
-                  size: 17,
-                  color: foreground,
+                child: Column(
+                  children: <Widget>[
+                    Container(
+                      width: 32,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? DVStudioStyle.accent
+                            : const Color(0x00000000),
+                        borderRadius: .circular(8),
+                      ),
+                      child: Icon(
+                        widget.section.icon ?? DVStudioIcons.section,
+                        size: 17,
+                        color: foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    // Scaled down rather than clipped: a section's name is how
+                    // the rail is read, and a longer one (or a larger system
+                    // font) must still fit the rail's width.
+                    FittedBox(
+                      fit: .scaleDown,
+                      child: DVText(widget.section.label).modifier(
+                        const DVModifier()
+                            .fontSize(10.5)
+                            .color(foreground)
+                            .fontWeight(
+                                selected ? FontWeight.w600 : FontWeight.w500),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 5),
-              // Scaled down rather than clipped: a section's name is how the
-              // rail is read, and a longer one (or a larger system font) must
-              // still fit the rail's width.
-              FittedBox(
-                fit: .scaleDown,
-                child: DVText(widget.section.label).modifier(
-                  const DVModifier()
-                      .fontSize(10.5)
-                      .color(foreground)
-                      .fontWeight(
-                          selected ? FontWeight.w600 : FontWeight.w500),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -416,12 +636,16 @@ enum _DVStudioLeftPanel { insert, layers }
 
 /// The artboard widths the device switcher offers.
 enum _DVStudioDevice {
-  desktop(1280, 'Desktop'),
-  tablet(834, 'Tablet'),
-  phone(390, 'Phone');
+  desktop(1280, 800, 'Desktop'),
+  tablet(834, 1112, 'Tablet'),
+  phone(390, 844, 'Phone');
 
-  const _DVStudioDevice(this.width, this.label);
+  const _DVStudioDevice(this.width, this.height, this.label);
   final double width;
+
+  /// The window's height: a page inside a layout is laid out in it, and
+  /// scrolls inside it, as it does in a browser that size.
+  final double height;
   final String label;
 }
 
@@ -439,8 +663,19 @@ class _DVStudioPagesSection extends StatefulWidget {
   final Object? actor;
   final List<String> reviewers;
 
+  /// Opens a component where it is made, from a use of it on a page.
+  final void Function(String name)? onEditComponent;
+
+  /// The page the address names, opened once the routes are read: a route
+  /// cannot be found before the list of them is known.
+  final String? route;
+
+  /// Called with the route a person chose, so the address can follow.
+  final void Function(String route)? onSelect;
+
   const _DVStudioPagesSection({
     super.key,
+    this.onEditComponent,
     required this.store,
     this.site,
     required this.palette,
@@ -449,6 +684,8 @@ class _DVStudioPagesSection extends StatefulWidget {
     this.content,
     this.actor,
     this.reviewers = const <String>[],
+    this.route,
+    this.onSelect,
   });
 
   @override
@@ -463,6 +700,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// Every route the site answers, compiled and stored, each marked.
   List<DVStudioSitePage> _site = <DVStudioSitePage>[];
 
+  /// The project's components, for the Insert panel.
+  List<String> _components = <String>[];
+
+  /// What the Insert panel and the command palette offer: the elements, then
+  /// the project's components.
+  List<DVStudioPaletteItem> get _paletteItems => <DVStudioPaletteItem>[
+        ...(widget.palette.isEmpty ? DVStudioPaletteItem.defaults : widget.palette),
+        for (final String name in _components)
+          DVStudioPaletteItem(
+            label: name,
+            create: () => dvStudioComponentInstance(name),
+          ),
+      ];
+
   /// The compiled page open in the editor, overridden or not, or null for a
   /// page only Studio serves.
   DVStudioSitePage? _compiled;
@@ -474,6 +725,9 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   /// Whether the open compiled page is being edited into an override.
   bool _overriding = false;
+
+  /// The last save refused because code changed the page's file.
+  DVStudioChangedInCode? _changedInCode;
 
   /// The site's route list could not be read; the stored pages are shown.
   String? _siteError;
@@ -511,6 +765,19 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   /// 1280-wide page on a laptop needs and what nobody wants to work out.
   double? _zoom;
 
+  /// Whether the side panels are shown. Folded, the canvas takes their
+  /// width; Ctrl+\ folds or opens both, as it hides the panels in Figma.
+  bool _leftOpen = true;
+  bool _rightOpen = true;
+
+  /// Whether the page is drawn inside the application's layouts: its
+  /// header, navigation and footer. On by default, since that is the page.
+  bool _showLayout = true;
+
+  /// The appearance the page is drawn in, or null for the device's own --
+  /// what a visitor on this machine would see.
+  Brightness? _appearance;
+
   /// Below this the side panels give the canvas back some of their width. At
   /// full width the editor needs about 1100 pixels before the artboard has
   /// room to be worth looking at, and a laptop split with a browser does not
@@ -528,7 +795,58 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadRoutes());
+    HardwareKeyboard.instance.addHandler(_onKey);
+    unawaited(_loadRoutes().then((_) => _openNamed()));
+  }
+
+  /// Ctrl+\ (Cmd+\): the side panels, both at once, while a page is open.
+  /// Ctrl+Alt+K (Cmd+Alt+K): the selection becomes a component, as in Figma.
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent || !mounted || _controller == null) {
+      return false;
+    }
+    final bool command = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    if (command &&
+        HardwareKeyboard.instance.isAltPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyK) {
+      unawaited(_makeComponent());
+      return true;
+    }
+    // Ctrl+S (Cmd+S): deploy, or save the draft -- Power Apps' save, and
+    // what every editor's Ctrl+S is, even while typing.
+    if (command &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyS) {
+      if (!_controller!.readOnly) unawaited(_publish());
+      return true;
+    }
+    // Shift+0 and Shift+1, Figma's 100% and zoom to fit; not while typing,
+    // where they are a ) and a !.
+    final BuildContext? focused = FocusManager.instance.primaryFocus?.context;
+    final bool typing = focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null);
+    if (!command &&
+        !typing &&
+        HardwareKeyboard.instance.isShiftPressed &&
+        (event.logicalKey == LogicalKeyboardKey.digit0 ||
+            event.logicalKey == LogicalKeyboardKey.digit1)) {
+      setState(() =>
+          _zoom = event.logicalKey == LogicalKeyboardKey.digit0 ? 1.0 : null);
+      return true;
+    }
+    if (!command || event.logicalKey != LogicalKeyboardKey.backslash) {
+      return false;
+    }
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    setState(() {
+      final bool open = !(_leftOpen || _rightOpen);
+      _leftOpen = open;
+      _rightOpen = open;
+    });
+    return true;
   }
 
   /// What each hook handed back for the current editor, called when it goes.
@@ -536,6 +854,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _closeEditor();
     super.dispose();
   }
@@ -554,7 +873,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // An editor opened for one person must not keep acting as them.
       setState(_closeEditor);
       unawaited(_loadRoutes());
+    } else if (widget.route != oldWidget.route) {
+      // The address moved to another page: the routes are read again,
+      // because the page it names is one this list may not have had -- a
+      // page another person has published since, say -- and then opened.
+      unawaited(_loadRoutes().then((_) => _openNamed()));
     }
+  }
+
+  /// Opens the page the address names, when the address names one, without
+  /// reporting it back: the address said so, not the person.
+  void _openNamed() {
+    if (!mounted) return;
+    final String? route = widget.route;
+    if (route != null) unawaited(_open(route, userChose: false));
   }
 
   void _closeEditor() {
@@ -574,7 +906,15 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Future<void> _loadRoutes() async {
     try {
       final DVStudioContent? content = widget.content;
-      final List<String> stored = await widget.store.routes();
+      final List<String> everything = await widget.store.routes();
+      // Components live beside the pages and are not pages.
+      final List<String> stored = <String>[
+        for (final String route in everything)
+          if (!dvStudioIsReservedRoute(route)) route,
+      ];
+      final List<String> components = <String>[
+        for (final String route in everything) ?dvStudioComponentName(route),
+      ]..sort();
       // With the workflow attached the store holds only what is published,
       // so a page that has only been a draft is listed from its versions.
       final List<String> routes = content == null
@@ -631,6 +971,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           a.path.compareTo(b.path));
       if (!mounted) return;
       setState(() {
+        _components = components;
         _routes = routes;
         _site = site;
         _siteError = siteError;
@@ -673,7 +1014,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return text;
   }
 
-  Future<void> _open(String route) async {
+  /// Opens the page at [route].
+  ///
+  /// [userChose] says the person asked for this page rather than the address
+  /// naming it, which is the difference between putting the route in the
+  /// address and reading it from there.
+  Future<void> _open(String route, {bool userChose = true}) async {
+    if (userChose) widget.onSelect?.call(route);
     final DVStudioSitePage? page = _pageAt(route);
     if (page != null && page.kind == DVStudioPageKind.code) {
       await _openCompiled(page);
@@ -712,7 +1059,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Future<void> _openCompiled(DVStudioSitePage page) async {
     final DVStudioSiteSource? source = widget.site;
     final Widget? live =
-        page.isDynamic ? null : source?.preview?.call(page.path);
+        page.isDynamic ? null : _viewOf(page.path) ?? source?.preview?.call(page.path);
     Object? tree;
     final Future<Object?> Function(String route)? structure =
         source?.structure;
@@ -740,6 +1087,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     }
   }
 
+  /// The page at [path] as the application draws it -- its view, with the
+  /// layouts or without -- and [content] in place of its body when given.
+  Widget? _viewOf(String path, {Widget? content}) =>
+      widget.site?.view?.call(path, content: content, layout: _showLayout);
+
   /// The compiled page on the artboard, as a page document, or null when it
   /// is not drawn.
   DVPageDocument? _captureLive(DVStudioSitePage page) {
@@ -747,9 +1099,23 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     if (!mounted || context == null || _compiled?.path != page.path) {
       return null;
     }
+    // The page, not the site around it: the view draws the layouts too,
+    // and a copy that carried the header would draw it twice inside them.
+    // The page's own lifecycle host is where the view puts the page.
+    Element? body;
+    void find(Element element) {
+      if (body != null) return;
+      if (element.widget is DVPageLifecycleHost) {
+        body = element;
+        return;
+      }
+      element.visitChildElements(find);
+    }
+
+    (context as Element).visitChildElements(find);
     return dvStudioDocumentFromStructure(
       page.path,
-      dvStudioStructureOf(context),
+      dvStudioStructureOf(body ?? context),
       title: page.title,
     );
   }
@@ -828,6 +1194,44 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     if (reload) unawaited(_loadRoutes());
   }
 
+  /// The selection becomes a component: kept beside the pages under the name
+  /// asked for, and used on this page where the selection was.
+  Future<void> _makeComponent() async {
+    final DVStudioEditorController? controller = _controller;
+    final DVPageNode? selected = controller?.selectedNode;
+    if (controller == null ||
+        controller.readOnly ||
+        selected == null ||
+        selected.id == controller.document.root.id ||
+        selected.type == dvStudioComponentType) {
+      return;
+    }
+    final String? name = await dvStudioAskComponentName(context);
+    if (name == null || !mounted) return;
+    if (_components.contains(name)) {
+      setState(() => _error = 'There is already a component called $name.');
+      return;
+    }
+    // A copy with ids of its own: the component and the page are two
+    // documents, and one id in both would be one selection in neither.
+    await widget.store.save(dvStudioComponent(
+      name,
+      root: dvStudioFreshCopy(selected),
+    ));
+    await DVPageStore.reload();
+    if (!mounted) return;
+    final DVPageNode use = dvStudioComponentInstance(name);
+    controller.update(
+      selected.id,
+      (_) => DVPageNode(
+        id: selected.id,
+        type: use.type,
+        properties: use.properties,
+      ),
+    );
+    await _loadRoutes();
+  }
+
   void _create() {
     final String route = _newRoute.trim();
     if (route.isEmpty) return;
@@ -854,7 +1258,12 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     try {
       await controller.save();
       _lastPublished = DateTime.now();
+      if (mounted) setState(() => _changedInCode = null);
       await _loadRoutes();
+    } on DVStudioChangedInCode catch (conflict) {
+      // Code changed the page's file since Studio last saved it: nothing
+      // is written over it, and the choice is shown.
+      if (mounted) setState(() => _changedInCode = conflict);
     } catch (error) {
       if (mounted) setState(() => _error = _cleanError(error));
     } finally {
@@ -966,13 +1375,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
+        // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+        DVSelectionColumn(
+          child: Container(
           width: 280,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _pageList(),
+        ),
         ),
         Expanded(child: _dashboard()),
       ],
@@ -1034,6 +1446,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 
   /// Where a new page is started: its address, and Create page.
   Widget _newPageField() => Padding(
+        key: const ValueKey<String>('dv-studio-new-page'),
         padding: const .all(DVStudioStyle.space3),
         child: Column(
           crossAxisAlignment: .stretch,
@@ -1046,18 +1459,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               onSubmitted: (_) => _create(),
             ),
             const SizedBox(height: DVStudioStyle.space2),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-create'),
+              label: 'Create page',
+              enabled: true,
               onTap: _create,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: DVStudioStyle.control(
-                  'Create page',
-                  enabled: true,
-                  primary: true,
-                  icon: DVStudioIcons.add,
-                ),
-              ),
+              primary: true,
+              icon: DVStudioIcons.add,
             ),
           ],
         ),
@@ -1567,6 +1975,11 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             run: controller.redo),
       if (editable && selected != null && selected != document.root.id) ...<DVStudioCommand>[
         DVStudioCommand(
+            id: 'make-component', title: 'Make a component from this element',
+            group: 'Element', shortcut: 'Ctrl+Alt+K',
+            keywords: const <String>['reuse', 'symbol', 'part'],
+            run: () => unawaited(_makeComponent())),
+        DVStudioCommand(
             id: 'duplicate', title: 'Duplicate element', group: 'Element',
             shortcut: 'Ctrl+D', run: () => controller.duplicate(selected)),
         DVStudioCommand(
@@ -1589,9 +2002,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             run: () => controller.select(node.id),
           ),
       if (editable)
-        for (final DVStudioPaletteItem item in widget.palette.isEmpty
-            ? DVStudioPaletteItem.defaults
-            : widget.palette)
+        for (final DVStudioPaletteItem item in _paletteItems)
           DVStudioCommand(
             id: 'insert-${item.label}',
             title: 'Insert ${item.label}',
@@ -1609,11 +2020,19 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     final Widget editor = Column(
       crossAxisAlignment: .stretch,
       children: <Widget>[
+        // One bar. What the page is -- written in code, a Studio copy -- is a
+        // chip in it rather than a banner under it: the banner, the formula
+        // bar and the toolbar stacked took 170 of a laptop's 720 pixels
+        // before the page began.
         _toolbar(controller),
         // The selected element's fields as formulas, Excel's way: pick a
         // field, type, Enter. It writes through the same controller as the
         // canvas and the inspector, so it is one history and one document.
-        if (!_showingCode)
+        // Not on a page only being looked at, where it was a disabled bar.
+        // On a page being edited it stays, empty until something is
+        // selected, so selecting does not push the page down under the
+        // pointer.
+        if (!_showingCode && !controller.readOnly)
           DVStudioFormulaBar(
             controller: controller,
             vocabulary: DVFormulaVocabulary(routes: <String>[
@@ -1621,7 +2040,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                 if (!page.isDynamic) page.path,
             ]),
           ),
-        ?_compiledBanner(controller),
+        ?_changedInCodeBanner(controller),
         if (review != null) ..._banners(review),
         Expanded(
           child: _showingCode
@@ -1663,26 +2082,49 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Widget _workspace(DVStudioEditorController controller,
       StudioReviewSession? review, bool narrow) {
     final Widget elements = _leftColumn(controller);
-    final Widget page = LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints box) {
-        final double fit =
-            ((box.maxWidth - (_phone ? 24 : 96)) / _device.width)
-                .clamp(0.25, 1.0);
-        final Widget? live = _live;
-        if (live != null && !_overriding) {
-          return DVStudioLivePage(
-            page: live,
-            width: _device.width,
-            zoom: _zoom,
-            captureKey: _liveKey,
+    final DVStudioAppLook? look = widget.site?.look;
+    final Widget page = KeyedSubtree(
+      key: const ValueKey<String>('dv-studio-page-area'),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints box) {
+          final double fit =
+              ((box.maxWidth - (_phone ? 24 : 96)) / _device.width)
+                  .clamp(0.25, 1.0);
+          final DVStudioSitePage? compiled = _compiled;
+          if (_live != null && compiled != null && !_overriding) {
+            return DVStudioLivePage(
+              page: _viewOf(compiled.path) ?? _live!,
+              width: _device.width,
+              // Fitted, the window is as tall as the canvas has room for;
+              // at a set zoom it is the device's own height.
+              height: _zoom == null ? null : _device.height,
+              zoom: _zoom,
+              captureKey: _liveKey,
+              location: compiled.path,
+              look: look,
+              appearance: _appearance,
+            );
+          }
+          final String route = controller.document.route;
+          // The page's own frame: the layouts and shell its route draws it
+          // in, from the application's view of that route. A page only
+          // Studio serves has the frame a page at that address gets.
+          final Widget Function(Widget content)? frame =
+              widget.site?.view == null
+                  ? null
+                  : (Widget content) =>
+                      _viewOf(route, content: content) ?? content;
+          return DVStudioCanvas(
+            controller: controller,
+            viewportWidth: _device.width,
+            viewportHeight: _zoom == null ? null : _device.height,
+            zoom: _zoom ?? fit,
+            frame: frame,
+            look: look,
+            appearance: _appearance,
           );
-        }
-        return DVStudioCanvas(
-          controller: controller,
-          viewportWidth: _device.width,
-          zoom: _zoom ?? fit,
-        );
-      },
+        },
+      ),
     );
     final Widget style = review != null && _reviewOpen
         ? StudioReviewPanel(
@@ -1693,7 +2135,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
             onSchedule: () => setState(() => _scheduling = true),
             onHistory: _toggleHistory,
           )
-        : DVStudioInspector(controller: controller);
+        : DVStudioInspector(
+            controller: controller,
+            onMakeComponent: controller.readOnly
+                ? null
+                : () => unawaited(_makeComponent()),
+            onEditComponent: widget.onEditComponent,
+          );
     if (_phone) {
       return Column(
         crossAxisAlignment: .stretch,
@@ -1714,28 +2162,33 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ],
       );
     }
+    // The review panel stays when the style panel is folded: it is where a
+    // refusal or a reviewer's note is, and it was opened on purpose.
+    final bool rightShown = _rightOpen || (review != null && _reviewOpen);
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
-          width: narrow ? 220 : 264,
-          decoration: const BoxDecoration(
-            color: DVStudioStyle.surface,
-            border: Border(right: BorderSide(color: DVStudioStyle.line)),
+        if (_leftOpen)
+          Container(
+            width: narrow ? 220 : 264,
+            decoration: const BoxDecoration(
+              color: DVStudioStyle.surface,
+              border: Border(right: BorderSide(color: DVStudioStyle.line)),
+            ),
+            child: elements,
           ),
-          child: elements,
-        ),
         Expanded(child: page),
-        Container(
-          width: review != null && _reviewOpen
-              ? (narrow ? 264 : 320)
-              : (narrow ? 248 : 300),
-          decoration: const BoxDecoration(
-            color: DVStudioStyle.surface,
-            border: Border(left: BorderSide(color: DVStudioStyle.line)),
+        if (rightShown)
+          Container(
+            width: review != null && _reviewOpen
+                ? (narrow ? 264 : 320)
+                : (narrow ? 248 : 300),
+            decoration: const BoxDecoration(
+              color: DVStudioStyle.surface,
+              border: Border(left: BorderSide(color: DVStudioStyle.line)),
+            ),
+            child: style,
           ),
-          child: style,
-        ),
       ],
     );
   }
@@ -1783,64 +2236,150 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     );
   }
 
-  /// What the open compiled page is, and the one thing to do with it: start
-  /// an override, or delete the override to bring the compiled page back.
-  Widget? _compiledBanner(DVStudioEditorController controller) {
+  /// What the open compiled page is, as one line in the toolbar: written in
+  /// code, a copy being edited, or Studio's copy serving the route. The
+  /// whole sentence is its tooltip. It was a banner across the editor, which
+  /// on a laptop pushed the page a sixth of the screen down.
+  Widget? _compiledChip() {
     final DVStudioSitePage? page = _compiled;
     if (page == null) return null;
     final String where = page.source == null ? 'code' : _fileOf(page.source!);
-    if (page.kind == DVStudioPageKind.code && !_overriding) {
-      if (page.isDynamic) {
-        return studioBanner(
-          key: const ValueKey<String>('dv-studio-compiled-banner'),
-          tone: DVStudioStyle.muted,
-          icon: DVStudioIcons.code,
-          title: 'A page for every ${page.params.join(', ')}',
-          detail: '${page.path} is written in $where and draws a different '
-              'page for each ${page.params.join(', ')}. Edit it there, or '
-              'make a page at one address from Studio.',
-        );
-      }
-      return studioBanner(
-        key: const ValueKey<String>('dv-studio-compiled-banner'),
-        tone: DVStudioStyle.accent,
-        icon: DVStudioIcons.code,
-        title: 'Written in code',
-        detail: _live != null
-            ? '${page.path} comes from $where, drawn here as the app draws '
-                'it. Editing it makes a Studio copy that takes over '
-                '${page.path} when you deploy it.'
-            : '${page.path} comes from $where. This is its structure. '
-                'Editing it makes a Studio copy that takes over ${page.path} '
-                'when you deploy it.',
-        action: studioActionControl(
-          'dv-studio-override',
-          'Edit this page',
-          _startOverride,
-          icon: DVStudioIcons.design,
-          primary: true,
+    final (Color tone, IconData icon, String title, String detail) =
+        switch (page) {
+      _ when page.kind == DVStudioPageKind.code &&
+              !_overriding &&
+              page.isDynamic =>
+        (
+          DVStudioStyle.muted,
+          DVStudioIcons.code,
+          'A page for every ${page.params.join(', ')}',
+          '${page.path} is written in $where and draws a different page for '
+              'each ${page.params.join(', ')}. Edit it there, or make a page '
+              'at one address from Studio.',
         ),
+      _ when page.kind == DVStudioPageKind.code && !_overriding => (
+          DVStudioStyle.accent,
+          DVStudioIcons.code,
+          'Written in code',
+          _live != null
+              ? '${page.path} comes from $where, drawn here as the app draws '
+                  'it. Editing it makes a Studio copy that takes over '
+                  '${page.path} when you deploy it.'
+              : '${page.path} comes from $where. This is its structure. '
+                  'Editing it makes a Studio copy that takes over '
+                  '${page.path} when you deploy it.',
+        ),
+      _ when page.kind == DVStudioPageKind.override => (
+          DVStudioStyle.warning,
+          DVStudioIcons.revert,
+          'Studio is serving this page',
+          'Studio\'s version of ${page.path} is live in place of the one in '
+              '$where. Restore it to serve the compiled page again.',
+        ),
+      _ => (
+          DVStudioStyle.warning,
+          DVStudioIcons.revert,
+          'Editing a copy',
+          'Nothing changes on ${page.path} until you deploy. Deploying puts '
+              'this in place of the page in $where.',
+        ),
+    };
+    return DVStudioStyle.tooltip(
+      detail,
+      Container(
+        key: const ValueKey<String>('dv-studio-compiled-banner'),
+        height: 26,
+        padding: const .symmetric(horizontal: DVStudioStyle.space2),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+              tone.withValues(alpha: 0.10), DVStudioStyle.surface),
+          borderRadius: .circular(13),
+          border: Border.all(color: tone.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: .min,
+          children: <Widget>[
+            Icon(icon, size: 14, color: tone),
+            const SizedBox(width: 6),
+            DVText(title).modifier(const DVModifier()
+                .fontSize(12)
+                .color(DVStudioStyle.ink)
+                .fontWeight(.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The one thing to do with the open compiled page: start an override of
+  /// it, or delete the override to bring the compiled page back.
+  Widget? _compiledAction() {
+    final DVStudioSitePage? page = _compiled;
+    if (page == null) return null;
+    if (page.kind == DVStudioPageKind.code && !_overriding) {
+      if (page.isDynamic) return null;
+      return studioActionControl(
+        'dv-studio-override',
+        'Edit this page',
+        _startOverride,
+        icon: DVStudioIcons.design,
+        primary: true,
       );
     }
-    final bool deployed = page.kind == DVStudioPageKind.override;
+    if (page.kind == DVStudioPageKind.override) {
+      return studioActionControl(
+        'dv-studio-restore-compiled',
+        'Restore compiled page',
+        () => unawaited(_revert()),
+        icon: DVStudioIcons.revert,
+      );
+    }
+    return null;
+  }
+
+  /// The page changed in code since Studio last saved it: keep the code's
+  /// version, or save Studio's over it. Studio never picks for anybody.
+  Widget? _changedInCodeBanner(DVStudioEditorController controller) {
+    final DVStudioChangedInCode? conflict = _changedInCode;
+    if (conflict == null) return null;
+    final DVPageDocument? inCode = conflict.inCode;
+    final DVPageStore store = widget.store;
     return studioBanner(
-      key: const ValueKey<String>('dv-studio-compiled-banner'),
+      key: const ValueKey<String>('dv-studio-changed-in-code'),
       tone: DVStudioStyle.warning,
-      icon: DVStudioIcons.revert,
-      title: deployed ? 'Studio is serving this page' : 'Editing a copy',
-      detail: deployed
-          ? 'Studio\'s version of ${page.path} is live in place of the one '
-              'in $where. Restore it to serve the compiled page again.'
-          : 'Nothing changes on ${page.path} until you deploy. Deploying '
-              'puts this in place of the page in $where.',
-      action: deployed
-          ? studioActionControl(
-              'dv-studio-restore-compiled',
-              'Restore compiled page',
-              () => unawaited(_revert()),
-              icon: DVStudioIcons.revert,
-            )
-          : null,
+      icon: Icons.merge_type,
+      title: 'Changed in code since Studio last saved it',
+      detail: '${conflict.path} was edited in the project. Keep that '
+          'version, or save the one on the canvas over it.',
+      onDismiss: () => setState(() => _changedInCode = null),
+      action: Row(
+        mainAxisSize: .min,
+        children: <Widget>[
+          if (inCode != null)
+            studioActionControl(
+              'dv-studio-use-code-version',
+              'Use the version in code',
+              () {
+                setState(() => _changedInCode = null);
+                _select(inCode, compiled: _compiled, live: _live,
+                    overriding: _overriding);
+              },
+            ),
+          const SizedBox(width: DVStudioStyle.space2),
+          if (store is DVStudioRemotePageStore)
+            studioActionControl(
+              'dv-studio-save-over-code',
+              'Save mine over it',
+              () async {
+                await store.saveOverCode(controller.document);
+                if (!mounted) return;
+                setState(() => _changedInCode = null);
+                await _loadRoutes();
+              },
+              primary: true,
+            ),
+        ],
+      ),
     );
   }
 
@@ -1939,7 +2478,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         ),
         Expanded(
           child: _left == _DVStudioLeftPanel.insert && !controller.readOnly
-              ? DVStudioPalette(items: widget.palette, controller: controller)
+              ? DVStudioPalette(items: _paletteItems, controller: controller)
               : DVStudioLayers(controller: controller),
         ),
       ],
@@ -1949,32 +2488,43 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   Widget _toolbar(DVStudioEditorController controller) {
     final String route = controller.document.route;
     final bool stored = _routes.contains(route);
+    final Widget? chip = _compiledChip();
+    final Widget? pageAction = _compiledAction();
     return Container(
-      height: 52,
-      padding: const .symmetric(horizontal: DVStudioStyle.space3),
+      height: 44,
+      padding: const .symmetric(horizontal: DVStudioStyle.space2),
       decoration: const BoxDecoration(
         color: DVStudioStyle.surface,
         border: Border(bottom: BorderSide(color: DVStudioStyle.line)),
       ),
-      // Sized to what is there. Every control at once needs about 760 pixels,
-      // and a laptop with Studio beside a browser's own panels does not have
-      // them: the viewport controls go first, then the labels on Code and
-      // Revert, and anything still too wide scales down rather than pushing
-      // Publish off the end of the bar.
+      // Sized to what is there. Every control at once needs more than a
+      // laptop beside a browser's own panels has: the viewport controls go
+      // first, then the labels on Code and Revert, and anything still too
+      // wide scales down rather than pushing Deploy off the end of the bar.
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints box) {
           final bool viewport = box.maxWidth >= 1000 && !_showingCode;
           final bool compact = box.maxWidth < 780;
           return Row(
             children: <Widget>[
+              if (!_phone)
+                _panelToggle(
+                  'dv-studio-toggle-left',
+                  _leftOpen ? 'Hide pages and layers' : 'Show pages and layers',
+                  _leftOpen,
+                  () => setState(() => _leftOpen = !_leftOpen),
+                  Icons.view_sidebar_outlined,
+                  mirrored: true,
+                ),
               DVStudioIconButton(
                 icon: Icons.arrow_back,
                 tooltip: 'All pages',
                 onTap: () => setState(_closeEditor),
               ),
               const SizedBox(width: DVStudioStyle.space2),
-              Flexible(
-                flex: 4,
+              // Each side takes half of what the viewport controls leave,
+              // so they sit in the middle and Deploy sits at the end.
+              Expanded(
                 child: FittedBox(
                   fit: .scaleDown,
                   alignment: .centerLeft,
@@ -1987,7 +2537,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                         KeyedSubtree(
                           key: const ValueKey<String>('dv-studio-page-kind'),
                           child: _overriding || page.kind != DVStudioPageKind.code
-                              ? DVStudioStyle.badge('Override',
+                              ? DVStudioStyle.badge('Studio copy',
                                   tone: DVStudioStyle.warning)
                               : DVStudioStyle.badge('Code',
                                   tone: DVStudioStyle.muted),
@@ -2005,26 +2555,70 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
                       else
                         DVStudioStyle.badge('Draft',
                             tone: DVStudioStyle.warning),
+                      if (chip != null) ...<Widget>[
+                        const SizedBox(width: DVStudioStyle.space2),
+                        chip,
+                      ],
                     ],
                   ),
                 ),
               ),
-              const Spacer(),
-              if (viewport) ...<Widget>[
-                _viewportControls(),
-                const Spacer(),
-              ],
-              Flexible(
-                flex: 5,
+              if (viewport)
+                Padding(
+                  padding: const .symmetric(horizontal: DVStudioStyle.space3),
+                  child: _viewportControls(),
+                ),
+              Expanded(
                 child: FittedBox(
                   fit: .scaleDown,
                   alignment: .centerRight,
-                  child: _actions(controller, compact: compact),
+                  child: Row(
+                    mainAxisSize: .min,
+                    children: <Widget>[
+                      if (pageAction != null) ...<Widget>[
+                        pageAction,
+                        const SizedBox(width: DVStudioStyle.space2),
+                      ],
+                      _actions(controller, compact: compact),
+                    ],
+                  ),
                 ),
               ),
+              if (!_phone)
+                _panelToggle(
+                  'dv-studio-toggle-right',
+                  _rightOpen ? 'Hide the style panel' : 'Show the style panel',
+                  _rightOpen,
+                  () => setState(() => _rightOpen = !_rightOpen),
+                  Icons.view_sidebar_outlined,
+                ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// A side panel's fold: highlighted while the panel is open.
+  Widget _panelToggle(String key, String tooltip, bool open, VoidCallback onTap,
+      IconData icon, {bool mirrored = false}) {
+    final Widget glyph = Icon(icon,
+        size: 18, color: open ? DVStudioStyle.accent : DVStudioStyle.muted);
+    return DVStudioStyle.tooltip(
+      '$tooltip (Ctrl+\\)',
+      GestureDetector(
+        key: ValueKey<String>(key),
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: mirrored
+                ? Transform.flip(flipX: true, child: glyph)
+                : glyph,
+          ),
+        ),
       ),
     );
   }
@@ -2062,6 +2656,38 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
           value: _zoom,
           onChanged: (double? zoom) => setState(() => _zoom = zoom),
         ),
+        // How the page looks to a visitor: in the application's dark theme
+        // or its light one, and with or without the site's own layouts.
+        // Only where there is an application to take them from.
+        if (widget.site?.look?.hasDark ?? false) ...<Widget>[
+          const SizedBox(width: DVStudioStyle.space1),
+          Builder(builder: (BuildContext context) {
+            final DVStudioAppLook? look = widget.site?.look;
+            if (look == null) return const SizedBox.shrink();
+            final bool dark = (_appearance ??
+                    look.resolve(MediaQuery.platformBrightnessOf(context))
+                        .brightness) ==
+                Brightness.dark;
+            return _keyedIcon(
+              'dv-studio-appearance',
+              dark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              dark
+                  ? 'Dark theme · show the light one'
+                  : 'Light theme · show the dark one',
+              () => setState(() => _appearance =
+                  dark ? Brightness.light : Brightness.dark),
+            );
+          }),
+        ],
+        if (widget.site?.view != null)
+          _keyedIcon(
+            'dv-studio-show-layout',
+            _showLayout ? Icons.web_outlined : Icons.web_asset_off_outlined,
+            _showLayout
+                ? 'With the site\'s header and footer · hide them'
+                : 'The page alone · show the site\'s header and footer',
+            () => setState(() => _showLayout = !_showLayout),
+          ),
       ],
     );
   }
@@ -2259,26 +2885,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 /// ask the keyed widget whether it can be pressed, and an undo that says it
 /// can when there is no history is the bug that asking catches.
 Widget _keyedIcon(
-    String key, IconData icon, String tooltip, VoidCallback? onTap) {
-  return DVStudioStyle.tooltip(
-    tooltip,
-    GestureDetector(
+        String key, IconData icon, String tooltip, VoidCallback? onTap) =>
+    DVStudioIconButton(
       key: ValueKey<String>(key),
+      icon: icon,
+      tooltip: tooltip,
       onTap: onTap,
-      child: MouseRegion(
-        cursor:
-            onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(icon,
-              size: 18,
-              color: onTap == null ? DVStudioStyle.faint : DVStudioStyle.ink),
-        ),
-      ),
-    ),
-  );
-}
+      // Toolbar glyphs are the button's words, drawn in the body ink; a panel
+      // header's are secondary to the words beside them, and stay muted.
+      ink: DVStudioStyle.ink,
+    );
 
 /// The menu beside Deploy: where the page goes, deploy now, or put the page
 /// from the last build back. Each option says what a visitor will see, not
@@ -2547,18 +3163,15 @@ class _DVStudioDeployPlatformLine extends StatelessWidget {
 }
 
 Widget _keyedControl(String key, String label, VoidCallback? onTap,
-    {IconData? icon, bool primary = false}) {
-  return GestureDetector(
-    key: ValueKey<String>(key),
-    onTap: onTap,
-    child: MouseRegion(
-      cursor:
-          onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      child: DVStudioStyle.control(label,
-          enabled: onTap != null, primary: primary, icon: icon),
-    ),
-  );
-}
+        {IconData? icon, bool primary = false}) =>
+    DVStudioControl(
+      key: ValueKey<String>(key),
+      label: label,
+      enabled: onTap != null,
+      onTap: onTap,
+      primary: primary,
+      icon: icon,
+    );
 
 /// A page on the overview: a live thumbnail of the stored document, rendered
 /// by the same renderer the running application uses, and its name.

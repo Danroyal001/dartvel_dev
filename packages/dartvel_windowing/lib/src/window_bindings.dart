@@ -31,7 +31,7 @@ class DVWindowRequest {
 ///
 /// `DVWindowingCapability.detect` gates `multiWindow` on `window.open` being
 /// registered rather than on the API being importable, so this call is what
-/// makes `DV.Platform.Window.open` present a real window instead of degrading
+/// makes `DV.Platform.window.open` present a real window instead of degrading
 /// to a page. Nothing else in Dartvel has to change.
 class _DVWindowBindings {
   const _DVWindowBindings._();

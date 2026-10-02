@@ -29,6 +29,7 @@ import 'package:path/path.dart' as p;
 
 import 'admin_mount.dart';
 import 'server_binary.dart' show dvServerWebFiles;
+import 'docs_mount.dart';
 
 /// How the build encodes a binary's files.
 enum DVAssetCompression { brotli, zstd, gzip, none }
@@ -83,6 +84,8 @@ Future<DVServerAssetsResult> dvServerAssetPack({
   required String? webRoot,
   DVAdminMount? admin,
   String? adminRoot,
+  DVDocsMount? docs,
+  String? docsRoot,
   DVAssetCompression compression = DVAssetCompression.brotli,
   String? codecLibrary,
 }) async {
@@ -94,6 +97,11 @@ Future<DVServerAssetsResult> dvServerAssetPack({
       for (final FileSystemEntity f in Directory(adminRoot).listSync(recursive: true))
         if (f is File)
           ('admin/${p.relative(f.path, from: adminRoot).replaceAll(r'\', '/')}',
+              f.readAsBytesSync(), true),
+    if (docs != null && docs.enabled && docsRoot != null && Directory(docsRoot).existsSync())
+      for (final FileSystemEntity f in Directory(docsRoot).listSync(recursive: true))
+        if (f is File)
+          ('docs/${p.relative(f.path, from: docsRoot).replaceAll(r'\', '/')}',
               f.readAsBytesSync(), true),
   ];
 

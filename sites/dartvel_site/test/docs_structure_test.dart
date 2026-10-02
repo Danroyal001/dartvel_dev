@@ -19,6 +19,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/routing': (() => const DocsRoutingPageGeneratedPage(), DocsRoutingPageGeneratedPage.loadLibrary),
   '/docs/state': (() => const DocsStatePageGeneratedPage(), DocsStatePageGeneratedPage.loadLibrary),
   '/docs/accessibility': (() => const DocsAccessibilityPageGeneratedPage(), DocsAccessibilityPageGeneratedPage.loadLibrary),
+  '/docs/shortcuts': (() => const DocsShortcutsPageGeneratedPage(), DocsShortcutsPageGeneratedPage.loadLibrary),
   '/docs/localization': (() => const DocsLocalizationPageGeneratedPage(), DocsLocalizationPageGeneratedPage.loadLibrary),
   '/docs/models': (() => const DocsModelsPageGeneratedPage(), DocsModelsPageGeneratedPage.loadLibrary),
   '/docs/database': (() => const DocsDatabasePageGeneratedPage(), DocsDatabasePageGeneratedPage.loadLibrary),

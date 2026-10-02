@@ -106,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // A blank screen is indistinguishable from a crash.
-    expect(find.text('404'), findsOneWidget);
+    expect(find.text('Page not found'), findsOneWidget);
     expect(find.textContaining('/nothing-here'), findsOneWidget);
   });
 
@@ -120,14 +120,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final Text text = tester.widget<Text>(find.text('404'));
+    final Text text = tester.widget<Text>(find.text('Page not found'));
     expect(text, isNotNull);
-    final BuildContext context = tester.element(find.text('404'));
+    final BuildContext context = tester.element(find.text('Page not found'));
     expect(DefaultTextStyle.of(context).style.decoration,
         isNot(TextDecoration.underline));
     expect(DefaultTextStyle.of(context).style.debugLabel,
         isNot(contains('fallback style')));
-    expect(find.ancestor(of: find.text('404'), matching: find.byType(Material)),
+    expect(find.ancestor(of: find.text('Page not found'), matching: find.byType(Material)),
         findsWidgets);
   });
 

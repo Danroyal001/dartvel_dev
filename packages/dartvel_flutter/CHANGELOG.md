@@ -1,3 +1,103 @@
+## 0.10.0 — 2026-10-02
+
+- **Typing keys reach text fields on every Dartvel page.** Space, Enter, the
+  arrow keys, Home and End were taken by the page's own shortcuts before a
+  focused field saw them, so Enter never submitted a form (Studio's sign-in
+  included) and a space could not be typed. A focused editable field now gets
+  them first.
+- **`DVSelectionColumn`** makes a sidebar one selection column, so a drag
+  across a line beside a tall scrolling area selects that line instead of
+  nothing. Studio's rail, Pages list and Components panel use it.
+- **`DVBrowserMenu.nativeMenuOn`** reports when the browser's own context menu
+  is switched on or off, and `DVPageShell` rebuilds its selection area whole
+  when it changes. Before, a release build could crash on the next screen
+  switch with two selection containers registered.
+- A narrow table's sideways scrollbar has its own controller instead of
+  failing an assertion.
+- **`DV.Platform` members are all lowerCamel**, like the rest of `DV.*`:
+  `window`, `tray`, `menus`, `shortcuts`, `printing`, `dialogs`, `dragDrop`,
+  `fileStorage`, `camera`, `media`, `location`, `bluetooth`, `nfc`,
+  `clipboard`, `share`, `sensors`, `biometrics`, `deepLinks`, `haptics`,
+  `contacts`. The capitalised names (`Window`, `Camera`, `DeepLinking`, ...)
+  still compile as `@Deprecated` aliases for one release. `Notifications`
+  (the notifications service) and `notifications` (device-local
+  notifications) are two different members and both stay.
+
+- Link previews close on outside touch/scroll and Back, and respect `preview:
+  .none` on a long press. `DVLinkPreview.widget(child)` supplies an interactive
+  custom card constrained to the safe screen area.
+- `DVShortcutScope` adds declarative page/app keyboard shortcuts with portable
+  `mod`, text-field protection, conflict checks and a `?` shortcut sheet.
+  `DVShortcut` definitions round-trip through JSON for future Studio editing.
+  The existing `DVShortcuts` native service is unchanged.
+- **A sensitive field is a write-only input on `Model.Form()` and in the
+  Studio record form, like a password field.** It used to have no input at
+  all. A field registered through `registerDVModelWriteOnlyFields<T>` gets an
+  obscured input that always starts empty and is never filled from the model
+  or a read. On an edit it says "Leave empty to keep the current value":
+  something typed is saved, and nothing typed keeps the value the record
+  holds. The input is emptied again after a save or reset. Studio's record
+  table still has no column for it.
+- `DVModifier.input` takes `helper:`, text shown under the field at all
+  times.
+
+- **`DVForm` keeps to the fields a model registers for forms.** With a list
+  registered through `registerDVModelFormFields<T>`, a field outside it gets
+  no input, is not prefilled, and keeps the value the model holds when the
+  form is submitted -- which is how a `@DVModel.sensitiveField()` stays off
+  `Model.Form()`. A model registered without a list shows what its serializer
+  returns, as before.
+
+- **The way out of the not-found and offline pages is a button.** "Go to the
+  home page" and "Try again" were lines of plain text that did not look like
+  anything a person could press. Each is now drawn as a filled button in the
+  application's own theme (its `filledButtonTheme` over its primary colour),
+  with hover, focus and press states, a visible outline on keyboard focus and
+  a 48-pixel minimum height. It is still a link underneath: a crawler reads
+  `<a href="/">`, a screen reader announces a link, and a middle click opens
+  a tab.
+
+- **`DVDocsApp`: the documentation site is a Flutter application.** It reads
+  the `docs.json` `dartvel docs` writes and draws its pages, tables, lists,
+  code and navigation in the framework's own widgets, routing a link from the
+  page id it names rather than from an address written into the page. It
+  replaces the hand-written HTML pages `dartvel docs` used to emit.
+
+- **`DVNotFoundPage` and `DVOfflinePage`**: the two pages an application
+  shows when a page cannot be shown, drawn in the app's own theme instead of
+  being documents the build wrote by hand. Both carry a heading, which is what
+  the accessibility gate demands of every captured route and what a reader of
+  the captured text has to go on, and both answer in links a crawler follows
+  and a switch reaches. `DVNotFoundPage` names the path that was asked for;
+  `DVOfflinePage` says it is on the device and takes the person back to where
+  they were once the network is back, refusing a `from` that could lead off
+  the site or back to itself.
+- `DVStudioPageRoute`'s fallback for a route with nothing to serve is now
+  `DVNotFoundPage`, so the page a router draws on a miss and the page the
+  `/404` route serves are the same page rather than two that drifted.
+- `DVPageMfa.safeReturn` is [dvSafeInternalPath], the rule the offline page's
+  `from` uses too, so one open-redirect fix covers both.
+
+- **`DVStudioFirstRunScreen`: the first-run setup as a page of the Studio
+  app**, shown by `DVStudioApp` at `<mount>/setup`. It asks for the address
+  and the printed password rather than printing either -- the page is open to
+  the internet by definition -- drives the application's own
+  `api/auth/sign-in`, `api/auth/account/password` and
+  `api/auth/factors/totp` endpoints at the mount, and opens Studio once the
+  second factor is on. An authenticator that will not start leaves the owner
+  in a step that asks for the password they just set, since the printed one
+  no longer opens anything; an account that already has a second factor is
+  sent to the sign-in rather than walked into a setup it cannot finish.
+- **Studio is routes of the application.** `dvStudioRoutes(mount:)` is what
+  the generated router mounts: `<mount>`, guarded by the Studio grant with an
+  async route redirect asked on every visit, and `<mount>/login`, Studio's
+  sign-in. Studio's screens and its sign-in are deferred libraries, so
+  neither is in `main.dart.js`, and a caller with no grant never has a
+  Studio section built or its code loaded.
+- `DVStudioFrame` is the theme Studio's screens and its sign-in share;
+  `dvStudioBrowserTransport(base:)` sends Studio's requests under the mount;
+  the client reads the project graph from `api/graph`.
+
 ## 0.9.3
 
 - **Security:** the Studio app checks the session before building any
@@ -92,7 +192,7 @@
 
 ## 0.7.0
 
-- **Breaking: `DV.Platform.Tray.show(icon:)` takes a generated asset.** The
+- **Breaking: `DV.Platform.tray.show(icon:)` takes a generated asset.** The
   icon is a `DVAssetRef`, the `DVAsset` value `dartvel routes` generates,
   instead of a path string, so a renamed or unlisted icon is a compile error
   rather than an empty tray slot. An asset that is not an image is refused
@@ -601,7 +701,7 @@
   clock and the health report it reads.
 
 - **Volumes and immersive spaces are window kinds.**
-  `DV.Platform.Window.open(route, options: DVWindowOptions(kind:
+  `DV.Platform.window.open(route, options: DVWindowOptions(kind:
   DVWindowKind.volume))` and `kind: DVWindowKind.immersive, immersion:
   DVImmersion.passthrough` present in space where the XR runtime can, with
   `presentation` `volume` or `immersive` and the session on `window.spatial`,
@@ -662,7 +762,7 @@
   media keys drive the player holding audio focus, and select and the arrows
   map on a television. `DVBox.aspectRatio` holds a box's content to a ratio,
   and `signal.watch(context)` reads a player signal in a build.
-  `DV.Platform.Media.recordAudio`/`recordVideo` record through the registered
+  `DV.Platform.media.recordAudio`/`recordVideo` record through the registered
   capture backend and `DV.Platform.permissions`.
   On Linux, `DVGStreamerPlayer` and `DVGStreamerCapture` play and record
   through GStreamer over dart:ffi, registered by `DVLinuxBindings.register`.

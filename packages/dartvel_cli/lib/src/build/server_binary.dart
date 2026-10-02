@@ -26,8 +26,10 @@ import 'package:dartvel_core/binary_payload.dart';
 import 'package:path/path.dart' as p;
 
 import 'admin_mount.dart';
+import 'docs_mount.dart';
 import 'server_assets.dart';
 import 'server_compile.dart';
+import 'studio_parts.dart' show dvReadStudioParts;
 
 export 'server_assets.dart' show DVAssetCompression, dvAssetCompression;
 
@@ -130,6 +132,7 @@ Map<String, List<int>> dvServerWebFiles(String webRoot) {
     final String relative =
         p.relative(entity.path, from: root.path).replaceAll(r'\', '/');
     if (relative.startsWith('__admin/') ||
+        relative.startsWith('__docs/') ||
         relative.endsWith('.symbols') ||
         relative == '.last_build_id') {
       continue;
@@ -139,15 +142,19 @@ Map<String, List<int>> dvServerWebFiles(String webRoot) {
   return files;
 }
 
-/// Where the admin dashboard a binary carries is served, as a section of its
-/// own: `admin.mount`, its mount and whether a sign-in is required. The
-/// dashboard's files are in the pack under `admin/`, every one protected.
+/// What a binary carries of Studio outside its pack: `admin.mount`, where
+/// Studio is mounted and whether a sign-in is required, and `studio`, Studio's
+/// code -- the parts of the application's deferred Studio library, kept in
+/// memory and served only to a session with the Studio grant. Studio's data
+/// (the project graph and each page's structure) is in the pack under
+/// `admin/`, every file protected.
 ///
-/// Nothing at all when the build has no admin, so a release build that never
-/// asked for one carries no dashboard to find.
+/// Nothing at all when the build has no Studio, so a release build that never
+/// asked for one carries nothing to find.
 Map<String, List<int>> dvServerAdminSections({
   required DVAdminMount? admin,
   required String? adminRoot,
+  String? studioPartsRoot,
 }) {
   if (admin == null || !admin.enabled || adminRoot == null) {
     return const <String, List<int>>{};
@@ -156,10 +163,38 @@ Map<String, List<int>> dvServerAdminSections({
   if (!root.existsSync() || !root.listSync(recursive: true).any((FileSystemEntity e) => e is File)) {
     return const <String, List<int>>{};
   }
+  final Map<String, List<int>> parts = studioPartsRoot == null
+      ? const <String, List<int>>{}
+      : dvReadStudioParts(studioPartsRoot);
   return <String, List<int>>{
     'admin.mount': utf8.encode(jsonEncode(<String, Object?>{
       'path': admin.path,
       'requiresAuth': admin.requiresAuth,
+    })),
+    if (parts.isNotEmpty) 'studio': dvPackFiles(parts),
+  };
+}
+
+/// Where the documentation site a binary carries is served: `docs.mount`.
+/// Its files are in the pack under `docs/`, every one protected, because a
+/// docs site with Studio access is served behind authentication rather than
+/// to anybody.
+Map<String, List<int>> dvServerDocsSections({
+  required DVDocsMount? docs,
+  required String? docsRoot,
+}) {
+  if (docs == null || !docs.enabled || docsRoot == null) {
+    return const <String, List<int>>{};
+  }
+  final Directory root = Directory(docsRoot);
+  if (!root.existsSync() || !root.listSync(recursive: true).any((FileSystemEntity e) => e is File)) {
+    return const <String, List<int>>{};
+  }
+  return <String, List<int>>{
+    'docs.mount': utf8.encode(jsonEncode(<String, Object?>{
+      'path': docs.path,
+      'access': docs.access.name,
+      'enabled': docs.enabled,
     })),
   };
 }
@@ -177,11 +212,14 @@ const String dvServerBinaryEntrypoint = r'''
 // uses SQLite there unless DATABASE_URL names another database; what it
 // decodes for a client is kept in dartvel_data/cache (DARTVEL_CACHE_DIR),
 // one directory per build, safe to delete. Patches a self-hosted Shorebird
-// patch source is given go in dartvel_data/updates. The admin dashboard, when
-// the build has one, is in the pack apart from the web files -- every one of
-// which is served to anybody -- and served at its mount by the backend.
+// patch source is given go in dartvel_data/updates. Studio's data and the
+// documentation site, when the build has them, are in the pack apart from the
+// web files -- every one of which is served to anybody -- and served behind
+// their own gates. Studio's code stays in memory and is served only to a
+// session with the Studio grant.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart' as core;
@@ -211,7 +249,7 @@ Future<void> main(List<String> arguments) async {
       '${File(payload.path).parent.path}${separator}dartvel_data';
   Directory(data).createSync(recursive: true);
   // What a build of this server from before the pack wrote out at start.
-  for (final String extracted in <String>['.web', '.admin']) {
+  for (final String extracted in <String>['.web', '.admin', '.docs']) {
     final Directory old = Directory('$data$separator$extracted');
     if (old.existsSync()) old.deleteSync(recursive: true);
   }
@@ -220,6 +258,7 @@ Future<void> main(List<String> arguments) async {
   // directory: every read of them goes through the pack.
   String? webRoot;
   String? adminRoot;
+  String? docsRoot;
   final ({int offset, int length})? assets = payload.locate('assets');
   if (assets != null) {
     final DVAssetPack? pack = DVAssetPack.open(payload.path,
@@ -235,6 +274,10 @@ Future<void> main(List<String> arguments) async {
     if (pack.paths.any((String path) => path.startsWith('admin/'))) {
       adminRoot = '${payload.path}${separator}admin';
       DVAssetSources.register(adminRoot, DVPackedAssets(pack, prefix: 'admin/'));
+    }
+    if (pack.paths.any((String path) => path.startsWith('docs/'))) {
+      docsRoot = '${payload.path}${separator}docs';
+      DVAssetSources.register(docsRoot, DVPackedAssets(pack, prefix: 'docs/'));
     }
     final String cache = Platform.environment['DARTVEL_CACHE_DIR'] ??
         '$data${separator}cache';
@@ -260,6 +303,31 @@ Future<void> main(List<String> arguments) async {
     }
   }
   if (admin == null) adminRoot = null;
+  // Studio's code: kept in memory, never written anywhere.
+  Map<String, Uint8List> studioParts = const <String, Uint8List>{};
+  if (admin != null && payload.names.contains('studio')) {
+    studioParts = <String, Uint8List>{
+      for (final MapEntry<String, List<int>> part
+          in dvUnpackFiles(payload.section('studio')).entries)
+        part.key: Uint8List.fromList(part.value),
+    };
+  }
+
+  // The documentation site's mount.
+  core.DVDocsMount? docs;
+  if (docsRoot != null && payload.names.contains('docs.mount')) {
+    final Object? mount = jsonDecode(utf8.decode(payload.section('docs.mount')));
+    final Object? path = mount is Map ? mount['path'] : null;
+    final Object? accessRaw = mount is Map ? mount['access'] : null;
+    final core.DVDocsAccess access =
+        accessRaw is String && accessRaw == 'public'
+            ? core.DVDocsAccess.public
+            : core.DVDocsAccess.studio;
+    if (path is String && path.startsWith('/') && path.length > 1) {
+      docs = core.DVDocsMount(path: path, enabled: true, access: access);
+    }
+  }
+  if (docs == null) docsRoot = null;
 
   final String database = '$data${separator}data.db';
   final String? url = const core.DVSecrets().maybeGet('DATABASE_URL');
@@ -275,6 +343,9 @@ Future<void> main(List<String> arguments) async {
       webRoot: webRoot,
       admin: admin,
       adminRoot: adminRoot,
+      studioParts: studioParts,
+      docs: docs,
+      docsRoot: docsRoot,
       // Where a self-hosted Shorebird patch source keeps what is published
       // to it, when shorebird.yaml says this server is one.
       updatesRoot: Platform.environment['DARTVEL_UPDATES_DIR'] ??
@@ -322,6 +393,9 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
   String? webRoot,
   DVAdminMount? admin,
   String? adminRoot,
+  String? studioPartsRoot,
+  DVDocsMount? docs,
+  String? docsRoot,
   String dart = 'dart',
   DVAssetCompression compression = DVAssetCompression.brotli,
   bool units = false,
@@ -353,13 +427,17 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     return DVServerBinaryResult(ok: false, lines: compiled.lines);
   }
 
-  final Map<String, List<int>> adminSections =
-      dvServerAdminSections(admin: admin, adminRoot: adminRoot);
+  final Map<String, List<int>> adminSections = dvServerAdminSections(
+      admin: admin, adminRoot: adminRoot, studioPartsRoot: studioPartsRoot);
+  final Map<String, List<int>> docsSections =
+      dvServerDocsSections(docs: docs, docsRoot: docsRoot);
   final DVServerAssetsResult assets = await dvServerAssetPack(
     projectRoot: root,
     webRoot: webRoot,
     admin: adminSections.isEmpty ? null : admin,
     adminRoot: adminRoot,
+    docs: docsSections.isEmpty ? null : docs,
+    docsRoot: docsRoot,
     compression: compression,
     codecLibrary: library.path,
   );
@@ -367,6 +445,7 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     'native': library.readAsBytesSync(),
     'assets': assets.pack,
     ...adminSections,
+    ...docsSections,
     for (final MapEntry<int, Uint8List> unit in compiled.units.entries)
       'unit.${unit.key}': unit.value,
   };
@@ -400,7 +479,8 @@ Future<DVServerBinaryResult> dvBuildServerBinary({
     lines: <String>[
       '$shown (${megabytes.toStringAsFixed(1)} MB): the backend, '
           '${webRoot == null ? 'with no web app' : 'the web app'}'
-          '${sections.containsKey('admin.mount') ? ', the admin dashboard at ${admin!.path}' : ''} '
+          '${sections.containsKey('admin.mount') ? ', Studio at ${admin!.path}' : ''}'
+          '${sections.containsKey('docs.mount') ? ', the docs at ${docs!.path}' : ''} '
           'and the native server, in one file.',
       'Run it anywhere: ./$shown. It keeps its data in dartvel_data beside '
           'itself, in SQLite unless DATABASE_URL is set.',

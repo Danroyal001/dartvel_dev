@@ -9,7 +9,12 @@
 // harmful when they are wrong. A worker that caches index.html forever serves
 // last week's bundle references and the app fails to boot, with no way for the
 // user to fix it except clearing site data.
+//
+// What the worker does with a navigation it cannot complete is run for real,
+// under node, in service_worker_offline_test.dart; what is here is the shape
+// of its answer.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartvel_cli/src/build/pwa_service_worker.dart';
 import 'package:test/test.dart';
@@ -22,6 +27,13 @@ List<String> precacheOf(String worker) {
   final RegExpMatch match =
       RegExp(r'const PRECACHE = (\[[^\]]*\]);').firstMatch(worker)!;
   return (jsonDecode(match.group(1)!) as List<Object?>).cast<String>();
+}
+
+/// Node, to run the worker in, or null where there is none.
+String? _node() {
+  final ProcessResult which = Process.runSync(
+      Platform.isWindows ? 'where' : 'which', <String>['node']);
+  return which.exitCode == 0 ? '${which.stdout}'.trim().split('\n').first : null;
 }
 
 void main() {
@@ -87,6 +99,63 @@ void main() {
       expect(worker, contains("request.mode === 'navigate'"));
     });
 
+    test('it never keeps a response the server said not to store', () async {
+      // Studio's code is served from the site root to a session with the
+      // Studio grant, marked no-store. A worker that kept it would hand it
+      // to the next person on that browser with no grant asked; a document
+      // or an answer marked private or no-store is the same.
+      final String? node = _node();
+      if (node == null) {
+        markTestSkipped('no node to run the worker in');
+        return;
+      }
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      final Directory dir = Directory.systemTemp.createTempSync('dv_sw_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final File harness = File('${dir.path}/harness.mjs')
+        ..writeAsStringSync('''
+const handlers = {};
+const puts = [];
+globalThis.self = {
+  location: { origin: 'https://shop.example' },
+  addEventListener: (name, fn) => { handlers[name] = fn; },
+  skipWaiting: () => Promise.resolve(),
+  clients: { claim: () => Promise.resolve() },
+};
+globalThis.caches = {
+  open: async () => ({ put: async (req) => { puts.push(new URL(req.url).pathname); }, addAll: async () => {} }),
+  match: async () => undefined,
+  keys: async () => [],
+};
+const answers = {
+  '/main.dart.js_7.part.js': 'no-store',
+  '/secret.js': 'private, max-age=60',
+  '/main.dart.js': 'public, max-age=60',
+  '/logo.png': null,
+};
+globalThis.fetch = async (req) => {
+  const path = new URL(req.url).pathname;
+  const headers = new Headers();
+  if (answers[path]) headers.set('cache-control', answers[path]);
+  return new Response('x', { status: 200, headers });
+};
+$worker
+for (const path of Object.keys(answers)) {
+  const request = new Request('https://shop.example' + path);
+  let responded;
+  handlers.fetch({ request, respondWith: (p) => { responded = p; }, waitUntil: () => {} });
+  await responded;
+}
+await new Promise((r) => setTimeout(r, 20));
+console.log(JSON.stringify(puts.sort()));
+''');
+      final ProcessResult run = await Process.run(node, <String>[harness.path]);
+      expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+      expect(jsonDecode('${run.stdout}'.trim()),
+          <String>['/logo.png', '/main.dart.js']);
+    });
+
     test('a cross-origin request is left alone', () {
       // Fonts, analytics, an API on another host. Caching an opaque response
       // stores something the worker cannot inspect and cannot invalidate.
@@ -97,24 +166,36 @@ void main() {
   });
 
   group('offline', () {
-    test('a navigation that fails falls back to the offline page', () {
-      final String worker = dvServiceWorker(
-        buildId: 'abc',
-        precache: const <String>['/'],
-        offlinePath: '/offline.html',
-      );
-      expect(worker, contains('/offline.html'));
+    // What the worker does with a navigation it cannot complete is run for
+    // real, under node, in service_worker_offline_test.dart. What is left here
+    // is the shape of the worker's answer: which route it is sent to, and
+    // that nothing it serves is a document the build wrote.
+    test('a navigation that fails is sent to the offline route', () {
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      expect(worker, contains('const OFFLINE = "/offline/"'));
+      expect(worker, contains('Response.redirect'));
     });
 
     test('the offline page is precached, or it cannot be served offline', () {
-      // The one asset that must be in the cache before it is needed. Fetching
+      // The one page that must be in the cache before it is needed. Fetching
       // it on demand is exactly what fails when there is no network.
+      final String worker =
+          dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
+      expect(precacheOf(worker), contains('/offline/'));
+    });
+
+    test('a project whose router has no offline route gets no answer', () {
+      // Rather than a page that claims to be one: an address nothing serves
+      // is a 404 the person can see, which is true, and a document the build
+      // made up about a site that has no such page is not.
       final String worker = dvServiceWorker(
         buildId: 'abc',
         precache: const <String>['/'],
-        offlinePath: '/offline.html',
+        offlineRoute: null,
       );
-      expect(precacheOf(worker), contains('/offline.html'));
+      expect(worker, contains('const OFFLINE = null'));
+      expect(precacheOf(worker), isNot(contains('/offline/')));
     });
   });
 
@@ -126,29 +207,6 @@ void main() {
           dvServiceWorker(buildId: 'abc', precache: const <String>['/']);
       expect(worker, contains('skipWaiting'));
       expect(worker, contains('clients.claim'));
-    });
-  });
-
-  group('the offline page', () {
-    test('it stands alone', () {
-      // It is shown when the network is gone, so it cannot reference a
-      // stylesheet, a font or a script it would have to fetch.
-      final String page = dvOfflinePage(title: 'Dartvel');
-      expect(page, isNot(contains('<link rel="stylesheet"')));
-      expect(page, isNot(contains('<script src=')));
-      expect(page, contains('<style'));
-    });
-
-    test('it names the site', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('Dartvel'));
-    });
-
-    test('it carries a viewport, like every other page', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('width=device-width'));
-    });
-
-    test('it follows the reader colour scheme', () {
-      expect(dvOfflinePage(title: 'Dartvel'), contains('prefers-color-scheme'));
     });
   });
 

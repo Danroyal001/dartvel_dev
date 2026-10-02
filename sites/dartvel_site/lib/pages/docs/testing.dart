@@ -46,6 +46,14 @@ Widget _docsTestingPage(BuildContext context) => const DocsArticle(
               <String>['DV.Test.fakeAuthUser()', 'A DVAuthUser for asUser(...)'],
               <String>['DV.Test.withSecrets({...}, body)', 'Secrets for the '
                   'length of body'],
+              <String>['DV.Test.fakeAI()', 'LocalDVAIAdapter, with no '
+                  'provider called'],
+              <String>['DV.Test.fakeNativeBinding(name, handler)', 'An answer '
+                  'for one DV.Platform binding'],
+              <String>['DV.Test.fakeWindowing(capability)', 'The windowing a '
+                  'test declares, instead of the host\'s'],
+              <String>['DV.Test.fake3D() and DV.Test.fakeXR(...)', 'A 3D scene '
+                  'without a GPU, and a fake XR device'],
             ]),
             Bullets(<String>[
               'DVHttpStub has json, text, status, timeout, error and sequence.',
@@ -101,8 +109,8 @@ Widget _docsTestingPage(BuildContext context) => const DocsArticle(
           title: 'Reset between tests',
           children: <Widget>[
             DocsText('DV.Test has resetQueues, resetMail, resetNotifications, '
-                'resetPolicies, resetCacheTags, resetAuth and resetStorage. '
-                'Call DVHttp.reset after an HTTP fake.'),
+                'resetPolicies, resetCacheTags, resetAuth, resetStorage, resetAI '
+                'and resetNativeBindings. Call DVHttp.reset after an HTTP fake.'),
           ],
         ),
         DocsSection(

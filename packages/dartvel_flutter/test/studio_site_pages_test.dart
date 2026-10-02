@@ -110,7 +110,7 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.text('Override')),
+          matching: find.text('Studio copy')),
       findsOneWidget,
     );
     expect(
@@ -181,12 +181,12 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.byTooltip('Override')),
+          matching: find.byTooltip('Studio copy')),
       findsOneWidget,
     );
     expect(
       find.descendant(
-          of: _key('dv-studio-page-kind'), matching: find.text('Override')),
+          of: _key('dv-studio-page-kind'), matching: find.text('Studio copy')),
       findsOneWidget,
     );
     expect(find.text('Studio is serving this page'), findsOneWidget);
@@ -258,7 +258,13 @@ void main() {
     expect(asked, <String>['/features']);
     expect(find.text('Twenty-five shipped sections.'), findsWidgets);
     expect(find.text('Written in code'), findsOneWidget);
-    expect(find.textContaining('features.dart'), findsWidgets);
+    // Where it is written is in the chip's tooltip: the chip is one line of
+    // the toolbar, where the banner it replaced took a sixth of the screen.
+    expect(
+      find.byWidgetPredicate((Widget w) =>
+          w is Tooltip && (w.message ?? '').contains('features.dart')),
+      findsOneWidget,
+    );
   });
 
   test('a captured structure becomes a page document', () {

@@ -26,8 +26,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'actually for.',
               level: 1,
             ),
-            Body('Apple requires its own tools to compile and sign an iOS or '
-                'macOS application, and those tools run on macOS. That is the '
+            Body('Apple requires its own tools to compile and sign an iOS, '
+                'macOS or tvOS application, and those tools run on macOS. That is the '
                 'whole of the restriction, and it covers running on an iPhone '
                 'as well as building for one. Everything else needs no Apple '
                 'hardware: writing the app, the website, Android, the Windows '
@@ -82,7 +82,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                 'started from Xcode or `flutter run`, and in CI the iOS '
                 'pairing is proven on the simulator, which also needs a Mac. '
                 'Expo users are used to scanning a code with Expo Go on an '
-                'iPhone and no Mac; Dartvel has no equivalent of Expo Go.'),
+                'iPhone and no Mac. Dartvel Preview, its equivalent, runs on '
+                'Android and desktops and does not run on an iPhone yet.'),
             CodeBlock(<String>[
               'dartvel build android --profile development',
               'dartvel dev',
@@ -105,9 +106,10 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
                   'hour or the month, and Xcode runs on it exactly as it '
                   'would on your desk.',
               '`dartvel build ios --cloud`. The build runs on our macOS '
-                  'workers, the log streams to your terminal, and the IPA '
+                  'workers, the log streams to your terminal, and the build '
                   'downloads into build/cloud checked against its SHA-256. '
-                  'Cloud is built and not open yet, and it will be paid.',
+                  'Cloud is built and not open yet, it will be paid, and a '
+                  'signed IPA from it is not built yet.',
             ]),
             CodeBlock(<String>[
               '# on a macOS runner, or a Mac you rent',
@@ -135,7 +137,8 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
               'Is Expo ahead here?',
               'Yes. Expo Go runs a project on an iPhone with no Mac, and EAS '
                   'Build makes iOS builds on its own machines today. Dartvel '
-                  'has no Expo Go, and its Cloud is not open.',
+                  'Preview does not run on an iPhone yet, and its Cloud is not '
+                  'open.',
             ),
             Objection(
               'So why is this better than plain Flutter?',

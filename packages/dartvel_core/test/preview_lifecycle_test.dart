@@ -1,4 +1,4 @@
-// Preview Environments: creating, suspending and destroying a branch's
+// Branch deployments: creating, suspending and destroying a branch's
 // environment against an adapter.
 //
 // The fake adapter keeps real state -- which databases exist and what rows

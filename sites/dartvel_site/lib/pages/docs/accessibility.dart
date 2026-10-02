@@ -16,6 +16,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
         '`dartvel build web` fails when a screen reader would meet an unnamed '
             'button or a broken heading order.',
         'Switch users and TV remotes can drive any page with nothing added.',
+        'Forms are driven from the keyboard with nothing added too: Tab walks '
+            'them, Enter submits, and a refused save puts the focus on the '
+            'field at fault.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -29,6 +32,33 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               'minimumTapTarget() grows the box to a size a finger can hit.',
               'context.screen.reducedMotion follows the system setting, and '
                   'animate() already respects it.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'keyboard',
+          title: 'Reach a form and a button from the keyboard',
+          children: <Widget>[
+            DocsText('Everything drawn with .onTap() or .onPressed() is a '
+                'focusable control, whichever primitive it was reached for: '
+                'Tab reaches it in the order it is drawn, Enter or Space '
+                'presses it, and a focus ring is drawn while it holds the '
+                'focus. The ring is drawn by the control rather than taken from '
+                'a theme, so it is there in an application that never '
+                'installed Material widgets.'),
+            Bullets(<String>[
+              'A control names itself to a screen reader from the text it draws, '
+                  'or from .semanticLabel(). One node: a reader announces each '
+                  'control once.',
+              'The node says whether it holds the focus and offers the action '
+                  'that moves the focus onto it, so a reader who cannot press '
+                  'Tab can still get to it.',
+              'In a form, Tab walks the fields and then the controls. Enter '
+                  'moves to the next field and submits from the last one.',
+              'A refused save is announced in a live region, written under the '
+                  'field it names, and given the focus.',
+              'A password field starts with a Show password control, which can '
+                  'be turned off or replaced. See Forms.',
             ]),
           ],
         ),
@@ -95,8 +125,28 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'choose the keys and an auto-scan interval in settings.',
               'Kiosk mode never blocks these keys, so a locked kiosk stays '
                   'usable.',
+              'In a text field the typing keys stay the field\'s: Space types, '
+                  'the arrows, Home and End move the caret, and Enter submits '
+                  'the form.',
             ]),
             DocsCode('a11y-switch-control'),
+          ],
+        ),
+        DocsSection(
+          id: 'selection',
+          title: 'Select text beside a sidebar',
+          children: <Widget>[
+            DocsText('Every page\'s text can be selected and copied. Beside a '
+                'sidebar, rail or list pane of separate items, wrap the sidebar '
+                'in DVSelectionColumn, so a drag across the content next to it '
+                'selects what it crosses.'),
+            Bullets(<String>[
+              'Text inside the column stays selectable.',
+              'A drag from the column into the content selects both, in '
+                  'order.',
+              'With no selection area above, it draws its child and nothing '
+                  'else.',
+            ]),
           ],
         ),
         DocsSection(

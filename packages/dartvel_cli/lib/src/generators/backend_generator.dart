@@ -20,6 +20,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:dartvel_core/framework.dart'
     show DVCaptureConfig, DVCaptureConfigError;
 import 'package:file/local.dart';
+import 'model_names.dart';
 import 'client_type_imports.dart';
 import 'function_body.dart';
 import 'raw_path.dart';
@@ -861,6 +862,7 @@ import 'package:mime/mime.dart';
 import 'dartvel_backend.g.dart' as cfg;
 import 'package:$pkgName/dartvel_client/model_pages.g.dart' show dartvelModelPages, dartvelStudioModels;
 ${studioModules.map(((String, String) m) => "import 'package:${m.$1}/dartvel_client/model_pages.g.dart' as ${m.$2} show dartvelStudioModels;\n").join()}import 'package:$pkgName/dartvel_client/modules_data.g.dart' show registerDartvelModules;
+import 'package:$pkgName/dartvel_client/studio_documents.g.dart' show dartvelStudioDocuments;
 import 'package:$pkgName/dartvel_client/schedules.g.dart' show dartvelBackendCronEntries, dartvelStartBackendSchedules;
 import 'package:$pkgName/dartvel_client/ai_tools.g.dart' show registerDartvelAITools;
 import 'package:$pkgName/dartvel_client/analytics.g.dart' show configureDartvelAnalytics;
@@ -1116,7 +1118,7 @@ Future<dv.Response> _dvGuarded(
     // The message is fixed text chosen by the runtime. Nothing from the
     // request is echoed back into it.
     return dv.Response(mw.status,
-        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8'}),
+        headers: dv.Headers({'content-type': 'text/plain; charset=utf-8', for (final MapEntry<String, String> h in mw.headers.entries) h.key: h.value}),
         body: Stream<List<int>>.value(conv.utf8.encode(mw.message)));
   }
   final dv.Response response = await run();
@@ -1740,11 +1742,18 @@ const String? dartvelPatchSourcePrefix = $patchSourceLiteral;
 /// [dartvelPatchSourcePrefix] is set: DARTVEL_UPDATES_DIR when null, else
 /// .dartvel/updates. It publishes only with DARTVEL_UPDATES_TOKEN set.
 ///
-/// With [admin] and [adminRoot], the admin dashboard in [adminRoot] is served
-/// at the mount: to a signed-in session when the mount requires one, and to
-/// nobody else. The web-server binary passes both from what it carries.
-Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
-  // Preview Environments, before anything else runs. In a process deployed
+/// With [admin] and [adminRoot], Studio is served at the mount: its pages,
+/// rendered from [spaRoot]'s shell like every page, and its API over the data
+/// in [adminRoot], to a session with the Studio grant when the mount requires
+/// one, and to nobody else. [studioParts] is Studio's code, which the
+/// web-server binary hands over in memory and the server serves only to that
+/// same session.
+///
+/// With [docs] and [docsRoot], the documentation site in [docsRoot] is served
+/// at its mount: to anybody with `access: public`, and otherwise exactly as
+/// Studio is, behind [admin]'s sign-in and the Studio grant.
+Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls, bool h2c = false, dv.CorsOptions? cors, String? spaRoot, core.DVCacheAdapter? pageStore, bool? compression, core.DVPreviewMembership? previewMembership, core.DVProcessConfiguration? process, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), int? maxBodyBytes, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot, core.DVStudioDevGrant? studioDevGrant, String? studioSourceRoot, String? studioStructureRoot}) async {
+  // Branch deployments, before anything else runs. In a process deployed
   // as a preview this captures mail and notifications, puts every queue
   // under the preview's namespace and points DV.Database at the preview's
   // own database -- and refuses to start at all when any of that cannot be
@@ -1753,6 +1762,10 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // returns without touching anything. serve() installs the same preview's
   // access gate around everything it answers.
   core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
+  // The built site this process serves, for backend code that reads its
+  // pages with DVSitePages.load(): a site search, an llms.txt. Null when it
+  // serves none, which has no pages.
+  core.DVSitePages.webRoot = spaRoot;
   // What this process was told to be, validated: a DARTVEL_PORT that is not
   // a port refuses the start rather than binding the generated one, and a
   // worker or cron process refuses to serve the application as well.
@@ -1830,7 +1843,18 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // application registered its own Studio.access policy, which is asked
   // instead. A signed-in customer is not an operator. With no database there
   // is nowhere a grant could be, so nobody is.
-${studioOff ? '  // Studio is off (dartvel.admin.enabled: false): no grants to read.' : '  if (dartvelStudio && dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();'}
+${studioOff ? '  // Studio is off (dartvel.admin.enabled: false): no grants to read, nothing made in it to seed.' : '''  if (dartvelStudio && dartvelDatabase != null) core.DVStudioGrants(dartvelDatabase).install();
+  // What was made in Studio and committed, into this server's store: a
+  // release started on an empty database has the pages the repository holds.
+  if (dartvelStudio && dartvelDatabase != null) {
+    try {
+      await core.dvSeedStudioDocuments(dartvelDatabase, dartvelStudioDocuments);
+    } on Object {
+      // Not the error itself: a store's error can carry what it was writing,
+      // and nothing sensitive goes into a log line.
+      stderr.writeln('dartvel: could not seed the documents made in Studio into the database.');
+    }
+  }'''}
   // Somebody to grant. Sign-up and sign-in authenticate through the provider
   // the application installed before this, and a web-server binary runs no
   // application code before this, so with nothing installed every one of
@@ -1921,7 +1945,7 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   // false: AOT then compiles none of what follows into the binary.
   final core.DVAdminServer? adminServer = !dartvelStudio || admin == null || adminRoot == null
       ? null
-      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot);
+      : core.DVAdminServer(mount: admin, root: adminRoot, models: ${studioModules.isEmpty ? 'dartvelStudioModels' : '<core.DVStudioModelSpec>[...dartvelStudioModels, ${studioModules.map(((String, String) m) => '...${m.$2}.dartvelStudioModels').join(', ')}]'}, database: dartvelDatabase, devGrant: studioDevGrant, sourceRoot: studioSourceRoot, structureRoot: studioStructureRoot, webRoot: spaRoot, title: '${esc('Studio · $pkgName')}', studioParts: studioParts);
   final Future<dv.Response> Function(dv.Request) withAdmin = adminServer == null
       ? application
       : (dv.Request request) async => await adminServer.respond(request) ?? await application(request);
@@ -1936,7 +1960,16 @@ ${studioOff ? '''  // Studio is off (dartvel.admin.enabled: false): no dashboard
   final Future<dv.Response> Function(dv.Request) handler = publishedPages == null || modelData == null
       ? withAdmin
       : (dv.Request request) async => await publishedPages.respond(request) ?? await modelData.respond(request) ?? await withAdmin(request);'''}
-  return dv.serve(handler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
+  // The documentation site, when the build carries one: its mount is its own,
+  // ahead of everything else, and what it hides falls through to the
+  // application like any path nobody serves. Independent of Studio.
+  final core.DVDocsServer? docsServer = docs == null || docsRoot == null || !docs.enabled
+      ? null
+      : core.DVDocsServer(mount: docs, root: docsRoot, adminMount: admin ?? const core.DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true));
+  final Future<dv.Response> Function(dv.Request) siteHandler = docsServer == null
+      ? handler
+      : (dv.Request request) async => await docsServer.respond(request) ?? await handler(request);
+  return dv.serve(siteHandler, host: bindHost, port: bindPort, tls: tls, h2c: h2c, cors: cors ?? dartvelConfiguredCors, spaRoot: spaRoot, pageData: dartvelPageData, pageStore: pageStore, publishedRoutes: publishedPages?.routes, compression: compression ?? dartvelCompression, previewMembership: previewMembership, maxBodyBytes: maxBodyBytes ?? dartvelMaxBodyBytes, routeBodyLimits: <dv.DVRouteBodyLimit>[
     // A patch is larger than a request body usually is.
     if (patchPrefix != null) dv.DVRouteBodyLimit('POST', '\$patchPrefix/_dartvel/publish', $dvPatchPublishMaxBytes),
     ...router.bodyLimits,
@@ -2029,12 +2062,12 @@ void _dartvelInstallServerCrashes(core.DVProcessRole role) {
 ///
 /// Throws core.DVProcessConfigurationError, before anything starts, for a
 /// role, port or queue it cannot honour. Returns when [until] completes.
-Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot}) async {
+Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPreviewMembership? previewMembership, core.DVScheduleLease? scheduleLease, DateTime Function()? scheduleClock, Duration scheduleTick = const Duration(seconds: 20), String? webRoot, core.DVDatabaseConnection? defaultDatabase, String? updatesRoot, core.DVAdminMount? admin, String? adminRoot, Map<String, Uint8List> studioParts = const <String, Uint8List>{}, core.DVDocsMount? docs, String? docsRoot}) async {
   final core.DVProcessConfiguration process = core.DVProcessConfiguration.resolve(environment: Platform.environment, arguments: arguments, generatedPort: cfg.backendPort);
   final Future<void> stopped = until ?? Completer<void>().future;
   switch (process.role) {
     case core.DVProcessRole.web:
-      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot);
+      final handle = await startBackend(previewMembership: previewMembership, process: process, scheduleLease: scheduleLease, scheduleClock: scheduleClock, scheduleTick: scheduleTick, spaRoot: webRoot, defaultDatabase: defaultDatabase, updatesRoot: updatesRoot, admin: admin, adminRoot: adminRoot, studioParts: studioParts, docs: docs, docsRoot: docsRoot);
       stdout.writeln('dartvel backend listening on http://\${handle.host}:\${handle.port}\${cfg.apiBasePath}');
       await stopped;
       _dartvelScheduleTimer?.cancel();
@@ -2379,6 +2412,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
     // The application's types the typed wrappers below name.
     final Set<String> clientTypeImports = <String>{};
+    // The data models they name, which come from models.g.dart. A model is
+    // declared nowhere an application file imports -- it is generated -- so
+    // the imports above never find one, and a function returning Post
+    // compiled against dartvel_core's @Post annotation instead.
+    final List<String> declaredModels = dvDeclaredModelNames(root);
+    final Set<String> clientModelTypes = <String>{};
     for (final e in backendEntries) {
       final method = e['method']!;
       final urlPath = e['path']!;
@@ -2509,6 +2548,20 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
 
         final String abs = e['abs'] ?? '';
         final String rel = e['rel'] ?? '';
+        if ((e['pkg'] ?? pkgName) == pkgName) {
+          for (final String type in <String>[
+            clientReturnType,
+            for (var i2 = 0; i2 < tparams.length; i2++)
+              if (i2 < ttypes.length) ttypes[i2],
+          ]) {
+            for (final RegExpMatch m
+                in RegExp(r'[A-Za-z_$][\w$]*').allMatches(type)) {
+              if (declaredModels.contains(m.group(0))) {
+                clientModelTypes.add(m.group(0)!);
+              }
+            }
+          }
+        }
         if (abs.isNotEmpty && rel.isNotEmpty) {
           clientTypeImports.addAll(dvClientTypeImports(
             source: e['src'] ?? '',
@@ -2731,12 +2784,24 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     // warns on every project whose backend functions happen not to need the
     // runtime, and a warning in generated code is one nobody can fix.
     const String coreImport = "import 'package:dartvel_core/dartvel.dart';";
-    final clientBody = sbClient.toString().replaceFirst(
+    // A model the signatures name is the application's, so it is hidden from
+    // the framework import and taken from the models.
+    final List<String> modelTypes = clientModelTypes.toList()..sort();
+    String clientBody = sbClient.toString().replaceFirst(
         coreImport,
-        coreImport +
+        (modelTypes.isEmpty
+                ? coreImport
+                : "import 'package:dartvel_core/dartvel.dart'"
+                    "${dvHideModelNames(modelTypes)};\n"
+                    "import 'models.g.dart' show ${modelTypes.join(', ')};") +
             (clientTypeImports.toList()..sort())
                 .map((String uri) => "\nimport '$uri';")
                 .join());
+    if (modelTypes.isNotEmpty) {
+      clientBody = clientBody.replaceFirst(
+          '// ignore_for_file: unused_element',
+          '// ignore_for_file: unused_element, $dvUndefinedHiddenName');
+    }
     const runtimeSymbols = <String>['DartvelRuntime', 'dartvelBaseUrl',
         'dartvelApiBase', 'DartvelConfigRuntime'];
     final needsRuntime =
@@ -3451,13 +3516,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         importUri: importUri,
         entriesByName: entriesByName,
       );
-      if (exposeBackendFunctions &&
-          relativePath.startsWith('${project.backendDir}/')) {
+      if (relativePath.startsWith('${project.backendDir}/')) {
         _collectBackendFunctionAIToolEntries(
           source: source,
           relativePath: relativePath,
           importUri: importUri,
           entriesByName: entriesByName,
+          exposeBackendFunctions: exposeBackendFunctions,
         );
       }
     }
@@ -4061,19 +4126,57 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String relativePath,
     required String importUri,
     required Map<String, _AIToolEntry> entriesByName,
+    bool exposeBackendFunctions = false,
   }) {
-    final pattern = RegExp(
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
-      r'@DVBackendFunction(?:\([^)]*\))?\s*'
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
+    // Annotations are scanned with balanced brackets, not a regular
+    // expression: `aiTool: DVAITool(description: 'Find a product (by id)')`
+    // nests brackets inside a string inside a call, which a pattern with a
+    // fixed nesting depth silently skips -- and a skipped function is a tool
+    // that never appears, with nothing saying why.
+    final signature = RegExp(
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
-      dotAll: true,
     );
-    for (final match in pattern.allMatches(source)) {
-      final declaration = match.group(0) ?? '';
+    for (int annotationAt = source.indexOf('@DVBackendFunction');
+        annotationAt >= 0;
+        annotationAt = source.indexOf('@DVBackendFunction', annotationAt + 1)) {
+      final int afterName = annotationAt + '@DVBackendFunction'.length;
+      if (afterName < source.length &&
+          RegExp(r'[A-Za-z0-9_]').hasMatch(source[afterName])) {
+        continue; // a longer identifier, such as @DVBackendFunctionGroup
+      }
+      int cursor = _dvSkipAnnotationArguments(source, afterName);
+      // Any further annotations between this one and the declaration.
+      while (true) {
+        final Match? next = RegExp(r'\s*@[A-Za-z_][A-Za-z0-9_.]*').matchAsPrefix(source, cursor);
+        if (next == null) break;
+        cursor = _dvSkipAnnotationArguments(source, next.end);
+      }
+      final Match? match = signature.matchAsPrefix(source, _dvSkipSpace(source, cursor));
+      if (match == null) continue;
+      // The declaration runs from the end of whatever came before it, so an
+      // annotation written above @DVBackendFunction (such as @DVAIHidden) is
+      // part of it.
+      final int previousEnd = source.lastIndexOf(RegExp(r'[;}]'), annotationAt) + 1;
+      final String declaration = source.substring(previousEnd, match.end);
       final name = match.group(1)!;
       final publicName = name.startsWith('_') ? name.substring(1) : name;
+      final hasExplicitAITool = declaration.contains('aiTool');
+      String description = '';
+      if (hasExplicitAITool) {
+        // The description is the string literal after `description:` inside
+        // `aiTool: DVAITool(...)`, read as a literal so a ')' in it is text.
+        final aiToolStart = declaration.indexOf('aiTool');
+        final descriptionMatch = RegExp(
+          r'''description\s*:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")''',
+        ).firstMatch(declaration.substring(aiToolStart));
+        description = descriptionMatch?.group(1) ?? descriptionMatch?.group(2) ?? '';
+      }
+      if (!hasExplicitAITool && !exposeBackendFunctions) {
+        continue;
+      }
+      final finalDescription = description.isNotEmpty ? description
+          : (exposeBackendFunctions ? 'Backend function $name' : '');
       if (declaration.contains('@DVAIHidden') ||
           entriesByName.containsKey(publicName)) {
         continue;
@@ -4089,7 +4192,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         name: publicName,
         returnsVoid: _dvReturnsNothing(declaration, name),
         returnsPlainVoid: _dvReturnsPlainVoid(declaration, name),
-        description: 'Backend function $name',
+        description: finalDescription,
         importUri: importUri,
         relativePath: relativePath,
         parameterNames: parameterNames,
@@ -4098,6 +4201,39 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         declaredName: name,
       );
     }
+  }
+
+  /// The index just past an annotation's argument list starting at [from], or
+  /// [from] itself when no `(` follows. String literals are skipped whole, so a
+  /// bracket inside a description does not end the list.
+  static int _dvSkipAnnotationArguments(String source, int from) {
+    final int open = _dvSkipSpace(source, from);
+    if (open >= source.length || source[open] != '(') return from;
+    int depth = 0;
+    for (int index = open; index < source.length; index++) {
+      final String character = source[index];
+      if (character == "'" || character == '"') {
+        index++;
+        while (index < source.length && source[index] != character) {
+          if (source[index] == '\\') index++;
+          index++;
+        }
+      } else if (character == '(') {
+        depth++;
+      } else if (character == ')') {
+        depth--;
+        if (depth == 0) return index + 1;
+      }
+    }
+    return source.length;
+  }
+
+  static int _dvSkipSpace(String source, int from) {
+    int index = from;
+    while (index < source.length && source[index].trim().isEmpty) {
+      index++;
+    }
+    return index;
   }
 
   static bool _shouldExposeBackendFunctionsAsAITools(String root) {

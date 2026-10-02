@@ -62,8 +62,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     license: 'BSD-3-Clause',
     target: '`dartvel build tizen` (alias tpk)',
     fork: 'https://github.com/Danroyal001/dartvel_tizen',
-    forkAdds: 'Tracks upstream\'s pin of Flutter 3.44.4, the minor Dartvel '
-        'ships. One patch: it stages the Flutter engine and assets into a '
+    forkAdds: 'Tracks upstream\'s pin of Flutter 3.44.4. One patch: it stages the Flutter engine and assets into a '
         'native TPK, which Tizen SDK CLI 10.x left out.',
   ),
   Upstream(
@@ -121,8 +120,7 @@ const List<Upstream> kUpstreams = <Upstream>[
     license: 'BSD-3-Clause',
     target: '`dartvel build tvos`',
     fork: 'https://github.com/Danroyal001/dartvel_tvos',
-    forkAdds: 'No source changes. Upstream pins Flutter 3.44.8, three patch '
-        'releases ahead of the 3.44.5 Dartvel ships.',
+    forkAdds: 'No source changes. Upstream pins Flutter 3.44.8.',
   ),
   Upstream(
     id: 'flt',

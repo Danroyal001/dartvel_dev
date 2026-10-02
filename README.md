@@ -119,12 +119,12 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Testing** | `dartvel test` with unit, e2e, golden, native, accessibility and release modes; generated model factories with sequences . `dartvel test --impacted` and `--evals` are designed, not built | ⚠️ Partial |
 | **Deployment** | `dartvel build web-server` makes one executable with the backend, the web app and Studio. `dartvel deploy` ships to Firebase, Vercel, Netlify and Cloudflare, or writes a per-function artifact | ✅ Shipped |
 | **Dartvel Studio** | The admin dashboard and visual page editor. The web-server binary serves it at `/__studio`: always in a development build, and in a release build only when `dartvel.admin.enabled` is set | ✅ Shipped |
-| **Development Builds** | `dartvel dev` pairs with a `--profile development` build over TLS and hot reloads it on save, on Android, iOS, macOS, Linux and Windows | ⚠️ Partial |
+| **Development Builds & Preview** | Development builds pair with `dartvel dev` over TLS. **Dartvel Preview** (`apps/dartvel_preview`) runs any project on Android and desktops without building it first, with instant hot reload. iPhone, TV/embedded and store builds not built yet | ⚠️ Partial |
 | **Dartvel Cloud** | The CLI side of hosted builds and store deploys (`--cloud`). The hosted service has not launched | ⚠️ Partial |
 | **Data Workflows** | CSV, NDJSON and Excel import and export, resumable chunked imports on queues, scheduled reports. No PDF export | ⚠️ Partial |
 | **Secrets** | Declared under `dartvel.secrets`, with `DV-SECRETS-001` failing a build that reaches a backend secret from client code, and the application key held in the Windows, macOS, Android and iOS key stores. No Vault or KMS adapters | ⚠️ Partial |
 | **i18n** | CLDR plural rules, typed translation keys, route locale negotiation, and `dartvel i18n extract`/`check` over ARB catalogues | ✅ Shipped |
-| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced | ✅ Shipped |
+| **Accessibility** | Contrast and tap-target checks, `DVTable` keyboard navigation, and keyboard, D-pad and switch control on every page with nothing added, plus a release gate in `dartvel build web` that audits the semantics tree a real browser produced. Every form is a keyboard form too: Tab walks it, Enter submits from the last field, and password fields get a `DVVisibilityToggle` eye by default | ✅ Shipped |
 | **Terminal Rendering** | `-cli`/`-tui` targets, build-time backend selection, terminal size and graphics detection. The renderer lives in the `dartvel_cli_flt` fork, which a build needs installed | ⚠️ Partial |
 | **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
 | **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
@@ -304,7 +304,7 @@ run as a global command.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
-and Windows on x64, Linux and macOS on arm64. (0.9.3, released 2026-09-29,
+and Windows on x64, Linux and macOS on arm64. (0.10.0, released 2026-10-02,
 ships Linux binaries first; macOS and Windows follow when the release workflow
 runs.) Then put it on your PATH:
 
@@ -323,7 +323,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.9.3
+  dartvel_dev: ^0.10.0
 ```
 
 Or the pieces directly, where you want only some of them:
@@ -427,6 +427,12 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 
 ## 🖥️ One binary: web-server and Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 `dartvel build web-server` writes `build/server`, a single executable that
 carries the backend, the native server library and the web app. It runs on
 the operating system and CPU it was built on, so build on the kind of machine
@@ -446,10 +452,15 @@ data.
 
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
 it): the page builder, a table of each model's records with an edit form, the
-build's routes, functions and jobs, and the list of Studio grants. The build
-compiles it with Flutter alongside the web app, and it reads and writes through
+build's routes, functions and jobs, and the list of Studio grants. Studio is
+not a second application: its screens are routes of your own app, rendered by
+the binary like every other page, and its code is a deferred library of your
+app whose parts the binary keeps in memory and hands only to a session with
+the Studio grant. A public page loads none of it. It reads and writes through
 the binary's own database. A development build serves it with no
-configuration. A release build includes it only when `pubspec.yaml` asks:
+configuration. A release build includes it only when `pubspec.yaml` asks
+(`enabled: false` leaves Studio out of the app altogether, and a static
+`dartvel build web` never carries it, since it has no server to guard it):
 
 ```yaml
 dartvel:
@@ -462,7 +473,23 @@ when that moves it), against the application's own accounts: a signed-out
 visit to a Studio page is sent there and comes back once signed in, with the
 second factor asked for when the account has one. It does not use the
 application's `/login`, so it works with `dartvel.auth.pages` turned off.
-Studio's files and its API still answer a stranger as a path nobody serves.
+Every other path under the mount sends a stranger to the sign-in, and Studio's
+code and its API answer a stranger as a path nobody serves. Nothing under the
+mount is ever a file.
+
+Every Studio screen has its own address under the mount — `<mount>` is Pages,
+`<mount>/<screen>` is that screen, `<mount>/<screen>/<object>` opens one thing
+inside it — so a screen can be linked, bookmarked and reloaded, and each is
+also served as a document a reader without the app can read. And Studio answers
+the keyboard: every control in it takes the focus, Enter and Space both press
+it, a screen reader is told its role and its name, and the focus is drawn as a
+ring on the control itself, so a control with nothing to do is off rather than
+looking live. The sign-in action uses the same focusable control: Tab from
+the password reaches Sign in, Enter activates it, and submitting the password
+field also signs in. Email and password fields have accessible labels.
+Readable aliases include `/__studio/data`, `/__studio/sitemap` and
+`/__studio/team`. A record has a deep link too, such as
+`/__studio/data/Product/p-1`; selecting or closing it updates the address.
 
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own
@@ -491,10 +518,54 @@ PostgreSQL and MySQL are not migrated automatically on start.
 
 ---
 
-## 📲 Development builds and pairing
+## 📲 Development builds and Dartvel Preview
 
-There is no separate dev-client app to install. A development build is an
-ordinary build with a profile:
+There are two ways to run and test your project on a device:
+
+1. **Dartvel Preview** (`apps/dartvel_preview`): the Expo Go equivalent for every
+   platform Dartvel builds for. Build Preview once, and it runs *any* Dartvel
+   project served by `dartvel dev` on your local network without having to compile
+   that project for the device first.
+2. **A project development build**: your own project built with `--profile development`,
+   including your custom native plugins and permissions.
+
+### Dartvel Preview (Expo Go for every platform)
+
+`dartvel dev` prints a Dartvel Preview code alongside its pairing links and QR code:
+
+```text
+dartvel-preview://open?name=shop&pair=dartvel-dev%3A%2F%2Fpair...&web=http%3A%2F%2F192.168.1.20%3A5000
+```
+
+Build Preview once for your device or machine:
+
+```bash
+cd apps/dartvel_preview
+dartvel build android --profile development   # a phone or emulator
+dartvel build linux --profile development     # or macos, windows
+dartvel build web                             # any browser
+```
+
+Then in any Dartvel project, run `dartvel dev` and connect:
+- **On a phone or tablet:** scan the QR code with Dartvel Preview or open the link.
+- **On desktop:** paste the link or launch Preview with the link argument:
+  `./build/linux/x64/debug/bundle/dartvel_preview 'dartvel-preview://open?...'`
+- **In a browser:** open Preview's web build, which embeds your project's web build in a responsive frame.
+
+On development builds (Android, Linux, macOS, Windows), Preview hands the pairing
+link to its native tunnel. `dartvel dev` attaches, hot-restarts Preview into your
+project's code, and hot-reloads on every save.
+
+**Limits today:** Preview is built from source and not yet distributed in app stores.
+It includes `dartvel_flutter` and the common native plugins it declares; if your project
+uses a native plugin Preview was not built with, build a project development build instead.
+iOS runs web builds or development builds via Xcode/simulator (iOS debug builds need a debugger
+attached, and store builds cannot run downloaded JIT code). TV and embedded targets are not yet supported.
+To return to Preview's launcher from a running project, restart the Preview app.
+
+### Project development builds
+
+A project development build is your own app compiled with a development profile:
 
 ```bash
 dartvel build android --profile development   # also ios, macos, linux, windows
@@ -1103,7 +1174,7 @@ want some of these:
 | An SDK of native modules: camera, location, notifications, SQLite, secure store, auth sessions | `DV.Platform.*` bindings, plus framework services you configure in `pubspec.yaml` and code. Nothing is copied into your project to maintain |
 | Server code: Expo Router API routes and server functions, hosted on EAS Hosting | `@DVBackendFunction` with a generated typed client, data models, auth and queues, served by the one binary `dartvel build web-server` makes. You host it; Cloud hosting is designed, not built |
 | Over-the-air updates | `dartvel updates` over Shorebird, with `DV.Updates` bound over FFI and an optional self-hosted patch source. Proven on Android; see [Over-the-air updates](#-over-the-air-updates) |
-| Development builds | `--profile development` builds that pair with `dartvel dev` by QR code. See [Development builds](#-development-builds-and-pairing) |
+| Development builds & Preview | `--profile development` builds for your project, plus **Dartvel Preview** (the Expo Go equivalent for every platform) to run any project without compiling it first. See [Development builds and Dartvel Preview](#-development-builds-and-dartvel-preview) |
 | Cloud builds, credentials and store submission (EAS) | The CLI for [Dartvel Cloud](#-dartvel-cloud) is built and the hosted service has not launched. Locally, `dartvel deploy --store` hands the upload for Play, the App Store, TestFlight or Firebase to that store's own tool |
 
 ---

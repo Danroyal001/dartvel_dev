@@ -62,8 +62,8 @@ Widget _docsStoragePage(BuildContext context) => const DocsArticle(
                   'a backend function.',
             ]),
             DocsNote('Use DV.FileStorage',
-                'DV.Storage is the old name and is removed in the next minor '
-                'release.'),
+                'DV.Storage is the old name. It still works and is '
+                'deprecated, so new code should not use it.'),
           ],
         ),
         DocsSection(

@@ -2,6 +2,7 @@ library dartvel_core;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:http_parser/http_parser.dart';
@@ -13,6 +14,7 @@ import 'src/secrets/secrets.dart';
 import 'src/database/adapter.dart';
 import 'src/database/framework_tables.dart';
 import 'src/billing/invoice.dart';
+import 'src/billing/subscription_lifecycle.dart';
 import 'src/http/aws_sigv4.dart';
 import 'src/http/outbound.dart';
 import 'src/http/flat_buffer.dart';
@@ -65,14 +67,18 @@ export 'src/admin/published_pages.dart';
 export 'src/admin/studio_access.dart';
 export 'src/admin/model_data_api.dart';
 export 'src/admin/studio_api.dart';
+export 'src/admin/studio_document.dart';
 export 'src/admin/studio_model_schema.dart';
 export 'src/admin/studio_site.dart';
+export 'src/admin/studio_repository.dart';
+export 'src/admin/studio_source_files.dart';
 export 'src/admin/studio_dev_grant.dart';
 export 'src/auth/session_authentication.dart';
 export 'src/billing/invoice.dart';
 export 'src/billing/money.dart';
 export 'src/billing/paddle.dart';
 export 'src/billing/stripe.dart';
+export 'src/billing/subscription_lifecycle.dart';
 export 'src/billing/webhooks.dart';
 export 'src/commerce/commerce.dart';
 export 'src/commerce/disputes.dart';
@@ -119,6 +125,12 @@ export 'src/database/mysql.dart';
 export 'src/database/postgres.dart';
 export 'src/database/records.dart';
 export 'src/diagnostics/startup_profile.dart';
+// The documentation document `dartvel docs` writes and DVDocsApp draws.
+// Shared rather than declared twice, because the two packages that need it
+// do not depend on each other.
+export 'src/docs/docs_document.dart';
+export 'src/docs/docs_mount.dart';
+export 'src/docs/docs_server.dart';
 export 'src/edge/bot_protection.dart';
 export 'src/edge/credentials.dart';
 export 'src/edge/waf.dart';
@@ -183,6 +195,7 @@ export 'src/devclient/dev_backend_url.dart';
 export 'src/devclient/dev_client.dart';
 export 'src/devclient/dev_client_certificate.dart';
 export 'src/devclient/dev_client_tls.dart';
+export 'src/devclient/preview_app_link.dart';
 export 'src/diagnostics/diagnostics.dart';
 export 'src/i18n/locale_negotiation.dart';
 export 'src/i18n/plural_rules.dart';
@@ -256,7 +269,8 @@ export 'src/scheduling/scheduler.dart';
 export 'src/schema/schema.dart';
 export 'src/search/postgres_search.dart';
 export 'src/search/search_tuning.dart';
-export 'src/search/semantic_search.dart' hide DVSemanticIndex;
+export 'src/search/latent_semantic_embedder.dart';
+export 'src/search/semantic_search.dart' hide DVSemanticIndex, DVDeferredSearchProvider;
 export 'src/secrets/env_format.dart';
 export 'src/secrets/public_env_library.dart';
 export 'src/secrets/secrets.dart';
@@ -284,11 +298,13 @@ export 'src/updates/rollout.dart';
 export 'src/updates/shorebird_patch_source.dart';
 export 'src/updates/update_info.dart';
 export 'src/web/deep_links.dart';
+export 'src/web/error_routes.dart';
 export 'src/web/find_in_page.dart';
 export 'src/web/page_data.dart';
 export 'src/web/page_text.dart';
 export 'src/web/minify.dart';
 export 'src/web/route_page.dart';
+export 'src/web/site_pages.dart';
 export 'src/web/structured_data.dart';
 export 'src/web/seo_head.dart';
 export 'src/webhooks/webhooks.dart';
@@ -623,19 +639,21 @@ class DVInMemorySearchProvider<TModel, TFacets>
         ? const <String>[]
         : tuning.expand(needle);
 
-    bool documentMatches(TModel record) {
+    _read();
+    final List<String> texts = _texts!;
+    // The words within a typo of each term, found once in the vocabulary of
+    // every record rather than once per record.
+    final Map<String, Set<String>> typos = _typos(terms);
+
+    bool documentMatches(int i) {
       if (terms.isEmpty) return true;
-      final String text = document(record).toLowerCase();
+      final String text = texts[i];
       for (final String term in terms) {
         if (text.contains(term)) return true;
         // A typo has to be compared word by word: the whole document is never
         // within an edit or two of a single term.
-        for (final String word in text.split(RegExp(r'[^A-Za-z0-9]+'))) {
-          if (word.isEmpty) continue;
-          if (dvTypoMatches(term, word, enabled: tuning.typoTolerance)) {
-            return true;
-          }
-        }
+        final Set<String> near = typos[term]!;
+        if (near.isNotEmpty && _distinct![i].any(near.contains)) return true;
       }
       return false;
     }
@@ -643,8 +661,20 @@ class DVInMemorySearchProvider<TModel, TFacets>
     // Facet counts describe what the text query found, before the facet
     // filter narrows it -- otherwise every count but the selected one is zero
     // and the UI can only ever narrow further.
-    final List<TModel> textMatches =
-        records.where(documentMatches).toList(growable: false);
+    final List<int> matchedAt = _ranked(typos, 
+      <int>[
+        for (int i = 0; i < records.length; i++)
+          if (documentMatches(i)) i,
+      ],
+      terms,
+    );
+    final List<TModel> textMatches = <TModel>[
+      for (final int i in matchedAt) records[i],
+    ];
+    final Map<TModel, int> position = Map<TModel, int>.identity();
+    for (final int i in matchedAt) {
+      position[records[i]] = i;
+    }
 
     final matches = textMatches
         .where((TModel record) => facetMatcher?.call(record, facets) ?? true)
@@ -676,7 +706,7 @@ class DVInMemorySearchProvider<TModel, TFacets>
       highlights: List<String>.unmodifiable(
         pageItems.map(
           (TModel record) => dvHighlight(
-            document(record),
+            _documents![position[record]!],
             terms,
             pre: tuning.highlightPre,
             post: tuning.highlightPost,
@@ -685,6 +715,113 @@ class DVInMemorySearchProvider<TModel, TFacets>
       ),
       facetCounts: Map<String, Map<String, int>>.unmodifiable(counts),
     );
+  }
+
+  /// [matched] best first, by BM25 over the query's terms.
+  ///
+  /// What matches is unchanged; only the order is decided here. A keyword
+  /// search is half of a hybrid one, and reciprocal rank fusion reads only
+  /// positions, so matches in the order they were stored gave the fusion a
+  /// ranking that meant nothing. Rare terms weigh more than common ones, a
+  /// term said again counts for less each time, and a long record does not
+  /// win by being long. Records that score the same keep the stored order.
+  List<int> _ranked(
+      Map<String, Set<String>> typos, List<int> matched, List<String> terms) {
+    if (terms.isEmpty || matched.length < 2) return matched;
+    final List<List<String>> words = <List<String>>[
+      for (final int i in matched) _words![i],
+    ];
+    final double averageLength =
+        words.fold<int>(0, (int sum, List<String> w) => sum + w.length) /
+            words.length;
+
+    // How strongly each record says each term: a word that is or contains
+    // it counts one, a word within a typo of it half.
+    final List<Map<String, double>> said = <Map<String, double>>[
+      for (final int i in matched)
+        <String, double>{
+          for (final String term in terms)
+            term: _counts![i].entries.fold<double>(
+              0,
+              (double sum, MapEntry<String, int> word) =>
+                  sum +
+                  word.value *
+                      (word.key.contains(term)
+                          ? 1
+                          : typos[term]!.contains(word.key)
+                              ? 0.5
+                              : 0),
+            ),
+        },
+    ];
+    final int n = matched.length;
+    final Map<String, double> idf = <String, double>{};
+    for (final String term in terms) {
+      final int df =
+          said.where((Map<String, double> s) => s[term]! > 0).length;
+      idf[term] = math.log(1 + (n - df + 0.5) / (df + 0.5));
+    }
+    final List<double> scores = <double>[
+      for (int i = 0; i < n; i++)
+        terms.fold<double>(0, (double sum, String term) {
+          final double tf = said[i][term]!;
+          if (tf == 0) return sum;
+          final double norm = averageLength == 0
+              ? 1
+              : 0.25 + 0.75 * words[i].length / averageLength;
+          return sum + idf[term]! * tf * 2.2 / (tf + 1.2 * norm);
+        }),
+    ];
+    final List<int> order = List<int>.generate(n, (int i) => i)
+      ..sort((int a, int b) {
+        final int byScore = scores[b].compareTo(scores[a]);
+        return byScore != 0 ? byScore : a.compareTo(b);
+      });
+    return <int>[for (final int i in order) matched[i]];
+  }
+
+  // Each record's document, read once: the records are fixed when the
+  // provider is made, and reading and splitting every one on every query was
+  // most of what a query cost.
+  List<String>? _documents;
+  List<String>? _texts;
+  List<List<String>>? _words;
+  List<Set<String>>? _distinct;
+  List<Map<String, int>>? _counts;
+
+  Set<String>? _vocabulary;
+
+  Map<String, Set<String>> _typos(List<String> terms) => <String, Set<String>>{
+        for (final String term in terms)
+          term: tuning.typoTolerance
+              ? <String>{
+                  for (final String word in _vocabulary!)
+                    if (!word.contains(term) && dvTypoMatches(term, word)) word,
+                }
+              : const <String>{},
+      };
+
+  void _read() {
+    if (_texts != null) return;
+    final RegExp separator = RegExp(r'[^A-Za-z0-9]+');
+    _documents = <String>[for (final TModel record in records) document(record)];
+    _texts = <String>[for (final String d in _documents!) d.toLowerCase()];
+    _words = <List<String>>[
+      for (final String t in _texts!)
+        t.split(separator).where((String w) => w.isNotEmpty).toList(growable: false),
+    ];
+    _distinct = <Set<String>>[for (final List<String> w in _words!) w.toSet()];
+    _vocabulary = <String>{for (final Set<String> d in _distinct!) ...d};
+    _counts = <Map<String, int>>[
+      for (final List<String> w in _words!)
+        () {
+          final Map<String, int> c = <String, int>{};
+          for (final String word in w) {
+            c[word] = (c[word] ?? 0) + 1;
+          }
+          return c;
+        }(),
+    ];
   }
 }
 
@@ -1525,6 +1662,55 @@ abstract class DVBillingProvider {
   /// implementations drop those rather than render one customer another
   /// customer's billing history on a page that looks entirely normal.
   Future<List<DVInvoice>> invoices(Object customer, {int limit = 20});
+
+  /// Change the customer's subscription to [plan]. When [prorate] is true,
+  /// the provider applies proration if it supports it; when false, the change
+  /// takes effect at the next billing period without proration.
+  ///
+  /// Throws [UnsupportedError] when the provider does not implement plan
+  /// changes (e.g. a provider that bills through metered quantities rather
+  /// than subscription price updates).
+  Future<void> changeSubscriptionPlan({
+    required Object customer,
+    required BillingPlan plan,
+    bool prorate = true,
+  });
+
+  /// Cancel the customer's subscription. When [atPeriodEnd] is true, the
+  /// subscription remains active until the current billing period ends and
+  /// is then revoked; when false, it is revoked immediately.
+  ///
+  /// Throws [UnsupportedError] when the provider does not support deferred
+  /// cancellation.
+  Future<void> cancelSubscription({
+    required Object customer,
+    bool atPeriodEnd = false,
+  });
+
+  /// Resume a previously paused or canceled-at-period-end subscription.
+  ///
+  /// Throws [UnsupportedError] when the provider does not support resumption.
+  Future<void> resumeSubscription({required Object customer});
+
+  /// Pause the customer's subscription. The subscription stays active with no
+  /// charge until resumed; the exact behavior depends on the provider.
+  ///
+  /// Throws [UnsupportedError] when the provider does not support pausing.
+  Future<void> pauseSubscription({required Object customer});
+
+  /// The subscription status for [customer], including whether it is deferred
+  /// for cancellation at period end.
+  ///
+  /// Throws [UnsupportedError] when the provider does not expose subscription
+  /// status through this surface.
+  Future<DVSubscriptionStatus> subscriptionStatus({required Object customer});
+
+  /// A URL the customer can open to manage their billing (update card,
+  /// download invoices, view subscription details).
+  ///
+  /// Throws [UnsupportedError] when the provider does not expose a customer
+  /// portal through this surface.
+  Future<String> customerPortalUrl({required Object customer});
 }
 
 class DVLocalBillingProvider implements DVBillingProvider {
@@ -1606,6 +1792,43 @@ class DVLocalBillingProvider implements DVBillingProvider {
   @override
   Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) async =>
       const <DVInvoice>[];
+
+  @override
+  Future<void> changeSubscriptionPlan({
+    required Object customer,
+    required BillingPlan plan,
+    bool prorate = true,
+  }) async {
+    throw UnsupportedError('Local billing does not support plan changes.');
+  }
+
+  @override
+  Future<void> cancelSubscription({
+    required Object customer,
+    bool atPeriodEnd = false,
+  }) async {
+    throw UnsupportedError('Local billing does not support cancellation.');
+  }
+
+  @override
+  Future<void> resumeSubscription({required Object customer}) async {
+    throw UnsupportedError('Local billing does not support resumption.');
+  }
+
+  @override
+  Future<void> pauseSubscription({required Object customer}) async {
+    throw UnsupportedError('Local billing does not support pausing.');
+  }
+
+  @override
+  Future<DVSubscriptionStatus> subscriptionStatus({required Object customer}) async {
+    throw UnsupportedError('Local billing does not expose subscription status.');
+  }
+
+  @override
+  Future<String> customerPortalUrl({required Object customer}) async {
+    throw UnsupportedError('Local billing does not provide a customer portal.');
+  }
 
   /// What [customer] has run up against [meter], zero if nothing.
   int usage(Object customer, DVUsageMeter meter) =>
@@ -3086,7 +3309,7 @@ class DVNotificationMail {
   Future<void> send(DVMailMessage message) {
     // A preview captures before a provider is even looked up, so the
     // application's real provider -- registered before or after the preview
-    // started -- is never handed a message from one (Preview Environments,
+    // started -- is never handed a message from one (Branch deployments,
     // DV-PREVIEW-006).
     if (DVPreviewOutbound.isActive) return DVPreviewOutbound.captureMail(message);
     final provider = _provider;

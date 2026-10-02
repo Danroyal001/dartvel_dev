@@ -1,4 +1,4 @@
-// Studio's data on `dartvel preview`.
+// Studio's data on `dartvel dev --release`.
 //
 // Preview served Studio's files and not its API, so every section opened on
 // "The server did not answer". Given an admin server, the preview handler
@@ -32,18 +32,17 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('dartvel_preview_studio_');
     addTearDown(() => root.deleteSync(recursive: true));
-    File('${root.path}/index.html').writeAsStringSync('<title>Site</title>');
-    Directory('${root.path}/__admin').createSync();
-    File('${root.path}/__admin/index.html')
-        .writeAsStringSync('<title>Studio</title>');
+    File('${root.path}/index.html').writeAsStringSync(
+        '<html><head><title>Site</title></head><body></body></html>');
     handler = dvWebServerHandler(
       webRoot: root.path,
       admin: mount,
-      adminRoot: '${root.path}/__admin',
       publishedPages: DVPublishedPages(database: () => null),
       adminServer: DVAdminServer(
         mount: mount,
-        root: '${root.path}/__admin',
+        root: '${root.path}/studio-data',
+        webRoot: root.path,
+        title: 'Studio · shop',
         devGrant: grant,
         database: MemoryDVDatabaseAdapter(),
         models: const <DVStudioModelSpec>[
@@ -79,6 +78,14 @@ void main() {
     final Map<String, Object?> body =
         jsonDecode(await models.readAsString()) as Map<String, Object?>;
     expect((body['models']! as List<Object?>), hasLength(1));
+
+    // And Studio itself: a page of the application, rendered from its shell.
+    final Response page = await get(
+      '/__studio/',
+      cookie: '${DVStudioDevGrant.cookieName}=${grant.token}',
+    );
+    expect(page.statusCode, 200);
+    expect(await page.readAsString(), contains('<title>Studio · shop</title>'));
   });
 
   test('without the grant the mount is a missing route', () async {

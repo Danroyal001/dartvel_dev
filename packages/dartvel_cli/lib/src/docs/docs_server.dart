@@ -3,16 +3,18 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:watcher/watcher.dart';
+import 'package:yaml/yaml.dart';
 
+import '../build/docs_build.dart';
 import 'docs_site.dart';
 
 /// [output] resolved against the project, as `--output` means it.
 String dvDocsOutputPath(String root, String output) =>
     p.normalize(p.isAbsolute(output) ? output : p.join(root, output));
 
-/// Builds the site for [root], writes it to [directory] and reports what the
-/// build found. Throws [StateError] when the directory is not the build's to
-/// write, or when a declaration the generators refuse is found.
+/// Builds the document for [root], writes it to [directory] and reports what
+/// the build found. Throws [StateError] when the directory is not the build's
+/// to write, or when a declaration the generators refuse is found.
 Future<DVDocsSite> dvDocsBuildInto(
   String root,
   String directory, {
@@ -33,6 +35,65 @@ Future<DVDocsSite> dvDocsBuildInto(
   return site;
 }
 
+/// Compiles the documentation app for [root], writes it to [directory] and
+/// reports what the build did. The document must already be in [directory]
+/// (written by [dvDocsBuildInto]).
+///
+/// [run] is the function that executes the Flutter build. In production this
+/// is `Process.run`; in tests it is a stand-in that writes the expected output
+/// files.
+typedef DVProcessRun = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+});
+
+Future<void> dvDocsCompileApp({
+  required String root,
+  required String directory,
+  required String mount,
+  required String appName,
+  void Function(String line) out = print,
+  DVProcessRun? run,
+}) async {
+  final Object? declaredName = File(p.join(root, 'pubspec.yaml')).existsSync()
+      ? (() {
+          try {
+            final String yaml = File(p.join(root, 'pubspec.yaml')).readAsStringSync();
+            final Object? loaded = loadYaml(yaml);
+            if (loaded is YamlMap && loaded['name'] is String) {
+              return loaded['name'] as String;
+            }
+          } on Object {
+            // Ignore YAML parsing errors, fall back to default app name.
+          }
+          return null;
+        })()
+      : null;
+  final String finalAppName =
+      declaredName is String && declaredName.trim().isNotEmpty
+          ? declaredName.trim()
+          : appName;
+
+  final result = await dvBuildDocs(
+    root: root,
+    mount: mount,
+    docsRoot: directory,
+    appName: finalAppName,
+    run: run ??
+        (String executable, List<String> arguments,
+                {String? workingDirectory}) async =>
+            Process.run(executable, arguments,
+                workingDirectory: workingDirectory, runInShell: true),
+  );
+  for (final String line in result.lines) {
+    out(line);
+  }
+  if (!result.ok) {
+    throw StateError('Documentation app compilation failed');
+  }
+}
+
 /// Serves the documentation site and rebuilds it when the project changes.
 ///
 /// Bound to loopback. This is the server for writing against; the site the
@@ -40,12 +101,16 @@ Future<DVDocsSite> dvDocsBuildInto(
 /// and internal documentation served on every interface of a laptop is a
 /// copy of the schema handed to the coffee shop.
 class DVDocsServer {
-  DVDocsServer._(this._server, this._root, this._directory, this._out);
+  DVDocsServer._(this._server, this._root, this._directory, this._mount,
+      this._appName, this._out, this._run);
 
   final HttpServer _server;
   final String _root;
   final String _directory;
+  final String _mount;
+  final String _appName;
   final void Function(String line) _out;
+  final DVProcessRun? _run;
 
   StreamSubscription<WatchEvent>? _watch;
   Timer? _debounce;
@@ -60,14 +125,46 @@ class DVDocsServer {
     String output = 'build/docs',
     int port = 4180,
     void Function(String line) out = print,
+    DVProcessRun? run,
   }) async {
     final String directory = dvDocsOutputPath(root, output);
+    // Build the document first.
     await dvDocsBuildInto(root, directory, out: out);
+    // The application's name, for the site's title.
+    final Object? declaredName = (() {
+      try {
+        final String yaml = File(p.join(root, 'pubspec.yaml')).readAsStringSync();
+        final Object? loaded = loadYaml(yaml);
+        if (loaded is YamlMap && loaded['name'] is String) {
+          return loaded['name'] as String;
+        }
+      } on Object {
+        // Ignore YAML parsing errors, fall back to default app name.
+      }
+      return null;
+    })();
+    final String appName =
+        declaredName is String && declaredName.trim().isNotEmpty
+            ? declaredName.trim()
+            : 'Dartvel application';
+    // Compiled for where this server serves it, the root of a loopback
+    // port, not for the mount the application would serve it at: a site
+    // whose base is /docs/ asks this server for /docs/main.dart.js, which it
+    // does not have, and gets the shell back.
+    await dvDocsCompileApp(
+      root: root,
+      directory: directory,
+      mount: '',
+      appName: appName,
+      out: out,
+      run: run,
+    );
     final HttpServer server = await HttpServer.bind(
       InternetAddress.loopbackIPv4,
       port,
     );
-    final DVDocsServer docs = DVDocsServer._(server, root, directory, out);
+    final DVDocsServer docs = DVDocsServer._(
+      server, root, directory, '', appName, out, run);
     server.listen(docs._handle);
     final DirectoryWatcher watcher = DirectoryWatcher(root);
     docs._watch = watcher.events.listen(docs._changed);
@@ -106,6 +203,14 @@ class DVDocsServer {
         () async {
           try {
             await dvDocsBuildInto(_root, _directory, out: _out);
+            await dvDocsCompileApp(
+              root: _root,
+              directory: _directory,
+              mount: _mount,
+              appName: _appName,
+              out: _out,
+              run: _run,
+            );
           } on Object catch (error) {
             // A half-typed file is the normal state of a project being written
             // against; report it and keep serving the last good build.
@@ -137,24 +242,39 @@ class DVDocsServer {
         (String s) =>
             !s.contains('/') && !s.contains(r'\') && !s.startsWith('.'),
       );
-      String? path;
-      if (safe) {
-        path = p.joinAll(<String>[_directory, ...segments]);
-        if (FileSystemEntity.isDirectorySync(path)) {
-          path = p.join(path, 'index.html');
-        }
-      }
-      if (path == null ||
-          !p.isWithin(_directory, path) ||
-          !File(path).existsSync()) {
+      if (!safe) {
         response
           ..statusCode = HttpStatus.notFound
           ..write('Not found');
         return;
       }
+      String? path = p.joinAll(<String>[_directory, ...segments]);
+      if (FileSystemEntity.isDirectorySync(path)) {
+        path = p.join(path, 'index.html');
+      }
+      if (!p.isWithin(_directory, path) || !File(path).existsSync()) {
+        // For a Flutter app, paths that don't exist as files should serve
+        // index.html so the client-side router can handle them.
+        final File indexFile = File(p.join(_directory, 'index.html'));
+        if (indexFile.existsSync()) {
+          path = indexFile.path;
+        } else {
+          response
+            ..statusCode = HttpStatus.notFound
+            ..write('Not found');
+          return;
+        }
+      }
       response.headers.contentType = switch (p.extension(path)) {
         '.html' => ContentType.html,
+        '.js' => ContentType('application', 'javascript', charset: 'utf-8'),
+        '.css' => ContentType('text', 'css', charset: 'utf-8'),
         '.json' => ContentType.json,
+        '.wasm' => ContentType('application', 'wasm'),
+        '.png' => ContentType('image', 'png'),
+        '.svg' => ContentType('image', 'svg+xml'),
+        '.woff2' => ContentType('font', 'woff2'),
+        '.ttf' => ContentType('font', 'ttf'),
         _ => ContentType.binary,
       };
       response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');

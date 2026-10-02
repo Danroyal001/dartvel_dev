@@ -32,7 +32,7 @@ Widget _docsCliPage(BuildContext context) => DocsArticle(
             DocsStatus('CLI', missing: <String>[
               'No crashes or meters commands, and no deploy --plan or deploy '
                   'rollback.',
-              'No preview logs or preview mail.',
+              'No branch-deployment logs or captured-mail view.',
               'No application commands declared with an annotation.',
             ]),
           ],

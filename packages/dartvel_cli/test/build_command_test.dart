@@ -62,6 +62,29 @@ void main() {
       expect(web.where((String a) => a.contains('DARTVEL_WEB_SERVER')), isEmpty);
     });
 
+    test('only a web-server build that serves Studio compiles Studio in', () {
+      // Studio is routes of the application behind a compile-time define.
+      // The web-server binary guards it; a static export has no server to
+      // guard it with, so it never carries Studio, whatever it is asked.
+      final studio = resolveFlutterBuildArguments(
+        platform: 'web-server',
+        buildMode: '--release',
+        studio: true,
+      );
+      expect(studio, contains('--dart-define=dartvel.studio=true'));
+
+      final noStudio = resolveFlutterBuildArguments(
+          platform: 'web-server', buildMode: '--release');
+      expect(noStudio.where((String a) => a.contains('dartvel.studio')), isEmpty);
+
+      for (final String platform in <String>['web', 'android', 'linux']) {
+        final args = resolveFlutterBuildArguments(
+            platform: platform, buildMode: '--release', studio: true);
+        expect(args.where((String a) => a.contains('dartvel.studio')), isEmpty,
+            reason: platform);
+      }
+    });
+
     test('--device-profile reaches the app as DARTVEL_DEVICE_PROFILE', () {
       // Nothing at run time can tell which machine a desktop build is on;
       // the build states it, and DVDeviceProfiles.selected reads it.

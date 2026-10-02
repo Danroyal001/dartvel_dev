@@ -1,3 +1,91 @@
+## 0.10.0 — 2026-10-02
+
+- **`@DVBackendFunction(aiTool: DVAITool(description: ...))`** adds a backend
+  function to the generated AI tool registry, the same registry `@DVAITool`
+  feeds, without exposing every backend function as a tool. `@DVAIHidden`
+  still wins.
+
+- **Sensitive fields are write-only in Studio, like a password field.**
+  Studio used to refuse any write to a `@DVModel.sensitiveField()`. The
+  records API now stores a value sent for one, sealed first with
+  `DVFieldEncryption` when the field is `encrypted: true`, and treats an
+  empty or null value as "keep what is stored". No response carries the
+  value, as before. `DVStudioFieldSpec.encrypted` says which fields are
+  sealed.
+- **`registerDVModelWriteOnlyFields<T>` and `dvModelWriteOnlyFields`**: the
+  sensitive fields a generated form draws as write-only inputs.
+
+- **`registerDVModelFormFields<T>` and `dvModelFormFields`**: the fields a
+  generated form may show for a model, which leave out its sensitive fields.
+
+- **`DVDocsServer` serves the documentation site at its mount, the way Studio
+  is served.** With `access: studio` a person without the Studio grant who
+  opens a page of it is sent to Studio's sign-in, and the document, the graph
+  and the compiled site answer as a path the application does not serve; with
+  `access: public` it is served to anybody. Files are resolved by the same
+  rule as Studio's own (`dvAdminAsset`): decoded before they are checked,
+  never outside the site, and the site's shell for a path that is no file.
+- **`dvDocsMount` is off unless `dartvel.docs.enabled` is `true`**, for every
+  application and every build profile, and reads `dartvel.docs.access`
+  (`DVDocsAccess.studio`, the default, or `DVDocsAccess.public`).
+  `DVDocsMount.requiresAuth` follows from the access rather than being a
+  constructor argument, and `dvDocsMount` no longer takes `release:`.
+
+- **The documentation document is here, not in `dartvel_cli`.**
+  `DVDocsDocument`, `DVDocsPage`, the five block kinds, the nine span kinds and
+  `DVDocsTarget` are the wire format `dartvel docs` writes as `docs.json` and
+  `DVDocsApp` reads back. The build that writes it and the application that
+  draws it are in packages that do not depend on each other, so the types live
+  in the one package both can reach rather than being declared twice: a copy
+  is a format one side can change without the other finding out, and this is
+  the same reason `dvNotFoundRoute` is here. `dvDocsPayloadFile`,
+  `dvDocsGraphFile` and `dvDocsNavigation` come with it, because the file the
+  app fetches and the pages it routes are part of the same contract.
+- **`dvNotFoundRoute` and `dvOfflineRoute`**: the two paths an application
+  serves when a page cannot be shown, as routes rather than as documents the
+  build wrote by hand. The strings live here because the CLI declares them and
+  redirects to one and does not depend on `dartvel_flutter`, while the widgets
+  that draw them need the same two paths, and a rename that missed either side
+  would leave a service worker redirecting to a route nothing serves.
+- `dvIsErrorPageRoute` answers whether a path is one of the two, so a build
+  leaves both out of the sitemap and a page whose own slug is `404` is not
+  mistaken for one.
+- `dvOfflineReturn` is the `from` a failed navigation carries: a path in this
+  application, or `/` for anything that could lead off the site, or that is the
+  offline route itself and so would never land.
+- `dvSafeInternalPath` is the rule those two `from` parameters share, lifted
+  out of `DVPageMfa.safeReturn` so an open redirect is fixed in one place.
+
+- **The first-run setup is a page of the Studio app, at `<mount>/setup`.**
+  While an application is still on the password its first run printed, the
+  mount answers nothing at all but that page: the app's shell and its own
+  code, the four auth endpoints it drives, and a 302 to it from everywhere
+  else. A 404 for anything else, rather than a 200 page telling a scanner
+  looking for a studio that it found one. The page names nobody and carries
+  no data, is never framed, never cached and never a referrer, and stops
+  being served the moment the setup is done.
+- `dvFirstRunScreen` is gone with the hand-written HTML it returned. The
+  setup is drawn by `DVStudioApp`, like Studio's sign-in, and the rate limit,
+  the CSRF check and the session rotation it relies on are the application's
+  own rather than a second copy of each.
+- **Security: Studio's mount serves no files.** `DVAdminServer` answers
+  `<mount>` and `<mount>/login` with the application's shell rendered for
+  that route by `dvRenderRoutePage` (`webRoot:`, `title:`), `<mount>` only to
+  a caller with the Studio grant, and serves Studio's code -- the parts of
+  the application's deferred Studio library, `studioParts:` -- from memory,
+  by exact path from the site root, to that caller only. Whatever an older
+  build left under the admin root is never served.
+- `DVRoutePage.robots` puts a robots meta in a route's own head; Studio's
+  pages are `noindex, nofollow`.
+- `<mount>/api/graph` answers the project graph behind the grant.
+- The development grant's cookie is set for the site, since Studio's code
+  loads from the site root.
+- **Breaking:** `dvAdminAsset`, `DVAdminAsset` and `dvIsDeferredLibraryChunk`
+  are removed; `DVDocsServer` resolves the documentation site's files itself.
+- The first-run setup is served as `<mount>/setup`, the application's shell
+  rendered for that route, and `POST <mount>/api/auth/sign-out` and
+  `GET <mount>/api/me` are new.
+
 ## 0.9.4
 
 - Studio's sign-in page was blank in 0.9.3: the rule that keeps deferred code

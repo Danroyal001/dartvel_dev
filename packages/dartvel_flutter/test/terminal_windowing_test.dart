@@ -60,7 +60,7 @@ void main() {
     DVNativeBridge.register('window.close', (Object? args) => true);
     renderInTerminal();
 
-    final DVWindow window = await DV.Platform.Window.open(orders);
+    final DVWindow window = await DV.Platform.window.open(orders);
 
     expect(window.presentation, DVWindowPresentation.page);
     expect(window.degradation, DVWindowDegradation.capabilityUnsupported);
@@ -77,7 +77,7 @@ void main() {
     DVNativeBridge.register('window.close', (Object? args) => true);
     DV.Platform.useRenderSurface(DVRenderSurface.gui);
 
-    final DVWindow window = await DV.Platform.Window.open(orders);
+    final DVWindow window = await DV.Platform.window.open(orders);
 
     expect(window.presentation, DVWindowPresentation.window);
     expect(window.degradation, DVWindowDegradation.none);

@@ -1,3 +1,19 @@
+## 0.10.0 — 2026-10-02
+
+- **WebSocket latency:** a reply is written to the socket from the isolate's
+  own thread when nothing is queued or in flight, instead of being handed to a
+  Tokio worker that had to wake up and write it. Frames added in one turn of
+  the event loop go out in one write, and the reader posts one wakeup per
+  drain rather than one per frame. Queues stay bounded (64 frames), `sink.add`
+  still never throws, and backpressure, close and ping handling are unchanged.
+  New symbols `aw_ws_queue` and `aw_ws_flush`; `aw_ws_send` queues and sends.
+  Measured numbers are in `doc/shelf-parity.md`.
+- A WebSocket bound to a server no longer falls back to the process-wide
+  wakeup callback after that server stops.
+- `benchmark/compare.dart` adds `websocket_remote` (dart:io client in its own
+  process, p50/p99 round trip) and `websocket_pipelined` (raw-socket client,
+  200,000 frames).
+
 ## 0.9.3
 
 - Documentation only: the README's comparison with `package:shelf` now says

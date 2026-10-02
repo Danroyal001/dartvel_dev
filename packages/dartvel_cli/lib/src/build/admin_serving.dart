@@ -7,7 +7,7 @@
 ///
 /// The rules live in dartvel_core, beside `DVAdminServer`, because the
 /// generated backend that serves the admin from a web-server binary cannot
-/// depend on this package. `dartvel preview` and the binary decide the same
+/// depend on this package. `dartvel dev --release` and the binary decide the same
 /// request with the same code rather than with two copies that drift.
 library;
 

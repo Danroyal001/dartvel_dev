@@ -36,8 +36,10 @@ class _Account {
   final String name;
   @DVModel.sensitiveField()
   final String secret;
+  @DVModel.sensitiveField(encrypted: true)
+  final String? taxNumber;
   final DateTime? joined;
-  const _Account({required this.rank, required this.id, required this.name, required this.secret, this.joined});
+  const _Account({required this.rank, required this.id, required this.name, required this.secret, this.taxNumber, this.joined});
 }
 ''');
   File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
@@ -86,6 +88,10 @@ void main() {
     expect(account,
         contains("DVStudioFieldSpec(name: 'secret', type: 'String', sensitive: true)"));
     expect(account, contains("DVStudioFieldSpec(name: 'joined', type: 'DateTime?')"));
+    // Studio writes a sensitive field without reading it, so it has to know
+    // which ones the model seals, or it would store one in the clear.
+    expect(account,
+        contains("DVStudioFieldSpec(name: 'taxNumber', type: 'String?', sensitive: true, encrypted: true)"));
 
     final String note = spec(pages, 'Note');
     // No String field: the first field is the key, as the model's own.
@@ -113,6 +119,14 @@ void main() {
     expect(
       account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'secret').sensitive,
       isTrue,
+    );
+    expect(
+      account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'taxNumber').encrypted,
+      isTrue,
+    );
+    expect(
+      account.fields.firstWhere((DVStudioFieldSpec f) => f.name == 'secret').encrypted,
+      isFalse,
     );
   });
 
@@ -287,5 +301,17 @@ class _Memo {
       contains('core.DVAdminServer(mount: admin, root: adminRoot, '
           'models: dartvelStudioModels, database: dartvelDatabase'),
     );
+    // Studio's pages are the application's shell rendered for its routes,
+    // so the admin server renders from the web root every page comes from,
+    // and Studio's code is handed over in memory by the binary.
+    expect(routes, contains('webRoot: spaRoot'));
+    expect(routes, contains("title: 'Studio · shop'"));
+    expect(routes, contains('studioParts: studioParts'));
+    expect(
+        RegExp(r'Map<String, Uint8List> studioParts = const <String, Uint8List>\{\}')
+            .allMatches(routes)
+            .length,
+        2,
+        reason: 'startBackend and dartvelMain both take Studio\'s code');
   });
 }

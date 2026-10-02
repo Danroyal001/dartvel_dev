@@ -96,8 +96,15 @@ Finder byKey(String key) => find.byKey(ValueKey<String>(key));
 Finder inKey(String key, Finder matching) =>
     find.descendant(of: byKey(key), matching: matching);
 
-GestureDetector detector(WidgetTester tester, String key) =>
-    tester.widget<GestureDetector>(byKey(key));
+/// Whether the keyed control can be pressed: a `DVStudioControl` or
+/// `DVStudioSwitch` with no `onTap` is one that does nothing, whichever way it
+/// is drawn.
+bool pressable(WidgetTester tester, String key) {
+  final Widget control = tester.widget(find.byKey(ValueKey<String>(key)));
+  if (control is DVStudioControl) return control.onTap != null;
+  if (control is DVStudioSwitch) return control.onTap != null;
+  throw StateError('$key is a ${control.runtimeType}, not a control');
+}
 
 /// Users whose bucket for [flag] puts them inside and outside a [percent]
 /// rollout, found with the runtime's own bucketing.
@@ -453,12 +460,12 @@ void main() {
         await type(tester, 'dv-studio-flag-rule-0-value', wrong);
         expect(byKey('dv-studio-flag-rule-0-error'), findsOneWidget,
             reason: '"$wrong" is not an int');
-        expect(detector(tester, 'dv-studio-flag-review').onTap, isNull,
+        expect(pressable(tester, 'dv-studio-flag-review'), isFalse,
             reason: '"$wrong" is not an int');
       }
       await type(tester, 'dv-studio-flag-rule-0-value', '30');
       expect(byKey('dv-studio-flag-rule-0-error'), findsNothing);
-      expect(detector(tester, 'dv-studio-flag-review').onTap, isNotNull);
+      expect(pressable(tester, 'dv-studio-flag-review'), isTrue);
     });
 
     testWidgets('a double flag refuses text and takes a whole number',
@@ -468,9 +475,9 @@ void main() {
       await tapKey(tester, 'dv-studio-flag-edit');
       await tapKey(tester, 'dv-studio-flag-add-rule');
       await type(tester, 'dv-studio-flag-rule-0-value', 'half');
-      expect(detector(tester, 'dv-studio-flag-review').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-flag-review'), isFalse);
       await type(tester, 'dv-studio-flag-rule-0-value', '1');
-      expect(detector(tester, 'dv-studio-flag-review').onTap, isNotNull);
+      expect(pressable(tester, 'dv-studio-flag-review'), isTrue);
     });
 
     testWidgets('a percentage outside 0 to 100 is refused',
@@ -480,7 +487,7 @@ void main() {
       await tapKey(tester, 'dv-studio-flag-edit');
       await type(tester, 'dv-studio-flag-rule-1-percent', '150');
       expect(byKey('dv-studio-flag-rule-1-error'), findsOneWidget);
-      expect(detector(tester, 'dv-studio-flag-review').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-flag-review'), isFalse);
     });
 
     testWidgets('nothing changed, nothing to review',
@@ -488,7 +495,7 @@ void main() {
       await pumpStudio(tester);
       await openFlag(tester, 'newCheckout');
       await tapKey(tester, 'dv-studio-flag-edit');
-      expect(detector(tester, 'dv-studio-flag-review').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-flag-review'), isFalse);
     });
 
     testWidgets('a change is shown as a diff and applied only when confirmed',
@@ -654,7 +661,7 @@ void main() {
       await openFlag(tester, 'pageSize');
       await type(tester, 'dv-studio-flag-override-value', '2.5');
       expect(byKey('dv-studio-flag-override-error'), findsOneWidget);
-      expect(detector(tester, 'dv-studio-flag-override-toggle').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-flag-override-toggle'), isFalse);
       expect(DVFlags.debugOverrides, isEmpty);
     });
 

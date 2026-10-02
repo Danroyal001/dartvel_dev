@@ -339,8 +339,18 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'deploy',
-    description: 'Deploy to production: a web build or a server (--provider), or an application to a store (--store).',
+    description: 'Deploy to production: a web build or a server (--provider), or an application to a store (--store), or an isolated branch (--preview).',
     options: <String>[
+      '    --preview                            Create or redeploy an isolated branch deployment',
+      '    --list                               With --preview: list branch deployments',
+      '    --open                               With --preview: print the branch deployment URL',
+      '    --logs                               With --preview: request logs (not yet supported by adapters)',
+      '    --follow                             With --preview --logs: follow logs (not yet supported)',
+      '    --destroy                            With --preview: destroy the branch deployment and its resources',
+      '    --sweep                              With --preview: destroy expired deployments and suspend idle ones',
+      '    --branch                             With --preview: branch name (defaults to CI head, then checkout)',
+      '    --from-pr                            With --preview: pull request number for creation',
+      '    --closed-pr                          With --preview --sweep: closed pull request numbers',
       '-t, --target                             Deployment target',
       '                                         [web, server, all (default)]',
       '    --provider                           Where the web build or the server is hosted: firebase-hosting (Firebase Hosting, with the firebase CLI), vercel, netlify, cloudflare (Cloudflare Pages, with wrangler), or custom to build only and deploy from build/ yourself.',
@@ -372,7 +382,11 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     aliases: <String>['run', 'start'],
     options: <String>[
       '-d, --device                   Target device id or name (prefixes allowed)',
-      '    --[no-]release             Build in release mode',
+      '    --[no-]release             Serve the existing production build locally (build/web), without hot reload',
+      '-p, --port                     With --release: port to serve on',
+      '                               (defaults to "8080")',
+      '    --host                     With --release: host to bind to',
+      '                               (defaults to "127.0.0.1")',
       '    --[no-]profile             Build in profile mode',
       '    --[no-]debug               Build in debug mode',
       '    --dart-define              Pass additional dart-defines to Flutter',
@@ -381,7 +395,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --web-hostname             Hostname for the Flutter web-server device',
       '    --web-port                 Port for the Flutter web-server device',
       '-v, --[no-]verbose             Verbose output',
-      '    --pairing-port             Port development builds pair on. dartvel dev always serves pairing: it prints a QR code to scan with a development build (dartvel build <target> --profile development) and hot reloads every paired device on save.',
+      '    --pairing-port             Port development builds pair on. debug development serves pairing: it prints a QR code to scan with a development build (dartvel build <target> --profile development) and hot reloads every paired device on save.',
       '                               (defaults to "8787")',
     ],
   ),
@@ -730,10 +744,6 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     ],
   ),
   DocsCliCommand(
-    name: 'preview',
-    description: 'Preview the production build locally, or manage preview environments (create, list, open, destroy, sweep).',
-  ),
-  DocsCliCommand(
     name: 'privacy',
     description: 'Check subject paths and retention, and export, erase or plan a retention sweep over the application database.',
     subcommands: <DocsCliCommand>[
@@ -960,8 +970,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
 
 /// The .htaccess dartvel build web writes, line by line.
 const List<String> kApacheConfig = <String>[
-  '# Written by dartvel build web. Edits are kept: this file is only created when',
-  '# it is absent.',
+  '# Written by dartvel build web. Rewritten on every build while this line is',
+  '# here. To keep your own edits, delete this line: the build then leaves the',
+  '# file alone. Or put your own in the project\'s web/.htaccess, which the build',
+  '# copies in place of this one.',
   '',
   '<IfModule mod_rewrite.c>',
   '  RewriteEngine On',

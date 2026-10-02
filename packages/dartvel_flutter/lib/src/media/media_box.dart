@@ -83,7 +83,7 @@ abstract final class DVMediaBackends {
     );
   }
 
-  /// The capture runtime `DV.Platform.Media` records through.
+  /// The capture runtime `DV.Platform.media` records through.
   static DVMediaCapture get capture => _capture ??= DVMediaCapture(
         capabilities: DVCaptureCapabilities.none,
         backend: () => throw StateError('No capture backend is registered.'),

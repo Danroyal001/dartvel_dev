@@ -34,7 +34,9 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
             DocsNote('Backend files import dartvel_core',
                 'The backend runs without Flutter. Import '
                 'package:dartvel_core/dartvel.dart there, and leave DV and the '
-                'generated client barrel to the app.'),
+                'generated client barrel to the app. The generated data models '
+                'import Flutter, so a backend function cannot call '
+                'Order.find() or order.save() yet.'),
           ],
         ),
         DocsSection(
@@ -236,8 +238,10 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Backend', missing: <String>[
-              'Functions are served over HTTP. WebSocket and polling '
-                  'transports are not generated.',
+              'Functions are served over HTTP, and a Stream result over '
+                  'server-sent events. dartvel_shelf, the server the backend '
+                  'runs on, has served WebSockets since 0.9.2, but no backend '
+                  'function is given a WebSocket or polling transport yet.',
             ]),
           ],
         ),

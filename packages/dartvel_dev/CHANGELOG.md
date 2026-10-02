@@ -1,3 +1,8 @@
+## 0.10.0 — 2026-10-02
+
+- Released with dartvel_core, dartvel_shelf, dartvel_flutter and dartvel_cli
+  0.10.0, and dartvel_generator 1.4.3. No code changes in this package.
+
 ## 0.9.3
 
 - Released with dartvel_core, dartvel_flutter and dartvel_cli 0.9.3, and

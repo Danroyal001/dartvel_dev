@@ -188,8 +188,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
               ),
               SiteCard(
                 'Store upload from Cloud',
-                'The App Bundle and the IPA build today. The upload from our '
-                    'machines waits on them.',
+                'The App Bundle and an unsigned iOS archive build today. No '
+                    'build has been signed for or uploaded to a store from our '
+                    'machines yet.',
                 built: false,
               ),
               SiteCard(
@@ -201,6 +202,14 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                 'Hosting and a dashboard',
                 'Your web-server binary on a domain, and one place to see builds, '
                     'releases and crashes.',
+                built: false,
+              ),
+              SiteCard(
+                'Billing and entitlements',
+                'Subscriptions through DV.Billing, with launch pricing '
+                    '(\$35, then \$40 per project per month) set as '
+                    'configuration. A subscription unlocks Cloud and Studio Pro '
+                    'for that project.',
                 built: false,
               ),
             ], spacing: 16),
@@ -215,9 +224,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             Eyebrow('STUDIO PRO'),
             Heading('Studio Pro comes with Dartvel Cloud.'),
             Bullets(<String>[
-              'Figma import, reusable components, revision history and team '
-                  'approval. The frontend and backend function builders are '
-                  'free, in the Studio your own binary serves.',
+              'Figma import, revision history and team approval. Components '
+                  'and the frontend and backend function builders are free, in '
+                  'the Studio your own binary serves.',
             ]),
             GhostLink('See Studio and Studio Pro', '/studio'),
           ],
@@ -226,11 +235,19 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
           key: keys['plans'],
           child: const Section(
             children: <Widget>[
-              Eyebrow('PLANS'),
-              Heading('Cloud builds are paid only.'),
+              Eyebrow('PRICING · COMING SOON'),
+              Heading('Dartvel Cloud and Studio Pro: one price per project.'),
               Bullets(<String>[
-                'There is no free tier for cloud builds.',
-                'Plans open when the hosted service launches.',
+                '\$35 per project per month for the first 100 people who sign '
+                    'up in the first week after launch.',
+                '\$40 per project per month after that.',
+                'Includes Dartvel Cloud and Studio Pro for that project. There '
+                    'is no free tier for cloud builds.',
+                'Includes a monthly AI credit allowance for Studio AI. When it '
+                    'runs out, buy a top-up pack, or use your own provider key '
+                    'from the start.',
+                'Not open yet. Prices may be reviewed before launch, and the '
+                    'final price is shown before you pay.',
               ]),
             ],
           ),

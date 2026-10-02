@@ -57,7 +57,7 @@ void main() {
         dialog.accept();
       });
 
-      final List<String> picked = await DV.Platform.Dialogs.openFile(
+      final List<String> picked = await DV.Platform.dialogs.openFile(
         title: 'Pick a note',
         filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
         initialDirectory: dir.path,
@@ -71,7 +71,7 @@ void main() {
 
     test('open: cancel is no files, not an error', () async {
       DVLinuxDialogs.automate((DVLinuxDialog dialog) => dialog.cancel());
-      expect(await DV.Platform.Dialogs.openFile(), isEmpty);
+      expect(await DV.Platform.dialogs.openFile(), isEmpty);
     });
 
     test('open: several, when allowed', () async {
@@ -84,7 +84,7 @@ void main() {
         dialog.selectPath('${dir.path}/photo.png');
         dialog.accept();
       });
-      final List<String> picked = await DV.Platform.Dialogs.openFile(multiple: true, initialDirectory: dir.path);
+      final List<String> picked = await DV.Platform.dialogs.openFile(multiple: true, initialDirectory: dir.path);
       expect(seen.multiple, isTrue);
       expect(picked, <String>['${dir.path}/photo.png']);
 
@@ -92,7 +92,7 @@ void main() {
         seen = dialog.inspect();
         dialog.cancel();
       });
-      await DV.Platform.Dialogs.openFile(initialDirectory: dir.path);
+      await DV.Platform.dialogs.openFile(initialDirectory: dir.path);
       expect(seen.multiple, isFalse);
     });
 
@@ -102,7 +102,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      final String? path = await DV.Platform.Dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
+      final String? path = await DV.Platform.dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
       expect(seen.currentName, 'report.pdf');
       expect(path, '${dir.path}/report.pdf');
     });
@@ -112,7 +112,7 @@ void main() {
         dialog.selectPath(dir.path);
         dialog.accept();
       });
-      expect(await DV.Platform.Dialogs.chooseDirectory(), dir.path);
+      expect(await DV.Platform.dialogs.chooseDirectory(), dir.path);
     });
 
     test('a message is shown with its text and dismissed', () async {
@@ -121,7 +121,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      await DV.Platform.Dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
+      await DV.Platform.dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
       expect(seen.messageText, contains('Your report was saved.'));
     });
   });

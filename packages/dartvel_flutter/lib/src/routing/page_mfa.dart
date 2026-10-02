@@ -14,7 +14,7 @@
 /// suspend-challenge-resume shape a redirect already has.
 library dartvel_flutter.routing.page_mfa;
 
-import 'package:dartvel_core/dartvel.dart' show DVMfa, DVSession;
+import 'package:dartvel_core/dartvel.dart' show DVMfa, DVSession, dvSafeInternalPath;
 
 import '../auth/session_client.dart' show DVSessionClient;
 import 'page_middleware.dart' show dvSignInRoute;
@@ -81,15 +81,10 @@ class DVPageMfa {
   /// challenge that followed `//evil.example` or `https://evil.example`
   /// after the person proved who they are would be an open redirect with the
   /// application's own second factor as the lure.
-  static String safeReturn(String? from) {
-    if (from == null || from.isEmpty) return '/';
-    if (!from.startsWith('/') || from.startsWith('//') || from.contains(r'\')) {
-      return '/';
-    }
-    final Uri? uri = Uri.tryParse(from);
-    if (uri == null || uri.hasScheme || uri.hasAuthority) return '/';
-    return from;
-  }
+  ///
+  /// The rule itself is [dvSafeInternalPath], shared with the offline page's
+  /// `from` so a fix to one is a fix to both.
+  static String safeReturn(String? from) => dvSafeInternalPath(from);
 
   /// The location a router state names, query included, without depending
   /// on the router's type -- the same reason [DVPagePolicy] reads it

@@ -16,18 +16,114 @@ import '../../dartvel_flutter.dart';
 
 /// Where, inside [mount], a person signing in is sent afterwards.
 ///
-/// Only a path inside the mount, and never the sign-in itself. Anything else
+/// Only a path inside the mount, or inside one of [also] -- the other mounts
+/// Studio's grant guards and sends here to sign in, such as a documentation
+/// site with `access: studio` -- and never the sign-in itself. Anything else
 /// -- another site, a protocol-relative `//host`, a page of the application
 /// -- is Studio's front page: a sign-in that could be pointed anywhere is a
 /// link somebody can send a person to.
-String dvStudioSignInTarget(String mount, String? from) {
+String dvStudioSignInTarget(String mount, String? from,
+    {List<String> also = const <String>[]}) {
   final String home = '$mount/';
   final String value = from ?? '';
   if (value.contains('//') || value.contains('\\')) return home;
-  final bool inside = value == mount || value.startsWith('$mount/');
+  bool under(String base) => value == base || value.startsWith('$base/');
+  final bool inside = under(mount) || also.any(under);
   final bool login =
       value == '$mount/login' || value.startsWith('$mount/login?');
   return inside && !login ? value : home;
+}
+
+/// Studio's frame, inheriting the application's effective theme around [home].
+///
+/// Shared by Studio's screens and its sign-in, which are separate deferred
+/// libraries, so both look the same without either reaching the other.
+///
+/// Inside an application -- Studio's routes are the application's -- it is a
+/// navigator of its own under the application's router, which never reports
+/// a route to the browser: the address stays the Studio route it was opened
+/// at. A `MaterialApp` here told the browser it was at `/`, so a reload opened
+/// the site instead of Studio. On its own, with nothing around it, it is the
+/// whole application.
+class DVStudioFrame extends StatefulWidget {
+  const DVStudioFrame({super.key, required this.title, required this.home});
+
+  final String title;
+  final Widget home;
+
+  @override
+  State<DVStudioFrame> createState() => _DVStudioFrameState();
+}
+
+class _DVStudioFrameState extends State<DVStudioFrame> {
+  // Studio's own: the application's belongs to the application's navigator,
+  // and one controller shared by two navigators is an error.
+  final HeroController _heroes = MaterialApp.createMaterialHeroController();
+
+  @override
+  void dispose() {
+    _heroes.dispose();
+    super.dispose();
+  }
+
+  /// Follow the effective app theme, including an explicit theme mode.
+  static Widget _keyed(BuildContext context, Widget child) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    DVStudioStyle.dark = dark;
+    return KeyedSubtree(key: ValueKey<bool>(dark), child: child);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (Navigator.maybeOf(context) == null) {
+      return MaterialApp(
+        title: widget.title,
+        debugShowCheckedModeBanner: false,
+        theme: dartvelDefaultTheme(.light),
+        darkTheme: dartvelDefaultTheme(.dark),
+        builder: (BuildContext context, Widget? child) =>
+            _keyed(context, child ?? const SizedBox.shrink()),
+        home: widget.home,
+      );
+    }
+    Widget frame = Title(
+      title: widget.title,
+      color: Theme.of(context).colorScheme.primary,
+      child: ScaffoldMessenger(
+        child: HeroControllerScope(
+          controller: _heroes,
+          child: Navigator(
+            // Not the application's route: the browser's address is the
+            // application router's to keep.
+            reportsRouteUpdateToEngine: false,
+            onGenerateRoute: (RouteSettings settings) =>
+                MaterialPageRoute<void>(
+                  settings: settings,
+                  builder: (BuildContext context) =>
+                      _keyed(context, widget.home),
+                ),
+          ),
+        ),
+      ),
+    );
+    // An application with no Material localizations of its own still gets
+    // Studio's dialogs and fields labelled.
+    if (Localizations.of<MaterialLocalizations>(
+          context,
+          MaterialLocalizations,
+        ) ==
+        null) {
+      frame = Localizations(
+        locale: const Locale('en', 'US'),
+        delegates: const <LocalizationsDelegate<Object?>>[
+          DefaultMaterialLocalizations.delegate,
+          DefaultWidgetsLocalizations.delegate,
+        ],
+        child: frame,
+      );
+    }
+    return frame;
+  }
 }
 
 /// The sign-in page.
@@ -39,7 +135,11 @@ class DVStudioSignInScreen extends StatefulWidget {
     this.from,
     this.title = 'Studio',
     required this.open,
+    this.returns = const <String>[],
   });
+
+  /// The other mounts a person signing in may be sent back to.
+  final List<String> returns;
 
   final DVStudioClient client;
 
@@ -116,7 +216,8 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
       if (access.status != 200 || body is! Map || body['granted'] != true) {
         return _say('This account may not open Studio.');
       }
-      widget.open(dvStudioSignInTarget(widget.mount, widget.from));
+      widget.open(dvStudioSignInTarget(widget.mount, widget.from,
+          also: widget.returns));
     } on Object {
       _say('Could not reach the server. Try again.');
     } finally {
@@ -149,6 +250,7 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
           onSubmitted: (_) => _submit(),
           style: const TextStyle(fontSize: 14, color: DVStudioStyle.ink),
           decoration: InputDecoration(
+            labelText: label,
             isDense: true,
             filled: true,
             fillColor: DVStudioStyle.canvas,
@@ -213,34 +315,14 @@ class _DVStudioSignInScreenState extends State<DVStudioSignInScreen> {
             child: Text(_problem!,
                 style: DVStudioStyle.bannerText(DVStudioStyle.danger)),
           ),
-        Semantics(
-          button: true,
-          label: _askingForCode ? 'Continue' : 'Sign in',
-          child: GestureDetector(
-            key: const ValueKey<String>('dv-studio-sign-in-submit'),
-            behavior: .opaque,
-            onTap: _busy ? null : _submit,
-            child: MouseRegion(
-              cursor: _busy ? SystemMouseCursors.basic : SystemMouseCursors.click,
-              child: Container(
-                height: 40,
-                alignment: .center,
-                decoration: BoxDecoration(
-                  color: _busy ? DVStudioStyle.accentSoft : DVStudioStyle.accent,
-                  borderRadius: .circular(DVStudioStyle.radius),
-                ),
-                child: DVText(_busy
-                        ? 'Signing in…'
-                        : _askingForCode
-                            ? 'Continue'
-                            : 'Sign in')
-                    .modifier(const DVModifier()
-                        .fontSize(14)
-                        .color(const Color(0xFFFFFFFF))
-                        .fontWeight(.w600)),
-              ),
-            ),
-          ),
+        DVStudioControl(
+          key: const ValueKey<String>('dv-studio-sign-in-submit'),
+          label: _busy
+              ? 'Signing in…'
+              : _askingForCode ? 'Continue' : 'Sign in',
+          enabled: !_busy,
+          primary: true,
+          onTap: _submit,
         ),
       ],
       spacing: DVStudioStyle.space5,

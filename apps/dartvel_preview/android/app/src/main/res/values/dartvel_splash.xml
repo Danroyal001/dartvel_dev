@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dartvel:splash: written by dartvel build from dartvel.splash in
+     pubspec.yaml, and rewritten by every build. To design this file by
+     hand, delete this comment and Dartvel will leave it alone. -->
+<resources>
+    <color name="dartvel_splash_background">#FFFFFF</color>
+</resources>

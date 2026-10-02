@@ -37,10 +37,11 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         Bullets(<String>[
           'Studio is free. It runs inside your web-server binary at /__studio, '
               'and never inside an app.',
-          'Build pages visually and edit model records without writing an '
-              'admin panel.',
-          'Studio Pro comes with Dartvel Cloud, and adds frontend and '
-              'backend functions built from steps and exported as plain Dart.',
+          'Build pages visually, design data models and edit their records '
+              'without writing an admin panel.',
+          'Frontend and backend functions built from steps are free too. '
+              'Studio Pro comes with Dartvel Cloud, and adds Figma import, '
+              'reusable components, revision history and team review.',
         ]),
         StudioShot(
           'assets/studio_shots/page-builder.png',
@@ -71,8 +72,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Only people you grant can open it. Studio has its own sign-in at '
               '/__studio/login, so it opens even with your app\'s account '
               'pages turned off.',
-          'Edit model records in a form. An edit made against a row that '
-              'changed after you opened it is refused.',
+          'Design a data model in the browser, with field types, rules, '
+              'relations, indexes and who may read and write it, and edit its '
+              'records in a form. An edit made against a row that changed after '
+              'you opened it is refused.',
           'Studio fits a phone: sections move to a bar along the bottom, and '
               'the editor shows Elements, Page or Style one at a time.',
         ]),
@@ -155,19 +158,60 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       tint: true,
       children: <Widget>[
+        Bullets(<String>[
+          'Studio inherits your app’s Material theme. New projects start with '
+          'Dartvel’s light and dark theme. Custom Studio colors and the visible '
+          'server-rendered first frame are still being brought into parity.',
+        ]),
+        Eyebrow('KEYBOARD AND SCREEN READER'),
+        Heading('Every control is a control, not a picture of one.'),
+        Bullets(<String>[
+          'On sign-in, the email and password fields have accessible labels. '
+              'Tab from the password reaches Sign in; Enter submits it.',
+          'Tab reaches every button, every icon on the rail and the toolbar, '
+              'and every toggle. Enter and Space both press one. The focus is '
+              'drawn as a ring on the control itself, so you can see where you '
+              'are.',
+          'A screen reader is told what each control is, what it is called and '
+              'whether it works. A control with nothing to do — Undo with no '
+              'history, Sign in while signing in — says so and is skipped, '
+              'rather than looking live and doing nothing.',
+          'Ctrl+F works on a Studio screen, because Studio is a route of your '
+              'app rendered by the same server as every other page. So does '
+              'selecting text with the mouse, the arrow keys, a remote\'s '
+              'D-pad and switch control.',
+          'Each screen has its own address — /__studio is Pages, /__studio/'
+              'components is Components, /__studio/data/Product is one model '
+              'and /__studio/data/Product/p-1 opens one record — '
+              'so a screen can be linked, bookmarked and reloaded, and the '
+              'server sends a document with it for anything reading without '
+              'the app.',
+        ]),
+      ],
+    ),
+    Section(
+      children: <Widget>[
         Eyebrow('IN THE FREE STUDIO'),
         Heading('Records, routes and review in the same place as your pages.'),
         DVBox.wrapLine(<Widget>[
           SiteCard(
             'Pages',
-            'Insert, Layers, the inspector, undo and redo, deploy, restore and '
-                'code export.',
+            'Every page, the ones in your code included. Insert, Layers, the '
+                'inspector, undo and redo, deploy, restore and code export.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
+            'Components',
+            'Make a card, a header or a price box once and put it on any '
+                'page. Each use sets its own text, picture, colour and tap; '
+                'change the component and every page changes. Ctrl+Alt+K '
+                'turns a selection into one.',
             section: 'Dartvel Studio',
           ),
           SiteCard(
             'Data',
-            'Browse and edit each model\'s records. Sensitive fields never '
-                'leave the server.',
+            'Design data models, and browse and edit each model\'s records. '
+                'Sensitive fields can be set there but never read back.',
             section: 'Admin, Devtools, and Scaffolding',
           ),
           SiteCard(
@@ -203,6 +247,19 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             section: 'Content Workflow',
           ),
           SiteCard(
+            'Keyboard shortcuts',
+            'Keys that open a page of your app from anywhere in it, set '
+                'without code; press ? in the app to see them.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
+            'GitHub',
+            'See what Studio changed as a diff, then open a pull request or '
+                'push, so the next release is built with it. During `dartvel '
+                'dev` Studio writes straight to your project\'s files.',
+            section: 'Dartvel Studio',
+          ),
+          SiteCard(
             'Queue and Cache',
             'See waiting and failed jobs per queue, and the cache tags your '
                 'app has set.',
@@ -224,9 +281,9 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           ),
           SiteCard(
             'Project docs',
-            '`dartvel docs` writes a static site of your models, functions, '
-                'routes, jobs and policies. It is not served inside your app '
-                'yet.',
+            '`dartvel docs` builds a Flutter site of your models, functions, '
+                'routes, jobs and policies. It is off unless dartvel.docs '
+                'turns it on, and served behind Studio by default.',
             section: 'Documentation Generation',
           ),
           SiteCard(
@@ -337,12 +394,6 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
             'Every top-level frame becomes a page. Auto-layout, type, '
                 'shadows, gradients and icons come through, and images are '
                 'downloaded before Figma\'s links expire.',
-            built: true,
-          ),
-          SiteCard(
-            'Reusable components',
-            'Save a node as a component, see how many pages use it, and push '
-                'a change to every instance.',
             built: true,
           ),
           SiteCard(

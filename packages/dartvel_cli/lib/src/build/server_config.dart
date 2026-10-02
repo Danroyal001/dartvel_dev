@@ -42,8 +42,10 @@ void dvMakeWebOutputServable(Directory web) {
 ///    cached copy keeps pointing at the previous deploy — the deploy that
 ///    appears to have done nothing.
 String dvApacheConfig() => '''
-# Written by dartvel build web. Edits are kept: this file is only created when
-# it is absent.
+# Written by dartvel build web. Rewritten on every build while this line is
+# here. To keep your own edits, delete this line: the build then leaves the
+# file alone. Or put your own in the project's web/.htaccess, which the build
+# copies in place of this one.
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -95,3 +97,35 @@ ErrorDocument 404 /404/index.html
   </FilesMatch>
 </IfModule>
 ''';
+
+/// The first line of every `.htaccess` Dartvel writes, and how the build tells
+/// its own file from one a person has taken over.
+///
+/// It is a prefix of the header an earlier release wrote too, so a file from
+/// before the marker existed is still recognised as Dartvel's and refreshed.
+const String dvApacheConfigMarker = '# Written by dartvel build web.';
+
+/// Writes [dvApacheConfig] into the build output [web], unless the
+/// `.htaccess` there is someone else's. Returns whether it wrote.
+///
+///  * A project's own `web/.htaccess` wins: Flutter copies it into the build,
+///    and it is left as it is.
+///  * A file in the output whose first line is not [dvApacheConfigMarker] was
+///    not written by Dartvel, or was taken over by deleting that line, and is
+///    left as it is.
+///  * Otherwise the file is written, or rewritten. Rewriting Dartvel's own copy
+///    on every build is deliberate: when it was only written when absent, a
+///    fix to the generated rules never reached anyone who had built once,
+///    which is how a bad cache rule survived being fixed.
+bool dvWriteApacheConfig(Directory web, {required String projectRoot}) {
+  final File own = File('$projectRoot${Platform.pathSeparator}web'
+      '${Platform.pathSeparator}.htaccess');
+  if (own.existsSync()) return false;
+  final File output = File('${web.path}${Platform.pathSeparator}.htaccess');
+  if (output.existsSync() &&
+      !output.readAsStringSync().startsWith(dvApacheConfigMarker)) {
+    return false;
+  }
+  output.writeAsStringSync(dvApacheConfig());
+  return true;
+}

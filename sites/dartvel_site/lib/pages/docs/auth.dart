@@ -37,8 +37,11 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
               'DV.Auth.currentUser holds the signed-in DVAuthUser, or null.',
               'An account with a second factor throws DVMfaRequired until '
                   'completeSecondFactor succeeds.',
-              'signInWithProvider, signInWithPasskey and signInWithBiometrics '
-                  'sit beside it.',
+              'DV.Auth also has signInWithProvider, signInWithPasskey and '
+                  'signInWithBiometrics. They need a DVAuthProvider that '
+                  'implements them: the generated backend\'s provider signs in '
+                  'with email and password and throws UnsupportedError for '
+                  'the others.',
             ]),
             DocsCode('auth-sign-up-out'),
           ],

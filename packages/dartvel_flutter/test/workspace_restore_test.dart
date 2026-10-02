@@ -20,7 +20,7 @@ void main() {
   tearDown(DVWindowManager.reset);
 
   Future<void> save(List<String> routes) =>
-      DV.Platform.Window.persistWorkspace(
+      DV.Platform.window.persistWorkspace(
         'main',
         workspaces: <DVTabWorkspaceController>[
           DVTabWorkspaceController(
@@ -36,7 +36,7 @@ void main() {
       await save(<String>['/a', '/b']);
 
       final List<DVTabWorkspaceController> restored =
-          await DV.Platform.Window.restoreWorkspace('main');
+          await DV.Platform.window.restoreWorkspace('main');
 
       expect(restored.single.tabs.map((DVTab t) => t.route.path),
           <String>['/a', '/b']);
@@ -50,7 +50,7 @@ void main() {
       await save(<String>['/a', '/b']);
 
       final List<DVTabWorkspaceController> restored =
-          await DV.Platform.Window.restoreWorkspace('main');
+          await DV.Platform.window.restoreWorkspace('main');
 
       expect(restored.single.tabs, hasLength(2));
     });
@@ -59,7 +59,7 @@ void main() {
       await save(<String>['/a', '/gone', '/b']);
 
       final List<DVTabWorkspaceController> restored =
-          await DV.Platform.Window.restoreWorkspace('main');
+          await DV.Platform.window.restoreWorkspace('main');
 
       expect(restored.single.tabs.map((DVTab t) => t.route.path),
           <String>['/a', '/b']);
@@ -71,14 +71,14 @@ void main() {
       // the user closed everything.
       await save(<String>['/gone', '/also-gone']);
 
-      expect(await DV.Platform.Window.restoreWorkspace('main'), isEmpty);
+      expect(await DV.Platform.window.restoreWorkspace('main'), isEmpty);
     });
 
     test('the active index survives an earlier tab being dropped', () async {
       // The stored index counts the tabs that were saved. Dropping one before
       // it and keeping the number selects the wrong tab -- silently, because
       // it is still a valid index.
-      await DV.Platform.Window.persistWorkspace(
+      await DV.Platform.window.persistWorkspace(
         'main',
         workspaces: <DVTabWorkspaceController>[
           DVTabWorkspaceController(
@@ -92,7 +92,7 @@ void main() {
       );
 
       final List<DVTabWorkspaceController> restored =
-          await DV.Platform.Window.restoreWorkspace('main');
+          await DV.Platform.window.restoreWorkspace('main');
 
       expect(restored.single.tabs.map((DVTab t) => t.route.path),
           <String>['/a', '/b']);
@@ -102,7 +102,7 @@ void main() {
 
     test('an active index pointing at a dropped tab lands somewhere real',
         () async {
-      await DV.Platform.Window.persistWorkspace(
+      await DV.Platform.window.persistWorkspace(
         'main',
         workspaces: <DVTabWorkspaceController>[
           DVTabWorkspaceController(
@@ -115,7 +115,7 @@ void main() {
       );
 
       final List<DVTabWorkspaceController> restored =
-          await DV.Platform.Window.restoreWorkspace('main');
+          await DV.Platform.window.restoreWorkspace('main');
 
       expect(restored.single.activeIndex, 0);
     });

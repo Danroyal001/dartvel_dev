@@ -1,4 +1,4 @@
-// Studio in development: `dartvel dev` and `dartvel preview`.
+// Studio in development: `dartvel dev` and `dartvel dev --release`.
 //
 // A deployment opens Studio to accounts granted Studio.access. A development
 // server has no accounts to speak of, and serving Studio -- records, grants,
@@ -37,6 +37,8 @@ void main() {
     server = DVAdminServer(
       mount: _mount,
       root: root.path,
+      // The application's shell, which Studio's pages are rendered from.
+      webRoot: root.path,
       devGrant: grant,
       database: MemoryDVDatabaseAdapter(),
     );
@@ -54,7 +56,10 @@ void main() {
     expect(cookie, contains('${DVStudioDevGrant.cookieName}=${grant.token}'));
     expect(cookie, contains('HttpOnly'));
     expect(cookie, contains('SameSite=Strict'));
-    expect(cookie, contains('Path=/__studio'));
+    // The whole site, not only the mount: Studio's code is the application's
+    // deferred library, loaded from the site root, and a browser only sends
+    // the cookie to a path under the one it was set for.
+    expect(cookie, contains('Path=/;'));
   });
 
   test('a browser holding the cookie gets Studio and its data', () async {

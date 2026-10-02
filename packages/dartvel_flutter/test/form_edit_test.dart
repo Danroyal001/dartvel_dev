@@ -53,11 +53,16 @@ const int emailField = 1;
 const int seatsField = 2;
 
 void main() {
+  group('a field kept out of forms', _sensitiveFieldTests);
+  group('a write-only field', _writeOnlyFieldTests);
+
   void clearRegistries() {
     dvModelFactories.clear();
     dvModelSerializers.clear();
     dvModelDeserializers.clear();
     dvModelReadCarriers.clear();
+    dvModelFormFields.clear();
+    dvModelWriteOnlyFields.clear();
   }
 
   setUp(clearRegistries);
@@ -191,10 +196,12 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
 
-    final error = tester.takeException();
-    expect(error, isA<StateError>());
-    expect((error as StateError).message,
-        allOf(contains('deserializer'), contains('Legacy')));
+    // Said to the person who pressed Save, in the form, rather than thrown past
+    // them: an exception escaping the tap reaches the console, not the screen,
+    // and the form looked like it had done nothing at all.
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('deserializer'), findsWidgets);
+    expect(find.textContaining('Legacy'), findsWidgets);
   });
 
   testWidgets('a value the model cannot hold names the field',
@@ -208,10 +215,14 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
 
-    final error = tester.takeException();
-    expect(error, isA<StateError>());
-    expect((error as StateError).message,
-        allOf(contains('seats'), contains('not-a-number')));
+    // The field at fault is named on the form, and takes the focus, so a person
+    // who pressed Save with a keyboard is told what to correct rather than
+    // being left looking at a form that did nothing.
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('seats'), findsWidgets);
+    expect(find.textContaining('not-a-number'), findsWidgets);
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'SEATS');
   });
 
   testWidgets('the fields show the record, not a grey hint of it',
@@ -248,5 +259,219 @@ void main() {
     final state = tester.widget<EditableText>(field);
     expect(state.controller.text, 'abc');
     expect(state.controller.selection.baseOffset, 3);
+  });
+}
+
+/// A generated model with a `@DVModel.sensitiveField()`: the serializer is the
+/// internal one and carries every field, so the form has to be told which of
+/// them it may show.
+class Member {
+  final String id;
+  final String name;
+  final String passwordHash;
+
+  const Member(
+      {required this.id, required this.name, required this.passwordHash});
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'id': id,
+        'name': name,
+        'passwordHash': passwordHash,
+      };
+
+  static Member fromJson(Map<String, Object?> json) => Member(
+        id: json['id']! as String,
+        name: json['name']! as String,
+        passwordHash: json['passwordHash']! as String,
+      );
+}
+
+void registerMember() {
+  registerDVModelFactory<Member>(
+      () => const Member(id: '', name: '', passwordHash: ''));
+  registerDVModelSerializer<Member>((Member model) => model.toJson());
+  registerDVModelDeserializer<Member>(Member.fromJson);
+  // What the generator registers: the fields a form may show, which leaves
+  // the sensitive one out.
+  registerDVModelFormFields<Member>(const <String>{'id', 'name'});
+}
+
+void _sensitiveFieldTests() {
+  const Member stored =
+      Member(id: 'm1', name: 'Ada', passwordHash: r'$pbkdf2$secret');
+
+  setUp(() {
+    dvModelFactories.clear();
+    dvModelSerializers.clear();
+    dvModelDeserializers.clear();
+    dvModelReadCarriers.clear();
+    dvModelFormFields.clear();
+  });
+
+  Future<void> pumpMember(WidgetTester tester,
+      {Member? model, void Function(Member)? onSubmit}) async {
+    registerMember();
+    await tester.pumpWidget(MaterialApp(
+      home: Material(child: DVForm<Member>(model, onSubmit)),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a field the model keeps out of forms gets no input',
+      (WidgetTester tester) async {
+    await pumpMember(tester, onSubmit: (Member _) {});
+
+    expect(find.byType(EditableText), findsNWidgets(2));
+    expect(find.text('PASSWORDHASH'), findsNothing);
+  });
+
+  testWidgets('its value is not prefilled anywhere on screen',
+      (WidgetTester tester) async {
+    await pumpMember(tester, model: stored, onSubmit: (Member _) {});
+
+    expect(find.textContaining('secret'), findsNothing);
+    for (final Element e in find.byType(EditableText).evaluate()) {
+      expect((e.widget as EditableText).controller.text,
+          isNot(contains('secret')));
+    }
+  });
+
+  testWidgets('an edit leaves the stored value as it was, and nothing typed '
+      'reaches it', (WidgetTester tester) async {
+    Member? submitted;
+    await pumpMember(tester,
+        model: stored, onSubmit: (Member v) => submitted = v);
+
+    await tester.enterText(find.byType(EditableText).at(1), 'Ada L.');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(submitted!.name, 'Ada L.');
+    // Not blanked by an edit that never showed it, and not replaced.
+    expect(submitted!.passwordHash, stored.passwordHash);
+  });
+
+  testWidgets('a builder form is handed the same controls as before',
+      (WidgetTester tester) async {
+    // The custom builder path already hid the field through the generated
+    // form controls; the registration changes nothing there.
+    registerMember();
+    await tester.pumpWidget(MaterialApp(
+      home: Material(
+        child: DVForm<Member>.builder(
+            (DVFormControls c) => DVText('${c.model is Member}'), stored),
+      ),
+    ));
+    expect(find.text('true'), findsOneWidget);
+  });
+}
+
+/// What the generator registers for a `@DVModel.sensitiveField()` now: the
+/// readable fields as before, and the sensitive one as write-only -- an input
+/// that can set a value and never shows one, like a password field.
+void registerWriteOnlyMember() {
+  registerMember();
+  registerDVModelWriteOnlyFields<Member>(const <String>{'passwordHash'});
+}
+
+void _writeOnlyFieldTests() {
+  const Member stored =
+      Member(id: 'm1', name: 'Ada', passwordHash: r'$pbkdf2$secret');
+
+  setUp(() {
+    dvModelFactories.clear();
+    dvModelSerializers.clear();
+    dvModelDeserializers.clear();
+    dvModelReadCarriers.clear();
+    dvModelFormFields.clear();
+    dvModelWriteOnlyFields.clear();
+  });
+
+  Future<void> pump(WidgetTester tester,
+      {Member? model, void Function(Member)? onSubmit}) async {
+    registerWriteOnlyMember();
+    await tester.pumpWidget(MaterialApp(
+      home: Material(child: DVForm<Member>(model, onSubmit)),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  EditableText input(WidgetTester tester, int index) =>
+      tester.widget<EditableText>(find.byType(EditableText).at(index));
+
+  testWidgets('it gets an input, obscured like a password field',
+      (WidgetTester tester) async {
+    await pump(tester, model: stored, onSubmit: (Member _) {});
+
+    expect(find.byType(EditableText), findsNWidgets(3));
+    expect(find.text('PASSWORDHASH'), findsOneWidget);
+    expect(input(tester, 2).obscureText, isTrue);
+    // The readable fields are not obscured.
+    expect(input(tester, 1).obscureText, isFalse);
+  });
+
+  testWidgets('the input is empty even when the model holds a value',
+      (WidgetTester tester) async {
+    await pump(tester, model: stored, onSubmit: (Member _) {});
+
+    expect(input(tester, 2).controller.text, isEmpty);
+    expect(find.textContaining('secret'), findsNothing);
+    for (final Element e in find.byType(EditableText).evaluate()) {
+      expect((e.widget as EditableText).controller.text,
+          isNot(contains('secret')));
+    }
+  });
+
+  testWidgets('an edit says that leaving it empty keeps the current value',
+      (WidgetTester tester) async {
+    await pump(tester, model: stored, onSubmit: (Member _) {});
+    expect(find.text('Leave empty to keep the current value'), findsOneWidget);
+  });
+
+  testWidgets('a new record is not told about a current value it lacks',
+      (WidgetTester tester) async {
+    await pump(tester, onSubmit: (Member _) {});
+    expect(find.text('Leave empty to keep the current value'), findsNothing);
+    expect(input(tester, 2).obscureText, isTrue);
+  });
+
+  testWidgets('left empty, an edit keeps the stored value',
+      (WidgetTester tester) async {
+    Member? submitted;
+    await pump(tester, model: stored, onSubmit: (Member v) => submitted = v);
+
+    await tester.enterText(find.byType(EditableText).at(1), 'Ada L.');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(submitted!.name, 'Ada L.');
+    expect(submitted!.passwordHash, stored.passwordHash);
+  });
+
+  testWidgets('typed into and then cleared, it still keeps the stored value',
+      (WidgetTester tester) async {
+    Member? submitted;
+    await pump(tester, model: stored, onSubmit: (Member v) => submitted = v);
+
+    await tester.enterText(find.byType(EditableText).at(2), 'oops');
+    await tester.enterText(find.byType(EditableText).at(2), '');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(submitted!.passwordHash, stored.passwordHash);
+  });
+
+  testWidgets('a value typed into it is what the form saves',
+      (WidgetTester tester) async {
+    Member? submitted;
+    await pump(tester, model: stored, onSubmit: (Member v) => submitted = v);
+
+    await tester.enterText(find.byType(EditableText).at(2), 'new-secret');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(submitted!.passwordHash, 'new-secret');
+    // Saved, the input is empty again: the value is not read back.
+    expect(input(tester, 2).controller.text, isEmpty);
   });
 }
