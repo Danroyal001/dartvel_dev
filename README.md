@@ -129,6 +129,7 @@ Everything else is automatically compiled, generated, or served by the framework
 | **Multi-Window** | A window is a route and `open()` never fails. Real OS windows open on Linux through `dartvel_windowing`; elsewhere `DV.Window` degrades and reports a stable code | ⚠️ Partial |
 | **Kiosk Mode** | Policies validated by `dartvel doctor`, the idle and reset clock, and hardware-key blocking on Linux | ⚠️ Partial |
 | **Build Targets** | Mobile, web, desktop, TV and embedded through vendor embedders, with toolchain preflight and auto-install | ⚠️ Partial, see [Build Targets](#-build-targets) |
+| **Coding Agents** | `dartvel create` and `dartvel init` write `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, the Cursor, Windsurf, Cline, Kiro and Copilot files and `.aider.conf.yml` from one generated block, and `dartvel dev` keeps that block matched to the Dartvel version installed. Text outside the block is yours and is never touched. No architecture documents, `SKILL.md` files, `dartvel agent` commands or `llms.txt` yet | ⚠️ Partial |
 
 ---
 

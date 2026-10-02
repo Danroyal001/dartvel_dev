@@ -111,6 +111,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'DV.Test fakes, model factories and test modes', 'Reference'),
   DocsPageInfo(DVRoutes.docscli, 'CLI reference',
       'Every dartvel command and flag', 'Reference'),
+  DocsPageInfo(DVRoutes.docsagents, 'Coding agents',
+      'One generated block, in every agent\'s file', 'Reference'),
 ];
 
 /// Every docs group, in sidebar order.
@@ -166,6 +168,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Cache': 'Partial',
   'Change Data Capture and Warehouse Sync': 'Partial',
   'CLI': 'Partial',
+  'Coding Agent Documentation': 'Partial',
   'Commerce: Tax, Promotions, Disputes and Payouts': 'Partial',
   'Compute: Workers and Native Offload': 'Partial',
   'Content Workflow': 'Partial',

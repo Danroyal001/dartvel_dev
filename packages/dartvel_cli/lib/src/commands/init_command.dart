@@ -2,6 +2,9 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../commands/version_command.dart' show dartvelCliVersion;
+import '../agents/agent_docs.dart';
+import '../agents/architecture_docs.dart';
 import '../templates/project_templates.dart';
 import '../utils/logger.dart';
 
@@ -306,6 +309,38 @@ class InitCommand extends Command<void> {
     // Create README.md
     File(p.join(root, 'README.md'))
         .writeAsStringSync(ProjectTemplates.readmeTemplate(projectName));
+
+    // Set up every coding agent the project is going to be opened in, from one
+    // source. A project with no rules file is read by whichever agent happens
+    // to be opened, and eleven tools each want a differently named file; the
+    // generated block is matched to this Dartvel's version and refreshed by
+    // `dartvel dev` from then on.
+    final agentDocs =
+        await dvSyncAgentDocs(root: root, projectName: projectName);
+    if (agentDocs.created.isNotEmpty) {
+      Logger.log('🤖 Agent rules set up: ${agentDocs.created.join(', ')}');
+    }
+    if (agentDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not write ${agentDocs.failed.join(', ')} — the project\'s own text was left alone.');
+    }
+
+    // Opinionated architecture docs: initialisation, data, HTTP, UI, naming,
+    // setup, Git, process, and Dartvel-specific (models, backend functions,
+    // Studio, modules). Refreshed by `dartvel dev` like the agent rules.
+    final archDocs = await dvSyncArchitectureDocs(
+      root: root,
+      version: dartvelCliVersion,
+    );
+    if (archDocs.created.isNotEmpty || archDocs.updated.isNotEmpty) {
+      Logger.log(
+          '📘 Architecture docs: ${archDocs.created.isNotEmpty ? 'created' : 'updated'} '
+          '${[...archDocs.created, ...archDocs.updated].join(', ')}');
+    }
+    if (archDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not write architecture docs (${archDocs.failed.join(', ')}).');
+    }
 
     Logger.log('✅ Project structure created');
     Logger.log('📦 Running: flutter pub get');

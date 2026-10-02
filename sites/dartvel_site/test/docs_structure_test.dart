@@ -57,6 +57,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/devices': (() => const DocsDevicesPageGeneratedPage(), DocsDevicesPageGeneratedPage.loadLibrary),
   '/docs/media-3d': (() => const DocsMedia3dPageGeneratedPage(), DocsMedia3dPageGeneratedPage.loadLibrary),
   '/docs/cli': (() => const DocsCliPageGeneratedPage(), DocsCliPageGeneratedPage.loadLibrary),
+  '/docs/agents': (() => const DocsAgentsPageGeneratedPage(), DocsAgentsPageGeneratedPage.loadLibrary),
 };
 
 /// The site's chrome around every docs page, the way the generated router

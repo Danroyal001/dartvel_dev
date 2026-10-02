@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../adoption/adoption_plan.dart';
+import '../agents/agent_docs.dart';
+import '../agents/architecture_docs.dart';
 import 'init_command.dart' show dvLocalPackagesDir;
 
 /// `dartvel init` -- Dartvel inside a project that already exists.
@@ -119,5 +121,32 @@ Future<int> dvRunInit(
   final DVAdoptionApplyResult result = dvApplyAdoption(plan);
   out('');
   out(result.message);
+
+  if (result.written) {
+    // The project now has Dartvel, so it gets the agent rules too, from the
+    // same generated block `dartvel create` writes and `dartvel dev` keeps
+    // matched to the installed version. Adopting Dartvel and then having no
+    // rules for the agent that is going to write the code is half an
+    // adoption; this is the other half, and it is additive -- a file the
+    // project already had keeps its own text.
+    final DVAgentDocsSyncResult agentDocs = await dvSyncAgentDocs(root: root);
+    if (agentDocs.created.isNotEmpty) {
+      out('Agent rules set up: ${agentDocs.created.join(', ')} '
+          '(matched to Dartvel ${agentDocs.version}).');
+    }
+    if (agentDocs.failed.isNotEmpty) {
+      out('Could not write ${agentDocs.failed.join(', ')}; their previous '
+          'contents are unchanged.');
+    }
+
+    final DVArchitectureDocsSyncResult archDocs = await dvSyncArchitectureDocs(
+      root: root,
+      version: agentDocs.version,
+    );
+    if (archDocs.created.isNotEmpty || archDocs.updated.isNotEmpty) {
+      out('Architecture docs: ${archDocs.created.isNotEmpty ? 'created' : 'updated'} '
+          '${[...archDocs.created, ...archDocs.updated].join(', ')}');
+    }
+  }
   return result.written ? 0 : 1;
 }

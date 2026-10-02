@@ -226,6 +226,7 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Multi-Window': 'Multi-Window',
     'Kiosk Mode': 'Kiosk Mode',
     'Build Targets': 'Embedded, Television, and Extension Build Targets',
+    'Coding Agents': 'Coding Agent Documentation',
   };
 
   final status = <String, String>{
