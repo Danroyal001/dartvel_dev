@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel platform API: API keys, scopes and OAuth',
+  title: 'API keys and OAuth for your app\'s API',
   description: 'Let other systems call your API with scoped keys or OAuth '
       'tokens, where each scope maps to the same policy action your '
       'own app uses.',
