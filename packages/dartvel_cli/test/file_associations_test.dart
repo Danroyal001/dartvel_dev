@@ -215,24 +215,103 @@ import UIKit
   });
 
   group('Web', () {
-    test('file_handlers accept each type with its extensions', () {
+    test('file_handlers: one handler per type, its extensions, and its icon', () {
       final Map<String, Object?> manifest = dvPwaManifest(
         name: 'Shop',
-        fileHandlers: dvWebFileHandlers(<DVFileAssociation>[order, pdf]),
+        fileHandlers: dvWebFileHandlers(<DVFileAssociation>[
+          const DVFileAssociation(mimeType: 'application/x-shop-order', extensions: <String>['order'], description: 'Shop order', icon: 'assets/order.png'),
+          pdf,
+        ]),
       );
       expect(manifest['file_handlers'], <Object?>[
         <String, Object?>{
           'action': './',
-          'accept': <String, Object?>{
-            'application/x-shop-order': <String>['.order'],
-            'application/pdf': <String>[],
-          },
+          'name': 'Shop order',
+          'accept': <String, Object?>{'application/x-shop-order': <String>['.order']},
+          'icons': <Object?>[
+            <String, Object?>{'src': 'icons/file-types/application-x-shop-order.png', 'sizes': 'any', 'type': 'image/png'},
+          ],
+        },
+        <String, Object?>{
+          'action': './',
+          'accept': <String, Object?>{'application/pdf': <String>[]},
         },
       ]);
     });
 
+    test('the icon is published under the name the manifest gives it', () {
+      const DVFileAssociation withIcon = DVFileAssociation(mimeType: 'image/svg+xml', icon: 'assets/kinds/vector.svg');
+      expect(dvFileTypeIconName(withIcon), 'image-svg-xml.svg');
+      expect(dvFileTypeIconName(order), isNull);
+    });
+
     test('no declaration, no file_handlers key', () {
       expect(dvPwaManifest(name: 'Shop').containsKey('file_handlers'), isFalse);
+    });
+  });
+
+  group('icons on the desktop', () {
+    const DVFileAssociation iconic = DVFileAssociation(
+        mimeType: 'application/x-shop-order', extensions: <String>['order'], icon: 'assets/order.png');
+
+    test('Linux names the type\'s icon in its MIME info', () {
+      final DVDesktopSettings settings = DVDesktopSettings.fromDartvel(<String, Object?>{
+        'fileAssociations': <Object?>[iconic.toPubspec()],
+      }, app: 'shop', appName: 'Shop');
+      expect(dvMimeInfo(settings), contains('<icon name="shop-application-x-shop-order"/>'));
+      expect(dvDesktopIconPaths(settings), <String, String>{
+        'share/icons/hicolor/256x256/mimetypes/shop-application-x-shop-order.png': 'assets/order.png',
+      });
+    });
+
+    test('Linux writes the icon into the bundle', () {
+      final Directory project = Directory.systemTemp.createTempSync('dv_fa_icon_');
+      addTearDown(() => project.deleteSync(recursive: true));
+      File(p.join(project.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shop
+dartvel:
+  fileAssociations:
+    - mimeType: application/x-shop-order
+      extensions: [order]
+      icon: assets/order.png
+''');
+      File(p.join(project.path, 'assets', 'order.png'))
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(<int>[137, 80, 78, 71]);
+      final String bundle = p.join(project.path, 'bundle');
+      final DVDesktopWrite result = dvWriteLinuxDesktopFiles(project.path, bundle);
+      expect(result.problems, isEmpty);
+      expect(File(p.join(bundle, 'share/icons/hicolor/256x256/mimetypes/shop-application-x-shop-order.png')).readAsBytesSync(),
+          <int>[137, 80, 78, 71]);
+    });
+
+    test('a missing icon is a problem, not a broken build', () {
+      final Directory project = Directory.systemTemp.createTempSync('dv_fa_icon_missing_');
+      addTearDown(() => project.deleteSync(recursive: true));
+      File(p.join(project.path, 'pubspec.yaml')).writeAsStringSync('''
+name: shop
+dartvel:
+  fileAssociations:
+    - mimeType: application/x-shop-order
+      extensions: [order]
+      icon: assets/nowhere.png
+''');
+      final DVDesktopWrite result = dvWriteLinuxDesktopFiles(project.path, p.join(project.path, 'bundle'));
+      expect(result.problems.single, contains('assets/nowhere.png'));
+      expect(result.written, contains('shop.desktop'));
+    });
+
+    test('Windows uses an .ico as the type\'s DefaultIcon, and nothing else', () {
+      DVDesktopSettings settingsWith(String icon) => DVDesktopSettings.fromDartvel(<String, Object?>{
+            'fileAssociations': <Object?>[
+              DVFileAssociation(mimeType: 'application/x-shop-order', extensions: const <String>['order'], icon: icon).toPubspec(),
+            ],
+          }, app: 'shop', appName: 'Shop');
+      final String ico = dvWindowsAssociationsScript(settingsWith('assets/order.ico'), executable: r'C:\shop\shop.exe')!;
+      expect(ico, contains(r'[HKEY_CURRENT_USER\Software\Classes\shop.order\DefaultIcon]'));
+      expect(ico, contains(r'@="C:\\shop\\order.ico"'));
+      final String png = dvWindowsAssociationsScript(settingsWith('assets/order.png'), executable: r'C:\shop\shop.exe')!;
+      expect(png, isNot(contains('DefaultIcon')), reason: 'the registry takes an .ico; a PNG would show a blank icon');
     });
   });
 

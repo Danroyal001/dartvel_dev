@@ -62,6 +62,17 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
 
+  # docs:start yaml-file-associations
+  fileAssociations:
+    - mimeType: application/x-shop-order
+      extensions: [order]
+      description: Shop order
+      icon: assets/order.png
+      role: editor # the default; viewer for read-only
+    - mimeType: application/pdf
+      role: viewer
+  # docs:end
+
   # docs:start yaml-http
   http:
     hosts:

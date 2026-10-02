@@ -9047,6 +9047,12 @@ developer made themselves.
 | Web, installed PWA | manifest `file_handlers` | `launchQueue`, with the bytes |
 | Web tab, webOS, terminal, browser extensions | none: no system mechanism exists | `pick()` |
 
+A type's `icon` is used where a platform takes one from a file: the web
+handler's icon, the Linux MIME-type icon (installed under the bundle's
+`share/icons/hicolor`), and Windows' `DefaultIcon` when it is an `.ico`. Apple
+platforms want an `.icns` in the bundle and Android a drawable resource, so
+there a document shows the application's icon.
+
 `initial()` answers the files the application was started with. `pick()` is the
 fallback everywhere: the platform's own picker, narrowed to the given types
 where the picker can be narrowed, feeding the same stream. On a desktop a file

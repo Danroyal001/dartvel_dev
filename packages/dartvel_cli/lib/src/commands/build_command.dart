@@ -2811,6 +2811,22 @@ class BuildCommand extends Command<void> {
     exit(1);
   }
 
+  /// Each declared type's icon, where the manifest's file_handlers say it is.
+  void _writeFileTypeIcons(String root) {
+    for (final DVFileAssociation association in _fileAssociations(root).associations) {
+      final String? name = dvFileTypeIconName(association);
+      if (name == null) continue;
+      final File icon = File(p.join(root, association.icon!));
+      if (!icon.existsSync()) {
+        Logger.log('   ⚠ dartvel.fileAssociations names the icon ${association.icon}, which is not in the project.');
+        continue;
+      }
+      final File target = File(p.join(root, 'build', 'web', dvWebFileTypeIconDirectory, name));
+      target.parent.createSync(recursive: true);
+      icon.copySync(target.path);
+    }
+  }
+
   Future<void> _writePwaManifest(String root) async {
     final pwa = _dartvelSection(root)['pwa'];
     final settings = pwa is Map ? pwa : const <Object?, Object?>{};
@@ -2841,6 +2857,7 @@ class BuildCommand extends Command<void> {
     }
 
     _writePwaIcons(root, settings);
+    _writeFileTypeIcons(root);
     await _writeServiceWorker(root, settings: settings);
   }
 

@@ -119,6 +119,7 @@ String? dvMimeInfo(DVDesktopSettings s) {
   for (final DVFileAssociation a in fresh) {
     out.writeln('  <mime-type type="${_xml(a.mimeType)}">');
     if (a.description != null) out.writeln('    <comment>${_xml(a.description!)}</comment>');
+    if (a.icon != null) out.writeln('    <icon name="${_xml(_iconName(s, a))}"/>');
     for (final String ext in a.extensions) {
       out.writeln('    <glob pattern="*.${_xml(ext)}"/>');
     }
@@ -127,6 +128,20 @@ String? dvMimeInfo(DVDesktopSettings s) {
   out.writeln('</mime-info>');
   return out.toString();
 }
+
+/// The icon-theme name of [a]'s icon: the app and the type, so two
+/// applications' icons for their own types cannot collide.
+String _iconName(DVDesktopSettings s, DVFileAssociation a) => '${s.app}-${dvFileTypeSlug(a.mimeType)}';
+
+/// The type icons the Linux build installs under the bundle, by relative
+/// path, to the project file each is copied from. Only the types this app
+/// introduces: a type the system already has keeps the system's icon.
+Map<String, String> dvDesktopIconPaths(DVDesktopSettings s) => <String, String>{
+      for (final DVFileAssociation a in s.associations)
+        if (a.isNew && a.icon != null)
+          'share/icons/hicolor/${a.icon!.toLowerCase().endsWith('.svg') ? 'scalable' : '256x256'}/mimetypes/'
+              '${_iconName(s, a)}${dvFileTypeIconName(a)!.substring(dvFileTypeSlug(a.mimeType).length)}': a.icon!,
+    };
 
 /// Every file the Linux build writes under the bundle, by relative path.
 Map<String, String> dvDesktopFiles(DVDesktopSettings s) {
@@ -151,13 +166,31 @@ class DVDesktopWrite {
 DVDesktopWrite dvWriteLinuxDesktopFiles(String root, String bundle) {
   final DVDesktopSettings settings = _settingsFor(root);
   final List<String> written = <String>[];
+  final List<String> problems = <String>[...settings.problems];
   for (final MapEntry<String, String> e in dvDesktopFiles(settings).entries) {
     final File file = File('$bundle/${e.key}');
     file.parent.createSync(recursive: true);
     file.writeAsStringSync(e.value);
     written.add(e.key);
   }
-  return DVDesktopWrite(written: written, problems: settings.problems);
+  for (final MapEntry<String, String> icon in dvDesktopIconPaths(settings).entries) {
+    if (!_copyIcon(root, icon.value, '$bundle/${icon.key}', problems)) continue;
+    written.add(icon.key);
+  }
+  return DVDesktopWrite(written: written, problems: problems);
+}
+
+/// Copies the project file [source] to [target]; a missing one is a problem
+/// rather than a failed build, and the type is still registered without it.
+bool _copyIcon(String root, String source, String target, List<String> problems) {
+  final File icon = File('$root/$source');
+  if (!icon.existsSync()) {
+    problems.add('dartvel.fileAssociations names the icon $source, which is not in the project; the type is registered without it.');
+    return false;
+  }
+  File(target).parent.createSync(recursive: true);
+  icon.copySync(target);
+  return true;
 }
 
 // -- macOS ------------------------------------------------------------------
@@ -255,6 +288,16 @@ String? dvWindowsAssociationsScript(DVDesktopSettings settings, {required String
         ..writeln('[$classes\\$progId\\shell\\open\\command]')
         ..writeln('@="${_reg(command)}"')
         ..writeln();
+      // The registry takes an .ico; anything else would be a blank icon, so
+      // the type keeps the application's own.
+      final String? icon = a.icon;
+      if (icon != null && icon.toLowerCase().endsWith('.ico')) {
+        final String directory = executable.substring(0, executable.lastIndexOf(r'\') + 1);
+        out
+          ..writeln('[$classes\\$progId\\DefaultIcon]')
+          ..writeln('@="${_reg('$directory${icon.replaceAll(r'\', '/').split('/').last}')}"')
+          ..writeln();
+      }
       // An editor is also offered for Edit, which Explorer shows beside Open.
       if (a.role == DVFileAssociationRole.editor) {
         out
@@ -284,7 +327,16 @@ DVDesktopWrite dvWriteWindowsDesktopFiles(String root, String bundle) {
   if (script == null) return DVDesktopWrite(written: const <String>[], problems: settings.problems);
   final String name = '${settings.app}-associations.reg';
   File('$bundle/$name').writeAsStringSync(script);
-  return DVDesktopWrite(written: <String>[name], problems: settings.problems);
+  final List<String> written = <String>[name];
+  final List<String> problems = <String>[...settings.problems];
+  // Beside the binary, where the script's DefaultIcon points.
+  for (final DVFileAssociation a in settings.associations) {
+    final String? icon = a.icon;
+    if (icon == null || !icon.toLowerCase().endsWith('.ico')) continue;
+    final String file = icon.replaceAll(r'\', '/').split('/').last;
+    if (_copyIcon(root, icon, '$bundle/$file', problems)) written.add(file);
+  }
+  return DVDesktopWrite(written: written, problems: problems);
 }
 
 DVDesktopSettings _settingsFor(String root) {
