@@ -55,7 +55,7 @@ DVDartvelSection dvEvaluateDartConfig(String root, String relativePath) {
         problems: <String>['dartvel: points at $relativePath, which is not there.'], fromDartConfig: relativePath);
   }
   final String source = configFile.readAsStringSync();
-  final Match? declaration = RegExp(r'class\s+([A-Z][A-Za-z0-9_]*)(?:\s*\([^)]*\))?\s+extends\s+DartvelConfig\b').firstMatch(source);
+  final Match? declaration = RegExp(r'class\s+(?:const\s+)?([A-Z][A-Za-z0-9_]*)(?:\s*\([^)]*\))?\s+extends\s+DartvelConfig\b').firstMatch(source);
   if (declaration == null) {
     return DVDartvelSection(const <Object?, Object?>{},
         problems: <String>['$relativePath must declare a public class extending DartvelConfig.'], fromDartConfig: relativePath);

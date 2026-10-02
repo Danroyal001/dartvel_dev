@@ -25,8 +25,8 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
           title: 'What it is',
           children: <Widget>[
             DocsText('DV.Platform holds the native capabilities the framework '
-                'registers for the current target. A desktop binds clipboard, '
-                'window controls and file associations; a phone does not. '
+                'registers for the current target. A desktop binds clipboard '
+                'and window controls; a phone does not. '
                 'A browser has a different set. Calling a capability the '
                 'target lacks throws a typed error that names the missing '
                 'binding rather than returning a plausible default.'),
@@ -69,10 +69,10 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
               'DV.Platform.notifications, permissions, browserExtension, network',
               'DV.Platform.install, display, files, device',
+              'DV.Platform.associations  // files the app is opened with, every target',
             ]),
             DocsSubheading('Desktop-only'),
             DocsShell(<String>[
-              'DV.Platform.associations  // file associations',
               'DV.Platform.dragDrop',
               'DV.Platform.tray, Menus, Shortcuts, Printing',
             ]),
@@ -108,7 +108,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['Tray / Menus / Shortcuts / Printing', 'Shipped (stub)', 'all (empty)'],
                 <String>['Dialogs', 'Shipped (stub)', 'all (empty)'],
                 <String>['DragDrop', 'Shipped', 'desktop (Linux, Windows, macOS)'],
-                <String>['associations', 'Shipped', 'desktop'],
+                <String>['associations', 'Shipped', 'every target: registered with the OS on Android, iOS, macOS, Windows, Linux, Sony eLinux, Tizen and installed web apps; picker elsewhere'],
                 <String>['camera', 'Partial', 'Android, iOS, some web'],
                 <String>['media', 'Partial', 'Android, iOS, some web'],
                 <String>['files', 'Partial', 'Android, iOS, desktop, web (partial)'],
@@ -131,6 +131,57 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['display', 'Shipped (stub)', 'all'],
               ],
             ),
+          ],
+        ),
+        DocsSection(
+          id: 'file-associations',
+          title: 'File associations',
+          children: <Widget>[
+            DocsText('An application declares the file types it opens once, '
+                'in `dartvel.fileAssociations`, and `dartvel build` registers '
+                'them the way each target expects: the developer never edits '
+                '`android/`, `ios/`, `web/` or a registry by hand. Where a '
+                'target only reads a file the developer owns, the build writes '
+                'a marked block it replaces on every build and removes when the '
+                'declaration goes away, and leaves everything outside it alone.'),
+            DocsShell(<String>[
+              'dartvel:',
+              '  fileAssociations:',
+              '    - mimeType: application/x-shop-order',
+              '      extensions: [order]',
+              '      description: Shop order',
+              '      icon: assets/order.png',
+              '      role: editor        # the default; viewer for read-only',
+              '    - mimeType: application/pdf',
+              '      role: viewer',
+            ]),
+            DocsText('A project whose `dartvel:` names a Dart config file '
+                'declares the same thing as a field of its config class. The '
+                'class serialises to exactly the YAML object, with the same '
+                'keys, defaults and error messages.'),
+            DocsCode('file-associations-config'),
+            DocsText('Files arrive on one stream on every target, whether the '
+                'app was launched with them, opened with them while running, '
+                'or had them shared to it. Where nothing can open the app with '
+                'a file, `pick` shows the platform\'s own picker and feeds the '
+                'same stream.'),
+            DocsCode('file-associations-opened'),
+            DocsTable(
+              columns: <String>['Target', 'Registered with the system', 'How files arrive'],
+              rows: <List<String>>[
+                <String>['Android', 'open-with and share-target intent filters', 'copied to the cache, at start and on resume'],
+                <String>['iOS', 'document types, declared types, open in place', 'copied out of their security scope, at start and on resume'],
+                <String>['macOS', 'document types and declared types', 'launch arguments'],
+                <String>['Windows', 'per-user registry script beside the binary', 'launch arguments'],
+                <String>['Linux, Sony eLinux', '.desktop MimeType and shared-mime-info', 'launch arguments'],
+                <String>['Tizen', 'view app controls', 'picker (delivery not wired yet)'],
+                <String>['Web, installed', 'manifest file_handlers', 'launchQueue, with the bytes'],
+                <String>['Web tab, webOS, terminal', 'no system registration', 'picker'],
+              ],
+            ),
+            DocsText('On a desktop a file still also opens the `/open?path=` '
+                'route, as before. `dartvel.desktop.fileAssociations` still '
+                'works and warns that it has moved to `dartvel.fileAssociations`.'),
           ],
         ),
         DocsSection(

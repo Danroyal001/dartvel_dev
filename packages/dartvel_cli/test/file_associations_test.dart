@@ -286,9 +286,7 @@ dartvel: dartvel_config.dart
       File(p.join(project.path, 'dartvel_config.dart')).writeAsStringSync('''
 import 'package:dartvel_core/config.dart';
 
-class ShopConfig extends DartvelConfig {
-  const ShopConfig();
-
+class const ShopConfig() extends DartvelConfig {
   @override
   List<DVFileAssociation> get fileAssociations => const <DVFileAssociation>[
         DVFileAssociation(mimeType: 'application/x-shop-order', extensions: <String>['order'], description: 'Shop order'),
