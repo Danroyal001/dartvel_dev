@@ -27,6 +27,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
+import '../build/android_drag_drop_bridge.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
@@ -1844,6 +1845,7 @@ class BuildCommand extends Command<void> {
       dvAndroidCaptureBridgePath: dvAndroidCaptureBridgeSource(),
       dvAndroidBridgeActivityPath: dvAndroidBridgeActivitySource(),
       dvAndroidCaptureFilesPath: dvAndroidCaptureFilesSource(),
+      dvAndroidDragDropPath: dvAndroidDragDropSource(),
     }.entries) {
       final File source = File(p.join(root, file.key));
       source.parent.createSync(recursive: true);
