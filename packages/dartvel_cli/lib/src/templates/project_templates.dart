@@ -8,7 +8,7 @@
 ///
 /// A test asserts this admits the version each package declares, so the two
 /// cannot drift again without the suite saying so.
-const String dartvelPackageVersion = '0.9.3';
+const String dartvelPackageVersion = '0.10.0';
 
 /// The same, for dartvel_shelf, which is versioned on its own.
 ///
@@ -17,7 +17,7 @@ const String dartvelPackageVersion = '0.9.3';
 /// because it was a literal, nothing bumped it and nothing checked it: the
 /// scaffold asked for a shelf from three releases back while the other three
 /// constraints tracked correctly.
-const String dartvelShelfVersion = '0.9.2';
+const String dartvelShelfVersion = '0.10.0';
 
 class ProjectTemplates {
   static String pubspecTemplate({
@@ -69,7 +69,6 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
   plugins: []
-  webPrerender: false
   ota: false
 
   transitions:
@@ -246,10 +245,9 @@ void main(List<String> arguments) async {
 Widget createDartvelApp({List<String> arguments = const <String>[]}) {
   return MaterialApp.router(
     title: 'Dartvel App',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      useMaterial3: true,
-    ),
+    theme: dartvelDefaultTheme(.light),
+    darkTheme: dartvelDefaultTheme(.dark),
+    themeMode: .system,
     routerConfig: createDartvelRouter(arguments: arguments),
   );
 }

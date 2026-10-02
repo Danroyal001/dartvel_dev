@@ -52,7 +52,7 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
       // in the window.open payload yet, and passing null here would look like
       // it had been considered.
       RegularWindowController(
-        size: preferredSizeFor(request, DV.Platform.Window.displays.value),
+        size: preferredSizeFor(request, DV.Platform.window.displays.value),
         title: request?.title,
       ),
     );

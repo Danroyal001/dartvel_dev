@@ -49,18 +49,21 @@ DVStudioSection dvWorkflowStudioSection({
   DVFunctionStore? store,
   DVCodeFunctions? written,
 }) {
-  return DVStudioSection(
+  return DVStudioSection.opening(
     id: side == DVWorkflowSide.backend ? 'functions' : 'frontend',
     label: side.label,
     icon: side == DVWorkflowSide.backend
         ? DVStudioIcons.workflows
         : Icons.touch_app_outlined,
-    build: (BuildContext context) => _DVStudioWorkflowsSection(
+    build: (BuildContext context, DVStudioSelection selection) =>
+        _DVStudioWorkflowsSection(
       key: ValueKey<String>('dv-studio-workflows-${side.name}'),
       palette: palette,
       side: side,
       store: store ?? const DVWorkflowStore(),
       written: written,
+      open: selection.object,
+      onSelect: (String name) => selection.select?.call(name),
     ),
   );
 }
@@ -73,12 +76,21 @@ class _DVStudioWorkflowsSection extends StatefulWidget {
   final DVFunctionStore store;
   final DVCodeFunctions? written;
 
+  /// The function the address names, opened once the names are read: a
+  /// function cannot be found before the list of them is known.
+  final String? open;
+
+  /// Called with the function a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
+
   const _DVStudioWorkflowsSection({
     super.key,
     required this.palette,
     required this.side,
     required this.store,
     this.written,
+    this.open,
+    this.onSelect,
   });
 
   @override
@@ -106,8 +118,23 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadNames());
+    unawaited(_loadNames().then((_) {
+      final String? open = widget.open;
+      if (open != null && mounted) unawaited(_open(open, userChose: false));
+    }));
     unawaited(_loadWritten());
+  }
+
+  @override
+  void didUpdateWidget(_DVStudioWorkflowsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another function. Read again rather than opening
+    // from the list already held: a function deployed since this section
+    // was built is not in it, and the address is not the thing to argue
+    // with.
+    if (widget.open != oldWidget.open && widget.open != null) {
+      unawaited(_loadNames().then((_) => _open(widget.open!, userChose: false)));
+    }
   }
 
   @override
@@ -153,7 +180,11 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     }
   }
 
-  Future<void> _open(String name) async {
+  /// [userChose] says the person asked for this function rather than the
+  /// address naming it, which is the difference between putting the name in
+  /// the address and reading it from there.
+  Future<void> _open(String name, {bool userChose = true}) async {
+    if (userChose) widget.onSelect?.call(name);
     // A load that threw used to leave the panel reading "No function open"
     // beside a list with that very function in it, so a document that will
     // not parse was indistinguishable from a tap that missed. Found while
@@ -174,10 +205,14 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
     }
   }
 
-  void _select(DVWorkflowDocument document) {
+  void _select(DVWorkflowDocument document, {bool deployed = true}) {
     setState(() {
       _controller?.dispose();
-      _controller = DVWorkflowEditorController(document, store: _store);
+      _controller = DVWorkflowEditorController(
+        document,
+        store: _store,
+        deployed: deployed,
+      );
       _problem = null;
       _showingCode = false;
     });
@@ -201,7 +236,7 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
           '${other.side.label.toLowerCase()} function called $name.');
       return;
     }
-    _select(DVWorkflowDocument(name: name, side: widget.side));
+    _select(DVWorkflowDocument(name: name, side: widget.side), deployed: false);
   }
 
   Future<void> _publish() async {
@@ -334,18 +369,13 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 onSubmitted: (_) => unawaited(_create()),
               ),
               const SizedBox(height: DVStudioStyle.space2),
-              GestureDetector(
+              DVStudioControl(
                 key: const ValueKey<String>('dv-studio-function-create'),
+                label: 'Create function',
+                enabled: true,
                 onTap: () => unawaited(_create()),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: DVStudioStyle.control(
-                    'Create function',
-                    enabled: true,
-                    primary: true,
-                    icon: DVStudioIcons.add,
-                  ),
-                ),
+                primary: true,
+                icon: DVStudioIcons.add,
               ),
               // A name the other side has: said here, since with nothing
               // open there is no builder to say it over.
@@ -543,7 +573,19 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
               ),
             ),
           ),
-          if (controller.canUndo) ...<Widget>[
+          // Against what is deployed, not the undo history: the badge
+          // stayed on after a Deploy, and read as a change still to ship.
+          if (!controller.isDeployed) ...<Widget>[
+            const SizedBox(width: DVStudioStyle.space2),
+            // Scaled down rather than overflowing a narrow bar.
+            Flexible(
+              child: FittedBox(
+                fit: .scaleDown,
+                child: DVStudioStyle.badge('Not deployed',
+                    tone: DVStudioStyle.warning),
+              ),
+            ),
+          ] else if (controller.changed) ...<Widget>[
             const SizedBox(width: DVStudioStyle.space2),
             DVStudioStyle.badge('Edited', tone: DVStudioStyle.warning),
           ],
@@ -580,20 +622,13 @@ class _DVStudioWorkflowsSectionState extends State<_DVStudioWorkflowsSection> {
                 const EdgeInsets.symmetric(horizontal: DVStudioStyle.space2),
             color: DVStudioStyle.line,
           ),
-          GestureDetector(
+          DVStudioControl(
             key: const ValueKey<String>('dv-studio-function-deploy'),
+            label: _saving ? 'Deploying…' : 'Deploy',
+            enabled: !_saving,
             onTap: _saving ? null : _publish,
-            child: MouseRegion(
-              cursor: _saving
-                  ? SystemMouseCursors.basic
-                  : SystemMouseCursors.click,
-              child: DVStudioStyle.control(
-                _saving ? 'Deploying…' : 'Deploy',
-                enabled: !_saving,
-                primary: true,
-                icon: DVStudioIcons.publish,
-              ),
-            ),
+            primary: true,
+            icon: DVStudioIcons.publish,
           ),
         ],
       ),

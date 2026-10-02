@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
     show Icon, IconData, Icons, PopupMenuItem, showMenu;
+import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
@@ -151,6 +152,108 @@ class DVStudioEditorController extends ChangeNotifier {
     insert(copy, parent: parent.id, index: index);
   }
 
+  /// What Ctrl+C or Ctrl+X last took, for Ctrl+V: shared by every editor in
+  /// the process, so an element copied on one page pastes onto another.
+  static DVPageNode? _clipboard;
+
+  /// Ctrl+C: [id] is kept to be pasted.
+  void copy(String id) {
+    final DVPageNode? node = _editor.find(id);
+    if (node == null || id == _document.root.id) return;
+    _clipboard = _dvStudioFresh(node);
+  }
+
+  /// Ctrl+X: [id] is kept to be pasted, and taken off the page.
+  void cut(String id) {
+    if (id == _document.root.id) return;
+    copy(id);
+    remove(id);
+  }
+
+  /// Ctrl+V: a copy of what was copied, after the selection -- or into it,
+  /// when the selection holds children -- or at the end of the page.
+  void paste() {
+    final DVPageNode? held = _clipboard;
+    if (held == null) return;
+    final DVPageNode copy = _dvStudioFresh(held);
+    final String? at = _selectedId;
+    final DVPageNode? selected = at == null ? null : _editor.find(at);
+    if (selected == null || selected.id == _document.root.id) {
+      insert(copy, parent: _document.root.id);
+      return;
+    }
+    if (selected.type == 'box') {
+      insert(copy, parent: selected.id);
+      return;
+    }
+    final DVPageNode parent = _dvStudioParentOf(_document.root, selected.id)!;
+    final int index =
+        parent.children.indexWhere((DVPageNode n) => n.id == selected.id) + 1;
+    insert(copy, parent: parent.id, index: index);
+  }
+
+  /// Ctrl+G: [id] goes into a new column where it was, and the column is
+  /// selected -- Figma's group, as a box that lays out what is in it.
+  void group(String id) {
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final DVPageNode box = DVPageNode.box(layout: 'list');
+    insert(box, parent: parent.id, index: index);
+    move(id, parent: box.id);
+    select(box.id);
+  }
+
+  /// Ctrl+Shift+G: what [id] holds takes its place, and [id] goes.
+  void ungroup(String id) {
+    final DVPageNode? box = _editor.find(id);
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (box == null || parent == null || box.type != 'box') return;
+    int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    for (final DVPageNode child in <DVPageNode>[...box.children]) {
+      move(child.id, parent: parent.id, index: index++);
+    }
+    remove(id);
+  }
+
+  /// Ctrl+] and Ctrl+[: [id] one place later or earlier among what it sits
+  /// beside.
+  void moveBy(String id, int delta) {
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final int to = index + delta;
+    if (to < 0 || to >= parent.children.length) return;
+    // The editor takes the index after the element leaves its place.
+    move(id, parent: parent.id, index: to);
+    select(id);
+  }
+
+  /// Tab and Shift+Tab: the next or previous element beside the selection.
+  void selectSibling(int delta) {
+    final String? id = _selectedId;
+    if (id == null) return;
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent == null) return;
+    final int index = parent.children.indexWhere((DVPageNode n) => n.id == id);
+    final int to = (index + delta) % parent.children.length;
+    select(parent.children[to < 0 ? to + parent.children.length : to].id);
+  }
+
+  /// Shift+Enter: what the selection is in.
+  void selectParent() {
+    final String? id = _selectedId;
+    if (id == null) return;
+    final DVPageNode? parent = _dvStudioParentOf(_document.root, id);
+    if (parent != null) select(parent.id);
+  }
+
+  /// Enter: the first thing in the selection.
+  void selectFirstChild() {
+    final DVPageNode? node = selectedNode;
+    if (node != null && node.children.isNotEmpty) select(node.children.first.id);
+  }
+
   void remove(String id) {
     _mutate((DVPageDocumentEditor editor) {
       editor.remove(id);
@@ -248,11 +351,17 @@ class DVStudioPaletteItem {
 /// inspector: the page, a leaf's palette label, or a box's layout label.
 String _dvStudioNodeLabel(DVPageNode node, DVPageDocument document) {
   if (node.id == document.root.id) return 'Page';
+  if (dvStudioComponentOf(node) case final String name) return name;
   final DVStudioLeafType? leaf = dvStudioLeafTypeFor(node);
   return leaf?.label ?? dvStudioLayoutLabel(node.layout);
 }
 
 /// [node] and everything in it, with new ids.
+/// [node] and everything in it, with new ids: a copy that can live in
+/// another document -- a component made from a selection -- without
+/// sharing an id with the original.
+DVPageNode dvStudioFreshCopy(DVPageNode node) => _dvStudioFresh(node);
+
 DVPageNode _dvStudioFresh(DVPageNode node) => DVPageNode(
       type: node.type,
       layout: node.layout,
@@ -311,7 +420,7 @@ String _dvStudioHumanise(String name) {
   if (name.isEmpty) return name;
   final String spaced = name.replaceAllMapped(
     RegExp('([a-z0-9])([A-Z])'),
-    (Match m) => '${m[1]} ${m[2]!.toLowerCase()}',
+    (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}',
   );
   return spaced[0].toUpperCase() + spaced.substring(1);
 }
@@ -388,12 +497,19 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
         <(DVStudioPaletteItem, DVPageNode)>[];
     final List<(DVStudioPaletteItem, DVPageNode)> layouts =
         <(DVStudioPaletteItem, DVPageNode)>[];
+    final List<(DVStudioPaletteItem, DVPageNode)> components =
+        <(DVStudioPaletteItem, DVPageNode)>[];
     for (final DVStudioPaletteItem item in entries) {
       if (query.isNotEmpty && !item.label.toLowerCase().contains(query)) {
         continue;
       }
       final DVPageNode sample = item.create();
-      (sample.type == 'box' ? layouts : basics).add((item, sample));
+      (sample.type == dvStudioComponentType
+              ? components
+              : sample.type == 'box'
+                  ? layouts
+                  : basics)
+          .add((item, sample));
     }
 
     return LayoutBuilder(
@@ -426,7 +542,10 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
                       ..._group('Basics', basics, columns),
                     if (layouts.isNotEmpty)
                       ..._group('Layout', layouts, columns),
-                    if (basics.isEmpty && layouts.isEmpty)
+                    // The project's own, beside the built-in ones.
+                    if (components.isNotEmpty)
+                      ..._group('Components', components, columns),
+                    if (basics.isEmpty && layouts.isEmpty && components.isEmpty)
                       Padding(
                         padding: const .symmetric(vertical: 16),
                         child: DVStudioStyle.caption(
@@ -833,11 +952,33 @@ class DVStudioCanvas extends StatefulWidget {
   /// How far the artboard is magnified, from its top centre.
   final double zoom;
 
+  /// The window's height, with [frame]: the page is laid out in a window
+  /// this tall, inside its layouts, and scrolls inside it as it does on the
+  /// site; null for as tall as the canvas has room for. Without a frame the
+  /// artboard is as tall as the page.
+  final double? viewportHeight;
+
+  /// What the page is drawn inside: the layouts and shell its route draws
+  /// it in, from the application's own view of the route. With one, the
+  /// artboard is the live route with the page's body editable in it.
+  final Widget Function(Widget content)? frame;
+
+  /// The application's look, which the page is drawn in.
+  final DVStudioAppLook? look;
+
+  /// The appearance somebody chose to see it in; null for the one the
+  /// application shows on this device.
+  final Brightness? appearance;
+
   const DVStudioCanvas({
     super.key,
     required this.controller,
     this.viewportWidth,
     this.zoom = 1.0,
+    this.viewportHeight,
+    this.frame,
+    this.look,
+    this.appearance,
   });
 
   @override
@@ -851,6 +992,10 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
   final FocusNode _focus = FocusNode(debugLabel: 'dv-studio-canvas');
   final ScrollController _vertical = ScrollController();
   final ScrollController _horizontal = ScrollController();
+
+  /// The page's body inside its frame: the part of the artboard that takes
+  /// a click.
+  final GlobalKey _content = GlobalKey(debugLabel: 'dv-studio-page-body');
 
   /// The artboard's minimum height, so an empty page is a page to drop onto
   /// rather than a strip.
@@ -892,6 +1037,35 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     c.duplicate(id);
   }
 
+  /// [key] with Ctrl, and with Cmd for a Mac.
+  static Map<ShortcutActivator, VoidCallback> _command(
+    LogicalKeyboardKey key,
+    VoidCallback run, {
+    bool shift = false,
+  }) =>
+      <ShortcutActivator, VoidCallback>{
+        SingleActivator(key, control: true, shift: shift): run,
+        SingleActivator(key, meta: true, shift: shift): run,
+      };
+
+  /// An edit that a read-only editor refuses, refused quietly.
+  void _edit(VoidCallback edit) {
+    try {
+      edit();
+    } on StateError {
+      // Read-only.
+    } on ArgumentError {
+      // Nothing to do it to.
+    }
+  }
+
+  /// [run] on the selected element, when there is one that is not the page.
+  VoidCallback _onSelected(void Function(String id) run) => () {
+        final String? id = widget.controller.selectedId;
+        if (id == null || id == widget.controller.document.root.id) return;
+        _edit(() => run(id));
+      };
+
   void _select(String? id) {
     widget.controller.select(id);
     // Focus follows the click, so Delete and Escape act on the canvas and not
@@ -926,40 +1100,87 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
 
         final DVPageDocument document = widget.controller.document;
         final String route = document.route.isEmpty ? 'Untitled' : document.route;
-        final Widget artboard = SizedBox(
-          key: const ValueKey<String>('dv-studio-artboard'),
-          width: width,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              // The page's own white, in a dark Studio too: the document is
-              // drawn as it ships, and a page styled for a white background
-              // on Studio's dark surface is a page nobody can read.
-              color: const Color(0xFFFFFFFF),
-              borderRadius: .circular(3),
-              boxShadow: DVStudioStyle.shadowLarge,
+        final Widget Function(Widget content)? frame = widget.frame;
+        // Without a set height, as tall as the canvas has room for.
+        final double windowHeight = widget.viewportHeight ??
+            (constraints.maxHeight.isFinite
+                ? math.max(240, constraints.maxHeight - 72) / zoom
+                : 800);
+        final Widget artboard;
+        if (frame != null) {
+          // The live route with the page's body editable in it: the page's
+          // own layouts and shell, the application's theme, a window the
+          // device's size. Laid out as the site lays it out, so what is on
+          // the artboard is what a visitor gets, pixel for pixel.
+          final Widget body = KeyedSubtree(
+            key: _content,
+            child: DVStudioPageBody(
+              scrolls: document.root.properties['scroll'] == true,
+              child: _buildNode(document.root, root: true, framed: true),
             ),
-            child: _buildNode(document.root, root: true),
-          ),
-        );
+          );
+          artboard = DecoratedBox(
+            decoration: const BoxDecoration(boxShadow: DVStudioStyle.shadowLarge),
+            child: DVStudioPageWindow(
+              key: const ValueKey<String>('dv-studio-artboard'),
+              width: width,
+              height: windowHeight,
+              location: document.route.isEmpty ? null : document.route,
+              look: widget.look,
+              appearance: widget.appearance,
+              // Only the page's body takes a click: the site's header and
+              // footer are drawn, not used, so a link in them does not take
+              // Studio away, and a click on them clears the selection.
+              child: _DVStudioBodyHits(content: _content, child: frame(body)),
+            ),
+          );
+        } else {
+          Widget page = _buildNode(document.root, root: true);
+          final DVStudioAppLook? look = widget.look;
+          if (look != null) {
+            page = look.wrap(page,
+                brightness: MediaQuery.platformBrightnessOf(context),
+                chosen: widget.appearance);
+          }
+          artboard = SizedBox(
+            key: const ValueKey<String>('dv-studio-artboard'),
+            width: width,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                // The page's own white, in a dark Studio too: the document is
+                // drawn as it ships, and a page styled for a white background
+                // on Studio's dark surface is a page nobody can read.
+                color: const Color(0xFFFFFFFF),
+                borderRadius: .circular(3),
+                boxShadow: DVStudioStyle.shadowLarge,
+              ),
+              child: page,
+            ),
+          );
+        }
         final Widget scaled = Column(
           mainAxisSize: .min,
           crossAxisAlignment: .start,
           children: <Widget>[
-            Padding(
-              padding: const .only(bottom: 10),
-              child: Row(
-                mainAxisSize: .min,
-                children: <Widget>[
-                  const Icon(DVStudioIcons.page,
-                      size: 13, color: DVStudioStyle.muted),
-                  const SizedBox(width: 5),
-                  DVStudioStyle.caption(
-                    '$route  ·  ${widget.viewportWidth == null ? 'Fill' : '${width.round()} px'}'
-                    '${zoom == 1 ? '' : '  ·  ${(zoom * 100).round()}%'}',
-                  ),
-                ],
+            // Where the page's name and size were, above a bare artboard. In
+            // its frame the page is its own label, and the toolbar says the
+            // rest.
+            if (frame == null)
+              Padding(
+                padding: const .only(bottom: 10),
+                child: Row(
+                  mainAxisSize: .min,
+                  children: <Widget>[
+                    const Icon(DVStudioIcons.page,
+                        size: 13, color: DVStudioStyle.muted),
+                    const SizedBox(width: 5),
+                    DVStudioStyle.caption(
+                      '$route  ·  ${widget.viewportWidth == null ? 'Fill' : '${width.round()} px'}'
+                      '${zoom == 1 ? '' : '  ·  ${(zoom * 100).round()}%'}',
+                    ),
+                  ],
+                ),
               ),
-            ),
             // Laid out at the device's width and drawn at the zoom, inside a
             // box the size of the drawing, so scrolling, centring and hit
             // testing all find the page where it is drawn. Scaling the drawing
@@ -999,6 +1220,27 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
                 _duplicateSelected,
             const SingleActivator(LogicalKeyboardKey.keyD, meta: true):
                 _duplicateSelected,
+            // The rest of what Figma, Bubble and Power Apps have taught
+            // people's fingers, doing the same thing here.
+            ..._command(LogicalKeyboardKey.keyY, widget.controller.redo),
+            ..._command(LogicalKeyboardKey.keyC, _onSelected(widget.controller.copy)),
+            ..._command(LogicalKeyboardKey.keyX, _onSelected(widget.controller.cut)),
+            ..._command(LogicalKeyboardKey.keyV, () => _edit(widget.controller.paste)),
+            ..._command(LogicalKeyboardKey.keyG, _onSelected(widget.controller.group)),
+            ..._command(LogicalKeyboardKey.keyG, _onSelected(widget.controller.ungroup),
+                shift: true),
+            ..._command(LogicalKeyboardKey.bracketRight,
+                _onSelected((String id) => widget.controller.moveBy(id, 1))),
+            ..._command(LogicalKeyboardKey.bracketLeft,
+                _onSelected((String id) => widget.controller.moveBy(id, -1))),
+            const SingleActivator(LogicalKeyboardKey.tab): () =>
+                widget.controller.selectSibling(1),
+            const SingleActivator(LogicalKeyboardKey.tab, shift: true): () =>
+                widget.controller.selectSibling(-1),
+            const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+                widget.controller.selectParent,
+            const SingleActivator(LogicalKeyboardKey.enter):
+                widget.controller.selectFirstChild,
           },
           child: Focus(
             focusNode: _focus,
@@ -1038,7 +1280,7 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     );
   }
 
-  Widget _buildNode(DVPageNode node, {bool root = false}) {
+  Widget _buildNode(DVPageNode node, {bool root = false, bool framed = false}) {
     final DVStudioEditorController controller = widget.controller;
     final bool isContainer = node.type == 'box';
     final String label = _dvStudioNodeLabel(node, controller.document);
@@ -1051,7 +1293,8 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
         : DVPageDocumentRenderer(
             DVPageDocument(route: '', root: node),
           );
-    if (root) {
+    if (root && !framed) {
+      // In its frame the page body is the window's height already.
       // The page is at least the artboard's height, so the whole artboard is
       // somewhere to drop onto and somewhere to click to select the page.
       rendered = ConstrainedBox(
@@ -1082,6 +1325,9 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
       // there is nowhere for it to go.
       return Draggable<String>(
         data: node.id,
+        // The root overlay: in its frame the page is inside a navigator of
+        // its own, clipped to the window, and the chip would be too.
+        rootOverlay: true,
         feedback: _dvStudioDragChip(icon, label),
         childWhenDragging: Opacity(opacity: 0.4, child: selectable),
         child: selectable,
@@ -1116,32 +1362,83 @@ class _DVStudioCanvasState extends State<DVStudioCanvas> {
     );
   }
 
-  Widget _buildContainer(DVPageNode node) {
-    // A stack's children name where they sit, the same way they do when the
-    // page runs. Without it a screen of hand-placed elements is a heap in the
-    // corner of the canvas and a design once it ships.
-    final bool places = node.layout == 'stack';
-    final List<Widget> children = <Widget>[
-      for (final DVPageNode child in node.children)
-        places
-            ? dvStudioPlace(child.properties, _buildNode(child))
-            : _buildNode(child),
-    ];
+  Widget _buildContainer(DVPageNode raw) {
+    // At the width the page is drawn at, as the page resolves it: a box
+    // that changes its padding or its layout on a phone showed its desktop
+    // form on the canvas's phone artboard, because the canvas read the base
+    // properties and the page the resolved ones.
+    return Builder(builder: (BuildContext context) {
+      final DVBreakpoint breakpoint = context.screen.breakpoint;
+      final DVPageNode node = raw.breakpoints.isEmpty
+          ? raw
+          : DVPageNode(
+              id: raw.id,
+              type: raw.type,
+              layout: raw.layout,
+              properties: raw.propertiesFor(breakpoint),
+              action: raw.action,
+              children: raw.children,
+            );
+      // A stack's children name where they sit, the same way they do when
+      // the page runs. Without it a screen of hand-placed elements is a heap
+      // in the corner of the canvas and a design once it ships.
+      final bool places = node.layout == 'stack';
+      final List<Widget> children = <Widget>[
+        for (final DVPageNode child in node.children)
+          places
+              ? dvStudioPlace(child.propertiesFor(breakpoint), _buildNode(child))
+              : _buildNode(child),
+      ];
 
-    // Drawn by the same two functions the page uses. This used to be a third
-    // switch over the layout name and nothing else -- no padding, no
-    // background, no radius, no spacing, no alignment -- so a card was a bare
-    // column while somebody was styling it and a card once the page ran, and
-    // the person styling it could not see what they were doing.
-    //
-    // The styling travels and the behaviour does not: a canvas that navigates
-    // away when somebody taps the card they are editing is worse than one
-    // that shows the card unstyled.
-    return dvStudioStyled(
-      node,
-      dvStudioLayoutBox(node, children),
-      withAction: false,
-    );
+      // Drawn by the same two functions the page uses. This used to be a
+      // third switch over the layout name and nothing else -- no padding, no
+      // background, no radius, no spacing, no alignment -- so a card was a
+      // bare column while somebody was styling it and a card once the page
+      // ran, and the person styling it could not see what they were doing.
+      //
+      // The styling travels and the behaviour does not: a canvas that
+      // navigates away when somebody taps the card they are editing is worse
+      // than one that shows the card unstyled.
+      return dvStudioStyled(
+        node,
+        dvStudioLayoutBox(node, children),
+        withAction: false,
+      );
+    });
+  }
+}
+
+/// Lets a click through only where it lands on the page's body: the frame
+/// around it -- the site's header, navigation and footer -- is drawn and not
+/// used, so none of its links can take Studio away, and a click on it falls
+/// through to the workspace, which clears the selection.
+class _DVStudioBodyHits extends SingleChildRenderObjectWidget {
+  const _DVStudioBodyHits({required this.content, required super.child});
+
+  final GlobalKey content;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _DVStudioRenderBodyHits(content);
+
+  @override
+  void updateRenderObject(
+          BuildContext context, _DVStudioRenderBodyHits renderObject) =>
+      renderObject.content = content;
+}
+
+class _DVStudioRenderBodyHits extends RenderProxyBox {
+  _DVStudioRenderBodyHits(this.content);
+
+  GlobalKey content;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final RenderObject? body = content.currentContext?.findRenderObject();
+    if (body is! RenderBox || !body.attached) return false;
+    final Offset inBody = body.globalToLocal(localToGlobal(position));
+    if (!(Offset.zero & body.size).contains(inBody)) return false;
+    return super.hitTest(result, position: position);
   }
 }
 
@@ -1512,7 +1809,18 @@ const Map<String, String> _dvStudioUnits = <String, String>{
 class DVStudioInspector extends StatelessWidget {
   final DVStudioEditorController controller;
 
-  const DVStudioInspector({super.key, required this.controller});
+  /// Turns the selection into a component; no button without it.
+  final VoidCallback? onMakeComponent;
+
+  /// Opens a component where it is made, from a use of it.
+  final void Function(String name)? onEditComponent;
+
+  const DVStudioInspector({
+    super.key,
+    required this.controller,
+    this.onMakeComponent,
+    this.onEditComponent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1526,6 +1834,17 @@ class DVStudioInspector extends StatelessWidget {
             title: 'Nothing selected',
             message: 'Select an element on the canvas or in Layers to edit '
                 'how it looks and behaves.',
+          );
+        }
+        if (node.type == dvStudioComponentType) {
+          return Column(
+            crossAxisAlignment: .stretch,
+            children: <Widget>[
+              _header(node),
+              Expanded(
+                child: SingleChildScrollView(child: _instanceProps(node)),
+              ),
+            ],
           );
         }
         return Column(
@@ -1592,6 +1911,74 @@ class DVStudioInspector extends StatelessWidget {
     }
   }
 
+  /// A use of a component: the props the component takes, each set for this
+  /// use, and the way to the component itself.
+  Widget _instanceProps(DVPageNode node) {
+    final String name = dvStudioComponentOf(node) ?? '';
+    final DVPageDocument? component =
+        DVPageStore.cached(dvStudioComponentRoute(name));
+    final Map<String, Object?> given = dvStudioInstancePropsOf(node);
+    void set(String prop, Object? value) => _guard(() => controller.setProperty(
+          node.id,
+          'props',
+          <String, Object?>{...given, prop: value},
+        ));
+    return Padding(
+      key: const ValueKey<String>('dv-studio-instance-props'),
+      padding: const .all(16),
+      child: Column(
+        crossAxisAlignment: .stretch,
+        children: <Widget>[
+          DVStudioStyle.caption(component == null
+              ? 'The component $name is not there any more, so nothing is '
+                  'drawn here.'
+              : 'A use of $name. Change its props here; change $name itself '
+                  'to change it on every page.'),
+          const SizedBox(height: 12),
+          if (component != null)
+            for (final DVStudioComponentProp prop
+                in dvStudioComponentPropsOf(component))
+              Padding(
+                padding: const .only(bottom: 8),
+                child: _row(
+                  prop.name,
+                  prop.kind == DVStudioPropKind.action
+                      ? DVStudioTextInput(
+                          key: ValueKey<String>('dv-studio-instance-prop-${prop.name}'),
+                          icon: DVStudioIcons.link,
+                          placeholder: 'Go to a page: /route',
+                          value: '${(given[prop.name] as Map?)?['to'] ?? ''}',
+                          onChanged: (String v) => set(
+                            prop.name,
+                            v.trim().isEmpty
+                                ? null
+                                : <String, Object?>{'type': 'navigate', 'to': v.trim()},
+                          ),
+                        )
+                      : DVStudioTextInput(
+                          key: ValueKey<String>('dv-studio-instance-prop-${prop.name}'),
+                          placeholder: '${prop.value ?? ''}',
+                          value: '${given[prop.name] ?? ''}',
+                          onChanged: (String v) =>
+                              set(prop.name, v.isEmpty ? null : v),
+                        ),
+                ),
+              ),
+          if (onEditComponent != null && component != null) ...<Widget>[
+            const SizedBox(height: 8),
+            DVStudioControl(
+              key: const ValueKey<String>('dv-studio-edit-component'),
+              label: 'Edit $name',
+              enabled: true,
+              onTap: () => onEditComponent!(name),
+              icon: DVStudioIcons.components,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _header(DVPageNode node) {
     final bool isRoot = node.id == controller.document.root.id;
     return Container(
@@ -1631,6 +2018,14 @@ class DVStudioInspector extends StatelessWidget {
               ],
             ),
           ),
+          if (!isRoot && onMakeComponent != null && !controller.readOnly &&
+              node.type != dvStudioComponentType)
+            DVStudioIconButton(
+              key: const ValueKey<String>('dv-studio-make-component'),
+              icon: DVStudioIcons.components,
+              tooltip: 'Make a component from this (Ctrl+Alt+K)',
+              onTap: onMakeComponent,
+            ),
           if (!isRoot)
             DVStudioIconButton(
               icon: DVStudioIcons.delete,
@@ -2251,3 +2646,36 @@ Object? _parseProperty(DVStudioProperty property, String input) {
 /// palette's tap does.
 String dvStudioInsertTarget(DVStudioEditorController controller) =>
     _dvStudioInsertTarget(controller);
+
+/// What a field of an element is called for somebody who has never written
+/// code: the formula bar lists fields by these, where it listed `fontSize`
+/// and `crossAxis`.
+String dvStudioPlainFieldName(String name) =>
+    _dvStudioPlainNames[name] ??
+    _dvStudioLabels[name] ??
+    // `borderTopWidth` reads as "Border top width".
+    name
+        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
+            (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}')
+        .replaceFirstMapped(RegExp('^.'), (Match m) => (m[0] ?? '').toUpperCase());
+
+/// Names that need more than the inspector's label, which is read beside
+/// its group's heading and so can be one word.
+const Map<String, String> _dvStudioPlainNames = <String, String>{
+  'action': 'What a tap does',
+  'fontSize': 'Text size',
+  'fontWeight': 'Text weight',
+  'fontFamily': 'Font',
+  'color': 'Text colour',
+  'letterSpacing': 'Letter spacing',
+  'spacing': 'Gap between items',
+  'mainAxis': 'Spread items',
+  'crossAxis': 'Line items up',
+  'src': 'Picture address',
+  'alt': 'Picture description',
+  'rounded': 'Corner radius',
+  'borderWidth': 'Border width',
+  'borderColor': 'Border colour',
+  'align': 'Position',
+  'clip': 'Clip what overflows',
+};

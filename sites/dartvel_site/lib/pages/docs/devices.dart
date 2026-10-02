@@ -32,8 +32,9 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'desktop and not in a browser.',
               'Before you rely on a feature, check capability. Calling one '
                   'the target lacks is an error that names it.',
-              'Linux binds the most today and iOS the fewest. CI checks every '
-                  'claimed binding against its handler on a real device.',
+              'Linux binds the most today and iOS the fewest. A test checks '
+                  'that every binding a target claims has a handler behind '
+                  'it, and on Android an emulator job checks it again.',
             ]),
             DocsCode('devices-platform'),
             DocsStatus('Platform', missing: <String>[
@@ -49,8 +50,9 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Annotate a widget with @DVHomeWidget and the build adds it to '
                   'the home screen, with a route that opens the app at it.',
-              'Android and iOS widgets are packaged by `dartvel build`. A target '
-                  'with nowhere to put one leaves it out and tells you.',
+              'Android, iOS and macOS widgets are packaged by `dartvel build`. '
+                  'A target with nowhere to put one leaves it out and tells '
+                  'you.',
             ]),
             DocsCode('devices-home-widget'),
             DocsStatus('Home Widgets'),
@@ -66,8 +68,10 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'the target cannot honour.',
               'After the idle warning the session resets: what the policy names '
                   'is cleared, and the app goes home.',
-              'System key combinations that leave the app are blocked on Linux '
-                  'and Android lock task mode. Accessibility keys still work.',
+              'System key combinations that leave the app are blocked on '
+                  'Linux, Windows and macOS, as far as each OS lets an app, '
+                  'and by lock task mode on Android. Accessibility keys still '
+                  'work.',
             ]),
             DocsStatus('Kiosk Mode'),
           ],
@@ -77,7 +81,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           title: 'Open more windows and tabs',
           children: <Widget>[
             Bullets(<String>[
-              'DV.Platform.Window.open opens a page in its own window on Linux, '
+              'DV.Platform.window.open opens a page in its own window on Linux, '
                   'once: opening it again focuses the one that is open. A second '
                   'launch of the app hands its arguments to the first.',
               'Tab workspaces keep tabs in order, let you drag one out into a '
@@ -98,6 +102,9 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'On a foldable the first pane sits on one side of the fold and '
                   'the second on the other, with nothing in the hinge. With no '
                   'fold they sit side by side on a tablet and stack on a phone.',
+              'DVBox.threePane gives a tri-fold one pane per panel. With no '
+                  'fold it is three columns on a desktop, two on a tablet and '
+                  'a stack on a phone.',
               'context.screen.folds lists each fold with where it is and '
                   'whether it hides pixels. posture is book, tabletop or flat.',
               'Android foldables report their folds today. The iPhone Duo is '
@@ -119,6 +126,10 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Native print and file dialogs are bound on Linux first.',
             ]),
             DocsCode('devices-desktop'),
+            DocsNote('Platform access',
+                'Every native feature on this page reaches the device through '
+                '`DV.Platform`. See the platform page for the full member list, '
+                'binding status per platform, and planned capabilities.'),
             DocsStatus('Desktop, Embedded, and Qt-Critical Capabilities'),
           ],
         ),

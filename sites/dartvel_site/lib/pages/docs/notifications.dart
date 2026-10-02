@@ -62,6 +62,14 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
                   'ApnsPushProvider, WebPushProvider or TwilioSmsProvider.',
               'useRoutes tells the service each person\'s address and device '
                   'tokens.',
+              'push tries the native providers first and falls back to Web '
+                  'Push when none is registered or the one that is fails.',
+              'usePreferences reads each person\'s muted channels and quiet '
+                  'hours. Push, web push and SMS are not sent during quiet '
+                  'hours, and email is.',
+              'send returns a DVNotificationDelivery with the outcome of every '
+                  'channel, so a muted or unrouted channel is told apart from '
+                  'one that failed.',
             ]),
           ],
         ),

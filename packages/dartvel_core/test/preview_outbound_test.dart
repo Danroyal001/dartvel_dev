@@ -1,4 +1,4 @@
-// Preview Environments: a preview does not send anything to anybody.
+// Branch deployments: a preview does not send anything to anybody.
 //
 // The hooks are in the paths an application already uses -- DV.Notifications
 // mail, the notification providers, the scheduler -- rather than in a

@@ -50,7 +50,6 @@ Future<Directory> _generate(
     normalizeTrailing: true,
     notFoundRedirect: '',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: loadYaml(auth == null ? '{}' : 'auth:\n  pages: $auth\n') as YamlMap,
   );
@@ -255,5 +254,8 @@ dartvel:
     expect(result.exitCode, isNot(0), reason: '${result.stdout}');
     expect('${result.stdout}${result.stderr}', contains('dartvel.auth.pages.secruity'));
     expect(Directory(p.join(root.path, 'lib', 'dartvel_client')).existsSync(), isFalse);
-  });
+  },
+      // Runs the CLI from source in a new process, so the time is mostly
+      // compiling it: about 30 seconds on a busy host, the default limit.
+      timeout: const Timeout(Duration(minutes: 3)));
 }

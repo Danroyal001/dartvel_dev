@@ -418,6 +418,21 @@ class DoctorCommand extends Command<void> {
     }
   }
 
+  /// Checks for deprecated config keys in the pubspec.
+  void _checkDeprecatedConfigKeys(File pubspec) {
+    try {
+      final Object? loaded = loadYaml(pubspec.readAsStringSync());
+      final Object? dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
+      if (dartvel is YamlMap) {
+        for (final String warning in dvDeprecatedConfigWarnings(dartvel, pubspec.path)) {
+          Logger.log(warning);
+        }
+      }
+    } on Object {
+      // Ignore parse errors; they're reported elsewhere.
+    }
+  }
+
   /// Validates a declared kiosk policy, and says what each target will do
   /// with it.
   ///
@@ -531,6 +546,9 @@ class DoctorCommand extends Command<void> {
     } else {
       Logger.log('[!] Flutter dependency not found in pubspec.yaml');
     }
+
+    // Check for deprecated config keys
+    _checkDeprecatedConfigKeys(pubspec);
 
     // The project's own directories; the defaults only when its config cannot
     // be read, which the lines above have already said.

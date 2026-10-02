@@ -260,7 +260,7 @@ Future<Response> _fromManifest(
 }
 
 /// The page for [path] as three writes, the first before the data: the
-/// rendering is [dvShellFirstChunks]', shared with `dartvel preview`, and
+/// rendering is [dvShellFirstChunks]', shared with `dartvel dev --release`, and
 /// this is the response around it. Null when the shell has no head to split,
 /// and the caller falls back to waiting for the data.
 Response? _shellFirst({

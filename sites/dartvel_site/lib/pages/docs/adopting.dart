@@ -136,13 +136,49 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'native-apps',
+          title: 'Existing native apps (Android, iOS, desktop)',
+          children: <Widget>[
+            DocsText('Dartvel can be embedded into an existing native '
+                'application the same way Flutter supports add-to-app: '
+                'a Dartvel module hosts the screens and backend, and the '
+                'native app hosts it through its embedder.'),
+            Bullets(<String>[
+              'The CLI supports `dartvel init` for native projects that '
+              'already have a build system (Gradle, Xcode, CMake). It writes '
+              'a `dartvel:` block pointing at the existing native source.',
+              'Routing between native screens and Dartvel pages uses '
+              '`dartvelRoutes(at:)` mounted at a prefix the native router '
+              'reserves (e.g. `/app`).',
+              'Shared auth and session pass through the same backend '
+              'functions; the native app calls them through the same '
+              'generated client (`dartvel_client/dartvel_client.dart`).',
+              'Deep links open the native app at the Dartvel page; '
+              'push notifications are delivered through the framework\'s '
+              '`DV.Notifications` service.',
+              'What exists today: `dartvel init` detects native build '
+              'files; the module mount works; the generated backend '
+              'serves the embedded app. What is planned: full add-to-app '
+              'scaffold generation for Kotlin/Java (Android), Swift '
+              '(iOS) and desktop embedder hosts.',
+            ]),
+            DocsStatus('Native App Embedding', missing: <String>[
+              'No full Kotlin/Java, Swift/Objective-C or desktop-native '
+              'scaffold generator yet. The framework supports module '
+              'mounts and shared auth; native-side routing and '
+              'embedding templates are planned.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
             DocsStatus('Adoption', missing: <String>[
               'No bridges between signals and Riverpod providers or streams.',
               'No auth adapters for Firebase Auth or Supabase Auth.',
-              'No mount for Navigator 1.0 or routers other than go_router.',
+              'No mount for routers other than go_router, auto_route and '
+                  'Flutter\'s Navigator.',
             ]),
           ],
         ),

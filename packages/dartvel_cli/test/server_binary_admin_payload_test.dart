@@ -1,10 +1,11 @@
-// What a web-server binary carries of the admin dashboard.
+// What a web-server binary carries of Studio.
 //
 // The binary serves every file under web/ in its pack to anybody who asks,
-// so the dashboard cannot ride in there: it was left out, and so the one
-// file that is the deployment had no admin at all. It goes under admin/,
-// every file marked protected, with the mount it is served at in a section
-// of its own, and web/ carries none of it.
+// so nothing of Studio's may ride in there. Studio's data -- the project graph
+// and each page's structure -- goes under admin/ in the pack, every file
+// protected, with the mount in a section of its own; Studio's code, the parts
+// of the application's deferred Studio library, goes in a section the binary
+// keeps in memory and serves only to a session with the Studio grant.
 //
 // No compiler here: the compile step is handed a stand-in executable that
 // ends the way `dart compile exe` output does, and the payload is read back
@@ -14,6 +15,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dartvel_cli/src/build/admin_mount.dart';
+import 'package:dartvel_cli/src/build/docs_mount.dart';
 import 'package:dartvel_cli/src/build/server_binary.dart';
 import 'package:dartvel_core/binary_payload.dart';
 import 'package:path/path.dart' as p;
@@ -31,6 +33,7 @@ void main() {
   late Directory project;
   late File library;
   late String webRoot;
+  late String studioRoot;
 
   setUp(() {
     project = Directory.systemTemp.createTempSync('dv_server_admin_payload_');
@@ -44,16 +47,16 @@ void main() {
     File(p.join(webRoot, 'index.html'))
       ..createSync(recursive: true)
       ..writeAsStringSync('<html><title>The site</title></html>');
-    for (final String name in <String>[
-      'index.html',
-      'admin.css',
-      'admin.js',
-      'graph.json',
-    ]) {
-      File(p.join(webRoot, '__admin', name))
-        ..createSync(recursive: true)
-        ..writeAsStringSync('studio $name');
-    }
+    File(p.join(webRoot, 'main.dart.js'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('/* public */');
+    studioRoot = p.join(project.path, 'build', 'studio');
+    File(p.join(studioRoot, 'data', 'graph.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('studio graph.json');
+    File(p.join(studioRoot, 'parts', 'main.dart.js_7.part.js'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('/* Studio screens */');
   });
 
   Future<DVBinaryPayload> build({DVAdminMount? admin}) async {
@@ -62,7 +65,8 @@ void main() {
       library: library,
       webRoot: webRoot,
       admin: admin,
-      adminRoot: p.join(webRoot, '__admin'),
+      adminRoot: p.join(studioRoot, 'data'),
+      studioPartsRoot: p.join(studioRoot, 'parts'),
       run: (String executable, List<String> arguments,
           {String? workingDirectory}) async {
         File(arguments[arguments.indexOf('-o') + 1])
@@ -81,7 +85,7 @@ void main() {
     return DVAssetPack.open(payload.path, offset: at.offset, length: at.length)!;
   }
 
-  test('carries the dashboard under admin/, protected, with its mount', () async {
+  test("carries Studio's data under admin/ in the pack, protected, with its mount", () async {
     final DVBinaryPayload payload = await build(
       admin: const DVAdminMount(
           path: '/ops/panel', enabled: true, requiresAuth: true),
@@ -96,8 +100,8 @@ void main() {
       for (final String path in pack.paths)
         if (path.startsWith('admin/')) path.substring(6),
     ];
-    expect(admin, unorderedEquals(<String>['index.html', 'admin.css', 'admin.js', 'graph.json']));
-    expect(utf8.decode(pack.read(pack['admin/index.html']!)), 'studio index.html');
+    expect(admin, <String>['graph.json']);
+    expect(utf8.decode(pack.read(pack['admin/graph.json']!)), 'studio graph.json');
     expect(pack.assets.where((DVPackedAsset a) => a.path.startsWith('admin/')).every((DVPackedAsset a) => a.protected),
         isTrue);
 
@@ -107,7 +111,33 @@ void main() {
         <String, Object?>{'path': '/ops/panel', 'requiresAuth': true});
   });
 
-  test('never puts the dashboard among the web files', () async {
+  test("carries Studio's code in a section of its own, never among the web "
+      'files', () async {
+    final DVBinaryPayload payload = await build(
+      admin: const DVAdminMount(
+          path: '/__studio', enabled: true, requiresAuth: true),
+    );
+
+    expect(dvUnpackFiles(payload.section('studio')).keys,
+        <String>['main.dart.js_7.part.js']);
+    final List<String> web = <String>[
+      for (final String path in packOf(payload).paths)
+        if (path.startsWith('web/')) path.substring(4),
+    ];
+    expect(web, containsAll(<String>['index.html', 'main.dart.js']));
+    expect(web.where((String path) => path.contains('part')), isEmpty);
+  });
+
+  test('keeps Studio\'s code in memory: the binary never writes it to disk',
+      () {
+    expect(dvServerBinaryEntrypoint,
+        contains("dvUnpackFiles(payload.section('studio'))"));
+    expect(dvServerBinaryEntrypoint,
+        isNot(contains("dvExtractFiles(")));
+    expect(dvServerBinaryEntrypoint, contains('studioParts:'));
+  });
+
+  test('never puts Studio among the web files', () async {
     final DVBinaryPayload payload = await build(
       admin: const DVAdminMount(
           path: '/__studio', enabled: true, requiresAuth: false),
@@ -127,6 +157,33 @@ void main() {
       final DVBinaryPayload payload = await build(admin: admin);
       expect(payload.names, isNot(contains('admin.mount')));
       expect(packOf(payload).paths.where((String path) => path.startsWith('admin/')), isEmpty);
+      expect(payload.names, isNot(contains('studio')));
     }
+  });
+
+  test('carries the docs site under docs/ in the pack, protected, with its mount', () async {
+    final String docsRoot = p.join(webRoot, dvDocsPagesDirectory);
+    File(p.join(docsRoot, 'index.html'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('<html><title>Docs</title></html>');
+    final DVServerBinaryResult result = await dvBuildServerBinary(
+      root: project.path,
+      library: library,
+      webRoot: webRoot,
+      docs: const DVDocsMount(path: '/docs', enabled: true, access: DVDocsAccess.studio),
+      docsRoot: docsRoot,
+      run: (String executable, List<String> arguments, {String? workingDirectory}) async {
+        File(arguments[arguments.indexOf('-o') + 1]).writeAsBytesSync(_standInExecutable());
+        return ProcessResult(0, 0, '', '');
+      },
+    );
+    expect(result.ok, isTrue, reason: result.lines.join('\n'));
+    final DVBinaryPayload payload = DVBinaryPayload.read(result.binary!.path)!;
+    expect(payload.names, contains('docs.mount'));
+    expect(payload.names, isNot(contains('docs')));
+    final DVAssetPack pack = packOf(payload);
+    expect(pack['docs/index.html']?.protected, isTrue);
+    // The docs pages are never among the public web files.
+    expect(pack.paths.where((String path) => path.startsWith('web/__docs')), isEmpty);
   });
 }

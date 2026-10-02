@@ -34,33 +34,33 @@ void main() {
 
   Future<DVWindow> open(String path,
           {DVWindowKind kind = DVWindowKind.regular}) =>
-      DV.Platform.Window.open(DVRouteTarget(path),
+      DV.Platform.window.open(DVRouteTarget(path),
           options: DVWindowOptions(kind: kind));
 
   group('which window is main', () {
     test('there is no main window before one is opened', () {
-      expect(DV.Platform.Window.main.value, isNull);
+      expect(DV.Platform.window.main.value, isNull);
     });
 
     test('the first window opened is main', () async {
       final DVWindow first = await open('/a');
-      expect(DV.Platform.Window.main.value, same(first));
+      expect(DV.Platform.window.main.value, same(first));
     });
 
     test('a later window is not', () async {
       final DVWindow first = await open('/a');
       await open('/b');
-      expect(DV.Platform.Window.main.value, same(first));
+      expect(DV.Platform.window.main.value, same(first));
     });
 
     test('an owned window is never main, even if opened first', () async {
       // Owned windows are dialogs and popups. One of them anchoring restore
       // would put a restored workspace inside a dialog.
       await open('/dialog', kind: DVWindowKind.dialog);
-      expect(DV.Platform.Window.main.value, isNull);
+      expect(DV.Platform.window.main.value, isNull);
 
       final DVWindow regular = await open('/a');
-      expect(DV.Platform.Window.main.value, same(regular));
+      expect(DV.Platform.window.main.value, same(regular));
     });
   });
 
@@ -72,7 +72,7 @@ void main() {
 
       await first.close();
 
-      expect(DV.Platform.Window.main.value, same(second),
+      expect(DV.Platform.window.main.value, same(second),
           reason: 'oldest remaining, not newest');
     });
 
@@ -83,13 +83,13 @@ void main() {
 
       await first.close();
 
-      expect(DV.Platform.Window.main.value, same(regular));
+      expect(DV.Platform.window.main.value, same(regular));
     });
 
     test('with nothing left to promote, main goes null', () async {
       final DVWindow only = await open('/a');
       await only.close();
-      expect(DV.Platform.Window.main.value, isNull);
+      expect(DV.Platform.window.main.value, isNull);
     });
 
     test('closing a window that is not main leaves main alone', () async {
@@ -98,7 +98,7 @@ void main() {
 
       await second.close();
 
-      expect(DV.Platform.Window.main.value, same(first));
+      expect(DV.Platform.window.main.value, same(first));
     });
 
     test('main is a signal, so tray code follows the promotion', () async {
@@ -106,9 +106,9 @@ void main() {
       // read it once would keep a handle to a closed window.
       final List<String?> seen = <String?>[];
       void listener() =>
-          seen.add(DV.Platform.Window.main.value?.route.path);
-      DV.Platform.Window.main.addListener(listener);
-      addTearDown(() => DV.Platform.Window.main.removeListener(listener));
+          seen.add(DV.Platform.window.main.value?.route.path);
+      DV.Platform.window.main.addListener(listener);
+      addTearDown(() => DV.Platform.window.main.removeListener(listener));
 
       final DVWindow first = await open('/a');
       await open('/b');
@@ -126,10 +126,10 @@ void main() {
       final DVWindow b = await open('/b');
 
       await a.close();
-      expect(DV.Platform.Window.shouldExit.value, isFalse);
+      expect(DV.Platform.window.shouldExit.value, isFalse);
 
       await b.close();
-      expect(DV.Platform.Window.shouldExit.value, isTrue);
+      expect(DV.Platform.window.shouldExit.value, isTrue);
     });
 
     test('an owned window left open does not keep the process alive',
@@ -143,7 +143,7 @@ void main() {
 
       await a.close();
 
-      expect(DV.Platform.Window.shouldExit.value, isTrue);
+      expect(DV.Platform.window.shouldExit.value, isTrue);
     });
 
     test('mainWindow ends the process when main closes, others or not',
@@ -154,7 +154,7 @@ void main() {
 
       await a.close();
 
-      expect(DV.Platform.Window.shouldExit.value, isTrue);
+      expect(DV.Platform.window.shouldExit.value, isTrue);
     });
 
     test('mainWindow ignores a non-main window closing', () async {
@@ -164,7 +164,7 @@ void main() {
 
       await b.close();
 
-      expect(DV.Platform.Window.shouldExit.value, isFalse);
+      expect(DV.Platform.window.shouldExit.value, isFalse);
     });
 
     test('explicit never exits on a window close', () async {
@@ -175,8 +175,8 @@ void main() {
 
       await a.close();
 
-      expect(DV.Platform.Window.shouldExit.value, isFalse);
-      expect(DV.Platform.Window.all.value, isEmpty);
+      expect(DV.Platform.window.shouldExit.value, isFalse);
+      expect(DV.Platform.window.all.value, isEmpty);
     });
 
     test('a later close does not cancel an exit already decided', () async {
@@ -193,10 +193,10 @@ void main() {
       final DVWindow c = await open('/c');
 
       await a.close();
-      expect(DV.Platform.Window.shouldExit.value, isTrue);
+      expect(DV.Platform.window.shouldExit.value, isTrue);
 
       await c.close();
-      expect(DV.Platform.Window.shouldExit.value, isTrue,
+      expect(DV.Platform.window.shouldExit.value, isTrue,
           reason: 'still exiting; c was not main');
     });
 
@@ -207,10 +207,10 @@ void main() {
       DVWindowManager.exitPolicy = DVWindowExitPolicy.lastWindow;
       final DVWindow a = await open('/a');
       await a.close();
-      expect(DV.Platform.Window.shouldExit.value, isTrue);
+      expect(DV.Platform.window.shouldExit.value, isTrue);
 
       await open('/b');
-      expect(DV.Platform.Window.shouldExit.value, isFalse);
+      expect(DV.Platform.window.shouldExit.value, isFalse);
     });
 
     test('the default is lastWindow', () {
@@ -222,7 +222,7 @@ void main() {
       DVWindowManager.exitPolicy = DVWindowExitPolicy.explicit;
       DVWindowManager.reset();
       expect(DVWindowManager.exitPolicy, DVWindowExitPolicy.lastWindow);
-      expect(DV.Platform.Window.shouldExit.value, isFalse);
+      expect(DV.Platform.window.shouldExit.value, isFalse);
     });
   });
 }

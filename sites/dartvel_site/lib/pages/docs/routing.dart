@@ -126,16 +126,25 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'Tab, Enter and middle-click behave like a web link.',
               'The target page starts loading after 300 ms on screen.',
-              'Hover, or long press on a phone, shows a live preview of the '
-                  'page after 550 ms.',
+              'A pointer resting on the link for 900 ms, or a long press on '
+                  'a phone, shows a live preview of the page.',
             ]),
             DocsSubheading('Choose when it preloads and previews'),
             DocsCode('routing-navlink-options'),
             Bullets(<String>[
               'DVLinkPreload: none, hover, visible (the default) or immediate.',
-              'DVLinkPreview: auto (the default) or none.',
+              'DVLinkPreview: auto (the default), none, or widget(child).',
+              'Tap or scroll outside a preview to close it. Back closes the '
+                  'preview before leaving the page.',
               'DVNavLink.external opens another site and never preloads.',
             ]),
+            DocsSubheading('Show your own preview'),
+            DocsCode('routing-navlink-custom'),
+            DocsText('A custom preview replaces the destination page with your '
+                'widget, including its buttons and scrolling. It gets at most '
+                '340 × 240 logical pixels, reduced to fit the safe screen area '
+                'and keyboard. Use normal constrained layouts inside it. '
+                'It does not need a registered destination preview.'),
             DocsNote('Keep GlobalKeys inside the page',
                 'A preview builds a second live copy of the target page. Keys '
                 'shared by the whole program cannot be in two places, so create '
@@ -200,7 +209,10 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
               '  notFoundRedirect: /',
             ]),
             Bullets(<String>[
-              'For a page of your own, put one at the route you redirect to.',
+              'It lives at /404. Put a page of your own there and yours is '
+                  'used instead.',
+              'For a page of your own anywhere else, put one at the route you '
+                  'redirect to.',
               'On a static host, `dartvel build web` also writes 404/index.html '
                   'for paths the app never loads.',
               'See Static web hosting for the Apache rules.',
@@ -228,11 +240,19 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsText('A _layout.dart that extends DartvelTabsLayout makes its '
                 'folder a set of tabs. A detail page is pushed inside its tab, '
                 'and back pops inside the tab on screen.'),
-            DocsSubheading('Mount into your GoRouter'),
+            DocsSubheading('Mount into the router you already have'),
             DocsText('dartvelRoutes(at: \'/app\') returns every Dartvel route '
                 'under a prefix for your own GoRouter. DV.Navigation and '
                 'DVNavLink place Dartvel targets under it and leave your paths '
                 'alone.'),
+            DocsText('On auto_route, dartvelAutoRoutes(at: \'/app\') goes in '
+                'your routes list. On Flutter\'s Navigator 1.0, '
+                'dartvelOnGenerateRoute(settings, at: \'/app\') goes in '
+                'onGenerateRoute, and on Navigator 2.0 dartvelPageFor(uri, at: '
+                '\'/app\') goes in your pages. Dartvel\'s pages then run in a '
+                'router of their own with their guards, and back goes through '
+                'Dartvel\'s stack first. `dartvel init` says which router an '
+                'app uses and how to mount into it.'),
             UpstreamCredit('go_router', lead: 'The generated router is built on'),
             DocsSubheading('Deep links'),
             DocsText('List your domains under dartvel.deepLinks in '
@@ -248,7 +268,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Pages'),
             DocsStatus('Routing', missing: <String>[
               'Typed DVRoutes targets for routes inside DVGoRoutes.',
-              'A prefix-mounted navigator for apps that do not use go_router.',
+              'Routers other than go_router, auto_route and Flutter\'s '
+                  'Navigator.',
             ]),
           ],
         ),

@@ -5,6 +5,125 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## Unreleased
+
+- Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
+  cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
+  customer's current subscription.
+- Every form is now a keyboard form with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region, written under the field it names, and given the focus.
+- `DVVisibilityToggle` (sealed: `eye`, `none`, `custom(builder)`) for password/sensitive field visibility toggles. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it.
+
+## 0.10.0 — 2026-10-02
+
+Packages: dartvel_core, dartvel_shelf, dartvel_flutter, dartvel_cli and
+dartvel_dev 0.10.0; dartvel_generator 1.4.3 (constraint only).
+
+### Highlights
+
+- **Studio is part of the application** (details below), and it passes the
+  browser check on a real web-server build: sign-in by keyboard, every screen
+  server-rendered with its own address, back and forward, deep links, Ctrl+F,
+  text selection and copy, Tab order, screen-reader labels, Enter submits the
+  sign-in, and no page errors.
+- **Typing keys reach text fields on every Dartvel page.** Space, Enter, the
+  arrows, Home and End were taken by the page before a focused field saw them,
+  so Enter did not submit forms. Fixed in `dartvel_flutter`.
+- **Studio:** reusable components in free Studio with an Insert panel, the
+  canvas draws a page exactly as the site does, the app's own splash while
+  Studio loads, Figma/Bubble/Power Apps keyboard shortcuts, and syncing
+  Studio's changes to the repository (file writes in `dartvel dev`, bundled in
+  builds, GitHub pull request or push).
+- **Sensitive model fields are write-only inputs**, like a password field, in
+  `Model.Form()` and Studio's record form.
+- **Dartvel Preview**, the app that opens a `dartvel dev` project on a device,
+  first slice; `dartvel preview` folds into `dartvel dev --release` and
+  `dartvel deploy --preview`.
+- **`@DVBackendFunction(aiTool: DVAITool(...))`** makes a backend function an
+  AI tool without exposing every backend function.
+- **Keyboard shortcuts** (`DVShortcutScope`) and interactive link previews.
+- Docs: a `/docs/platform` page for `DV.Platform`, adopting Dartvel in an
+  existing native app, and the accepted Server State (`initServerState`)
+  design in the spec.
+
+### Deprecated (no breakage)
+
+- `dartvel.webPrerender` is ignored with a warning; it never did anything.
+- `DV.Platform`'s capitalised members (`Window`, `Camera`, `DeepLinking`, ...)
+  are `@Deprecated` aliases of the lowerCamel ones (`window`, `camera`,
+  `deepLinks`, ...) for one release. `Notifications` and `notifications` are
+  different members and both stay.
+- `dartvel preview` forwards to the new commands for one release.
+
+### Breaking
+
+- `dvAdminAsset`/`DVAdminAsset` and the separately built Studio
+  (`dvBuildStudio`) are removed (see Removed below).
+
+### Details
+
+- `dartvel dev --release` serves an existing production web build locally,
+  with `--host` and `--port`. It uses the same route renderer as web-server.
+- Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,
+  `--list`, `--open`, `--logs`, `--destroy` and `--sweep`. Log retrieval remains
+  unsupported; `--logs [--follow]` reports that limitation.
+- `dartvel preview` is hidden from help and forwards to the new commands
+  with a deprecation message for one release.
+
+**Security: Studio is part of the application, guarded by the server.**
+Studio was a second Flutter application, built on its own and served as
+files under its mount, and serving files by path is how
+`/__studio/index.html` reached a signed-out visitor with the whole Studio UI.
+Studio's screens are now routes of the project's own app, at `<mount>` and
+`<mount>/login`, and nothing under the mount is ever a file.
+
+### Changed
+
+- **Studio's pages are the application's pages.** The web-server binary (and
+  `dartvel preview`) answers `<mount>` and `<mount>/login` with the
+  application's own shell, rendered for that route by `dvRenderRoutePage`,
+  the function every page is rendered by, with `noindex, nofollow`,
+  `no-store` and no framing. `<mount>` goes only to a caller with the Studio
+  grant; everybody else is sent to `<mount>/login`, and the app checks the
+  grant again on every visit before it builds any Studio section.
+- **Studio's code is a deferred library of the application.** Its screens
+  and its sign-in are two deferred libraries, so a public page loads none of
+  Studio. `dartvel build web-server` compiles Studio in with the
+  `dartvel.studio` define, takes the parts only Studio's screens load out of
+  the web root, and the binary keeps them in memory and hands them only to a
+  session with the Studio grant; to anybody else they are a path that does
+  not exist. A build whose Studio code would land in a public file is
+  stopped.
+- **No Studio where nothing can guard it.** An application with
+  `dartvel.admin.enabled: false` has no Studio route generated at all, and a
+  static `dartvel build web` never carries Studio: it has no server to guard
+  it with.
+- **`dartvel dev` runs Studio in the app.** A web app is run with Studio's
+  routes, Flutter's development server passes `<mount>/api/` to the
+  development backend, and the grant link opens on the app itself.
+- Studio reads the project graph through `<mount>/api/graph`, behind the
+  grant, instead of as a file.
+- **Studio says who is signed in, and signs out properly.** The foot of
+  Studio's rail shows the signed-in account and a **Sign out** control;
+  signing out ends the session on the server (`<mount>/api/auth/sign-out`)
+  and clears the cookie, not only this browser's copy.
+- The first-run setup is the third Studio route, `<mount>/setup`, rendered
+  from the application's shell like the sign-in; a documentation site with
+  `access: studio` sends a signed-out reader to Studio's sign-in, which now
+  brings them back to the page they wanted.
+- **Cost to public pages:** a public page's JavaScript grows by about 1.2%
+  (around 12 KB gzipped on dartvel.dev; `main.dart.js` +40 KB raw). dart2js
+  keeps a Flutter framework method in `main.dart.js` once any code calls it
+  on a class the page already builds, even when only Studio's deferred code
+  does, and Studio's route registration itself lives there. Studio's own
+  screens (about 360 KB) are in no public file. Accepted for this release.
+
+### Removed
+
+- The separately built Studio (`dvBuildStudio`), the static admin dashboard
+  it replaced, and `dvAdminAsset`/`DVAdminAsset`, which resolved a request
+  under the mount to a file on disk (the documentation site, a separate
+  compiled app, keeps its own file resolution).
+
 ## 0.9.3 — 2026-09-29
 
 **Studio lists every page the application has, and data models can be
@@ -214,7 +333,7 @@ changelogs list every change; the ones below need action.
 
 ### Breaking
 
-- **`DV.Platform.Tray.show(icon:)` takes a generated asset.** The icon is a
+- **`DV.Platform.tray.show(icon:)` takes a generated asset.** The icon is a
   `DVAssetRef`, the `DVAsset` value `dartvel routes` generates, instead of a
   path string, so a renamed or unlisted icon is a compile error rather than an
   empty tray slot. Rewrite `icon: 'assets/tray.png'` as `icon: DVAsset.tray`.
@@ -675,9 +794,9 @@ clean checkout could actually do.
 - **`DVImage`.** The spec declares `final DVImage? avatar` on a model; the type
   did not exist. It is a value so models can serialize it, with `DVImageView`
   as the rendering half, and `fromJson` accepts a bare URL string.
-- **Platform device namespaces.** `DV.Platform.Location`, `.NFC`, `.Camera` and
+- **Platform device namespaces.** `DV.Platform.location`, `.NFC`, `.Camera` and
   the rest now carry the names the spec uses, each with a top-level `DV.X`
-  proxy. `DV.Platform.FileStorage` and `.Notifications` return the `DV.*`
+  proxy. `DV.Platform.fileStorage` and `.Notifications` return the `DV.*`
   surfaces rather than a parallel platform-local copy.
 - **Generated jobs.** `@DVJob` was an annotation nothing read. The generator now
   emits the public payload with `fromJson`/`toJson`, a `dispatch()` carrying the

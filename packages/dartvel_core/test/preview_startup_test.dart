@@ -1,4 +1,4 @@
-// Preview Environments, started: what a preview process installs before it
+// Branch deployments, started: what a preview process installs before it
 // serves anything, and that nothing at all is installed in any other
 // environment.
 //

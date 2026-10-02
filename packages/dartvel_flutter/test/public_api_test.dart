@@ -221,17 +221,17 @@ void main() {
   test('platform device namespaces carry the names the spec uses', () {
     // NEW_SPEC.md lists each of these as `DV.Platform.X` with a `DV.X` proxy.
     // Application code written against the spec has to compile.
-    expect(DV.Platform.Camera, isA<DVCamera>());
-    expect(DV.Platform.Location, isA<DVLocation>());
-    expect(DV.Platform.Bluetooth, isA<DVBluetooth>());
-    expect(DV.Platform.NFC, isA<DVNfc>());
-    expect(DV.Platform.Clipboard, isA<DVClipboard>());
-    expect(DV.Platform.Share, isA<DVShare>());
-    expect(DV.Platform.Sensors, isA<DVSensors>());
-    expect(DV.Platform.Biometrics, isA<DVBiometrics>());
-    expect(DV.Platform.DeepLinking, isA<DVDeepLinks>());
-    expect(DV.Platform.Haptics, isA<DVHaptics>());
-    expect(DV.Platform.Contacts, isA<DVContacts>());
+    expect(DV.Platform.camera, isA<DVCamera>());
+    expect(DV.Platform.location, isA<DVLocation>());
+    expect(DV.Platform.bluetooth, isA<DVBluetooth>());
+    expect(DV.Platform.nfc, isA<DVNfc>());
+    expect(DV.Platform.clipboard, isA<DVClipboard>());
+    expect(DV.Platform.share, isA<DVShare>());
+    expect(DV.Platform.sensors, isA<DVSensors>());
+    expect(DV.Platform.biometrics, isA<DVBiometrics>());
+    expect(DV.Platform.deepLinks, isA<DVDeepLinks>());
+    expect(DV.Platform.haptics, isA<DVHaptics>());
+    expect(DV.Platform.contacts, isA<DVContacts>());
 
     expect(DV.Location, isA<DVLocation>());
     expect(DV.Bluetooth, isA<DVBluetooth>());
@@ -265,8 +265,8 @@ void main() {
   test('platform storage and notifications proxy the DV facades', () {
     // The spec calls these proxies, not separate platform-local APIs, so they
     // must be the same surface rather than a parallel one.
-    expect(DV.Platform.FileStorage, isA<DVStorage>());
-    expect(DV.Platform.FileStorage.runtimeType, DV.FileStorage.runtimeType);
+    expect(DV.Platform.fileStorage, isA<DVStorage>());
+    expect(DV.Platform.fileStorage.runtimeType, DV.FileStorage.runtimeType);
     expect(
       DV.Platform.Notifications.runtimeType,
       DV.Notifications.runtimeType,

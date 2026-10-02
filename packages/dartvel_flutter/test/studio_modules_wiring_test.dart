@@ -34,10 +34,10 @@ const Map<String, Object?> _graph = <String, Object?>{
   ],
 };
 
-/// A transport that answers graph.json the way the server does: the body is
+/// A transport that answers api/graph the way the server does: the body is
 /// decoded JSON, and every other path is a 404.
 DVStudioTransport get _transport =>
-    (String method, String path, {Object? body}) async => path == 'graph.json'
+    (String method, String path, {Object? body}) async => path == 'api/graph'
         ? DVStudioReply(200, jsonDecode(jsonEncode(_graph)))
         : const DVStudioReply(404, <String, Object?>{});
 

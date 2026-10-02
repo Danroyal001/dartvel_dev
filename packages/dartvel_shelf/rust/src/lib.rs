@@ -667,13 +667,16 @@ fn stream_ack(req_id: u64, server_id: Option<u64>) {
 }
 
 fn ws_wakeup(req_id: u64, server_id: Option<u64>) {
-    let cb = server_id
-        .and_then(|id| {
-            SERVER_WS_WAKEUP_HANDLERS
-                .get()
-                .and_then(|handlers| safe_lock(handlers).get(&id).copied())
-        })
-        .or_else(|| DART_WS_WAKEUP_HANDLER.get().and_then(|slot| *safe_lock(slot)));
+    // A connection that belongs to a server only ever wakes that server's
+    // isolate. Once the server has stopped its entry is gone and so is the
+    // callback: falling back to the process-wide one could call a callback
+    // that isolate has already closed.
+    let cb = match server_id {
+        Some(id) => SERVER_WS_WAKEUP_HANDLERS
+            .get()
+            .and_then(|handlers| safe_lock(handlers).get(&id).copied()),
+        None => DART_WS_WAKEUP_HANDLER.get().and_then(|slot| *safe_lock(slot)),
+    };
     if let Some(cb) = cb {
         (cb)(req_id);
     }
@@ -2974,28 +2977,115 @@ mod body_stream_tests {
 // WebSocket messages cross the ABI through bounded queues, never a callback
 // that could outlive an isolate. Dart pulls only while its stream is resumed.
 use axum::extract::{FromRequestParts, ws::{WebSocketUpgrade, WebSocket, Message, CloseFrame}};
-use futures_util::SinkExt;
+
+/// The outgoing half of one connection, shared by the Dart thread and the
+/// connection's writer task. Whoever holds the lock may write: the Dart thread
+/// writes straight to the socket when nothing is queued or in flight, so a
+/// reply costs one write rather than a hop to a Tokio worker and back. When
+/// the socket cannot take more, the writer task owns the rest and is woken by
+/// the socket, not polled.
+struct WsOut {
+    sink: Option<futures_util::stream::SplitSink<WebSocket, Message>>,
+    queue: std::collections::VecDeque<Message>,
+    /// Frames handed to the sink that have not been flushed yet.
+    unflushed: bool,
+    /// The writer task is waiting on the socket with its own waker. Nobody
+    /// else may poll the sink then, or that waker would be replaced.
+    writer_owns: bool,
+    /// A close frame has been accepted; nothing more is sent after it.
+    closing: bool,
+    failed: bool,
+}
+
+/// Outgoing frames the Dart side may queue before it is asked to wait.
+const WS_QUEUE: usize = 64;
+
+struct WsShared {
+    out: Mutex<WsOut>,
+    /// Wakes the writer task when frames are queued it must send.
+    notify: Notify,
+    /// The native task has ended (or never started); nothing more arrives.
+    ended: AtomicBool,
+    /// Dart disposed of the connection; the task should end.
+    disposed: AtomicBool,
+    /// Dart was refused for a full queue and waits to hear there is room.
+    backpressure: AtomicBool,
+    /// A wakeup has been posted to Dart that it has not drained yet.
+    wake_pending: AtomicBool,
+    pongs: AtomicU64,
+}
+
+enum WsDrive { Idle, Closed }
+
+/// Sends queued frames and flushes. Pending leaves the waker of [cx] with the
+/// socket; the caller decides whose waker that may be.
+fn ws_drive(out: &mut WsOut, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<WsDrive, ()>> {
+    use futures_util::SinkExt as _;
+    use std::task::Poll;
+    if out.failed { return Poll::Ready(Err(())); }
+    let WsOut { sink, queue, unflushed, closing, failed, .. } = out;
+    let Some(sink) = sink.as_mut() else { return Poll::Ready(Ok(WsDrive::Idle)); };
+    while !queue.is_empty() && !*closing {
+        match sink.poll_ready_unpin(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(_)) => { *failed = true; return Poll::Ready(Err(())); }
+            Poll::Ready(Ok(())) => {}
+        }
+        let message = queue.pop_front().expect("queue is not empty");
+        let close = matches!(message, Message::Close(_));
+        if sink.start_send_unpin(message).is_err() { *failed = true; return Poll::Ready(Err(())); }
+        *unflushed = true;
+        if close { *closing = true; queue.clear(); }
+    }
+    if *unflushed {
+        match sink.poll_flush_unpin(cx) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(_)) => { *failed = true; return Poll::Ready(Err(())); }
+            Poll::Ready(Ok(())) => *unflushed = false,
+        }
+    }
+    Poll::Ready(Ok(if *closing { WsDrive::Closed } else { WsDrive::Idle }))
+}
 
 struct WsBridge {
     server: Option<u64>,
     max: usize,
-    pongs: Arc<AtomicU64>,
+    shared: Arc<WsShared>,
     incoming: Mutex<mpsc::Receiver<Message>>,
-    outgoing: mpsc::Sender<Message>,
-    backpressure: Arc<AtomicBool>,
+}
+impl Drop for WsBridge {
+    // Disposed by Dart or by its server stopping: the task ends with it.
+    fn drop(&mut self) {
+        self.shared.disposed.store(true, Ordering::Release);
+        self.shared.notify.notify_one();
+    }
 }
 struct WsPending {
     id: u64,
     server: Option<u64>,
-    pongs: Arc<AtomicU64>,
     max: usize,
     protocol: String,
     incoming: mpsc::Sender<Message>,
-    outgoing: mpsc::Receiver<Message>,
-    backpressure: Arc<AtomicBool>,
+    shared: Arc<WsShared>,
+}
+impl Drop for WsPending {
+    // An upgrade that never completes (or a task that has finished) leaves
+    // the Dart side reading "closed" rather than waiting for ever.
+    fn drop(&mut self) {
+        // Only an upgrade already bound to a server has a Dart side to tell;
+        // before that, Dart disposes of the bridge itself.
+        if !self.shared.ended.swap(true, Ordering::AcqRel) && self.server.is_some() {
+            ws_wakeup(self.id, self.server);
+        }
+    }
 }
 static WS_BRIDGES: OnceCell<Mutex<HashMap<u64, WsBridge>>> = OnceCell::new();
 static WS_PENDING: OnceCell<Mutex<HashMap<u64, WsPending>>> = OnceCell::new();
+
+fn ws_shared(id: u64) -> Option<(Arc<WsShared>, usize)> {
+    safe_lock(WS_BRIDGES.get_or_init(Default::default)).get(&id)
+        .map(|bridge| (bridge.shared.clone(), bridge.max))
+}
 
 /// Creates bounded queues before completing an HTTP upgrade response.
 #[no_mangle]
@@ -3004,17 +3094,24 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
     let protocol = if protocol.len == 0 { String::new() } else {
         String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(protocol.ptr, protocol.len) }).into_owned()
     };
-    let pongs = Arc::new(AtomicU64::new(0));
-    let backpressure = Arc::new(AtomicBool::new(false));
+    let shared = Arc::new(WsShared {
+        out: Mutex::new(WsOut {
+            sink: None, queue: std::collections::VecDeque::with_capacity(8), unflushed: false,
+            writer_owns: false, closing: false, failed: false,
+        }),
+        notify: Notify::new(),
+        ended: AtomicBool::new(false),
+        disposed: AtomicBool::new(false),
+        backpressure: AtomicBool::new(false),
+        wake_pending: AtomicBool::new(false),
+        pongs: AtomicU64::new(0),
+    });
     let (in_tx, in_rx) = mpsc::channel(64);
-    let (out_tx, out_rx) = mpsc::channel(64);
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).insert(id, WsBridge {
-        server: None, max, pongs: pongs.clone(), incoming: Mutex::new(in_rx), outgoing: out_tx,
-        backpressure: backpressure.clone(),
+        server: None, max, shared: shared.clone(), incoming: Mutex::new(in_rx),
     });
     safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
-        id, server: None, max, protocol, pongs, incoming: in_tx, outgoing: out_rx,
-        backpressure,
+        id, server: None, max, protocol, incoming: in_tx, shared,
     });
     0
 }
@@ -3022,84 +3119,101 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
 /// The native task has ended; remaining received messages are bounded.
 #[no_mangle]
 pub extern "C" fn aw_ws_closed(id: u64) -> i32 {
-    safe_lock(WS_BRIDGES.get_or_init(Default::default)).get(&id)
-        .map_or(1, |bridge| if bridge.outgoing.is_closed() { 1 } else { 0 })
+    ws_shared(id).map_or(1, |(shared, _)| if shared.ended.load(Ordering::Acquire) { 1 } else { 0 })
 }
 
 /// Heartbeat acknowledgements do not depend on a Dart data-stream listener.
 #[no_mangle]
 pub extern "C" fn aw_ws_pong_count(id: u64) -> u64 {
-    safe_lock(WS_BRIDGES.get_or_init(Default::default)).get(&id)
-        .map_or(0, |bridge| bridge.pongs.load(Ordering::Relaxed))
+    ws_shared(id).map_or(0, |(shared, _)| shared.pongs.load(Ordering::Relaxed))
 }
 
+fn ws_message(kind: i32, data: &FfiBuf, max: usize) -> Option<Message> {
+    if (matches!(kind, 1 | 2) && data.len > max) || (matches!(kind, 8 | 9 | 10) && data.len > 125) { return None; }
+    let bytes = if data.len == 0 { Vec::new() } else {
+        unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
+    };
+    Some(match kind {
+        1 => Message::Text(String::from_utf8(bytes).ok()?),
+        2 => Message::Binary(bytes),
+        9 => Message::Ping(bytes),
+        10 => Message::Pong(bytes),
+        8 => if bytes.len() < 2 { Message::Close(None) } else {
+            let code = u16::from_be_bytes([bytes[0], bytes[1]]);
+            let reason = String::from_utf8(bytes[2..].to_vec()).ok()?;
+            Message::Close(Some(CloseFrame { code, reason: reason.into() }))
+        },
+        _ => return None,
+    })
+}
+
+/// Queues one frame without sending it; aw_ws_flush sends what is queued.
+/// 0 accepted, 1 backpressure (a wakeup follows when there is room),
+/// -1 closed/invalid. Never blocks the Dart thread.
+#[no_mangle]
+pub extern "C" fn aw_ws_queue(id: u64, kind: i32, data: FfiBuf) -> i32 {
+    let Some((shared, max)) = ws_shared(id) else { return -1; };
+    let Some(message) = ws_message(kind, &data, max) else { return -1; };
+    if shared.ended.load(Ordering::Acquire) { return -1; }
+    let mut out = safe_lock(&shared.out);
+    if out.failed || out.closing { return -1; }
+    if out.queue.len() >= WS_QUEUE {
+        shared.backpressure.store(true, Ordering::Release);
+        return 1;
+    }
+    out.queue.push_back(message);
+    0
+}
+
+/// Sends what is queued. When the socket takes it all at once, it is written
+/// from this thread; otherwise the connection's writer task finishes it.
+/// 0 everything was written, 1 the writer task has the rest, -1 closed.
+#[no_mangle]
+pub extern "C" fn aw_ws_flush(id: u64) -> i32 {
+    let Some((shared, _)) = ws_shared(id) else { return -1; };
+    ws_flush_shared(&shared)
+}
+
+fn ws_flush_shared(shared: &WsShared) -> i32 {
+    if shared.ended.load(Ordering::Acquire) { return -1; }
+    let mut out = safe_lock(&shared.out);
+    if out.writer_owns || out.sink.is_none() {
+        // The writer will send it: it is waiting on the socket already, or
+        // the upgrade has not finished and it starts by draining the queue.
+        return if out.failed { -1 } else { 1 };
+    }
+    if out.queue.is_empty() && !out.unflushed { return 0; }
+    let mut cx = std::task::Context::from_waker(futures_util::task::noop_waker_ref());
+    match ws_drive(&mut out, &mut cx) {
+        std::task::Poll::Ready(Ok(WsDrive::Idle)) => 0,
+        std::task::Poll::Ready(Ok(WsDrive::Closed)) => {
+            drop(out);
+            shared.notify.notify_one();
+            0
+        }
+        std::task::Poll::Ready(Err(())) => {
+            drop(out);
+            shared.notify.notify_one();
+            -1
+        }
+        std::task::Poll::Pending => {
+            // The no-op waker must not be the one left with the socket: the
+            // writer task polls again with its own before anything else can.
+            out.writer_owns = true;
+            drop(out);
+            shared.notify.notify_one();
+            1
+        }
+    }
+}
+
+/// Queues and sends one frame: aw_ws_queue then aw_ws_flush.
 /// 0 accepted, 1 backpressure, -1 closed/invalid. Never blocks the Dart thread.
 #[no_mangle]
 pub extern "C" fn aw_ws_send(id: u64, kind: i32, data: FfiBuf) -> i32 {
-    let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
-    let Some(bridge) = bridges.get(&id) else { return -1; };
-    if (matches!(kind, 1 | 2) && data.len > bridge.max) || (matches!(kind, 8 | 9 | 10) && data.len > 125) { return -1; }
-    let message = match kind {
-        1 => {
-            let bytes = if data.len == 0 {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-            };
-            // String::from_utf8 takes ownership of the bytes, avoiding an extra copy.
-            match String::from_utf8(bytes) {
-                Ok(s) => Message::Text(s),
-                Err(_) => return -1,
-            }
-        }
-        2 => {
-            let bytes = if data.len == 0 {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-            };
-            Message::Binary(bytes)
-        }
-        9 => {
-            let bytes = if data.len == 0 {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-            };
-            Message::Ping(bytes)
-        }
-        10 => {
-            let bytes = if data.len == 0 {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-            };
-            Message::Pong(bytes)
-        }
-        8 => {
-            let bytes = if data.len == 0 {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(data.ptr, data.len) }.to_vec()
-            };
-            if bytes.len() < 2 {
-                Message::Close(None)
-            } else {
-                let code = u16::from_be_bytes([bytes[0], bytes[1]]);
-                let Ok(reason) = String::from_utf8(bytes[2..].to_vec()) else { return -1; };
-                Message::Close(Some(CloseFrame { code, reason: reason.into() }))
-            }
-        }
-        _ => return -1,
-    };
-    match bridge.outgoing.try_send(message) {
-        Ok(()) => 0,
-        Err(mpsc::error::TrySendError::Full(_)) => {
-            bridge.backpressure.store(true, Ordering::Release);
-            1
-        }
-        Err(_) => -1,
-    }
+    let queued = aw_ws_queue(id, kind, data);
+    if queued != 0 { return queued; }
+    if aw_ws_flush(id) < 0 { -1 } else { 0 }
 }
 
 #[repr(C)]
@@ -3111,7 +3225,14 @@ pub extern "C" fn aw_ws_receive(id: u64) -> FfiWsFrame {
     let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
     let empty = |kind| FfiWsFrame { kind, data: FfiBuf { ptr: std::ptr::null(), len: 0 } };
     let Some(bridge) = bridges.get(&id) else { return empty(-1); };
-    let result = safe_lock(&bridge.incoming).try_recv();
+    let mut incoming = safe_lock(&bridge.incoming);
+    let mut result = incoming.try_recv();
+    if matches!(result, Err(mpsc::error::TryRecvError::Empty)) {
+        // Drained: the next frame posts a wakeup again. Checked once more so
+        // a frame queued between the two is not left without one.
+        bridge.shared.wake_pending.store(false, Ordering::SeqCst);
+        result = incoming.try_recv();
+    }
     let message = match result {
         Ok(message) => message,
         Err(mpsc::error::TryRecvError::Empty) => return empty(0),
@@ -3148,15 +3269,11 @@ pub extern "C" fn aw_ws_dispose(id: u64) {
 async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let req_id = pending.id;
     let server_id = pending.server;
-    let (mut sink, mut stream) = socket.split();
-    let mut outgoing = pending.outgoing;
-    let incoming = pending.incoming;
-    let pongs = pending.pongs;
-    let backpressure = pending.backpressure;
+    let shared = pending.shared.clone();
+    let (sink, mut stream) = socket.split();
+    safe_lock(&shared.out).sink = Some(sink);
     // A blocked incoming queue must not prevent outgoing traffic (or closure).
     let read = async {
-        // Process incoming frames with minimal overhead.
-        // Call ws_wakeup once per frame for now; optimize later if needed.
         while let Some(message) = stream.next().await {
             let message = match message {
                 Ok(message) => message,
@@ -3171,45 +3288,117 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
             match &message {
                 // The next tungstenite read flushes its automatic pong.
                 Message::Ping(_) => continue,
-                Message::Pong(_) => { pongs.fetch_add(1, Ordering::Relaxed); continue; },
+                Message::Pong(_) => { shared.pongs.fetch_add(1, Ordering::Relaxed); continue; },
                 _ => {},
             }
             let closed = matches!(message, Message::Close(_));
             // Tungstenite queues automatic pong/close replies when reading.
-            if incoming.send(message).await.is_err() || closed {
-                ws_wakeup(req_id, server_id);
+            if pending.incoming.send(message).await.is_err() || closed {
                 break;
             }
-            ws_wakeup(req_id, server_id);
+            // One wakeup until Dart drains: frames that arrive meanwhile are
+            // read in the same pass rather than each posting its own.
+            if !shared.wake_pending.swap(true, Ordering::SeqCst) {
+                ws_wakeup(req_id, server_id);
+            }
         }
-        ws_wakeup(req_id, server_id);
         None
     };
     let write = async {
-        while let Some(message) = outgoing.recv().await {
-            let mut closed = matches!(message, Message::Close(_));
-            if sink.feed(message).await.is_err() || closed { break; }
-            // Batch more aggressively: drain up to 64 frames before flush
-            const WRITE_BATCH: usize = 64;
-            let mut write_batch = 1;
-            while write_batch < WRITE_BATCH {
-                if let Ok(next) = outgoing.try_recv() {
-                    closed = matches!(next, Message::Close(_));
-                    if sink.feed(next).await.is_err() || closed { break; }
-                    write_batch += 1;
-                } else {
-                    break;
-                }
-            }
-            if sink.flush().await.is_err() || closed { break; }
-            if backpressure.swap(false, Ordering::AcqRel) {
+        loop {
+            let driven = std::future::poll_fn(|cx| {
+                let mut out = safe_lock(&shared.out);
+                let result = ws_drive(&mut out, cx);
+                out.writer_owns = result.is_pending();
+                result
+            }).await;
+            if shared.backpressure.swap(false, Ordering::AcqRel) {
                 ws_wakeup(req_id, server_id);
             }
+            if !matches!(driven, Ok(WsDrive::Idle)) || shared.disposed.load(Ordering::Acquire) { break; }
+            shared.notify.notified().await;
+            if shared.disposed.load(Ordering::Acquire) { break; }
         }
         None
     };
     let close = tokio::select! { close = read => close, close = write => close };
-    if let Some(close) = close { let _ = sink.send(close).await; }
-    let _ = sink.flush().await;
-    ws_wakeup(req_id, server_id);
+    {
+        let mut out = safe_lock(&shared.out);
+        // The select may have dropped the writer while it waited on the
+        // socket; this task polls the sink from here on.
+        out.writer_owns = true;
+        if shared.disposed.load(Ordering::Acquire) { out.queue.clear(); }
+        if let Some(close) = close {
+            if !out.closing { out.queue.clear(); out.queue.push_back(close); }
+        }
+    }
+    // Bounded: a peer that stopped reading does not hold the task open.
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        std::future::poll_fn(|cx| ws_drive(&mut safe_lock(&shared.out), cx)),
+    ).await;
+    if !shared.ended.swap(true, Ordering::AcqRel) {
+        ws_wakeup(req_id, server_id);
+    }
+}
+
+#[cfg(test)]
+mod ws_bridge_tests {
+    use super::*;
+
+    fn buf(bytes: &[u8]) -> FfiBuf { FfiBuf { ptr: bytes.as_ptr(), len: bytes.len() } }
+
+    #[test]
+    fn the_outgoing_queue_is_bounded_and_says_when_it_is_full() {
+        let id = 9_100_001;
+        assert_eq!(aw_ws_prepare(id, 1024, FfiStr { ptr: std::ptr::null(), len: 0 }), 0);
+        for _ in 0..WS_QUEUE {
+            assert_eq!(aw_ws_queue(id, 1, buf(b"hello")), 0);
+        }
+        // Full: refused without blocking, and the writer is asked to wake Dart.
+        assert_eq!(aw_ws_queue(id, 1, buf(b"hello")), 1);
+        let (shared, _) = ws_shared(id).unwrap();
+        assert!(shared.backpressure.load(Ordering::Acquire));
+        // No socket yet: the writer task sends the queue once the upgrade
+        // completes, so a flush from Dart leaves it to that task.
+        assert_eq!(aw_ws_flush(id), 1);
+        assert_eq!(aw_ws_closed(id), 0);
+        aw_ws_dispose(id);
+        assert!(shared.disposed.load(Ordering::Acquire));
+        assert!(shared.ended.load(Ordering::Acquire));
+        assert_eq!(aw_ws_closed(id), 1);
+        assert_eq!(aw_ws_queue(id, 1, buf(b"late")), -1);
+        assert_eq!(aw_ws_flush(id), -1);
+    }
+
+    #[test]
+    fn invalid_frames_are_refused_before_they_are_queued() {
+        let id = 9_100_002;
+        assert_eq!(aw_ws_prepare(id, 4, FfiStr { ptr: std::ptr::null(), len: 0 }), 0);
+        assert_eq!(aw_ws_queue(id, 1, buf(b"toolong")), -1);
+        assert_eq!(aw_ws_queue(id, 1, buf(&[0xff, 0xfe])), -1);
+        assert_eq!(aw_ws_queue(id, 9, buf(&[0; 126])), -1);
+        assert_eq!(aw_ws_queue(id, 7, buf(b"")), -1);
+        assert_eq!(aw_ws_queue(id, 2, buf(&[1, 2, 3, 4])), 0);
+        // After a close frame nothing more is accepted.
+        assert_eq!(aw_ws_queue(id, 8, buf(&[0x03, 0xe8])), 0);
+        let (shared, _) = ws_shared(id).unwrap();
+        safe_lock(&shared.out).closing = true;
+        assert_eq!(aw_ws_queue(id, 2, buf(&[1])), -1);
+        aw_ws_dispose(id);
+    }
+
+    #[test]
+    fn a_stopped_servers_connection_never_falls_back_to_another_callback() {
+        static CALLS: AtomicU64 = AtomicU64::new(0);
+        extern "C" fn count(_: u64) { CALLS.fetch_add(1, Ordering::SeqCst); }
+        let slot = DART_WS_WAKEUP_HANDLER.get_or_init(|| Mutex::new(None));
+        let previous = safe_lock(slot).replace(count);
+        // Server 9_100_003 has no registered callback (it has stopped).
+        ws_wakeup(1, Some(9_100_003));
+        assert_eq!(CALLS.load(Ordering::SeqCst), 0);
+        ws_wakeup(1, None);
+        assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+        *safe_lock(slot) = previous;
+    }
 }

@@ -49,6 +49,9 @@ class _Article {
 }
 
 void main() {
+  semanticSurfaceTests();
+  semanticFieldTests();
+
   test('the index is configured through the model', () async {
     final String content = await generated();
 
@@ -92,5 +95,75 @@ void main() {
     // must not exist is a public companion the reader has to construct.
     expect(content, isNot(contains('class ArticleSemanticIndex')));
     expect(content, isNot(contains('class ArticleIndex')));
+  });
+}
+
+void semanticSurfaceTests() {
+  test('hybrid and keyword modes read the model\'s own search provider',
+      () async {
+    final String content = await generated();
+
+    // useSemanticSearch built its index with no keyword provider, so
+    // Article.semanticSearch(q, mode: DVSearchMode.hybrid) threw "keyword
+    // search on article needs a keyword provider" although the model is
+    // searchable and has one. Read when the query runs, so a provider set
+    // after useSemanticSearch is the one used.
+    expect(content,
+        contains('keyword: DVDeferredSearchProvider<Article>(() => _searchProvider)'));
+  });
+
+  test('records stored before semantic search was configured can be embedded',
+      () async {
+    final String content = await generated();
+
+    // Saving is what enqueued an embedding, so every record written before
+    // useSemanticSearch -- or by a process with no worker -- was never
+    // found, and the model had no member to say "embed what is stored".
+    expect(content, contains('static Future<int> semanticBackfill('));
+  });
+
+  test('semanticSearch takes the floor below which a match is not one',
+      () async {
+    final String content = await generated();
+    expect(content, contains('double minScore = 0,'));
+    expect(content,
+        contains('index.query(text, mode: mode, limit: limit, minScore: minScore)'));
+    expect(content, contains('index.backfill(await Article.all(), complete: true)'));
+  });
+}
+
+void semanticFieldTests() {
+  test('declared searchable fields are what is embedded, and nothing else',
+      () async {
+    final Directory root =
+        await Directory.systemTemp.createTemp('dartvel_semantic_fields_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    Directory(p.join(root.path, 'lib', 'models')).createSync(recursive: true);
+    Directory(p.join(root.path, 'lib', 'dartvel_client'))
+        .createSync(recursive: true);
+    File(p.join(root.path, 'lib', 'models', 'note.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+
+@DVModel(searchable: true, semantic: true)
+class const _Note({
+  required final String id,
+  required final String path,
+  @DVModel.searchableField() required final String heading,
+  @DVModel.searchableField() required final String body,
+});
+''');
+    await ModelGenerator.generate(
+        root: root.path, pkgName: 'fields_app', buildId: 'test-build');
+    final String content =
+        File(p.join(root.path, 'lib', 'dartvel_client', 'models.g.dart'))
+            .readAsStringSync();
+
+    // With no @DVModel.mainContent(), the page falls back to every String
+    // field as a content candidate, and the semantic index took that
+    // fallback too: a path, a slug or a status was embedded as prose and
+    // matched queries that happened to share a word with it.
+    expect(content, contains("'heading': (Note record) => record.heading"));
+    expect(content, contains("'body': (Note record) => record.body"));
+    expect(content, isNot(contains("'path': (Note record) => record.path")));
   });
 }

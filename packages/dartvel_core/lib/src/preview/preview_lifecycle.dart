@@ -362,7 +362,7 @@ final class DVPreviews {
           DVPreviewFinding(
             'DV-PREVIEW-010',
             '${adapter.name} cannot create an isolated environment on demand, so '
-            'dartvel preview is unavailable on it. Nothing was created.',
+            'dartvel deploy --preview is unavailable on it. Nothing was created.',
           ),
         ],
         errors: <String>['no preview was created on ${adapter.name}'],
@@ -549,7 +549,7 @@ final class DVPreviews {
         existing.state == DVPreviewState.creating) {
       return DVPreviewOutcome(record: existing, errors: <String>[
         'preview ${existing.identity.name} is ${existing.state.name}; run '
-            'dartvel preview sweep before creating it again.',
+            'dartvel deploy --preview --sweep before creating it again.',
       ]);
     }
     try {
@@ -670,7 +670,7 @@ final class DVPreviews {
         'preview ${id.name} is not destroyed: its '
             '${(remaining.map((DVPreviewResource r) => r.name).toList()..sort()).join(', ')} '
             'still exist${remaining.length == 1 ? 's' : ''}. The record is kept, '
-            'and dartvel preview sweep tries again.',
+            'and dartvel deploy --preview --sweep tries again.',
       ]);
     }
 

@@ -182,7 +182,7 @@ void main() {
     expect(platform.deviceOrientation, platform.orientation);
     expect(platform.screen.size.width, platform.screenWidth);
     expect(platform.screen.safeAreaBounds, platform.safeAreas);
-    expect(platform.Window.bounds.width, platform.screenWidth);
+    expect(platform.window.bounds.width, platform.screenWidth);
     expect(platform.display.isFullscreen, isFalse);
     expect(platform.display.isKiosk, isFalse);
     expect(platform.isChromiumExtension, isFalse);
@@ -370,18 +370,18 @@ void main() {
     await DV.Platform.display.exitFullscreen();
     expect(DV.Platform.display.isFullscreen, isFalse);
 
-    await DV.Platform.Window.restore();
-    await DV.Platform.Window.persistState('main');
-    await DV.Platform.Window.restoreState('main');
-    await DV.Platform.Tray.show(
+    await DV.Platform.window.restore();
+    await DV.Platform.window.persistState('main');
+    await DV.Platform.window.restoreState('main');
+    await DV.Platform.tray.show(
       icon: _TrayAsset.icon,
       tooltip: 'Dartvel',
       menu: const <DVTrayMenuItem>[
         DVTrayMenuItem(id: 'open', label: 'Open'),
       ],
     );
-    await DV.Platform.Tray.hide();
-    await DV.Platform.Menus.setApplicationMenu(
+    await DV.Platform.tray.hide();
+    await DV.Platform.menus.setApplicationMenu(
       const DVApplicationMenu(<DVMenuItem>[
         DVMenuItem(
           id: 'file',
@@ -392,10 +392,10 @@ void main() {
         ),
       ]),
     );
-    await DV.Platform.Shortcuts.register(
+    await DV.Platform.shortcuts.register(
       const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
     );
-    await DV.Platform.Shortcuts.unregister('quick-open');
+    await DV.Platform.shortcuts.unregister('quick-open');
     // persistState no longer calls a native binding, and that is the point of
     // the change rather than a regression. It records the window size through
     // the shared store and puts it back with window.setSize, so the assertion
@@ -933,16 +933,17 @@ void main() {
 
     // And the button is a button. Asserted here rather than left to the
     // count, because a number of widgets says nothing about what they draw.
-    final BoxDecoration button = tester
-        .widget<Container>(
-          find
-              .ancestor(
-                of: find.text('Sign in'),
-                matching: find.byType(Container),
-              )
-              .first,
-        )
-        .decoration! as BoxDecoration;
+    final Iterable<Container> boxes = tester.widgetList<Container>(
+      find.ancestor(
+        of: find.text('Sign in'),
+        matching: find.byType(Container),
+      ),
+    );
+    // The nearest box is the control's own, which holds the focus ring and no
+    // fill; the box that was asked for is the one that carries the fill.
+    expect(boxes.first.foregroundDecoration, isNull);
+    final BoxDecoration button =
+        boxes.map((Container box) => box.decoration).whereType<BoxDecoration>().first;
     expect(button.color, const Color(0xFF111827));
     expect(button.borderRadius, BorderRadius.circular(8));
 

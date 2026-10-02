@@ -15,6 +15,7 @@ import 'annotation_args.dart';
 import 'model_rules.dart';
 import 'policy_classes.dart';
 import 'primary_constructors.dart';
+import 'server_models.dart';
 import 'public_pages.dart';
 import 'record_columns.dart';
 import 'tenant_column.dart';
@@ -94,7 +95,7 @@ class ModelGenerator {
     // Where each model's records are, for Studio on the same backend.
     final List<String> studioSpecs = <String>[];
     // The same specs as data, for a development server that has no
-    // generated code to import: `dartvel preview`.
+    // generated code to import: `dartvel dev --release`.
     final List<Map<String, Object?>> studioManifest = <Map<String, Object?>>[];
     sb.writeln("import 'dart:async';");
     sb.writeln("import 'dart:convert' as convert;");
@@ -1705,7 +1706,14 @@ class ModelGenerator {
           final Set<String> semanticNames = <String>{
             ...searchableFields.map((Map<String, String> f) => f['name']!),
             if (pageTitleField != null) pageTitleField,
-            ...mainContentCandidates,
+            // The annotated main content, or with none the page's fallback of
+            // every text field -- but only when the model declared no
+            // searchable fields. A model that said which fields are prose has
+            // said it; the fallback embedded its paths and slugs as well.
+            if (mainContentField != null)
+              mainContentField
+            else if (searchableFields.isEmpty)
+              ...mainContentCandidates,
           };
           final semanticFields = fields
               .where(
@@ -1759,6 +1767,13 @@ class ModelGenerator {
               '      tenantOf: ($className record) => record.tenantId,',
             );
           }
+          if (isSearchableModel || searchableFields.isNotEmpty) {
+            // The model's own keyword search, for keyword and hybrid modes,
+            // read when a query runs so a provider set later is the one used.
+            sb.writeln(
+              '      keyword: DVDeferredSearchProvider<$className>(() => _searchProvider),',
+            );
+          }
           sb.writeln(
             '      toJson: ($className record) => record.toPublicJson(),',
           );
@@ -1775,6 +1790,7 @@ class ModelGenerator {
           sb.writeln('    String text, {');
           sb.writeln('    DVSearchMode mode = DVSearchMode.semantic,');
           sb.writeln('    int limit = 10,');
+          sb.writeln('    double minScore = 0,');
           sb.writeln('  }) async {');
           sb.writeln('    final index = _dvSemanticIndex;');
           sb.writeln('    if (index == null) {');
@@ -1785,8 +1801,30 @@ class ModelGenerator {
           sb.writeln('      );');
           sb.writeln('    }');
           sb.writeln(
-            '    return index.query(text, mode: mode, limit: limit);',
+            '    return index.query(text, mode: mode, limit: limit, minScore: minScore);',
           );
+          sb.writeln('  }');
+          sb.writeln();
+          sb.writeln('  /// Embeds every stored [$className] the index does not');
+          sb.writeln('  /// have yet, now, and returns how many records it holds.');
+          sb.writeln('  ///');
+          sb.writeln('  /// Saving enqueues the embedding for a worker, so records');
+          sb.writeln('  /// stored before [useSemanticSearch], or by a process with');
+          sb.writeln('  /// no worker, are found only after this. A run that stops');
+          sb.writeln('  /// part-way resumes rather than paying twice.');
+          sb.writeln('  static Future<int> semanticBackfill() async {');
+          sb.writeln('    final index = _dvSemanticIndex;');
+          sb.writeln('    if (index == null) {');
+          sb.writeln('      throw StateError(');
+          sb.writeln(
+            "        '$className.semanticBackfill needs $className.useSemanticSearch(...) first.',",
+          );
+          sb.writeln('      );');
+          sb.writeln('    }');
+          sb.writeln(
+            '    final result = await index.backfill(await $className.all(), complete: true);',
+          );
+          sb.writeln('    return result.processed;');
           sb.writeln('  }');
         }
         sb.writeln('}');
@@ -2093,6 +2131,7 @@ class ModelGenerator {
                     name: f['name']!,
                     type: f['type']!,
                     sensitive: sensitiveFieldNames.contains(f['name']),
+                    encrypted: encryptedFieldNames.contains(f['name']),
                     options:
                         studioEnums[f['type']!.replaceAll('?', '').trim()],
                     relation: dvStudioRelationOf(
@@ -2121,7 +2160,7 @@ class ModelGenerator {
             "    table: '$tableName',\n"
             "    key: '$keyField',\n"
             '    fields: <DVStudioFieldSpec>[\n'
-            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}${dvStudioFieldRulesSource(fieldRules[f['name']])}),\n").join()}'
+            '${fields.map((Map<String, String> f) => "      DVStudioFieldSpec(name: '${f['name']}', type: '${f['type']}'${sensitiveFieldNames.contains(f['name']) ? ', sensitive: true' : ''}${encryptedFieldNames.contains(f['name']) ? ', encrypted: true' : ''}${_studioFieldExtras(f, studioEnums, studioModelNames, className)}${dvStudioFieldRulesSource(fieldRules[f['name']])}),\n").join()}'
             '    ],\n'
             '${tenantScoped ? '    tenantScoped: true,\n' : ''}'
             '${versioned ? '' : '    versioned: false,\n'}'
@@ -2425,10 +2464,43 @@ class ModelGenerator {
         sb.writeln(
           '  registerDVModelDeserializer<$className>(${className}Parser.fromJson);',
         );
+        // The fields Model.Form() may show. The serializer above is the
+        // internal one and carries every field, so without this the form
+        // drew a sensitive field as an input, prefilled with its value --
+        // while the builder form, through the form controls, hid it. Same
+        // rule as the controls: sensitive fields stay off unless a field
+        // opted back in with showInForms: true.
+        final formFieldNames = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) =>
+                !sensitiveFieldNames.contains(name) ||
+                sensitiveFormFields.contains(name))
+            .map((String name) => "'$name'")
+            .join(', ');
+        sb.writeln(
+          '  registerDVModelFormFields<$className>(const <String>{$formFieldNames});',
+        );
+        // The sensitive fields left off that list are on the form all the
+        // same, as write-only inputs: obscured, never prefilled, set when
+        // something is typed and kept as stored when nothing is -- a
+        // password field, which is what a sensitive field is to a form.
+        final writeOnlyFieldNames = fields
+            .map((Map<String, String> f) => f['name']!)
+            .where((String name) =>
+                sensitiveFieldNames.contains(name) &&
+                !sensitiveFormFields.contains(name))
+            .map((String name) => "'$name'")
+            .join(', ');
+        if (writeOnlyFieldNames.isNotEmpty) {
+          sb.writeln(
+            '  registerDVModelWriteOnlyFields<$className>(const <String>{$writeOnlyFieldNames});',
+          );
+        }
 
         // GraphQL: the generated API surface for this model. Sensitive fields
-        // stay out of the type, the resolvers, and the mutation arguments —
-        // GraphQL is a public API, so it reads through toPublicJson.
+        // stay out of the type and the resolvers -- GraphQL is a public API,
+        // so it reads through toPublicJson -- and are write-only arguments of
+        // the save mutation.
         if (keyField != null) {
           String sdlType(Map<String, String> f) {
             final base = f['type']!.replaceAll('?', '');
@@ -2505,8 +2577,12 @@ class ModelGenerator {
           sb.writeln('    },');
           sb.writeln('  ));');
 
-          // save<Model>: public fields as arguments; sensitive fields take
-          // their generated defaults rather than crossing the API.
+          // save<Model>: public fields as arguments. A sensitive field is a
+          // write-only argument, like a password field: optional, used when
+          // a value was sent, and otherwise the stored record's value -- or
+          // the generated default for a new one. It is never in the type, so
+          // no query reads it back. It used to take the default every time,
+          // which blanked it on every update.
           final constructorArgs = fields.map((Map<String, String> f) {
             final name = f['name']!;
             final type = f['type']!;
@@ -2517,7 +2593,14 @@ class ModelGenerator {
                 className: className,
                 enums: studioEnums,
               );
-              return '$name: $fallback';
+              final base = type.replaceAll('?', '').trim();
+              final sent = base == 'String'
+                  ? "args['$name'] is String && (args['$name'] as String).isNotEmpty"
+                  : "args['$name'] != null";
+              final kept = fallback == 'null'
+                  ? 'stored?.$name'
+                  : '(stored?.$name ?? $fallback)';
+              return "$name: $sent ? args['$name'] as $base : $kept";
             }
             return "$name: args['$name'] as $type";
           }).join(', ');
@@ -2528,18 +2611,24 @@ class ModelGenerator {
           for (final f in publicFields) {
             sb.writeln("      '${f['name']}': '${sdlType(f)}',");
           }
+          for (final f in fields) {
+            if (!sensitiveFieldNames.contains(f['name'])) continue;
+            final optional = sdlType(f).replaceAll('!', '');
+            sb.writeln("      '${f['name']}': '$optional',");
+          }
           sb.writeln("      'dvVersion': 'Int',");
           sb.writeln('    },');
           sb.writeln('    resolve: (args, parent) async {');
           // Runtime argument values: never const, whatever the source
           // class's constructor is.
-          sb.writeln('      final candidate = $className($constructorArgs);');
           // An update is asked about the stored record, not the arguments:
           // ownership is judged on what exists, so sending somebody else's
-          // value must not make their record editable.
+          // value must not make their record editable. Found first, because
+          // a write-only field nobody sent keeps its stored value.
           sb.writeln(
-            "      final stored = await $className.find('\${candidate.$keyField}');",
+            "      final stored = await $className.find('\${args['$keyField']}');",
           );
+          sb.writeln('      final candidate = $className($constructorArgs);');
           sb.writeln('      if (stored != null) {');
           sb.writeln(
             "        await DVGraphQL.authorizeModel('$className.update', resource: stored, $caller);",
@@ -3148,6 +3237,17 @@ class ModelGenerator {
             'void registerDartvelModels() {}\n'
         : '$generatedHeader\n${sb.toString()}';
     File(p.join(clientDir.path, 'models.g.dart')).writeAsStringSync(content);
+    // The same library without the widgets, for a backend: it is compiled
+    // without Flutter and could not import the one above.
+    File(p.join(clientDir.path, 'models_server.g.dart'))
+        .writeAsStringSync(dvServerModelsSource(content));
+    // What backend code imports, as pages import dartvel_client.dart.
+    File(p.join(clientDir.path, 'dartvel_server.dart')).writeAsStringSync(
+      '${generatedHeader}/// The generated surface a backend function imports: the data\n'
+      '/// models, without the widgets a server has no Flutter to build.\n'
+      'library dartvel_client_server;\n\n'
+      "export 'models_server.g.dart';\n",
+    );
 
     // The schema, where something other than Dart can read it.
     //

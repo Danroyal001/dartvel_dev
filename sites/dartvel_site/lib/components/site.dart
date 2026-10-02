@@ -149,7 +149,10 @@ Widget _siteHeader(BuildContext context) {
       // Cloud alone on a second line.
       screen.isMobile
           ? const DVBox.list(<Widget>[
-              Wordmark(),
+              // The search sits beside the wordmark as a magnifier: the
+              // links below have no room left for it.
+              DVBox.row(<Widget>[Wordmark(), SiteSearchButton()],
+                  align: .spaceBetween),
               DVBox.wrapLine(<Widget>[
                 NavLink('Docs', '/docs'),
                 NavLink('Features', '/features'),
@@ -176,11 +179,13 @@ Widget _siteHeader(BuildContext context) {
               // Four site links and two outbound ones do not fit a tablet or a
               // phone on its side, and the site links are the ones a visitor
               // came for. GitHub and pub.dev are in the footer too.
-              if (!screen.isTablet)
-                const DVBox.row(<Widget>[
+              DVBox.row(<Widget>[
+                const SiteSearchButton(),
+                if (!screen.isTablet) ...const <Widget>[
                   ExternalLink('GitHub', 'https://github.com/Danroyal001/dartvel_dev'),
                   ExternalLink('pub.dev', 'https://pub.dev/packages/dartvel_dev'),
-                ], spacing: 18),
+                ],
+              ], spacing: 18),
             ], align: .spaceBetween),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
@@ -206,6 +211,8 @@ Widget _siteFooter(BuildContext context) {
           // The embedders and packages Dartvel forks, with their authors and
           // licences, on every page.
           AcknowledgementsLink(),
+          FooterLink('Privacy', '/privacy'),
+          FooterLink('Terms', '/terms'),
         ], spacing: 20),
         // The mark again, quietly, at the size a piece of small print takes.
         // Flat rather than gradient: at sixteen points the fold is two
@@ -216,9 +223,19 @@ Widget _siteFooter(BuildContext context) {
         // the edge, which in release is silently clipped.
         DVBox.wrapLine(<Widget>[
           DartvelMark(size: 16, color: palette.faint),
-          const DVText('MIT licensed. Built with Dartvel.')
+          const DVText('FSL-1.1-MIT licensed. Built with Dartvel.')
               .modifier(const DVModifier().fontSize(13).color(palette.faint)),
         ], spacing: 8),
+        // Who makes it, on every page, linking to Dartvel's page on the
+        // maker's own site (which links back here).
+        DVBox.wrapLine(<Widget>[
+          const DVText('Dartvel is made by')
+              .modifier(const DVModifier().fontSize(13).color(palette.faint)),
+          const ExternalLink(
+            'SigmaDev Digital',
+            'https://sigmadev.digital/tools/dartvel/',
+          ),
+        ], spacing: 6),
       ], spacing: 12),
       const DVModifier().maxWidth(kColumn).centered(),
     ),
@@ -227,6 +244,17 @@ Widget _siteFooter(BuildContext context) {
         .paddingSymmetric(horizontal: gutterFor(context), vertical: 32),
   );
 }
+
+/// A link to one of the site's own pages, styled like the other footer links.
+@DVFunctionalWidget()
+Widget _footerLink(BuildContext context, String label, String href) =>
+    DVNavLink(
+      to: DVRouteTarget(href),
+      child: Prose(label, const DVModifier()
+          .fontSize(14)
+          .fontWeight(.w600)
+          .color(Palette.of(context).accent)),
+    );
 
 /// A band of content, optionally on the tinted surface.
 ///

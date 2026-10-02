@@ -1,26 +1,43 @@
-// The backend serving the admin.
+// The preview server answering Studio.
 //
-// The decision about who may see it is asserted next door, on a value. This
-// is the half that turns the decision into a response, and the property that
-// matters is the one a unit test of the decision cannot reach: a hidden
-// admin has to produce the same nothing as a route the application does not
-// serve, all the way out of the handler -- not a 404 from the decision and
-// then the site's own shell from the fallthrough two branches later.
+// The decision about who may see Studio is asserted beside DVAdminServer.
+// This is the half that turns it into a response on `dartvel dev --release`, and
+// the property that matters is the one a unit test of the decision cannot
+// reach: a hidden Studio has to produce the same nothing as a route the
+// application does not serve, all the way out of the handler. And Studio is
+// pages of the application, rendered from its shell, with its code handed
+// out from memory -- nothing is ever served from an admin directory on disk.
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dartvel_cli/src/build/admin_mount.dart';
 import 'package:dartvel_cli/src/build/web_server.dart';
+import 'package:dartvel_core/dartvel.dart' as core show DVAdminServer, Request;
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
 late Directory _root;
 
-Handler _handler({DVAdminMount? admin, bool authenticated = false}) =>
+final Map<String, Uint8List> _parts = <String, Uint8List>{
+  'main.dart.js_7.part.js':
+      Uint8List.fromList(utf8.encode('/* Studio screens */')),
+};
+
+Handler _handler({DVAdminMount? admin, bool server = true}) =>
     dvWebServerHandler(
       webRoot: _root.path,
       admin: admin,
-      adminRoot: '${_root.path}/__admin',
-      adminAuthenticated: (Request _) async => authenticated,
+      adminServer: admin == null || !server
+          ? null
+          : core.DVAdminServer(
+              mount: admin,
+              root: '${_root.path}/../studio-data',
+              webRoot: _root.path,
+              title: 'Studio · shop',
+              studioParts: _parts,
+              authenticated: (core.Request _) async => false,
+            ),
     );
 
 /// A request for [path].
@@ -39,12 +56,16 @@ DVAdminMount _mount({bool enabled = true, bool requiresAuth = false}) =>
 void main() {
   setUp(() {
     _root = Directory.systemTemp.createTempSync('dartvel_admin_serve_');
-    File('${_root.path}/index.html')
-        .writeAsStringSync('<html><title>The site</title></html>');
+    File('${_root.path}/index.html').writeAsStringSync(
+        '<html><head><title>The site</title></head><body>'
+        '<script src="flutter_bootstrap.js"></script></body></html>');
+    File('${_root.path}/main.dart.js').writeAsStringSync('// the site');
+    // What an older build left: a separately built Studio under the web
+    // root. None of it is served.
     Directory('${_root.path}/__admin').createSync();
     File('${_root.path}/__admin/index.html')
-        .writeAsStringSync('<html><title>Studio</title></html>');
-    File('${_root.path}/__admin/main.dart.js').writeAsStringSync('// admin');
+        .writeAsStringSync('<html><title>OLD STUDIO APP</title></html>');
+    File('${_root.path}/__admin/main.dart.js').writeAsStringSync('// OLD');
     addTearDown(() => _root.deleteSync(recursive: true));
   });
 
@@ -80,10 +101,9 @@ void main() {
       expect(await hidden.readAsString(), isEmpty);
     });
 
-    test('an unauthenticated caller gets the same nothing', () async {
-      final Response hidden = await _get(
-          _handler(admin: _mount(requiresAuth: true), authenticated: false),
-          '/__studio');
+    test('a mount with no Studio server behind it serves nothing', () async {
+      final Response hidden =
+          await _get(_handler(admin: _mount(), server: false), '/__studio');
 
       expect(hidden.statusCode, 404);
       expect(await hidden.readAsString(), isEmpty);
@@ -100,43 +120,72 @@ void main() {
       expect(hidden.headers.keys.map((String k) => k.toLowerCase()),
           isNot(contains('www-authenticate')));
     });
+
+    test("Studio's code, to a caller with no grant, is a path that does not "
+        'exist', () async {
+      final Handler handler = _handler(admin: _mount(requiresAuth: true));
+      final Response part = await _get(handler, '/main.dart.js_7.part.js');
+      final Response nowhere = await _get(handler, '/main.dart.js_8.part.js');
+
+      expect(part.statusCode, nowhere.statusCode);
+      expect(await part.readAsString(), await nowhere.readAsString());
+    });
   });
 
   group('a served admin', () {
-    test('the mount is its own shell, not the site\'s', () async {
+    test('the mount is a page of the application, rendered from its shell',
+        () async {
       final Response response =
           await _get(_handler(admin: _mount()), '/__studio');
+      final String html = await response.readAsString();
 
-      expect(await response.readAsString(), contains('Studio'));
-      expect(await _get(_handler(admin: _mount()), '/__studio')
-          .then((Response r) => r.readAsString()),
-          isNot(contains('The site')));
+      expect(response.statusCode, 200);
+      expect(html, contains('<title>Studio · shop</title>'));
+      expect(html, contains('flutter_bootstrap.js'));
+      expect(html, isNot(contains('OLD STUDIO APP')));
     });
 
-    test('its assets are served as themselves', () async {
-      // A blank admin and a console error about a MIME type reads as a
-      // broken dashboard rather than a missing content type.
+    test('nothing under the mount is a file', () async {
+      for (final String path in <String>[
+        '/__studio/main.dart.js',
+        '/__studio/index.html',
+      ]) {
+        final Response response = await _get(_handler(admin: _mount()), path);
+        expect(response.statusCode, 404, reason: path);
+        expect(await response.readAsString(), isNot(contains('OLD')),
+            reason: path);
+      }
+    });
+
+    test('a Studio screen under the mount is a page, not an old file', () async {
+      // Every screen has its own address (docs/studio/PARITY.md), so
+      // `<mount>/models` is the Data screen's document rendered from the
+      // application's shell -- never the old Studio build's index.
       final Response response =
-          await _get(_handler(admin: _mount()), '/__studio/main.dart.js');
+          await _get(_handler(admin: _mount()), '/__studio/models');
+      final String html = await response.readAsString();
+      expect(response.statusCode, 200);
+      expect(html, contains('flutter_bootstrap.js'));
+      expect(html, isNot(contains('OLD')));
+    });
+
+    test("Studio's code is served from memory, from the site root", () async {
+      final Response response =
+          await _get(_handler(admin: _mount()), '/main.dart.js_7.part.js');
 
       expect(response.statusCode, 200);
       expect(response.headers['content-type'], contains('javascript'));
-    });
-
-    test('a path under the mount that is no file is its shell', () async {
-      // The admin is one application with its own routes: /__studio/models
-      // is a route inside it, not a missing file.
-      final Response response =
-          await _get(_handler(admin: _mount()), '/__studio/models');
-
-      expect(response.statusCode, 200);
-      expect(await response.readAsString(), contains('Studio'));
+      expect(response.headers['cache-control'], 'no-store');
+      expect(await response.readAsString(), '/* Studio screens */');
     });
 
     test('the application keeps every path that is not the mount', () async {
       final Response response = await _get(_handler(admin: _mount()), '/');
 
       expect(await response.readAsString(), contains('The site'));
+      final Response script =
+          await _get(_handler(admin: _mount()), '/main.dart.js');
+      expect(await script.readAsString(), '// the site');
     });
   });
 }

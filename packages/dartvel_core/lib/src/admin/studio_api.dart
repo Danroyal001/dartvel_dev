@@ -11,9 +11,10 @@
 /// A record goes through [DVRecordTable], the one write path the rest of the
 /// runtime reads, so an edit in Studio is checked against the version it was
 /// read at, lands in history and capture, and is scoped to the request's
-/// tenant exactly as a model's own save is. A sensitive field is never sent
-/// and cannot be written: Studio is one of the places the specification
-/// keeps those out of by default.
+/// tenant exactly as a model's own save is. A sensitive field is write-only
+/// here, like a password field: its value is never sent, a value typed for
+/// it is stored (sealed first when the field is encrypted), and an empty one
+/// leaves what is stored alone.
 library;
 
 import 'dart:async';
@@ -29,6 +30,7 @@ import '../auth/auth.dart'
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
 import '../auth/sessions.dart' show DVSessionCookie;
+import '../crypto/field_cipher.dart' show DVFieldEncryption;
 import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';
 import '../database/adapter.dart';
@@ -40,7 +42,10 @@ import '../schema/generated_schema.dart' show dvTenantColumn;
 import '../tenancy/tenants.dart';
 import 'studio_access.dart';
 import 'studio_model_schema.dart';
+import 'studio_repository.dart';
+import 'studio_source_files.dart';
 import 'studio_site.dart';
+import '../web/asset_source.dart';
 
 /// One field of a model, as Studio edits it.
 ///
@@ -53,6 +58,7 @@ class DVStudioFieldSpec {
     required this.name,
     required this.type,
     this.sensitive = false,
+    this.encrypted = false,
     this.options,
     this.relation,
     this.unique = false,
@@ -72,6 +78,7 @@ class DVStudioFieldSpec {
       name: '${json['name']}',
       type: '${json['type']}',
       sensitive: json['sensitive'] == true,
+      encrypted: json['encrypted'] == true,
       options: json['options'] is List
           ? <String>[
               for (final Object? option in json['options']! as List) '$option',
@@ -129,8 +136,14 @@ class DVStudioFieldSpec {
   /// Whether the field may be left empty.
   bool get nullable => type.trim().endsWith('?');
 
-  /// Never sent to Studio, and refused when Studio sends it.
+  /// Write-only in Studio: never sent to it, and set from it only when a
+  /// value is typed. An empty value leaves what is stored alone.
   final bool sensitive;
+
+  /// Declared `@DVModel.sensitiveField(encrypted: true)`: sealed with
+  /// [DVFieldEncryption] before it is stored, as the model's own save seals
+  /// it, so a value written here reads back through the model.
+  final bool encrypted;
 
   /// Whether the field carries a rule beyond its type.
   bool get hasRules =>
@@ -145,6 +158,7 @@ class DVStudioFieldSpec {
     'name': name,
     'type': type,
     if (sensitive) 'sensitive': true,
+    if (encrypted) 'encrypted': true,
     'options': ?options,
     'relation': ?relation,
     if (unique) 'unique': true,
@@ -451,7 +465,11 @@ class DVStudioApi {
     this.sourceRoot,
     List<Map<String, Object?>> Function()? compiledRoutes,
     String? structureRoot,
-  })  : _caller = caller ?? dvStudioSessionUserId,
+    DVGitHubTransport? gitHub,
+    String? gitHubToken,
+  })  : _gitHub = gitHub,
+        _gitHubToken = gitHubToken ?? Platform.environment[dvGitHubTokenVariable],
+        _caller = caller ?? dvStudioSessionUserId,
         _compiledRoutes = compiledRoutes ?? (() => dvStudioGraphRoutes(root)),
         _structureRoot = structureRoot ??
             (root == null
@@ -459,6 +477,11 @@ class DVStudioApi {
                 : '$root${Platform.pathSeparator}$dvStudioStructureDirectory'),
         _accounts = accounts,
         _queues = queues ?? (() => const <String>['default']);
+
+  final DVGitHubTransport? _gitHub;
+
+  /// The server's GitHub token, never answered to anybody.
+  final String? _gitHubToken;
 
   /// The queues the build declares, which Studio lists. Jobs are stored per
   /// queue, so there is nothing to enumerate them from but the build.
@@ -532,6 +555,12 @@ class DVStudioApi {
             return await _queuesAt(method, segments.sublist(1));
           case 'cache':
             return await _cacheAt(method, segments.sublist(1));
+          case 'graph':
+            if (segments.length == 1) return _graph(method);
+          case 'me':
+            if (segments.length == 1) return await _me(request, method);
+          case 'repository':
+            return await _repositoryAt(request, method, segments.sublist(1));
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -986,27 +1015,10 @@ class DVStudioApi {
   ) async {
     if (method != 'GET') _notAllowed();
     if (path.isEmpty) {
-      final Map<String, String?> stored = <String, String?>{};
-      final DVDatabaseAdapter? adapter = database;
-      if (adapter != null) {
-        final DVRecordAdapter records = DVRecordAdapter.over(adapter);
-        await records.ensure(dvStudioPagesShape);
-        for (final Map<String, Object?> row in await records.find(
-          dvStudioPagesTable,
-          fields: const <String>['route', 'title'],
-        )) {
-          stored['${row['route']}'] =
-              row['title'] == null ? null : '${row['title']}';
-        }
-      }
       return _reply(<String, Object?>{
         'pages': <Object?>[
-          for (final DVStudioSitePage page in dvStudioSitePages(
-            compiled: _compiledRoutes(),
-            stored: stored,
-            hasStructure: (String path) =>
-                dvStudioHasStructure(_structureRoot, path),
-          ))
+          for (final DVStudioSitePage page
+              in await sitePages(compiled: _compiledRoutes()))
             page.toJson(),
         ],
       });
@@ -1028,6 +1040,37 @@ class DVStudioApi {
 
   Never _notAllowed() =>
       throw _StudioRefusal(405, 'method', 'That method is not answered here.');
+
+  /// Every page this application answers: the routes a build compiled
+  /// alongside the documents stored here, each marked for what it is.
+  ///
+  /// Public because a server needs it for something Studio's own API is not:
+  /// writing the document a Studio page is served with, so that a printer, a
+  /// reader with scripting off and the browser's find all name the site's
+  /// pages without the app having booted. The same list, composed the same
+  /// way, so the document and the API cannot disagree about what exists.
+  Future<List<DVStudioSitePage>> sitePages({
+    List<Map<String, Object?>>? compiled,
+  }) async {
+    final Map<String, String?> stored = <String, String?>{};
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter != null) {
+      final DVRecordAdapter records = DVRecordAdapter.over(adapter);
+      await records.ensure(dvStudioPagesShape);
+      for (final Map<String, Object?> row in await records.find(
+        dvStudioPagesTable,
+        fields: const <String>['route', 'title'],
+      )) {
+        stored['${row['route']}'] =
+            row['title'] == null ? null : '${row['title']}';
+      }
+    }
+    return dvStudioSitePages(
+      compiled: compiled ?? _compiledRoutes(),
+      stored: stored,
+      hasStructure: (String path) => dvStudioHasStructure(_structureRoot, path),
+    );
+  }
 
   Never _missing(DVStudioModelSpec spec, String key) => throw _StudioRefusal(
     404,
@@ -1181,15 +1224,18 @@ class DVStudioApi {
         );
       }
       if (field.sensitive) {
-        throw _StudioRefusal(
-          400,
-          'sensitive',
-          '$name is sensitive, and Studio does not write sensitive fields.',
-        );
+        // Write-only, like a password field: Studio never had the value, so
+        // an empty one is "leave it as it is", not "clear it".
+        final Object? value = entry.value;
+        if (value == null || (value is String && value.isEmpty)) continue;
       }
       stored[name] = _stored(field, entry.value);
       final String? broken = dvStudioValueProblem(field, stored[name]);
       if (broken != null) throw _StudioRefusal(400, 'bad_values', broken);
+      if (field.encrypted && stored[name] != null) {
+        stored[name] =
+            DVFieldEncryption.encrypt(spec.model, name, '${stored[name]}');
+      }
       if (field.relation != null && stored[name] != null) {
         await _checkRelation(spec, field, stored[name]!);
       }
@@ -1374,13 +1420,120 @@ class DVStudioApi {
 
   // ---- pages -------------------------------------------------------------
 
+  /// The project's GitHub repository: `GET repository` names it and lists
+  /// what would change, `PUT repository` names it, `POST repository/sync`
+  /// sends the changes as a pull request or a push. See studio_repository.
+  Future<Response> _repositoryAt(
+    Request request,
+    String method,
+    List<String> rest,
+  ) async {
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter == null) {
+      throw _StudioRefusal(409, 'no_database',
+          'This server has no database to keep the repository\'s name in.');
+    }
+    final DVStudioRepository repository = DVStudioRepository(
+      database: adapter,
+      storedModels: storedModels,
+      token: _gitHubToken,
+      transport: _gitHub,
+    );
+    try {
+      if (rest.isEmpty && method == 'GET') {
+        final ({String repository, String base})? settings =
+            await repository.settings();
+        final bool token = (_gitHubToken ?? '').isNotEmpty;
+        List<DVStudioFileChange> changes = const <DVStudioFileChange>[];
+        String? problem;
+        if (settings != null && token) {
+          try {
+            changes = await repository.changes();
+          } on DVStudioRepositoryRefusal catch (refusal) {
+            problem = refusal.message;
+          } on Object {
+            problem = 'GitHub could not be reached.';
+          }
+        }
+        return _reply(<String, Object?>{
+          'connected': settings != null,
+          'repository': settings?.repository,
+          'base': settings?.base,
+          'token': token,
+          'tokenHelp': 'Studio sends with the server\'s GitHub token, from '
+              '$dvGitHubTokenVariable in its environment, and never stores one.',
+          'changes': <Object?>[for (final DVStudioFileChange c in changes) c.toJson()],
+          'problem': ?problem,
+        });
+      }
+      if (rest.isEmpty && method == 'PUT') {
+        final Map<String, Object?> body = await _body(request);
+        await repository.connect(
+          '${body['repository'] ?? ''}'.trim(),
+          '${body['base'] ?? 'main'}'.trim(),
+        );
+        return _reply(<String, Object?>{'connected': true});
+      }
+      if (rest.length == 1 && rest.first == 'sync' && method == 'POST') {
+        final Map<String, Object?> body = await _body(request);
+        return _reply(await repository.sync(
+          pullRequest: body['mode'] != 'push',
+          message: body['message'] is String ? body['message']! as String : null,
+        ));
+      }
+    } on DVStudioRepositoryRefusal catch (refusal) {
+      throw _StudioRefusal(refusal.status, refusal.code, refusal.message);
+    }
+    _notAllowed();
+  }
+
+  /// The project's studio/ files, on a development server; none on a
+  /// deployed one.
+  DVStudioSourceFiles? get _sourceFiles {
+    final String? root = sourceRoot;
+    return root == null
+        ? null
+        : DVStudioSourceFiles(root, DVRecordAdapter.over(_database));
+  }
+
+  /// A write refused because code changed the file: what is in the file,
+  /// for Studio to show beside its own.
+  Response _conflict(DVStudioSourceConflict conflict) => _reply(
+        <String, Object?>{
+          'error': 'changed_in_code',
+          'message': '${conflict.path} was changed in code since Studio '
+              'last saved it. Keep the version in code, or save Studio\'s '
+              'over it.',
+          'path': conflict.path,
+          'inCode': conflict.inCode,
+        },
+        status: 409,
+      );
+
   Future<Response> _pages(Request request, String method) async {
     // Records, not SQL: the same collection DVPageStore writes, on whatever
     // engine the server was given.
     final DVRecordAdapter records = DVRecordAdapter.over(_database);
     await records.ensure(dvStudioPagesShape);
+    final DVStudioSourceFiles? sources = _sourceFiles;
     switch (method) {
       case 'GET':
+        // What code changed in the project's studio/ files comes into
+        // Studio first, so both show the same pages.
+        if (sources != null) {
+          for (final MapEntry<String, Map<String, Object?>?> changed
+              in (await sources.changedInCode()).entries) {
+            await records.delete(dvStudioPagesTable,
+                where: DVFilter.equals('route', changed.key));
+            final Map<String, Object?>? document = changed.value;
+            if (document == null) continue;
+            await records.insert(dvStudioPagesTable, <String, Object?>{
+              'route': changed.key,
+              'title': document['title'],
+              'document': jsonEncode(document),
+            });
+          }
+        }
         final List<Map<String, Object?>> rows = await records.find(
           dvStudioPagesTable,
           fields: const <String>['route', 'title', 'document'],
@@ -1399,7 +1552,8 @@ class DVStudioApi {
             );
         return _reply(<String, Object?>{'pages': pages});
       case 'PUT':
-        final Object? document = (await _body(request))['document'];
+        final Map<String, Object?> body = await _body(request);
+        final Object? document = body['document'];
         if (document is! Map || document['route'] is! String) {
           throw _StudioRefusal(
             400,
@@ -1415,6 +1569,13 @@ class DVStudioApi {
             'A page route begins with "/".',
           );
         }
+        // The project's file first: when code changed it, nothing is
+        // stored, and Studio shows both.
+        try {
+          await sources?.write(route, document, force: body['force'] == true);
+        } on DVStudioSourceConflict catch (conflict) {
+          return _conflict(conflict);
+        }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
         await records.insert(dvStudioPagesTable, <String, Object?>{
@@ -1427,6 +1588,12 @@ class DVStudioApi {
         final String? route = request.url.queryParameters['route'];
         if (route == null || route.isEmpty) {
           throw _StudioRefusal(400, 'bad_route', 'Name the route to remove.');
+        }
+        try {
+          await sources?.remove(route,
+              force: request.url.queryParameters['force'] == 'true');
+        } on DVStudioSourceConflict catch (conflict) {
+          return _conflict(conflict);
         }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
@@ -1562,6 +1729,47 @@ class DVStudioApi {
         'lastError': ?job.lastError,
         'tenant': ?job.tenant,
       };
+
+  // ---- the signed-in person ----------------------------------------------
+
+  /// Who this Studio is open to: the signed-in account and its address, so
+  /// Studio can say whose it is beside the control that signs out.
+  Future<Response> _me(Request request, String method) async {
+    if (method != 'GET' && method != 'HEAD') _notAllowed();
+    final String? userId = await _caller(request);
+    return _reply(<String, Object?>{
+      'userId': userId,
+      if (userId != null)
+        if (await _emailOf(_directory, userId) case final String email)
+          'email': email,
+    });
+  }
+
+  // ---- project graph -----------------------------------------------------
+
+  /// The project graph the build wrote beside the server: what Studio's
+  /// Routes, Functions, Tasks and Modules sections list. Read through the API,
+  /// behind the grant, like everything else Studio shows; it is the shape of
+  /// the whole project and never a file served under the mount. An empty
+  /// object when the build wrote none.
+  Response _graph(String method) {
+    if (method != 'GET' && method != 'HEAD') _notAllowed();
+    final String? directory = root;
+    Object? graph;
+    if (directory != null) {
+      try {
+        // Through the source for Studio's data: the pack a web-server binary
+        // carries, or the directory a build wrote.
+        final DVAssetFile? file = DVAssetSources.at(directory).file('graph.json');
+        graph = file == null ? null : jsonDecode(utf8.decode(file.bytes()));
+      } on FormatException {
+        graph = null;
+      }
+    }
+    return _reply(graph is Map
+        ? graph.cast<String, Object?>()
+        : const <String, Object?>{});
+  }
 
   // ---- cache -------------------------------------------------------------
 

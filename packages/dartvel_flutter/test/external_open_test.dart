@@ -44,10 +44,10 @@ void main() {
     test('a queued route is opened', () async {
       secondLaunch('/orders/42');
 
-      final int opened = await DV.Platform.Window.drainExternalOpens(primary);
+      final int opened = await DV.Platform.window.drainExternalOpens(primary);
 
       expect(opened, 1);
-      expect(DV.Platform.Window.all.value.map((DVWindow w) => w.route.path),
+      expect(DV.Platform.window.all.value.map((DVWindow w) => w.route.path),
           <String>['/orders/42']);
     });
 
@@ -55,15 +55,15 @@ void main() {
       secondLaunch('/orders/1');
       secondLaunch('/orders/2');
 
-      await DV.Platform.Window.drainExternalOpens(primary);
+      await DV.Platform.window.drainExternalOpens(primary);
 
-      expect(DV.Platform.Window.all.value.map((DVWindow w) => w.route.path),
+      expect(DV.Platform.window.all.value.map((DVWindow w) => w.route.path),
           <String>['/orders/1', '/orders/2']);
     });
 
     test('an empty queue opens nothing and is not an error', () async {
-      expect(await DV.Platform.Window.drainExternalOpens(primary), 0);
-      expect(DV.Platform.Window.all.value, isEmpty);
+      expect(await DV.Platform.window.drainExternalOpens(primary), 0);
+      expect(DV.Platform.window.all.value, isEmpty);
     });
 
     test('draining twice does not reopen what it already opened', () async {
@@ -71,20 +71,20 @@ void main() {
       // same route on every poll, for ever.
       secondLaunch('/orders/42');
 
-      await DV.Platform.Window.drainExternalOpens(primary);
-      expect(await DV.Platform.Window.drainExternalOpens(primary), 0);
-      expect(DV.Platform.Window.all.value, hasLength(1));
+      await DV.Platform.window.drainExternalOpens(primary);
+      expect(await DV.Platform.window.drainExternalOpens(primary), 0);
+      expect(DV.Platform.window.all.value, hasLength(1));
     });
 
     test('a route already on screen is focused, not duplicated', () async {
       // Idempotent by URL is the contract, and it is why an external request
       // goes through open() rather than through a second API.
-      await DV.Platform.Window.open(const DVRouteTarget('/orders/42'));
+      await DV.Platform.window.open(const DVRouteTarget('/orders/42'));
       secondLaunch('/orders/42');
 
-      await DV.Platform.Window.drainExternalOpens(primary);
+      await DV.Platform.window.drainExternalOpens(primary);
 
-      expect(DV.Platform.Window.all.value, hasLength(1),
+      expect(DV.Platform.window.all.value, hasLength(1),
           reason: 'the same URL is the same window');
     });
 
@@ -94,8 +94,8 @@ void main() {
       addTearDown(secondary.release);
       secondary.send('/orders/42');
 
-      expect(await DV.Platform.Window.drainExternalOpens(secondary), 0);
-      expect(await DV.Platform.Window.drainExternalOpens(primary), 1);
+      expect(await DV.Platform.window.drainExternalOpens(secondary), 0);
+      expect(await DV.Platform.window.drainExternalOpens(primary), 1);
     });
   });
 
@@ -105,14 +105,14 @@ void main() {
       // same event, and a policy or an analytic that cannot tell them apart
       // reports every deep link as navigation.
       secondLaunch('/orders/42');
-      await DV.Platform.Window.drainExternalOpens(primary);
+      await DV.Platform.window.drainExternalOpens(primary);
 
-      expect(DV.Platform.Window.all.value.single.external, isTrue);
+      expect(DV.Platform.window.all.value.single.external, isTrue);
     });
 
     test('an ordinary open is not external', () async {
-      await DV.Platform.Window.open(const DVRouteTarget('/orders'));
-      expect(DV.Platform.Window.all.value.single.external, isFalse);
+      await DV.Platform.window.open(const DVRouteTarget('/orders'));
+      expect(DV.Platform.window.all.value.single.external, isFalse);
     });
 
     test('DVWindowOptions.external is the documented way to say so', () {
@@ -126,8 +126,8 @@ void main() {
   group('routes it will not open', () {
     test('an empty or whitespace route is skipped', () async {
       secondLaunch('   ');
-      expect(await DV.Platform.Window.drainExternalOpens(primary), 0);
-      expect(DV.Platform.Window.all.value, isEmpty);
+      expect(await DV.Platform.window.drainExternalOpens(primary), 0);
+      expect(DV.Platform.window.all.value, isEmpty);
     });
 
     test('a route that is not a path is skipped rather than opened', () async {
@@ -135,7 +135,7 @@ void main() {
       // opening whatever it says would make a second launch able to name any
       // route at all.
       secondLaunch('orders/42');
-      expect(await DV.Platform.Window.drainExternalOpens(primary), 0);
+      expect(await DV.Platform.window.drainExternalOpens(primary), 0);
     });
   });
 }

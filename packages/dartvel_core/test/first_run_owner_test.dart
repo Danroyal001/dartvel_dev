@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:io' show Directory, File;
+import 'dart:typed_data';
 
 import 'package:dartvel_core/dartvel.dart';
 
@@ -25,6 +26,16 @@ Future<DVFirstRunOwner?> firstRun() => DVFirstRunOwner.ensure(
       email: 'owner@oakline.test',
       announce: printed.add,
     );
+
+/// A response's status and its body, read once: a body stream cannot be read
+/// twice, and an auth endpoint's own message is the only thing that says which
+/// of the credential guard, the CSRF check or the session said no.
+Future<(int, String)> _read(Response? response) async =>
+    (response?.status ?? 0, await _bodyText(response));
+
+/// The bytes of [response] as text.
+Future<String> _bodyText(Response? response) async =>
+    utf8.decode(await response?.body?.bytes() ?? const <int>[]);
 
 void main() {
   wiring();
@@ -109,28 +120,177 @@ void main() {
       final Directory root = Directory.systemTemp.createTempSync('dv_setup_');
       addTearDown(() => root.deleteSync(recursive: true));
       File('${root.path}/index.html').writeAsStringSync('<title>Studio</title>');
+      File('${root.path}/main.dart.js').writeAsStringSync('// Studio');
       server = DVAdminServer(
         mount: const DVAdminMount(
             path: '/__studio', enabled: true, requiresAuth: true),
         root: root.path,
+        // The application's shell, which Studio's pages are rendered from.
+        webRoot: root.path,
         authenticated: (Request _) async => true,
         models: const <DVStudioModelSpec>[],
         database: database,
       );
     });
 
-    test('is what every route on the mount answers with', () async {
+    // The setup is a page of the Studio app, at <mount>/setup, exactly as its
+    // sign-in is a page at <mount>/login. The server serves the shell and the
+    // app draws the screen; a page of the server's own would be the last
+    // hand-written HTML in Dartvel.
+    test('is a page of the Studio app at <mount>/setup, and every other route '
+        'on the mount goes there', () async {
       for (final String path in <String>[
+        '/__studio',
         '/__studio/',
         '/__studio/pages',
-        '/__studio/api/models',
+        '/__studio/login',
       ]) {
         final Response? response = await get(path);
-        expect(response?.status, 200, reason: path);
-        final String body = utf8.decode(await response!.body!.bytes());
-        expect(body, contains('Finish setting up'), reason: path);
-        expect(body, isNot(contains('<title>Studio</title>')), reason: path);
+        expect(response?.status, 302, reason: path);
+        expect(response!.headers.get('location'), '/__studio/setup',
+            reason: path);
+        expect(response.headers.get('cache-control'), 'no-store', reason: path);
       }
+
+      final Response? setup = await get('/__studio/setup');
+      expect(setup?.status, 200);
+      expect(setup!.headers.get('content-type'), 'text/html; charset=utf-8');
+      // Byte for byte the shell: the server writes no page of its own.
+      expect(utf8.decode(await setup.body!.bytes()), '<title>Studio</title>');
+    });
+
+    test('serves no file under the mount: the setup is a route of the '
+        'application, whose code the application serves', () async {
+      // The setup page is the application's shell rendered for its route,
+      // and the shell loads the application's own code from the site root.
+      // Nothing under the mount is a file, during the setup or after it.
+      expect(await get('/__studio/main.dart.js'), isNull);
+      expect(await get('/__studio/flutter_bootstrap.js'), isNull);
+    });
+
+    test('never framed, never cached, and never a referrer', () async {
+      final Response? setup = await get('/__studio/setup');
+      expect(setup!.headers.get('cache-control'), 'no-store');
+      expect(setup.headers.get('x-frame-options'), 'DENY');
+      expect(setup.headers.get('referrer-policy'), 'no-referrer');
+    });
+
+    test('answers Studio\'s data to nobody until the setup is done', () async {
+      // The hard screen: the graph and the records are not handed to a
+      // stranger, and a path the mount does not serve gets the answer any
+      // other path it does not serve gets.
+      expect(await get('/__studio/api/models'), isNull);
+      expect(await get('/__studio/graph.json'), isNull);
+    });
+
+    test('serves neither Studio\'s document under its file name nor its '
+        'deferred parts', () async {
+      // The same two rules the signed-out mount keeps once the setup is done:
+      // Studio's document is reached only as the setup page, whose headers
+      // it is served with, and Studio's deferred sections need the grant
+      // nobody has yet.
+      File('${server.root}/main.dart.js_1.part.js')
+          .writeAsStringSync('// Studio section');
+      expect(await get('/__studio/index.html'), isNull);
+      expect(await get('/__studio/main.dart.js_1.part.js'), isNull);
+      expect(await get('/__studio/missing.js'), isNull);
+    });
+
+    test('drives the application\'s own auth endpoints, at the mount, with '
+        'the CSRF header required', () async {
+      final DVSessions sessions = DVSessions();
+      DVSessionAuthentication.install(sessions: sessions);
+      addTearDown(DVSessionAuthentication.uninstall);
+      final LocalAuthProvider accounts = LocalAuthProvider();
+      final AuthUser account =
+          (await accounts.signUp('owner@oakline.test', owner.password))!;
+      DVAuthEndpoints.install(
+          credentials:
+              DVCredentialGuard(provider: accounts, refusalFloor: .zero),
+          secondFactors: DVSecondFactors(
+            store: DVDatabaseSecondFactorStore(MemoryDVDatabaseAdapter()),
+            cipher: DVFieldCipher.secure(
+              DVFieldKeyring(<DVFieldKey>[
+                DVFieldKey(
+                    'k1', Uint8List.fromList(List<int>.generate(32, (int i) => i))),
+              ]),
+            ),
+            issuer: 'Oakline',
+          ));
+      addTearDown(DVAuthEndpoints.uninstall);
+      // A live session of the owner, and the request carrying it. The
+      // generated backend runs every request through the session stage, so
+      // this is what the mount sees; a test that called the mount on its own
+      // would hand the password endpoint no principal and be told 401 by the
+      // endpoint rather than by the mount.
+      final DVIssuedSession issued = await sessions.create(account.id);
+      final DVSessionPrincipal principal =
+          DVSessionPrincipal(session: issued.session, user: account);
+      Future<(int, String)> post(
+        String path,
+        Map<String, Object?> body, {
+        bool csrf = true,
+        bool signedIn = true,
+      }) async =>
+          _read(await DVSessionPrincipal.actingAs(
+            principal,
+            () => server.respond(Request(
+              method: 'POST',
+              url: Uri.parse('http://localhost:8080$path'),
+              headers: Headers(<String, String>{
+                'content-type': 'application/json',
+                if (csrf) 'x-dartvel-csrf-token': 'c' * 32,
+                if (signedIn) 'authorization': 'Bearer ${issued.token}',
+              }),
+              bodyStream:
+                  Stream<List<int>>.value(utf8.encode(jsonEncode(body))),
+            )),
+          ));
+
+      final Map<String, Object?> printed = <String, Object?>{
+        'email': 'owner@oakline.test',
+        'password': owner.password,
+      };
+
+      expect(
+          (await post('/__studio/api/auth/sign-in', printed, csrf: false)).$1,
+          403,
+          reason: 'a cross-site form cannot set the header');
+
+      final (int, String) signedOut =
+          await post('/__studio/api/auth/sign-in', printed, signedIn: false);
+      expect(signedOut.$1, 200, reason: signedOut.$2);
+
+      // The other three the screen drives, in the order it drives them.
+      final (int, String) changed = await post(
+          '/__studio/api/auth/account/password',
+          <String, Object?>{
+            'currentPassword': owner.password,
+            'newPassword': 'a-password-they-chose-themselves',
+          },
+        );
+      expect(changed.$1, 200, reason: changed.$2);
+      expect(await DVFirstRunOwner.setupPending(database: database), isTrue,
+          reason: 'a password with no second factor is half a setup');
+
+      final (int, String) started =
+          await post('/__studio/api/auth/factors/totp', <String, Object?>{});
+      expect(started.$1, 200, reason: started.$2);
+      expect(started.$2, contains('secret'),
+          reason: 'the screen has a key to show, so it has to be in the answer');
+
+      // The fourth is reached as well. The mount's own answers to a path under
+      // its API are a refusal for a missing CSRF header, a redirect, or
+      // nothing at all, and none of them carries an endpoint's error code.
+      final (int, String) refused = await post(
+          '/__studio/api/auth/factors/totp/confirm',
+          <String, Object?>{'code': '000000'});
+      expect(refused.$1, isNot(403));
+      expect(refused.$2, contains('error'),
+          reason: 'the confirm endpoint answered, not the mount');
+
+      expect(await get('/__studio/setup'), isNotNull,
+          reason: 'still the setup screen: the second factor is not on');
     });
 
     test('opens only when the password and the second factor are both done',
@@ -138,6 +298,10 @@ void main() {
       await DVFirstRunOwner.changed(owner.userId);
       expect(await DVFirstRunOwner.setupPending(database: database), isTrue,
           reason: 'a password with no second factor is half a setup');
+
+      final Response? still = await get('/__studio/');
+      expect(still?.status, 302);
+      expect(still!.headers.get('location'), '/__studio/setup');
 
       await DVFirstRunOwner.secondFactorEnrolled(owner.userId);
       expect(await DVFirstRunOwner.setupPending(database: database), isFalse);
@@ -236,25 +400,40 @@ void reachable() {
         mount: const DVAdminMount(
             path: '/__studio', enabled: true, requiresAuth: true),
         root: root.path,
+        // The application's shell, which Studio's pages are rendered from.
+        webRoot: root.path,
         // Nobody is signed in, which is the state the owner is in.
         authenticated: (Request _) async => false,
         database: database,
       );
     });
 
-    test('a browser that has not signed in is given the setup screen',
+    test('a browser that has not signed in is sent to the setup page',
         () async {
       final Response? response = await get(shut, '/__studio/');
 
+      expect(response?.status, 302);
+      expect(response!.headers.get('location'), '/__studio/setup');
+    });
+
+    test('that page is served to anybody, signed in or not', () async {
+      // The screen is what the owner opens, and the owner has no session yet:
+      // signing in is what the screen is for. Studio's own rule -- that a
+      // request from somebody not allowed to open it is answered as a route
+      // that does not exist -- applied here made it unreachable by the only
+      // person who needs it.
+      final Response? response = await get(shut, '/__studio/setup');
+
       expect(response?.status, 200);
       expect(utf8.decode(await response!.body!.bytes()),
-          contains('Finish setting up'));
+          '<title>Studio</title>',
+          reason: 'the shell of the Studio app, which draws the screen');
     });
 
     test('it does not name the owner to whoever found the mount', () async {
       // The page is open to the internet while the setup is pending. Printing
       // the address on it hands half a credential to whoever asks.
-      final Response? response = await get(shut, '/__studio/');
+      final Response? response = await get(shut, '/__studio/setup');
 
       expect(utf8.decode(await response!.body!.bytes()),
           isNot(contains('owner@oakline.test')));
@@ -262,7 +441,7 @@ void reachable() {
 
     test('once the setup is done the mount is shut to them again', () async {
       final DVFirstRunOwner owner =
-          DVFirstRunOwner(userId: '', email: '', password: '');
+          const DVFirstRunOwner(userId: '', email: '', password: '');
       expect(owner.password, '');
       final List<Map<String, Object?>> rows = await DVRecordAdapter.over(database)
           .find(DVFirstRunOwner.table);

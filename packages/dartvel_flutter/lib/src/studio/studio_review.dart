@@ -572,20 +572,13 @@ Widget studioActionControl(
   bool primary = false,
   String? reason,
 }) {
-  final Widget button = GestureDetector(
+  final Widget button = DVStudioControl(
     key: ValueKey<String>(key),
+    label: label,
+    enabled: onTap != null,
     onTap: onTap,
-    child: MouseRegion(
-      cursor: onTap == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      child: DVStudioStyle.control(
-        label,
-        enabled: onTap != null,
-        primary: primary,
-        icon: icon,
-      ),
-    ),
+    primary: primary,
+    icon: icon,
   );
   return reason == null ? button : DVStudioStyle.tooltip(reason, button);
 }

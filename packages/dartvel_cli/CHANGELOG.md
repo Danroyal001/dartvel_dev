@@ -1,3 +1,143 @@
+## 0.10.0 — 2026-10-02
+
+- **`dartvel.webPrerender` is gone.** It was read and never used: every web
+  build prerenders and web-server renders on request. A project that still
+  sets it gets one deprecation warning from the build and from `dartvel
+  doctor`; nothing breaks.
+- The generator reads `@DVBackendFunction(aiTool: ...)` with a bracket- and
+  string-aware scan, so a description containing brackets no longer drops the
+  tool silently.
+- `dartvel admin grant` and `revoke` accept an email and resolve it to the
+  account id, and refuse an email no account has. Before, an email was stored
+  as the account id and reported as granted, and Studio still refused the
+  person.
+- The Studio browser check counts a crash as a failure and lists the checks
+  that did not run.
+
+- **Sensitive fields are write-only, not hidden.** The generated client
+  registers each `@DVModel.sensitiveField()` (unless `showInForms: true`) as
+  a write-only form field, so `Model.Form()` draws it like a password field.
+  The GraphQL `save<Model>` mutation takes it as an optional argument and
+  keeps the stored value when it is left out or empty. Before, the mutation
+  replaced it with the generated default, so an update through GraphQL
+  blanked it. It is still not a field of the GraphQL type. Studio's model
+  specs mark `encrypted: true` fields, so Studio seals a value before it
+  stores it.
+
+- **A data model may be called `Post`, `Route`, `Get`, `Put`, `Delete` or
+  `Patch`.** Those are also dartvel_core's HTTP annotations (and `Route` is
+  Flutter's), and the generated client imported the framework unprefixed
+  beside the models, so such a project did not compile: "'Post' is exported
+  from both". A generated client function returning one compiled against the
+  annotation instead. The barrel, the router, the functional widgets, the page
+  bodies and `functions.g.dart` now hide the application's model names from
+  every framework import and export, the client functions import the models
+  they name, and the router refers to Flutter's `Route`, `RouteSettings` and
+  `Page` by prefix. The model is the only `Post` an application sees; a page
+  that also imports Flutter's widgets library hides `Route` from it, as with
+  any two libraries that share a name.
+
+- **The build no longer overwrites an `.htaccess` somebody took over.** The
+  generated file said it was only created when absent while every build
+  rewrote it. Dartvel now rewrites only its own copy (first line
+  `# Written by dartvel build web.`), so fixes to the generated rules still
+  reach every project; delete that line to keep your edits, or keep your own
+  in `web/.htaccess`, which wins as before. The header says so.
+
+- **`Model.Form()` never shows a sensitive field.** The form drew an input
+  for every field the model's internal serializer carried, so a
+  `@DVModel.sensitiveField()` appeared on the generated form prefilled with
+  its value, while a `DVForm.builder` form hid it. The generated client now
+  registers the fields a form may show (`registerDVModelFormFields`), and the
+  form neither draws, prefills nor accepts a value for any other: an edit
+  keeps the stored value as it was. `showInForms: true` still puts a field
+  back.
+
+- **The documentation site is off unless `pubspec.yaml` turns it on, and
+  compiled when it is.** `dartvel.docs.enabled: true` makes a build compile
+  `DVDocsApp` for `dartvel.docs.path` (default `/docs`) with the document
+  beside it; nothing else does, for any application or profile.
+  `dartvel.docs.access` is `studio` by default: a `web-server` build carries
+  the site in a section of the binary of its own and serves it behind Studio's
+  sign-in and grant, and refuses when it serves no Studio. A static `web`
+  build carries only an `access: public` site, at its mount, and refuses one
+  behind Studio, which a static host cannot keep. Either build refuses a mount
+  that an application page is at or inside, naming the page's file. See
+  `docs/docs_options.md`.
+- `dartvel docs --serve` compiles the site for the root of its loopback port,
+  where it serves it. It was compiled for `/docs/`, so the shell asked the
+  server for `/docs/flutter_bootstrap.js` and got the shell back.
+
+- **`dartvel docs` writes a document, not nine pages of hand-written HTML.**
+  It emitted `index.html`, `models.html`, `functions.html`, `routes.html`,
+  `jobs.html`, `policies.html`, `modules.html`, `diagnostics.html` and a page
+  per decision record, each with a stylesheet and a stylesheet link and an
+  `<a href>` for every link -- hand-authored markup with the framework's own
+  theme nowhere in it, growing a second name for every page the graph already
+  had. It writes `docs.json` now, beside `graph.json`, and the site is
+  `DVDocsApp`: pages, tables, lists, code and the navigation are all values in
+  a payload an application draws. Three consequences worth stating: a doc
+  comment is a sentence somebody wrote and is carried verbatim, so the payload
+  contains whatever a comment contains and a test asserts exactly that rather
+  than escaping it; a link is a `DVDocsTarget` naming a page id and an anchor
+  in it, so it cannot break by pointing at a file that moved; and the block
+  kinds and span kinds are enumerated in `docs_site_test.dart`, because an
+  unknown kind is the one thing that could make the document mean something
+  other than what it says. The types themselves moved to `dartvel_core`, next
+  to the app that draws them: the two packages do not depend on each other and
+  a wire format declared twice is one half can change on its own.
+
+- **The build writes one file into the admin root, and it is the graph.** It
+  wrote four: a static dashboard, its stylesheet, its script and the graph.
+  The dashboard was hand-authored HTML emitted by a build step, and the very
+  next step of the same build compiled `DVStudioApp` into the same root and
+  deleted all three by name -- so the build authored a page, a stylesheet and a
+  script that could never be opened by anybody. `graph.json` is what survives
+  and all three readers of it are runtime ones: Studio's site map, task and
+  module sections, and the server taking its worker queue names from it. The
+  columns those sections show now live in `dartvel_flutter`, next to the
+  sections that read them, and this test now holds the producer side of that
+  contract -- that a real `DartvelProjectGraph` has each key its readers ask
+  for, with a value in it. `studio_build` still deletes the three files, so a
+  `build/web` from before this has no dashboard left sitting beside Studio.
+
+- **A failed navigation goes to the app's offline page, and a host's
+  not-found document is a copy of the app's.** The build wrote both pages as
+  hand-authored HTML with inline CSS, in a colour sanitised out of the
+  project's own theme, and the worker served the offline one from the cache
+  for as long as the cache lived. It now redirects to `/offline` with the
+  path being opened as `from` -- never to itself -- and `404.html` is a copy
+  of the `404/index.html` the build rendered. Both routes are out of
+  `sitemap.xml`: a crawler spends a request on each address in one, and two
+  of those would end on a page whose whole content is that something went
+  wrong. `404.html` moved out of the PWA block, so a project with
+  `dartvel.pwa.enabled: false` has one.
+
+- **`/404` and `/offline` are routes in every generated client**, drawn by
+  `DVNotFoundPage` and `DVOfflinePage`. They were documents the build wrote by
+  hand at build time: two pages outside the router, with no theme, no capture
+  and no editor, and the offline one could not have been a page in principle,
+  being served exactly when the network is gone. As routes they prerender
+  through the same `dvRenderRoutePage` as every other page. Neither is in
+  `dartvelRouteManifest` or `DVRoutes` -- those are the pages the application
+  wrote, and a crawler should not be handed two URLs that exist to report a
+  problem -- so `dvNotFoundRoute` and `dvOfflineRoute` are how they are named.
+  A page at either path is the application's and gets no generated route.
+- **Studio is part of the application.** The generated router mounts
+  Studio's routes at `dartvel.admin`'s mount behind the `dartvel.studio`
+  define, and generates none when Studio is turned off. `dartvel build
+  web-server` passes the define when it serves Studio, moves the parts only
+  Studio's screens load out of `build/web` into `build/studio/parts`, and the
+  binary carries them in memory in a section of its own. A static
+  `dartvel build web` never carries Studio, and a build whose Studio code
+  would be public is stopped.
+- The separately built Studio (`dvBuildStudio`) and the static admin
+  dashboard are gone; `build/studio/data` holds only the graph and page
+  structures Studio reads through its API.
+- `dartvel preview` serves Studio as the binary does. `dartvel dev` runs
+  Studio as a route of the web app, with Flutter's development server
+  passing `<mount>/api/` to the backend.
+
 ## 0.9.4
 
 - The splash is back while Flutter boots. 0.9.2 showed a page's crawler text as

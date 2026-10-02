@@ -128,6 +128,35 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('Edited means changed since the last Deploy, not that there is '
+        'something to undo', (WidgetTester tester) async {
+      await openWorkflows(tester);
+      await tester.enterText(find.byType(EditableText).first, 'charge');
+      await tester.tap(find
+          .byKey(const ValueKey<String>('dv-studio-function-create')));
+      await tester.pumpAndSettle();
+      // Never deployed: nothing on the server is this function yet.
+      expect(find.text('Not deployed'), findsOneWidget);
+
+      await tester.tap(find
+          .byKey(const ValueKey<String>('dv-studio-function-deploy')));
+      await tester.pumpAndSettle();
+      expect(find.text('Not deployed'), findsNothing);
+      expect(find.text('Edited'), findsNothing,
+          reason: 'what is on the canvas is what is deployed');
+
+      final DVWorkflowEditorController controller = DVWorkflowEditorController(
+        DVWorkflowDocument(name: 'refund'),
+        deployed: true,
+      );
+      expect(controller.changed, isFalse);
+      controller.addInput();
+      expect(controller.changed, isTrue);
+      controller.undo();
+      expect(controller.changed, isFalse,
+          reason: 'undone back to what is deployed');
+    });
+
     testWidgets('creating a name that already exists opens it instead of '
         'blanking it', (WidgetTester tester) async {
       final stored = DVWorkflowDocument(name: 'charge');

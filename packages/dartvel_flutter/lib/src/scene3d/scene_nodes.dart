@@ -279,7 +279,7 @@ class DVMesh extends DVSceneNode with DVSceneNodeModifiers<DVMesh> {
 /// The camera a viewport draws from.
 ///
 /// `DVSceneCamera` rather than the specification's `DVCamera`, which is
-/// already the device camera at `DV.Platform.Camera`; a scene camera that
+/// already the device camera at `DV.Platform.camera`; a scene camera that
 /// could also `takePhoto()` would be a lie in the other direction.
 class DVSceneCamera extends DVSceneNode with DVSceneNodeModifiers<DVSceneCamera> {
   DVSceneCamera._(this.camera, _Props props) : super._(props, const <DVSceneNode>[]);

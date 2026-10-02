@@ -21,7 +21,7 @@ void main() {
     DV.Test.resetAuth();
   });
 
-  Future<void> save(List<String> routes) => DV.Platform.Window.persistWorkspace(
+  Future<void> save(List<String> routes) => DV.Platform.window.persistWorkspace(
         'main',
         workspaces: <DVTabWorkspaceController>[
           DVTabWorkspaceController(
@@ -31,7 +31,7 @@ void main() {
       );
 
   Future<List<String>> restored() async {
-    final List<DVTabWorkspaceController> w = await DV.Platform.Window.restoreWorkspace('main');
+    final List<DVTabWorkspaceController> w = await DV.Platform.window.restoreWorkspace('main');
     return <String>[for (final DVTabWorkspaceController c in w) for (final DVTab t in c.tabs) t.route.path];
   }
 

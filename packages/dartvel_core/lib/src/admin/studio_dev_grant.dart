@@ -1,12 +1,12 @@
 /// Studio in development, for the person running the development server.
 ///
 /// A deployment opens Studio to accounts granted `Studio.access`. `dartvel
-/// dev` and `dartvel preview` have no accounts to speak of, and bind to
+/// dev` and `dartvel dev --release` have no accounts to speak of, and bind to
 /// 0.0.0.0 so a phone on the network can reach the app -- which would hand
 /// Studio, with the project's records and its page builder, to anybody on
 /// the same network. So a development server makes a grant token and prints
 /// a link carrying it, the way a notebook server does. Opening the link sets
-/// a cookie scoped to the mount, and the mount serves only a browser that
+/// a cookie for the site, and Studio serves only a browser that
 /// holds it.
 library;
 
@@ -66,7 +66,9 @@ class DVStudioDevGrant {
       303,
       headers: Headers(<String, String>{
         'location': '${mount.path}/',
-        'set-cookie': '$cookieName=$token; Path=${mount.path}; HttpOnly; '
+        // The site root: Studio's code is loaded from it, as the
+        // application's deferred library, not from under the mount.
+        'set-cookie': '$cookieName=$token; Path=/; HttpOnly; '
             'SameSite=Strict',
         'cache-control': 'no-store',
       }),

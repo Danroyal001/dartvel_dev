@@ -63,7 +63,6 @@ Widget _p$i(BuildContext context) => const Text('p$i');
       normalizeTrailing: true,
       notFoundRedirect: '/',
       plugins: const <String>[],
-      webPrerender: false,
       ota: false,
       dv: YamlMap(),
     );
@@ -134,7 +133,6 @@ Widget _home(BuildContext context) => const Text('home');
       normalizeTrailing: true,
       notFoundRedirect: '/',
       plugins: const <String>[],
-      webPrerender: false,
       ota: false,
       dv: YamlMap(),
     );

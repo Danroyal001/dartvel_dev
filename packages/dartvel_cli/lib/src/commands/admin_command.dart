@@ -8,6 +8,8 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVDatabaseAdapter,
         DVDatabaseConnection,
+        DVRecordAdapter,
+        DVFilter,
         DVStudioGrant,
         DVStudioGrants,
         DVTenants,
@@ -134,14 +136,32 @@ abstract class _AdminGrantsCommand extends Command<void> {
   String get tenant => '${argResults?['tenant'] ?? DVTenants.defaultTenant}';
 
   /// The one account the command names, or null having said why.
-  String? account() {
+  Future<String?> account() async {
     final List<String> rest = argResults?.rest ?? const <String>[];
     if (rest.length != 1 || rest.single.trim().isEmpty) {
       io.fail('Name one account: dartvel admin $name <user-id>. The id is the '
           'one the application signs the person in as.');
       return null;
     }
-    return rest.single.trim();
+    final String input = rest.single.trim();
+    // If input looks like an email, resolve it to an account ID.
+    if (input.contains('@')) {
+      final DVDatabaseAdapter? database = openDatabase();
+      if (database == null) return null;
+      final DVRecordAdapter accounts = DVRecordAdapter.over(database);
+      final List<Map<String, Object?>> rows = await accounts.find(
+        'dv_accounts',
+        fields: const <String>['id'],
+        where: DVFilter.equals('email', input),
+        limit: 1,
+      );
+      if (rows.isEmpty) {
+        io.fail('No account found with email $input.');
+        return null;
+      }
+      return '${rows.first['id']}';
+    }
+    return input;
   }
 }
 
@@ -157,7 +177,7 @@ class _AdminGrantCommand extends _AdminGrantsCommand {
 
   @override
   Future<void> run() async {
-    final String? user = account();
+    final String? user = await account();
     if (user == null) return;
     final DVDatabaseAdapter? database = openDatabase();
     if (database == null) return;
@@ -177,7 +197,7 @@ class _AdminRevokeCommand extends _AdminGrantsCommand {
 
   @override
   Future<void> run() async {
-    final String? user = account();
+    final String? user = await account();
     if (user == null) return;
     final DVDatabaseAdapter? database = openDatabase();
     if (database == null) return;

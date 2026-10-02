@@ -76,7 +76,7 @@ void main() {
     await store.dispose();
   });
 
-  Future<DVWindow> openKiosk({String? name}) => DV.Platform.Window.open(
+  Future<DVWindow> openKiosk({String? name}) => DV.Platform.window.open(
         const DVRouteTarget('/customer-display'),
         options: DVWindowOptions(
           kind: DVWindowKind.kiosk,

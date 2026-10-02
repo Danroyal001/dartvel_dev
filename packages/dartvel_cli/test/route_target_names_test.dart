@@ -50,7 +50,6 @@ Future<String> routerFor(Map<String, String> pages) async {
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap(),
   );

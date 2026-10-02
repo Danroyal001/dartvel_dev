@@ -5,7 +5,7 @@
 // name, ever." A rule stated in prose comes back the first time someone needs
 // a place to put something; a rule with a test does not.
 //
-// DVWindowManager is public API today: DV.Platform.Window returns it. The
+// DVWindowManager is public API today: DV.Platform.window returns it. The
 // contract says anything beyond DV.Window and DVWindow is private, but Dart
 // privacy is per *library*, so a private class in src/windowing/window.dart
 // cannot be the return type of a member in dartvel_flutter.dart. The clause is

@@ -43,7 +43,7 @@ void main() {
       // device-scope kiosk. The route still presents, in place.
       dvApplyKioskContainment(kiosk('device'));
 
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, DVWindowDegradation.kioskLocked);
       expect(window.degradation.code, 'DV-WINDOW-002');
@@ -57,7 +57,7 @@ void main() {
       // degrades for whatever the host lacks -- never for the kiosk.
       dvApplyKioskContainment(kiosk('display'));
 
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, isNot(DVWindowDegradation.kioskLocked));
     });
@@ -68,7 +68,7 @@ void main() {
       DVWindowManager.useWindowingDeclaration(
           const DVWindowingDeclaration(enabled: false));
 
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, DVWindowDegradation.disabledByConfig);
       expect(window.degradation.code, 'DV-WINDOW-005');
@@ -81,7 +81,7 @@ void main() {
       // against code that reported disabledByConfig for everything. What
       // must hold is that neither reason is attributed to a project that
       // wrote no such line, and to no kiosk.
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, isNot(DVWindowDegradation.none));
       expect(window.degradation, isNot(DVWindowDegradation.disabledByConfig));
@@ -98,7 +98,7 @@ void main() {
               {String? title, double? width, double? height}) =>
           const DVBrowserWindowResult(DVBrowserWindowOutcome.blocked);
 
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, DVWindowDegradation.gestureRequired);
       expect(window.degradation.code, 'DV-WINDOW-003');
@@ -112,7 +112,7 @@ void main() {
           const DVBrowserWindowResult(DVBrowserWindowOutcome.opened,
               id: 'browser-1');
 
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, DVWindowDegradation.none);
       expect(window.presentation, DVWindowPresentation.window);
@@ -123,7 +123,7 @@ void main() {
         () async {
       // The other control: the opener reports it is not on the web, and the
       // missing binding is still the integration defect it always was.
-      final DVWindow window = await DV.Platform.Window.open(orders);
+      final DVWindow window = await DV.Platform.window.open(orders);
 
       expect(window.degradation, isNot(DVWindowDegradation.gestureRequired));
     });

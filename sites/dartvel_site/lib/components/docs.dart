@@ -11,6 +11,7 @@ import '../dartvel_client/dartvel_client.dart';
 import 'docs_cli_command.dart';
 import 'docs_page_info.dart';
 import 'docs_samples.dart';
+import 'section_anchor.dart';
 import 'site.dart';
 
 /// Every docs page, in reading order. The sidebar, the pager and the index
@@ -31,10 +32,14 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Signals, derived signals and globals', 'App'),
   DocsPageInfo(DVRoutes.docsaccessibility, 'Accessibility',
       'Build-time audit, switch control and remote keys', 'App'),
+  DocsPageInfo(DVRoutes.docsshortcuts, 'Keyboard shortcuts',
+      'Page and app shortcuts, safe typing and a shortcut sheet', 'App'),
   DocsPageInfo(DVRoutes.docslocalization, 'Localization',
       'Typed translation keys, plurals and ARB files', 'App'),
   DocsPageInfo(DVRoutes.docsdevices, 'Devices and desktop',
       'Native features, home widgets, kiosks, windows and trays', 'App'),
+  DocsPageInfo(DVRoutes.docsplatform, 'DV.Platform',
+      'Native platform access, bindings and planned capabilities', 'App'),
   DocsPageInfo(DVRoutes.docsmedia3d, 'Media, 3D and XR',
       'Players, recorders, 3D scenes and spatial windows', 'App'),
   DocsPageInfo(DVRoutes.docsmodels, 'Data models',
@@ -54,7 +59,7 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docscache, 'Cache',
       'Remember values and drop them by tag', 'Data'),
   DocsPageInfo(DVRoutes.docsstorage, 'File storage',
-      'Put and get files on S3, GCS or Azure', 'Data'),
+      'Files on local disk, S3, GCS or Azure', 'Data'),
   DocsPageInfo(DVRoutes.docsmedia, 'Images',
       'Resized image variants for web builds', 'Data'),
   DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',
@@ -86,7 +91,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(DVRoutes.docsbilling, 'Billing and commerce',
       'Subscriptions, store purchases, tax and usage limits', 'Backend'),
   DocsPageInfo(DVRoutes.docsmodules, 'Modules',
-      'Mount apps with Rust or Android code inside', 'Backend'),
+      'Mount apps, and wrap Dart, npm, C, Rust, JVM or Swift code',
+      'Backend'),
   DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
       'Sign-in limits, WAF rules and query budgets', 'Operations'),
   DocsPageInfo(DVRoutes.docssecrets, 'Secrets and environments',
@@ -210,7 +216,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Platform API: Keys, Scopes and OAuth Provider': 'Partial',
   'Platform Memory': 'Partial',
   'Platform': 'Partial',
-  'Preview Environments': 'Partial',
+  'Branch deployments': 'Partial',
   'Product Analytics and Consent': 'Partial',
   'Project Structure': 'Partial',
   'Protocol Versioning and Client Compatibility': 'Partial',
@@ -254,6 +260,11 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
 class const DocsAnchors({
   super.key,
   required final List<String> ids,
+
+  /// Other names a section answers to, each to the id it means: a
+  /// section's heading as the site search links to it,
+  /// `#choose-a-search-provider` for the section whose id is `providers`.
+  final Map<String, String> aliases = const <String, String>{},
   required final Widget Function(
     BuildContext context,
     Map<String, GlobalKey> keys,
@@ -275,6 +286,10 @@ class _DocsAnchorsState extends State<DocsAnchors> {
   Widget build(BuildContext context) {
     for (final String id in widget.ids) {
       _keys.putIfAbsent(id, () => GlobalKey(debugLabel: 'docs:$id'));
+    }
+    for (final MapEntry<String, String> alias in widget.aliases.entries) {
+      final GlobalKey? key = _keys[alias.value];
+      if (key != null) _keys.putIfAbsent(alias.key, () => key);
     }
     return _DocsAnchorKeys(
       keys: _keys,
@@ -367,6 +382,9 @@ Widget _docsArticle(
 
   return DocsAnchors(
     ids: <String>[for (final DocsSection s in parts) s.id],
+    aliases: <String, String>{
+      for (final DocsSection s in parts) sectionAnchor(s.title): s.id,
+    },
     builder: (BuildContext inner, Map<String, GlobalKey> keys) =>
         ScrollToFragment(
       child: SingleChildScrollView(

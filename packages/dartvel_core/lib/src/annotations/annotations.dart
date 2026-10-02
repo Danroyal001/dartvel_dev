@@ -488,6 +488,11 @@ class DVModel {
   /// before it can be sent to clients. Use [showInForms]/[showInAdmin] to opt
   /// specific generated UI surfaces back in.
   ///
+  /// In forms it is write-only, like a password field: `Model.Form()` and the
+  /// Studio record form show an obscured input that always starts empty. A
+  /// value typed there is saved, and an empty one keeps the stored value.
+  /// [showInForms] makes it an ordinary, readable form field instead.
+  ///
   /// [encrypted] seals the value with AES-256-GCM before it reaches the
   /// database and opens it on the way back, under the keyring in
   /// `DARTVEL_FIELD_KEYS` — a server-process environment variable, because
@@ -886,11 +891,19 @@ class DVBackendFunction {
   /// Mutually exclusive with [rawPath].
   final String? rawPathSuffix;
 
+  /// Declares this backend function an AI tool, the same as `@DVAITool` on any
+  /// other function: it is added to the generated AI tool registry
+  /// (`ai_tools.g.dart`) with this description, even when the project does not
+  /// expose every backend function as a tool. MCP, WebMCP, App Intents and App
+  /// Functions are planned to read this one registry; none exists yet.
+  final DVAITool? aiTool;
+
   const DVBackendFunction({
     this.policy,
     this.mfa,
     this.rawPath,
     this.rawPathSuffix,
+    this.aiTool,
   }) : assert(rawPath == null || rawPathSuffix == null,
             'rawPath and rawPathSuffix are mutually exclusive');
 }
@@ -1189,6 +1202,38 @@ Map<String, Object?>? serializeDVModel<T>(T model) {
   final serializer = dvModelSerializers[T];
   if (serializer == null) return null;
   return serializer(model);
+}
+
+/// The fields a generated form may show for each model type.
+///
+/// The serializer a form reads is the model's internal one and carries every
+/// field, a `@DVModel.sensitiveField()` included, because it is also what
+/// persistence and sync use. A form must not render, prefill or accept a
+/// value for a sensitive field, so the generator registers the fields a form
+/// may show -- everything but the sensitive ones, unless a field opted back
+/// in with `@DVModel.sensitiveField(showInForms: true)` -- and the form keeps
+/// to that set.
+final Map<Type, Set<String>> dvModelFormFields = {};
+
+/// Registers the fields a generated form may show for a [T].
+void registerDVModelFormFields<T>(Iterable<String> fields) {
+  dvModelFormFields[T] = Set<String>.unmodifiable(fields);
+}
+
+/// The write-only fields of each model type: its `@DVModel.sensitiveField()`s.
+///
+/// A write-only field works like a password field. A generated form draws an
+/// input for it, obscured and always empty -- never prefilled, never filled
+/// in from a read -- and on an edit says that leaving it empty keeps the
+/// current value. Something typed into it is saved; nothing typed keeps what
+/// the record already holds. [dvModelFormFields] stays the set of fields a
+/// form may show and prefill, so a write-only field is in this set and not
+/// in that one.
+final Map<Type, Set<String>> dvModelWriteOnlyFields = {};
+
+/// Registers the write-only fields of a [T].
+void registerDVModelWriteOnlyFields<T>(Iterable<String> fields) {
+  dvModelWriteOnlyFields[T] = Set<String>.unmodifiable(fields);
 }
 
 /// Registers how a [T] is rebuilt from a JSON map.
