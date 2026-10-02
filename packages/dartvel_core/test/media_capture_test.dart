@@ -1,4 +1,4 @@
-// Capture: `DV.Platform.Media.recordAudio(...)` / `recordVideo(...)`.
+// Capture: `DV.Platform.media.recordAudio(...)` / `recordVideo(...)`.
 //
 // Capture fails quietly in ways that matter more than playback does. A
 // microphone still recording after the application went to the background, a

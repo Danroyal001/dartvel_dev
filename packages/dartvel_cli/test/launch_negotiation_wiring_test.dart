@@ -4,7 +4,7 @@
 // have a register() that loads the libraries and wires clipboard, window,
 // notifications and the rest onto DVNativeBridge. Nothing in a generated
 // application called any of them: the only call sites were the framework's
-// own tests. So DV.Platform.Clipboard.copy() on a Linux desktop threw "binding
+// own tests. So DV.Platform.clipboard.copy() on a Linux desktop threw "binding
 // not registered" in every real app, and the platform matrix that reports
 // those bindings as implemented was describing code no application reached.
 import 'dart:io';

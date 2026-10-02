@@ -34,7 +34,7 @@ Future<void> refreshShift(String when) =>
 // The route is the generated target, never a string: moving the page moves
 // this with it, and a route that no longer exists is a compile error rather
 // than a window onto nothing.
-Future<DVWindow> openCart() => DV.Platform.Window.open(DVRoutes.cart);
+Future<DVWindow> openCart() => DV.Platform.window.open(DVRoutes.cart);
 // docs:end
 
 // docs:start devices-foldable
@@ -54,17 +54,17 @@ Widget shiftBoard(BuildContext context) {
 // Trays, menus and shortcuts are the same DV.Platform surface, so a desktop
 // build asks for them and a phone build answers that it has none.
 Future<void> installDesktopChrome() async {
-  await DV.Platform.Tray.show(
+  await DV.Platform.tray.show(
     icon: DVAsset.tray,
     tooltip: 'Oakline',
     menu: const <DVTrayMenuItem>[
       DVTrayMenuItem(id: 'cart', label: 'Open the cart'),
     ],
-    onSelected: (String id) => DV.Platform.Window.open(DVRoutes.cart),
+    onSelected: (String id) => DV.Platform.window.open(DVRoutes.cart),
   );
-  await DV.Platform.Shortcuts.register(
+  await DV.Platform.shortcuts.register(
     const DVGlobalShortcut(id: 'cart', accelerator: 'Ctrl+Shift+O'),
-    onPressed: () => DV.Platform.Window.open(DVRoutes.cart),
+    onPressed: () => DV.Platform.window.open(DVRoutes.cart),
   );
 }
 // docs:end

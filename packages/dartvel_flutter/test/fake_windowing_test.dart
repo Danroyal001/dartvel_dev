@@ -23,7 +23,7 @@ void main() {
       DV.Test.fakeWindowing(const DVWindowingCapability());
 
       final DVWindow window =
-          await DV.Platform.Window.open(const DVRouteTarget('/orders'));
+          await DV.Platform.window.open(const DVRouteTarget('/orders'));
 
       expect(window.presentation, DVWindowPresentation.page);
       expect(window.degradation, DVWindowDegradation.capabilityUnsupported);
@@ -34,7 +34,7 @@ void main() {
       // describe, and the combination that means "desktop" is not obvious.
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
 
-      final DVWindowingCapability capability = DV.Platform.Window.capability;
+      final DVWindowingCapability capability = DV.Platform.window.capability;
       expect(capability.multiWindow, isTrue);
       expect(capability.sameEngine, isTrue);
       expect(capability.tearOut, isTrue);
@@ -43,7 +43,7 @@ void main() {
     test('the fake replaces detection rather than merging with it', () {
       DV.Test.fakeWindowing(const DVWindowingCapability(multiWindow: true));
 
-      final DVWindowingCapability capability = DV.Platform.Window.capability;
+      final DVWindowingCapability capability = DV.Platform.window.capability;
       expect(capability.multiWindow, isTrue);
       expect(capability.sameEngine, isFalse,
           reason: 'nothing was asked for beyond multiWindow');
@@ -54,16 +54,16 @@ void main() {
       // read from the display list rather than frozen into the fake -- a fake
       // that froze it would make a "move to display" control untestable.
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
-      expect(DV.Platform.Window.capability.displays, isFalse);
+      expect(DV.Platform.window.capability.displays, isFalse);
 
       DVNativeBridge.register('window.displays', (Object? _) => <Object?>[
             <String, Object?>{'id': 'A', 'width': 800.0, 'height': 600.0},
             <String, Object?>{'id': 'B', 'width': 800.0, 'height': 600.0},
           ]);
       addTearDown(() => DVNativeBridge.unregister('window.displays'));
-      await DV.Platform.Window.refreshDisplays();
+      await DV.Platform.window.refreshDisplays();
 
-      expect(DV.Platform.Window.capability.displays, isTrue);
+      expect(DV.Platform.window.capability.displays, isTrue);
     });
   });
 
@@ -73,18 +73,18 @@ void main() {
     // asserting on that would pass whether or not the override was cleared.
     test('reset puts detection back', () {
       DV.Test.fakeWindowing(DVWindowingCapability.desktop());
-      expect(DV.Platform.Window.capability.tearOut, isTrue);
+      expect(DV.Platform.window.capability.tearOut, isTrue);
 
       DVWindowManager.reset();
 
-      expect(DV.Platform.Window.capability.tearOut, isFalse,
+      expect(DV.Platform.window.capability.tearOut, isFalse,
           reason: 'detection, not the fake');
     });
 
     test('a fake does not leak into the next test', () {
       // The reason reset is in tearDown above: a capability that survived
       // would make the next test pass or fail on the previous one's setup.
-      expect(DV.Platform.Window.capability.tearOut, isFalse);
+      expect(DV.Platform.window.capability.tearOut, isFalse);
     });
   });
 }

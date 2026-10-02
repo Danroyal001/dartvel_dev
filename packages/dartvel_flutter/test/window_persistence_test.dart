@@ -94,7 +94,7 @@ void main() {
     tearDown(DVWindowManager.reset);
 
     test('restores tab order and the active tab', () async {
-      final manager = DV.Platform.Window;
+      final manager = DV.Platform.window;
       final workspace = DVTabWorkspaceController(
         tabs: const <DVTab>[DVTab(orders), DVTab(customers)],
       )..activate(1);
@@ -111,7 +111,7 @@ void main() {
     });
 
     test('several workspaces round-trip', () async {
-      final manager = DV.Platform.Window;
+      final manager = DV.Platform.window;
 
       await manager.persistWorkspace('main',
           workspaces: <DVTabWorkspaceController>[
@@ -123,11 +123,11 @@ void main() {
     });
 
     test('a first launch restores nothing rather than failing', () async {
-      expect(await DV.Platform.Window.restoreWorkspace('never-saved'), isEmpty);
+      expect(await DV.Platform.window.restoreWorkspace('never-saved'), isEmpty);
     });
 
     test('workspaces are stored under their own name', () async {
-      final manager = DV.Platform.Window;
+      final manager = DV.Platform.window;
       await manager.persistWorkspace('left',
           workspaces: <DVTabWorkspaceController>[
             DVTabWorkspaceController(tabs: const <DVTab>[DVTab(orders)]),
@@ -139,7 +139,7 @@ void main() {
 
     test('an empty workspace persists as empty rather than vanishing',
         () async {
-      final manager = DV.Platform.Window;
+      final manager = DV.Platform.window;
 
       await manager.persistWorkspace('main',
           workspaces: <DVTabWorkspaceController>[DVTabWorkspaceController()]);

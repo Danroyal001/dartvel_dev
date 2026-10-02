@@ -105,13 +105,13 @@ void main() {
     });
 
     test('an unregistered binding leaves enumeration to Flutter', () async {
-      // DV.Platform.Window.refreshDisplays falls back to
+      // DV.Platform.window.refreshDisplays falls back to
       // PlatformDispatcher.displays, so not registering costs the OS-only
       // fields, not the display list.
       expect(DVNativeBridge.isRegistered('window.displays'), isFalse);
 
       final List<DVDisplay> displays =
-          await DV.Platform.Window.refreshDisplays();
+          await DV.Platform.window.refreshDisplays();
       expect(displays, isNotEmpty);
       expect(displays.first.hasLayout, isFalse,
           reason: 'Flutter reports no layout origin');

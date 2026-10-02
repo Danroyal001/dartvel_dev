@@ -19,7 +19,7 @@ void main() {
     DVNativeBridge.unregister('window.close');
   });
 
-  DVWindowManager manager() => DV.Platform.Window;
+  DVWindowManager manager() => DV.Platform.window;
 
   void grantWindows() {
     DVWindowManager.capabilityOverride = const DVWindowingCapability(

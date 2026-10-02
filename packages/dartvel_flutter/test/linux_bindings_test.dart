@@ -304,7 +304,7 @@ void main() {
     // Camera has no Linux implementation; it must fail loudly rather than
     // return a fake photo.
     await expectLater(
-      DV.Platform.Camera.takePhoto(),
+      DV.Platform.camera.takePhoto(),
       throwsA(
         isA<StateError>().having(
           (StateError e) => e.message,

@@ -71,7 +71,7 @@ void main() {
 
     test('two pictures become a two-page PDF', () async {
       final String path = '${dir.path}/out.pdf';
-      final DVPrintResult result = await DV.Platform.Printing.toFile(
+      final DVPrintResult result = await DV.Platform.printing.toFile(
         path,
         pages: <Uint8List>[await page(const Color(0xFFFFEEDD), 'Page one'), await page(const Color(0xFFDDEEFF), 'Page two')],
       );
@@ -98,7 +98,7 @@ void main() {
       // holds the name, which is the whole of what the platform can be
       // asked here.
       final String path = '${dir.path}/titled.pdf';
-      await DV.Platform.Printing.toFile(
+      await DV.Platform.printing.toFile(
         path,
         title: 'Order 4821',
         pages: <Uint8List>[await page(const Color(0xFFEEEEEE), 'Titled')],
@@ -114,7 +114,7 @@ void main() {
       // about the reading rather than the writing: this is a static, and a
       // stale value from the test above would satisfy the first on its own.
       final String path = '${dir.path}/untitled.pdf';
-      await DV.Platform.Printing.toFile(
+      await DV.Platform.printing.toFile(
         path,
         pages: <Uint8List>[await page(const Color(0xFFEEEEEE), 'Untitled')],
       );
@@ -126,7 +126,7 @@ void main() {
     test('a page that is not a picture is refused, and no file is written', () async {
       final String path = '${dir.path}/bad.pdf';
       await expectLater(
-        DV.Platform.Printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
+        DV.Platform.printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
         throwsA(isA<StateError>()),
       );
       expect(File(path).existsSync(), isFalse);
