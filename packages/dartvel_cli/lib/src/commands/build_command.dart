@@ -37,6 +37,8 @@ import '../build/ios_deep_links.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
+import '../build/file_associations.dart';
+import '../config/dartvel_section.dart';
 import '../build/native_assets_config.dart';
 import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
@@ -1061,6 +1063,8 @@ class BuildCommand extends Command<void> {
       _writeAppleHomeWidgets(_projectRoot, platform);
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
+    // Before Xcode packages the bundle: document types are read from the plist.
+    if (platform == 'ios') _writeIosFileAssociations(_projectRoot);
     if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -1073,6 +1077,9 @@ class BuildCommand extends Command<void> {
       // they are written.
       _writeAndroidCaptureBridge(_projectRoot);
       _writeAndroidKioskFiles(_projectRoot);
+      // Before Gradle reads the manifest: what the app opens and is a share
+      // target for are intent filters on its launcher activity.
+      _writeAndroidFileAssociations(_projectRoot);
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
@@ -1475,6 +1482,13 @@ class BuildCommand extends Command<void> {
         return _PlatformBuildResult.failed;
       }
       file.copySync(destination);
+    }
+
+    // An eLinux image with a desktop shell reads the same desktop entry and
+    // MIME info a Linux desktop does; one without a shell ignores them.
+    final DVDesktopWrite elinuxDesktop = dvWriteLinuxDesktopFiles(root, outDir);
+    for (final String problem in elinuxDesktop.problems) {
+      Logger.log('⚠️  $problem');
     }
 
     // Boot-to-app: the declaration says the target's supervisor starts the
@@ -1908,6 +1922,55 @@ class BuildCommand extends Command<void> {
     for (final String note in result.skipped) {
       Logger.log('   Splash: $note');
     }
+  }
+
+  /// The file types the project declares, read once per build, with their
+  /// problems and the moved-key warning said once rather than per target.
+  DVProjectFileAssociations _fileAssociations(String root) {
+    final DVProjectFileAssociations? known = _declaredFileAssociations;
+    if (known != null) return known;
+    final DVDartvelSection section = dvDartvelSection(root);
+    final DVProjectFileAssociations declared = DVProjectFileAssociations.of(section.values);
+    for (final String line in <String>[...section.problems, ...declared.problems, ...declared.warnings]) {
+      Logger.log('⚠️  $line');
+    }
+    return _declaredFileAssociations = declared;
+  }
+
+  DVProjectFileAssociations? _declaredFileAssociations;
+
+  void _writeAndroidFileAssociations(String root) {
+    final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidFileAssociationsManifest(before, declared.associations);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (!declared.isEmpty) {
+      Logger.log('   File types: ${declared.associations.length} registered as intent filters on the launcher activity.');
+    }
+  }
+
+  void _writeIosFileAssociations(String root) {
+    final File plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (!plist.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = plist.readAsStringSync();
+    final String after = dvAppleFileAssociationsPlist(before, dvPackageName(root) ?? 'dartvel_app', declared.associations, ios: true);
+    if (after != before) plist.writeAsStringSync(after);
+    if (!declared.isEmpty && dvAppleHasOwnDocumentTypes(after)) {
+      Logger.log('⚠️  ios/Runner/Info.plist already declares CFBundleDocumentTypes of its own, so '
+          'dartvel.fileAssociations was not added beside them; those entries stay in charge.');
+    }
+  }
+
+  void _writeTizenFileAssociations(String root) {
+    final File manifest = File(p.join(root, 'tizen', 'tizen-manifest.xml'));
+    if (!manifest.existsSync()) return;
+    final DVProjectFileAssociations declared = _fileAssociations(root);
+    final String before = manifest.readAsStringSync();
+    final String after = dvTizenFileAssociationsManifest(before, declared.associations);
+    if (after != before) manifest.writeAsStringSync(after);
   }
 
   void _writeAndroidKioskFiles(String root) {
@@ -2431,6 +2494,10 @@ class BuildCommand extends Command<void> {
       Logger.log('   Generated $scaffoldDir/.');
     }
 
+    // After the scaffold exists and before the embedder packages it: Tizen
+    // reads the app controls from tizen-manifest.xml.
+    if (platform == 'tizen') _writeTizenFileAssociations(_projectRoot);
+
     final proc = await Process.start(
       plan.executable,
       plan.arguments,
@@ -2752,6 +2819,7 @@ class BuildCommand extends Command<void> {
         themeColor: '${settings['themeColor'] ?? '#000000'}',
         backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
         description: settings['description'] as String?,
+        fileHandlers: dvWebFileHandlers(_fileAssociations(root).associations),
       ),
     );
 

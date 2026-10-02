@@ -12,19 +12,10 @@ library;
 
 import 'dart:io';
 
-import 'package:yaml/yaml.dart';
+import '../config/dartvel_section.dart';
+import 'file_associations.dart';
 
-class DVFileAssociation {
-  final String mimeType;
-  final List<String> extensions;
-  final String? description;
-
-  const DVFileAssociation({required this.mimeType, this.extensions = const <String>[], this.description});
-
-  /// A type the desktop already knows needs no MIME info of its own; one
-  /// this app introduces is named by its extensions.
-  bool get isNew => extensions.isNotEmpty;
-}
+export 'file_associations.dart' show DVFileAssociation, DVFileAssociationRole;
 
 class DVDesktopSettings {
   final String app;
@@ -49,28 +40,21 @@ class DVDesktopSettings {
     this.problems = const <String>[],
   });
 
-  /// Reads `dartvel.desktop`. Never throws: a build reports what is wrong
-  /// with the declaration alongside the rest of its findings.
-  static DVDesktopSettings parse(Object? section, {required String app, required String appName}) {
-    final Map<Object?, Object?> d = section is Map ? section : const <Object?, Object?>{};
-    final List<String> problems = <String>[];
-    final List<DVFileAssociation> associations = <DVFileAssociation>[];
-    for (final Object? raw in _list(d['fileAssociations'])) {
-      if (raw is! Map) {
-        problems.add('dartvel.desktop.fileAssociations has an entry that is not a map.');
-        continue;
-      }
-      final Object? mime = raw['mimeType'];
-      if (mime is! String || !mime.contains('/')) {
-        problems.add('dartvel.desktop.fileAssociations: every association needs a mimeType such as application/x-shop-order.');
-        continue;
-      }
-      associations.add(DVFileAssociation(
-        mimeType: mime,
-        extensions: <String>[for (final Object? e in _list(raw['extensions'])) '$e'.replaceFirst(RegExp(r'^\.'), '')],
-        description: raw['description'] is String ? raw['description']! as String : null,
-      ));
-    }
+  /// Reads `dartvel.desktop` alone, with its file types where they used to
+  /// live. Kept for callers that hold just that section; a build reads the
+  /// whole `dartvel:` object through [fromDartvel].
+  static DVDesktopSettings parse(Object? section, {required String app, required String appName}) =>
+      fromDartvel(<Object?, Object?>{'desktop': section}, app: app, appName: appName);
+
+  /// Reads the `dartvel:` object: the window identity from `desktop`, the
+  /// file types from `fileAssociations` (or the older `desktop.fileAssociations`).
+  /// Never throws: a build reports what is wrong alongside the rest of its findings.
+  static DVDesktopSettings fromDartvel(Map<Object?, Object?> dartvel, {required String app, required String appName}) {
+    final Object? desktopSection = dartvel['desktop'];
+    final Map<Object?, Object?> d = desktopSection is Map ? desktopSection : const <Object?, Object?>{};
+    final DVProjectFileAssociations declared = DVProjectFileAssociations.of(dartvel);
+    final List<String> problems = <String>[...declared.problems];
+    final List<DVFileAssociation> associations = declared.associations;
     final List<String> schemes = <String>[];
     for (final Object? raw in _list(d['schemes'])) {
       final String s = '$raw';
@@ -165,20 +149,7 @@ class DVDesktopWrite {
 /// entry and MIME info under [bundle]. Problems are returned, not thrown:
 /// the entry is still written without the parts that were wrong.
 DVDesktopWrite dvWriteLinuxDesktopFiles(String root, String bundle) {
-  final File pubspec = File('$root/pubspec.yaml');
-  Object? doc;
-  if (pubspec.existsSync()) {
-    try {
-      doc = loadYaml(pubspec.readAsStringSync());
-    } on Object {
-      doc = null;
-    }
-  }
-  final Map<Object?, Object?> top = doc is Map ? doc : const <Object?, Object?>{};
-  final String app = top['name'] is String ? top['name']! as String : 'dartvel_app';
-  final Object? dartvel = top['dartvel'];
-  final Object? desktop = dartvel is Map ? dartvel['desktop'] : null;
-  final DVDesktopSettings settings = DVDesktopSettings.parse(desktop, app: app, appName: app);
+  final DVDesktopSettings settings = _settingsFor(root);
   final List<String> written = <String>[];
   for (final MapEntry<String, String> e in dvDesktopFiles(settings).entries) {
     final File file = File('$bundle/${e.key}');
@@ -203,8 +174,13 @@ String dvMacosInfoPlist(String plist, DVDesktopSettings settings) {
   final String stripped = plist.replaceAll(block, '');
   if (settings.associations.isEmpty && settings.schemes.isEmpty) return stripped;
 
+  // Document types and type declarations are the same block iOS gets, from
+  // file_associations.dart, so the two Apple targets cannot drift apart.
+  final String withTypes = dvAppleFileAssociationsPlist(stripped, settings.app, settings.associations, ios: false);
+  if (settings.schemes.isEmpty) return withTypes;
+
   final StringBuffer out = StringBuffer()..writeln(_plistMarkStart);
-  if (settings.schemes.isNotEmpty) {
+  {
     out
       ..writeln('\t<key>CFBundleURLTypes</key>')
       ..writeln('\t<array>')
@@ -221,40 +197,12 @@ String dvMacosInfoPlist(String plist, DVDesktopSettings settings) {
       ..writeln('\t\t</dict>')
       ..writeln('\t</array>');
   }
-  if (settings.associations.isNotEmpty) {
-    out
-      ..writeln('\t<key>CFBundleDocumentTypes</key>')
-      ..writeln('\t<array>');
-    for (final DVFileAssociation a in settings.associations) {
-      out
-        ..writeln('\t\t<dict>')
-        ..writeln('\t\t\t<key>CFBundleTypeName</key>')
-        ..writeln('\t\t\t<string>${_xml(a.description ?? a.mimeType)}</string>')
-        ..writeln('\t\t\t<key>CFBundleTypeRole</key>')
-        ..writeln('\t\t\t<string>Editor</string>')
-        ..writeln('\t\t\t<key>CFBundleTypeMIMETypes</key>')
-        ..writeln('\t\t\t<array>')
-        ..writeln('\t\t\t\t<string>${_xml(a.mimeType)}</string>')
-        ..writeln('\t\t\t</array>');
-      if (a.extensions.isNotEmpty) {
-        out
-          ..writeln('\t\t\t<key>CFBundleTypeExtensions</key>')
-          ..writeln('\t\t\t<array>');
-        for (final String e in a.extensions) {
-          out.writeln('\t\t\t\t<string>${_xml(e)}</string>');
-        }
-        out.writeln('\t\t\t</array>');
-      }
-      out.writeln('\t\t</dict>');
-    }
-    out.writeln('\t</array>');
-  }
   out.write(_plistMarkEnd);
 
   // Before the top dictionary closes: the last </dict> is the top one.
-  final int close = stripped.lastIndexOf('</dict>');
-  if (close < 0) return stripped;
-  return '${stripped.substring(0, close)}$out\n${stripped.substring(close)}';
+  final int close = withTypes.lastIndexOf('</dict>');
+  if (close < 0) return withTypes;
+  return '${withTypes.substring(0, close)}$out\n${withTypes.substring(close)}';
 }
 
 /// Rewrites `macos/Runner/Info.plist` under [root] with the declaration's
@@ -291,7 +239,7 @@ String? dvWindowsAssociationsScript(DVDesktopSettings settings, {required String
   final StringBuffer out = StringBuffer()
     ..writeln('Windows Registry Editor Version 5.00')
     ..writeln()
-    ..writeln('; ${settings.app}: file associations and app links, from dartvel.desktop in pubspec.yaml.')
+    ..writeln('; ${settings.app}: file associations and app links, from dartvel.fileAssociations and dartvel.desktop in pubspec.yaml.')
     ..writeln();
   for (final DVFileAssociation a in settings.associations) {
     for (final String ext in a.extensions) {
@@ -307,6 +255,13 @@ String? dvWindowsAssociationsScript(DVDesktopSettings settings, {required String
         ..writeln('[$classes\\$progId\\shell\\open\\command]')
         ..writeln('@="${_reg(command)}"')
         ..writeln();
+      // An editor is also offered for Edit, which Explorer shows beside Open.
+      if (a.role == DVFileAssociationRole.editor) {
+        out
+          ..writeln('[$classes\\$progId\\shell\\edit\\command]')
+          ..writeln('@="${_reg(command)}"')
+          ..writeln();
+      }
     }
   }
   for (final String scheme in settings.schemes) {
@@ -333,17 +288,19 @@ DVDesktopWrite dvWriteWindowsDesktopFiles(String root, String bundle) {
 }
 
 DVDesktopSettings _settingsFor(String root) {
-  final File pubspec = File('$root/pubspec.yaml');
-  Object? doc;
-  if (pubspec.existsSync()) {
-    try {
-      doc = loadYaml(pubspec.readAsStringSync());
-    } on Object {
-      doc = null;
-    }
-  }
-  final Map<Object?, Object?> top = doc is Map ? doc : const <Object?, Object?>{};
-  final String app = top['name'] is String ? top['name']! as String : 'dartvel_app';
-  final Object? dartvel = top['dartvel'];
-  return DVDesktopSettings.parse(dartvel is Map ? dartvel['desktop'] : null, app: app, appName: app);
+  final DVDartvelSection section = dvDartvelSection(root);
+  final String app = dvPackageName(root) ?? 'dartvel_app';
+  final DVDesktopSettings settings = DVDesktopSettings.fromDartvel(section.values, app: app, appName: app);
+  if (section.problems.isEmpty) return settings;
+  return DVDesktopSettings(
+    app: settings.app,
+    name: settings.name,
+    exec: settings.exec,
+    comment: settings.comment,
+    icon: settings.icon,
+    categories: settings.categories,
+    associations: settings.associations,
+    schemes: settings.schemes,
+    problems: <String>[...section.problems, ...settings.problems],
+  );
 }
