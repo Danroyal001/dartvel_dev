@@ -73,22 +73,30 @@ List<String> dvAndroidUnknownPermissions(List<String> requested) => <String>[
 /// whichever device installs the APK, and `maxSdkVersion` is how a manifest
 /// says "this one is for the old phones" without asking the new ones for it.
 List<String> dvAndroidUsesPermissions(List<String> requested) {
-  final List<String> lines = <String>[];
+  // One line per permission name. Two groups can need the same permission
+  // over different API ranges -- READ_EXTERNAL_STORAGE is photos' up to 32
+  // and allFiles' up to 29 -- and two <uses-permission> lines for one name
+  // are a manifest-merger error. The widest range wins: no maxSdk is wider
+  // than any.
+  final Map<String, int?> maxSdkByName = <String, int?>{};
+  final Set<String> unbounded = <String>{};
   for (final String name in requested) {
     final DVAndroidPermissionGroup? group = dvAndroidPermissions[name];
     if (group == null) continue;
     for (final DVAndroidPermission permission in group.permissions) {
-      final StringBuffer line = StringBuffer()
-        ..write('    <uses-permission android:name="${permission.name}"');
-      if (permission.maxSdk != null) {
-        line.write('\n        android:maxSdkVersion="${permission.maxSdk}"');
-      }
-      line.write('/>');
-      final String rendered = line.toString();
-      if (!lines.contains(rendered)) lines.add(rendered);
+      if (permission.maxSdk == null) unbounded.add(permission.name);
+      final int? known = maxSdkByName[permission.name];
+      maxSdkByName[permission.name] = known == null || (permission.maxSdk ?? 0) > known
+          ? permission.maxSdk
+          : known;
     }
   }
-  return lines;
+  return <String>[
+    for (final MapEntry<String, int?> entry in maxSdkByName.entries)
+      unbounded.contains(entry.key) || entry.value == null
+          ? '    <uses-permission android:name="${entry.key}"/>'
+          : '    <uses-permission android:name="${entry.key}"\n        android:maxSdkVersion="${entry.value}"/>',
+  ];
 }
 
 const String _markStart = '    <!-- dartvel.capture: start -->\n';
