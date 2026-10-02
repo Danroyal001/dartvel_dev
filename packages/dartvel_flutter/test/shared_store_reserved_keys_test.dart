@@ -104,9 +104,9 @@ void main() {
       TestWidgetsFlutterBinding.ensureInitialized();
       addTearDown(DVWindowManager.reset);
 
-      await expectLater(DV.Platform.Window.persistState('main'),
+      await expectLater(DV.Platform.window.persistState('main'),
           completes);
-      await expectLater(DV.Platform.Window.restoreState('main'), completes);
+      await expectLater(DV.Platform.window.restoreState('main'), completes);
     });
   });
 }

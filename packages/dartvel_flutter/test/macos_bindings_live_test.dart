@@ -350,7 +350,7 @@ void main() {
 
     test('two pictures become a two-page PDF', () async {
       final String path = '${dir.path}${Platform.pathSeparator}out.pdf';
-      final DVPrintResult result = await DV.Platform.Printing.toFile(
+      final DVPrintResult result = await DV.Platform.printing.toFile(
         path,
         pages: <Uint8List>[await page(const Color(0xFFFFEEDD), 'Page one'), await page(const Color(0xFFDDEEFF), 'Page two')],
       );
@@ -365,7 +365,7 @@ void main() {
     test('a page that is not a picture is refused, and no file is written', () async {
       final String path = '${dir.path}${Platform.pathSeparator}bad.pdf';
       await expectLater(
-        DV.Platform.Printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
+        DV.Platform.printing.toFile(path, pages: <Uint8List>[Uint8List.fromList(<int>[1, 2, 3])]),
         throwsA(isA<StateError>()),
       );
       expect(File(path).existsSync(), isFalse);

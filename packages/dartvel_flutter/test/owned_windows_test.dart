@@ -28,7 +28,7 @@ void main() {
   });
 
   Future<DVWindow> open(String path, {DVWindowOptions? options}) =>
-      DV.Platform.Window.open(DVRouteTarget(path),
+      DV.Platform.window.open(DVRouteTarget(path),
           options: options ?? const DVWindowOptions());
 
   group('ownership', () {
@@ -49,7 +49,7 @@ void main() {
 
       await owner.close();
 
-      expect(DV.Platform.Window.all.value, isEmpty);
+      expect(DV.Platform.window.all.value, isEmpty);
       expect(dialog.lifecycle.value, DVWindowLifecycle.closed);
     });
 
@@ -185,7 +185,7 @@ void _ownedCapability() {
     tearDown(DVWindowManager.reset);
 
     Future<DVWindow> openKind(DVWindowKind kind, DVWindow owner) =>
-        DV.Platform.Window.open(const DVRouteTarget('/menu'),
+        DV.Platform.window.open(const DVRouteTarget('/menu'),
             options: DVWindowOptions(
                 kind: kind, owner: owner, duplicate: true));
 
@@ -199,7 +199,7 @@ void _ownedCapability() {
       addTearDown(() => DVNativeBridge.unregister('window.open'));
 
       final DVWindow owner =
-          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+          await DV.Platform.window.open(const DVRouteTarget('/a'));
       final DVWindow tip = await openKind(DVWindowKind.tooltip, owner);
 
       expect(tip.presentation, DVWindowPresentation.window);
@@ -216,7 +216,7 @@ void _ownedCapability() {
       addTearDown(() => DVNativeBridge.unregister('window.open'));
 
       final DVWindow owner =
-          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+          await DV.Platform.window.open(const DVRouteTarget('/a'));
       final DVWindow tip = await openKind(DVWindowKind.tooltip, owner);
 
       expect(tip.presentation, DVWindowPresentation.overlay);
@@ -232,7 +232,7 @@ void _ownedCapability() {
       addTearDown(() => DVNativeBridge.unregister('window.open'));
 
       final DVWindow window =
-          await DV.Platform.Window.open(const DVRouteTarget('/a'));
+          await DV.Platform.window.open(const DVRouteTarget('/a'));
 
       expect(window.presentation, DVWindowPresentation.window);
     });

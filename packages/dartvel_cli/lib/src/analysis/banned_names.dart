@@ -32,7 +32,7 @@ class DVBannedName {
 
 /// Declarations the contract permits despite the ban, and why.
 ///
-/// `DVWindowManager` is the type `DV.Platform.Window` returns. The contract
+/// `DVWindowManager` is the type `DV.Platform.window` returns. The contract
 /// says "anything the implementation needs beyond DV.Window and DVWindow is
 /// private", but Dart privacy is per *library*: a private class declared in
 /// src/windowing/window.dart cannot be the return type of a member declared in
@@ -46,7 +46,7 @@ class DVBannedName {
 /// *new* one.
 const Map<String, String> dvBannedNameExceptions = <String, String>{
   'DVWindowManager':
-      'returned by DV.Platform.Window; Dart per-library privacy prevents '
+      'returned by DV.Platform.window; Dart per-library privacy prevents '
           'making it private without merging libraries or naming a public '
           'replacement. Open spec decision.',
 };

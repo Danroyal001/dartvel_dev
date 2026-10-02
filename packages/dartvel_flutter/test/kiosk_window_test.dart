@@ -61,7 +61,7 @@ void main() {
     }
   });
 
-  Future<DVWindow> openKiosk() => DV.Platform.Window.open(
+  Future<DVWindow> openKiosk() => DV.Platform.window.open(
         const DVRouteTarget('/customer-display'),
         options: DVWindowOptions(
           kind: DVWindowKind.kiosk,
@@ -85,31 +85,31 @@ void main() {
 
   test('it owns its display: another window asking for it is placed elsewhere', () async {
     await openKiosk();
-    final DVWindow staff = await DV.Platform.Window.open(
+    final DVWindow staff = await DV.Platform.window.open(
       const DVRouteTarget('/staff'),
       options: DVWindowOptions(display: DVDisplayHint.byName('Customer')),
     );
     expect(opened.last['displayId'], isNot('2'));
     expect(staff.codes, contains('DV-WINDOW-011'));
-    expect(DV.Platform.Window.kioskOwnerOf('2')?.route.path, '/customer-display');
+    expect(DV.Platform.window.kioskOwnerOf('2')?.route.path, '/customer-display');
   });
 
   test('it is pinned: close is refused until kiosk.exit satisfies the policy', () async {
     final DVWindow customer = await openKiosk();
     await customer.close();
-    expect(DV.Platform.Window.all.value, contains(customer), reason: 'a user close is refused');
+    expect(DV.Platform.window.all.value, contains(customer), reason: 'a user close is refused');
     expect(customer.codes, contains('DV-WINDOW-012'));
 
     final bool left = await customer.kiosk!.exit(const DVKioskExitRequest.adminAuth('staff-token'));
     expect(left, isTrue);
-    expect(DV.Platform.Window.all.value, isNot(contains(customer)), reason: 'exit is how it closes');
-    expect(DV.Platform.Window.kioskOwnerOf('2'), isNull);
+    expect(DV.Platform.window.all.value, isNot(contains(customer)), reason: 'exit is how it closes');
+    expect(DV.Platform.window.kioskOwnerOf('2'), isNull);
   });
 
   test('the wrong exit method does not open it', () async {
     final DVWindow customer = await openKiosk();
     expect(await customer.kiosk!.exit(const DVKioskExitRequest.pin('1234')), isFalse);
-    expect(DV.Platform.Window.all.value, contains(customer));
+    expect(DV.Platform.window.all.value, contains(customer));
   });
 
   test('with its display gone it presents in place, fullscreen, and says so', () async {
