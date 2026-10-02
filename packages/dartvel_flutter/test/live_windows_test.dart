@@ -40,10 +40,10 @@ void main() {
 
   test('every open and close is written, with the app, the time and each window', () async {
     final String path = '${dir.path}/shop.windows.json';
-    final void Function() stop = DV.Platform.Window.publishLiveWindows(path, app: 'shop');
+    final void Function() stop = DV.Platform.window.publishLiveWindows(path, app: 'shop');
     addTearDown(stop);
 
-    final DVWindow orders = await DV.Platform.Window.open(const DVRouteTarget('/orders'));
+    final DVWindow orders = await DV.Platform.window.open(const DVRouteTarget('/orders'));
     final Map<String, Object?> state = read(path);
     expect(state['app'], 'shop');
     expect(DateTime.parse(state['at']! as String).difference(DateTime.now()).abs(), lessThan(const Duration(seconds: 5)));
@@ -51,7 +51,7 @@ void main() {
     expect(windows.map((Object? w) => (w! as Map)['route']), contains('/orders'));
     expect((windows.first! as Map)['kind'], isNotEmpty);
 
-    await DV.Platform.Window.open(const DVRouteTarget('/stock'));
+    await DV.Platform.window.open(const DVRouteTarget('/stock'));
     expect((read(path)['windows']! as List<Object?>).length, greaterThanOrEqualTo(2));
 
     await orders.close();
@@ -60,11 +60,11 @@ void main() {
 
   test('stopped, nothing more is written', () async {
     final String path = '${dir.path}/shop.windows.json';
-    final void Function() stop = DV.Platform.Window.publishLiveWindows(path, app: 'shop');
-    await DV.Platform.Window.open(const DVRouteTarget('/orders'));
+    final void Function() stop = DV.Platform.window.publishLiveWindows(path, app: 'shop');
+    await DV.Platform.window.open(const DVRouteTarget('/orders'));
     final String before = File(path).readAsStringSync();
     stop();
-    await DV.Platform.Window.open(const DVRouteTarget('/stock'));
+    await DV.Platform.window.open(const DVRouteTarget('/stock'));
     expect(File(path).readAsStringSync(), before);
   });
 
@@ -75,7 +75,7 @@ void main() {
     // one that matters is the frame somebody can see.
     final String path = '${dir.path}/shop.windows.json';
     final void Function() stop =
-        DV.Platform.Window.publishLiveWindows(path, app: 'shop');
+        DV.Platform.window.publishLiveWindows(path, app: 'shop');
     addTearDown(stop);
 
     DVStartupProfile.current.mark('first frame');
@@ -92,7 +92,7 @@ void main() {
   test('stopped, a later phase is not written either', () async {
     final String path = '${dir.path}/shop.windows.json';
     final void Function() stop =
-        DV.Platform.Window.publishLiveWindows(path, app: 'shop');
+        DV.Platform.window.publishLiveWindows(path, app: 'shop');
     final String before = File(path).readAsStringSync();
 
     stop();

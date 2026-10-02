@@ -66,7 +66,7 @@ void main() {
 
     test('open: cancel is no files, not an error', () async {
       DVMacosDialogs.automate((DVMacosDialog dialog) => dialog.cancel());
-      expect(await DV.Platform.Dialogs.openFile(initialDirectory: dir.path), isEmpty);
+      expect(await DV.Platform.dialogs.openFile(initialDirectory: dir.path), isEmpty);
     });
 
     // An open panel is served by another process and its URLs are read-only,
@@ -81,7 +81,7 @@ void main() {
         dialog.selectPath('${dir.path}/notes.txt');
         dialog.accept();
       });
-      final List<String> picked = await DV.Platform.Dialogs.openFile(
+      final List<String> picked = await DV.Platform.dialogs.openFile(
         title: 'Pick a note',
         filters: const <DVFileFilter>[DVFileFilter(label: 'Text', extensions: <String>['txt'])],
         initialDirectory: dir.path,
@@ -98,7 +98,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      final String? path = await DV.Platform.Dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
+      final String? path = await DV.Platform.dialogs.saveFile(suggestedName: 'report.pdf', initialDirectory: dir.path);
       expect(seen.currentName, 'report.pdf');
       expect(path?.split('/').last, 'report.pdf');
     });
@@ -108,7 +108,7 @@ void main() {
         dialog.selectPath('${dir.path}/');
         dialog.accept();
       });
-      expect((await DV.Platform.Dialogs.chooseDirectory())?.split('/').last, dir.path.split('/').last);
+      expect((await DV.Platform.dialogs.chooseDirectory())?.split('/').last, dir.path.split('/').last);
     });
 
     test('a message is shown with its text and dismissed', () async {
@@ -117,7 +117,7 @@ void main() {
         seen = dialog.inspect();
         dialog.accept();
       });
-      await DV.Platform.Dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
+      await DV.Platform.dialogs.message(title: 'Saved', text: 'Your report was saved.', kind: DVDialogKind.info);
       expect(seen.title, 'Saved');
       expect(seen.messageText, contains('Your report was saved.'));
     });

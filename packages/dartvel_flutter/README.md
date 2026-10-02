@@ -481,7 +481,7 @@ open at `<mount>/data/<model>/<record>` and report stale links explicitly.
 
 - **Web.** dartvel.dev is built with this package, and runs as a static
   build.
-- **Desktop** (multi-window is `Partial`). `DV.Platform.Window.open(route)`
+- **Desktop** (multi-window is `Partial`). `DV.Platform.window.open(route)`
   never fails: where a real window cannot be created it navigates to the
   route instead and reports why.
   Real OS windows need the separate `dartvel_windowing` package, which is not

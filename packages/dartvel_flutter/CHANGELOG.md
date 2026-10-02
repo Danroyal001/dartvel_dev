@@ -169,7 +169,7 @@
 
 ## 0.7.0
 
-- **Breaking: `DV.Platform.Tray.show(icon:)` takes a generated asset.** The
+- **Breaking: `DV.Platform.tray.show(icon:)` takes a generated asset.** The
   icon is a `DVAssetRef`, the `DVAsset` value `dartvel routes` generates,
   instead of a path string, so a renamed or unlisted icon is a compile error
   rather than an empty tray slot. An asset that is not an image is refused
@@ -678,7 +678,7 @@
   clock and the health report it reads.
 
 - **Volumes and immersive spaces are window kinds.**
-  `DV.Platform.Window.open(route, options: DVWindowOptions(kind:
+  `DV.Platform.window.open(route, options: DVWindowOptions(kind:
   DVWindowKind.volume))` and `kind: DVWindowKind.immersive, immersion:
   DVImmersion.passthrough` present in space where the XR runtime can, with
   `presentation` `volume` or `immersive` and the session on `window.spatial`,
@@ -739,7 +739,7 @@
   media keys drive the player holding audio focus, and select and the arrows
   map on a television. `DVBox.aspectRatio` holds a box's content to a ratio,
   and `signal.watch(context)` reads a player signal in a build.
-  `DV.Platform.Media.recordAudio`/`recordVideo` record through the registered
+  `DV.Platform.media.recordAudio`/`recordVideo` record through the registered
   capture backend and `DV.Platform.permissions`.
   On Linux, `DVGStreamerPlayer` and `DVGStreamerCapture` play and record
   through GStreamer over dart:ffi, registered by `DVLinuxBindings.register`.

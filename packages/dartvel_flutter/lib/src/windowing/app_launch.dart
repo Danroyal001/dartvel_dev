@@ -54,7 +54,7 @@ class DVAppLaunch {
   /// The first link -- an argument with a scheme, `dartvel://orders/7` or an
   /// https app link -- this process was launched with, or null. What
   /// `deepLinks.initial` answers on desktop; every link argument is also
-  /// delivered on `DV.Platform.DeepLinking.getLinkStream()`.
+  /// delivered on `DV.Platform.deepLinks.getLinkStream()`.
   static String? get initialLink => _initialLink;
   static String? _initialLink;
 

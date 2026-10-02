@@ -148,7 +148,7 @@ void main() {
 
     test('an emptied workspace window closes itself', () async {
       grantTearOut();
-      final host = await DV.Platform.Window.open(reports);
+      final host = await DV.Platform.window.open(reports);
       final c = DVTabWorkspaceController(
         tabs: const <DVTab>[DVTab(orders)],
         window: host,

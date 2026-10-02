@@ -69,7 +69,6 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
   plugins: []
-  webPrerender: false
   ota: false
 
   transitions:

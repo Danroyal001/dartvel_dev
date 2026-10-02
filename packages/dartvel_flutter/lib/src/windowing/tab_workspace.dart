@@ -207,7 +207,7 @@ class DVTabWorkspaceController extends ChangeNotifier {
   /// and can take the element itself.
   Future<DVWindow?> tearOut(int index) async {
     if (index < 0 || index >= _entries.length) return null;
-    if (!DV.Platform.Window.capability.tearOut) return null;
+    if (!DV.Platform.window.capability.tearOut) return null;
 
     final tab = _entries[index].tab;
     final int started = DVWindowManager.performance.mark();
@@ -215,7 +215,7 @@ class DVTabWorkspaceController extends ChangeNotifier {
     // boot, so a slow start loses nothing.
     await DVWindowManager.shared
         .flushReserved('workspace.tab.${tab.route.path}');
-    final opened = await DV.Platform.Window.open(tab.route);
+    final opened = await DV.Platform.window.open(tab.route);
     DVWindowManager.performance.recordTearOutFrom(started, route: tab.route.path);
     removeAt(index, reason: DVTabExit.tornOut);
     await _closeIfEmptied();
@@ -276,7 +276,7 @@ class DVTabWorkspaceController extends ChangeNotifier {
   /// is "open in new window" -- the same rule tear-out follows, absent rather
   /// than present and empty.
   List<DVTabWorkspaceController> get moveDestinations {
-    final bool acrossWindows = DV.Platform.Window.capability.sameEngine;
+    final bool acrossWindows = DV.Platform.window.capability.sameEngine;
     return <DVTabWorkspaceController>[
       for (final _DVTabWorkspaceState state in _mounted)
         if (!identical(state._controller, this) &&
@@ -315,9 +315,9 @@ class DVTabWorkspaceController extends ChangeNotifier {
   ///
   /// Degrading a call is right; advertising a control that produces a
   /// surprising result is not.
-  bool get offersNewWindow => DV.Platform.Window.capability.multiWindow;
+  bool get offersNewWindow => DV.Platform.window.capability.multiWindow;
 
-  bool get offersTearOut => DV.Platform.Window.capability.tearOut;
+  bool get offersTearOut => DV.Platform.window.capability.tearOut;
 }
 
 /// A tab strip and its content, composed from `DVBox` and `DVText`.
@@ -596,7 +596,7 @@ class _DVTabWorkspaceState extends State<DVTabWorkspace> {
         onDraggableCanceled: (_, __) {
           // Gated, and absent rather than inert: where tear-out is
           // unavailable the drop does nothing and the tab stays where it was.
-          if (!DV.Platform.Window.capability.tearOut) return;
+          if (!DV.Platform.window.capability.tearOut) return;
           // Not awaited: the drop callback is synchronous and the tab leaves
           // the strip as soon as the controller notifies. The window it opens
           // is the platform's business.

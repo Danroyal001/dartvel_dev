@@ -50,7 +50,6 @@ Future<Directory> _generate(
     normalizeTrailing: true,
     notFoundRedirect: '',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: loadYaml(auth == null ? '{}' : 'auth:\n  pages: $auth\n') as YamlMap,
   );
