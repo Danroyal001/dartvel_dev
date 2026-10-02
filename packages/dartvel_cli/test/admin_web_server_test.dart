@@ -149,13 +149,24 @@ void main() {
       for (final String path in <String>[
         '/__studio/main.dart.js',
         '/__studio/index.html',
-        '/__studio/models',
       ]) {
         final Response response = await _get(_handler(admin: _mount()), path);
         expect(response.statusCode, 404, reason: path);
         expect(await response.readAsString(), isNot(contains('OLD')),
             reason: path);
       }
+    });
+
+    test('a Studio screen under the mount is a page, not an old file', () async {
+      // Every screen has its own address (docs/studio/PARITY.md), so
+      // `<mount>/models` is the Data screen's document rendered from the
+      // application's shell -- never the old Studio build's index.
+      final Response response =
+          await _get(_handler(admin: _mount()), '/__studio/models');
+      final String html = await response.readAsString();
+      expect(response.statusCode, 200);
+      expect(html, contains('flutter_bootstrap.js'));
+      expect(html, isNot(contains('OLD')));
     });
 
     test("Studio's code is served from memory, from the site root", () async {
