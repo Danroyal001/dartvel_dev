@@ -1167,6 +1167,28 @@ calls each target binds varies a lot, and `dart tool/binding_coverage.dart`
 counts them. Android permissions are declared under `dartvel.android.permissions` in
 `pubspec.yaml`.
 
+File types are declared once, under `dartvel.fileAssociations` (or the same field
+of a Dart config class), and `dartvel build` registers them on every target that
+can be opened with a file: intent filters on Android, document types on iOS and
+macOS, `file_handlers` for an installed web app, a desktop entry on Linux and
+Sony eLinux, a registry script on Windows and app controls on Tizen. The files
+arrive on `DV.Platform.associations.opened` the same way everywhere, and
+`DV.Platform.associations.pick()` is the fallback where nothing can open the app:
+
+```yaml
+dartvel:
+  fileAssociations:
+    - mimeType: application/x-shop-order
+      extensions: [order]
+      description: Shop order
+```
+
+```dart
+DV.Platform.associations.opened.listen((DVOpenedFile file) async {
+  final List<int> bytes = await file.read();
+});
+```
+
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:
 

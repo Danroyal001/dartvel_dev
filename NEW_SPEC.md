@@ -9005,6 +9005,53 @@ What makes the OS deliver that request in the first place is verification, and
 its two files are generated from the route index: see
 [Deep-link verification files](#deep-link-verification-files).
 
+## File associations
+
+File associations are not a desktop feature. A phone opens a file from Files or
+a share sheet, an installed web app is offered for the types in its manifest,
+and an embedded Linux image with a shell reads the same desktop entry a desktop
+does. So the declaration is platform-neutral and lives at the top of the
+`dartvel:` section:
+
+```yaml
+dartvel:
+  fileAssociations:
+    - mimeType: application/x-shop-order   # required
+      extensions: [order]                   # a type the app introduces needs one
+      description: Shop order
+      icon: assets/order.png
+      role: editor                          # default; viewer for read-only
+```
+
+A project whose `dartvel:` names a Dart config file declares the same thing as
+`DartvelConfig.fileAssociations` (`package:dartvel_core/config.dart`). The
+class serialises to exactly the YAML object through `toPubspec()`, and both go
+through one parser, so every key, default and validation message is shared;
+the build runs the class once and caches the answer against the file.
+`dartvel.desktop.fileAssociations` is a deprecated alias that warns once.
+
+`dartvel build` registers the declaration the way each target expects. Native
+folders are never edited by hand: where a toolchain only reads a file the
+developer owns, the build writes a marked block it replaces on every build,
+removes when the declaration goes away, and never writes beside entries the
+developer made themselves.
+
+| Target | Registration | Delivery to `DV.Platform.associations.opened` |
+|---|---|---|
+| Android (+ Fire OS) | `DartvelOpenActivity` (generated) with VIEW, SEND and SEND_MULTIPLE filters by MIME type, plus `pathPattern` for a new type's extensions | the Activity copies each file to the cache and queues it; JNI `take()` at start and on resume; `MainActivity` is untouched |
+| iOS | `CFBundleDocumentTypes`, `UTExportedTypeDeclarations` / `UTImportedTypeDeclarations`, `LSSupportsOpeningDocumentsInPlace` | the app delegate block copies the file out of its security scope; FFI read of the defaults at start and on resume |
+| macOS | document types and declared types in `Info.plist` | launch arguments |
+| Windows | per-user registry script beside the binary, Open (and Edit for an editor) verbs | launch arguments |
+| Linux, Sony eLinux | `.desktop` `MimeType=` and a shared-mime-info package | launch arguments, handed to the running instance |
+| Tizen | `app-control` with the view operation per type in `tizen-manifest.xml` | not wired yet; picker |
+| Web, installed PWA | manifest `file_handlers` | `launchQueue`, with the bytes |
+| Web tab, webOS, terminal, browser extensions | none: no system mechanism exists | `pick()` |
+
+`initial()` answers the files the application was started with. `pick()` is the
+fallback everywhere: the platform's own picker, narrowed to the given types
+where the picker can be narrowed, feeding the same stream. On a desktop a file
+argument still also opens the `/open?path=` route.
+
 ## Shared window state
 
 Two handover modes, chosen automatically from `capability.sameEngine`:

@@ -7,6 +7,20 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- File associations on every target, not only desktops. `dartvel.fileAssociations` (`mimeType`,
+  `extensions`, `description`, `icon`, `role: editor | viewer`) is declared once, in `pubspec.yaml`
+  or as the same field of a Dart config class (`package:dartvel_core/config.dart`), and
+  `dartvel build` registers it on each target in marked, idempotent blocks that never touch the
+  developer's own entries: Android open-with and share intent filters (on a generated
+  `DartvelOpenActivity`, so `MainActivity` is untouched), iOS and macOS document types with
+  exported/imported type declarations and open-in-place on iOS, web manifest `file_handlers`,
+  Linux and Sony eLinux desktop entries with MIME info, Tizen app controls, and the Windows
+  registry script with an Edit verb for editors. `DV.Platform.associations.opened` delivers the
+  files the same way everywhere, at a cold start and while running; `initial()` is what the app
+  was started with; `pick()` is the picker fallback, feeding the same stream. The Dart config file
+  named by `dartvel: <file>.dart` is now actually read (it was ignored). `dartvel.desktop.fileAssociations`
+  still works and warns that it has moved.
+
 - Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
   cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
   customer's current subscription.
