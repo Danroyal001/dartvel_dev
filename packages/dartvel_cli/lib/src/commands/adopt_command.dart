@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import '../adoption/adoption_plan.dart';
 import '../agents/agent_docs.dart';
+import '../agents/architecture_docs.dart';
 import 'init_command.dart' show dvLocalPackagesDir;
 
 /// `dartvel init` -- Dartvel inside a project that already exists.
@@ -136,6 +137,15 @@ Future<int> dvRunInit(
     if (agentDocs.failed.isNotEmpty) {
       out('Could not write ${agentDocs.failed.join(', ')}; their previous '
           'contents are unchanged.');
+    }
+
+    final DVArchitectureDocsSyncResult archDocs = await dvSyncArchitectureDocs(
+      root: root,
+      version: agentDocs.version,
+    );
+    if (archDocs.created.isNotEmpty || archDocs.updated.isNotEmpty) {
+      out('Architecture docs: ${archDocs.created.isNotEmpty ? 'created' : 'updated'} '
+          '${[...archDocs.created, ...archDocs.updated].join(', ')}');
     }
   }
   return result.written ? 0 : 1;

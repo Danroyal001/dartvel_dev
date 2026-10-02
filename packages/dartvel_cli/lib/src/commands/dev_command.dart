@@ -10,6 +10,7 @@ import 'package:watcher/watcher.dart';
 import 'package:yaml/yaml.dart';
 
 import '../agents/agent_docs.dart';
+import '../agents/architecture_docs.dart';
 import '../config/dartvel_config.dart';
 import '../build/release_server.dart';
 import '../devclient/android_dev_client.dart';
@@ -109,6 +110,17 @@ class DevCommand extends Command<void> {
     } else {
       Logger.log(
           '🤖 Agent rules updated for Dartvel ${agentDocs.version}: ${agentDocs.allWritten.join(', ')}');
+    }
+
+    final archDocs = await dvSyncArchitectureDocs(root: root);
+    if (archDocs.isQuiet) {
+      // Quiet refresh; nothing to say.
+    } else if (archDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not refresh architecture docs — files unchanged.');
+    } else {
+      Logger.log(
+          '📘 Architecture docs updated: ${[...archDocs.created, ...archDocs.updated].join(', ')}');
     }
 
     if (release) {

@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../commands/version_command.dart' show dartvelCliVersion;
 import '../agents/agent_docs.dart';
+import '../agents/architecture_docs.dart';
 import '../templates/project_templates.dart';
 import '../utils/logger.dart';
 
@@ -321,6 +323,23 @@ class InitCommand extends Command<void> {
     if (agentDocs.failed.isNotEmpty) {
       Logger.log(
           '⚠️  Could not write ${agentDocs.failed.join(', ')} — the project\'s own text was left alone.');
+    }
+
+    // Opinionated architecture docs: initialisation, data, HTTP, UI, naming,
+    // setup, Git, process, and Dartvel-specific (models, backend functions,
+    // Studio, modules). Refreshed by `dartvel dev` like the agent rules.
+    final archDocs = await dvSyncArchitectureDocs(
+      root: root,
+      version: dartvelCliVersion,
+    );
+    if (archDocs.created.isNotEmpty || archDocs.updated.isNotEmpty) {
+      Logger.log(
+          '📘 Architecture docs: ${archDocs.created.isNotEmpty ? 'created' : 'updated'} '
+          '${[...archDocs.created, ...archDocs.updated].join(', ')}');
+    }
+    if (archDocs.failed.isNotEmpty) {
+      Logger.log(
+          '⚠️  Could not write architecture docs (${archDocs.failed.join(', ')}).');
     }
 
     Logger.log('✅ Project structure created');
