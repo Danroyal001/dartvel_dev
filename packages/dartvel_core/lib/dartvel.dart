@@ -114,6 +114,7 @@ export 'src/cache/dv_cache.dart'
     show DVCache, DVCacheTag, DVCacheTarget, DVCacheView;
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
+export 'src/config/app_shortcuts.dart';
 export 'src/content/content_workflow.dart';
 export 'src/crashes/crashes.dart';
 export 'src/crypto/app_key.dart';
