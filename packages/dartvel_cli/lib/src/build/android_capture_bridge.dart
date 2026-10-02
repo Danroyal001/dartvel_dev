@@ -337,6 +337,10 @@ public final class DartvelActivityBridge {
   /// no dialog shown and the same result code a person tapping Deny
   /// produces. Without this key those two are the same answer, and the fix
   /// for one of them is a line in pubspec.yaml that nobody knows to add.
+  /// The one storage permission that is not a dialog: from API 30 the
+  /// person grants it on a Settings screen for this app.
+  static final String ALL_FILES = "android.permission.MANAGE_EXTERNAL_STORAGE";
+
   public static String granted(String logical) {
     JSONObject out = new JSONObject();
     try {
@@ -501,6 +505,11 @@ ${_anyOfCases()}
 
   /// Whether [permission] is held right now.
   static boolean held(Context context, String permission) {
+    if (ALL_FILES.equals(permission) && Build.VERSION.SDK_INT >= 30) {
+      // Special app access, granted in Settings: checkSelfPermission answers
+      // denied for it whatever the person chose there.
+      return android.os.Environment.isExternalStorageManager();
+    }
     if (Build.VERSION.SDK_INT < 23) {
       // Before Marshmallow every declared permission is granted by
       // installing the application, and there is no runtime dialog to show.
@@ -749,6 +758,7 @@ public final class DartvelBridgeActivity extends Activity {
   private static final int PERMISSIONS = 4001;
   private static final int CAMERA = 4002;
   private static final int MEDIA = 4003;
+  private static final int ALL_FILES_SETTINGS = 4004;
 
   private int id = -1;
   private String[] asked = new String[0];
@@ -803,6 +813,16 @@ public final class DartvelBridgeActivity extends Activity {
       answer(permissionResult(names));
       return;
     }
+    if (Build.VERSION.SDK_INT >= 30
+        && missing.contains(DartvelActivityBridge.ALL_FILES)) {
+      // No dialog exists for it. The person is taken to this app's "All
+      // files access" switch, and the answer is read when they come back.
+      Intent settings = new Intent(
+          "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+          Uri.parse("package:" + getPackageName()));
+      startActivityForResult(settings, ALL_FILES_SETTINGS);
+      return;
+    }
     asked = missing.toArray(new String[missing.size()]);
     requestPermissions(asked, PERMISSIONS);
   }
@@ -845,6 +865,7 @@ public final class DartvelBridgeActivity extends Activity {
             // not held, and the difference decides whether an application
             // should ask again or send the person to Settings.
             if (Build.VERSION.SDK_INT >= 23
+                && !DartvelActivityBridge.ALL_FILES.equals(names[i])
                 && !shouldShowRequestPermissionRationale(names[i])) {
               blocked = true;
             }
@@ -910,6 +931,12 @@ public final class DartvelBridgeActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, Intent data) {
     super.onActivityResult(request, result, data);
+    if (request == ALL_FILES_SETTINGS) {
+      // Settings answers RESULT_CANCELED however the switch was left, so
+      // the platform is asked rather than the result code.
+      answer(permissionResult(DartvelActivityBridge.resolve(logical)));
+      return;
+    }
     if (result != RESULT_OK) {
       // The person pressed back. Not an error, and not the same as a
       // failure: an empty list is what a cancelled picker means everywhere

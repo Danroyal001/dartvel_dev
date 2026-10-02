@@ -5,6 +5,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashBuildMode,
         DVCrashConfig,
+        DVFileStorageConfig,
         DVHomeWidgetSpec,
         dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
@@ -163,6 +164,13 @@ class ClientGenerator {
     // the runtime uses at startup. Refused at startup is too late: the
     // application is on a device, and its crash reporting goes down with the
     // configuration on the one launch nobody is watching.
+    // dartvel.fileStorage, with the parser the build used for the manifest
+    // and Info.plist, so the runtime asks for exactly what was declared.
+    final DVFileStorageConfig fileStorageConfig =
+        DVFileStorageConfig.parse(_plain(dv['fileStorage']));
+    if (fileStorageConfig.problems.isNotEmpty) {
+      throw StateError('pubspec.yaml ${fileStorageConfig.problems.join('\n')}');
+    }
     final DVCrashConfig crashConfig;
     try {
       crashConfig = DVCrashConfig.parse(_plain(dv['crashes']));
@@ -791,6 +799,12 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // DV.Platform.clipboard.copy().
   registerPlatformBindings();
   DVStartupProfile.current.mark('bindings');
+  // DV.Platform.fileStorage, after the bindings: on Android its directory is
+  // the files directory they found. The declaration is dartvel.fileStorage.
+  DVDeviceStorage.declare(
+    appId: '$pkgName',
+    config: DVFileStorageConfig.parse(${_dartLiteral(fileStorageConfig.toDeclaration(), 2)}),
+  );
   // Crash reporting, after the bindings: on Android the directory the records
   // are kept in is the files directory they found. Before this nothing
   // installed the crash runtime, so a real application recorded no crash.
