@@ -38,6 +38,7 @@ import '../file_bindings.dart';
 import 'android_capabilities.dart';
 import 'android_capture_jni.dart';
 import 'android_device.dart';
+import 'android_drag_drop_jni.dart';
 import 'android_kiosk_jni.dart';
 import 'android_radios_jni.dart';
 import 'android_system_jni.dart';
@@ -126,6 +127,11 @@ class DVAndroidBindings {
     // delivered to an Activity, which is the one thing a Context cannot
     // take, so they go through the transparent Activity the build writes.
     DVAndroidCapture.register(DVNativeBridge.register);
+
+    // Drag and drop, through the Java the build writes beside the capture
+    // bridge: drops from other applications in split screen, freeform and
+    // desktop windows, and drags out to them.
+    DVAndroidDragDrop.register(DVNativeBridge.register);
 
     // What the application was opened with. The launch Intent belongs to the
     // Activity, so this was unanswerable until the Activity was -- and a

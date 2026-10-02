@@ -56,6 +56,13 @@ void main() {
         // window Flutter reports: on a device in split screen they are
         // different numbers answering different questions.
         'screen.geometry',
+        // Drag and drop through the Java the build writes: drops on the
+        // window from this application or another in split screen, a
+        // freeform or a desktop window, and drags out with
+        // DRAG_FLAG_GLOBAL.
+        'dragDrop.accept',
+        'dragDrop.stop',
+        'dragDrop.startDrag',
         // Whether there is a reader and it is switched on. Reading and
         // writing a tag are not here; see the absence test below.
         'nfc.isAvailable',
