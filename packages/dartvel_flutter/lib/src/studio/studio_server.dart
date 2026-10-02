@@ -1253,11 +1253,8 @@ class _DVStudioTable extends StatelessWidget {
         if (!box.maxWidth.isFinite || box.maxWidth >= needed) {
           return _table();
         }
-        return Scrollbar(
-          child: SingleChildScrollView(
-            scrollDirection: .horizontal,
-            child: SizedBox(width: needed, child: _table()),
-          ),
+        return _DVStudioSidewaysScroll(
+          child: SizedBox(width: needed, child: _table()),
         );
       },
     );
@@ -3142,4 +3139,40 @@ class _DVStudioAccessSectionState extends State<_DVStudioAccessSection> {
     final DateTime? at = DateTime.tryParse('${value ?? ''}');
     return at == null ? _cell(value) : _formatMoment(at);
   }
+}
+
+/// A table too wide for its space, scrolled sideways with a scrollbar that
+/// knows which scroll view it belongs to.
+///
+/// The scrollbar had no controller of its own, and a sideways scroll view is
+/// never the primary one, so the first narrow table -- the model table beside
+/// an open record -- failed an assertion: "A ScrollController is required
+/// when the scrollbar is interactive".
+class _DVStudioSidewaysScroll extends StatefulWidget {
+  const _DVStudioSidewaysScroll({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_DVStudioSidewaysScroll> createState() => _DVStudioSidewaysScrollState();
+}
+
+class _DVStudioSidewaysScrollState extends State<_DVStudioSidewaysScroll> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scrollbar(
+        controller: _controller,
+        child: SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: .horizontal,
+          child: widget.child,
+        ),
+      );
 }
