@@ -16,6 +16,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'editing_focus.dart';
+
 /// Whether switch control is on. One per application, so the generated
 /// toggle on an attract route and every [DVSwitchControl] on every page agree.
 class DVSwitchControlState extends ChangeNotifier {
@@ -245,6 +247,10 @@ class _DVHardwareKeysState extends State<DVHardwareKeys> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
+    // In a text field Enter submits it and the arrows move the caret; taking
+    // them here kept every form on every page from submitting with Enter.
+    // See editing_focus.dart.
+    if (dvFocusIsEditingText()) return KeyEventResult.ignored;
     final LogicalKeyboardKey key = event.logicalKey;
     final TraversalDirection? direction = _directions[key];
     if (direction != null) {
