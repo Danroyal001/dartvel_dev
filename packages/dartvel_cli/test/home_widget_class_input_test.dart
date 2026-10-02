@@ -85,7 +85,6 @@ Future<void> generate(Map<String, String> widgets) async {
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap(),
   );

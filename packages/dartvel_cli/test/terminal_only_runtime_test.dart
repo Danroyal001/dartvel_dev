@@ -62,7 +62,6 @@ Future<String> runtimeFor({
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     renderBackends: renderBackends,
     dv: terminalOptIn

@@ -34,7 +34,6 @@ flutter:
 dartvel:
   pagesDir: lib/pages
   plugins: []
-  webPrerender: false
   ota: false
   # A launcher with no backend of its own and nobody to sign in.
   auth:

@@ -24,7 +24,7 @@ Future<String> generatedFor(String pkgName, YamlMap dv) async {
     prodBackendHost: 'https://example.com', apiBasePath: '/api', envFiles: const <String>[],
     seoSiteName: 'app', seoTitle: 'app', seoDesc: 'app', seoImage: '', seoTwitter: '',
     defaultTransition: 'none', durationMs: 200, curve: 'linear', normalizeTrailing: true,
-    notFoundRedirect: '/', plugins: const <String>[], webPrerender: false, ota: false, dv: dv,
+    notFoundRedirect: '/', plugins: const <String>[], ota: false, dv: dv,
   );
   return Directory(p.join(root.path, 'lib', 'dartvel_client'))
       .listSync()

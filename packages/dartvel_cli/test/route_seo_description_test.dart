@@ -53,7 +53,6 @@ Widget _expo(BuildContext context) => const Text('expo');
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap(),
   );

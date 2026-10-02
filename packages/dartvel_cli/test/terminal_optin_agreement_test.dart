@@ -88,7 +88,6 @@ void main() {
         normalizeTrailing: true,
         notFoundRedirect: '/',
         plugins: const <String>[],
-        webPrerender: false,
         ota: false,
         dv: dv,
       ),
