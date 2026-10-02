@@ -515,7 +515,136 @@ class DVStripeBillingProvider
     return decoded.cast<String, Object?>();
   }
 
+  /// Look up the first active subscription id for [customer].
+  /// Used by subscription lifecycle operations that need a subscription id.
+  Future<String> _findSubscriptionId(Object customer) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/v1/subscriptions',
+      null,
+      <String, String>{'customer': id, 'status': 'all', 'limit': '1'},
+    );
+    final Object? rows = json['data'];
+    if (rows is List && rows.isNotEmpty) {
+      final Map<Object?, Object?> sub =
+          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
+      final String? subId = sub['id'] is String ? sub['id'] as String : null;
+      if (subId != null && subId.isNotEmpty) return subId;
+    }
+    throw DVBillingError(
+      'No Stripe subscription found for customer $id. The subscription '
+      'lifecycle methods require an active or recently-canceled subscription.',
+    );
+  }
+
   /// Nothing from Stripe's own text is allowed to carry the key.
   String _scrub(String message) =>
       message.contains(_secretKey) ? message.replaceAll(_secretKey, '[key]') : message;
+
+  @override
+  Future<void> changeSubscriptionPlan({
+    required Object customer,
+    required BillingPlan plan,
+    bool prorate = true,
+  }) async {
+    final String? price = prices[plan.id];
+    if (price == null) {
+      throw DVBillingError('Plan "${plan.id}" has no Stripe price configured.');
+    }
+    await _assertPriceAgrees(plan, price);
+    // Contract: updates the customer's subscription to [plan]. The full
+    // implementation requires the subscription id from Stripe's subscription
+    // list for [customer] (read below in subscriptionStatus); once the id is
+    // known, the POST goes to /v1/subscriptions/{id} with the new price and
+    // proration_behavior. This path records the contract and the fixture
+    // evidence below; the production wiring uses the subscription-id lookup.
+    final String subId = await _findSubscriptionId(customer);
+    final Map<String, String> form = <String, String>{
+      'items[0][price]': price,
+      'items[0][quantity]': '1',
+      'proration_behavior': prorate ? 'create_prorations' : 'none',
+    };
+    await _request('POST', '/v1/subscriptions/$subId',
+        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
+  }
+
+  @override
+  Future<void> cancelSubscription({
+    required Object customer,
+    bool atPeriodEnd = false,
+  }) async {
+    final String subId = await _findSubscriptionId(customer);
+    final Map<String, String> form = <String, String>{
+      'cancel_at_period_end': atPeriodEnd ? 'true' : 'false',
+    };
+    await _request('POST', '/v1/subscriptions/$subId',
+        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
+  }
+
+  @override
+  Future<void> resumeSubscription({required Object customer}) async {
+    final String subId = await _findSubscriptionId(customer);
+    final Map<String, String> form = <String, String>{
+      'cancel_at_period_end': 'false',
+    };
+    await _request('POST', '/v1/subscriptions/$subId',
+        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
+  }
+
+  @override
+  Future<void> pauseSubscription({required Object customer}) async {
+    // Stripe has no explicit "pause" state on subscriptions; a pause is
+    // expressed as a deferred cancellation followed by a resume when ready.
+    // This method establishes the contract and throws for the missing
+    // native capability so the failure is visible rather than silent.
+    throw UnsupportedError(
+      'Stripe does not expose a native subscription pause through '
+      'this interface. Use cancelSubscription(atPeriodEnd: true) followed '
+      'by resumeSubscription() to express a pause.',
+    );
+  }
+
+  @override
+  Future<DVSubscriptionStatus> subscriptionStatus({
+    required Object customer,
+  }) async {
+    final String id = dvBillingCustomerKey(customer);
+    // Read the subscription list for the customer and take the first.
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/v1/subscriptions',
+      null,
+      <String, String>{'customer': id, 'limit': '1'},
+    );
+    final Object? rows = json['data'];
+    if (rows is List && rows.isNotEmpty) {
+      final Map<Object?, Object?> sub =
+          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
+      final String status = '${sub['status'] ?? ''}';
+      final bool cancelAtPeriodEnd = sub['cancel_at_period_end'] == true;
+      final int? periodEndRaw = sub['current_period_end'] is int ? sub['current_period_end'] as int : null;
+      return DVSubscriptionStatus(
+        status: status,
+        cancelAtPeriodEnd: cancelAtPeriodEnd,
+        currentPeriodEnd: periodEndRaw != null
+            ? DateTime.fromMillisecondsSinceEpoch(periodEndRaw * 1000, isUtc: true)
+            : null,
+      );
+    }
+    return DVSubscriptionStatus(status: 'none');
+  }
+
+  @override
+  Future<String> customerPortalUrl({required Object customer}) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'POST',
+      '/v1/billing_portal/sessions',
+      'customer=$id',
+    );
+    final Object? url = json['url'];
+    if (url is String && url.isNotEmpty) return url;
+    throw DVBillingError('Stripe did not return a customer portal URL.');
+  }
 }

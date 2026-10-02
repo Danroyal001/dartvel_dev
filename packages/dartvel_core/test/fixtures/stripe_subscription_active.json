@@ -1,0 +1,17 @@
+{
+  "id": "sub_test_001",
+  "object": "subscription",
+  "status": "active",
+  "customer": "cus_test_001",
+  "cancel_at_period_end": false,
+  "current_period_end": 1767225600,
+  "items": {
+    "data": [
+      {
+        "price": {
+          "id": "price_pro_001"
+        }
+      }
+    ]
+  }
+}

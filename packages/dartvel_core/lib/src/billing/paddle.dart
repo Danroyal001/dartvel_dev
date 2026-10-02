@@ -423,6 +423,119 @@ class DVPaddleBillingProvider
     return diff == 0;
   }
 
+  /// Look up the first subscription id for [customer] on Paddle.
+  Future<String> _findSubscriptionId(Object customer) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/subscriptions',
+      null,
+      <String, String>{'customer_id': id, 'status': 'all', 'per_page': '1'},
+    );
+    final Object? rows = json['data'];
+    if (rows is List && rows.isNotEmpty) {
+      final Map<Object?, Object?> sub =
+          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
+      final String? subId = sub['id'] is String ? sub['id'] as String : null;
+      if (subId != null && subId.isNotEmpty) return subId;
+    }
+    throw DVBillingError(
+      'No Paddle subscription found for customer $id. The subscription '
+      'lifecycle methods require an active or recently-canceled subscription.',
+    );
+  }
+
+  @override
+  Future<void> changeSubscriptionPlan({
+    required Object customer,
+    required BillingPlan plan,
+    bool prorate = true,
+  }) async {
+    final String? price = prices[plan.id];
+    if (price == null) {
+      throw DVBillingError('Plan "${plan.id}" has no Paddle price configured.');
+    }
+    await _assertPriceAgrees(plan, price);
+    final String subId = await _findSubscriptionId(customer);
+    // Paddle updates a subscription by replacing its items; proration is
+    // handled by Paddle's pricing engine when the new price is applied.
+    await _post('/subscriptions/$subId', <String, Object?>{
+      'items': <Object?>[
+        <String, Object?>{'price_id': price, 'quantity': 1},
+      ],
+      'proration_behavior': prorate ? 'prorate' : 'none',
+    });
+  }
+
+  @override
+  Future<void> cancelSubscription({
+    required Object customer,
+    bool atPeriodEnd = false,
+  }) async {
+    final String subId = await _findSubscriptionId(customer);
+    await _post('/subscriptions/$subId', <String, Object?>{
+      'status': atPeriodEnd ? 'paused' : 'canceled',
+    });
+  }
+
+  @override
+  Future<void> resumeSubscription({required Object customer}) async {
+    final String subId = await _findSubscriptionId(customer);
+    await _post('/subscriptions/$subId', <String, Object?>{
+      'status': 'active',
+    });
+  }
+
+  @override
+  Future<void> pauseSubscription({required Object customer}) async {
+    final String subId = await _findSubscriptionId(customer);
+    await _post('/subscriptions/$subId', <String, Object?>{
+      'status': 'paused',
+    });
+  }
+
+  @override
+  Future<DVSubscriptionStatus> subscriptionStatus({
+    required Object customer,
+  }) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/subscriptions',
+      null,
+      <String, String>{'customer_id': id, 'per_page': '1'},
+    );
+    final Object? rows = json['data'];
+    if (rows is List && rows.isNotEmpty) {
+      final Map<Object?, Object?> sub =
+          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
+      final String status = '${sub['status'] ?? ''}';
+      final bool cancelAtPeriodEnd = sub['cancel_at_period_end'] == true;
+      final String? periodEndRaw = sub['current_billing_period_ends_at'] is String
+          ? sub['current_billing_period_ends_at'] as String
+          : null;
+      return DVSubscriptionStatus(
+        status: status,
+        cancelAtPeriodEnd: cancelAtPeriodEnd,
+        currentPeriodEnd: periodEndRaw != null && periodEndRaw.isNotEmpty
+            ? DateTime.tryParse(periodEndRaw)?.toUtc()
+            : null,
+      );
+    }
+    return DVSubscriptionStatus(status: 'none');
+  }
+
+  @override
+  Future<String> customerPortalUrl({required Object customer}) async {
+    final String id = dvBillingCustomerKey(customer);
+    final Map<String, Object?> json = await _post('/customer_portal_sessions', <String, Object?>{
+      'customer_id': id,
+    });
+    final Object? url = json['url'] ?? json['data'];
+    if (url is String && url.isNotEmpty) return url;
+    throw DVBillingError('Paddle did not return a customer portal URL.');
+  }
+
   Future<Map<String, Object?>> _post(String path, Map<String, Object?> body) =>
       _request('POST', path, jsonEncode(body));
 
