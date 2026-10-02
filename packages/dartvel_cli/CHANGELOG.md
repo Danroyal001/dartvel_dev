@@ -1,4 +1,18 @@
-## Unreleased
+## 0.10.0 — 2026-10-02
+
+- **`dartvel.webPrerender` is gone.** It was read and never used: every web
+  build prerenders and web-server renders on request. A project that still
+  sets it gets one deprecation warning from the build and from `dartvel
+  doctor`; nothing breaks.
+- The generator reads `@DVBackendFunction(aiTool: ...)` with a bracket- and
+  string-aware scan, so a description containing brackets no longer drops the
+  tool silently.
+- `dartvel admin grant` and `revoke` accept an email and resolve it to the
+  account id, and refuse an email no account has. Before, an email was stored
+  as the account id and reported as granted, and Studio still refused the
+  person.
+- The Studio browser check counts a crash as a failure and lists the checks
+  that did not run.
 
 - **Sensitive fields are write-only, not hidden.** The generated client
   registers each `@DVModel.sensitiveField()` (unless `showInForms: true`) as
