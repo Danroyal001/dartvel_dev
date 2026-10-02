@@ -27,7 +27,6 @@ class DartvelConfig {
   final bool normalizeTrailingSlash;
   final String notFoundRedirect;
   final List<String> plugins;
-  final bool webPrerender;
   final bool ota;
   final YamlMap raw;
   final DartvelDartConfigReference? dartConfigReference;
@@ -61,7 +60,6 @@ class DartvelConfig {
     required this.normalizeTrailingSlash,
     required this.notFoundRedirect,
     required this.plugins,
-    required this.webPrerender,
     required this.ota,
     required this.raw,
     this.dartConfigReference,
@@ -137,7 +135,6 @@ class DartvelConfig {
       ),
       notFoundRedirect: _string(raw['notFoundRedirect'], ''),
       plugins: _stringList(raw['plugins'], const <String>[]),
-      webPrerender: asBool(raw['webPrerender'], false),
       ota: asBool(raw['ota'], false),
       raw: raw,
       dartConfigReference: dartConfigReference,

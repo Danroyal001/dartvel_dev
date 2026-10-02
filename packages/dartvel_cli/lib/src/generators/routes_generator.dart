@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../adoption/adoption_build_checks.dart';
 import 'package:dartvel_core/dartvel.dart' show DVPersistedQueryMode;
 import 'package:dartvel_core/framework.dart' show DVCaptureConfigError;
@@ -56,6 +58,17 @@ Future<void> generate({
   }
   final pkgName = config.packageName;
   final dv = config.raw;
+
+  // Check for deprecated config keys
+  if (dv.containsKey('webPrerender')) {
+    final pubspecPath = p.join(root, 'pubspec.yaml');
+    stderr.writeln(
+      '[!] Deprecated config: `dartvel.webPrerender` in $pubspecPath — '
+      'prerendering is always on for web builds (Chrome capture) and '
+      'web-server renders on request. This key is ignored and will be '
+      'removed in a future version.',
+    );
+  }
 
   // dartvel.analytics, checked before anything is written. A misspelt key
   // or a value nobody implements stops the build here rather than being
@@ -155,7 +168,6 @@ Future<void> generate({
   final normalizeTrailing = config.normalizeTrailingSlash;
   final notFoundRedirect = config.notFoundRedirect;
   final plugins = config.plugins;
-  final webPrerender = config.webPrerender;
   final ota = config.ota;
 
   // The routes file, read before anything is written: a route it declares
@@ -283,7 +295,6 @@ Future<void> generate({
     normalizeTrailing: normalizeTrailing,
     notFoundRedirect: notFoundRedirect,
     plugins: plugins,
-    webPrerender: webPrerender,
     ota: ota,
     dv: dv,
     configRoutes: configRoutes,

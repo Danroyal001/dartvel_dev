@@ -110,7 +110,6 @@ void generatedRouterGuardTests() {
           normalizeTrailing: true,
           notFoundRedirect: '/',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap(),
         );
@@ -230,7 +229,6 @@ void nestedLayoutOrderTests() {
           normalizeTrailing: true,
           notFoundRedirect: '/',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap(),
         );
@@ -301,7 +299,6 @@ void nestedLayoutOrderTests() {
             normalizeTrailing: true,
             notFoundRedirect: '/',
             plugins: const <String>[],
-            webPrerender: false,
             ota: false,
             dv: YamlMap(),
           );
@@ -364,7 +361,6 @@ void functionPageCompanionTests() {
           normalizeTrailing: true,
           notFoundRedirect: '/',
           plugins: const <String>[],
-          webPrerender: false,
           ota: false,
           dv: YamlMap(),
         );

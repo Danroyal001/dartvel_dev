@@ -131,7 +131,6 @@ class ClientGenerator {
     required bool normalizeTrailing,
     required String notFoundRedirect,
     required List<String> plugins,
-    required bool webPrerender,
     required bool ota,
 
     /// The rendering backends this build links, or null to derive them from

@@ -39,7 +39,6 @@ dartvel:
     durationMs: 300
   plugins:
     - auth
-  webPrerender: yes
   ota: true
 ''');
 
@@ -57,7 +56,6 @@ dartvel:
       expect(config.transitions.defaultTransition, 'slideLeft');
       expect(config.transitions.durationMs, 300);
       expect(config.plugins, <String>['auth']);
-      expect(config.webPrerender, isTrue);
       expect(config.ota, isTrue);
     });
 
@@ -241,6 +239,17 @@ dartvel:
           ),
         ),
       );
+    });
+
+    test('webPrerender is ignored (deprecated)', () async {
+      File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
+name: deprecated_app
+dartvel:
+  webPrerender: true
+''');
+
+      final config = await DartvelConfig.load(temp);
+      expect(config.ota, isFalse); // default
     });
   });
 }
