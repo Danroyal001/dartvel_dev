@@ -21,6 +21,7 @@ import '../../dartvel.dart'
         DVUsageMeter,
         dvBillingCustomerKey;
 import 'invoice.dart';
+import 'subscription_lifecycle.dart';
 import 'money.dart';
 import 'webhooks.dart';
 
@@ -423,28 +424,43 @@ class DVPaddleBillingProvider
     return diff == 0;
   }
 
-  /// Look up the first subscription id for [customer] on Paddle.
-  Future<String> _findSubscriptionId(Object customer) async {
-    final String id = dvBillingCustomerKey(customer);
+  /// Statuses of a subscription the customer still has, in preference order.
+  static const List<String> _currentStatuses = <String>[
+    'active', 'trialing', 'past_due', 'paused',
+  ];
+
+  /// The customer's subscription a lifecycle call acts on: the current one,
+  /// else the newest (Paddle lists newest first), else null.
+  Future<Map<Object?, Object?>?> _subscriptionFor(Object customer) async {
     final Map<String, Object?> json = await _request(
       'GET',
       '/subscriptions',
       null,
-      <String, String>{'customer_id': id, 'status': 'all', 'per_page': '1'},
+      <String, String>{'customer_id': dvBillingCustomerKey(customer), 'per_page': '50'},
     );
-    final Object? rows = json['data'];
-    if (rows is List && rows.isNotEmpty) {
-      final Map<Object?, Object?> sub =
-          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
-      final String? subId = sub['id'] is String ? sub['id'] as String : null;
-      if (subId != null && subId.isNotEmpty) return subId;
+    final List<Map<Object?, Object?>> subscriptions = <Map<Object?, Object?>>[
+      for (final Object? row in (json['data'] is List ? json['data'] as List<Object?> : const <Object?>[]))
+        if (row is Map) row,
+    ];
+    for (final String status in _currentStatuses) {
+      for (final Map<Object?, Object?> subscription in subscriptions) {
+        if (subscription['status'] == status) return subscription;
+      }
     }
+    return subscriptions.isEmpty ? null : subscriptions.first;
+  }
+
+  Future<String> _subscriptionIdFor(Object customer) async {
+    final Object? id = (await _subscriptionFor(customer))?['id'];
+    if (id is String && id.isNotEmpty) return id;
     throw DVBillingError(
-      'No Paddle subscription found for customer $id. The subscription '
-      'lifecycle methods require an active or recently-canceled subscription.',
+      'No Paddle subscription found for customer ${dvBillingCustomerKey(customer)}.',
     );
   }
 
+  /// Replaces the subscription's items with [plan]'s price. Paddle bills the
+  /// difference now when [prorate], and the full price from the next period
+  /// otherwise.
   @override
   Future<void> changeSubscriptionPlan({
     required Object customer,
@@ -455,84 +471,79 @@ class DVPaddleBillingProvider
     if (price == null) {
       throw DVBillingError('Plan "${plan.id}" has no Paddle price configured.');
     }
-    await _assertPriceAgrees(plan, price);
-    final String subId = await _findSubscriptionId(customer);
-    // Paddle updates a subscription by replacing its items; proration is
-    // handled by Paddle's pricing engine when the new price is applied.
-    await _post('/subscriptions/$subId', <String, Object?>{
+    final String id = await _subscriptionIdFor(customer);
+    await _request('PATCH', '/subscriptions/$id', jsonEncode(<String, Object?>{
       'items': <Object?>[
         <String, Object?>{'price_id': price, 'quantity': 1},
       ],
-      'proration_behavior': prorate ? 'prorate' : 'none',
-    });
+      'proration_billing_mode': prorate ? 'prorated_immediately' : 'full_next_billing_period',
+    }));
   }
 
+  /// Cancels now, or at the end of the paid period when [atPeriodEnd].
   @override
   Future<void> cancelSubscription({
     required Object customer,
     bool atPeriodEnd = false,
   }) async {
-    final String subId = await _findSubscriptionId(customer);
-    await _post('/subscriptions/$subId', <String, Object?>{
-      'status': atPeriodEnd ? 'paused' : 'canceled',
+    final String id = await _subscriptionIdFor(customer);
+    await _post('/subscriptions/$id/cancel', <String, Object?>{
+      'effective_from': atPeriodEnd ? 'next_billing_period' : 'immediately',
     });
   }
 
+  /// Resumes a paused subscription straight away. A cancellation scheduled
+  /// for the period end is removed by clearing the scheduled change.
   @override
   Future<void> resumeSubscription({required Object customer}) async {
-    final String subId = await _findSubscriptionId(customer);
-    await _post('/subscriptions/$subId', <String, Object?>{
-      'status': 'active',
-    });
-  }
-
-  @override
-  Future<void> pauseSubscription({required Object customer}) async {
-    final String subId = await _findSubscriptionId(customer);
-    await _post('/subscriptions/$subId', <String, Object?>{
-      'status': 'paused',
-    });
-  }
-
-  @override
-  Future<DVSubscriptionStatus> subscriptionStatus({
-    required Object customer,
-  }) async {
-    final String id = dvBillingCustomerKey(customer);
-    final Map<String, Object?> json = await _request(
-      'GET',
-      '/subscriptions',
-      null,
-      <String, String>{'customer_id': id, 'per_page': '1'},
-    );
-    final Object? rows = json['data'];
-    if (rows is List && rows.isNotEmpty) {
-      final Map<Object?, Object?> sub =
-          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
-      final String status = '${sub['status'] ?? ''}';
-      final bool cancelAtPeriodEnd = sub['cancel_at_period_end'] == true;
-      final String? periodEndRaw = sub['current_billing_period_ends_at'] is String
-          ? sub['current_billing_period_ends_at'] as String
-          : null;
-      return DVSubscriptionStatus(
-        status: status,
-        cancelAtPeriodEnd: cancelAtPeriodEnd,
-        currentPeriodEnd: periodEndRaw != null && periodEndRaw.isNotEmpty
-            ? DateTime.tryParse(periodEndRaw)?.toUtc()
-            : null,
+    final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
+    final Object? id = subscription?['id'];
+    if (id is! String || id.isEmpty) {
+      throw DVBillingError(
+        'No Paddle subscription found for customer ${dvBillingCustomerKey(customer)}.',
       );
     }
-    return DVSubscriptionStatus(status: 'none');
+    if (subscription!['status'] == 'paused') {
+      await _post('/subscriptions/$id/resume', <String, Object?>{'effective_from': 'immediately'});
+    } else {
+      await _request('PATCH', '/subscriptions/$id', jsonEncode(<String, Object?>{'scheduled_change': null}));
+    }
+  }
+
+  /// Pauses from the next billing period, as Paddle recommends, so the period
+  /// already paid for is not cut short.
+  @override
+  Future<void> pauseSubscription({required Object customer}) async {
+    final String id = await _subscriptionIdFor(customer);
+    await _post('/subscriptions/$id/pause', <String, Object?>{'effective_from': 'next_billing_period'});
   }
 
   @override
+  Future<DVSubscriptionStatus> subscriptionStatus({required Object customer}) async {
+    final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
+    if (subscription == null) return const DVSubscriptionStatus(status: 'none');
+    final Object? scheduled = subscription['scheduled_change'];
+    final Object? period = subscription['current_billing_period'];
+    final Object? endsAt = period is Map ? period['ends_at'] : null;
+    return DVSubscriptionStatus(
+      status: '${subscription['status'] ?? ''}',
+      cancelAtPeriodEnd: scheduled is Map && scheduled['action'] == 'cancel',
+      currentPeriodEnd: endsAt is String ? DateTime.tryParse(endsAt)?.toUtc() : null,
+    );
+  }
+
+  /// A Paddle customer-portal link (the general overview page).
+  @override
   Future<String> customerPortalUrl({required Object customer}) async {
-    final String id = dvBillingCustomerKey(customer);
-    final Map<String, Object?> json = await _post('/customer_portal_sessions', <String, Object?>{
-      'customer_id': id,
-    });
-    final Object? url = json['url'] ?? json['data'];
-    if (url is String && url.isNotEmpty) return url;
+    final Map<String, Object?> json = await _post(
+      '/customers/${Uri.encodeComponent(dvBillingCustomerKey(customer))}/portal-sessions',
+      const <String, Object?>{},
+    );
+    final Object? data = json['data'];
+    final Object? urls = data is Map ? data['urls'] : null;
+    final Object? general = urls is Map ? urls['general'] : null;
+    final Object? overview = general is Map ? general['overview'] : null;
+    if (overview is String && overview.isNotEmpty) return overview;
     throw DVBillingError('Paddle did not return a customer portal URL.');
   }
 

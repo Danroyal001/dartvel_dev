@@ -6206,6 +6206,23 @@ overridden.
 
 ---
 
+## Subscription lifecycle (Stripe and Paddle)
+
+Every billing provider answers the same lifecycle calls, acting on the customer's current subscription
+(active, trialing, past due or paused, else the newest), never a guess:
+
+| Call | Stripe | Paddle |
+|---|---|---|
+| `changeSubscriptionPlan(plan, prorate)` | replaces the item; `create_prorations` or `none` | `PATCH` items; `prorated_immediately` or `full_next_billing_period` |
+| `cancelSubscription(atPeriodEnd)` | `cancel_at_period_end`, or delete now | `/cancel`, `next_billing_period` or `immediately` |
+| `pauseSubscription()` | `pause_collection[behavior]=void` | `/pause` from the next billing period |
+| `resumeSubscription()` | clears the pause and any pending cancel | `/resume`, or removes a scheduled cancel |
+| `subscriptionStatus()` | status, paused, cancel at period end, period end | status, scheduled cancel, period end |
+| `customerPortalUrl()` | Billing portal session returning to the app | portal session's general overview |
+
+The local provider refuses each with a message naming what it cannot do. Lemon Squeezy, Paystack,
+Flutterwave and RevenueCat follow the same calls (planned).
+
 # Purchases and Entitlements
 
 Stability: `Draft` · Status: `Partial`

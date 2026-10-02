@@ -30,6 +30,7 @@ import '../../dartvel.dart'
         DVUsageMeter,
         dvBillingCustomerKey;
 import 'invoice.dart';
+import 'subscription_lifecycle.dart';
 import 'money.dart';
 import 'webhooks.dart';
 
@@ -515,33 +516,63 @@ class DVStripeBillingProvider
     return decoded.cast<String, Object?>();
   }
 
-  /// Look up the first active subscription id for [customer].
-  /// Used by subscription lifecycle operations that need a subscription id.
-  Future<String> _findSubscriptionId(Object customer) async {
-    final String id = dvBillingCustomerKey(customer);
-    final Map<String, Object?> json = await _request(
-      'GET',
-      '/v1/subscriptions',
-      null,
-      <String, String>{'customer': id, 'status': 'all', 'limit': '1'},
-    );
-    final Object? rows = json['data'];
-    if (rows is List && rows.isNotEmpty) {
-      final Map<Object?, Object?> sub =
-          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
-      final String? subId = sub['id'] is String ? sub['id'] as String : null;
-      if (subId != null && subId.isNotEmpty) return subId;
-    }
-    throw DVBillingError(
-      'No Stripe subscription found for customer $id. The subscription '
-      'lifecycle methods require an active or recently-canceled subscription.',
-    );
-  }
-
   /// Nothing from Stripe's own text is allowed to carry the key.
   String _scrub(String message) =>
       message.contains(_secretKey) ? message.replaceAll(_secretKey, '[key]') : message;
 
+  /// Statuses of a subscription the customer still has, in the order one is
+  /// preferred when there are several. A canceled or expired one is only
+  /// used when nothing current exists, so status reads the past honestly.
+  static const List<String> _currentStatuses = <String>[
+    'active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused',
+  ];
+
+  /// The customer's subscription a lifecycle call acts on: the current one
+  /// (see [_currentStatuses]), else the newest, else null.
+  Future<Map<Object?, Object?>?> _subscriptionFor(Object customer) async {
+    final Map<String, Object?> json = await _request(
+      'GET',
+      '/v1/subscriptions',
+      null,
+      <String, String>{
+        'customer': dvBillingCustomerKey(customer),
+        'status': 'all',
+        'limit': '20',
+      },
+    );
+    final List<Map<Object?, Object?>> subscriptions = <Map<Object?, Object?>>[
+      for (final Object? row in (json['data'] is List ? json['data'] as List<Object?> : const <Object?>[]))
+        if (row is Map) row,
+    ];
+    for (final String status in _currentStatuses) {
+      for (final Map<Object?, Object?> subscription in subscriptions) {
+        if (subscription['status'] == status) return subscription;
+      }
+    }
+    return subscriptions.isEmpty ? null : subscriptions.first; // Stripe lists newest first
+  }
+
+  Future<String> _subscriptionIdFor(Object customer) async {
+    final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
+    final Object? id = subscription?['id'];
+    if (id is String && id.isNotEmpty) return id;
+    throw DVBillingError(
+      'No Stripe subscription found for customer ${dvBillingCustomerKey(customer)}.',
+    );
+  }
+
+  Future<void> _updateSubscription(Object customer, Map<String, String> form) async {
+    final String id = await _subscriptionIdFor(customer);
+    await _request('POST', '/v1/subscriptions/$id', _formBody(form));
+  }
+
+  static String _formBody(Map<String, String> form) => form.entries
+      .map((MapEntry<String, String> field) =>
+          '${Uri.encodeQueryComponent(field.key)}=${Uri.encodeQueryComponent(field.value)}')
+      .join('&');
+
+  /// Moves the subscription to [plan]'s price, prorated unless [prorate] is
+  /// false. The existing item is replaced rather than a second one added.
   @override
   Future<void> changeSubscriptionPlan({
     required Object customer,
@@ -553,95 +584,83 @@ class DVStripeBillingProvider
       throw DVBillingError('Plan "${plan.id}" has no Stripe price configured.');
     }
     await _assertPriceAgrees(plan, price);
-    // Contract: updates the customer's subscription to [plan]. The full
-    // implementation requires the subscription id from Stripe's subscription
-    // list for [customer] (read below in subscriptionStatus); once the id is
-    // known, the POST goes to /v1/subscriptions/{id} with the new price and
-    // proration_behavior. This path records the contract and the fixture
-    // evidence below; the production wiring uses the subscription-id lookup.
-    final String subId = await _findSubscriptionId(customer);
-    final Map<String, String> form = <String, String>{
+    final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
+    final Object? id = subscription?['id'];
+    if (id is! String || id.isEmpty) {
+      throw DVBillingError(
+        'No Stripe subscription found for customer ${dvBillingCustomerKey(customer)}.',
+      );
+    }
+    final Object? items = subscription!['items'];
+    final Object? firstItem = items is Map && items['data'] is List && (items['data'] as List).isNotEmpty
+        ? (items['data'] as List).first
+        : null;
+    final Object? itemId = firstItem is Map ? firstItem['id'] : null;
+    await _request('POST', '/v1/subscriptions/$id', _formBody(<String, String>{
+      if (itemId is String) 'items[0][id]': itemId,
       'items[0][price]': price,
-      'items[0][quantity]': '1',
       'proration_behavior': prorate ? 'create_prorations' : 'none',
-    };
-    await _request('POST', '/v1/subscriptions/$subId',
-        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
+    }));
   }
 
+  /// Cancels now, or at the end of the paid period when [atPeriodEnd].
   @override
   Future<void> cancelSubscription({
     required Object customer,
     bool atPeriodEnd = false,
   }) async {
-    final String subId = await _findSubscriptionId(customer);
-    final Map<String, String> form = <String, String>{
-      'cancel_at_period_end': atPeriodEnd ? 'true' : 'false',
-    };
-    await _request('POST', '/v1/subscriptions/$subId',
-        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
+    if (atPeriodEnd) {
+      await _updateSubscription(customer, <String, String>{'cancel_at_period_end': 'true'});
+      return;
+    }
+    final String id = await _subscriptionIdFor(customer);
+    await _request('DELETE', '/v1/subscriptions/$id', null);
   }
 
+  /// Undoes a pause and a pending cancellation: billing carries on as before.
   @override
-  Future<void> resumeSubscription({required Object customer}) async {
-    final String subId = await _findSubscriptionId(customer);
-    final Map<String, String> form = <String, String>{
-      'cancel_at_period_end': 'false',
-    };
-    await _request('POST', '/v1/subscriptions/$subId',
-        form.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&'));
-  }
+  Future<void> resumeSubscription({required Object customer}) =>
+      _updateSubscription(customer, <String, String>{
+        'cancel_at_period_end': 'false',
+        // An empty value unsets pause_collection in Stripe's API.
+        'pause_collection': '',
+      });
 
+  /// Pauses payment collection. Stripe keeps the subscription and its
+  /// access rules; invoices it would have charged are voided until resumed.
   @override
-  Future<void> pauseSubscription({required Object customer}) async {
-    // Stripe has no explicit "pause" state on subscriptions; a pause is
-    // expressed as a deferred cancellation followed by a resume when ready.
-    // This method establishes the contract and throws for the missing
-    // native capability so the failure is visible rather than silent.
-    throw UnsupportedError(
-      'Stripe does not expose a native subscription pause through '
-      'this interface. Use cancelSubscription(atPeriodEnd: true) followed '
-      'by resumeSubscription() to express a pause.',
-    );
-  }
+  Future<void> pauseSubscription({required Object customer}) =>
+      _updateSubscription(customer, <String, String>{
+        'pause_collection[behavior]': 'void',
+      });
 
   @override
   Future<DVSubscriptionStatus> subscriptionStatus({
     required Object customer,
   }) async {
-    final String id = dvBillingCustomerKey(customer);
-    // Read the subscription list for the customer and take the first.
-    final Map<String, Object?> json = await _request(
-      'GET',
-      '/v1/subscriptions',
-      null,
-      <String, String>{'customer': id, 'limit': '1'},
+    final Map<Object?, Object?>? subscription = await _subscriptionFor(customer);
+    if (subscription == null) return const DVSubscriptionStatus(status: 'none');
+    final Object? periodEnd = subscription['current_period_end'];
+    final bool paused = subscription['pause_collection'] is Map;
+    return DVSubscriptionStatus(
+      status: paused ? 'paused' : '${subscription['status'] ?? ''}',
+      cancelAtPeriodEnd: subscription['cancel_at_period_end'] == true,
+      currentPeriodEnd: periodEnd is int
+          ? DateTime.fromMillisecondsSinceEpoch(periodEnd * 1000, isUtc: true)
+          : null,
     );
-    final Object? rows = json['data'];
-    if (rows is List && rows.isNotEmpty) {
-      final Map<Object?, Object?> sub =
-          rows.first is Map ? rows.first as Map<Object?, Object?> : <Object?, Object?>{};
-      final String status = '${sub['status'] ?? ''}';
-      final bool cancelAtPeriodEnd = sub['cancel_at_period_end'] == true;
-      final int? periodEndRaw = sub['current_period_end'] is int ? sub['current_period_end'] as int : null;
-      return DVSubscriptionStatus(
-        status: status,
-        cancelAtPeriodEnd: cancelAtPeriodEnd,
-        currentPeriodEnd: periodEndRaw != null
-            ? DateTime.fromMillisecondsSinceEpoch(periodEndRaw * 1000, isUtc: true)
-            : null,
-      );
-    }
-    return DVSubscriptionStatus(status: 'none');
   }
 
+  /// A Stripe Billing customer-portal link, coming back to [successUrl].
   @override
   Future<String> customerPortalUrl({required Object customer}) async {
-    final String id = dvBillingCustomerKey(customer);
     final Map<String, Object?> json = await _request(
       'POST',
       '/v1/billing_portal/sessions',
-      'customer=$id',
+      _formBody(<String, String>{
+        'customer': dvBillingCustomerKey(customer),
+        'return_url': successUrl.toString(),
+      }),
     );
     final Object? url = json['url'];
     if (url is String && url.isNotEmpty) return url;
