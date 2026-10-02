@@ -268,7 +268,11 @@ String _summary(Map<String, Object?> results) {
         '${value['detail'] == null ? '' : ' — ${value['detail']}'}');
   }
   if (results['probe_exception'] != null) {
+    // A probe that stopped partway has not passed the checks it never
+    // reached: counted as a failure, so the summary cannot read as clean.
+    failures++;
     buffer.writeln('\n```\n${results['probe_exception']}\n```');
+    buffer.writeln('\nThe probe stopped here; the checks after this point did not run.');
   }
   buffer.writeln('\n$failures failing check(s).');
   return buffer.toString();
