@@ -39,6 +39,8 @@ import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/native_assets_config.dart';
 import '../build/native_splash.dart';
+import '../build/build_cache.dart';
+import 'version_command.dart' show dartvelCliVersion;
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
 import '../build/declaration_check.dart';
@@ -564,6 +566,11 @@ class BuildCommand extends Command<void> {
           help: 'Target architecture for embedded builds')
       ..addFlag('split-per-abi',
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
+      ..addFlag('cache',
+          defaultsTo: true,
+          help: 'Reuse a step whose inputs are byte-for-byte unchanged '
+              '(the Flutter web build, each route\'s semantics capture). '
+              'Kept in .dartvel/cache; --no-cache builds everything afresh.')
       ..addOption('build-number', help: 'Build number')
       ..addOption('build-name', help: 'Build name/version')
       ..addFlag('obfuscate',
@@ -1151,25 +1158,53 @@ class BuildCommand extends Command<void> {
     // Printed before starting, so a log that ends here says exactly what was
     // invoked. A macOS build once stopped at this point and produced nothing
     // for 41 minutes; the log could not even show the command.
-    Logger.log('   flutter ${args.join(' ')}');
+    // Flutter's web build is cached by a hash of the contents of everything
+    // it reads (build_cache.dart). The snapshot is the raw output, taken
+    // before the steps below rewrite build/web, so those steps always run.
+    final bool webTarget = platform == 'web' || platform == 'web-server';
+    final DVBuildCache cache = _buildCache;
+    final Directory webOutput = Directory(p.join(_projectRoot, 'build', 'web'));
+    String? webKey;
+    if (webTarget && cache.enabled) {
+      webKey = dvWebBuildKey(
+        projectRoot: _projectRoot,
+        flutterArguments: args,
+        platform: platform,
+        profile: buildMode,
+        dartvelVersion: dartvelCliVersion,
+        flutterVersion: await _flutterVersion(),
+      );
+    }
 
-    final proc = await Process.start(
-      'flutter',
-      args,
-      workingDirectory: _projectRoot,
-      runInShell: true,
-      environment: _buildEnvironment,
-    );
+    final int? exitCode;
+    if (webKey != null && cache.restore('flutter-web', webKey, webOutput)) {
+      Logger.log('   flutter build $platform: inputs unchanged, reused the '
+          'cached build (${webKey.substring(0, 12)}). --no-cache rebuilds it.');
+      exitCode = 0;
+    } else {
+      Logger.log('   flutter ${args.join(' ')}');
 
-    proc.stdout.listen((data) => stdout.add(data));
-    proc.stderr.listen((data) => stderr.add(data));
+      final proc = await Process.start(
+        'flutter',
+        args,
+        workingDirectory: _projectRoot,
+        runInShell: true,
+        environment: _buildEnvironment,
+      );
 
-    final exitCode = await _awaitBuild(
-      proc,
-      timeout: timeout,
-      description: 'flutter build $platform',
-    );
-    if (exitCode == null) return _PlatformBuildResult.failed;
+      proc.stdout.listen((data) => stdout.add(data));
+      proc.stderr.listen((data) => stderr.add(data));
+
+      exitCode = await _awaitBuild(
+        proc,
+        timeout: timeout,
+        description: 'flutter build $platform',
+      );
+      if (exitCode == null) return _PlatformBuildResult.failed;
+      if (exitCode == 0 && webKey != null) {
+        cache.store('flutter-web', webKey, webOutput);
+      }
+    }
 
     if (exitCode == 0) {
       if (platform == 'web' || platform == 'web-server') {
@@ -3097,6 +3132,67 @@ class BuildCommand extends Command<void> {
   /// The crawler-visible HTML is built from these. Without the capture the
   /// pages fall back to reading string literals out of the page source, which
   /// cannot tell a heading from a sentence and produces no links at all.
+  /// The build cache for this project; off with --no-cache.
+  DVBuildCache get _buildCache => DVBuildCache(
+        _projectRoot,
+        enabled: argResults?['cache'] as bool? ?? true,
+      );
+
+  String? _cachedFlutterVersion;
+
+  /// Flutter's framework and engine revisions: a different Flutter is a
+  /// different build of the same sources.
+  Future<String> _flutterVersion() async {
+    if (_cachedFlutterVersion != null) return _cachedFlutterVersion!;
+    try {
+      final ProcessResult result = await Process.run(
+          'flutter', <String>['--version', '--machine'],
+          runInShell: true);
+      final Object? decoded = jsonDecode('${result.stdout}');
+      _cachedFlutterVersion = decoded is Map
+          ? '${decoded['frameworkRevision']}/${decoded['engineRevision']}/${decoded['dartSdkVersion']}'
+          : '${result.stdout}';
+    } on Object {
+      // Unknown is its own key: never reused across a Flutter we cannot name.
+      _cachedFlutterVersion = 'unknown-${DateTime.now().microsecondsSinceEpoch}';
+    }
+    return _cachedFlutterVersion!;
+  }
+
+  /// What the capture reads: every file of the web output except the
+  /// prefetch manifest, which the capture itself refuses to serve.
+  String _captureInputHash(Directory web) {
+    final DVContentHash hash = DVContentHash()
+      ..addDirectory('', web,
+          relativeTo: web.path,
+          skip: (String relative) => relative == dvPrefetchManifestFile);
+    return hash.digest;
+  }
+
+  /// [route]'s capture outputs (its tree and its images), copied into a
+  /// directory of their own for the cache.
+  Directory _collectCaptureOutputs(String root, String route) {
+    final Directory outputs = Directory(
+        p.join(root, '.dart_tool', 'dartvel_capture_store', '${route.hashCode}'));
+    if (outputs.existsSync()) outputs.deleteSync(recursive: true);
+    outputs.createSync(recursive: true);
+    final File tree = File(dvSemanticsPathFor(root, route));
+    final File images = File(dvCapturedImagesPathFor(root, route));
+    if (tree.existsSync()) tree.copySync(p.join(outputs.path, 'tree.json'));
+    if (images.existsSync()) images.copySync(p.join(outputs.path, 'images.json'));
+    return outputs;
+  }
+
+  /// Puts a cached capture of [route] back where the capture writes it.
+  void _placeCaptureOutputs(String root, String route, Directory outputs) {
+    final File tree = File(p.join(outputs.path, 'tree.json'));
+    final File images = File(p.join(outputs.path, 'images.json'));
+    final File treeTarget = File(dvSemanticsPathFor(root, route));
+    treeTarget.parent.createSync(recursive: true);
+    if (tree.existsSync()) tree.copySync(treeTarget.path);
+    if (images.existsSync()) images.copySync(dvCapturedImagesPathFor(root, route));
+  }
+
   Future<void> _captureSemantics(String root) async {
     // Asked for explicitly. The build is otherwise right to refuse to ship
     // pages with no crawler-visible content, and this is the one way to say
@@ -3114,11 +3210,56 @@ class BuildCommand extends Command<void> {
     );
     if (routes.isEmpty) return;
 
-    Logger.log('   Reading the semantics tree for ${routes.length} routes...');
-    final DVCaptureRun run = await dvCaptureSemantics(
-      projectRoot: root,
-      webRoot: web.path,
-      routes: routes,
+    // Each route's capture is cached under (the web output's hash, the
+    // route, the capture's version): an unchanged build is not read again.
+    final DVBuildCache cache = _buildCache;
+    final String webHash = cache.enabled ? _captureInputHash(web) : '';
+    DVContentHash captureKey(String route) => DVContentHash()
+        ..addText('stage', 'semantics')
+        ..addText('web', webHash)
+        ..addText('route', route)
+        ..addText('capture', '$dvSemanticsCaptureVersion')
+        ..addText('dartvel', dartvelCliVersion);
+    final List<String> toCapture = <String>[];
+    int reused = 0;
+    for (final String route in routes) {
+      final Directory outputs = Directory(p.join(root, '.dart_tool', 'dartvel_capture_restore', '${route.hashCode}'));
+      if (cache.enabled && cache.restore('semantics', captureKey(route).digest, outputs)) {
+        _placeCaptureOutputs(root, route, outputs);
+        reused++;
+      } else {
+        toCapture.add(route);
+      }
+    }
+    int captured = 0;
+    bool browserAvailable = true;
+    if (toCapture.isNotEmpty) {
+      Logger.log('   Reading the semantics tree for ${toCapture.length} routes'
+          '${reused == 0 ? '' : ' ($reused unchanged, reused)'}...');
+      final DVCaptureRun fresh = await dvCaptureSemantics(
+        projectRoot: root,
+        webRoot: web.path,
+        routes: toCapture,
+      );
+      captured = fresh.captured;
+      browserAvailable = fresh.browserAvailable;
+      if (cache.enabled && fresh.browserAvailable) {
+        for (final String route in toCapture) {
+          final Directory outputs = _collectCaptureOutputs(root, route);
+          if (outputs.listSync().isNotEmpty) {
+            cache.store('semantics', captureKey(route).digest, outputs);
+          }
+          outputs.deleteSync(recursive: true);
+        }
+      }
+    } else {
+      Logger.log('   Semantics trees: all ${routes.length} routes unchanged, reused.');
+    }
+    final Directory restoreArea = Directory(p.join(root, '.dart_tool', 'dartvel_capture_restore'));
+    if (restoreArea.existsSync()) restoreArea.deleteSync(recursive: true);
+    final DVCaptureRun run = DVCaptureRun(
+      captured: captured + reused,
+      browserAvailable: browserAvailable,
     );
     final verdict = dvVerifyCapture(
       captured: run.captured,

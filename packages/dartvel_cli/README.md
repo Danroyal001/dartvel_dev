@@ -255,6 +255,12 @@ dartvel build android --profile development   # a build `dartvel dev` pairs with
 Android, iOS, macOS, Linux and Windows; used by project builds and Dartvel Preview),
 `profile`, or `release` (the default).
 
+Repeat `web` and `web-server` builds reuse Flutter's web build and each
+route's semantics capture when the contents of everything they read are
+unchanged (sources, web/, declared assets, pubspec and lock, path
+dependencies, Flutter and Dartvel versions, flags). The cache is
+`.dartvel/cache`; `--no-cache` builds everything afresh.
+
 Targets: `web`, `web-server`, `android`, `fireos`, `ios`, `macos`, `windows`,
 `linux`, `tvos`, `tizen` (alias `tpk`), `sony-elinux` (with `--format bundle|iso|img`),
 `webos`, `fuchsia`, `vscode`, `chrome-extension`, `firefox-extension`, and the
