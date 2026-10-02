@@ -433,7 +433,13 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             )
           : Row(
               crossAxisAlignment: .stretch,
-              children: <Widget>[_rail(sections), body],
+              children: <Widget>[
+                // The rail is one column for selection: its items reach
+                // further down the screen than a line of the workspace beside
+                // it, and a drag across that line stopped in the rail.
+                DVSelectionColumn(child: _rail(sections)),
+                body,
+              ],
             ),
     );
   }
@@ -1369,13 +1375,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
+        // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+        DVSelectionColumn(
+          child: Container(
           width: 280,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _pageList(),
+        ),
         ),
         Expanded(child: _dashboard()),
       ],

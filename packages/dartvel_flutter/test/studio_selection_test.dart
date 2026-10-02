@@ -11,6 +11,7 @@
 // Object paths are addressed too: `<mount>/<screen>/<object>`, where an
 // object keeps its slashes so a page is at the route it answers.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -185,6 +186,40 @@ bool _selected(WidgetTester tester, String key) {
 
 void main() {
   setUpAll(dvStudioLoadLibrariesForTest);
+
+  // The workspace beside the rail and a list pane is selectable text. The
+  // rail and the list reach further down the screen than a line of the
+  // workspace, and a drag across that line stopped in them: Ctrl+C copied
+  // nothing. The browser check that found it drags exactly this line.
+  testWidgets('a drag across the workspace copies the line it crosses', (
+    tester,
+  ) async {
+    await _at(tester, _Server(granted: true), '/__studio/pages');
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (MethodCall call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+      }
+      return null;
+    });
+    final Rect line = tester.getRect(find.text('Select or create a page to edit.'));
+    final TestGesture gesture = await tester.startGesture(
+        line.centerLeft + const Offset(2, 0),
+        kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    for (int step = 1; step <= 20; step++) {
+      await gesture.moveTo(line.centerLeft + Offset((line.width - 4) * step / 20, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(copied, 'Select or create a page to edit.');
+  });
 
   testWidgets('readable screen URLs open their sections', (tester) async {
     for (final (path, section) in [

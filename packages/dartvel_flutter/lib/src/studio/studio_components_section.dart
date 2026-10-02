@@ -170,13 +170,16 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
+        // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+        DVSelectionColumn(
+          child: Container(
           width: 248,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _list(),
+        ),
         ),
         Expanded(child: _editor()),
       ],
@@ -262,7 +265,9 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
             child: Row(
               crossAxisAlignment: .stretch,
               children: <Widget>[
-                Container(
+                // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+                DVSelectionColumn(
+                  child: Container(
                   width: 248,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
@@ -293,8 +298,11 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
                     ],
                   ),
                 ),
+                ),
                 Expanded(child: DVStudioCanvas(controller: controller)),
-                Container(
+                // One column for selection, like the list on the left. See DVSelectionColumn.
+                DVSelectionColumn(
+                  child: Container(
                   width: 300,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
@@ -311,6 +319,7 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
                       Expanded(child: DVStudioInspector(controller: controller)),
                     ],
                   ),
+                ),
                 ),
               ],
             ),

@@ -722,6 +722,7 @@ export 'package:dartvel_core/dartvel.dart'
 export 'package:go_router/go_router.dart';
 
 export 'src/accessibility/keyboard_scroll.dart';
+export 'src/accessibility/selection_column.dart';
 export 'src/accessibility/switch_control.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
