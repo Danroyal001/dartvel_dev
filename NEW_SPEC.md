@@ -2619,7 +2619,11 @@ Native APIs, including:
   - Android foldables report their folds through Flutter today. Apple's iPhone Duo (iOS 27.1) exposes its fold as `UIView.reservedRegions(kind: .division)` and its hinge through `onHingeChange`; Dartvel binds those through FFI, never a platform channel, into the same display features, so an app written against `context.screen.folds` needs no change for it.
 - Native APIs, Expo-style. (DV.Platform.*)
 - Camera (`DV.Platform.camera` - deprecated alias `DV.Platform.camera`)
-- Media and Files (DV.Platform.fileStorage, proxy to DV.FileStorage)
+- Media and Files (`DV.Platform.fileStorage`): `DV.FileStorage` bound to the local adapter on the device's own disk, whatever the app's default adapter is, with the same calls (`put`, `get`, `delete`, `exists`, `list`).
+  - App files live where each platform gives an app its own directory, with no permission: Android `<filesDir>/dartvel-files`; iOS `Documents`; macOS `~/Library/Application Support/<app>`; Windows `%LOCALAPPDATA%\<app>\Files`; Linux and embedded Linux `$XDG_DATA_HOME/<app>`; web the origin private file system. `.cache` is the same calls in the cache directory.
+  - `pick(type:, multiple:)` opens the platform's file picker (choosing is the grant); `pickDirectory()` answers a folder as a storage with the same calls (desktop dialogs; Chromium `showDirectoryPicker`, read and write; a read-only folder input in other browsers).
+  - Wider access is declared once under `dartvel.fileStorage` (`access: [photos, media, documents, allFiles]`, `reason`, `shareAppFiles`), or as `DVFileStorageConfig` in a Dart config, which serialises to the same map. The build writes it per platform: AndroidManifest permissions per API level, iOS/macOS Info.plist usage descriptions and file-sharing keys, macOS sandbox entitlements, all in marked blocks; Windows, Linux and the web need nothing. `requestAccess(kind)` asks at run time through the permissions binding and throws `DVFileAccessDenied` on a refusal.
+  - `DV.Platform.files` is deprecated in favour of it and removed in the next release.
 - Location (`DV.Platform.location`, deprecated alias `DV.Platform.location`, and `DV.Location` proxy)
 - Bluetooth (`DV.Platform.bluetooth`, deprecated alias `DV.Platform.bluetooth`, and `DV.Bluetooth` proxy)
 - NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.nfc`, and `DV.NFC` proxy)
