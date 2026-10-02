@@ -1503,11 +1503,26 @@ ${shell.branches.map((b) => '        StatefulShellBranch(routes: <RouteBase>[\n$
     final routeCapabilities = pageEntries
         .map((e) {
           final widgetName = _generatedPageWidgetName(e.publicName);
-          return '''
+          final String preload = '''
   DVRoutePreloaders.register(
     '${esc(e.route)}',
     $widgetName.loadLibrary,
-  );
+  );''';
+          // A guarded page previews only what is public about it -- its
+          // title and that it needs signing in. Building the page on a hover
+          // would show a signed-out reader what the guard protects.
+          if (guardRedirectFor(e.directory, e.policy, e.middleware, e.mfa).isNotEmpty) {
+            final String? title = RegExp(
+              r"""title: ('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")""",
+            ).firstMatch(e.pageScaffold)?.group(1);
+            return '''
+$preload
+  DVRoutePreviews.registerGuarded(
+    '${esc(e.route)}',${title == null ? '' : '\n    title: $title,'}
+  );''';
+          }
+          return '''
+$preload
   DVRoutePreviews.register(
     '${esc(e.route)}',
     (BuildContext context) => const $widgetName(),
@@ -2079,12 +2094,6 @@ dv_nav.Route<Object?>? dartvelOnGenerateRoute(dv_nav.RouteSettings settings,
         {String at = '/', List<String> arguments = const <String>[]}) =>
     dvOnGenerateRoute(settings, _dartvelHosted(arguments), at: at);
 
-/// The page for [uri] for a host on Navigator 2.0, to put in its
-/// navigator's `pages`; null when [uri] is not one of these pages under [at].
-dv_nav.Page<Object?>? dartvelPageFor(Uri uri,
-        {String at = '/', List<String> arguments = const <String>[]}) =>
-    dvPageFor(uri, _dartvelHosted(arguments), at: at);
-
 /// For a host on Navigator 1.0: its own [existing] `onGenerateRoute`, with
 /// these pages under [at] answered first.
 /// `MaterialApp(onGenerateRoute: dartvelRouteFactory(at: '/app', existing: myRoutes))`.
@@ -2121,21 +2130,21 @@ GoRouter dartvelGoRouter({
   );
 }
 
-/// For a host on Navigator 2.0: the Dartvel entry in the pages its own
-/// RouterDelegate builds for [location] -- empty when [location] is not one
-/// of these pages under [at].
-/// `Navigator(pages: [...myPages(location), ...dartvelPages(location, at: '/app', onLocationChanged: go)])`.
-/// It is one page that runs this application's whole route table; it
-/// follows [location] when the delegate changes it, and hands
-/// [onLocationChanged] the new location when somebody navigates inside it.
-List<dv_nav.Page<Object?>> dartvelPages(
-  Uri location, {
+/// For a host on Navigator 2.0: every one of this application's routes,
+/// mounted at [at], as entries for the host's own route table -- spread them
+/// in beside the host's:
+/// `final table = <DVNavigatorRoute>[...hostRoutes, ...dartvelNavigator2_0Routes(at: '/app', onLocationChanged: go)];`
+/// then `Navigator(pages: [homePage, ...dvNavigatorPages(location, table)])`
+/// in the host's RouterDelegate, which keeps the location and the stack.
+/// Guards, parameters, query, not-found under the mount and back behave as
+/// in a Dartvel app; [onLocationChanged] is told where somebody navigated
+/// inside Dartvel, so the delegate keeps the address bar in step.
+List<DVNavigatorRoute> dartvelNavigator2_0Routes({
   String at = '/',
   ValueChanged<Uri>? onLocationChanged,
   List<String> arguments = const <String>[],
 }) =>
-    dvPages(
-      location,
+    dvNavigator2Routes(
       _dartvelHosted(arguments),
       at: at,
       onLocationChanged: onLocationChanged,

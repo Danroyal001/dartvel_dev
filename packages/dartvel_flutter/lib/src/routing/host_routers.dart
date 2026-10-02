@@ -7,10 +7,9 @@
 /// * go_router: [dvGoRouter] builds one `GoRouter` from Dartvel's routes and
 ///   the app's own, with the app's redirect asked only about its own paths.
 /// * Navigator 1.0: [dvRouteFactory] wraps the app's `onGenerateRoute`.
-/// * Navigator 2.0: [dvPages] is the Dartvel entry in the pages an app's own
-///   `RouterDelegate` builds. It is one page that runs Dartvel's whole route
-///   table, follows the delegate's location and reports Dartvel's own
-///   navigation back to it.
+/// * Navigator 2.0: [dvNavigator2Routes] is every Dartvel route as entries for
+///   the app's own route table, spread in beside its own; [dvNavigatorPages]
+///   turns the table and the delegate's location into the navigator's pages.
 /// * `MaterialApp.router` / `CupertinoApp.router`: [dvRouterConfig] composes
 ///   the app's `RouterConfig` -- its delegate and parser -- with Dartvel's.
 /// * auto_route: the generated `dartvelAutoRoutes(existing:)`, over
@@ -22,7 +21,7 @@
 /// the host's back button reaches Dartvel's stack before the host's.
 ///
 /// The generated client wraps each of these (`dartvelGoRouter`,
-/// `dartvelRouteFactory`, `dartvelPages`, `dartvelRouterConfig`,
+/// `dartvelRouteFactory`, `dartvelNavigator2_0Routes`, `dartvelRouterConfig`,
 /// `dartvelAutoRoutes`) with the application's own route table.
 library;
 
@@ -140,44 +139,109 @@ GoRouter dvGoRouter(
   return router;
 }
 
-/// For Navigator 2.0: Dartvel's entry in the pages an app's own
-/// `RouterDelegate` builds for [location].
+/// One entry in a Navigator 2.0 app's own route table: a path [pattern] and
+/// the page it builds for a matching location.
 ///
-/// Empty when [location] is not one of Dartvel's paths under [at]. Otherwise
-/// one page -- always the same page, keyed by the mount -- that runs
-/// Dartvel's whole route table with its own stack inside it. When the
-/// delegate's location changes to another Dartvel path the page follows it,
-/// and when somebody navigates inside Dartvel the new location, under the
-/// mount, is handed to [onLocationChanged] so the delegate's configuration
-/// and the address bar keep up.
-List<Page<Object?>> dvPages(
-  Uri location,
+/// An app writes its own routes with it and spreads Dartvel's in beside them:
+///
+/// ```dart
+/// final List<DVNavigatorRoute> table = <DVNavigatorRoute>[
+///   DVNavigatorRoute('/profile', (Uri uri) => const MaterialPage(child: ProfileScreen())),
+///   ...dartvelNavigator2_0Routes(at: '/app', onLocationChanged: go),
+/// ];
+/// // In the RouterDelegate's build:
+/// Navigator(pages: [homePage, ...dvNavigatorPages(location, table)], ...)
+/// ```
+///
+/// The app's RouterDelegate stays in charge: it owns the location, the stack
+/// and the address bar, and asks the table which page a location is.
+class DVNavigatorRoute {
+  const DVNavigatorRoute(this.pattern, this.pageBuilder);
+
+  /// The path this entry answers, with `:param` segments and `**` for the
+  /// rest of a path, as go_router writes them.
+  final String pattern;
+
+  /// The page for a location this entry matches.
+  final Page<Object?> Function(Uri location) pageBuilder;
+
+  /// Whether this entry answers [location]'s path. The query is not part of
+  /// the match; it reaches the page with the location.
+  bool matches(Uri location) =>
+      dvRoutesOverlap(location.path.isEmpty ? '/' : location.path, pattern) &&
+      _segmentCountFits(location.path, pattern);
+
+  Page<Object?> page(Uri location) => pageBuilder(location);
+
+  /// A path is not answered by a pattern with more fixed segments than it
+  /// has, unless the pattern ends in a catch-all.
+  static bool _segmentCountFits(String path, String pattern) {
+    final List<String> pathSegments =
+        path.split('/').where((String part) => part.isNotEmpty).toList();
+    final List<String> patternSegments =
+        pattern.split('/').where((String part) => part.isNotEmpty).toList();
+    if (patternSegments.isNotEmpty && patternSegments.last.startsWith('*')) {
+      return pathSegments.length >= patternSegments.length - 1;
+    }
+    return pathSegments.length == patternSegments.length;
+  }
+}
+
+/// For Navigator 2.0: every one of Dartvel's [routes], mounted at [at], as
+/// entries for the app's own route table -- spread them in beside its own.
+///
+/// Each entry builds the same page, keyed by the mount, that runs Dartvel's
+/// whole route table: moving between two Dartvel locations keeps that page
+/// and its state, and Dartvel's guards, parameters, query and back stack
+/// behave as in a Dartvel app. Under a prefix, a final `<at>/**` entry gives
+/// an unknown path under the mount Dartvel's not-found page rather than the
+/// app's. When somebody navigates inside Dartvel, the new location, under
+/// the mount, is handed to [onLocationChanged] so the delegate keeps the
+/// address bar in step.
+List<DVNavigatorRoute> dvNavigator2Routes(
   List<RouteBase> routes, {
   String at = '/',
   ValueChanged<Uri>? onLocationChanged,
 }) {
-  final String? inner = dvHostedLocation(location.toString(), routes, at: at);
-  if (inner == null) return const <Page<Object?>>[];
-  return <Page<Object?>>[
-    MaterialPage<Object?>(
+  Page<Object?> hostedPage(Uri location) {
+    final String path = location.path.isEmpty ? '/' : location.path;
+    final String inner = at == '/'
+        ? path
+        : path == at
+            ? '/'
+            : path.startsWith('$at/')
+                ? path.substring(at.length)
+                : path;
+    return MaterialPage<Object?>(
       key: ValueKey<String>('dartvel:$at'),
       name: location.toString(),
       child: DVHostedPage(
-        location: inner,
+        location: location.replace(path: inner).toString(),
         routes: routes,
         at: at,
         onLocationChanged: onLocationChanged,
       ),
-    ),
+    );
+  }
+
+  return <DVNavigatorRoute>[
+    for (final String pattern in dvRoutePaths(routes))
+      DVNavigatorRoute(dvHostedPath(pattern, at: at), hostedPage),
+    if (at != '/') DVNavigatorRoute('$at/**', hostedPage),
   ];
 }
 
-/// For Navigator 2.0: the page for [uri] when it names a Dartvel page under
-/// [at], else null. [dvPages] is the same page, and also reports Dartvel's
-/// own navigation back to the delegate.
-Page<Object?>? dvPageFor(Uri uri, List<RouteBase> routes, {String at = '/'}) {
-  final List<Page<Object?>> pages = dvPages(uri, routes, at: at);
-  return pages.isEmpty ? null : pages.single;
+/// For Navigator 2.0: the page for [location] from the app's route [table],
+/// the first entry that matches, or none -- what goes into the navigator's
+/// `pages` after the app's own base pages.
+List<Page<Object?>> dvNavigatorPages(
+  Uri location,
+  Iterable<DVNavigatorRoute> table,
+) {
+  for (final DVNavigatorRoute route in table) {
+    if (route.matches(location)) return <Page<Object?>>[route.page(location)];
+  }
+  return const <Page<Object?>>[];
 }
 
 /// For `MaterialApp.router` and `CupertinoApp.router`: the app's own

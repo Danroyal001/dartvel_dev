@@ -101,21 +101,82 @@ void main() {
     expect(find.text('dartvel sign in'), findsOneWidget);
   });
 
-  testWidgets('Navigator 2.0: the host puts the page in its pages',
-      (WidgetTester tester) async {
-    final Uri uri = Uri.parse('/app/about');
-    await tester.pumpWidget(MaterialApp(
-      home: Navigator(
-        pages: <Page<Object?>>[
-          const MaterialPage<void>(child: Text('host home')),
-          ?dvPageFor(uri, routes, at: '/app'),
-        ],
-        onDidRemovePage: (_) {},
-      ),
-    ));
-    await tester.pumpAndSettle();
-    expect(find.text('dartvel about'), findsOneWidget);
-    expect(dvPageFor(Uri.parse('/settings'), routes, at: '/app'), isNull);
+  group('Navigator 2.0: every route, spread into the host\'s own table', () {
+    test('returns every Dartvel route under the mount, and a catch-all for '
+        'the rest of the mount', () {
+      final List<DVNavigatorRoute> table = dvNavigator2Routes(routes, at: '/app');
+      expect(table.map((DVNavigatorRoute route) => route.pattern), <String>[
+        '/app',
+        '/app/about',
+        '/app/account',
+        '/app/sign-in',
+        '/app/**',
+      ]);
+    });
+
+    test('mounted at / it adds no catch-all, so the host keeps its 404', () {
+      final List<DVNavigatorRoute> table = dvNavigator2Routes(routes);
+      expect(table.map((DVNavigatorRoute route) => route.pattern),
+          <String>['/', '/about', '/account', '/sign-in']);
+    });
+
+    test('a route matches its own paths, with params and query, and no others',
+        () {
+      final DVNavigatorRoute about =
+          dvNavigator2Routes(routes, at: '/app')[1];
+      expect(about.matches(Uri.parse('/app/about?tab=2')), isTrue);
+      expect(about.matches(Uri.parse('/app/account')), isFalse);
+      expect(about.matches(Uri.parse('/profile')), isFalse);
+    });
+
+    test('spread beside the host\'s routes, the first that matches answers',
+        () {
+      final List<DVNavigatorRoute> table = <DVNavigatorRoute>[
+        DVNavigatorRoute('/profile',
+            (Uri uri) => const MaterialPage<void>(child: Text('host profile'))),
+        ...dvNavigator2Routes(routes, at: '/app'),
+      ];
+      expect(dvNavigatorPages(Uri.parse('/profile'), table), hasLength(1));
+      expect(dvNavigatorPages(Uri.parse('/app/about'), table), hasLength(1));
+      expect(dvNavigatorPages(Uri.parse('/elsewhere'), table), isEmpty);
+    });
+
+    Future<void> openIn(WidgetTester tester, String location) async {
+      final _SampleDelegate delegate = _SampleDelegate(Uri.parse(location));
+      addTearDown(delegate.dispose);
+      await tester.pumpWidget(MaterialApp.router(
+        routerDelegate: delegate,
+        routeInformationParser: const _UriParser(),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a Dartvel path opens Dartvel\'s page in the host\'s navigator',
+        (WidgetTester tester) async {
+      await openIn(tester, '/app/about');
+      expect(find.text('dartvel about'), findsOneWidget);
+    });
+
+    testWidgets('the host\'s own route in the same table still answers',
+        (WidgetTester tester) async {
+      await openIn(tester, '/profile');
+      expect(find.text('host profile'), findsOneWidget);
+      expect(find.textContaining('dartvel'), findsNothing);
+    });
+
+    testWidgets('a guarded route runs Dartvel\'s guard',
+        (WidgetTester tester) async {
+      await openIn(tester, '/app/account');
+      expect(find.text('dartvel sign in'), findsOneWidget);
+    });
+
+    testWidgets('an unknown path under the mount is Dartvel\'s not-found, '
+        'not the host\'s page', (WidgetTester tester) async {
+      await openIn(tester, '/app/nowhere');
+      expect(find.text('host profile'), findsNothing);
+      expect(find.textContaining('dartvel'), findsNothing);
+      expect(find.byType(DVHostedPage), findsOneWidget);
+    });
   });
 
   group('Navigator 1.0 with the app\'s own onGenerateRoute', () {
@@ -254,7 +315,7 @@ void main() {
 
       delegate.go(Uri.parse('/profile'));
       await tester.pumpAndSettle();
-      expect(find.text('host /profile'), findsOneWidget);
+      expect(find.text('host profile'), findsOneWidget);
     });
 
     testWidgets('navigating inside Dartvel is reported to the delegate, so '
@@ -272,10 +333,6 @@ void main() {
       expect(delegate.currentConfiguration, Uri.parse('/app/about'));
     });
 
-    test('a location that is not Dartvel\'s has no Dartvel pages', () {
-      expect(dvPages(Uri.parse('/profile'), routes, at: '/app'), isEmpty);
-      expect(dvPages(Uri.parse('/app/about'), routes, at: '/app'), hasLength(1));
-    });
   });
 
   group('MaterialApp.router with the app\'s own RouterConfig', () {
@@ -344,12 +401,20 @@ void main() {
 }
 
 /// A Navigator 2.0 app as people write one: a RouterDelegate over a Uri that
-/// builds its own pages, with Dartvel's added by dvPages.
+/// builds its own pages from one route table, with Dartvel's routes spread
+/// into it by dvNavigator2Routes.
 class _SampleDelegate extends RouterDelegate<Uri>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<Uri> {
   _SampleDelegate(this._location);
 
   Uri _location;
+
+  /// The app's own route table, Dartvel's spread into it.
+  late final List<DVNavigatorRoute> table = <DVNavigatorRoute>[
+    DVNavigatorRoute('/profile',
+        (Uri uri) => const MaterialPage<void>(child: Text('host profile'))),
+    ...dvNavigator2Routes(routes, at: '/app', onLocationChanged: go),
+  ];
 
   @override
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -374,7 +439,7 @@ class _SampleDelegate extends RouterDelegate<Uri>
         key: navigatorKey,
         pages: <Page<Object?>>[
           MaterialPage<void>(child: Text('host $_location')),
-          ...dvPages(_location, routes, at: '/app', onLocationChanged: go),
+          ...dvNavigatorPages(_location, table),
         ],
         onDidRemovePage: (_) {},
       );

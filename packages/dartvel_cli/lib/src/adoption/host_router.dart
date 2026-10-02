@@ -3,7 +3,7 @@
 /// Dartvel mounts into go_router (`dartvelGoRouter(existing:)`), auto_route
 /// (`dartvelAutoRoutes(existing:)`, generated when the project depends on
 /// it) and Flutter's own Navigator -- 1.0 through
-/// `dartvelRouteFactory(existing:)`, 2.0 through `dartvelPages` in the app's
+/// `dartvelRouteFactory(existing:)`, 2.0 through `dartvelNavigator2_0Routes` spread into the app's
 /// own RouterDelegate -- and composes with any `RouterConfig` handed to
 /// `MaterialApp.router` or `CupertinoApp.router`
 /// (`dartvelRouterConfig(existing:)`). Each keeps the app's own routes.
@@ -49,13 +49,13 @@ class DVHostRouterDetection {
         .navigator => 'Navigator: your routes stay yours. On Navigator 1.0, '
             '`onGenerateRoute: dartvelRouteFactory(at: \'/app\', existing: '
             'yourOnGenerateRoute)`; on Navigator 2.0, add '
-            '`...dartvelPages(location, at: \'/app\')` to the pages your '
+            '`...dartvelNavigator2_0Routes(at: \'/app\')` to the route table your '
             'RouterDelegate builds; with MaterialApp.router, '
             '`dartvelRouterConfig(at: \'/app\', existing: yourConfig)`.',
         null => '$unsupported: Dartvel does not mount into $unsupported. It '
             'mounts into go_router (dartvelGoRouter), auto_route '
             '(dartvelAutoRoutes), Flutter\'s own Navigator 1.0 '
-            '(dartvelRouteFactory) and 2.0 (dartvelPages), and composes with '
+            '(dartvelRouteFactory) and 2.0 (dartvelNavigator2_0Routes), and composes with '
             'a RouterConfig (dartvelRouterConfig). Route the screens that show '
             'Dartvel pages through one of those.',
       };

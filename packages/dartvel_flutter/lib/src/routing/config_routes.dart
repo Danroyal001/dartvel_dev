@@ -44,10 +44,13 @@ class DVRouteState {
   });
 
   /// The state of a route previewed from a link, where nothing has matched.
-  DVRouteState.preview(String path)
-    : uri = Uri.parse(path),
-      pattern = path,
-      params = const <String, String>{};
+  DVRouteState.preview(
+    String path, {
+    String? pattern,
+    Map<String, String> params = const <String, String>{},
+  })  : uri = Uri.parse(path),
+        pattern = pattern ?? path,
+        params = Map<String, String>.unmodifiable(params);
 
   factory DVRouteState._of(GoRouterState state) => DVRouteState(
     uri: state.uri,
@@ -393,14 +396,20 @@ class _Convert {
   ) {
     final String full = _join(parentPath, route.path);
     final bool covered = guarded || route.redirect != null;
-    if (route.preview &&
-        !covered &&
-        !full.contains(':') &&
-        !full.contains('*')) {
-      DVRoutePreviews.register(
+    // Every route has a preview. A guarded one shows only its title and that
+    // it needs signing in: building it for somebody the guard would refuse
+    // would show them the page. Any other is built for the location the
+    // link names, parameters included.
+    if (route.preview && covered) {
+      DVRoutePreviews.registerGuarded(full, title: route.title);
+    } else if (route.preview) {
+      DVRoutePreviews.registerForLocation(
         full,
-        (BuildContext context) =>
-            route.builder(context, DVRouteState.preview(full)),
+        (BuildContext context, String location, Map<String, String> params) =>
+            route.builder(
+              context,
+              DVRouteState.preview(location, pattern: full, params: params),
+            ),
       );
     }
     final PageTransitionSpec spec = route.transition ?? transition;

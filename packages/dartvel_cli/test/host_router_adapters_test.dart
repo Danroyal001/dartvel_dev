@@ -30,7 +30,7 @@ void main() {
       expect(beamer.router, isNull);
       for (final String named in <String>[
         'beamer', 'go_router', 'auto_route', 'Navigator',
-        'dartvelGoRouter', 'dartvelRouteFactory', 'dartvelPages',
+        'dartvelGoRouter', 'dartvelRouteFactory', 'dartvelNavigator2_0Routes',
         'dartvelRouterConfig', 'dartvelAutoRoutes',
       ]) {
         expect(beamer.message, contains(named));
@@ -45,12 +45,16 @@ void main() {
       await generate(root);
       final String router = read(root, 'router.g.dart');
       expect(router, contains('Route<Object?>? dartvelOnGenerateRoute('));
-      expect(router, contains('Page<Object?>? dartvelPageFor('));
       expect(router, contains('RouteFactory dartvelRouteFactory('));
       expect(router, contains('dv_nav.RouteFactory? existing,'));
       expect(router, contains('GoRouter dartvelGoRouter('));
       expect(router, contains('List<RouteBase> existing = const <RouteBase>[],'));
-      expect(router, contains('List<dv_nav.Page<Object?>> dartvelPages('));
+      // Navigator 2.0 gets every route as a list to spread into the app's own
+      // table, never a per-location lookup.
+      expect(router, contains('List<DVNavigatorRoute> dartvelNavigator2_0Routes('));
+      expect(router, isNot(contains('dartvelPages(')));
+      expect(router, isNot(contains('dartvelPageFor(')));
+      expect(router, isNot(contains('dartvelRouteFor(')));
       expect(router,
           contains('RouterConfig<Object> dartvelRouterConfig<T extends Object>('));
       expect(router, contains('RouterConfig<T>? existing,'));
