@@ -141,26 +141,36 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
           id: 'navigator-2',
           title: 'Navigator 2.0',
           children: <Widget>[
-            DocsText('If you wrote your own RouterDelegate, add Dartvel\'s '
-                'pages to the list it builds:'),
+            DocsText('If you wrote your own RouterDelegate, keep your routes in '
+                'one table and spread Dartvel\'s into it. '
+                'dartvelNavigator2_0Routes returns all of Dartvel\'s routes '
+                'as a list:'),
             DocsShell(<String>[
+              'late final List<DVNavigatorRoute> table = <DVNavigatorRoute>[',
+              '  DVNavigatorRoute(\'/settings\', (uri) => const MaterialPage(child: SettingsScreen())),',
+              '  ...dartvelNavigator2_0Routes(at: \'/app\', onLocationChanged: go),',
+              '];',
+              '',
               '@override',
               'Widget build(BuildContext context) => Navigator(',
               '  key: navigatorKey,',
               '  pages: <Page<Object?>>[',
-              '    ...myPages(location),',
-              '    ...dartvelPages(location, at: \'/app\', onLocationChanged: go),',
+              '    const MaterialPage(child: HomeScreen()),',
+              '    ...dvNavigatorPages(location, table),',
               '  ],',
               '  onDidRemovePage: (_) {},',
               ');',
             ]),
             Bullets(<String>[
-              'dartvelPages is empty when the location is not a Dartvel path.',
-              'For a Dartvel path it returns one page. That page runs all of '
-                  'Dartvel\'s routes, and keeps its own stack inside it. You do '
-                  'not add one page per Dartvel route.',
-              'When your delegate changes the location, the page moves to the '
-                  'new Dartvel path.',
+              'Your delegate stays in charge: it keeps the location and the '
+                  'stack, and asks the table which page a location is. The '
+                  'first entry that matches answers.',
+              'Every Dartvel route is an entry, under the prefix. Guards, '
+                  'parameters, the query and back work as in a Dartvel app.',
+              'Under a prefix there is one more entry, /app/**, so an unknown '
+                  'path under /app gets Dartvel\'s not-found page, not yours.',
+              'All of Dartvel\'s entries build the same page, so moving between '
+                  'two Dartvel paths keeps that page and its state.',
               'When someone navigates inside Dartvel, onLocationChanged gets '
                   'the new location, such as /app/users/7. Store it, so your '
                   'currentConfiguration and the address bar stay correct.',

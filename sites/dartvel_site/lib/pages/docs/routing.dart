@@ -134,6 +134,11 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'DVLinkPreload: none, hover, visible (the default) or immediate.',
               'DVLinkPreview: auto (the default), none, or widget(child).',
+              'Every route has a preview. A link to /orders/9 previews '
+                  '/orders/:id with id = 9.',
+              'A page behind a guard previews only its title and that it '
+                  'needs signing in. The page itself is never built on a '
+                  'hover, so nothing the guard protects is shown.',
               'Tap or scroll outside a preview to close it. Back closes the '
                   'preview before leaving the page.',
               'DVNavLink.external opens another site and never preloads.',
@@ -248,7 +253,7 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsText('Each kind of router takes your existing routes as '
                 '`existing:`: dartvelGoRouter for go_router, dartvelAutoRoutes '
                 'for auto_route, dartvelRouteFactory for Navigator 1.0, '
-                'dartvelPages in a Navigator 2.0 RouterDelegate, and '
+                'dartvelNavigator2_0Routes spread into a Navigator 2.0 route table, and '
                 'dartvelRouterConfig for MaterialApp.router or '
                 'CupertinoApp.router. Dartvel answers its own paths under the '
                 'prefix, with its guards, and back goes through Dartvel\'s '
