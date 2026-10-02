@@ -20,6 +20,7 @@ class DVStudioComponentsSection extends StatefulWidget {
     this.store = const DVPageStore(),
     this.palette = const <DVStudioPaletteItem>[],
     this.open,
+    this.onSelect,
   });
 
   /// Where components are kept: the same store as the pages.
@@ -28,8 +29,12 @@ class DVStudioComponentsSection extends StatefulWidget {
   /// What can be put into a component; the built-in elements by default.
   final List<DVStudioPaletteItem> palette;
 
-  /// A component to open straight away: the one a use of it asked to edit.
+  /// A component to open straight away: the one a use of it asked to edit,
+  /// or the one the address names.
   final String? open;
+
+  /// Called with the component a person chose, so the address can follow.
+  final void Function(String name)? onSelect;
 
   @override
   State<DVStudioComponentsSection> createState() =>
@@ -50,8 +55,23 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
     super.initState();
     unawaited(_load().then((_) {
       final String? open = widget.open;
-      if (open != null && mounted) unawaited(_openComponent(open));
+      if (open != null && mounted) {
+        unawaited(_openComponent(open, userChose: false));
+      }
     }));
+  }
+
+  @override
+  void didUpdateWidget(DVStudioComponentsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved to another component. Read again rather than
+    // opening from the list already held: one made since this section was
+    // built is not in it, and the address is not the thing to argue with.
+    if (widget.open != oldWidget.open && widget.open != null) {
+      unawaited(_load().then((_) {
+        if (mounted) unawaited(_openComponent(widget.open!, userChose: false));
+      }));
+    }
   }
 
   @override
@@ -70,7 +90,11 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
     });
   }
 
-  Future<void> _openComponent(String name) async {
+  /// [userChose] says the person asked for this component rather than the
+  /// address naming it, which is the difference between putting the name in
+  /// the address and reading it from there.
+  Future<void> _openComponent(String name, {bool userChose = true}) async {
+    if (userChose) widget.onSelect?.call(name);
     final DVPageDocument? document =
         await widget.store.load(dvStudioComponentRoute(name));
     if (!mounted || document == null) return;
@@ -146,13 +170,16 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
+        // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+        DVSelectionColumn(
+          child: Container(
           width: 248,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _list(),
+        ),
         ),
         Expanded(child: _editor()),
       ],
@@ -238,7 +265,9 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
             child: Row(
               crossAxisAlignment: .stretch,
               children: <Widget>[
-                Container(
+                // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+                DVSelectionColumn(
+                  child: Container(
                   width: 248,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
@@ -269,8 +298,11 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
                     ],
                   ),
                 ),
+                ),
                 Expanded(child: DVStudioCanvas(controller: controller)),
-                Container(
+                // One column for selection, like the list on the left. See DVSelectionColumn.
+                DVSelectionColumn(
+                  child: Container(
                   width: 300,
                   decoration: const BoxDecoration(
                     color: DVStudioStyle.surface,
@@ -287,6 +319,7 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
                       Expanded(child: DVStudioInspector(controller: controller)),
                     ],
                   ),
+                ),
                 ),
               ],
             ),
@@ -450,18 +483,13 @@ class _DVStudioComponentsSectionState extends State<DVStudioComponentsSection> {
 
 Widget _control(String key, String label, VoidCallback? onTap,
     {IconData? icon, bool primary = false}) {
-  return GestureDetector(
+  return DVStudioControl(
     key: ValueKey<String>(key),
+    label: label,
+    enabled: onTap != null,
     onTap: onTap,
-    child: MouseRegion(
-      cursor: onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      child: Semantics(
-        button: true,
-        enabled: onTap != null,
-        child: DVStudioStyle.control(label,
-            enabled: onTap != null, primary: primary, icon: icon),
-      ),
-    ),
+    primary: primary,
+    icon: icon,
   );
 }
 

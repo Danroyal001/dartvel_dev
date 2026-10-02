@@ -66,6 +66,7 @@ export 'src/admin/published_pages.dart';
 export 'src/admin/studio_access.dart';
 export 'src/admin/model_data_api.dart';
 export 'src/admin/studio_api.dart';
+export 'src/admin/studio_document.dart';
 export 'src/admin/studio_model_schema.dart';
 export 'src/admin/studio_site.dart';
 export 'src/admin/studio_repository.dart';

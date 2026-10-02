@@ -427,6 +427,12 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 
 ## 🖥️ One binary: web-server and Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 `dartvel build web-server` writes `build/server`, a single executable that
 carries the backend, the native server library and the web app. It runs on
 the operating system and CPU it was built on, so build on the kind of machine
@@ -470,6 +476,20 @@ application's `/login`, so it works with `dartvel.auth.pages` turned off.
 Every other path under the mount sends a stranger to the sign-in, and Studio's
 code and its API answer a stranger as a path nobody serves. Nothing under the
 mount is ever a file.
+
+Every Studio screen has its own address under the mount — `<mount>` is Pages,
+`<mount>/<screen>` is that screen, `<mount>/<screen>/<object>` opens one thing
+inside it — so a screen can be linked, bookmarked and reloaded, and each is
+also served as a document a reader without the app can read. And Studio answers
+the keyboard: every control in it takes the focus, Enter and Space both press
+it, a screen reader is told its role and its name, and the focus is drawn as a
+ring on the control itself, so a control with nothing to do is off rather than
+looking live. The sign-in action uses the same focusable control: Tab from
+the password reaches Sign in, Enter activates it, and submitting the password
+field also signs in. Email and password fields have accessible labels.
+Readable aliases include `/__studio/data`, `/__studio/sitemap` and
+`/__studio/team`. A record has a deep link too, such as
+`/__studio/data/Product/p-1`; selecting or closing it updates the address.
 
 Signing in is not enough: it opens only for a person allowed the
 `Studio.access` action, and by default nobody is. Grants live in the application's own

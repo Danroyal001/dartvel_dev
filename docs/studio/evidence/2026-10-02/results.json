@@ -1,0 +1,130 @@
+{
+  "guard_preserves_deep_link": {
+    "pass": true
+  },
+  "login_accessible_button": {
+    "pass": true
+  },
+  "login_labelled_fields": {
+    "pass": true
+  },
+  "login_tab_reaches_sign_in": {
+    "pass": true,
+    "detail": "Sign in"
+  },
+  "login_returns_to_data": {
+    "pass": true,
+    "detail": "/__studio/data"
+  },
+  "server_renders_/__studio/pages": {
+    "pass": true,
+    "detail": "200, 2499 chars, \"Studio · dartvel_site Pages Components Shortcuts Data Site map Frontend Backend Modules\""
+  },
+  "server_renders_/__studio/components": {
+    "pass": true,
+    "detail": "200, 320 chars, \"Studio · dartvel_site Pages Components Shortcuts Data Site map Frontend Backend Modules Tasks Queu\""
+  },
+  "server_renders_/__studio/sitemap": {
+    "pass": true,
+    "detail": "200, 2504 chars, \"el_site Pages Components Shortcuts Data Site map Frontend Backend Modules Tasks Queue Cache GitHub Team Site\""
+  },
+  "server_renders_/__studio/team": {
+    "pass": true,
+    "detail": "200, 285 chars, \"ackend Modules Tasks Queue Cache GitHub Team Team Who may open Studio for this application. What is in t\""
+  },
+  "server_renders_/__studio/data": {
+    "pass": true,
+    "detail": "200, 233 chars, \"dartvel_site Pages Components Shortcuts Data Site map Frontend Backend Modules Tasks Queue Cache GitHub \""
+  },
+  "rail_updates_address": {
+    "pass": true,
+    "detail": "/__studio/access"
+  },
+  "browser_back": {
+    "pass": true,
+    "detail": "/__studio/data"
+  },
+  "browser_forward": {
+    "pass": true,
+    "detail": "/__studio/access"
+  },
+  "deep_link_pages": {
+    "pass": true,
+    "detail": "/__studio/pages"
+  },
+  "deep_link_components": {
+    "pass": true,
+    "detail": "/__studio/components"
+  },
+  "deep_link_sitemap": {
+    "pass": true,
+    "detail": "/__studio/sitemap"
+  },
+  "deep_link_team": {
+    "pass": true,
+    "detail": "/__studio/team"
+  },
+  "deep_link_data/SitePage": {
+    "pass": true,
+    "detail": "/__studio/data/SitePage"
+  },
+  "native_find": {
+    "pass": true
+  },
+  "find_ui": "Pages\nComponents\nShortcuts\nData\nSite map\nFrontend\nBackend\nModules\nTasks\nQueue\nCache\nGitHub\nTeam\nSigned in as fork-probe@localhost.test Signed in as fork-probe@localhost.test F fork-probe@localhost.test Sign out",
+  "tab_visits_controls": {
+    "pass": true,
+    "detail": [
+      "button:Pages",
+      "INPUT:/new-page",
+      "button:Components",
+      "button:Create page",
+      "button:Shortcuts",
+      "button:Data",
+      "button:Data",
+      "button:Frontend",
+      "button:Frontend",
+      "button:Modules",
+      "button:Modules",
+      "button:Queue"
+    ]
+  },
+  "tab_reaches_a_control": {
+    "pass": true,
+    "detail": [
+      "button:Pages",
+      "INPUT:/new-page",
+      "button:Components",
+      "button:Create page",
+      "button:Shortcuts",
+      "button:Data",
+      "button:Data",
+      "button:Frontend",
+      "button:Frontend",
+      "button:Modules",
+      "button:Modules",
+      "button:Queue"
+    ]
+  },
+  "screen_reader_buttons": {
+    "pass": true
+  },
+  "selection_target": {
+    "x": 388,
+    "y": 65,
+    "w": 1020,
+    "h": 19,
+    "text": "Select or create a page to edit."
+  },
+  "selection_copy": {
+    "pass": true,
+    "detail": "Select or create a page to edit."
+  },
+  "password_enter_submits": {
+    "pass": true
+  },
+  "no_page_errors": {
+    "pass": true,
+    "detail": []
+  }
+}
