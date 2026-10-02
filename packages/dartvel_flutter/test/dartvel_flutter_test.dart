@@ -933,16 +933,17 @@ void main() {
 
     // And the button is a button. Asserted here rather than left to the
     // count, because a number of widgets says nothing about what they draw.
-    final BoxDecoration button = tester
-        .widget<Container>(
-          find
-              .ancestor(
-                of: find.text('Sign in'),
-                matching: find.byType(Container),
-              )
-              .first,
-        )
-        .decoration! as BoxDecoration;
+    final Iterable<Container> boxes = tester.widgetList<Container>(
+      find.ancestor(
+        of: find.text('Sign in'),
+        matching: find.byType(Container),
+      ),
+    );
+    // The nearest box is the control's own, which holds the focus ring and no
+    // fill; the box that was asked for is the one that carries the fill.
+    expect(boxes.first.foregroundDecoration, isNull);
+    final BoxDecoration button =
+        boxes.map((Container box) => box.decoration).whereType<BoxDecoration>().first;
     expect(button.color, const Color(0xFF111827));
     expect(button.borderRadius, BorderRadius.circular(8));
 

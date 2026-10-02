@@ -16,6 +16,8 @@ changes are called out explicitly below.
 - Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,
   `--list`, `--open`, `--logs`, `--destroy` and `--sweep`. Log retrieval remains
   unsupported; `--logs [--follow]` reports that limitation.
+- Every form is now a keyboard form with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region, written under the field it names, and given the focus.
+- `DVVisibilityToggle` (sealed: `eye`, `none`, `custom(builder)`) for password/sensitive field visibility toggles. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it.
 - `dartvel preview` is hidden from help and forwards to the new commands
   with a deprecation message for one release.
 
