@@ -7,6 +7,10 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
+  cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
+  customer's current subscription.
+
 - `dartvel dev --release` serves an existing production web build locally,
   with `--host` and `--port`. It uses the same route renderer as web-server.
 - Branch deployments move to `dartvel deploy --preview`, with `--from-pr`,
