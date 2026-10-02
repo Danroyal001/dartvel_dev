@@ -277,6 +277,7 @@ export 'src/secrets/secrets.dart';
 export 'src/shell/shell.dart';
 export 'src/storage/adapters.dart';
 export 'src/storage/azure_blob.dart';
+export 'src/storage/device_storage_config.dart';
 export 'src/storage/file.dart';
 export 'src/storage/gcs.dart';
 // The filesystem this process is standing on: a server's disk, or the
