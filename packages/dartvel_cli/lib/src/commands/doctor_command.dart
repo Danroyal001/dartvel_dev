@@ -423,13 +423,10 @@ class DoctorCommand extends Command<void> {
     try {
       final Object? loaded = loadYaml(pubspec.readAsStringSync());
       final Object? dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
-      if (dartvel is YamlMap && dartvel.containsKey('webPrerender')) {
-        Logger.log(
-          '[!] Deprecated config: `dartvel.webPrerender` in $pubspec — '
-          'prerendering is always on for web builds (Chrome capture) and '
-          'web-server renders on request. This key is ignored and will be '
-          'removed in a future version.',
-        );
+      if (dartvel is YamlMap) {
+        for (final String warning in dvDeprecatedConfigWarnings(dartvel, pubspec.path)) {
+          Logger.log(warning);
+        }
       }
     } on Object {
       // Ignore parse errors; they're reported elsewhere.

@@ -222,3 +222,19 @@ class DartvelDartConfigReference {
     );
   }
 }
+
+/// Keys `dartvel:` used to take and no longer does, with what to say about each.
+///
+/// One list, read by the build and by `dartvel doctor`, so the two never word
+/// the same deprecation differently.
+const Map<String, String> dvDeprecatedConfigKeys = <String, String>{
+  'webPrerender': 'prerendering is always on for web builds, and web-server '
+      'renders on request. This key is ignored and will be removed.',
+};
+
+/// One warning line per deprecated key found in [dartvelSection].
+List<String> dvDeprecatedConfigWarnings(Map<dynamic, dynamic> dartvelSection, String pubspecPath) => <String>[
+      for (final MapEntry<String, String> deprecated in dvDeprecatedConfigKeys.entries)
+        if (dartvelSection.containsKey(deprecated.key))
+          '[!] Deprecated config: `dartvel.${deprecated.key}` in $pubspecPath: ${deprecated.value}',
+    ];

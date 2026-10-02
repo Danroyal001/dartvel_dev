@@ -59,15 +59,9 @@ Future<void> generate({
   final pkgName = config.packageName;
   final dv = config.raw;
 
-  // Check for deprecated config keys
-  if (dv.containsKey('webPrerender')) {
-    final pubspecPath = p.join(root, 'pubspec.yaml');
-    stderr.writeln(
-      '[!] Deprecated config: `dartvel.webPrerender` in $pubspecPath — '
-      'prerendering is always on for web builds (Chrome capture) and '
-      'web-server renders on request. This key is ignored and will be '
-      'removed in a future version.',
-    );
+  // Deprecated config keys: the same list and wording `dartvel doctor` uses.
+  for (final String warning in dvDeprecatedConfigWarnings(dv, p.join(root, 'pubspec.yaml'))) {
+    stderr.writeln(warning);
   }
 
   // dartvel.analytics, checked before anything is written. A misspelt key
