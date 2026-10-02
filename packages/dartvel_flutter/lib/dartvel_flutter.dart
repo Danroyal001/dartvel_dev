@@ -9410,6 +9410,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     super.initState();
     // Flutter's menu on the web, where the browser's had nothing to offer.
     DVBrowserMenu.install();
+    DVBrowserMenu.nativeMenuOn.addListener(_browserMenuSwitched);
     DVFindInPage.register(this);
     find_platform.dvFindInstall();
     WidgetsBinding.instance.addPostFrameCallback((_) => _followAddress());
@@ -9523,8 +9524,15 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     );
   }
 
+  /// The browser's menu went on or off: the selection area is rebuilt whole,
+  /// keyed on it. See [DVBrowserMenu.nativeMenuOn].
+  void _browserMenuSwitched() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    DVBrowserMenu.nativeMenuOn.removeListener(_browserMenuSwitched);
     DVFindInPage.unregister(this);
     _addressed?.routeInformationProvider.removeListener(_followAddress);
     _selectionFocusNode.dispose();
@@ -9668,6 +9676,13 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
         DVHardwareKeys(child: DVSwitchControl(child: answering));
     final Widget selectionWrapped = selectable
         ? SelectionArea(
+            // A new area, not a changed one, when the browser's menu is
+            // switched: Flutter's area has a different shape while that menu
+            // is on, and changing shape in place left two selection
+            // containers registered with it -- a null-check failure in a
+            // release build when one of them left. The page beneath keeps its
+            // state through _contentKey. See DVBrowserMenu.nativeMenuOn.
+            key: ValueKey<bool>(DVBrowserMenu.nativeMenuOn.value),
             // skipTraversal, because a SelectionArea is focusable and would
             // otherwise take the first tab stop on every page: the first Tab
             // went to the page instead of the first link, and every
