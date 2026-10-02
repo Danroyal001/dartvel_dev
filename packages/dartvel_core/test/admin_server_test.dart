@@ -68,13 +68,49 @@ DVAdminServer _server(
   DVAdminMount mount, {
   Map<String, Uint8List>? parts,
   bool shell = true,
+  List<DVStudioModelSpec> models = const <DVStudioModelSpec>[],
 }) => DVAdminServer(
   mount: mount,
   root: _root.path,
   webRoot: shell ? _web.path : null,
   title: 'Studio · Shop',
   studioParts: parts ?? _parts,
+  models: models,
 );
+
+/// A model, so a Data document has a model to name.
+const DVStudioModelSpec _product = DVStudioModelSpec(
+  model: 'Product',
+  table: 'products',
+  key: 'id',
+  fields: <DVStudioFieldSpec>[
+    DVStudioFieldSpec(name: 'name', type: 'String'),
+    DVStudioFieldSpec(name: 'price', type: 'double'),
+    DVStudioFieldSpec(name: 'secretNote', type: 'String', sensitive: true),
+  ],
+);
+
+/// The project graph beside Studio's data, which is what a server knows the
+/// project's models, routes, functions, jobs and modules from.
+const String _graph = '''
+{
+  "models": [
+    {"name": "Product", "source": "lib/product.dart", "fields": ["name", "price"]},
+    {"name": "Order", "source": "lib/order.dart", "fields": ["total"]}
+  ],
+  "routes": [
+    {"path": "/", "page": "HomePage", "source": "lib/pages/home.dart", "kind": "page"},
+    {"path": "/products/:slug", "page": "ProductPage", "source": "lib/pages/product.dart", "kind": "page"}
+  ],
+  "functions": [
+    {"name": "sendInvoice", "method": "POST", "path": "/api/invoice", "source": "lib/api/invoice.dart", "annotated": true}
+  ],
+  "jobs": [
+    {"name": "syncOrders", "queue": "default", "source": "lib/jobs/sync.dart"}
+  ],
+  "modules": []
+}
+''';
 
 /// Not served Studio: either nothing, for the application to answer, or
 /// sent to Studio's own sign-in.
@@ -123,7 +159,7 @@ void main() {
     File('${_root.path}/admin.js').writeAsStringSync('// OLD STUDIO APP');
     File('${_root.path}/main.dart.js_2.part.js')
         .writeAsStringSync('/* OLD STUDIO APP chunk */');
-    File('${_root.path}/graph.json').writeAsStringSync('{"models":[]}');
+    File('${_root.path}/graph.json').writeAsStringSync(_graph);
     _web = Directory('${parent.path}/web')..createSync();
     File('${_web.path}/index.html').writeAsStringSync(_shell);
     addTearDown(() => parent.deleteSync(recursive: true));
@@ -150,7 +186,11 @@ void main() {
         '/__studio/admin.js',
         '/__studio/graph.json',
         '/__studio/main.dart.js_2.part.js',
-        '/__studio/models',
+        '/__studio/secret.txt',
+        // A screen nobody has. A path that is not a screen's is not a page,
+        // so a scanner walking the mount gets the application's own answer
+        // rather than a Studio page for every guess.
+        '/__studio/definitely-not-a-screen',
       ]) {
         final Response? response = await server.respond(_get(path));
         if (response != null) {
@@ -196,6 +236,193 @@ void main() {
         }
         expect(response, _refused, reason: path);
       }
+    });
+  });
+
+  group("Studio's own documents", () {
+    // Every Studio screen and everything in it, addressed by its own URL and
+    // rendered by the same dvRenderRoutePage as every other page of the
+    // application, from the same data Studio's API reads. A Studio page used
+    // to be the shell with no document in it: an empty <body> the Flutter app
+    // painted over, so a printer got a blank sheet, a reader with scripting
+    // off got nothing, and there was no URL for any screen but the mount.
+    DVAdminServer project() =>
+        _server(_open, models: const <DVStudioModelSpec>[_product]);
+
+    test('readable screen aliases are guarded documents', () async {
+      for (final (alias, label) in [
+        ('data', 'Data'), ('sitemap', 'Site map'), ('team', 'Team'),
+      ]) {
+        final response = await project().respond(_get('/__studio/$alias'));
+        expect(response?.status, 200);
+        expect(await _body(response!), contains('<h1>$label</h1>'));
+      }
+    });
+
+    test(
+      'every screen has its own URL, and answers with its own document',
+      () async {
+        final DVAdminServer server = project();
+        for (final DVStudioScreenSpec screen in dvStudioScreens) {
+          final Response? response = await server.respond(
+            _get('/__studio/${screen.id}'),
+          );
+          expect(response?.status, 200, reason: screen.id);
+          final String html = await _body(response!);
+          // The screen names itself: an <h1>, so the document has a heading
+          // and the browser's tab and a reader both know where they are.
+          expect(html, contains('<h1>${screen.label}</h1>'), reason: screen.id);
+          // Which is a link, and it is the one under the mount.
+          expect(
+            html,
+            contains('href="/__studio/${screen.id}"'),
+            reason: screen.id,
+          );
+          expect(html, contains('aria-current="page"'), reason: screen.id);
+          expect(
+            html,
+            contains('<meta name="robots" content="noindex, nofollow">'),
+            reason: screen.id,
+          );
+          // The find block, so Ctrl+F over Studio has something to match and
+          // every section of the document is announced and printable.
+          expect(html, contains('class="dv-fallback"'), reason: screen.id);
+          expect(html, contains(dvFindAnchorAttribute), reason: screen.id);
+        }
+      },
+    );
+
+    test('every screen is a link on every other screen', () async {
+      // The rail a person navigates by is the same in the document as it is
+      // on screen, and each entry is that screen's own URL rather than a
+      // fragment of this one.
+      final DVAdminServer server = project();
+      final String html = await _body(
+        (await server.respond(_get('/__studio/models')))!,
+      );
+      for (final DVStudioScreenSpec screen in dvStudioScreens) {
+        expect(
+          html,
+          contains('href="/__studio/${screen.id}"'),
+          reason: '${screen.id} must be reachable from any screen',
+        );
+      }
+    });
+
+    test('the mount is Pages, and Pages lists the site', () async {
+      final DVAdminServer server = project();
+      for (final String path in <String>['/__studio', '/__studio/pages']) {
+        final String html = await _body((await server.respond(_get(path)))!);
+        expect(html, contains('<h1>Pages</h1>'), reason: path);
+        // Every route the site answers, by its own URL, from the graph.
+        expect(html, contains('/products/:slug'), reason: path);
+      }
+    });
+
+    test('an object in a screen has its own URL and is named in the '
+        'document', () async {
+      final DVAdminServer server = project();
+      final Response? response = await server.respond(
+        _get('/__studio/models/Product'),
+      );
+      expect(response?.status, 200);
+      final String html = await _body(response!);
+      // The object, as the screen's own heading, so the tab, a reader and
+      // Ctrl+F all say which model is open.
+      expect(html, contains('<h1>Product</h1>'));
+      // Its fields, as a table with a header row: the one shape a screen
+      // reader reads a set of named values correctly.
+      expect(html, contains('<th'));
+      expect(html, contains('>name<'));
+      expect(html, contains('>price<'));
+      // And the rail still marks Data as the screen it is in.
+      expect(html, contains('aria-current="page"'));
+    });
+
+    test(
+      'an object nobody has opens its screen rather than a dead end',
+      () async {
+        // A link somebody wrote by hand, or a screen whose list has changed
+        // since. The screen is a real thing and answers; a 404 for a name
+        // Studio cannot resolve would make a stale bookmark look like a
+        // broken Studio.
+        final DVAdminServer server = project();
+        final Response? response = await server.respond(
+          _get('/__studio/models/NoSuchModel'),
+        );
+        expect(response?.status, 200);
+        expect(await _body(response!), contains('<h1>Data</h1>'));
+      },
+    );
+
+    test('a screen says what it is for, and says when the build wrote nothing '
+        'for it', () async {
+      final DVAdminServer server = project();
+      final String html = await _body(
+        (await server.respond(_get('/__studio/modules')))!,
+      );
+      // What the screen is, in words, for somebody who has the document and
+      // not the app: a crawler, a printer, a reader with scripting off.
+      expect(html, contains(dvStudioScreenFor('modules')!.summary));
+      // A list the graph left empty says so rather than leaving a heading
+      // with nothing under it.
+      expect(html, contains('Nothing here yet.'));
+    });
+
+    test('a screen whose contents are the running application\'s own says so, '
+        'rather than listing nothing', () async {
+      // The cache holds what the running application has put in it, the
+      // repository whatever the working tree is at, the team whatever the
+      // policy admits. A server document knows none of that, and printing an
+      // empty table for it would be a claim that there is nothing there.
+      final DVAdminServer server = project();
+      for (final String id in <String>[
+        'cache',
+        'components',
+        'shortcuts',
+        'repository',
+        'access',
+      ]) {
+        final String html = await _body(
+          (await server.respond(_get('/__studio/$id')))!,
+        );
+        expect(html, contains(dvStudioScreenFor(id)!.summary), reason: id);
+        expect(html, contains('decided at'), reason: id);
+        expect(html, isNot(contains('Nothing here yet.')), reason: id);
+      }
+    });
+
+    test('the sign-in and the setup are documents of their own, carrying no '
+        "project's data", () async {
+      final DVAdminServer server = project();
+      for (final String path in <String>[
+        '/__studio/login',
+        '/__studio/setup',
+      ]) {
+        final Response? response = await server.respond(_get(path));
+        expect(response?.status, 200, reason: path);
+        final String html = await _body(response!);
+        // No rail: a signed-out visitor is told what Studio is and nothing
+        // about what is in it.
+        expect(html, isNot(contains('href="/__studio/models"')), reason: path);
+        expect(html, isNot(contains('/products/:slug')), reason: path);
+      }
+    });
+
+    test('the document is escaped, so a page title is a page title', () async {
+      // A route compiled from source is whatever the source said, and a page
+      // title is whatever a person typed into Studio. Neither goes into the
+      // document as markup.
+      File('${_root.path}/graph.json').writeAsStringSync(
+        '{"routes":[{"path":"/x","page":"<img src=x onerror=alert(1)>",'
+        '"kind":"page"}],"models":[],"functions":[],"jobs":[],"modules":[]}',
+      );
+      final DVAdminServer server = project();
+      final String html = await _body(
+        (await server.respond(_get('/__studio/pages')))!,
+      );
+      expect(html, isNot(contains('<img src=x onerror')));
+      expect(html, contains('&lt;img'));
     });
   });
 
@@ -336,6 +563,17 @@ void main() {
       }
     });
 
+    test('guarded sign-in contains its public document before Flutter loads', () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      final server = _server(_guarded);
+      final response = await server.respond(_get('/__studio/login'));
+      expect(response?.status, 200);
+      final html = await _body(response!);
+      expect(html, contains('Sign in to Studio'));
+      expect(html, contains('class="dv-fallback"'));
+      expect(html, isNot(contains('href="/__studio/models"')));
+    });
+
     test('a signed-out caller gets nothing of Studio but the sign-in page and '
         'the sign-in API', () async {
       DVSessionAuthentication.install(sessions: DVSessions());
@@ -445,73 +683,106 @@ void main() {
     late String userId;
 
     Request post(String path, {String? token, bool csrf = true}) => Request(
-          method: 'POST',
-          url: Uri.parse('http://localhost:8080$path'),
-          headers: Headers(<String, String>{
-            if (csrf) 'x-dartvel-csrf-token': 'c' * 32,
-            if (token != null) 'authorization': 'Bearer $token',
-          }),
-          bodyStream: const Stream<List<int>>.empty(),
-        );
+      method: 'POST',
+      url: Uri.parse('http://localhost:8080$path'),
+      headers: Headers(<String, String>{
+        if (csrf) 'x-dartvel-csrf-token': 'c' * 32,
+        if (token != null) 'authorization': 'Bearer $token',
+      }),
+      bodyStream: const Stream<List<int>>.empty(),
+    );
 
     setUp(() async {
       sessions = DVSessions();
       DVSessionAuthentication.install(sessions: sessions);
       grants = DVStudioGrants(SqliteDVDatabaseAdapter.memory())..install();
       accounts = LocalAuthProvider();
-      final AuthUser? user =
-          await accounts.signUp('ops@example.com', 'a-long-enough-password-1');
+      final AuthUser? user = await accounts.signUp(
+        'ops@example.com',
+        'a-long-enough-password-1',
+      );
       userId = user!.id;
       DVAuthEndpoints.install(
-          credentials: DVCredentialGuard(provider: accounts, refusalFloor: .zero));
+        credentials: DVCredentialGuard(provider: accounts, refusalFloor: .zero),
+      );
       addTearDown(DVAuthEndpoints.uninstall);
       await grants.grant(userId);
     });
 
-    test('<mount>/api/me names the signed-in person to a granted session only',
-        () async {
-      final DVIssuedSession issued = await sessions.create(userId);
-      final DVAdminServer server = _server(_guarded);
-      final Response? me = await server.respond(_get('/__studio/api/me',
-          headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
-      expect(me?.status, 200);
-      expect(me!.headers.get('cache-control'), 'no-store');
-      expect(jsonDecode(await _body(me)),
-          <String, Object?>{'userId': userId, 'email': 'ops@example.com'});
-      expect(await server.respond(_get('/__studio/api/me')), isNull);
-    });
+    test(
+      '<mount>/api/me names the signed-in person to a granted session only',
+      () async {
+        final DVIssuedSession issued = await sessions.create(userId);
+        final DVAdminServer server = _server(_guarded);
+        final Response? me = await server.respond(
+          _get(
+            '/__studio/api/me',
+            headers: <String, String>{
+              'authorization': 'Bearer ${issued.token}',
+            },
+          ),
+        );
+        expect(me?.status, 200);
+        expect(me!.headers.get('cache-control'), 'no-store');
+        expect(jsonDecode(await _body(me)), <String, Object?>{
+          'userId': userId,
+          'email': 'ops@example.com',
+        });
+        expect(await server.respond(_get('/__studio/api/me')), isNull);
+      },
+    );
 
-    test('signing out ends the session on the server and clears the cookie',
-        () async {
-      final DVIssuedSession issued = await sessions.create(userId);
-      final DVAdminServer server = _server(_guarded);
-      Future<bool> granted() async {
-        final Response? r = await server.respond(_get('/__studio/api/access',
-            headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
-        return (jsonDecode(await _body(r!)) as Map)['granted'] == true;
-      }
+    test(
+      'signing out ends the session on the server and clears the cookie',
+      () async {
+        final DVIssuedSession issued = await sessions.create(userId);
+        final DVAdminServer server = _server(_guarded);
+        Future<bool> granted() async {
+          final Response? r = await server.respond(
+            _get(
+              '/__studio/api/access',
+              headers: <String, String>{
+                'authorization': 'Bearer ${issued.token}',
+              },
+            ),
+          );
+          return (jsonDecode(await _body(r!)) as Map)['granted'] == true;
+        }
 
-      expect(await granted(), isTrue);
-      // A cross-site form cannot sign anybody out either.
-      expect(
-          (await server.respond(post('/__studio/api/auth/sign-out',
-                  token: issued.token, csrf: false)))
-              ?.status,
-          403);
-      expect(await granted(), isTrue);
+        expect(await granted(), isTrue);
+        // A cross-site form cannot sign anybody out either.
+        expect(
+          (await server.respond(
+            post(
+              '/__studio/api/auth/sign-out',
+              token: issued.token,
+              csrf: false,
+            ),
+          ))?.status,
+          403,
+        );
+        expect(await granted(), isTrue);
 
-      final Response? out = await server
-          .respond(post('/__studio/api/auth/sign-out', token: issued.token));
-      expect(out?.status, 204);
-      expect(out!.headers.get('set-cookie'), contains('Max-Age=0'));
-      // The token is dead, not merely forgotten by this browser.
-      expect(await granted(), isFalse);
-      expect((await sessions.check(issued.token)).session, isNull);
-      // And a Studio page sends it to the sign-in again.
-      final Response? page = await server.respond(_get('/__studio/',
-          headers: <String, String>{'authorization': 'Bearer ${issued.token}'}));
-      expect(page?.status, 302);
-    });
+        final Response? out = await server.respond(
+          post('/__studio/api/auth/sign-out', token: issued.token),
+        );
+        expect(out?.status, 204);
+        expect(out!.headers.get('set-cookie'), contains('Max-Age=0'));
+        // The token is dead, not merely forgotten by this browser.
+        expect(await granted(), isFalse);
+        expect((await sessions.check(issued.token)).session, isNull);
+        // And a Studio page sends it to the sign-in again.
+        final Response? page = await server.respond(
+          _get(
+            '/__studio/',
+            headers: <String, String>{
+              'authorization': 'Bearer ${issued.token}',
+            },
+          ),
+        );
+        expect(page?.status, 302);
+      },
+    );
   });
 
   group('a mount that requires a sign-in', () {

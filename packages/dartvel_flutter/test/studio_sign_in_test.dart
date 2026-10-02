@@ -6,6 +6,7 @@
 // page it goes to is the server's to decide on the Studio.access grant.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Server {
@@ -68,6 +69,32 @@ Future<void> _signIn(WidgetTester tester, String password) async {
 }
 
 void main() {
+  testWidgets('Tab reaches sign in and Enter activates it', (tester) async {
+    final server = _Server();
+    final opened = await _open(tester, server);
+    await tester.enterText(find.byKey(const ValueKey('dv-studio-sign-in-email')),
+        'ops@example.com');
+    await tester.enterText(find.byKey(const ValueKey('dv-studio-sign-in-password')),
+        'a-long-enough-password-1');
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(opened, ['/__studio/data']);
+  });
+
+  testWidgets('password submit action signs in', (tester) async {
+    final server = _Server();
+    final opened = await _open(tester, server);
+    await tester.enterText(find.byKey(const ValueKey('dv-studio-sign-in-email')),
+        'ops@example.com');
+    await tester.enterText(find.byKey(const ValueKey('dv-studio-sign-in-password')),
+        'a-long-enough-password-1');
+    await tester.testTextInput.receiveAction(.done);
+    await tester.pumpAndSettle();
+    expect(opened, ['/__studio/data']);
+  });
+
   testWidgets('at <mount>/login the app draws its sign-in, not the dashboard',
       (WidgetTester tester) async {
     await _open(tester, _Server());

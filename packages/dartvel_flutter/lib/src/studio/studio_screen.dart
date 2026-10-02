@@ -84,6 +84,27 @@ class DVStudioScreen extends StatefulWidget {
   /// Studio inside the application it manages has no session of its own.
   final Widget? account;
 
+  /// The section the address names, as the id of one of [sections] or of the
+  /// ones Studio draws itself. Null, or an id this build has no section for,
+  /// draws the first.
+  ///
+  /// The selection is the address on the server -- `/__studio/models` is the
+  /// Data section, and the server writes a document for it there -- so a
+  /// Studio with a [selected] reads the address rather than keeping the
+  /// selection to itself. Without one, the selection is state inside the
+  /// page, which is what a Studio inside the application it manages has,
+  /// and what Studio had before its screens had addresses.
+  final String? selected;
+
+  /// What the address names inside [selected]: a page's route, a model's
+  /// name, a function's. Only the sections that can open one are told.
+  final String? object;
+
+  /// Called when the person chooses another section, or another thing inside
+  /// one, so that the address can follow them. The sections that can open
+  /// something call it; the rest never can.
+  final void Function(String section, String? object)? onSelect;
+
   const DVStudioScreen({
     super.key,
     this.store = const DVPageStore(),
@@ -100,10 +121,37 @@ class DVStudioScreen extends StatefulWidget {
     this.clock,
     this.statusHealth,
     this.account,
+    this.selected,
+    this.object,
+    this.onSelect,
   });
 
   @override
   State<DVStudioScreen> createState() => _DVStudioScreenState();
+}
+
+/// What the address says about where a person is inside a screen, and how a
+/// section says where they went.
+///
+/// A screen has an address -- `<mount>/<screen>` -- and some of them have
+/// something inside them with an address of its own,
+/// `<mount>/<screen>/<object>`: the page open in Pages, the model open in
+/// Data, the function open in the builder. A section that can open one is
+/// handed the name the address gives and asked to report what the person
+/// chose; a section that cannot open one is handed nothing and is never
+/// asked. The name is the object's own -- a route, a model, a function --
+/// rather than a path, so a section reads it as the thing it lists.
+class DVStudioSelection {
+  const DVStudioSelection({this.object, this.select});
+
+  /// What the address names inside the screen, or null when it names only
+  /// the screen.
+  final String? object;
+
+  /// Called with what the person chose, so the address can follow. Null
+  /// where nothing follows it: a Studio with no [DVStudioScreen.onSelect],
+  /// which keeps its selection to itself.
+  final void Function(String? object)? select;
 }
 
 /// A section in Studio's switcher.
@@ -125,37 +173,101 @@ class DVStudioSection {
   /// generic extension glyph rather than no way to be told apart.
   final IconData? icon;
 
-  /// Builds the section body when its tab is selected.
-  final Widget Function(BuildContext context) build;
+  /// Builds the section body when its tab is selected, told what the address
+  /// names inside the section and how to report what the person chose. Null
+  /// on a section built the plain way, which opens nothing; read the body
+  /// through [body] rather than here.
+  final Widget Function(BuildContext context, DVStudioSelection selection)?
+      build;
 
+  /// A section that lists, counts or reports: it opens nothing, so it has
+  /// nothing to name in an address and its `build` takes only the context.
   const DVStudioSection({
+    required this.id,
+    required this.label,
+    required Widget Function(BuildContext context) build,
+    this.icon,
+  }) : build = null,
+       _build = build;
+
+  /// A section that can open one thing, and so has an address for it: the
+  /// page in Pages, the model in Data, the function in the builder.
+  ///
+  /// [build] is told what the address names in the section and is given the
+  /// way to say what the person chose, which is what puts the new address.
+  const DVStudioSection.opening({
     required this.id,
     required this.label,
     required this.build,
     this.icon,
-  });
+  }) : _build = null;
+
+  /// The plain form's builder, kept under a name of its own so that the
+  /// plain constructor can stay `const`: adapting a one-argument closure to
+  /// two would mean storing a tear-off, and a tear-off is not a constant.
+  final Widget Function(BuildContext context)? _build;
+
+  /// The section's body, with the selection given to a section that asked
+  /// for it and dropped for one that did not. The one field a caller reads:
+  /// which of the two constructors built the section is an implementation
+  /// detail, not a question anyone has to answer to draw it.
+  Widget body(BuildContext context, DVStudioSelection selection) =>
+      build?.call(context, selection) ?? _build!(context);
 }
 
 class _DVStudioScreenState extends State<DVStudioScreen> {
+  /// The section on screen. The address's while there is one, the first
+  /// section otherwise, and Pages before either: a Studio with no address
+  /// for its selection opens on Pages, as it always did.
   String _selected = 'pages';
+
+  @override
+  void initState() {
+    super.initState();
+    final String? selected = widget.selected;
+    if (selected != null) _selected = selected;
+  }
+
+  @override
+  void didUpdateWidget(DVStudioScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The address moved, and the person is somewhere else because of it.
+    // Only when it says otherwise: a section that has just reported what
+    // the person chose is already there, and following the address back
+    // would undo the very click that moved it.
+    final String? selected = widget.selected;
+    if (selected != null && selected != _selected) {
+      setState(() => _selected = selected);
+    }
+  }
+
+  /// A person chose [id], or something inside it: drawn now, and put in the
+  /// address by whoever owns it when there is one.
+  void _select(String id, [String? object]) {
+    setState(() => _selected = id);
+    widget.onSelect?.call(id, object);
+  }
 
   /// The component a use of it asked to have opened, and a count so asking
   /// twice for the same one opens it again.
   String? _component;
   int _componentAsks = 0;
 
-  void _editComponent(String name) => setState(() {
-        _component = name;
-        _componentAsks++;
-        _selected = 'components';
-      });
+  void _editComponent(String name) {
+    setState(() {
+      _component = name;
+      _componentAsks++;
+    });
+    _select('components', name);
+  }
 
   List<DVStudioSection> get _sections => <DVStudioSection>[
-        DVStudioSection(
+        DVStudioSection.opening(
           id: 'pages',
           label: 'Pages',
           icon: DVStudioIcons.pages,
-          build: (BuildContext context) => _DVStudioPagesSection(
+          build: (BuildContext context, DVStudioSelection selection) =>
+              _DVStudioPagesSection(
             key: const ValueKey<String>('dv-studio-pages'),
             store: widget.store,
             site: widget.site,
@@ -168,18 +280,28 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
               for (final DVStudioSection section in _attached) section.label,
             ],
             onEditComponent: _editComponent,
+            // A page's route in an address is the route without the slash
+            // the address already carries: `<mount>/pages/shop/product` names
+            // the page at `/shop/product`. The root page is the screen with
+            // nothing open, which is what the server prints for it too.
+            route: selection.object == null ? null : '/${selection.object}',
+            onSelect: (String route) => selection.select?.call(route),
           ),
         ),
         // Free Studio: a part designed once and put on any page.
-        DVStudioSection(
+        DVStudioSection.opening(
           id: 'components',
           label: 'Components',
           icon: DVStudioIcons.components,
-          build: (BuildContext context) => DVStudioComponentsSection(
+          build: (BuildContext context, DVStudioSelection selection) =>
+              DVStudioComponentsSection(
             key: ValueKey<String>('dv-studio-components-$_componentAsks'),
             store: widget.store,
             palette: widget.palette,
-            open: _component,
+            // A component named in the address, and the one a use of it
+            // asked to edit, which is the same thing said twice.
+            open: selection.object ?? _component,
+            onSelect: (String name) => selection.select?.call(name),
           ),
         ),
         // Keys the application answers, set without code.
@@ -243,7 +365,20 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     final List<DVStudioSection> sections = _sections;
     final DVStudioSection current = sections.firstWhere(
       (DVStudioSection section) => section.id == _selected,
+      // An address naming a screen this build has no section for: the two
+      // screens only a project that declared the runtime behind them get.
+      // Drawn as the first section rather than rewritten, because a person
+      // who asked for `/__studio/flags` on a project with no flags should
+      // be told what the project has, not have their address changed under
+      // them.
       orElse: () => sections.first,
+    );
+    // What the address names inside the open section, and how that section
+    // reports what the person chose. `current`, not `_selected`: a section
+    // reports where the person is, and where they are is what is drawn.
+    final DVStudioSelection selection = DVStudioSelection(
+      object: widget.object,
+      select: (String? object) => _select(current.id, object),
     );
     // A Material, not a coloured box: sections are free to use material
     // widgets, and a ColoredBox between a ListTile and its nearest Material
@@ -253,7 +388,10 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
     final Widget body = Expanded(
       child: KeyedSubtree(
         key: ValueKey<String>('dv-studio-body-${current.id}'),
-        child: Builder(builder: current.build),
+        child: Builder(
+          builder: (BuildContext context) =>
+              current.body(context, selection),
+        ),
       ),
     );
     // On a phone the rail's 76 points are a fifth of the screen, so the
@@ -270,7 +408,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                   id: 'go-${section.id}',
                   title: 'Go to ${section.label}',
                   group: 'Go to',
-                  run: () => setState(() => _selected = section.id),
+                  run: () => _select(section.id),
                 ),
               DVStudioCommand(
                 id: 'shortcuts',
@@ -295,7 +433,13 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
             )
           : Row(
               crossAxisAlignment: .stretch,
-              children: <Widget>[_rail(sections), body],
+              children: <Widget>[
+                // The rail is one column for selection: its items reach
+                // further down the screen than a line of the workspace beside
+                // it, and a drag across that line stopped in the rail.
+                DVSelectionColumn(child: _rail(sections)),
+                body,
+              ],
             ),
     );
   }
@@ -318,7 +462,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                 child: _DVStudioRailItem(
                   section: section,
                   selected: section.id == _selected,
-                  onTap: () => setState(() => _selected = section.id),
+                  onTap: () => _select(section.id),
                 ),
               ),
           ],
@@ -361,7 +505,7 @@ class _DVStudioScreenState extends State<DVStudioScreen> {
                     _DVStudioRailItem(
                       section: section,
                       selected: section.id == _selected,
-                      onTap: () => setState(() => _selected = section.id),
+                      onTap: () => _select(section.id),
                     ),
                 ],
               ),
@@ -395,66 +539,91 @@ class _DVStudioRailItem extends StatefulWidget {
 
 class _DVStudioRailItemState extends State<_DVStudioRailItem> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final bool selected = widget.selected;
     final Color foreground =
         selected ? const Color(0xFFFFFFFF) : DVStudioStyle.railInk;
-    return GestureDetector(
-      key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
-      behavior: .opaque,
-      onTap: widget.onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        // Compact: twelve sections and the account have to fit a laptop's
-        // height, where Team used to sit under the account block.
-        child: Container(
-          width: 64,
-          margin: const .symmetric(vertical: 1),
-          padding: const .symmetric(vertical: 5),
-          decoration: BoxDecoration(
-            color: selected
-                ? DVStudioStyle.railSelected
-                : _hover
-                    ? const Color(0xFF1F1F29)
-                    : const Color(0x00000000),
-            borderRadius: .circular(10),
-          ),
-          child: Column(
-            children: <Widget>[
-              Container(
-                width: 32,
-                height: 24,
+    // A rail item is a control like any other: Tab has to reach it, Enter has
+    // to open the screen, and the focus has to be visible. It is the one way
+    // into another screen, so an item that only answers the mouse closes the
+    // whole of Studio to a keyboard or a switch-control user.
+    return Actions(
+      actions: dvStudioActivate(widget.onTap),
+      child: Focus(
+        onFocusChange: (bool value) {
+          if (value != _focused && mounted) setState(() => _focused = value);
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            key: ValueKey<String>('dv-studio-section-${widget.section.id}'),
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTap: widget.onTap,
+            child: Semantics(
+              button: true,
+              selected: selected,
+              label: widget.section.label,
+              onTap: widget.onTap,
+              excludeSemantics: true,
+              child: Container(
+                width: 64,
+                margin: const .symmetric(vertical: 1),
+                padding: const .symmetric(vertical: 5),
                 decoration: BoxDecoration(
                   color: selected
-                      ? DVStudioStyle.accent
-                      : const Color(0x00000000),
-                  borderRadius: .circular(8),
+                      ? DVStudioStyle.railSelected
+                      : _hover
+                          ? const Color(0xFF1F1F29)
+                          : const Color(0x00000000),
+                  borderRadius: .circular(10),
+                  // Drawn on the item rather than taken from the theme: the
+                  // rail is drawn over its own colour, where a platform
+                  // highlight would not be seen.
+                  border: _focused
+                      ? Border.all(color: DVStudioStyle.accent, width: 2)
+                      : null,
                 ),
-                child: Icon(
-                  widget.section.icon ?? DVStudioIcons.section,
-                  size: 17,
-                  color: foreground,
+                child: Column(
+                  children: <Widget>[
+                    Container(
+                      width: 32,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? DVStudioStyle.accent
+                            : const Color(0x00000000),
+                        borderRadius: .circular(8),
+                      ),
+                      child: Icon(
+                        widget.section.icon ?? DVStudioIcons.section,
+                        size: 17,
+                        color: foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    // Scaled down rather than clipped: a section's name is how
+                    // the rail is read, and a longer one (or a larger system
+                    // font) must still fit the rail's width.
+                    FittedBox(
+                      fit: .scaleDown,
+                      child: DVText(widget.section.label).modifier(
+                        const DVModifier()
+                            .fontSize(10.5)
+                            .color(foreground)
+                            .fontWeight(
+                                selected ? FontWeight.w600 : FontWeight.w500),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 3),
-              // Scaled down rather than clipped: a section's name is how the
-              // rail is read, and a longer one (or a larger system font) must
-              // still fit the rail's width.
-              FittedBox(
-                fit: .scaleDown,
-                child: DVText(widget.section.label).modifier(
-                  const DVModifier()
-                      .fontSize(10.5)
-                      .color(foreground)
-                      .fontWeight(
-                          selected ? FontWeight.w600 : FontWeight.w500),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -497,6 +666,13 @@ class _DVStudioPagesSection extends StatefulWidget {
   /// Opens a component where it is made, from a use of it on a page.
   final void Function(String name)? onEditComponent;
 
+  /// The page the address names, opened once the routes are read: a route
+  /// cannot be found before the list of them is known.
+  final String? route;
+
+  /// Called with the route a person chose, so the address can follow.
+  final void Function(String route)? onSelect;
+
   const _DVStudioPagesSection({
     super.key,
     this.onEditComponent,
@@ -508,6 +684,8 @@ class _DVStudioPagesSection extends StatefulWidget {
     this.content,
     this.actor,
     this.reviewers = const <String>[],
+    this.route,
+    this.onSelect,
   });
 
   @override
@@ -618,7 +796,7 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_onKey);
-    unawaited(_loadRoutes());
+    unawaited(_loadRoutes().then((_) => _openNamed()));
   }
 
   /// Ctrl+\ (Cmd+\): the side panels, both at once, while a page is open.
@@ -695,7 +873,20 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
       // An editor opened for one person must not keep acting as them.
       setState(_closeEditor);
       unawaited(_loadRoutes());
+    } else if (widget.route != oldWidget.route) {
+      // The address moved to another page: the routes are read again,
+      // because the page it names is one this list may not have had -- a
+      // page another person has published since, say -- and then opened.
+      unawaited(_loadRoutes().then((_) => _openNamed()));
     }
+  }
+
+  /// Opens the page the address names, when the address names one, without
+  /// reporting it back: the address said so, not the person.
+  void _openNamed() {
+    if (!mounted) return;
+    final String? route = widget.route;
+    if (route != null) unawaited(_open(route, userChose: false));
   }
 
   void _closeEditor() {
@@ -823,7 +1014,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return text;
   }
 
-  Future<void> _open(String route) async {
+  /// Opens the page at [route].
+  ///
+  /// [userChose] says the person asked for this page rather than the address
+  /// naming it, which is the difference between putting the route in the
+  /// address and reading it from there.
+  Future<void> _open(String route, {bool userChose = true}) async {
+    if (userChose) widget.onSelect?.call(route);
     final DVStudioSitePage? page = _pageAt(route);
     if (page != null && page.kind == DVStudioPageKind.code) {
       await _openCompiled(page);
@@ -1178,13 +1375,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
     return Row(
       crossAxisAlignment: .stretch,
       children: <Widget>[
-        Container(
+        // One column for selection, so a drag in the workspace beside it is not stopped in this list. See DVSelectionColumn.
+        DVSelectionColumn(
+          child: Container(
           width: 280,
           decoration: const BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border(right: BorderSide(color: DVStudioStyle.line)),
           ),
           child: _pageList(),
+        ),
         ),
         Expanded(child: _dashboard()),
       ],
@@ -1259,18 +1459,13 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
               onSubmitted: (_) => _create(),
             ),
             const SizedBox(height: DVStudioStyle.space2),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-create'),
+              label: 'Create page',
+              enabled: true,
               onTap: _create,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: DVStudioStyle.control(
-                  'Create page',
-                  enabled: true,
-                  primary: true,
-                  icon: DVStudioIcons.add,
-                ),
-              ),
+              primary: true,
+              icon: DVStudioIcons.add,
             ),
           ],
         ),
@@ -2467,9 +2662,10 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
         if (widget.site?.look?.hasDark ?? false) ...<Widget>[
           const SizedBox(width: DVStudioStyle.space1),
           Builder(builder: (BuildContext context) {
+            final DVStudioAppLook? look = widget.site?.look;
+            if (look == null) return const SizedBox.shrink();
             final bool dark = (_appearance ??
-                    widget.site!.look!
-                        .resolve(MediaQuery.platformBrightnessOf(context))
+                    look.resolve(MediaQuery.platformBrightnessOf(context))
                         .brightness) ==
                 Brightness.dark;
             return _keyedIcon(
@@ -2689,26 +2885,16 @@ class _DVStudioPagesSectionState extends State<_DVStudioPagesSection> {
 /// ask the keyed widget whether it can be pressed, and an undo that says it
 /// can when there is no history is the bug that asking catches.
 Widget _keyedIcon(
-    String key, IconData icon, String tooltip, VoidCallback? onTap) {
-  return DVStudioStyle.tooltip(
-    tooltip,
-    GestureDetector(
+        String key, IconData icon, String tooltip, VoidCallback? onTap) =>
+    DVStudioIconButton(
       key: ValueKey<String>(key),
+      icon: icon,
+      tooltip: tooltip,
       onTap: onTap,
-      child: MouseRegion(
-        cursor:
-            onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(icon,
-              size: 18,
-              color: onTap == null ? DVStudioStyle.faint : DVStudioStyle.ink),
-        ),
-      ),
-    ),
-  );
-}
+      // Toolbar glyphs are the button's words, drawn in the body ink; a panel
+      // header's are secondary to the words beside them, and stay muted.
+      ink: DVStudioStyle.ink,
+    );
 
 /// The menu beside Deploy: where the page goes, deploy now, or put the page
 /// from the last build back. Each option says what a visitor will see, not
@@ -2977,18 +3163,15 @@ class _DVStudioDeployPlatformLine extends StatelessWidget {
 }
 
 Widget _keyedControl(String key, String label, VoidCallback? onTap,
-    {IconData? icon, bool primary = false}) {
-  return GestureDetector(
-    key: ValueKey<String>(key),
-    onTap: onTap,
-    child: MouseRegion(
-      cursor:
-          onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      child: DVStudioStyle.control(label,
-          enabled: onTap != null, primary: primary, icon: icon),
-    ),
-  );
-}
+        {IconData? icon, bool primary = false}) =>
+    DVStudioControl(
+      key: ValueKey<String>(key),
+      label: label,
+      enabled: onTap != null,
+      onTap: onTap,
+      primary: primary,
+      icon: icon,
+    );
 
 /// A page on the overview: a live thumbnail of the stored document, rendered
 /// by the same renderer the running application uses, and its name.

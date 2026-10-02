@@ -7,6 +7,7 @@
 // guard has let the caller through, so a caller with no grant never has a
 // Studio section built -- or its code fetched.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
+import 'package:dartvel_flutter/src/find/find_in_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,6 +118,66 @@ void main() {
     expect(router.state.uri.path, '/__studio');
     expect(find.byType(DVStudioScreen), findsOneWidget);
     expect(find.byType(DVStudioSignInScreen), findsNothing);
+  });
+
+  testWidgets('Studio is on the shared page shell: the browser''s find '
+      'reaches it and its text can be selected', (
+    WidgetTester tester,
+  ) async {
+    // Studio built its route straight to DVStudioHost, with no DVPageShell
+    // above it. Everything the shell carries -- the find registration the
+    // browser matches against, the selection area, keyboard scrolling, the
+    // D-pad -- was therefore missing on exactly the screen a person spends
+    // their day in, and Ctrl+F over Studio found nothing. A Studio screen is
+    // a page; it goes through the page.
+    final _Server server = _Server(granted: true);
+    await _open(tester, server, '/__studio');
+
+    expect(find.byType(DVStudioScreen), findsOneWidget);
+    final Finder shell = find.byType(DVPageShell);
+    expect(shell, findsOneWidget,
+        reason: 'Studio must be drawn through DVPageShell, not beside it');
+    // The shell must be above Studio's frame, not inside it, or the
+    // registrar the selection needs is Studio's own.
+    expect(
+      find.descendant(of: shell, matching: find.byType(DVStudioScreen)),
+      findsOneWidget,
+    );
+    // Registered, and findable: the block the browser matches is written
+    // from the page, and a Studio page that is not findable would opt out
+    // of the one thing every page gets by default.
+    final DVPageScaffoldSpec spec =
+        tester.widget<DVPageShell>(shell).spec;
+    expect(spec.findable, isTrue);
+    expect(spec.selectable, isTrue);
+    // And the find copy is not empty: Studio drew its section names, and
+    // they are what a person searching for "Site map" is looking for.
+    expect(DVFindInPage.paragraphs(), isNotEmpty);
+    expect(
+      DVFindInPage.paragraphs().map((DVFoundParagraph p) => p.block.text),
+      contains('Site map'),
+    );
+    // A selection area above Studio's text, so a drag selects it.
+    expect(find.byType(SelectionArea), findsWidgets);
+  });
+
+  testWidgets('the sign-in is a page too, and registers the same way', (
+    WidgetTester tester,
+  ) async {
+    // The sign-in is a route like any other. It was drawn without the shell
+    // for the same reason Studio was, so the one field on it that a person
+    // pastes a password into was not part of any find or selection surface.
+    final _Server server = _Server(granted: false);
+    await _open(tester, server, '/__studio');
+
+    expect(find.byType(DVStudioSignInScreen), findsOneWidget);
+    final Finder shell = find.byType(DVPageShell);
+    expect(shell, findsOneWidget);
+    expect(
+      find.descendant(of: shell, matching: find.byType(DVStudioSignInScreen)),
+      findsOneWidget,
+    );
+    expect(DVFindInPage.paragraphs(), isNotEmpty);
   });
 
   testWidgets('the sign-in is a route for anybody, and sends a signed-in, '
@@ -254,6 +315,58 @@ void main() {
     expect(opened, <String>['/docs/models']);
   });
 
+  testWidgets('choosing a screen tells the browser where it is, so the '
+      'address bar follows and Back walks back', (WidgetTester tester) async {
+    // The rail item reported the choice and Studio drew the section, but the
+    // address stayed where it was. go_router's `push` keeps an imperative
+    // match to itself: by default it does not report the new route to the
+    // browser, so clicking Data changed the body while the location bar still
+    // read Pages. Back had nothing to go back to, a reload opened the wrong
+    // screen, and the link could not be copied -- the address URL is the
+    // whole point of a screen having one.
+    //
+    // The delegate's own `state` updates for a push, which is why a test
+    // that read it passed while the browser did not move. What the address
+    // bar is written from is `routeInformationUpdated`, so that is what this
+    // watches.
+    final List<String> reported = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation, (MethodCall call) async {
+      if (call.method == 'routeInformationUpdated') {
+        final Object? arguments = call.arguments;
+        if (arguments is Map) {
+          reported.add('${arguments['uri'] ?? arguments['location']}');
+        }
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.navigation, null));
+
+    final _Server server = _Server(granted: true);
+    final GoRouter router = await _open(tester, server, '/__studio');
+    expect(tester.takeException(), isNull);
+    reported.clear();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('dv-studio-section-components')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      router.state.uri.path,
+      '/__studio/components',
+      reason: 'the screen changed but the router did not',
+    );
+    expect(
+      reported.map((String uri) => Uri.parse(uri).path),
+      contains('/__studio/components'),
+      reason: 'the screen changed but the browser was never told, so the '
+          'address bar still read the old screen: $reported',
+    );
+  });
+
   testWidgets('the Studio route hands Studio the application''s page views and '
       'its look, taken above Studio''s own frame', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -291,11 +404,11 @@ void main() {
     expect(host.look!.theme, same(light));
     expect(host.look!.darkTheme, same(dark));
     expect(host.look!.themeMode, ThemeMode.light);
-    // Studio itself is drawn in its own theme, not the shop's.
+    // Studio inherits the shop's effective theme, including explicit light mode.
     expect(
       Theme.of(tester.element(find.byKey(const ValueKey<String>('dv-studio-rail'))))
           .scaffoldBackgroundColor,
-      isNot(const Color(0xFF123456)),
+      const Color(0xFF123456),
     );
   });
 }

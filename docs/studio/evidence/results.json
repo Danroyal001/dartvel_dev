@@ -1,0 +1,22 @@
+{
+  "guard_preserves_deep_link": {
+    "pass": true
+  },
+  "login_accessible_button": {
+    "pass": true
+  },
+  "login_labelled_fields": {
+    "pass": true
+  },
+  "login_tab_reaches_sign_in": {
+    "pass": true,
+    "detail": "Sign in"
+  },
+  "probe_exception": "TimeoutException: waiting for function failed: timeout 30000ms exceeded\n",
+  "no_page_errors": {
+    "pass": false,
+    "detail": [
+      "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+  }
+}
