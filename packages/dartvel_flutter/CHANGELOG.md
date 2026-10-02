@@ -1,3 +1,12 @@
+## Unreleased
+
+- **Drag and drop on every target.** `DVDropEvent` now carries `files`
+  (`DVIncomingFile`), `urls` and `text` with the position, on the web, Android,
+  iOS/iPadOS and the desktop; `paths` still works. `DVModifier().dropTarget(...)`
+  and `.draggable(...)`, `DVDragDrop.startDrag`, hover reporting, and
+  `chooseInstead()` (the file picker, same handler) where there is no drop.
+  `DVDropType.urls` is new and part of the default.
+
 ## 0.10.0 — 2026-10-02
 
 - **Typing keys reach text fields on every Dartvel page.** Space, Enter, the

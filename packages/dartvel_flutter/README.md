@@ -372,6 +372,18 @@ Future<void> shareReceipt(String orderId) async {
 }
 ```
 
+Drag and drop works on every target: a widget takes what is dropped on it,
+from another app in split screen, Files on an iPad, a file manager or a browser
+tab, and a widget can be dragged out to another app on the web, Android and iOS:
+
+```dart
+DVBox(const DVText('Drop a photo')).modifier(
+  DVModifier().dropTarget(onDrop: (DVDropEvent drop) async {
+    final Uint8List bytes = await drop.files.first.readBytes();
+  }),
+);
+```
+
 Connectivity is a signal, so an offline banner is a widget that rebuilds:
 
 ```dart

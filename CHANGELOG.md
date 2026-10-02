@@ -7,6 +7,15 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Drag and drop on every target, not only the desktop. Drops arrive as one `DVDropEvent` with files
+  (`DVIncomingFile`, which file associations can share), links, text and position on the web,
+  Android (split screen, freeform and desktop windows, from another app), iOS and iPadOS (Split View,
+  Slide Over, Stage Manager) and the desktop. `DVModifier().dropTarget(...)` makes one widget a drop
+  target; `DVModifier().draggable(...)` drags text, links and files out to another app on the web,
+  Android and iOS, and between widgets everywhere. `DV.Platform.dragDrop.chooseInstead()` is the file
+  picker fallback with the same handler. `dartvel build android` and `dartvel build ios` write the
+  native bridges. `DVDropType.urls` is new and accepted by default.
+
 - Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
   cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
   customer's current subscription.

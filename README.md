@@ -1167,6 +1167,14 @@ calls each target binds varies a lot, and `dart tool/binding_coverage.dart`
 counts them. Android permissions are declared under `dartvel.android.permissions` in
 `pubspec.yaml`.
 
+Drag and drop is on every target. `DVModifier().dropTarget(...)` takes files,
+links and text dropped from another app (split screen and desktop windows on
+Android, Split View and Stage Manager on iPad, a file manager on the desktop, a
+browser tab on the web), and `DVModifier().draggable(...)` drags them out to
+another app on the web, Android and iOS. The Android and iOS halves are code
+`dartvel build` writes into the project; see `NEW_SPEC.md` ("Drag and drop on
+every target") for what each target does.
+
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:
 

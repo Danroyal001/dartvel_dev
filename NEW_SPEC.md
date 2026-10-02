@@ -7047,6 +7047,43 @@ Desktop APIs are backed by generated native bindings registered under
 `window.*`, `tray.*`, `menus.*`, and `shortcuts.*`; they must fail if the
 binding is missing or rejects the request.
 
+### Drag and drop on every target
+
+Drag and drop is not desktop-only. One `DVDropEvent` arrives on every target:
+`files` (`DVIncomingFile`: name, MIME type, path or content URI, size, and
+`readBytes()`), `urls`, `text` and the position in logical pixels. A whole
+window takes drops with `DV.Platform.dragDrop.accept(onDrop: ...)`; one widget
+does with `DVModifier().dropTarget(onDrop: ..., types: {...})`, and a drop goes
+to the smallest target under it that admits what it carries, else to the
+window. `DVModifier().draggable(DVDragPayload(...))` drags text, links and
+files out.
+
+```dart
+DVBox(const DVText('Drop here')).modifier(
+  DVModifier().dropTarget(onDrop: (DVDropEvent drop) async {
+    for (final DVIncomingFile file in drop.files) {
+      await Attachment(name: file.name, bytes: await file.readBytes()).save();
+    }
+  }),
+);
+DVText('Share').modifier(
+  DVModifier().draggable(const DVDragPayload(text: 'Order 1042')),
+);
+```
+
+| Target | Drop in | Drag out | How |
+|---|---|---|---|
+| Web | files, links, text | text, links, files (`DownloadURL` in Chromium) | HTML drag events and `DataTransfer` via `dart:js_interop`. A page cannot start a drag from script, so a draggable sets its payload when pressed (`dragDrop.setPending`) and `dragstart` fills it |
+| Android | files (`content://`), links, text, from another app in split screen, freeform and desktop windows, on Android 7.0 (API 24) and later | text, links, files, to another app (`DRAG_FLAG_GLOBAL`, `DRAG_FLAG_GLOBAL_URI_READ`) | Java `DartvelDragDrop` written by `dartvel build android`: `View.OnDragListener` on the window, `Activity.requestDragAndDropPermissions` for another app's URIs, files out through the `DartvelCaptureFiles` provider every Android build already declares. No manifest entry of its own |
+| iOS / iPadOS | files, links, text, from Files, Photos, Safari or another app in Split View, Slide Over and Stage Manager | text, links, files | Swift `DartvelDragDrop` compiled into Runner by `dartvel build ios` (`UIDropInteraction`, `UIDragInteraction` with `isEnabled = true`, which is off by default on iPhone). UIKit starts a drag from its own long press, so the payload is set ahead of it |
+| Linux, Windows, macOS | files (paths), text | inside the application only | the existing XDND / OLE / `NSDraggingDestination` bindings |
+| Anything else | `chooseInstead()` | inside the application only | the file picker (`dialogs.openFile`, else `media.pick`) delivers the same `DVDropEvent` to the same handler |
+
+Dragging out on the desktop (OLE `DoDragDrop`, `NSDraggingSession`, GTK) is not
+built yet; there `draggable` moves things between widgets inside the
+application. Nothing here needs a hand-edited native folder: the Android Java
+and the iOS Swift are written and wired by the build.
+
 Embedded/device creation:
 - kiosk mode and fullscreen mode — specified in [Kiosk Mode](#kiosk-mode),
   which owns the policy, the two scopes, enforcement per target and exit
