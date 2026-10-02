@@ -29,7 +29,7 @@ library dartvel_flutter.platform.android.jni;
 
 import 'dart:io' show Platform;
 
-import 'package:dartvel_core/dartvel.dart' show dvHomeWidgetAndroidClass;
+import 'package:dartvel_core/dartvel.dart' show dvAndroidOpenActivityClass, dvHomeWidgetAndroidClass;
 import 'package:jni/jni.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
@@ -138,6 +138,23 @@ class DVAndroidBindings {
       if (intent == null) return null;
       final JString? data = intent.dataString;
       return dvAndroidLaunchRoute(data?.toDartString(releaseOriginal: true));
+    });
+
+    // The files the application was opened with or shared, which the
+    // generated DartvelOpenActivity has copied into the cache and queued.
+    // Absent when nothing is declared: the class is only written then.
+    DVNativeBridge.register('associations.opened', (Object? _) {
+      final JClass opener;
+      try {
+        opener = JClass.forName(dvAndroidOpenActivityClass);
+      } on Object {
+        return null;
+      }
+      final JString? taken = opener
+          .staticMethodId('take', '()Ljava/lang/String;')
+          .callNullable(opener, JString.type, <dynamic>[]);
+      opener.release();
+      return taken?.toDartString(releaseOriginal: true);
     });
 
     DVNativeBridge.register('clipboard.copy', (Object? arguments) {

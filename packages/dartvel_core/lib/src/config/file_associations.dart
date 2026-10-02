@@ -163,3 +163,15 @@ class DVFileAssociationsParse {
   final List<DVFileAssociation> associations;
   final List<String> problems;
 }
+
+/// The Activity `dartvel build android` writes to receive the files the
+/// application is opened with or shared, in JNI's slash-separated form. The
+/// intent filters are on it rather than on MainActivity, which is the
+/// developer's; it copies each file into the cache, queues it, brings the
+/// application forward and finishes.
+const String dvAndroidOpenActivityClass = 'dev/dartvel/jni/DartvelOpenActivity';
+
+/// Where the iOS app delegate leaves the files it was opened with, as a JSON
+/// list of `{path, name}` copied out of their security scope, until the
+/// Flutter runtime takes them.
+const String dvIosOpenedFilesKey = 'dartvel.openedFiles';

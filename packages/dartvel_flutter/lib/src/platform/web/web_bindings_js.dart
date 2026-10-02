@@ -43,6 +43,7 @@ import 'web_device_js.dart';
 import 'web_files_js.dart';
 import 'web_interop.dart';
 import 'web_kiosk_js.dart';
+import 'web_launch_queue_js.dart';
 import 'web_media_js.dart';
 import 'web_nfc_js.dart';
 import 'web_permissions_js.dart';
@@ -394,6 +395,8 @@ class DVWebBindings {
     if (DVWebContacts.available) DVWebContacts.register(register);
     if (DVWebNfc.available) DVWebNfc.register(register);
     DVWebMedia.registerPicker(register);
+    // Not a binding: the files go straight to DV.Platform.associations.opened.
+    DVWebLaunchQueue.register();
     DVWebBluetooth.register(register);
     DVWebDevice.register(register);
     DVWebKiosk.register(register);

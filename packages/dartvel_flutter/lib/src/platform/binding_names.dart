@@ -145,6 +145,8 @@ const Set<String> dvNativeBindingNames = <String>{
   'associations.register',
   'associations.unregister',
   'associations.handlerFor',
+  // The files a phone handed over since the last time it was asked.
+  'associations.opened',
 
   // Kiosk enforcement: hold the policy on the device, and let go.
   'kiosk.enforce',

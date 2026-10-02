@@ -64,6 +64,9 @@ library dartvel_flutter.platform.android.capabilities;
 /// Flutter answers for the window — different numbers in split screen, and
 /// the name says screen.
 const Set<String> dvAndroidImplementedBindings = <String>{
+  // Files opened with or shared to the app, from the Activity the build
+  // writes for dartvel.fileAssociations.
+  'associations.opened',
   // ClipboardManager through Context.getSystemService.
   'clipboard.copy',
   'clipboard.paste',

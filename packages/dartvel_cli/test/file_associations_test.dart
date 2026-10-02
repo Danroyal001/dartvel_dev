@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dartvel_cli/src/build/desktop_entry.dart';
 import 'package:dartvel_cli/src/build/file_associations.dart';
+import 'package:dartvel_cli/src/build/ios_deep_links.dart';
 import 'package:dartvel_cli/src/build/pwa_manifest.dart';
 import 'package:dartvel_cli/src/config/dartvel_section.dart';
 import 'package:path/path.dart' as p;
@@ -87,14 +88,22 @@ void main() {
 
   group('Android', () {
     final String written = dvAndroidFileAssociationsManifest(androidManifest, <DVFileAssociation>[order, pdf]);
+    String receiver(String manifest) => manifest.substring(
+        manifest.indexOf('dev.dartvel.jni.DartvelOpenActivity'), manifest.indexOf('</activity>', manifest.indexOf('DartvelOpenActivity')));
 
-    test('open-with and share filters go on the launcher activity', () {
-      final String launcher = written.substring(written.indexOf('.MainActivity'), written.indexOf('.Other'));
-      expect(launcher, contains('<data android:mimeType="application/x-shop-order"/>'));
-      expect(launcher, contains('android.intent.action.SEND"'));
-      expect(launcher, contains('android.intent.action.SEND_MULTIPLE"'));
-      expect(launcher, contains('<data android:scheme="content"/>'));
-      expect(written.substring(written.indexOf('.Other')), isNot(contains('mimeType')));
+    test('open-with and share filters go on Dartvel\'s receiving activity, inside the application', () {
+      final String activity = receiver(written);
+      expect(activity, contains('<data android:mimeType="application/x-shop-order"/>'));
+      expect(activity, contains('android.intent.action.SEND"'));
+      expect(activity, contains('android.intent.action.SEND_MULTIPLE"'));
+      expect(activity, contains('<data android:scheme="content"/>'));
+      expect(activity, contains('android:exported="true"'), reason: 'other apps start it');
+      expect(written.indexOf('DartvelOpenActivity'), lessThan(written.indexOf('</application>')));
+    });
+
+    test('MainActivity is not touched', () {
+      final String main = written.substring(written.indexOf('.MainActivity'), written.indexOf('</activity>'));
+      expect(main, androidManifest.substring(androidManifest.indexOf('.MainActivity'), androidManifest.indexOf('</activity>')));
     });
 
     test('a new type is also matched by extension; a known one is not', () {
@@ -112,9 +121,47 @@ void main() {
       expect(dvAndroidFileAssociationsManifest(written, const <DVFileAssociation>[]), androidManifest);
     });
 
-    test('a manifest without a launcher activity is left alone', () {
-      const String library = '<manifest><application/></manifest>';
-      expect(dvAndroidFileAssociationsManifest(library, <DVFileAssociation>[order]), library);
+    test('the Java takes VIEW, SEND, SEND_MULTIPLE and shared text, and exposes take()', () {
+      final String java = dvAndroidOpenActivitySource();
+      expect(java, contains('public final class DartvelOpenActivity extends Activity'));
+      expect(java, contains('public static String take()'));
+      expect(java, contains('Intent.ACTION_SEND_MULTIPLE'));
+      expect(java, contains('Intent.EXTRA_TEXT'));
+      expect(java, contains('getLaunchIntentForPackage'));
+      expect(java, contains(r'.replace("\\", "_")'), reason: 'a Java string holding one backslash');
+      expect(dvAndroidOpenActivityPath, endsWith('dev/dartvel/jni/DartvelOpenActivity.java'));
+    });
+  });
+
+  group('iOS app delegate', () {
+    const String delegate = '''
+import Flutter
+import UIKit
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+  override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+''';
+    test('with file types, a file URL is copied out of its scope and listed', () {
+      final String written = dvIosAppDelegate(delegate, enabled: true, files: true);
+      expect(written, contains('url.isFileURL'));
+      expect(written, contains('startAccessingSecurityScopedResource'));
+      expect(written, contains('forKey: "$dvIosOpenedFilesKey"'));
+      expect(written, contains(r'"\(Int(Date().timeIntervalSince1970 * 1000))-\(url.lastPathComponent)"'));
+      expect(dvIosAppDelegate(written, enabled: true, files: true), written);
+    });
+
+    test('without them, every URL is still a link', () {
+      final String written = dvIosAppDelegate(delegate, enabled: true);
+      expect(written, isNot(contains('isFileURL')));
+      expect(written, contains('forKey: "$dvIosLaunchUrlKey"'));
+      expect(dvIosAppDelegate(written, enabled: false), delegate);
     });
   });
 

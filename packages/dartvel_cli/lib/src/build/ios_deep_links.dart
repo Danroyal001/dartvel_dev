@@ -17,18 +17,23 @@
 /// lines somebody can add by hand, and their file is not.
 library;
 
-import 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey;
+import 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey, dvIosOpenedFilesKey;
 
 // The key is core's, because the other half of this -- the Flutter runtime
 // reading the launch back through the Objective-C runtime -- is in another
 // package, and two spellings of it is a launch captured and never read.
-export 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey;
+export 'package:dartvel_core/dartvel.dart' show dvIosLaunchUrlKey, dvIosOpenedFilesKey;
 
 const String _markStart = '  // dartvel.deeplinks: begin';
 const String _markEnd = '  // dartvel.deeplinks: end';
 
 /// [source] with the launch capture in it, or without it.
-String dvIosAppDelegate(String source, {required bool enabled}) {
+///
+/// With [files], a file URL -- a document opened from Files or shared to the
+/// app, declared by `dartvel.fileAssociations` -- is not a link: it is copied
+/// out of its security scope into the app's temporary directory and listed
+/// under [dvIosOpenedFilesKey], which `DV.Platform.associations` takes.
+String dvIosAppDelegate(String source, {required bool enabled, bool files = false}) {
   final RegExp block = RegExp(
       '${RegExp.escape(_markStart)}.*?${RegExp.escape(_markEnd)}\n',
       dotAll: true);
@@ -62,8 +67,7 @@ String dvIosAppDelegate(String source, {required bool enabled}) {
     ..writeln('      [UIApplication.LaunchOptionsKey: Any]? = nil')
     ..writeln('  ) -> Bool {')
     ..writeln('    if let url = launchOptions?[.url] as? URL {')
-    ..writeln('      UserDefaults.standard.set(')
-    ..writeln('        url.absoluteString, forKey: "$dvIosLaunchUrlKey")')
+    ..writeln('      dartvelKeep(url)')
     ..writeln('    }')
     ..writeln('    return super.application(')
     ..writeln('      application, willFinishLaunchingWithOptions: launchOptions)')
@@ -74,10 +78,42 @@ String dvIosAppDelegate(String source, {required bool enabled}) {
     ..writeln('    open url: URL,')
     ..writeln('    options: [UIApplication.OpenURLOptionsKey: Any] = [:]')
     ..writeln('  ) -> Bool {')
-    ..writeln('    UserDefaults.standard.set(')
-    ..writeln('      url.absoluteString, forKey: "$dvIosLaunchUrlKey")')
+    ..writeln('    dartvelKeep(url)')
     // super, or every plugin registered for a URL stops seeing one.
     ..writeln('    return super.application(app, open: url, options: options)')
+    ..writeln('  }')
+    ..writeln()
+    ..writeln('  private func dartvelKeep(_ url: URL) {');
+  if (files) {
+    out
+      ..writeln('    if url.isFileURL {')
+      ..writeln('      // Opened in place, so the URL is the original and readable only')
+      ..writeln('      // inside its security scope: copied out now, while it is.')
+      ..writeln('      let scoped = url.startAccessingSecurityScopedResource()')
+      ..writeln('      defer { if scoped { url.stopAccessingSecurityScopedResource() } }')
+      ..writeln('      let directory = FileManager.default.temporaryDirectory')
+      ..writeln('        .appendingPathComponent("dartvel-opened", isDirectory: true)')
+      ..writeln('      try? FileManager.default.createDirectory(')
+      ..writeln('        at: directory, withIntermediateDirectories: true)')
+      ..writeln('      let copy = directory.appendingPathComponent(')
+      ..writeln('        "\\(Int(Date().timeIntervalSince1970 * 1000))-\\(url.lastPathComponent)")')
+      ..writeln('      guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return }')
+      ..writeln('      var opened: [[String: String]] = []')
+      ..writeln('      if let saved = UserDefaults.standard.string(forKey: "$dvIosOpenedFilesKey"),')
+      ..writeln('        let data = saved.data(using: .utf8),')
+      ..writeln('        let list = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] {')
+      ..writeln('        opened = list')
+      ..writeln('      }')
+      ..writeln('      opened.append(["path": copy.path, "name": url.lastPathComponent])')
+      ..writeln('      if let data = try? JSONSerialization.data(withJSONObject: opened),')
+      ..writeln('        let text = String(data: data, encoding: .utf8) {')
+      ..writeln('        UserDefaults.standard.set(text, forKey: "$dvIosOpenedFilesKey")')
+      ..writeln('      }')
+      ..writeln('      return')
+      ..writeln('    }');
+  }
+  out
+    ..writeln('    UserDefaults.standard.set(url.absoluteString, forKey: "$dvIosLaunchUrlKey")')
     ..writeln('  }')
     ..writeln(_markEnd);
 

@@ -317,6 +317,9 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'associations.handlerFor': 'A page is not told what else on the machine '
       'opens a file type. That would be a fingerprinting surface, and no '
       'browser exposes it.',
+  'associations.opened': 'Not a binding on the web: launchQueue hands an '
+      'installed app its files directly, and they are delivered to '
+      'DV.Platform.associations.opened with their bytes.',
 
   // XR. WebXR is a browser API, so these are not things a browser forbids:
   // each needs a live XRSession, and an XRSession draws only into an
