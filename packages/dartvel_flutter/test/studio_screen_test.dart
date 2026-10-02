@@ -206,9 +206,14 @@ void main() {
         .tap(find.byKey(const ValueKey<String>('dv-studio-route-/pricing')));
     await tester.pumpAndSettle();
 
-    GestureDetector undo() => tester.widget<GestureDetector>(
-        find.byKey(const ValueKey<String>('dv-studio-undo')));
-    expect(undo().onTap, isNull);
+    // Whether the toolbar's undo does anything, which is the point of it
+    // being offered at all: with no history there is nothing to press.
+    bool undoWorks() => tester
+        .widget<DVStudioIconButton>(
+            find.byKey(const ValueKey<String>('dv-studio-undo')))
+        .onTap !=
+        null;
+    expect(undoWorks(), isFalse);
 
     // Select the text node and change it through the inspector.
     await tester.tap(find.text('Plans'));
@@ -216,7 +221,7 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, '/x');
     await tester.pumpAndSettle();
 
-    expect(undo().onTap, isNotNull);
+    expect(undoWorks(), isTrue);
   });
 
   group('sections are registered, not built in', () {

@@ -49,8 +49,12 @@ Finder byKey(String key) => find.byKey(ValueKey<String>(key));
 Finder inKey(String key, Finder matching) =>
     find.descendant(of: byKey(key), matching: matching);
 
-GestureDetector detector(WidgetTester tester, String key) =>
-    tester.widget<GestureDetector>(byKey(key));
+/// Whether the keyed control can be pressed: a `DVStudioControl` with no
+/// `onTap` is one that does nothing, whichever way it is drawn.
+bool pressable(WidgetTester tester, String key) => tester
+    .widget<DVStudioControl>(byKey(key))
+    .onTap !=
+    null;
 
 class _Provider implements DVNotificationProvider {
   @override
@@ -837,7 +841,7 @@ void main() {
 
       // No title typed: nothing can be posted, and the preview shows what the
       // runtime publishes in its place -- never the rule name.
-      expect(detector(tester, 'dv-studio-incident-post').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-incident-post'), isFalse);
       expect(
         find.textContaining('Give it a public title'),
         findsWidgets,
@@ -852,7 +856,7 @@ void main() {
       await type(tester, 'dv-studio-incident-public-title', 'Slow search');
       expect(inKey(preview, find.text('Slow search')), findsOneWidget);
       expect(inKey(preview, find.text('Service issue')), findsNothing);
-      expect(detector(tester, 'dv-studio-incident-post').onTap, isNotNull);
+      expect(pressable(tester, 'dv-studio-incident-post'), isTrue);
 
       await tapKey(tester, 'dv-studio-incident-post');
       final DVIncident stored = (await tester.runAsync<DVIncident?>(
@@ -874,7 +878,7 @@ void main() {
       await tapKey(tester, 'dv-studio-incident-mode-public');
       expect(byKey('dv-studio-incident-public-title'), findsNothing);
       await type(tester, 'dv-studio-incident-message', 'Still watching.');
-      expect(detector(tester, 'dv-studio-incident-post').onTap, isNotNull);
+      expect(pressable(tester, 'dv-studio-incident-post'), isTrue);
     });
 
     testWidgets('renaming for the public changes the title the status page '
@@ -972,7 +976,7 @@ void main() {
       await pumpStudio(tester, actor: null);
       await openIncident(tester, paymentsIncident);
       await type(tester, 'dv-studio-incident-message', 'A note.');
-      expect(detector(tester, 'dv-studio-incident-post').onTap, isNull);
+      expect(pressable(tester, 'dv-studio-incident-post'), isFalse);
       expect(byKey('dv-studio-incident-resolve'), findsNothing);
     });
   });

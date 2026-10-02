@@ -463,6 +463,25 @@ the generator does not wrap that page with the default `DVPage` shell unless
 pages working, while Dartvel-authored pages should move scaffold properties to
 `@DVPage(...)` and return content only.
 
+### Selection, typing and the page's own keys
+
+Every page is selectable by default (`selectable: true`), scrolls from the
+keyboard, and answers a remote's D-pad. Three rules keep those from getting in
+the way:
+
+- **Typing keys belong to the text field.** While a text field has focus,
+  Space, Enter, the arrows, Home, End and the page keys are the field's: they
+  type, move the caret, and Enter submits the form. The page's keyboard
+  scrolling and D-pad handling stand aside.
+- **A sidebar is one column for selection.** Wrap a sidebar, rail or list pane
+  beside scrolling content in `DVSelectionColumn`. A drag across a line of the
+  content then selects that line; without it, Flutter's selection reaches a
+  lower sidebar item first and selects nothing. Text inside the column stays
+  selectable, and a drag from the column into the content selects both in
+  order. Studio's rail and panels use it.
+- **The selection area is rebuilt whole when the browser's own menu is
+  switched** (`DVBrowserMenu.nativeMenuOn`); the page keeps its state.
+
 ---
 
 # Routing
@@ -1205,6 +1224,43 @@ has since been taken by a live record, because the alternative is two rows
 claiming one invoice number (`DV-HISTORY-006`).
 
 ## Studio
+
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
+### It is part of the app, and it is reachable
+
+Studio's screens are routes of the application, rendered by the same
+`dvRenderRoutePage` as every public page, not a second Flutter application
+beside it. `<mount>` is Pages, `<mount>/<screen>` is that screen and
+`<mount>/<screen>/<object>` opens one thing inside it, so a screen can be
+linked, bookmarked and reloaded. Each is also served as a document built from
+the same data Studio's API reads, which is what a crawler, a printer and the
+browser's own Ctrl+F read.
+
+Every control in Studio is drawn from one of three widgets —
+`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch` — so the whole of it
+answers the keyboard: each takes the focus, answers Enter *and* Space (the web
+binds Enter to `ButtonActivateIntent` and every other platform to
+`ActivateIntent`, so a control answering only one does nothing on the other),
+declares its role and its name to a screen reader, and draws its own focus
+ring. A control with nothing to do says so and is not a focus stop.
+
+The sign-in page follows that contract too: its email and password fields
+have accessible labels, Tab from the password reaches Sign in, and Enter
+activates the focused action or submits the password field. Signing in
+returns to the guarded deep link only after the server admits the account.
+
+Data, Site map and Team also answer the readable `/data`, `/sitemap` and
+`/team` paths beneath the configured mount. Existing `/models`, `/routes` and
+`/access` addresses remain valid. A data record opens at
+`<mount>/data/<model>/<record>`; selecting, saving and closing its form updates
+the address. A missing model or record must not silently open another object.
+
+### Undo over page documents
 
 Studio's undo over page documents and this are the same mechanism seen twice:
 a versioned record with entries that can be reverted in a reversible

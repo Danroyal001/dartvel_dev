@@ -1138,14 +1138,12 @@ class _DVWorkflowSignature extends StatelessWidget {
           const SizedBox(height: DVStudioStyle.space2),
           for (int i = 0; i < document.parameters.length; i++)
             _input(i, document.parameters[i]),
-          GestureDetector(
+          DVStudioControl(
             key: const ValueKey<String>('dv-workflow-add-input'),
+            label: 'Add input',
+            enabled: true,
             onTap: controller.addInput,
-            child: DVStudioStyle.control(
-              'Add input',
-              enabled: true,
-              icon: Icons.add,
-            ),
+            icon: Icons.add,
           ),
           const SizedBox(height: DVStudioStyle.space6),
           DVStudioStyle.overline('Returns'),

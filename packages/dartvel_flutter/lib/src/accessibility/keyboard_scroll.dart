@@ -17,6 +17,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'editing_focus.dart';
+
 /// Scrolls the page beneath it when the keys a reader expects are pressed.
 ///
 /// Sits above the page body, so a control that wants a key gets it first:
@@ -116,6 +118,10 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
     // A held key repeats, and a reader holding Page Down expects to keep
     // moving; a key coming up is not a press.
     if (event is KeyUpEvent) return KeyEventResult.ignored;
+    // Every one of these keys is a typing key in a text field: Space types a
+    // space, Home and End and the arrows move the caret, Page Up and Down
+    // move it a screen in a long field. See editing_focus.dart.
+    if (dvFocusIsEditingText()) return KeyEventResult.ignored;
     final ScrollPosition? position = _positionFor(event.logicalKey);
     if (position == null) return KeyEventResult.ignored;
     final double? target = _targetFor(event.logicalKey, position);

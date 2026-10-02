@@ -33,11 +33,30 @@ abstract final class DVBrowserMenu {
   /// True when the next right-click goes to the browser's menu.
   static bool get nextClickIsNative => _next;
 
+  /// Whether the browser's own menu is on, once each switch has taken
+  /// effect.
+  ///
+  /// Flutter's selection area builds differently while it is on, and only
+  /// reads it when it rebuilds. The switch completes after the first page has
+  /// built, so the page's next rebuild changed the area's shape under it: it
+  /// made a second selection container while the first was still registered,
+  /// and a release build later failed with a null check when one of them
+  /// left. The page shell rebuilds its selection area whole when this
+  /// changes instead. See DVPageShell.
+  static ValueListenable<bool> get nativeMenuOn => _nativeMenuOn;
+  static final ValueNotifier<bool> _nativeMenuOn = ValueNotifier<bool>(true);
+
+  static void _switched() => _nativeMenuOn.value = BrowserContextMenu.enabled;
+
+  /// Stands for a switch of the browser's menu taking effect, in a test.
+  @visibleForTesting
+  static void debugSetNativeMenuOn(bool on) => _nativeMenuOn.value = on;
+
   /// Turns the browser's menu off so Flutter's shows, once per app.
   static void install() {
     if (_installed || !kIsWeb) return;
     _installed = true;
-    unawaited(BrowserContextMenu.disableContextMenu());
+    unawaited(BrowserContextMenu.disableContextMenu().then((_) => _switched()));
     platform.dvListenForNativeMenu(
       arm: () => _arm(),
       disarm: _disarm,
@@ -89,14 +108,18 @@ abstract final class DVBrowserMenu {
 
   static void _arm() {
     _next = true;
-    if (kIsWeb) unawaited(BrowserContextMenu.enableContextMenu());
+    if (kIsWeb) {
+      unawaited(BrowserContextMenu.enableContextMenu().then((_) => _switched()));
+    }
   }
 
   static void _disarm() {
     _clearHint();
     if (!_next) return;
     _next = false;
-    if (kIsWeb) unawaited(BrowserContextMenu.disableContextMenu());
+    if (kIsWeb) {
+      unawaited(BrowserContextMenu.disableContextMenu().then((_) => _switched()));
+    }
   }
 
   @visibleForTesting
@@ -104,5 +127,6 @@ abstract final class DVBrowserMenu {
     _clearHint();
     _next = false;
     debugIsWeb = null;
+    _nativeMenuOn.value = true;
   }
 }

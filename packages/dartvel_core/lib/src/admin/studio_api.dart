@@ -1014,27 +1014,10 @@ class DVStudioApi {
   ) async {
     if (method != 'GET') _notAllowed();
     if (path.isEmpty) {
-      final Map<String, String?> stored = <String, String?>{};
-      final DVDatabaseAdapter? adapter = database;
-      if (adapter != null) {
-        final DVRecordAdapter records = DVRecordAdapter.over(adapter);
-        await records.ensure(dvStudioPagesShape);
-        for (final Map<String, Object?> row in await records.find(
-          dvStudioPagesTable,
-          fields: const <String>['route', 'title'],
-        )) {
-          stored['${row['route']}'] =
-              row['title'] == null ? null : '${row['title']}';
-        }
-      }
       return _reply(<String, Object?>{
         'pages': <Object?>[
-          for (final DVStudioSitePage page in dvStudioSitePages(
-            compiled: _compiledRoutes(),
-            stored: stored,
-            hasStructure: (String path) =>
-                dvStudioHasStructure(_structureRoot, path),
-          ))
+          for (final DVStudioSitePage page
+              in await sitePages(compiled: _compiledRoutes()))
             page.toJson(),
         ],
       });
@@ -1056,6 +1039,37 @@ class DVStudioApi {
 
   Never _notAllowed() =>
       throw _StudioRefusal(405, 'method', 'That method is not answered here.');
+
+  /// Every page this application answers: the routes a build compiled
+  /// alongside the documents stored here, each marked for what it is.
+  ///
+  /// Public because a server needs it for something Studio's own API is not:
+  /// writing the document a Studio page is served with, so that a printer, a
+  /// reader with scripting off and the browser's find all name the site's
+  /// pages without the app having booted. The same list, composed the same
+  /// way, so the document and the API cannot disagree about what exists.
+  Future<List<DVStudioSitePage>> sitePages({
+    List<Map<String, Object?>>? compiled,
+  }) async {
+    final Map<String, String?> stored = <String, String?>{};
+    final DVDatabaseAdapter? adapter = database;
+    if (adapter != null) {
+      final DVRecordAdapter records = DVRecordAdapter.over(adapter);
+      await records.ensure(dvStudioPagesShape);
+      for (final Map<String, Object?> row in await records.find(
+        dvStudioPagesTable,
+        fields: const <String>['route', 'title'],
+      )) {
+        stored['${row['route']}'] =
+            row['title'] == null ? null : '${row['title']}';
+      }
+    }
+    return dvStudioSitePages(
+      compiled: compiled ?? _compiledRoutes(),
+      stored: stored,
+      hasStructure: (String path) => dvStudioHasStructure(_structureRoot, path),
+    );
+  }
 
   Never _missing(DVStudioModelSpec spec, String key) => throw _StudioRefusal(
     404,
