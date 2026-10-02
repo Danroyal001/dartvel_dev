@@ -3486,13 +3486,13 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         importUri: importUri,
         entriesByName: entriesByName,
       );
-      if (exposeBackendFunctions &&
-          relativePath.startsWith('${project.backendDir}/')) {
+      if (relativePath.startsWith('${project.backendDir}/')) {
         _collectBackendFunctionAIToolEntries(
           source: source,
           relativePath: relativePath,
           importUri: importUri,
           entriesByName: entriesByName,
+          exposeBackendFunctions: exposeBackendFunctions,
         );
       }
     }
@@ -4096,11 +4096,12 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     required String relativePath,
     required String importUri,
     required Map<String, _AIToolEntry> entriesByName,
+    bool exposeBackendFunctions = false,
   }) {
     final pattern = RegExp(
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
-      r'@DVBackendFunction(?:\([^)]*\))?\s*'
-      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*'
+      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\((?:[^()]|\([^)]*\))*\))?\s*)*'
+      r'@DVBackendFunction(?:\((?:[^()]|\([^)]*\))*\))?\s*'
+      r'(?:@[A-Za-z_][A-Za-z0-9_]*(?:\((?:[^()]|\([^)]*\))*\))?\s*)*'
       r'(?:Future<[^>]+>|Future|Stream<[^>]+>|[A-Za-z_][A-Za-z0-9_<>, ?]*)\s+'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)',
       dotAll: true,
@@ -4109,6 +4110,30 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
       final declaration = match.group(0) ?? '';
       final name = match.group(1)!;
       final publicName = name.startsWith('_') ? name.substring(1) : name;
+      final hasExplicitAITool = declaration.contains('aiTool');
+      String description = '';
+      if (hasExplicitAITool) {
+        final toolPartMatch = RegExp(
+          r"aiTool\s*:\s*(DVAITool\s*\([^)]*\))",
+        ).firstMatch(declaration);
+        if (toolPartMatch != null) {
+          final descStr = toolPartMatch.group(1)!;
+          final descDq = RegExp(
+            r'description\s*:\s*"(.*?)"',
+            dotAll: true,
+          ).firstMatch(descStr);
+          final descSq = RegExp(
+            r"description\s*:\s*'(.*?)'",
+            dotAll: true,
+          ).firstMatch(descStr);
+          description = descDq?.group(1) ?? descSq?.group(1) ?? '';
+        }
+      }
+      if (!hasExplicitAITool && !exposeBackendFunctions) {
+        continue;
+      }
+      final finalDescription = description.isNotEmpty ? description
+          : (exposeBackendFunctions ? 'Backend function $name' : '');
       if (declaration.contains('@DVAIHidden') ||
           entriesByName.containsKey(publicName)) {
         continue;
@@ -4124,7 +4149,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         name: publicName,
         returnsVoid: _dvReturnsNothing(declaration, name),
         returnsPlainVoid: _dvReturnsPlainVoid(declaration, name),
-        description: 'Backend function $name',
+        description: finalDescription,
         importUri: importUri,
         relativePath: relativePath,
         parameterNames: parameterNames,

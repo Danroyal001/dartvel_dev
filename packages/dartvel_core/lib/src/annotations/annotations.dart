@@ -891,11 +891,18 @@ class DVBackendFunction {
   /// Mutually exclusive with [rawPath].
   final String? rawPathSuffix;
 
+  /// Declares this backend function as an AI tool: feeds the AI tool registry,
+  /// MCP, App Intents, App Functions and WebMCP. No separate DVAppIntents API.
+  /// When set, the function is exposed as a tool regardless of the global
+  /// `exposeBackendFunctionsAsTools` setting.
+  final DVAITool? aiTool;
+
   const DVBackendFunction({
     this.policy,
     this.mfa,
     this.rawPath,
     this.rawPathSuffix,
+    this.aiTool,
   }) : assert(rawPath == null || rawPathSuffix == null,
             'rawPath and rawPathSuffix are mutually exclusive');
 }
