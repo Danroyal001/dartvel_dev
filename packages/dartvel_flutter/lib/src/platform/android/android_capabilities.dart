@@ -64,6 +64,14 @@ library dartvel_flutter.platform.android.capabilities;
 /// Flutter answers for the window — different numbers in split screen, and
 /// the name says screen.
 const Set<String> dvAndroidImplementedBindings = <String>{
+  // Drag and drop through the DartvelDragDrop Java class the build writes:
+  // an OnDragListener on the window, DragAndDropPermissions for another
+  // application's content:// URIs, and startDragAndDrop with
+  // DRAG_FLAG_GLOBAL | DRAG_FLAG_GLOBAL_URI_READ.
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.startDrag',
+
   // ClipboardManager through Context.getSystemService.
   'clipboard.copy',
   'clipboard.paste',
