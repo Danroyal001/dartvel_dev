@@ -1,3 +1,7 @@
+## 1.4.3 — 2026-10-02
+
+- Accepts dartvel_core 0.10.0. No changes in this package.
+
 ## 1.4.2
 
 - Accepts dartvel_core 0.9.0. No changes in this package.

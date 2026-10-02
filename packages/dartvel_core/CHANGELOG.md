@@ -1,4 +1,9 @@
-## Unreleased
+## 0.10.0 — 2026-10-02
+
+- **`@DVBackendFunction(aiTool: DVAITool(description: ...))`** adds a backend
+  function to the generated AI tool registry, the same registry `@DVAITool`
+  feeds, without exposing every backend function as a tool. `@DVAIHidden`
+  still wins.
 
 - **Sensitive fields are write-only in Studio, like a password field.**
   Studio used to refuse any write to a `@DVModel.sensitiveField()`. The
