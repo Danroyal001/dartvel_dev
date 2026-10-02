@@ -81,7 +81,7 @@ void main() {
   group('a hint that matches no connected display', () {
     test('is reported as displayHintUnmatched, not as a missing display',
         () async {
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Projector')),
       );
@@ -95,7 +95,7 @@ void main() {
     test('a hint that does match degrades nothing', () async {
       // The control. If this ever reports a degradation, the one above is
       // passing for the wrong reason.
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: DVWindowOptions(display: DVDisplayHint.byName('Customer')),
       );
@@ -124,7 +124,7 @@ void main() {
         display('1', 'Operator', primary: true),
       ];
 
-      final DVWindow customer = await DV.Platform.Window.open(
+      final DVWindow customer = await DV.Platform.window.open(
         const DVRouteTarget('/customer-display'),
         options: DVWindowOptions(
           kind: DVWindowKind.kiosk,

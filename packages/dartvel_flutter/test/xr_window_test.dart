@@ -1,4 +1,4 @@
-// Volumes and immersive spaces as window kinds on DV.Platform.Window.
+// Volumes and immersive spaces as window kinds on DV.Platform.window.
 //
 // Application code never branches on whether it is in a headset: open() is
 // called the same way everywhere and presents the route the best way the
@@ -22,7 +22,7 @@ void main() {
     test('a volume is a page, and says DV-WINDOW-014 -- not DV-WINDOW-001', () async {
       DV.Test.fakeXR(null);
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: DVWindowOptions(
           kind: DVWindowKind.volume,
@@ -34,13 +34,13 @@ void main() {
       expect(window.degradation, isNot(DVWindowDegradation.none));
       expect(window.codes, <String>['DV-WINDOW-014']);
       expect(window.spatial, isNull);
-      expect(DV.Platform.Window.capability.spatial, isNull);
+      expect(DV.Platform.window.capability.spatial, isNull);
     });
 
     test('an immersive space is a page, and says DV-WINDOW-015', () async {
       DV.Test.fakeXR(null);
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/tour'),
         options: const DVWindowOptions(
           kind: DVWindowKind.immersive,
@@ -55,14 +55,14 @@ void main() {
     test('glasses are not headsets: a volume is still a page', () async {
       DV.Test.fakeXR(DVSpatialCapability.glasses());
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
 
       expect(window.presentation, DVWindowPresentation.page);
       expect(window.codes, <String>['DV-WINDOW-014']);
-      expect(DV.Platform.Window.capability.spatial, isNotNull,
+      expect(DV.Platform.window.capability.spatial, isNotNull,
           reason: 'glasses report a capability; it just has no volumes');
     });
 
@@ -71,7 +71,7 @@ void main() {
       DVWindowManager.useWindowingDeclaration(const DVWindowingDeclaration(enabled: false));
       addTearDown(DVWindowManager.resetWindowingDeclaration);
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
@@ -86,7 +86,7 @@ void main() {
     test('a volume is presented in space, with no degradation and no code', () async {
       final DVXRFakeDevice device = DV.Test.fakeXR(DVSpatialCapability.headset())!;
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
@@ -100,7 +100,7 @@ void main() {
 
     test('closing the window ends its space', () async {
       final DVXRFakeDevice device = DV.Test.fakeXR(DVSpatialCapability.headset())!;
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
@@ -123,8 +123,8 @@ void main() {
 
     test('an immersive space belongs to the window that opened it, and closes with it', () async {
       final DVXRFakeDevice device = DV.Test.fakeXR(DVSpatialCapability.headset())!;
-      final DVWindow main = await DV.Platform.Window.open(const DVRouteTarget('/home'));
-      final DVWindow tour = await DV.Platform.Window.open(
+      final DVWindow main = await DV.Platform.window.open(const DVRouteTarget('/home'));
+      final DVWindow tour = await DV.Platform.window.open(
         const DVRouteTarget('/tour'),
         options: const DVWindowOptions(
           kind: DVWindowKind.immersive,
@@ -144,11 +144,11 @@ void main() {
 
     test('a second immersive space is a page with DV-WINDOW-015; the first is untouched', () async {
       final DVXRFakeDevice device = DV.Test.fakeXR(DVSpatialCapability.headset())!;
-      final DVWindow first = await DV.Platform.Window.open(
+      final DVWindow first = await DV.Platform.window.open(
         const DVRouteTarget('/tour'),
         options: const DVWindowOptions(kind: DVWindowKind.immersive),
       );
-      final DVWindow second = await DV.Platform.Window.open(
+      final DVWindow second = await DV.Platform.window.open(
         const DVRouteTarget('/other'),
         options: const DVWindowOptions(kind: DVWindowKind.immersive),
       );
@@ -161,7 +161,7 @@ void main() {
 
     test('the system ending the space closes the window', () async {
       final DVXRFakeDevice device = DV.Test.fakeXR(DVSpatialCapability.headset())!;
-      final DVWindow tour = await DV.Platform.Window.open(
+      final DVWindow tour = await DV.Platform.window.open(
         const DVRouteTarget('/tour'),
         options: const DVWindowOptions(kind: DVWindowKind.immersive),
       );
@@ -175,7 +175,7 @@ void main() {
       }
 
       expect(tour.lifecycle.value, DVWindowLifecycle.closed);
-      expect(DV.Platform.Window.all.value, isNot(contains(tour)));
+      expect(DV.Platform.window.all.value, isNot(contains(tour)));
       // Closing the window ends the space, which would close the window again:
       // it closes once.
       expect(seen, <DVWindowLifecycle>[DVWindowLifecycle.closing, DVWindowLifecycle.closed]);
@@ -183,7 +183,7 @@ void main() {
 
     test('a refused camera is a full space with DV-XR-001 on the session, not a silent swap', () async {
       DV.Test.fakeXR(DVSpatialCapability.headset(), grantCamera: false);
-      final DVWindow tour = await DV.Platform.Window.open(
+      final DVWindow tour = await DV.Platform.window.open(
         const DVRouteTarget('/tour'),
         options: const DVWindowOptions(
           kind: DVWindowKind.immersive,
@@ -214,7 +214,7 @@ void main() {
       DVNativeBridge.register('window.open', (Object? arguments) => 'w1');
       addTearDown(() => DVNativeBridge.unregister('window.open'));
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/orders'),
         options: const DVWindowOptions(display: DVDisplayHint.primary),
       );
@@ -227,7 +227,7 @@ void main() {
       DV.Test.fakeWindowing(const DVWindowingCapability(multiWindow: true, displayKiosk: true));
       DV.Test.fakeXR(DVSpatialCapability.headset());
 
-      final DVWindowingCapability cap = DV.Platform.Window.capability;
+      final DVWindowingCapability cap = DV.Platform.window.capability;
       expect(cap.spatial, isNotNull);
       expect(cap.displays, isFalse);
       expect(cap.displayKiosk, isFalse);
@@ -239,7 +239,7 @@ void main() {
     test('a reported capability with no bindings behind it is DV-XR-006, and still presents', () async {
       DVXR.install(capability: DVSpatialCapability.headset(), device: const DVXRBindingDevice());
 
-      final DVWindow window = await DV.Platform.Window.open(
+      final DVWindow window = await DV.Platform.window.open(
         const DVRouteTarget('/showroom'),
         options: const DVWindowOptions(kind: DVWindowKind.volume),
       );
@@ -251,7 +251,7 @@ void main() {
 
     test('refresh with no capability binding is not a headset', () async {
       expect(await DVXR.refresh(), isNull);
-      expect(DV.Platform.Window.capability.spatial, isNull);
+      expect(DV.Platform.window.capability.spatial, isNull);
     });
 
     test('refresh reads what the binding reports, and a garbled report is DV-XR-006', () async {

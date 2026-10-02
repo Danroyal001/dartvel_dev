@@ -643,7 +643,7 @@ class DVWindow {
 
 /// The window manager.
 ///
-/// `DV.Platform.Window` and its `DV.Window` alias resolve here. The
+/// `DV.Platform.window` and its `DV.Window` alias resolve here. The
 /// current-window members it already had — `setTitle`, `persistState`,
 /// `restoreState` — remain, now as sugar over [current].
 class DVWindowManager {
