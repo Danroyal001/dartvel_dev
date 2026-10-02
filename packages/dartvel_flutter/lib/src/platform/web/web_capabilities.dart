@@ -23,6 +23,13 @@ library dartvel_flutter.platform.web.capabilities;
 /// `DVNativeBridge.isRegistered` keeps telling the truth. Read
 /// [dvWebUnconditionalBindings] for the ones that need no probe.
 const Set<String> dvWebImplementedBindings = <String>{
+  // HTML drag and drop: drops read off DataTransfer (files, text/uri-list,
+  // text/plain), and drags out filled in dragstart from the payload a
+  // draggable widget set when it was pressed.
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.setPending',
+
   // Fullscreen, Keyboard Lock and Pointer Lock, each needing a user gesture
   // and reported refused, with the browser's reason, when it is absent.
   'kiosk.enforce',
@@ -146,6 +153,9 @@ const Set<String> dvWebImplementedBindings = <String>{
 /// which browser the runner installed. These are the ones any engine running
 /// Flutter web has, and a browser test may insist on them.
 const Set<String> dvWebUnconditionalBindings = <String>{
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.setPending',
   'screen.geometry',
   'window.setTitle',
   'install.prompt',
@@ -303,11 +313,9 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'dialogs.chooseDirectory': 'A directory handle is not a directory path, '
       'and the handle is meaningless to every other binding that takes one.',
 
-  'dragDrop.accept': 'A drop on a page carries File objects with names and '
-      'no paths, and DVDropEvent is a list of paths. Text drops would work '
-      'and file drops would arrive empty, which reads as a broken window '
-      'rather than as an unsupported one.',
-  'dragDrop.stop': 'Stops an acceptance this platform never starts.',
+  'dragDrop.startDrag': 'A page cannot start a drag from script: a browser '
+      'starts one only from a press on a draggable element, so the web takes '
+      'the payload ahead of the press through dragDrop.setPending instead.',
 
   'associations.register': 'A PWA declares its file handlers in the manifest '
       'at install time. There is no runtime call, so this could only edit a '
