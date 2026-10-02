@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVInstanceLock, DVSingleInstance;
+import 'package:dartvel_core/dartvel.dart' show DVSingleInstance;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/opened_files.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
@@ -122,7 +122,7 @@ void main() {
         lockPath: '${directory.path}/shop.lock',
         open: (String route) async => routes.add(route),
         poll: const Duration(milliseconds: 20),
-        acquire: (String path) => DVSingleInstance.acquire(path) as DVInstanceLock,
+        acquire: (String path) => DVSingleInstance.acquire(path),
       );
       addTearDown(launch.stop);
       await Future<void>.delayed(const Duration(milliseconds: 100));
