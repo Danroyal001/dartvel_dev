@@ -12,6 +12,9 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
     show DVInstanceLock, DVSingleInstance, dvHomeWidgetRouteForLink;
+import 'package:flutter/foundation.dart' show TargetPlatform;
+import 'package:flutter/widgets.dart'
+    show AppLifecycleListener, WidgetsFlutterBinding;
 
 import '../../dartvel_flutter.dart' show DVDeepLinks;
 
@@ -185,6 +188,37 @@ class DVAppLaunch {
     return route;
   }
 
+  /// Opens the launch link after the first frame, and on iOS every link
+  /// that arrives while the application runs.
+  ///
+  /// An app icon's quick action is a launch link like a widget's tap, and
+  /// it reaches a running application differently per platform. Android
+  /// starts a static shortcut with NEW_TASK | CLEAR_TASK, so the activity
+  /// is recreated and this runs again from the start. iOS hands it to the
+  /// running delegate, which stores it where the launch link is stored;
+  /// the binding reads it and clears it, so asking again whenever the
+  /// application comes back to the foreground opens it exactly once.
+  /// Android's intent is not consumed by reading it, so it is not asked
+  /// again: the same link would reopen its page on every resume.
+  static DVLaunchLinkFollower followLaunchLinks({
+    required Future<String?> Function() link,
+    required Future<void> Function(String route) open,
+    required TargetPlatform platform,
+    String filesRoute = '/open',
+  }) {
+    final DVLaunchLinkFollower follower = DVLaunchLinkFollower._();
+    WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
+      if (follower._disposed) return;
+      unawaited(openLaunchLink(link: link, open: open, filesRoute: filesRoute));
+    });
+    if (platform == TargetPlatform.iOS) {
+      follower._listener = AppLifecycleListener(
+        onResume: () => unawaited(openLaunchLink(link: link, open: open, filesRoute: filesRoute)),
+      );
+    }
+    return follower;
+  }
+
   /// The primary result per lock path in this process. A second start in
   /// the same process -- a test building the router twice, an app that
   /// rebuilds it -- is the same application, not a second launch, and gets
@@ -259,5 +293,20 @@ class DVAppLaunch {
     result._timer = Timer.periodic(poll, (_) => unawaited(drain()));
     unawaited(drain());
     return result;
+  }
+}
+
+/// What [DVAppLaunch.followLaunchLinks] set up, to stop it.
+class DVLaunchLinkFollower {
+  DVLaunchLinkFollower._();
+
+  AppLifecycleListener? _listener;
+  bool _disposed = false;
+
+  /// Stops following: nothing pending is opened and resumes are ignored.
+  void dispose() {
+    _disposed = true;
+    _listener?.dispose();
+    _listener = null;
   }
 }

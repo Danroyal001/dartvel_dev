@@ -79,7 +79,7 @@ void main() {
 
   test('a non-desktop launch reads the link before it gives up', () {
     final String body = launchBody();
-    final int mobile = body.indexOf('DVAppLaunch.openLaunchLink(');
+    final int mobile = body.indexOf('DVAppLaunch.followLaunchLinks(');
     final int desktopOnly = body.indexOf('if (!desktop)');
 
     expect(mobile, greaterThan(-1),
@@ -112,7 +112,7 @@ void main() {
     // Bounded at the desktop path, which is where the external window
     // belongs and where an unbounded slice would find one.
     final String branch = body.substring(
-      body.indexOf('DVAppLaunch.openLaunchLink('),
+      body.indexOf('DVAppLaunch.followLaunchLinks('),
       body.indexOf('DVAppLaunch.start('),
     );
 
@@ -124,6 +124,11 @@ void main() {
     // DV.Navigation throws when no router is attached, and this runs from the
     // router's own constructor -- before runApp, before the attach. Reaching
     // for it there would be a StateError on first launch on a phone.
-    expect(launchBody(), contains('addPostFrameCallback'));
+    // The wait for the first frame is inside DVAppLaunch.followLaunchLinks,
+    // tested by behaviour in dartvel_flutter's app_shortcut_launch_test (the
+    // cold link opens after the first frame). Here: the launch uses it, and
+    // hands it the platform so iOS also reads a quick action on resume.
+    expect(launchBody(), contains('DVAppLaunch.followLaunchLinks('));
+    expect(launchBody(), contains('platform: defaultTargetPlatform'));
   });
 }

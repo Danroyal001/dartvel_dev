@@ -940,13 +940,15 @@ ${_deviceProfileInstallSource(dv)}  if (kIsWeb) return;
     // and this runs from the router's constructor, before runApp. invoke
     // rather than require, because a platform with no binding for the name
     // must still start.
-    WidgetsFlutterBinding.ensureInitialized().addPostFrameCallback((_) {
-      unawaited(DVAppLaunch.openLaunchLink(
-        link: () => DVNativeBridge.invoke<String>('deepLinks.initial'),
-        open: (String route) async =>
-            DV.Navigation.navigate(DVRouteTarget(route)),
-      ));
-    });
+    //
+    // An app icon's quick action is the same link, and on iOS it can also
+    // arrive while the application runs, so it is read again on resume.
+    DVAppLaunch.followLaunchLinks(
+      link: () => DVNativeBridge.invoke<String>('deepLinks.initial'),
+      open: (String route) async =>
+          DV.Navigation.navigate(DVRouteTarget(route)),
+      platform: defaultTargetPlatform,
+    );
     return;
   }
   unawaited(DVAppLaunch.start(

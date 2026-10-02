@@ -72,6 +72,7 @@ Map<String, Object?> dvPwaManifest({
   String themeColor = '#000000',
   String? description,
   List<DVPwaIcon> icons = _defaultIcons,
+  List<Map<String, Object?>> shortcuts = const <Map<String, Object?>>[],
 }) =>
     <String, Object?>{
       'name': name,
@@ -84,6 +85,8 @@ Map<String, Object?> dvPwaManifest({
       'theme_color': themeColor,
       if (description != null) 'description': description,
       'icons': icons.map((DVPwaIcon icon) => icon.toJson()).toList(),
+      // What an installed app shows on its icon: dartvel.appShortcuts.
+      if (shortcuts.isNotEmpty) 'shortcuts': shortcuts,
     };
 
 /// Why a manifest would or would not be installable.

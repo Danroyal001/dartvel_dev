@@ -19,6 +19,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVDevClientManifest,
         DVModuleEnvironment,
         DVHomeWidgetSpec,
+        DVAppShortcut,
+        DVAppShortcutsConfig,
         DVBuildLifecycle,
         DVImageVariants,
         dvAndroidPermissionNames,
@@ -26,6 +28,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVDocsMount;
 
 import '../build/android_home_widget.dart';
+import '../build/app_shortcuts.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
@@ -1061,6 +1064,9 @@ class BuildCommand extends Command<void> {
       _writeAppleHomeWidgets(_projectRoot, platform);
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
+    // After the deep links: the quick-action handler stores its route where
+    // that capture does, and both are blocks in the same delegate.
+    if (platform == 'ios') _writeIosAppShortcuts(_projectRoot);
     if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -1074,6 +1080,7 @@ class BuildCommand extends Command<void> {
       _writeAndroidCaptureBridge(_projectRoot);
       _writeAndroidKioskFiles(_projectRoot);
       _writeAndroidHomeWidgets(_projectRoot);
+      _writeAndroidAppShortcuts(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
     // A development build pairs with `dartvel dev`: the tunnel,
@@ -1544,6 +1551,76 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
+    _writeLinuxAppShortcuts(root, bundle);
+  }
+
+  /// dartvel.appShortcuts as the desktop entry's actions. A separate step
+  /// over the entry the file-association writer produced, so the two
+  /// declarations stay in their own code.
+  void _writeLinuxAppShortcuts(String root, String bundle) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final String app = _packageName(root) ?? 'dartvel_app';
+    final File entry = File('$bundle/$app.desktop');
+    if (!entry.existsSync()) return;
+    final String before = entry.readAsStringSync();
+    final RegExpMatch? exec = RegExp(r'^Exec=(.*?)( %U)?$', multiLine: true).firstMatch(before);
+    if (exec == null) return;
+    final String after = dvDesktopShortcutActions(before, shortcuts, exec: exec.group(1)!);
+    if (after != before) entry.writeAsStringSync(after);
+    if (shortcuts.isNotEmpty) Logger.log('   App shortcuts: ${shortcuts.length} desktop action(s).');
+  }
+
+  /// `dartvel.appShortcuts`, its problems logged once per build step.
+  List<DVAppShortcut> _appShortcuts(String root) {
+    final DVAppShortcutsConfig config = dvAppShortcutsOf(_dartvelSection(root));
+    for (final String problem in config.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (config.shortcuts.isNotEmpty) {
+      final List<String> routes = _generatedRoutes(root);
+      if (routes.isNotEmpty) {
+        for (final String unknown in dvAppShortcutUnknownRoutes(config.shortcuts, routes)) {
+          Logger.log('⚠️  dartvel.appShortcuts: $unknown is not a page of this application.');
+        }
+      }
+    }
+    return config.shortcuts;
+  }
+
+  List<Map<String, Object?>> _pwaShortcuts(String root) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final String web = p.join(root, 'build', 'web');
+    return dvPwaShortcuts(shortcuts, iconSizes: <String, int>{
+      for (final DVAppShortcut shortcut in shortcuts)
+        if (shortcut.icon != null && dvPngSize(File(p.join(web, shortcut.icon!))) != null)
+          shortcut.icon!: dvPngSize(File(p.join(web, shortcut.icon!)))!,
+    });
+  }
+
+  void _writeAndroidAppShortcuts(String root) {
+    final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    final String text = manifest.existsSync() ? manifest.readAsStringSync() : '';
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final DVAppShortcutsWrite result =
+        dvWriteAndroidAppShortcuts(root, shortcuts, package: _androidPackage(root, text));
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (shortcuts.isNotEmpty && result.problems.isEmpty) {
+      Logger.log('   App shortcuts: ${shortcuts.length} on the launcher icon.');
+    }
+  }
+
+  void _writeIosAppShortcuts(String root) {
+    final List<DVAppShortcut> shortcuts = _appShortcuts(root);
+    final DVAppShortcutsWrite result =
+        dvWriteIosAppShortcuts(root, shortcuts, launchUrlKey: dvIosLaunchUrlKey);
+    for (final String problem in result.problems) {
+      Logger.log('⚠️  $problem');
+    }
+    if (shortcuts.isNotEmpty) {
+      Logger.log('   App shortcuts: ${shortcuts.length} Home Screen quick action(s).');
+    }
   }
 
   /// The manifest entries and the device-admin component a declared kiosk
@@ -2752,6 +2829,7 @@ class BuildCommand extends Command<void> {
         themeColor: '${settings['themeColor'] ?? '#000000'}',
         backgroundColor: '${settings['backgroundColor'] ?? '#FFFFFF'}',
         description: settings['description'] as String?,
+        shortcuts: _pwaShortcuts(root),
       ),
     );
 
