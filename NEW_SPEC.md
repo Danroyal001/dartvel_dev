@@ -463,6 +463,25 @@ the generator does not wrap that page with the default `DVPage` shell unless
 pages working, while Dartvel-authored pages should move scaffold properties to
 `@DVPage(...)` and return content only.
 
+### Selection, typing and the page's own keys
+
+Every page is selectable by default (`selectable: true`), scrolls from the
+keyboard, and answers a remote's D-pad. Three rules keep those from getting in
+the way:
+
+- **Typing keys belong to the text field.** While a text field has focus,
+  Space, Enter, the arrows, Home, End and the page keys are the field's: they
+  type, move the caret, and Enter submits the form. The page's keyboard
+  scrolling and D-pad handling stand aside.
+- **A sidebar is one column for selection.** Wrap a sidebar, rail or list pane
+  beside scrolling content in `DVSelectionColumn`. A drag across a line of the
+  content then selects that line; without it, Flutter's selection reaches a
+  lower sidebar item first and selects nothing. Text inside the column stays
+  selectable, and a drag from the column into the content selects both in
+  order. Studio's rail and panels use it.
+- **The selection area is rebuilt whole when the browser's own menu is
+  switched** (`DVBrowserMenu.nativeMenuOn`); the page keeps its state.
+
 ---
 
 # Routing
