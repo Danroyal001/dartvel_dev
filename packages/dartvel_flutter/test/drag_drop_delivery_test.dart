@@ -58,7 +58,7 @@ void main() {
     expect((accepted.single! as Map)['types'], <String>['files']);
 
     await const DVDragDrop().accept();
-    expect((accepted.last! as Map)['types'], <String>['files', 'text']);
+    expect((accepted.last! as Map)['types'], <String>['files', 'text', 'urls'], reason: 'links are a kind of their own now, taken by default like files and text');
   });
 
   test('after stop, a late drop reaches nobody', () async {
