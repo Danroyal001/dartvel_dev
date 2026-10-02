@@ -2068,6 +2068,16 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '    allowCredentials: true',
     '    methods: [GET, POST]',
   ],
+  'yaml-file-associations': <String>[
+    'fileAssociations:',
+    '  - mimeType: application/x-shop-order',
+    '    extensions: [order]',
+    '    description: Shop order',
+    '    icon: assets/order.png',
+    '    role: editor # the default; viewer for read-only',
+    '  - mimeType: application/pdf',
+    '    role: viewer',
+  ],
   'yaml-graphql': <String>[
     'api:',
     '  graphql:',

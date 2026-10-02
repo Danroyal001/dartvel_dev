@@ -523,17 +523,50 @@ bool dvAppleHasOwnDocumentTypes(String plist) =>
 
 // -- Web ----------------------------------------------------------------------
 
+/// Where a type's icon is published in a web build.
+const String dvWebFileTypeIconDirectory = 'icons/file-types';
+
+/// [mimeType] as a file-name-safe word, `application-x-shop-order`.
+String dvFileTypeSlug(String mimeType) => mimeType.replaceAll(RegExp(r'[^A-Za-z0-9.-]+'), '-');
+
+/// The extension of [path] with its dot, lower-case; empty when it has none.
+String _extensionOf(String path) {
+  final String last = path.replaceAll(r'\', '/').split('/').last;
+  final int dot = last.lastIndexOf('.');
+  return dot <= 0 ? '' : last.substring(dot).toLowerCase();
+}
+
+/// The name [association]'s icon is published under, or null when it has
+/// none: the type's slug with the icon's own extension.
+String? dvFileTypeIconName(DVFileAssociation association) {
+  final String? icon = association.icon;
+  return icon == null ? null : '${dvFileTypeSlug(association.mimeType)}${_extensionOf(icon)}';
+}
+
+String _imageType(String name) => switch (_extensionOf(name)) {
+      '.svg' => 'image/svg+xml',
+      '.ico' => 'image/x-icon',
+      '.webp' => 'image/webp',
+      '.jpg' || '.jpeg' => 'image/jpeg',
+      _ => 'image/png',
+    };
+
 /// The manifest's `file_handlers`: an installed PWA is offered to open these
-/// types, and the files arrive through `launchQueue`. Chromium matches by
-/// extension, so a type with none is accepted by MIME type alone.
+/// types, and the files arrive through `launchQueue`. One handler per type,
+/// so each can carry its own name and icon. Chromium matches by extension,
+/// so a type with none is accepted by MIME type alone.
 List<Map<String, Object?>> dvWebFileHandlers(List<DVFileAssociation> associations) => <Map<String, Object?>>[
-      if (associations.isNotEmpty)
+      for (final DVFileAssociation association in associations)
         <String, Object?>{
           'action': './',
+          if (association.description != null) 'name': association.description,
           'accept': <String, Object?>{
-            for (final DVFileAssociation association in associations)
-              association.mimeType: <String>[for (final String extension in association.extensions) '.$extension'],
+            association.mimeType: <String>[for (final String extension in association.extensions) '.$extension'],
           },
+          if (dvFileTypeIconName(association) case final String icon)
+            'icons': <Object?>[
+              <String, Object?>{'src': '$dvWebFileTypeIconDirectory/$icon', 'sizes': 'any', 'type': _imageType(icon)},
+            ],
         },
     ];
 

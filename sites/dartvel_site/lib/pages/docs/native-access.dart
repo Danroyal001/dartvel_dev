@@ -144,17 +144,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 'target only reads a file the developer owns, the build writes '
                 'a marked block it replaces on every build and removes when the '
                 'declaration goes away, and leaves everything outside it alone.'),
-            DocsShell(<String>[
-              'dartvel:',
-              '  fileAssociations:',
-              '    - mimeType: application/x-shop-order',
-              '      extensions: [order]',
-              '      description: Shop order',
-              '      icon: assets/order.png',
-              '      role: editor        # the default; viewer for read-only',
-              '    - mimeType: application/pdf',
-              '      role: viewer',
-            ]),
+            DocsYaml('yaml-file-associations'),
             DocsText('A project whose `dartvel:` names a Dart config file '
                 'declares the same thing as a field of its config class. The '
                 'class serialises to exactly the YAML object, with the same '
@@ -179,6 +169,10 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['Web tab, webOS, terminal', 'no system registration', 'picker'],
               ],
             ),
+            DocsText('A type\'s `icon` is used where the platform takes one '
+                'from a file: the installed web app\'s handler, the Linux '
+                'MIME-type icon, and Windows when it is an `.ico`. On Apple '
+                'platforms and Android a document shows the app\'s own icon.'),
             DocsText('On a desktop a file still also opens the `/open?path=` '
                 'route, as before. `dartvel.desktop.fileAssociations` still '
                 'works and warns that it has moved to `dartvel.fileAssociations`.'),
