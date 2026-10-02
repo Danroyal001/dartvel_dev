@@ -32,6 +32,7 @@ import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
 import '../build/apple_widget_reload.dart';
+import '../build/ios_drag_drop_bridge.dart';
 import '../build/apple_widget_target.dart';
 import '../build/deep_link_files.dart';
 import '../build/ios_deep_links.dart';
@@ -1062,6 +1063,9 @@ class BuildCommand extends Command<void> {
       _writeAppleHomeWidgets(_projectRoot, platform);
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
+    // Drag and drop: Swift compiled into Runner, since UIDropInteraction and
+    // UIDragInteraction report to a delegate object Dart cannot be.
+    if (platform == 'ios') _writeIosDragDrop(_projectRoot);
     if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -2023,6 +2027,19 @@ class BuildCommand extends Command<void> {
   /// needs is a separate bundle -- its own sources, Info.plist and
   /// entitlements -- and a target in the Xcode project to build it, none of
   /// which can be added while the application is running.
+  /// The drag and drop bridge, into Runner and its Sources phase.
+  void _writeIosDragDrop(String root) {
+    final File project =
+        File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) return;
+    final File bridge = File(p.join(root, 'ios', 'Runner', dvIosDragDropFileName));
+    bridge.parent.createSync(recursive: true);
+    bridge.writeAsStringSync(dvIosDragDropSource());
+    final String before = project.readAsStringSync();
+    final String after = dvIosPbxprojWithDragDrop(before);
+    if (after != before) project.writeAsStringSync(after);
+  }
+
   void _writeAppleHomeWidgets(String root, String platform) {
     final List<DVHomeWidgetSpec> widgets = ClientGenerator.homeWidgetsIn(root);
     final File project = File(p.join(

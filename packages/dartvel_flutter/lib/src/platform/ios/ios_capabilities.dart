@@ -20,6 +20,14 @@ library dartvel_flutter.platform.ios.capabilities;
 ///   * **Window controls** do not exist: an iOS app does not own a resizable
 ///     window.
 const Set<String> dvIosImplementedBindings = <String>{
+  // Drag and drop through the DartvelDragDrop Swift class the build compiles
+  // into Runner: UIDropInteraction for drops, UIDragInteraction for drags
+  // out. UIKit starts a drag from its own long press, so a draggable widget
+  // sets the payload ahead of it (setPending) rather than starting one.
+  'dragDrop.accept',
+  'dragDrop.stop',
+  'dragDrop.setPending',
+
   // UIPasteboard through the Objective-C runtime.
   'clipboard.copy',
   'clipboard.paste',

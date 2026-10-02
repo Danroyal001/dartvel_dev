@@ -20,6 +20,7 @@ import 'dart:io' show File;
 import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:dartvel_core/dartvel.dart' show dvAndroidDragDropClass;
 import 'package:jni/jni.dart';
 
 import '../drag_drop.dart';
@@ -29,7 +30,7 @@ import 'android_kiosk_jni.dart' show DVAndroidActivities;
 class DVAndroidDragDrop {
   const DVAndroidDragDrop._();
 
-  static const String bridgeClass = 'dev/dartvel/jni/DartvelDragDrop';
+  static const String bridgeClass = dvAndroidDragDropClass;
 
   static const Set<String> implemented = <String>{
     'dragDrop.accept',
