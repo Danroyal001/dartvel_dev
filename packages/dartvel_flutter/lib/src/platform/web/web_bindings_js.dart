@@ -40,6 +40,7 @@ import 'web_bluetooth_js.dart';
 import 'web_capabilities.dart';
 import 'web_contacts_js.dart';
 import 'web_device_js.dart';
+import 'web_drag_drop_js.dart';
 import 'web_files_js.dart';
 import 'web_interop.dart';
 import 'web_kiosk_js.dart';
@@ -390,6 +391,7 @@ class DVWebBindings {
 
     if (DVWebPermissions.available) DVWebPermissions.register(register);
     if (DVWebFiles.available) DVWebFiles.register(register);
+    DVWebDragDrop.register(register);
     if (DVWebMedia.cameraAvailable) DVWebMedia.registerCamera(register);
     if (DVWebContacts.available) DVWebContacts.register(register);
     if (DVWebNfc.available) DVWebNfc.register(register);

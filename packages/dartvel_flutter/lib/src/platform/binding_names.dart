@@ -136,9 +136,14 @@ const Set<String> dvNativeBindingNames = <String>{
   'dialogs.message',
 
   // Drag and drop: the window takes drops of the kinds it says it takes,
-  // and each one arrives as what was dropped and where.
+  // and each one arrives as what was dropped and where. A drag out either
+  // starts from Dart (startDrag) or, where the platform starts it from the
+  // pointer itself, is told its payload when the pointer goes down
+  // (setPending).
   'dragDrop.accept',
   'dragDrop.stop',
+  'dragDrop.startDrag',
+  'dragDrop.setPending',
 
   // File associations: what this application opens, registered with the
   // desktop for the user running it rather than by an installer.
