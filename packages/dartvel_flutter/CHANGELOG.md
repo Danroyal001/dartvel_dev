@@ -1,4 +1,27 @@
-## Unreleased
+## 0.10.0 — 2026-10-02
+
+- **Typing keys reach text fields on every Dartvel page.** Space, Enter, the
+  arrow keys, Home and End were taken by the page's own shortcuts before a
+  focused field saw them, so Enter never submitted a form (Studio's sign-in
+  included) and a space could not be typed. A focused editable field now gets
+  them first.
+- **`DVSelectionColumn`** makes a sidebar one selection column, so a drag
+  across a line beside a tall scrolling area selects that line instead of
+  nothing. Studio's rail, Pages list and Components panel use it.
+- **`DVBrowserMenu.nativeMenuOn`** reports when the browser's own context menu
+  is switched on or off, and `DVPageShell` rebuilds its selection area whole
+  when it changes. Before, a release build could crash on the next screen
+  switch with two selection containers registered.
+- A narrow table's sideways scrollbar has its own controller instead of
+  failing an assertion.
+- **`DV.Platform` members are all lowerCamel**, like the rest of `DV.*`:
+  `window`, `tray`, `menus`, `shortcuts`, `printing`, `dialogs`, `dragDrop`,
+  `fileStorage`, `camera`, `media`, `location`, `bluetooth`, `nfc`,
+  `clipboard`, `share`, `sensors`, `biometrics`, `deepLinks`, `haptics`,
+  `contacts`. The capitalised names (`Window`, `Camera`, `DeepLinking`, ...)
+  still compile as `@Deprecated` aliases for one release. `Notifications`
+  (the notifications service) and `notifications` (device-local
+  notifications) are two different members and both stay.
 
 - Link previews close on outside touch/scroll and Back, and respect `preview:
   .none` on a long press. `DVLinkPreview.widget(child)` supplies an interactive
