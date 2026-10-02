@@ -463,6 +463,25 @@ the generator does not wrap that page with the default `DVPage` shell unless
 pages working, while Dartvel-authored pages should move scaffold properties to
 `@DVPage(...)` and return content only.
 
+### Selection, typing and the page's own keys
+
+Every page is selectable by default (`selectable: true`), scrolls from the
+keyboard, and answers a remote's D-pad. Three rules keep those from getting in
+the way:
+
+- **Typing keys belong to the text field.** While a text field has focus,
+  Space, Enter, the arrows, Home, End and the page keys are the field's: they
+  type, move the caret, and Enter submits the form. The page's keyboard
+  scrolling and D-pad handling stand aside.
+- **A sidebar is one column for selection.** Wrap a sidebar, rail or list pane
+  beside scrolling content in `DVSelectionColumn`. A drag across a line of the
+  content then selects that line; without it, Flutter's selection reaches a
+  lower sidebar item first and selects nothing. Text inside the column stays
+  selectable, and a drag from the column into the content selects both in
+  order. Studio's rail and panels use it.
+- **The selection area is rebuilt whole when the browser's own menu is
+  switched** (`DVBrowserMenu.nativeMenuOn`); the page keeps its state.
+
 ---
 
 # Routing
@@ -1205,6 +1224,43 @@ has since been taken by a live record, because the alternative is two rows
 claiming one invoice number (`DV-HISTORY-006`).
 
 ## Studio
+
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
+### It is part of the app, and it is reachable
+
+Studio's screens are routes of the application, rendered by the same
+`dvRenderRoutePage` as every public page, not a second Flutter application
+beside it. `<mount>` is Pages, `<mount>/<screen>` is that screen and
+`<mount>/<screen>/<object>` opens one thing inside it, so a screen can be
+linked, bookmarked and reloaded. Each is also served as a document built from
+the same data Studio's API reads, which is what a crawler, a printer and the
+browser's own Ctrl+F read.
+
+Every control in Studio is drawn from one of three widgets —
+`DVStudioIconButton`, `DVStudioControl`, `DVStudioSwitch` — so the whole of it
+answers the keyboard: each takes the focus, answers Enter *and* Space (the web
+binds Enter to `ButtonActivateIntent` and every other platform to
+`ActivateIntent`, so a control answering only one does nothing on the other),
+declares its role and its name to a screen reader, and draws its own focus
+ring. A control with nothing to do says so and is not a focus stop.
+
+The sign-in page follows that contract too: its email and password fields
+have accessible labels, Tab from the password reaches Sign in, and Enter
+activates the focused action or submits the password field. Signing in
+returns to the guarded deep link only after the server admits the account.
+
+Data, Site map and Team also answer the readable `/data`, `/sitemap` and
+`/team` paths beneath the configured mount. Existing `/models`, `/routes` and
+`/access` addresses remain valid. A data record opens at
+`<mount>/data/<model>/<record>`; selecting, saving and closing its form updates
+the address. A missing model or record must not silently open another object.
+
+### Undo over page documents
 
 Studio's undo over page documents and this are the same mechanism seen twice:
 a versioned record with entries that can be reverted in a reversible
@@ -2491,7 +2547,7 @@ Provides:
 - Safe areas (DV.Platform.screen.safeAreaBounds)
 - Breakpoints (DV.Platform.screen.breakPoints)
 - Orientation (DV.Platform.deviceOrientation)
-- Window (DV.Platform.Window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
+- Window (DV.Platform.window) - Window bounds, properties and functionalities for the app/site. Web uses browser APIs; native platforms use generated FFI/JNI bindings where supported.
 - Device type (DV.Platform.type, a string: `phone`, `tablet`, `foldable`, `desktop`, `tv`, `watch` or `web`. Laptop, embedded display and watch-shape kinds are designed)
 - Screen shape (DV.Platform.screen.shape, `DVScreenShape`: square, verticalRectangle, horizontalRectangle, round, custom)
 - Full-screen and kiosk display control:
@@ -2529,19 +2585,19 @@ Native APIs, including:
   - `context.screen.folds` lists each fold or hinge as a `DVFold` (bounds in window coordinates, `isVertical`, `occludes`, `state`), read from the display features Flutter reports, and rebuilds the widget when the device folds. `context.screen.isSpanned` and `context.screen.posture` (`flat`, `book`, `tabletop`) are read from the first fold. `DVBox.twoPane` lays one pane each side of it and never in a hinge that covers pixels.
   - Android foldables report their folds through Flutter today. Apple's iPhone Duo (iOS 27.1) exposes its fold as `UIView.reservedRegions(kind: .division)` and its hinge through `onHingeChange`; Dartvel binds those through FFI, never a platform channel, into the same display features, so an app written against `context.screen.folds` needs no change for it.
 - Native APIs, Expo-style. (DV.Platform.*)
-- Camera (DV.Platform.Camera)
-- Media and Files (DV.Platform.FileStorage, proxy to DV.FileStorage)
-- Location (DV.Platform.Location and DV.Location proxy)
-- Bluetooth (DV.Platform.Bluetooth and DV.Bluetooth proxy)
-- NFC (DV.Platform.NFC and DV.NFC proxy)
-- Clipboard (DV.Platform.Clipboard, and DV.Clipboard proxy)
-- Share (DV.Platform.Share or DV.Share proxy)
-- Notifications (DV.Platform.Notifications and DV.Notifications proxy)
-- Sensors (DV.Platform.Sensors and DV.Sensors proxy)
-- Biometrics (DV.Platform.Biometrics and DV.Biometrics proxy)
-- Deep Links (DV.Platform.DeepLinking and DV.DeepLinking proxy)
-- Haptics (DV.Platform.Haptics and DV.Haptics proxy)
-- Contacts (DV.Platform.Contacts and DV.Contacts proxy)
+- Camera (`DV.Platform.camera` - deprecated alias `DV.Platform.camera`)
+- Media and Files (DV.Platform.fileStorage, proxy to DV.FileStorage)
+- Location (`DV.Platform.location`, deprecated alias `DV.Platform.location`, and `DV.Location` proxy)
+- Bluetooth (`DV.Platform.bluetooth`, deprecated alias `DV.Platform.bluetooth`, and `DV.Bluetooth` proxy)
+- NFC (`DV.Platform.nfc`, deprecated alias `DV.Platform.nfc`, and `DV.NFC` proxy)
+- Clipboard (`DV.Platform.clipboard`, deprecated alias `DV.Platform.clipboard`, and `DV.Clipboard` proxy)
+- Share (`DV.Platform.share`, deprecated alias `DV.Platform.share`, or `DV.Share` proxy)
+- Notifications (`DV.Platform.notifications` / `DV.Notifications` proxy) - device-local notifications; mail is `DV.Notifications.mail`
+- Sensors (`DV.Platform.sensors`, deprecated alias `DV.Platform.sensors`, and `DV.Sensors` proxy)
+- Biometrics (`DV.Platform.biometrics`, deprecated alias `DV.Platform.biometrics`, and `DV.Biometrics` proxy)
+- Deep Links (`DV.Platform.deepLinks`, deprecated alias `DV.Platform.deepLinks`, and `DV.DeepLinks` proxy)
+- Haptics (`DV.Platform.haptics`, deprecated alias `DV.Platform.haptics`, and `DV.Haptics` proxy)
+- Contacts (`DV.Platform.contacts`, deprecated alias `DV.Platform.contacts`, and `DV.Contacts` proxy)
 - Browser extension detection:
   - `DV.Platform.isChromiumExtension`
   - `DV.Platform.isFirefoxExtension`
@@ -3892,11 +3948,11 @@ The unglamorous half, which is the half applications are judged on:
 ## Capture
 
 ```dart
-final recording = await DV.Platform.Media.recordAudio(
+final recording = await DV.Platform.media.recordAudio(
   format: DVAudioFormat.aac,
   maxDuration: Duration(minutes: 5),
 );
-final clip = await DV.Platform.Media.recordVideo(quality: DVVideoQuality.hd720);
+final clip = await DV.Platform.media.recordVideo(quality: DVVideoQuality.hd720);
 ```
 
 Capture is a platform capability behind generated bindings like every other —
@@ -3947,7 +4003,7 @@ vendor's player integration has not been verified against, and until
   platform and the provider supply; Media Pipeline does what processing there
   is, and it says where that stops.
 - **A second player namespace.** `DVBox.video` / `DVBox.audio` and
-  `DV.Platform.Media`; no `DV.Player`, no `DV.Video`.
+  `DV.Platform.media`; no `DV.Player`, no `DV.Video`.
 - **Editing.** Trimming, filters and composition are an application concern
   built on capture output, not a framework surface.
 
@@ -6943,18 +6999,18 @@ Desktop:
 Desktop APIs live under `DV.Platform.*` and generated app services:
 
 ```dart
-await DV.Platform.Window.setTitle('Dartvel Admin');
-await DV.Platform.Window.persistState('main');
-await DV.Platform.Window.restoreState('main');
-await DV.Platform.Tray.show(icon: DVAsset.tray); // a generated asset, never a path string
-await DV.Platform.Tray.show(
+await DV.Platform.window.setTitle('Dartvel Admin');
+await DV.Platform.window.persistState('main');
+await DV.Platform.window.restoreState('main');
+await DV.Platform.tray.show(icon: DVAsset.tray); // a generated asset, never a path string
+await DV.Platform.tray.show(
   icon: DVAsset.tray,
   tooltip: 'Dartvel',
   menu: const <DVTrayMenuItem>[
     DVTrayMenuItem(id: 'open', label: 'Open'),
   ],
 );
-await DV.Platform.Menus.setApplicationMenu(
+await DV.Platform.menus.setApplicationMenu(
   const DVApplicationMenu(<DVMenuItem>[
     DVMenuItem(
       id: 'file',
@@ -6965,7 +7021,7 @@ await DV.Platform.Menus.setApplicationMenu(
     ),
   ]),
 );
-await DV.Platform.Shortcuts.register(
+await DV.Platform.shortcuts.register(
   const DVGlobalShortcut(id: 'quick-open', accelerator: 'Ctrl+K'),
 );
 ```
@@ -8604,7 +8660,7 @@ view state and do not create a second window.
 
 ## Surface
 
-`DV.Platform.Window` grows from "the current window" into the window manager,
+`DV.Platform.window` grows from "the current window" into the window manager,
 with `DV.Window` as its alias per the established proxy pattern. There is one
 namespace; the existing `setTitle` / `persistState` / `restoreState` members
 read as sugar over `DV.Window.current` and remain valid.
@@ -9036,7 +9092,7 @@ first thing a workspace's shared store could not represent, and a per-window
 tenant would be a data-isolation hole with a friendly name.
 
 **Shortcuts** are focus-scoped by default: a page's shortcuts fire only when
-its window is `active`. `DV.Platform.Shortcuts.register` (global shortcuts)
+its window is `active`. `DV.Platform.shortcuts.register` (global shortcuts)
 stays global and fires regardless of focus, as its name says.
 
 **Accessibility**: each real window is its own semantics tree and announces
@@ -9193,7 +9249,7 @@ and owned windows outliving the frame budget on close.
 
 ## Compatibility
 
-`DV.Platform.Window.setTitle` / `persistState` / `restoreState` continue to
+`DV.Platform.window.setTitle` / `persistState` / `restoreState` continue to
 work as sugar over `DV.Window.current`. No existing surface is removed, so no
 project has to move. `dartvel migrate-code` exists and deliberately does not
 carry a rewrite to the explicit form: `DVWindow` has `setTitle` but no
@@ -9205,7 +9261,7 @@ that does not compile. See *Upgrade and compatibility*.
 
 Closed as a list so they are not reopened item by item:
 
-- **A second windowing namespace.** `DV.Window` (= `DV.Platform.Window`) is
+- **A second windowing namespace.** `DV.Window` (= `DV.Platform.window`) is
   the whole surface. No `DVWindowManager`, no `DV.Windows`, no `DVWindowing` —
   not as a public type, not as a documented name, ever. Anything the
   implementation needs beyond `DV.Window` and `DVWindow` is private.
@@ -11306,6 +11362,251 @@ Rust behind it yet, and no float, string or struct type.
 
 ---
 
+
+# Server State (`initServerState`)
+
+Stability: `Draft` · Status: `Planned` (accepted 2 October 2026)
+
+A widget can name a backend function that produces its data. The function always runs on the server,
+never in the browser or on the device. Its result is typed, reaches the widget through `DVContext`, and
+is part of the first frame wherever the target renders on the server.
+
+## Declaring it
+
+`initServerState:` takes the **generated client function** of an `@DVBackendFunction` (`getDashboard`,
+not the private `_getDashboard` you write). That generated function is what every target calls. The
+backend function behind it is the single implementation; nothing generates a second one.
+
+```dart
+@DVBackendFunction(policy: 'dashboard.view')
+Future<DashboardState> _getDashboard(DVContext context) async => DashboardState(
+      openWorkOrders: await WorkOrder.where((order) => order.isOpen).count(),
+      dueThisWeek: await Asset.dueWithin(const Duration(days: 7)), // a list of DVModels
+      overdueTotal: await Order.where((order) => order.isOverdue).sum((order) => order.cost),
+    );
+
+@DVPage('/dashboard')
+@DVFunctionalWidget(initServerState: getDashboard) // the generated client function
+Widget _dashboard(BuildContext context) {
+  final DashboardState state = context.serverState; // typed as DashboardState
+  return DVBox.list([
+    DVText('Open work orders: ${state.openWorkOrders}'),
+    for (final Asset asset in state.dueThisWeek) AssetRow(asset),
+  ]);
+}
+```
+
+The class form, which the annotation expands to:
+
+```dart
+class DashboardPage extends DVClassWidget<DashboardState> {
+  const DashboardPage({super.key});
+
+  // DVContext is injected on the server, so the client call takes only the function's own
+  // arguments (route params and query are passed through automatically).
+  @override
+  Future<DashboardState> initServerState() => getDashboard();
+
+  @override
+  Widget build(BuildContext context) {
+    final DashboardState state = context.dvContext.getServerState();
+    ...
+  }
+}
+```
+
+### Reading and refreshing
+
+| Full form | Shorthand on `BuildContext` |
+|---|---|
+| `context.dvContext.getServerState()` | `context.serverState` |
+| `context.dvContext.refreshServerState()` | `context.refreshServerState()` |
+
+- **Typed in both forms.** For a functional widget, the generator emits a typed `DVContext` view for that
+  widget. Both forms then return the named backend function's type, the same type a class widget
+  declares with `DVClassWidget<T>`. A mismatch is a build error.
+- **When it runs again:**
+  - when the route's params or query change;
+  - when it is refreshed;
+  - when its cache expires.
+  It never runs again just because the widget rebuilds.
+
+### Generation order: a dependency graph
+
+A widget annotation refers to a client function that is itself generated from another annotation.
+So the generator builds a dependency graph of everything it generates, and emits in that order, the
+way Terraform resolves resources:
+- models;
+- backend functions, then their generated client functions;
+- then the widgets and pages that use them;
+- then the routes.
+
+The rules:
+- **References resolve whatever the file order:** a widget may refer to a client function declared in
+  any file, before or after it.
+- **A cycle fails the build** with `DV-GEN-CYCLE`, naming every step of the cycle. One example is a
+  backend function that needs a widget's generated type.
+- **Unchanged parts aren't regenerated:** the graph is cached, so only the changed part of it is
+  regenerated in `dartvel dev`.
+
+## One code path
+
+The named backend function's generated handler is the only server code. Each target reaches that
+same handler:
+
+| Target | How the handler is reached | Result |
+|---|---|---|
+| web-server | Called in-process by the render, through the same handler the HTTP route uses (no HTTP hop) | The HTML has the data on the first frame. The state is embedded as data, so Flutter takes over without calling again. |
+| web (static) | Called on the build machine for each path in `staticPaths` | Prerendered HTML with the data. A refresh calls the HTTP route. |
+| iOS, Android, desktop, web after takeover | The generated client function (`getDashboard()`), which calls the HTTP route | `.loading`, then the widget. The state is cached for back/forward. |
+| No server reachable | Nothing runs | The last state, marked stale, or the widget's `.offline` companion (`.error` if it has none). |
+
+Because the handler already exists as a backend function, these come with it, with no new mechanism:
+- policies, MFA, rate limits, CSRF (for the HTTP route), logging and tracing;
+- the AI-tool exposure;
+- tests.
+
+On every target, the function body and anything only it imports stay out of client bundles. The
+build fails with `DV-SERVER-STATE-001` naming the symbol if one leaks.
+
+## Database access in the function
+
+- **Model queries work on every driver.** Use them by default (`where`, `count`, `sum`, ...): they
+  compile to SQL on a SQL driver and to a filter document on MongoDB.
+- **Raw queries are driver-specific.** `DV.Database.query(sql)` and `execute(sql)` exist only when the
+  project's driver is SQL (SQLite, PostgreSQL, MySQL):
+  ```dart
+  // Only on a SQL driver:
+  final rows = await DV.Database.query('select sum(cost) as total from orders where overdue');
+  ```
+  On a MongoDB project, the SQL methods are not there at all, and calling them is a build error that
+  names the driver. MongoDB gets its own native query API instead.
+
+## What it can return
+
+- **Data:** anything a backend function can return:
+  - `DVModel`s and lists of `DVModel`s, which serialise across every target;
+  - records, maps, lists and primitives;
+  - `DateTime`, `Money` and enums.
+- **UI, built from Dartvel UI primitives only** (`DVBox`, `DVText`, `DVImageView`, `DVButton`,
+  `DVForm`, ... and components made from them):
+  ```dart
+  @DVBackendFunction()
+  Future<DVBox> _getPromoBanner(DVContext context) async => DVBox.list([
+        DVText(await Promo.current().headline()),
+        DVButton('See offers', to: '/offers'),
+      ]);
+  ```
+  - The returned tree is described in Dartvel's own UI format.
+  - It renders as server HTML on web-server, and as native Flutter widgets everywhere else.
+  - Those primitives are designed to work on every target, which is why arbitrary Flutter widgets
+    can't be returned: a build error names the widget that isn't a Dartvel primitive.
+  - Actions in returned UI, such as navigation, forms and backend calls, use the same primitives as
+    hand-written UI. So they go through policies and CSRF like any other call.
+- **A model directly,** for example `initServerState: getOrder` (generated from `_getOrder`)
+  returning `Order`.
+- **Anything that can't cross** fails the build, naming the field.
+
+## Security
+
+- **The function body is server code.** It may use secrets (`DV.Secrets`), raw database calls,
+  sensitive actions, other backend functions and admin-only queries. None of it reaches the client.
+- **What reaches the client is only the returned state.** The build flags (and `dartvel doctor`
+  reports) a returned value that carries:
+  - a field marked `@DVModel.sensitiveField()`;
+  - a value read from `DV.Secrets`.
+  You fix it by not returning it, or with an explicit, documented
+  `@DVSendsToClient(reason: '...')` on the field.
+- **The function's policy is checked before it runs,** on every path, including the in-process
+  web-server call.
+
+## Caching
+
+`@DVBackendFunction(cache: ...)` on the function itself, so the HTTP route and the in-process call share
+one cache:
+- `perRequest`;
+- `forDuration(Duration)`;
+- `tags([...])`, invalidated by model writes (`Order.saved` invalidates `'orders'`) or by
+  `DV.cache.invalidate('orders')`.
+
+## Loading, errors, offline
+
+These reuse the page companions `.loading`, `.error` and the new `.offline`. On web-server, a server
+error renders `.error` as HTML.
+
+## Works without JavaScript
+
+On web-server, every page using server state is complete with scripts off. That includes `DVForm`, and
+everything built on it (`Model.Form`, generated create/edit pages, Studio forms, sign-in):
+
+Today (checked 2 October 2026) the server-rendered HTML has no `<form>`, `<input>` or `<button>`: a
+`DVForm` reaches a no-script browser as text only. This section is new work, not a description.
+- **It renders as a normal, working HTML form:** real `<form method="post">`, `<label>`, `<input>`
+  and `<button type="submit">`, with a CSRF field.
+- **It posts to the form's backend function.** That function validates on the server and answers
+  with the next page, or with the same form showing its errors and the user's values filled back in.
+- **When Flutter takes over,** the same form keeps the user's input and focus.
+
+## Testing and Studio
+
+- **Tests:**
+  - `DVTest.pumpWidget(DashboardPage, serverState: fakeState)`;
+  - the function itself is tested like any backend function;
+  - a no-script test submits each `DVForm` as plain HTML.
+- **Studio:**
+  - the inspector shows a widget's server state, the function behind it, and a refresh button;
+  - a page built in Studio can bind to any existing backend function's generated client function as its
+    server state, without code.
+
+## `loadData` is deprecated now
+
+`DartvelPage.loadData()` is untyped, runs on the client, and the static generator skips it for
+functional widgets.
+- It is **deprecated as of the release that ships server state**.
+- From that release, `dartvel doctor` and the build warn on every use, naming the file and showing
+  the `initServerState` version.
+- It is removed in the next release.
+
+## Definition of done
+
+1. **One code path.** The web-server render calls the same handler as the HTTP route. There is a test
+   that fails if a second implementation appears.
+2. **The dependency graph:**
+   - generation follows the graph;
+   - out-of-order references work;
+   - a cycle fails with `DV-GEN-CYCLE` naming its steps.
+3. **Typed state.** Both forms are typed through `context.dvContext.getServerState()` and
+   `context.serverState`, and a type mismatch fails the build.
+4. **Every target.** Web-server HTML has the data with JS off, and every `DVForm` submits and shows
+   errors without JS. Static web, Android, iOS and desktop work, and the offline behaviour is as
+   described.
+5. **Returned UI** from Dartvel primitives renders on every target, and anything else fails the build.
+6. **Builds and the database:**
+   - there is no server code in any client bundle (the build check);
+   - returning sensitive data is flagged;
+   - raw SQL is a build error on a non-SQL driver.
+7. **`loadData` is deprecated** with warnings.
+8. **Docs and output:** README, NEW_SPEC and the site docs are updated in the same PR, and dartvel.dev's
+   output is diffed before and after.
+
+## Compared with others (checked 2 October 2026; recheck before publishing)
+
+- **Expo Router server components:**
+  - run on iOS, Android and web, as an early preview;
+  - Expo's docs say production deployment is "limited and not recommended yet" and "Server rendering
+    RSC payloads to HTML is not supported yet";
+  - EAS Update doesn't work with them yet;
+  - offline works only for build-time routes.
+  https://docs.expo.dev/guides/server-components/
+- **Flutter server-driven UI packages** (rfw, Stac, Duit) send UI descriptions in their own formats.
+  Server state sends typed data, or UI made of Dartvel's own primitives, to ordinary Dart widgets.
+- **What we can claim once built:**
+  - typed server data, or server-built UI, for Flutter apps in one language, reusing backend
+    functions;
+  - HTML from the first frame on web-server, including forms that work without JavaScript;
+  - the same widget on desktop.
+
+---
 
 # Home Widgets
 
@@ -14657,6 +14958,78 @@ be out of date with the code, so what it can be is pointed at something gone.
   description is its doc comment, read from the source.
 
 ---
+
+# Roadmap
+
+Accepted 1 October 2026, after comparing Dartvel with Expo SDK 58, Next.js 16.3, Qt 6.11, Flutter Agent Kit
+and ApparenceKit. Each item becomes, or extends, a section of this specification and lands as its own pull
+request; the section it lands in carries the usual Stability and Status labels, and this list says only what
+was decided and in what order. Nothing here is claimed as shipped until its section says so.
+
+Every item is framework-level, generic for every Dartvel project, and must pass the Definition of done in
+~/agent-context/AGENTS.md (one render path, own URLs, keyboard and screen-reader accessible, checked in a
+real browser on a web-server build, diffed against live, README + NEW_SPEC + site docs + CHANGELOG in the
+same PR, no over-claiming). Background: ~/dartvel-proposals/2026-10-01-competitive-proposal.md.
+
+## Track A: agents and docs (beats Flutter Agent Kit, matches Expo/Next.js agent tooling)
+1. `dartvel create`/`init` set up every major agent: AGENTS.md, CLAUDE.md, GEMINI.md, .cursor/rules,
+   .github/copilot-instructions.md, .devin, OpenCode and ChatGPT/Codex config, all pointing at one source.
+   `dartvel dev` keeps a version-matched block updated, pointing at the docs bundled with the installed
+   Dartvel version (like Next.js 16.3).
+2. Opinionated architecture docs written into every project: initialisation, data, HTTP, UI, naming,
+   setup, Git, process (plus Dartvel-specific: models, backend functions, Studio, modules).
+3. Skills (SKILL.md) shipped inside each module and collected by `dartvel agent skills sync`: auth,
+   routing (the 5 router integrations), local and cloud data, payments, ads, push, AI chat, analytics,
+   translations, crash reporting, structured reporting and logging, maps, camera, onboarding, offline,
+   Studio.
+4. `dartvel agent status|dev|smoke|screenshot|logs` on top of `dartvel mcp`.
+5. Much more complete llms.txt / llms-full.txt for web builds (every page, model, API and doc section).
+
+## Track B: speed and navigation (Next.js parity)
+1. Build cache for every platform target (web, web-server, Android, iOS, desktop): repeat builds reuse
+   unchanged artifacts; target dartvel.dev repeat web-server build under 3 minutes. CI cache recipes
+   (GitHub Actions, GitLab, Codemagic) written by `dartvel create`.
+2. Render on first request, then cache (ISR with an instant shell) for web-server builds.
+3. Instant navigation tooling: `dartvel dev` insights that flag navigations blocking on the network,
+   a navigation inspector that pauses at the loading shell, and `DVTest.instant()` that fails a test
+   when a navigation stops being instant.
+4. Device dashboard: `dartvel dev` + Flutter DevTools and the inspector, wired together: running
+   simulators/emulators/Preview devices with live screen, CPU, memory, network.
+
+## Track C: native reach
+1. App Intents (iOS: Siri, Shortcuts, Spotlight, Apple Intelligence) and Android App Functions /
+   Jetpack Compose surfaces, generated from `@DVAITool` on functions. No separate DVAppIntents API
+   (owner, 2026-10-01). Backend functions turn it on in their own declaration, e.g.
+   `@DVBackendFunction(aiTool: ...)`, instead of being annotated twice; `@DVAITool` stays for other
+   functions. One declaration feeds the AI tool registry, MCP, App Intents, App Functions and
+   WebMCP: web builds (static and web-server) automatically expose the same tools to in-browser
+   agents through WebMCP (`navigator.modelContext` tool registration), with the tool's policy and
+   auth enforced exactly as for the backend call. No extra annotation.
+2. `@DVHomeWidget.liveNotification` (not "Live Activity": avoid Apple's term): Live Activities and
+   Dynamic Island on iOS, and live-activity-style ongoing notifications on Android (Material look) and
+   the equivalent on desktop and web, each in the platform's own look.
+3. Platform views plus `DVPreferredRenderingMode` on DVBox/DVText and other primitives:
+   `.preferPlatformNative`, `.auto` (framework picks per area/use case), `.default` (Flutter-rendered).
+4. Finish Home Widgets (iOS WidgetKit, Android App Widgets).
+
+## Track D: ecosystem and adapters
+1. `dartvel add <package>`: the Dartvel ecosystem command (modules, plus wrapping pub.dev and native
+   packages through the module system).
+2. Hosting adapters around the one binary: `.htaccess`/PHP shim so cPanel/shared hosts (e.g. Namecheap)
+   route to the binary or static output, plus adapters for common hosts; docs per host.
+3. Auth adapters: Firebase Auth and Supabase Auth as DVAuthProvider adapters; add Sign in with Apple,
+   Facebook, X/Twitter and phone (SMS OTP) sign-in. Model storage adapters: Firestore and MongoDB beside
+   SQL and the existing NoSQL support.
+4. Observability and analytics adapters: Sentry, Mixpanel, Firebase Analytics, Meta Pixel + Conversions
+   API, PostHog, behind the existing consent model.
+5. Growth screens, editable in Studio: onboarding with permission explainers, in-app review prompts,
+   feature voting, paywalls (RevenueCat-compatible entitlements), AI chat page. The built-in notification
+   model gets its own predesigned `.Page` (notification history) tailored to each platform, extendable
+   and customisable like any model page.
+6. `dartvel create --template saas|consumer` that assembles the above.
+
+## Order
+A and B first (they make every later PR faster and better). C and D after, one PR per numbered item.
 
 # Mental Model
 

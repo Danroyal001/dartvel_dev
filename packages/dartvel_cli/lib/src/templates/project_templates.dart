@@ -69,7 +69,6 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
   plugins: []
-  webPrerender: false
   ota: false
 
   transitions:
@@ -246,10 +245,9 @@ void main(List<String> arguments) async {
 Widget createDartvelApp({List<String> arguments = const <String>[]}) {
   return MaterialApp.router(
     title: 'Dartvel App',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      useMaterial3: true,
-    ),
+    theme: dartvelDefaultTheme(.light),
+    darkTheme: dartvelDefaultTheme(.dark),
+    themeMode: .system,
     routerConfig: createDartvelRouter(arguments: arguments),
   );
 }

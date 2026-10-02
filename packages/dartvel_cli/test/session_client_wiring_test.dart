@@ -51,7 +51,6 @@ Widget homePage(BuildContext context) => const SizedBox.shrink();
     normalizeTrailing: true,
     notFoundRedirect: '',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap.wrap(const <String, Object?>{}),
   );

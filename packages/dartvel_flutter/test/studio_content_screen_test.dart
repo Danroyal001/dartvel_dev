@@ -136,8 +136,14 @@ void main() {
     matching: matching,
   );
 
-  GestureDetector control(WidgetTester tester, String key) =>
-      tester.widget<GestureDetector>(find.byKey(ValueKey<String>(key)));
+  /// Whether the keyed control does anything, which is what the mouse asked
+  /// for when this read the `GestureDetector` underneath it. The control itself
+  /// is the answer now: a `DVStudioControl` with no `onTap` is one that does
+  /// nothing, whichever way it is drawn.
+  bool control(WidgetTester tester, String key) => tester
+      .widget<DVStudioControl>(find.byKey(ValueKey<String>(key)))
+      .onTap !=
+      null;
 
   String tooltipOf(WidgetTester tester, Key key) => tester
       .widget<Tooltip>(
@@ -349,7 +355,7 @@ void main() {
       await openPage(tester, '/p');
 
       expect(primaryLabel(tester), 'Approve');
-      expect(control(tester, primary.value).onTap, isNull);
+      expect(control(tester, primary.value), isFalse);
       expect(
         tooltipOf(tester, primary),
         contains('lacks the "review" policy action'),
@@ -363,7 +369,7 @@ void main() {
       await pumpStudio(tester, actor: ada);
       await openPage(tester, '/p');
 
-      expect(control(tester, primary.value).onTap, isNull);
+      expect(control(tester, primary.value), isFalse);
       expect(tooltipOf(tester, primary), contains('reviewOwn'));
     });
 
@@ -580,7 +586,7 @@ void main() {
       await tapKey(tester, 'dv-studio-schedule-day-2026-09-14');
       await typeInto(tester, 'dv-studio-schedule-time', '00:15');
 
-      expect(control(tester, 'dv-studio-schedule-confirm').onTap, isNull);
+      expect(control(tester, 'dv-studio-schedule-confirm'), isFalse);
       expect(
         inKey('dv-studio-schedule-dialog', find.textContaining('past')),
         findsOneWidget,

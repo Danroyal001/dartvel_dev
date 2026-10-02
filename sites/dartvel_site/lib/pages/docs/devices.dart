@@ -81,7 +81,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
           title: 'Open more windows and tabs',
           children: <Widget>[
             Bullets(<String>[
-              'DV.Platform.Window.open opens a page in its own window on Linux, '
+              'DV.Platform.window.open opens a page in its own window on Linux, '
                   'once: opening it again focuses the one that is open. A second '
                   'launch of the app hands its arguments to the first.',
               'Tab workspaces keep tabs in order, let you drag one out into a '
@@ -126,6 +126,10 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'Native print and file dialogs are bound on Linux first.',
             ]),
             DocsCode('devices-desktop'),
+            DocsNote('Platform access',
+                'Every native feature on this page reaches the device through '
+                '`DV.Platform`. See the platform page for the full member list, '
+                'binding status per platform, and planned capabilities.'),
             DocsStatus('Desktop, Embedded, and Qt-Critical Capabilities'),
           ],
         ),

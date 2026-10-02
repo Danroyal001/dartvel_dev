@@ -72,7 +72,6 @@ Future<void> _generate(Directory root, String name) async {
     normalizeTrailing: true,
     notFoundRedirect: '',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: loadYaml('{}') as YamlMap,
   );

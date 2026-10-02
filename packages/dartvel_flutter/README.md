@@ -426,6 +426,12 @@ reaches the page it names.
 
 ## Studio
 
+Studio inherits the application’s effective Material theme. New projects use
+`dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
+Dartvel site, including its bundled Manrope font. Full theme parity is still
+partial: Studio’s custom color tokens and the visible server-rendered first
+frame have not yet been migrated.
+
 Dartvel Studio is a visual page builder and data editor. It lives in this
 package and is served by a web-server build at `/__studio`, to accounts that
 have been granted access; it is never compiled into an app:
@@ -446,11 +452,36 @@ over its route on the next load without a rebuild, and reverting it gives the
 route back to the compiled page. A page exported from Studio is ordinary
 Dartvel source.
 
+Studio is a set of routes of the application rather than a second application
+beside it, on the same render path as every public page: Ctrl+F has text to
+match, a drag selects, the arrows scroll, and a remote's D-pad and switch
+control move the focus. Every screen has its own address under the mount —
+`<mount>` is Pages, `<mount>/<screen>` is that screen and
+`<mount>/<screen>/<object>` opens one thing inside it — so a screen can be
+linked, bookmarked and reloaded, and each is also served as a document a
+reader without the app can read.
+
+Studio's own controls answer the keyboard: every control is drawn from
+`DVStudioIconButton`, `DVStudioControl` or `DVStudioSwitch`, so it takes the
+focus, Enter and Space both press it, a screen reader is told its role and its
+name, and the focus is drawn as a ring on the control itself. A control with
+nothing to do — Undo with no history, Publish while publishing — says so and is
+not a focus stop, rather than looking live and doing nothing. What these three
+widgets are and what they deliberately do not cover is written down in
+[`docs/studio/PARITY.md`](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/studio/PARITY.md).
+
+Sign-in uses the same focusable control. Tab from the password reaches Sign
+in; Enter activates it. Submitting the password field also signs in, and both
+fields expose their labels to assistive technology.
+The readable `/data`, `/sitemap` and `/team` aliases under the Studio mount
+preserve existing `/models`, `/routes` and `/access` links. Data record forms
+open at `<mount>/data/<model>/<record>` and report stale links explicitly.
+
 ## Platform notes
 
 - **Web.** dartvel.dev is built with this package, and runs as a static
   build.
-- **Desktop** (multi-window is `Partial`). `DV.Platform.Window.open(route)`
+- **Desktop** (multi-window is `Partial`). `DV.Platform.window.open(route)`
   never fails: where a real window cannot be created it navigates to the
   route instead and reports why.
   Real OS windows need the separate `dartvel_windowing` package, which is not

@@ -305,25 +305,21 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
           title: _isNew ? 'New data model' : 'Design ${model!.model}',
           subtitle: _locked ? 'Written in code' : null,
           actions: <Widget>[
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-model-designer-close'),
+              label: _locked ? 'Back to records' : 'Cancel',
+              enabled: true,
               onTap: widget.onClose,
-              child: DVStudioStyle.control(
-                _locked ? 'Back to records' : 'Cancel',
-                enabled: true,
-              ),
             ),
             if (!_locked) ...<Widget>[
               const SizedBox(width: DVStudioStyle.space2),
-              GestureDetector(
+              DVStudioControl(
                 key: const ValueKey<String>('dv-studio-model-save'),
+                label: _busy ? 'Saving…' : 'Save model',
+                enabled: !_busy,
                 onTap: _busy ? null : () => unawaited(_save()),
-                child: DVStudioStyle.control(
-                  _busy ? 'Saving…' : 'Save model',
-                  enabled: !_busy,
-                  primary: true,
-                  icon: Icons.check,
-                ),
+                primary: true,
+                icon: Icons.check,
               ),
             ],
           ],
@@ -384,12 +380,13 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                   if (!_locked)
                     Align(
                       alignment: .centerLeft,
-                      child: GestureDetector(
+                      child: DVStudioControl(
                         key: const ValueKey<String>('dv-studio-field-add'),
+                        label: 'Add field',
+                        enabled: true,
                         onTap: () => setState(
                             () => _fields.add(_DVStudioFieldDraft())),
-                        child: DVStudioStyle.control('Add field',
-                            enabled: true, icon: Icons.add),
+                        icon: Icons.add,
                       ),
                     ),
                 ]),
@@ -403,12 +400,13 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                   if (!_locked)
                     Align(
                       alignment: .centerLeft,
-                      child: GestureDetector(
+                      child: DVStudioControl(
                         key: const ValueKey<String>('dv-studio-index-add'),
+                        label: 'Add index',
+                        enabled: true,
                         onTap: () => setState(
                             () => _indexes.add(_DVStudioIndexDraft())),
-                        child: DVStudioStyle.control('Add index',
-                            enabled: true, icon: Icons.add),
+                        icon: Icons.add,
                       ),
                     ),
                 ]),
@@ -475,27 +473,24 @@ class _DVStudioModelDesignerState extends State<_DVStudioModelDesigner> {
                     if (widget.sourceWritable)
                       Align(
                         alignment: .centerLeft,
-                        child: GestureDetector(
+                        child: DVStudioControl(
                           key: const ValueKey<String>(
                               'dv-studio-model-write-source'),
-                          onTap: _busy ? null : () => unawaited(_writeSource()),
-                          child: DVStudioStyle.control(
-                            'Write to lib/models',
-                            enabled: !_busy,
-                            icon: Icons.code,
-                          ),
+                          label: 'Write to lib/models',
+                          enabled: !_busy,
+                          onTap:
+                              _busy ? null : () => unawaited(_writeSource()),
+                          icon: Icons.code,
                         ),
                       ),
                     Align(
                       alignment: .centerLeft,
-                      child: GestureDetector(
+                      child: DVStudioControl(
                         key: const ValueKey<String>('dv-studio-model-delete'),
+                        label: 'Delete model',
+                        enabled: true,
                         onTap: () => unawaited(_delete()),
-                        child: DVStudioStyle.control(
-                          'Delete model',
-                          enabled: true,
-                          icon: Icons.delete_outline,
-                        ),
+                        icon: Icons.delete_outline,
                       ),
                     ),
                   ]),

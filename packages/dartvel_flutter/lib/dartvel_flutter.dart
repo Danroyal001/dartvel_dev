@@ -1,5 +1,7 @@
 library dartvel_flutter;
 
+export 'src/default_theme.dart';
+
 import 'dart:async';
 import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
@@ -381,7 +383,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVImageSource,
         DVImageVariants,
         // Media playback and capture: the player behind DVBox.video and
-        // DVBox.audio, DV.Platform.Media capture, and the backend contracts a
+        // DVBox.audio, DV.Platform.media capture, and the backend contracts a
         // native binding implements, with the fakes a test drives them with.
         DVAudioFocus,
         DVAudioFocusBackend,
@@ -727,6 +729,7 @@ export 'package:dartvel_core/dartvel.dart'
 export 'package:go_router/go_router.dart';
 
 export 'src/accessibility/keyboard_scroll.dart';
+export 'src/accessibility/selection_column.dart';
 export 'src/accessibility/switch_control.dart';
 export 'src/admin/cache_admin.dart';
 export 'src/admin/model_admin.dart';
@@ -6908,14 +6911,35 @@ class DVPlatform {
   String get type => deviceType;
   Orientation get deviceOrientation => orientation;
   DVScreen get screen => DVScreen(this);
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVWindowManager get window => DVWindowManager(this);
+  @Deprecated('Use DV.Platform.window instead')
   DVWindowManager get Window => DVWindowManager(this);
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVTray get tray => const DVTray();
+  @Deprecated('Use DV.Platform.tray instead')
   DVTray get Tray => const DVTray();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVMenus get menus => const DVMenus();
+  @Deprecated('Use DV.Platform.menus instead')
   DVMenus get Menus => const DVMenus();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVShortcuts get shortcuts => const DVShortcuts();
+  @Deprecated('Use DV.Platform.shortcuts instead')
   DVShortcuts get Shortcuts => const DVShortcuts();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVPrinting get printing => const DVPrinting();
+  @Deprecated('Use DV.Platform.printing instead')
   DVPrinting get Printing => const DVPrinting();
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVDialogs get dialogs => const DVDialogs();
+  @Deprecated('Use DV.Platform.dialogs instead')
   DVDialogs get Dialogs => const DVDialogs();
 
   /// What the desktop dropped onto the window.
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVDragDrop get dragDrop => const DVDragDrop();
+  @Deprecated('Use DV.Platform.dragDrop instead')
   DVDragDrop get DragDrop => const DVDragDrop();
 
   /// What this application opens: registering its own file types with the
@@ -6952,21 +6976,36 @@ class DVPlatform {
   // The spec names these device namespaces in capitals, matching `Window`,
   // `Tray` and `Menus` above, and `DV` proxies each one at the top level. The
   // lowerCamel getters stay as-is so existing call sites keep working.
+  @Deprecated('Use DV.Platform.camera instead')
   DVCamera get Camera => camera;
+  @Deprecated('Use DV.Platform.media instead')
   DVMedia get Media => media;
+  @Deprecated('Use DV.Platform.location instead')
   DVLocation get Location => location;
+  @Deprecated('Use DV.Platform.bluetooth instead')
   DVBluetooth get Bluetooth => bluetooth;
+  @Deprecated('Use DV.Platform.nfc instead')
   DVNfc get NFC => nfc;
+  @Deprecated('Use DV.Platform.clipboard instead')
   DVClipboard get Clipboard => clipboard;
+  @Deprecated('Use DV.Platform.share instead')
   DVShare get Share => share;
+  @Deprecated('Use DV.Platform.sensors instead')
   DVSensors get Sensors => sensors;
+  @Deprecated('Use DV.Platform.biometrics instead')
   DVBiometrics get Biometrics => biometrics;
+  @Deprecated('Use DV.Platform.deepLinks instead')
   DVDeepLinks get DeepLinking => deepLinks;
+  @Deprecated('Use DV.Platform.haptics instead')
   DVHaptics get Haptics => haptics;
+  @Deprecated('Use DV.Platform.contacts instead')
   DVContacts get Contacts => contacts;
 
   /// Proxies to [DV.FileStorage], so media and files are one API rather than a
   /// platform-local duplicate of it.
+  /// The lowerCamel name, matching the rest of `DV.*`.
+  DVStorage get fileStorage => DV.FileStorage;
+  @Deprecated('Use DV.Platform.fileStorage instead')
   DVStorage get FileStorage => DV.FileStorage;
 
   /// Proxies to [DV.Notifications]. Device-local notifications remain on the
@@ -9597,16 +9636,16 @@ class DV {
   // Top-level proxies onto the `DV.Platform` device namespaces. Everything
   // still lives under `DV.Platform.*`; these only save a hop for the device
   // APIs the spec proxies by name.
-  static DVLocation get Location => Platform.Location;
-  static DVBluetooth get Bluetooth => Platform.Bluetooth;
-  static DVNfc get NFC => Platform.NFC;
-  static DVClipboard get Clipboard => Platform.Clipboard;
-  static DVShare get Share => Platform.Share;
-  static DVSensors get Sensors => Platform.Sensors;
-  static DVBiometrics get Biometrics => Platform.Biometrics;
-  static DVDeepLinks get DeepLinking => Platform.DeepLinking;
-  static DVHaptics get Haptics => Platform.Haptics;
-  static DVContacts get Contacts => Platform.Contacts;
+  static DVLocation get Location => Platform.location;
+  static DVBluetooth get Bluetooth => Platform.bluetooth;
+  static DVNfc get NFC => Platform.nfc;
+  static DVClipboard get Clipboard => Platform.clipboard;
+  static DVShare get Share => Platform.share;
+  static DVSensors get Sensors => Platform.sensors;
+  static DVBiometrics get Biometrics => Platform.biometrics;
+  static DVDeepLinks get DeepLinking => Platform.deepLinks;
+  static DVHaptics get Haptics => Platform.haptics;
+  static DVContacts get Contacts => Platform.contacts;
 
   static DVAuth get Auth => const DVAuth();
 
@@ -10234,6 +10273,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     super.initState();
     // Flutter's menu on the web, where the browser's had nothing to offer.
     DVBrowserMenu.install();
+    DVBrowserMenu.nativeMenuOn.addListener(_browserMenuSwitched);
     DVFindInPage.register(this);
     find_platform.dvFindInstall();
     WidgetsBinding.instance.addPostFrameCallback((_) => _followAddress());
@@ -10347,8 +10387,15 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     );
   }
 
+  /// The browser's menu went on or off: the selection area is rebuilt whole,
+  /// keyed on it. See [DVBrowserMenu.nativeMenuOn].
+  void _browserMenuSwitched() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    DVBrowserMenu.nativeMenuOn.removeListener(_browserMenuSwitched);
     DVFindInPage.unregister(this);
     _addressed?.routeInformationProvider.removeListener(_followAddress);
     _selectionFocusNode.dispose();
@@ -10492,6 +10539,13 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
         DVHardwareKeys(child: DVSwitchControl(child: answering));
     final Widget selectionWrapped = selectable
         ? SelectionArea(
+            // A new area, not a changed one, when the browser's menu is
+            // switched: Flutter's area has a different shape while that menu
+            // is on, and changing shape in place left two selection
+            // containers registered with it -- a null-check failure in a
+            // release build when one of them left. The page beneath keeps its
+            // state through _contentKey. See DVBrowserMenu.nativeMenuOn.
+            key: ValueKey<bool>(DVBrowserMenu.nativeMenuOn.value),
             // skipTraversal, because a SelectionArea is focusable and would
             // otherwise take the first tab stop on every page: the first Tab
             // went to the page instead of the first link, and every

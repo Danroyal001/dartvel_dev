@@ -38,6 +38,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Typed translation keys, plurals and ARB files', 'App'),
   DocsPageInfo(DVRoutes.docsdevices, 'Devices and desktop',
       'Native features, home widgets, kiosks, windows and trays', 'App'),
+  DocsPageInfo(DVRoutes.docsplatform, 'DV.Platform',
+      'Native platform access, bindings and planned capabilities', 'App'),
   DocsPageInfo(DVRoutes.docsmedia3d, 'Media, 3D and XR',
       'Players, recorders, 3D scenes and spatial windows', 'App'),
   DocsPageInfo(DVRoutes.docsmodels, 'Data models',

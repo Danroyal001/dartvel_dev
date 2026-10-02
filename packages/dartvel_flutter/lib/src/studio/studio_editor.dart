@@ -420,7 +420,7 @@ String _dvStudioHumanise(String name) {
   if (name.isEmpty) return name;
   final String spaced = name.replaceAllMapped(
     RegExp('([a-z0-9])([A-Z])'),
-    (Match m) => '${m[1]} ${m[2]!.toLowerCase()}',
+    (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}',
   );
   return spaced[0].toUpperCase() + spaced.substring(1);
 }
@@ -1966,14 +1966,12 @@ class DVStudioInspector extends StatelessWidget {
               ),
           if (onEditComponent != null && component != null) ...<Widget>[
             const SizedBox(height: 8),
-            GestureDetector(
+            DVStudioControl(
               key: const ValueKey<String>('dv-studio-edit-component'),
+              label: 'Edit $name',
+              enabled: true,
               onTap: () => onEditComponent!(name),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: DVStudioStyle.control('Edit $name',
-                    enabled: true, icon: DVStudioIcons.components),
-              ),
+              icon: DVStudioIcons.components,
             ),
           ],
         ],
@@ -2658,8 +2656,8 @@ String dvStudioPlainFieldName(String name) =>
     // `borderTopWidth` reads as "Border top width".
     name
         .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'),
-            (Match m) => '${m[1]} ${m[2]!.toLowerCase()}')
-        .replaceFirstMapped(RegExp('^.'), (Match m) => m[0]!.toUpperCase());
+            (Match m) => '${m[1]} ${(m[2] ?? '').toLowerCase()}')
+        .replaceFirstMapped(RegExp('^.'), (Match m) => (m[0] ?? '').toUpperCase());
 
 /// Names that need more than the inspector's label, which is read beside
 /// its group's heading and so can be one word.

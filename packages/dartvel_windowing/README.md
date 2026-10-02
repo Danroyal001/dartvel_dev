@@ -2,7 +2,7 @@
 
 Real OS windows for Dartvel desktop applications.
 
-In `dartvel_flutter`, `DV.Platform.Window.open(route)` never fails. Where the
+In `dartvel_flutter`, `DV.Platform.window.open(route)` never fails. Where the
 target cannot create a second window it navigates to the route instead and
 reports why, so a call site does not have to know which platform it is on.
 This package is what lets a desktop app open a real window instead: it
@@ -67,7 +67,7 @@ dependencies:
 
 Mount `DVWindowHost` as the root, with `runWidget` in place of `runApp`.
 `home` is what the app's own window shows. `routeBuilder` renders the route of
-each window opened with `DV.Platform.Window.open`:
+each window opened with `DV.Platform.window.open`:
 
 ```dart
 import 'package:dartvel_windowing/dartvel_windowing.dart';
@@ -96,7 +96,7 @@ not a protocol between windows.
 Then open a window from anywhere, with a generated route:
 
 ```dart
-final DVWindow projector = await DV.Platform.Window.open(
+final DVWindow projector = await DV.Platform.window.open(
   DVRoutes.projector,
   options: const DVWindowOptions(title: 'Projector', size: Size(1280, 720)),
 );

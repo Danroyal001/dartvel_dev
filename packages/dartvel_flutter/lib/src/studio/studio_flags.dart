@@ -1625,7 +1625,7 @@ class _StudioFlagsSectionState extends State<StudioFlagsSection> {
                       child: _text('Debug override',
                           size: 14, weight: .w600),
                     ),
-                    _Switch(
+                    _OverrideSwitch(
                       detectorKey: const ValueKey<String>(
                           'dv-studio-flag-override-toggle'),
                       on: on,
@@ -2107,8 +2107,12 @@ class _StudioFlagRowState extends State<_StudioFlagRow> {
 
 /// An on/off switch keyed on its detector, so whether it can be pressed is
 /// something a test can ask.
-class _Switch extends StatelessWidget {
-  const _Switch({
+/// The debug override's own switch, because a switch that turns an override on
+/// is not a switch anybody should turn by accident: its track is amber, not the
+/// accent every other switch is drawn in. The behaviour — the focus, the keys,
+/// the ring and what a reader is told — is [DVStudioSwitch]'s.
+class _OverrideSwitch extends StatelessWidget {
+  const _OverrideSwitch({
     required this.detectorKey,
     required this.on,
     required this.onTap,
@@ -2119,26 +2123,24 @@ class _Switch extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final bool enabled = onTap != null;
-    final Color track = !enabled
-        ? DVStudioStyle.line
-        : on
-            ? DVStudioStyle.warning
-            : DVStudioStyle.lineStrong;
-    return GestureDetector(
-      key: detectorKey,
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: AnimatedContainer(
+  Widget build(BuildContext context) => DVStudioSwitch(
+        key: detectorKey,
+        label: 'Debug override',
+        on: on,
+        onTap: onTap,
+        builder: (BuildContext context, bool value, Color track) =>
+            AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: 36,
           height: 20,
           padding: const .all(2),
-          alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
           decoration: BoxDecoration(
-            color: track,
+            color: onTap == null
+                ? DVStudioStyle.line
+                : value
+                    ? DVStudioStyle.warning
+                    : DVStudioStyle.lineStrong,
             borderRadius: .circular(99),
           ),
           child: Container(
@@ -2151,9 +2153,7 @@ class _Switch extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 Widget _text(

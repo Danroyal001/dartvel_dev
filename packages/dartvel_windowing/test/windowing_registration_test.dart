@@ -1,4 +1,4 @@
-// Registering the binding is what makes DV.Platform.Window.open present a real
+// Registering the binding is what makes DV.Platform.window.open present a real
 // window: DVWindowingCapability.detect gates multiWindow on the binding
 // existing, deliberately, so that claiming the capability and being unable to
 // honour it is not representable.
@@ -48,7 +48,7 @@ void main() {
       multiWindow: true, sameEngine: true, tearOut: true,
     );
 
-    final window = await DV.Platform.Window.open(projector);
+    final window = await DV.Platform.window.open(projector);
 
     expect(window.presentation, DVWindowPresentation.window);
     expect(window.degradation, DVWindowDegradation.none);
@@ -61,7 +61,7 @@ void main() {
       multiWindow: true, sameEngine: true, tearOut: true,
     );
 
-    final window = await DV.Platform.Window.open(
+    final window = await DV.Platform.window.open(
       projector,
       options: const DVWindowOptions(
         size: Size(1920, 1080),
@@ -83,8 +83,8 @@ void main() {
       multiWindow: true, sameEngine: true, tearOut: true,
     );
 
-    final a = await DV.Platform.Window.open(operator_);
-    final b = await DV.Platform.Window.open(projector);
+    final a = await DV.Platform.window.open(operator_);
+    final b = await DV.Platform.window.open(projector);
 
     expect(a.nativeId, isNotNull);
     expect(b.nativeId, isNotNull);
@@ -96,7 +96,7 @@ void main() {
     DVWindowManager.capabilityOverride = const DVWindowingCapability(
       multiWindow: true, sameEngine: true, tearOut: true,
     );
-    final window = await DV.Platform.Window.open(projector);
+    final window = await DV.Platform.window.open(projector);
     final id = window.nativeId;
 
     await window.close();

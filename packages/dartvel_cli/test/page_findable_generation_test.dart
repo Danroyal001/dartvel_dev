@@ -53,7 +53,6 @@ Widget _homePage(BuildContext context) => const DVText('hi');
     normalizeTrailing: true,
     notFoundRedirect: '/',
     plugins: const <String>[],
-    webPrerender: false,
     ota: false,
     dv: YamlMap(),
   );

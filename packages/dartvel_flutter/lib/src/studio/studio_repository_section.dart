@@ -261,15 +261,10 @@ class _DVStudioRepositorySectionState extends State<DVStudioRepositorySection> {
 }
 
 Widget _button(String key, String label, VoidCallback? onTap, {bool primary = false}) =>
-    GestureDetector(
+    DVStudioControl(
       key: ValueKey<String>(key),
+      label: label,
+      enabled: onTap != null,
       onTap: onTap,
-      child: MouseRegion(
-        cursor: onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-        child: Semantics(
-          button: true,
-          enabled: onTap != null,
-          child: DVStudioStyle.control(label, enabled: onTap != null, primary: primary),
-        ),
-      ),
+      primary: primary,
     );

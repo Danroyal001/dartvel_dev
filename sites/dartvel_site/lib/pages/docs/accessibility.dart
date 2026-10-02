@@ -125,8 +125,28 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'choose the keys and an auto-scan interval in settings.',
               'Kiosk mode never blocks these keys, so a locked kiosk stays '
                   'usable.',
+              'In a text field the typing keys stay the field\'s: Space types, '
+                  'the arrows, Home and End move the caret, and Enter submits '
+                  'the form.',
             ]),
             DocsCode('a11y-switch-control'),
+          ],
+        ),
+        DocsSection(
+          id: 'selection',
+          title: 'Select text beside a sidebar',
+          children: <Widget>[
+            DocsText('Every page\'s text can be selected and copied. Beside a '
+                'sidebar, rail or list pane of separate items, wrap the sidebar '
+                'in DVSelectionColumn, so a drag across the content next to it '
+                'selects what it crosses.'),
+            Bullets(<String>[
+              'Text inside the column stays selectable.',
+              'A drag from the column into the content selects both, in '
+                  'order.',
+              'With no selection area above, it draws its child and nothing '
+                  'else.',
+            ]),
           ],
         ),
         DocsSection(
