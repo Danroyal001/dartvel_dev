@@ -38,3 +38,31 @@ Future<void> files(List<int> bytes) async {
   // docs:end
   DV.log('$avatars');
 }
+
+Future<void> deviceFiles(List<int> bytes) async {
+  // docs:start storage-device
+  // The device's own disk, whatever adapter DV.FileStorage is configured with.
+  // App-private: no permission on any platform.
+  await DV.Platform.fileStorage.put('drafts/note.txt', bytes);
+  final List<String> drafts = await DV.Platform.fileStorage.list(prefix: 'drafts/');
+  await DV.Platform.fileStorage.cache.put('thumbs/note.png', bytes);
+
+  // A file the person picks. Choosing it is the grant, so nothing is declared.
+  final List<DVPickedFile> picked = await DV.Platform.fileStorage.pick(type: 'image');
+  for (final DVPickedFile file in picked) {
+    await DV.Platform.fileStorage.put('attachments/${file.name}', await file.readBytes());
+  }
+
+  // A folder the person picks, as a storage with the same calls.
+  final DVStorage? folder = await DV.Platform.fileStorage.pickDirectory();
+  await folder?.put('export.csv', bytes);
+
+  // Wider access, declared under dartvel.fileStorage in pubspec.yaml.
+  try {
+    await DV.Platform.fileStorage.requestAccess(.photos);
+  } on DVFileAccessDenied catch (refused) {
+    DV.log(refused.reason);
+  }
+  // docs:end
+  DV.log('$drafts');
+}

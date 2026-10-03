@@ -3,18 +3,18 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel file storage: S3, Google Cloud Storage and Azure',
-  description: 'Store uploads and generated files with one API on S3, Google '
-      'Cloud Storage or Azure Blob Storage. Swap the adapter and your '
-      'code stays the same.',
+  title: 'Dartvel file storage: device disk, S3, Google Cloud Storage and Azure',
+  description: 'Store files with one API on the device\'s own disk, a '
+      'server\'s disk, S3, Google Cloud Storage or Azure Blob Storage. Swap '
+      'the adapter and your code stays the same.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
 Widget _docsStoragePage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsstorage,
       lead: <String>[
-        'Store uploads and generated files with one API on S3, Google Cloud '
-            'Storage or Azure Blob Storage.',
+        'Store files with one API on the device\'s own disk, a server\'s '
+            'disk, S3, Google Cloud Storage or Azure Blob Storage.',
         'Swap the adapter and your code stays the same.',
       ],
       sections: <DocsSection>[
@@ -45,9 +45,10 @@ Widget _docsStoragePage(BuildContext context) => const DocsArticle(
                   'request. One that climbs out of the root is refused, so a '
                   '../ in a key cannot read or overwrite anything else the '
                   'process can reach.',
-              'On the web there is no such filesystem. The adapter still '
-                  'exists and says so, so code that names it compiles for '
-                  'every target.',
+              'A browser has no such filesystem, so DVLocalFileStorageAdapter '
+                  'there answers every call with a 501. On a device in a '
+                  'browser, use DV.Platform.fileStorage below, which is the '
+                  'origin private file system.',
             ]),
           ],
         ),
@@ -64,6 +65,79 @@ Widget _docsStoragePage(BuildContext context) => const DocsArticle(
             DocsNote('Use DV.FileStorage',
                 'DV.Storage is the old name. It still works and is '
                 'deprecated, so new code should not use it.'),
+          ],
+        ),
+        DocsSection(
+          id: 'device',
+          title: 'Files on the device: DV.Platform.fileStorage',
+          children: <Widget>[
+            DocsText('DV.Platform.fileStorage is DV.FileStorage on the '
+                'device\'s own disk: the same calls, bound to the local adapter '
+                'whatever DV.FileStorage is configured with. Keys go in the '
+                'directory each platform gives an app for its own files, which '
+                'needs no permission anywhere.'),
+            DocsCode('storage-device'),
+            DocsTable(columns: <String>[
+              'Target',
+              'App files',
+              'Files the person picks',
+            ], rows: <List<String>>[
+              <String>['Android', 'dartvel-files in the app\'s files directory; '
+                  'cache in its cache directory', 'The system picker, a private '
+                  'copy by path. No folders yet.'],
+              <String>['iOS', 'Documents in the app container (in the Files '
+                  'app with shareAppFiles)', 'Not bound yet'],
+              <String>['macOS', '~/Library/Application Support/<app>',
+                  'Open panel and folder panel'],
+              <String>['Windows', '%LOCALAPPDATA%\\<app>\\Files',
+                  'Open dialog and folder dialog'],
+              <String>['Linux and embedded Linux',
+                  '\$XDG_DATA_HOME/<app> (~/.local/share/<app>)',
+                  'GTK file and folder chooser'],
+              <String>['Web', 'The origin private file system',
+                  'A file input in every browser. Folders: showDirectoryPicker '
+                      'in Chromium (read and write); a folder input elsewhere '
+                      '(read only)'],
+            ]),
+            DocsSubheading('Access beyond the app\'s own files'),
+            DocsText('Declare it once under dartvel.fileStorage in '
+                'pubspec.yaml, or in your DartvelConfig class. The build '
+                'writes it the way each platform expects, and '
+                'requestAccess asks for it at run time.'),
+            DocsCode('yaml-file-storage'),
+            DocsTable(columns: <String>[
+              'access',
+              'Android (written to the manifest)',
+              'iOS and macOS',
+            ], rows: <List<String>>[
+              <String>['photos', 'READ_MEDIA_IMAGES (13+), '
+                  'READ_MEDIA_VISUAL_USER_SELECTED (14+), READ_EXTERNAL_STORAGE '
+                  '(12 and below)', 'NSPhotoLibraryUsageDescription with your '
+                  'reason; macOS: pictures read-only entitlement'],
+              <String>['media', 'Photos plus READ_MEDIA_VIDEO and '
+                  'READ_MEDIA_AUDIO', 'As photos; macOS also movies and music '
+                  'entitlements'],
+              <String>['documents', 'Nothing: the picker is the grant',
+                  'macOS: user-selected read-write entitlement'],
+              <String>['allFiles', 'MANAGE_EXTERNAL_STORAGE (11+): a Settings '
+                  'switch, and Google Play allows it only for apps that need it',
+                  'iOS has none; macOS sandbox has none (the build says so)'],
+            ]),
+            Bullets(<String>[
+              'shareAppFiles: true adds UIFileSharingEnabled and '
+                  'LSSupportsOpeningDocumentsInPlace on iOS.',
+              'Windows, Linux and the web need nothing at build time: a '
+                  'desktop process reads what its user can, and a browser '
+                  'asks when the person picks.',
+              'Keys you already set in Info.plist or the entitlements are '
+                  'yours: the build keeps them and does not write a second copy.',
+              'requestAccess throws DVFileAccessDenied when the person refuses, '
+                  'and a StateError naming the pubspec key when the access was '
+                  'never declared.',
+            ]),
+            DocsNote('DV.Platform.files is deprecated',
+                'Use DV.Platform.fileStorage: put, get and delete in the same '
+                'directory on Android and the web, and every other target too.'),
           ],
         ),
         DocsSection(

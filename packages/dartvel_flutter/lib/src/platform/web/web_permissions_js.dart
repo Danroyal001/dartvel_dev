@@ -73,9 +73,10 @@ class DVWebPermissions {
   /// `files` is the origin-private file system, which belongs to the origin
   /// and is never asked about. `photos` is the file picker, which is a grant
   /// the person makes by choosing a file rather than one they are asked for
-  /// in advance. Both answer true where the mechanism exists, which is a
+  /// in advance, and `media` is the same picker for video and audio. Each
+  /// answers true where the mechanism exists, which is a
   /// statement about this browser rather than a default.
-  static const Set<String> implicit = <String>{'files', 'photos'};
+  static const Set<String> implicit = <String>{'files', 'photos', 'media'};
 
   static void register(
     void Function(String, FutureOr<Object?> Function(Object?)) register,

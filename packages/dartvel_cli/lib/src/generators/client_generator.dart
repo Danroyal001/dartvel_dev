@@ -5,6 +5,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashBuildMode,
         DVCrashConfig,
+        DVFileStorageConfig,
         DVHomeWidgetSpec,
         dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
@@ -163,6 +164,13 @@ class ClientGenerator {
     // the runtime uses at startup. Refused at startup is too late: the
     // application is on a device, and its crash reporting goes down with the
     // configuration on the one launch nobody is watching.
+    // dartvel.fileStorage, with the parser the build used for the manifest
+    // and Info.plist, so the runtime asks for exactly what was declared.
+    final DVFileStorageConfig fileStorageConfig =
+        DVFileStorageConfig.parse(_plain(dv['fileStorage']));
+    if (fileStorageConfig.problems.isNotEmpty) {
+      throw StateError('pubspec.yaml ${fileStorageConfig.problems.join('\n')}');
+    }
     final DVCrashConfig crashConfig;
     try {
       crashConfig = DVCrashConfig.parse(_plain(dv['crashes']));
@@ -715,9 +723,9 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -791,6 +799,12 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // DV.Platform.clipboard.copy().
   registerPlatformBindings();
   DVStartupProfile.current.mark('bindings');
+  // DV.Platform.fileStorage, after the bindings: on Android its directory is
+  // the files directory they found. The declaration is dartvel.fileStorage.
+  DVDeviceStorage.declare(
+    appId: '$pkgName',
+    config: DVFileStorageConfig.parse(${_dartLiteral(fileStorageConfig.toDeclaration(), 2)}),
+  );
   // Crash reporting, after the bindings: on Android the directory the records
   // are kept in is the files directory they found. Before this nothing
   // installed the crash runtime, so a real application recorded no crash.
