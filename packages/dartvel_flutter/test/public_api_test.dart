@@ -264,9 +264,11 @@ void main() {
 
   test('platform storage and notifications proxy the DV facades', () {
     // The spec calls these proxies, not separate platform-local APIs, so they
-    // must be the same surface rather than a parallel one.
+    // must be the same surface rather than a parallel one. File storage is
+    // that surface bound to the device's own disk, whatever adapter the app's
+    // default storage uses.
     expect(DV.Platform.fileStorage, isA<DVStorage>());
-    expect(DV.Platform.fileStorage.runtimeType, DV.FileStorage.runtimeType);
+    expect(DV.Platform.fileStorage, isA<DVDeviceStorage>());
     expect(
       DV.Platform.Notifications.runtimeType,
       DV.Notifications.runtimeType,

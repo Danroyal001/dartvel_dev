@@ -68,7 +68,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
               'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share',
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
               'DV.Platform.notifications, permissions, browserExtension, network',
-              'DV.Platform.install, display, files, device',
+              'DV.Platform.install, display, fileStorage, device',
             ]),
             DocsSubheading('Desktop-only'),
             DocsShell(<String>[
@@ -84,7 +84,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             ]),
             DocsSubheading('File, storage and notifications proxies'),
             DocsShell(<String>[
-              'DV.Platform.fileStorage    // proxy to DV.FileStorage',
+              'DV.Platform.fileStorage    // DV.FileStorage on the device disk',
               'DV.Platform.notifications  // proxy to DV.Notifications',
             ]),
           ],
@@ -111,7 +111,8 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['associations', 'Shipped', 'desktop'],
                 <String>['camera', 'Partial', 'Android, iOS, some web'],
                 <String>['media', 'Partial', 'Android, iOS, some web'],
-                <String>['files', 'Partial', 'Android, iOS, desktop, web (partial)'],
+                <String>['fileStorage', 'Shipped', 'all: Android, iOS, macOS, Windows, Linux, embedded Linux, web (OPFS); pickers on Android, desktop and web'],
+                <String>['files (deprecated)', 'Shipped', 'Android, web; use fileStorage'],
                 <String>['location', 'Partial', 'Android, iOS'],
                 <String>['notifications', 'Stub', 'all'],
                 <String>['bluetooth', 'Partial', 'Android 31+, some others'],

@@ -16,6 +16,10 @@ class DVDesktopPermissions {
     'notifications',
     'storage',
     'photos',
+    // dartvel.fileStorage's kinds: a desktop process reads what its user can.
+    // The macOS sandbox narrows that at build time with entitlements, not here.
+    'media',
+    'allfiles', // allFiles, compared lowercased
     'files',
     'camera',
     'microphone',
