@@ -557,9 +557,16 @@
         "packages/dartvel_core/test/azure_blob_live_test.dart",
         "packages/dartvel_core/test/file_storage_test.dart",
         "packages/dartvel_core/test/gcs_live_test.dart",
-        "packages/dartvel_core/test/local_file_storage_test.dart"
+        "packages/dartvel_core/test/local_file_storage_test.dart",
+        "packages/dartvel_core/lib/src/storage/device_storage_config.dart",
+        "packages/dartvel_core/test/device_storage_config_test.dart",
+        "packages/dartvel_flutter/lib/src/platform/storage/device_storage.dart",
+        "packages/dartvel_flutter/test/device_storage_test.dart",
+        "packages/dartvel_flutter/test/device_storage_browser_test.dart",
+        "packages/dartvel_cli/lib/src/build/file_storage_permissions.dart",
+        "packages/dartvel_cli/test/file_storage_permissions_test.dart"
       ],
-      "absent": "Built: DV.FileStorage put, get, delete and exists over DVFileStorageAdapter, with the local filesystem, in-memory, S3 (also R2 and MinIO), Azure Blob and GCS adapters. The local adapter is the disk the process is standing on -- a server's filesystem, or the directory an application owns on a device -- and refuses a key that climbs out of its root; on the web it exists and answers 501 rather than being absent, so code that names it compiles for every target. Azure and GCS run against Azurite and fake-gcs-server in CI. Absent: DV.FileStorage.putStream and getStream, which the section shows and nothing defines."
+      "absent": "Built: DV.Platform.fileStorage, the same calls bound to the device's own disk on every target (OPFS in a browser, verified in headless Chrome), with .cache, pick, pickDirectory and requestAccess, and dartvel.fileStorage written into the AndroidManifest, Info.plist and macOS entitlements at build time. Not bound: picking on iOS, and folders on Android and iOS; the iOS, macOS and Windows generated files are unit-tested, not checked on a device. Built: DV.FileStorage put, get, delete and exists over DVFileStorageAdapter, with the local filesystem, in-memory, S3 (also R2 and MinIO), Azure Blob and GCS adapters. The local adapter is the disk the process is standing on -- a server's filesystem, or the directory an application owns on a device -- and refuses a key that climbs out of its root; on the web it exists and answers 501 rather than being absent, so code that names it compiles for every target. Azure and GCS run against Azurite and fake-gcs-server in CI. Absent: DV.FileStorage.putStream and getStream, which the section shows and nothing defines."
     },
     {
       "section": "Media Pipeline",

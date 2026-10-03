@@ -1072,6 +1072,20 @@ so one script serves both. And `browser_specific_settings.gecko.id` is only
 emitted when `dartvel.extension.geckoId` is set in `pubspec.yaml` — fine for a
 temporary Firefox install, required before distribution.
 
+### Device file storage (`DV.Platform.fileStorage`, `dartvel.fileStorage`)
+
+Checked on 2026-10-02 against a copy of `examples/basic_app` declaring
+`access: [photos, media, documents, allFiles]`, a reason and `shareAppFiles`.
+
+| Target | Storage location | User-picked files | Permissions applied | Evidence |
+|---|---|---|---|---|
+| Android | `<filesDir>/dartvel-files`, cache `<cacheDir>/dartvel` | `media.pick` (ACTION_OPEN_DOCUMENT, private copy); no folders | Manifest per API level: READ_MEDIA_IMAGES/VIDEO/AUDIO, READ_MEDIA_VISUAL_USER_SELECTED, READ_EXTERNAL_STORAGE ≤32, MANAGE_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE ≤29; all-files access through the Settings switch | **Verified by build**: `dartvel build android` produced a release APK; `aapt2 dump permissions` lists each permission once with the caps above; `classes.dex` carries the Settings intent and `isExternalStorageManager`. Not run on a device |
+| Web | origin private file system, cache in `.dartvel-cache` | file input in every browser; folders via `showDirectoryPicker` (Chromium, read/write) or a folder input (read only) | none at build time: the browser asks when the person picks | **Verified in headless Chrome** (`flutter test --platform chrome test/device_storage_browser_test.dart`, its own browser): put/get/exists/list/delete, truncation, 404, cache separation, and data written by `DV.Platform.files` read back. Pickers need a person and are not automated |
+| Linux, embedded Linux | `$XDG_DATA_HOME/<app>`, cache `$XDG_CACHE_HOME/<app>` | GTK choosers through `media.pick` and `dialogs.chooseDirectory` | none needed | unit tests on the Linux VM: the directory resolution and the real disk round-trip |
+| iOS | `Documents`, cache `Library/Caches/dartvel` | **not bound yet** (no `media.pick` on iOS) | Info.plist: NSPhotoLibraryUsageDescription, NSPhotoLibraryAddUsageDescription, UIFileSharingEnabled, LSSupportsOpeningDocumentsInPlace | **Unverified on device.** The plist block is unit-tested and was applied to `examples/dartvel_example/ios/Runner/Info.plist`; `requestAccess` throws `DVFileAccessDenied` because iOS has no `permissions.request` binding yet |
+| macOS | `~/Library/Application Support/<app>` | open and folder panels | Info.plist NSPhotoLibraryUsageDescription; entitlements files.user-selected.read-write and assets pictures/movies/music read-only; allFiles reported as impossible in the sandbox | **Unverified on device.** Unit-tested; the entitlements applied to `examples/dartvel_example/macos/Runner/Release.entitlements` parse as a valid plist |
+| Windows | `%LOCALAPPDATA%\<app>\Files` | open and folder dialogs | none needed | **Unverified on device.** Directory resolution unit-tested |
+
 ### Application key custody on phones
 
 `.github/workflows/key-custody.yml` puts the application key in the keyring each

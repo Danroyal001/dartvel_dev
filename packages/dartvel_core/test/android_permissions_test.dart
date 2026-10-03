@@ -39,8 +39,13 @@ void main() {
     });
 
     test('photos asks for the media permission that exists on the device', () {
-      expect(dvAndroidPermissionsFor('photos', sdk: 34),
+      expect(dvAndroidPermissionsFor('photos', sdk: 33),
           <String>['android.permission.READ_MEDIA_IMAGES']);
+      // Android 14 adds "selected photos only" beside the full permission.
+      expect(dvAndroidPermissionsFor('photos', sdk: 34), <String>[
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      ]);
       expect(dvAndroidPermissionsFor('photos', sdk: 30),
           <String>['android.permission.READ_EXTERNAL_STORAGE']);
     });
