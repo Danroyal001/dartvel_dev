@@ -7,6 +7,16 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+## 0.11.0 — 2026-10-05
+
+Packages: dartvel_core, dartvel_shelf, dartvel_flutter, dartvel_cli and
+ dartvel_dev 0.11.0; dartvel_generator 1.4.4.
+
+**Breaking:** Router integrations now use `dartvelNavigator2_0Routes` and
+`dvNavigatorPages`; the former `dartvelPages` and `dartvelPageFor` helpers
+are removed. Update integrations before moving from 0.10.x to 0.11.0.
+
+
 - Navigator 2.0: `dartvelNavigator2_0Routes(at:, onLocationChanged:)` returns
   every Dartvel route as `DVNavigatorRoute` entries to spread into an app's own
   route table, with `dvNavigatorPages(location, table)` for its RouterDelegate.

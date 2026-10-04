@@ -1,3 +1,7 @@
+## 0.11.0 — 2026-10-05
+
+- Resolve the matching 0.11.0 core, Flutter, shelf and CLI package family.
+
 ## 0.10.0 — 2026-10-02
 
 - Released with dartvel_core, dartvel_shelf, dartvel_flutter and dartvel_cli
