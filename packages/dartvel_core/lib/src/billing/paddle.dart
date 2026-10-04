@@ -28,7 +28,7 @@ import 'webhooks.dart';
 /// Paddle Billing (the v2 API) for subscriptions, with entitlements kept
 /// from webhooks.
 class DVPaddleBillingProvider
-    implements DVBillingProvider, DVBillingWebhookReceiver {
+    implements DVBillingProvider, DVBillingWebhookReceiver, DVSubscriptionLifecycle {
   DVPaddleBillingProvider({
     required String apiKey,
     required String webhookSecret,

@@ -104,6 +104,15 @@ dartvel:
     prefix: "shop:"
   # docs:end
 
+  # docs:start yaml-file-storage
+  # What DV.Platform.fileStorage may reach beyond the app's own directory.
+  # Leave it out and the app reads and writes only its own files.
+  fileStorage:
+    access: [photos, documents]   # also: media, allFiles
+    reason: Attach photos and receipts to your orders.
+    shareAppFiles: true           # iOS: show the app's Documents in Files
+  # docs:end
+
   # docs:start yaml-search
   search:
     synonyms:

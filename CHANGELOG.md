@@ -7,6 +7,21 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Navigator 2.0: `dartvelNavigator2_0Routes(at:, onLocationChanged:)` returns
+  every Dartvel route as `DVNavigatorRoute` entries to spread into an app's own
+  route table, with `dvNavigatorPages(location, table)` for its RouterDelegate.
+  Replaces the per-location `dartvelPages` and `dartvelPageFor` (removed).
+- Every link has a preview: parameter routes preview the concrete path with its
+  parameters, and guarded pages and config routes preview a sign-in card with
+  their public title instead of building the protected page.
+- `dartvel create` and `dartvel init` are one command: in an existing project
+  both adopt it (plan first, `--dry-run`/`--yes`, nothing overwritten); where
+  there is no project both create one. `create` no longer refuses.
+- `DV.Platform.fileStorage` is now `DV.FileStorage` on the device's own disk on every target (Android, iOS, macOS, Windows, Linux, embedded Linux, and the origin private file system on the web), whatever `DV.FileStorage` is configured with, with `.cache`, `pick()`, `pickDirectory()` and `requestAccess()`. Before, it was the app's default adapter (memory unless configured).
+- `dartvel.fileStorage` in pubspec.yaml (`access: [photos, media, documents, allFiles]`, `reason`, `shareAppFiles`) declares what the app may reach beyond its own files. `dartvel build` writes it into the AndroidManifest per API level, the iOS/macOS Info.plist and the macOS sandbox entitlements. `DVFileStorageConfig.toDeclaration()` gives back exactly the map it parses.
+- Android: an app asking for `allFiles` is taken to its "All files access" switch in Settings, and the answer is read from `isExternalStorageManager()`. A permission two groups both need is declared once.
+- Deprecated: `DV.Platform.files`. Use `DV.Platform.fileStorage`; it writes to the same directory on Android and the web.
+
 - Billing: subscription lifecycle on Stripe and Paddle: change plan (with or without proration),
   cancel now or at period end, pause, resume, status, and a customer-portal link, each acting on the
   customer's current subscription.

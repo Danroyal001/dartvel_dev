@@ -1,10 +1,13 @@
 /// Which router an existing Flutter app uses, and how Dartvel's pages join it.
 ///
-/// Dartvel mounts into exactly three: go_router (`dartvelRoutes(at:)`),
-/// auto_route (`dartvelAutoRoutes(at:)`, generated when the project depends
-/// on it) and Flutter's own Navigator -- 1.0 through `dartvelOnGenerateRoute`,
-/// 2.0 through `dartvelPageFor`. Any other router is named, with the three
-/// it could be.
+/// Dartvel mounts into go_router (`dartvelGoRouter(existing:)`), auto_route
+/// (`dartvelAutoRoutes(existing:)`, generated when the project depends on
+/// it) and Flutter's own Navigator -- 1.0 through
+/// `dartvelRouteFactory(existing:)`, 2.0 through `dartvelNavigator2_0Routes` spread into the app's
+/// own RouterDelegate -- and composes with any `RouterConfig` handed to
+/// `MaterialApp.router` or `CupertinoApp.router`
+/// (`dartvelRouterConfig(existing:)`). Each keeps the app's own routes.
+/// Another router package is named, with these.
 library;
 
 /// The routers Dartvel mounts into.
@@ -35,23 +38,26 @@ class DVHostRouterDetection {
 
   /// What adoption says about routing, in one line.
   String get message => switch (router) {
-        .goRouter => 'go_router: your routes stay yours. Mount Dartvel\'s with '
-            '`GoRouter(routes: [...yours, ...dartvelRoutes(at: \'/app\')])`; '
-            '`dartvel routes` fails with DV-ADOPT-002 when a GoRoute path is '
-            'also a generated page route.',
-        .autoRoute => 'auto_route: your routes stay yours. Mount Dartvel\'s '
-            'with `routes: [...yours, ...dartvelAutoRoutes(at: \'/app\')]`; '
-            'they run in a router of their own under /app, with their own '
-            'guards.',
+        .goRouter => 'go_router: your routes stay yours. Build the router with '
+            '`dartvelGoRouter(at: \'/app\', existing: yourRoutes, redirect: '
+            'yourRedirect)`; `dartvel routes` fails with DV-ADOPT-002 when a '
+            'GoRoute path is also a generated page route.',
+        .autoRoute => 'auto_route: your routes stay yours. Return '
+            '`dartvelAutoRoutes(at: \'/app\', existing: yourRoutes)` from '
+            'your router\'s routes; Dartvel\'s run in a router of their own '
+            'under /app, with their own guards.',
         .navigator => 'Navigator: your routes stay yours. On Navigator 1.0, '
-            '`onGenerateRoute: (s) => dartvelOnGenerateRoute(s, at: \'/app\') '
-            '?? yours(s)`; on Navigator 2.0, put `dartvelPageFor(uri, at: '
-            '\'/app\')` in your pages.',
+            '`onGenerateRoute: dartvelRouteFactory(at: \'/app\', existing: '
+            'yourOnGenerateRoute)`; on Navigator 2.0, add '
+            '`...dartvelNavigator2_0Routes(at: \'/app\')` to the route table your '
+            'RouterDelegate builds; with MaterialApp.router, '
+            '`dartvelRouterConfig(at: \'/app\', existing: yourConfig)`.',
         null => '$unsupported: Dartvel does not mount into $unsupported. It '
-            'mounts into go_router (dartvelRoutes), auto_route '
-            '(dartvelAutoRoutes) and Flutter\'s own Navigator, 1.0 '
-            '(dartvelOnGenerateRoute) or 2.0 (dartvelPageFor). Route the '
-            'screens that show Dartvel pages through one of those three.',
+            'mounts into go_router (dartvelGoRouter), auto_route '
+            '(dartvelAutoRoutes), Flutter\'s own Navigator 1.0 '
+            '(dartvelRouteFactory) and 2.0 (dartvelNavigator2_0Routes), and composes with '
+            'a RouterConfig (dartvelRouterConfig). Route the screens that show '
+            'Dartvel pages through one of those.',
       };
 }
 
