@@ -23,10 +23,12 @@ import 'package:dartvel_core/dartvel.dart'
         DVImageVariants,
         dvAndroidPermissionNames,
         dvOfflineRoute,
-        DVDocsMount;
+        DVDocsMount,
+        DVFileStorageConfig;
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
+import '../build/file_storage_permissions.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
@@ -736,6 +738,17 @@ class BuildCommand extends Command<void> {
       Logger.log('❌ ${error.message}');
       exit(78); // EX_CONFIG
     }
+    // dartvel.fileStorage decides manifest permissions, Info.plist keys and
+    // entitlements on several platforms. A mistake in it is a mistake on
+    // every one of them, so it stops the build before any is written.
+    final List<String> fileStorageProblems =
+        DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']).problems;
+    if (fileStorageProblems.isNotEmpty) {
+      for (final String problem in fileStorageProblems) {
+        Logger.log('❌ $problem');
+      }
+      exit(78); // EX_CONFIG
+    }
 
     // What the project declares, before anything is generated. Never start a
     // build that cannot finish reads as being about tools -- the host, the
@@ -1059,6 +1072,11 @@ class BuildCommand extends Command<void> {
     // that nothing compiles.
     if (platform == 'ios' || platform == 'macos') {
       _writeAppleHomeWidgets(_projectRoot, platform);
+    }
+    if (platform == 'ios' || platform == 'macos') {
+      // Before Xcode reads Info.plist and the entitlements: what
+      // dartvel.fileStorage lets the app reach outside its own container.
+      if (!_writeAppleFileStorage(_projectRoot, platform)) return _PlatformBuildResult.failed;
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
     if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
@@ -1843,8 +1861,19 @@ class BuildCommand extends Command<void> {
       return;
     }
 
-    final List<String> requested =
-        dvAndroidRequestedPermissions(_dartvelSection(root));
+    final DVFileStorageConfig fileStorage =
+        DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
+    final List<String> requested = <String>[
+      ...dvAndroidRequestedPermissions(_dartvelSection(root)),
+    ];
+    // dartvel.fileStorage asks for its own, so a project declares what it
+    // reads once rather than again under dartvel.android.permissions.
+    for (final String name in dvFileStorageAndroidPermissionNames(fileStorage)) {
+      if (!requested.contains(name)) requested.add(name);
+    }
+    for (final String note in dvFileStorageAndroidNotes(fileStorage)) {
+      Logger.log('⚠️  $note');
+    }
     final List<String> unknown = dvAndroidUnknownPermissions(requested);
     if (unknown.isNotEmpty) {
       Logger.log('⚠️  dartvel.android.permissions names ${unknown.join(', ')}, '
@@ -1870,6 +1899,50 @@ class BuildCommand extends Command<void> {
     if (requested.isNotEmpty) {
       Logger.log('   Permissions declared: ${requested.join(', ')}.');
     }
+  }
+
+  /// `dartvel.fileStorage` into `<platform>/Runner/Info.plist` and, on macOS,
+  /// both entitlements files, as marked blocks a later build replaces.
+  /// Returns false, having said why, when the declaration has problems.
+  bool _writeAppleFileStorage(String root, String platform) {
+    final DVFileStorageConfig config =
+        DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
+    if (config.problems.isNotEmpty) {
+      for (final String problem in config.problems) {
+        Logger.log('❌ $problem');
+      }
+      return false;
+    }
+    final List<String> skipped = <String>[];
+    final Map<String, Map<String, String>> files = <String, Map<String, String>>{
+      p.join(platform, 'Runner', 'Info.plist'): dvFileStorageInfoPlistEntries(config, platform),
+      if (platform == 'macos') ...<String, Map<String, String>>{
+        p.join('macos', 'Runner', 'DebugProfile.entitlements'): dvFileStorageMacosEntitlements(config),
+        p.join('macos', 'Runner', 'Release.entitlements'): dvFileStorageMacosEntitlements(config),
+      },
+    };
+    for (final MapEntry<String, Map<String, String>> file in files.entries) {
+      final File target = File(p.join(root, file.key));
+      if (!target.existsSync()) {
+        if (file.value.isNotEmpty) {
+          Logger.log('⚠️  ${file.key} is not there, so dartvel.fileStorage could '
+              'not be applied to it. Run flutter create --platforms=$platform . first.');
+        }
+        continue;
+      }
+      final String before = target.readAsStringSync();
+      final String after = dvWithFileStorageBlock(before, file.value, skipped: skipped);
+      if (after != before) target.writeAsStringSync(after);
+    }
+    for (final String key in skipped.toSet()) {
+      Logger.log('   dartvel.fileStorage: $key is already set in your $platform files, so yours is kept.');
+    }
+    if (platform == 'macos') {
+      for (final String note in dvFileStorageMacosNotes(config)) {
+        Logger.log('⚠️  $note');
+      }
+    }
+    return true;
   }
 
   /// The splash, into the platform files it lives in.

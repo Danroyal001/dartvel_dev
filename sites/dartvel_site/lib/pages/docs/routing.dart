@@ -134,6 +134,11 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               'DVLinkPreload: none, hover, visible (the default) or immediate.',
               'DVLinkPreview: auto (the default), none, or widget(child).',
+              'Every route has a preview. A link to /orders/9 previews '
+                  '/orders/:id with id = 9.',
+              'A page behind a guard previews only its title and that it '
+                  'needs signing in. The page itself is never built on a '
+                  'hover, so nothing the guard protects is shown.',
               'Tap or scroll outside a preview to close it. Back closes the '
                   'preview before leaving the page.',
               'DVNavLink.external opens another site and never preloads.',
@@ -245,14 +250,15 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                 'under a prefix for your own GoRouter. DV.Navigation and '
                 'DVNavLink place Dartvel targets under it and leave your paths '
                 'alone.'),
-            DocsText('On auto_route, dartvelAutoRoutes(at: \'/app\') goes in '
-                'your routes list. On Flutter\'s Navigator 1.0, '
-                'dartvelOnGenerateRoute(settings, at: \'/app\') goes in '
-                'onGenerateRoute, and on Navigator 2.0 dartvelPageFor(uri, at: '
-                '\'/app\') goes in your pages. Dartvel\'s pages then run in a '
-                'router of their own with their guards, and back goes through '
-                'Dartvel\'s stack first. `dartvel init` says which router an '
-                'app uses and how to mount into it.'),
+            DocsText('Each kind of router takes your existing routes as '
+                '`existing:`: dartvelGoRouter for go_router, dartvelAutoRoutes '
+                'for auto_route, dartvelRouteFactory for Navigator 1.0, '
+                'dartvelNavigator2_0Routes spread into a Navigator 2.0 route table, and '
+                'dartvelRouterConfig for MaterialApp.router or '
+                'CupertinoApp.router. Dartvel answers its own paths under the '
+                'prefix, with its guards, and back goes through Dartvel\'s '
+                'stack first. Every other path is handled by your router. '
+                '`dartvel init` says which router an app uses.'),
             UpstreamCredit('go_router', lead: 'The generated router is built on'),
             DocsSubheading('Deep links'),
             DocsText('List your domains under dartvel.deepLinks in '
@@ -268,8 +274,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsStatus('Pages'),
             DocsStatus('Routing', missing: <String>[
               'Typed DVRoutes targets for routes inside DVGoRoutes.',
-              'Routers other than go_router, auto_route and Flutter\'s '
-                  'Navigator.',
+              'Routing packages other than go_router and auto_route are '
+                  'not tested; they can only join through dartvelRouterConfig.',
             ]),
           ],
         ),

@@ -21,7 +21,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             'backend. Mount it at a path and the parent serves all of it.',
         'Its Dart can call a Rust crate or a C library over FFI, or an '
             'Android library over JNI. The parent mounts it, grants it and '
-            'calls it the same way whatever is underneath. See /docs/platform '
+            'calls it the same way whatever is underneath. See /docs/native-access '
             'for the native binding graph and module-level capabilities.',
       ],
       sections: <DocsSection>[

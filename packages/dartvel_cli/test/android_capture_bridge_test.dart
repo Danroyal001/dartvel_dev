@@ -288,4 +288,21 @@ void main() {
       expect(dvAndroidBridgeActivitySource(), contains('"cancelled"'));
     });
   });
+
+  group('dartvel.fileStorage on Android', () {
+    test('all files is checked with isExternalStorageManager, not checkSelfPermission', () {
+      expect(dvAndroidCaptureBridgeSource(), contains('Environment.isExternalStorageManager()'));
+      expect(dvAndroidCaptureBridgeSource(), contains('case "allFiles":'));
+      expect(dvAndroidCaptureBridgeSource(), contains('case "media":'));
+    });
+
+    test('asking for it opens the app\'s All files access switch, and reads the answer after', () {
+      final String activity = dvAndroidBridgeActivitySource();
+      expect(activity, contains('android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION'));
+      expect(activity, contains('"package:" + getPackageName()'));
+      // Settings answers RESULT_CANCELED whatever the person did, so the
+      // check comes before the cancelled branch.
+      expect(activity.indexOf('request == ALL_FILES_SETTINGS'), lessThan(activity.indexOf('if (result != RESULT_OK)')));
+    });
+  });
 }

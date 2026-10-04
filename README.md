@@ -336,8 +336,13 @@ signals, native platform APIs),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
 dev server, deploy). Every package needs Dart 3.13 and Flutter 3.47 or newer.
 
-To add Dartvel to a Flutter project you already have, run `dartvel init`. It
-adds the dependency and the `dartvel:` key and nothing else.
+To add Dartvel to a Flutter project you already have, run `dartvel init` (or
+`dartvel create`: they are one command). It shows its plan, then adds the
+dependency and the `dartvel:` key and nothing else. Your router stays yours:
+`dartvelGoRouter` for go_router, `dartvelAutoRoutes` for auto_route,
+`dartvelRouteFactory` for Navigator 1.0, `dartvelNavigator2_0Routes` spread into
+a Navigator 2.0 route table, and `dartvelRouterConfig` for
+`MaterialApp.router`.
 
 ### 3. Start it
 
@@ -915,6 +920,44 @@ than a generic failure, and deleting an object that is already gone succeeds.
 `AzureBlobFileStorageAdapter` and `GcsFileStorageAdapter` cover Azure Blob
 Storage and Google Cloud Storage. CI runs them against Azurite and
 fake-gcs-server, the emulators for each.
+
+### Files on the device
+
+`DV.Platform.fileStorage` is `DV.FileStorage` on the device's own disk: the
+same calls, bound to the local adapter whatever `DV.FileStorage` is configured
+with. App files need no permission anywhere; `.cache` is the same calls in the
+cache directory; `pick()` and `pickDirectory()` open the platform's pickers.
+
+```dart
+await DV.Platform.fileStorage.put('drafts/note.txt', bytes);
+final List<DVPickedFile> picked = await DV.Platform.fileStorage.pick(type: 'image');
+```
+
+| Target | App files | Picked files |
+|---|---|---|
+| Android | `<filesDir>/dartvel-files` | system picker (a private copy) |
+| iOS | `Documents` in the container | not bound yet |
+| macOS | `~/Library/Application Support/<app>` | open and folder panels |
+| Windows | `%LOCALAPPDATA%\<app>\Files` | open and folder dialogs |
+| Linux, embedded Linux | `$XDG_DATA_HOME/<app>` | GTK choosers |
+| Web | origin private file system | file input; folders via `showDirectoryPicker` (Chromium) or a read-only folder input |
+
+Wider access is declared once and written per platform at build time:
+
+```yaml
+dartvel:
+  fileStorage:
+    access: [photos, documents]   # also: media, allFiles
+    reason: Attach photos and receipts to your orders.
+    shareAppFiles: true
+```
+
+Android gets the media permissions per API level (and
+`MANAGE_EXTERNAL_STORAGE` for `allFiles`), iOS and macOS the Info.plist usage
+description, file-sharing and open-in-place keys, macOS the sandbox
+entitlements. `requestAccess(.photos)` asks at run time and throws
+`DVFileAccessDenied` on a refusal. `DV.Platform.files` is deprecated: it is the
+same directory on Android and the web, and `fileStorage` works everywhere.
 
 ---
 
