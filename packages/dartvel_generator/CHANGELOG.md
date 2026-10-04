@@ -1,3 +1,7 @@
+## 1.4.4 — 2026-10-05
+
+- Refresh the core dependency to 0.11.0 and allow lints 4.x through 6.x.
+
 ## 1.4.3 — 2026-10-02
 
 - Accepts dartvel_core 0.10.0. No changes in this package.

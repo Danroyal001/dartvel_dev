@@ -1,3 +1,8 @@
+## 0.11.0 — 2026-10-05
+
+- Device file storage is backed by the platform filesystem, with cache directories, picking and declared access permissions.
+- Stripe and Paddle expose subscription lifecycle operations through a separate interface.
+
 ## 0.10.0 — 2026-10-02
 
 - **`@DVBackendFunction(aiTool: DVAITool(description: ...))`** adds a backend
