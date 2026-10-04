@@ -1,3 +1,7 @@
+## 0.11.0 — 2026-10-05
+
+- Serve sitemap XML, UTF-8 robots.txt and other common web files with their correct content types.
+
 ## 0.10.0 — 2026-10-02
 
 - **WebSocket latency:** a reply is written to the socket from the isolate's
