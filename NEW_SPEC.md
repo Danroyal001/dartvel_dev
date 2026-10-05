@@ -15764,3 +15764,6 @@ while their semantic field names identify the complete property.
 
 Studio control colour tokens resolve against the containing app’s effective
 Material colour scheme, including custom light and dark themes.
+
+Studio layers and palette tiles expose named accessible actions with keyboard
+activation and focus outlines; read-only palettes cannot insert or start drags.
