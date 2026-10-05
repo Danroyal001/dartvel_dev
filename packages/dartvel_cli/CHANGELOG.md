@@ -1,3 +1,8 @@
+## 0.11.0 — 2026-10-05
+
+- Unify create/init adoption behavior, refresh coding-agent rules and architecture documentation, and declare file-storage permissions in native builds.
+- New projects use the 0.11.0 package family.
+
 ## 0.10.0 — 2026-10-02
 
 - **`dartvel.webPrerender` is gone.** It was read and never used: every web
