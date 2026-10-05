@@ -1380,6 +1380,16 @@ class DVModifier {
   DVModifier margin(double value) =>
       _copyWith(marginValue: .all(value));
 
+  /// Outer spacing on named edges, replacing the complete margin.
+  DVModifier marginOnly({
+    double left = 0,
+    double top = 0,
+    double right = 0,
+    double bottom = 0,
+  }) => _copyWith(
+    marginValue: .only(left: left, top: top, right: right, bottom: bottom),
+  );
+
   DVModifier rounded(double value) =>
       _copyWith(borderRadius: .circular(value));
 
