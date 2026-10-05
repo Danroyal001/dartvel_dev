@@ -106,7 +106,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Webflow feature | Studio | Evidence |
 | --- | --- | --- |
 | Visual site builder with boxes | **Done** | `studio_editor.dart`, `page_document.dart:1424` |
-| Box model: margin, padding, sizing, per-side borders, radius | **Partial** — padding, gap, alignment, sizing, radius, background, border sides are in the node property chain (`page_document.dart:1444` border sides); per-side margin/padding *presets* and a numeric four-field editor are not | `page_document.dart` node properties, `studio_formula.dart` |
+| Box model: margin, padding, sizing, per-side borders, radius | **Partial** — padding, gap, alignment, sizing, radius, background, border sides are in the node property chain (`page_document.dart:1444` border sides); numeric per-side padding and margin fields are now present; linked-edge presets and the broader box-model design surface remain partial | `page_document.dart` node properties, `studio_formula.dart` |
 | Flexbox and Grid | **Done** — row, column, wrap, grid, stack as node layouts, exported as Flutter layouts | `page_document.dart:1424` |
 | Breakpoints and responsive design mode | **Partial** — device switcher and per-node breakpoint overrides, but no breakpoint rails, no separate breakpoint canvases, no element-visibility-per-breakpoint UI | `studio_screen.dart:469`, `dartvel_flutter.dart:5058` |
 | Reusable components (symbols) with fields | **Done** — components with props and an Insert panel | `studio_components_section.dart`, screenshot `docs/studio/nocode/insert-panel-components.png` |
@@ -268,3 +268,12 @@ does not establish browser parity for every Studio control.
   path, its own URL, Ctrl+F/selection/Tab/screen reader working, generic for every
   Dartvel project, checked in a real browser on a web-server build, with the docs updated
   in the same change.
+
+### Per-side outer spacing
+
+The numeric inspector now exposes margin on all four edges alongside padding.
+A named margin edge overrides the uniform margin; an explicit zero is retained.
+The page document, renderer and exported `.marginOnly(...)` use the same values.
+Failing-first regression coverage: `studio_margin_edges_test.dart` (three failures
+on the preceding implementation), alongside padding and inspector regressions.
+Production-browser verification is pending; the broader box-model verdict remains Partial.

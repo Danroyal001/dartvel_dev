@@ -361,7 +361,7 @@ Fluent modifiers include
 
 ```dart
 .padding()          // also paddingOnly, paddingSymmetric
-.margin()
+.margin()           // also marginOnly for named outer edges
 .color()            // text colour
 .backgroundColor()
 .gradient()
