@@ -225,8 +225,9 @@ appear on the rail with no address.
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
-partial: Studio’s custom color tokens and the visible server-rendered first
-frame have not yet been migrated.
+partial: Studio’s control colour tokens now resolve against the application’s colour
+scheme. Complete browser-flow and server-rendered first-frame parity remain
+unverified.
 
 A web-server build of this branch and the browser probe (`docs/studio/evidence/2026-10-02/`, 2 October 2026) pass every check with no page errors: the guarded-mode server documents, keyboard sign-in with Enter, URLs and deep links, back and forward, Ctrl+F, Tab, screen-reader buttons, and drag-select-and-copy. Theme parity is in this build (`18891f15`).
 
@@ -281,3 +282,8 @@ Production-browser verification is pending; the broader box-model verdict remain
 Compact numeric inspector fields now expose complete assistive names (for example,
 “Margin top” rather than only “T”). Failing-first widget evidence is in
 `studio_inspector_labels_test.dart`; production-browser evidence remains pending.
+
+The Studio frame now binds its control colour tokens to the app’s effective
+`ColorScheme`, including projects with custom light and dark themes. Failing-first
+coverage in `studio_app_theme_test.dart` reproduced the fixed-palette mismatch in
+both appearances. This does not establish complete first-frame theme parity.

@@ -441,8 +441,9 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
-partial: Studio’s custom color tokens and the visible server-rendered first
-frame have not yet been migrated.
+partial: Studio’s control colour tokens now resolve against the application’s colour
+scheme. Complete browser-flow and server-rendered first-frame parity remain
+unverified.
 
 `dartvel build web-server` writes `build/server`, a single executable that
 carries the backend, the native server library and the web app. It runs on
