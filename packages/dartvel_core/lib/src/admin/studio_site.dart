@@ -10,6 +10,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import '../web/asset_source.dart';
 
 /// What kind of page a route is.
 enum DVStudioPageKind {
@@ -134,9 +135,8 @@ const String dvStudioStructureDirectory = 'structure';
 /// graph to read.
 List<Map<String, Object?>> dvStudioGraphRoutes(String? root) {
   if (root == null) return const <Map<String, Object?>>[];
-  final File graph = File('$root${Platform.pathSeparator}graph.json');
   try {
-    final Object? decoded = jsonDecode(graph.readAsStringSync());
+    final Object? decoded = jsonDecode(utf8.decode(DVAssetSources.at(root).file('graph.json')!.bytes()));
     final Object? routes = decoded is Map ? decoded['routes'] : null;
     return <Map<String, Object?>>[
       if (routes is List)
@@ -153,9 +153,8 @@ List<Map<String, Object?>> dvStudioGraphRoutes(String? root) {
 Object? dvStudioStructureIn(String? directory, String route) {
   final String? name = dvStudioStructureName(route);
   if (directory == null || name == null) return null;
-  final File file = File('$directory${Platform.pathSeparator}$name.json');
   try {
-    return jsonDecode(file.readAsStringSync());
+    return jsonDecode(utf8.decode(DVAssetSources.at(directory).file('$name.json')!.bytes()));
   } on Object {
     return null;
   }
@@ -172,11 +171,12 @@ Object? dvStudioPageContentIn(String? directory, String route) {
   if (tree is! List || directory == null) return tree;
   final List<Object?> pages = <Object?>[];
   try {
-    for (final FileSystemEntity entity in Directory(directory).listSync()) {
-      if (entity is! File || !entity.path.endsWith('.json')) continue;
-      if (entity.path.endsWith('.images.json')) continue;
+    final DVAssetSource captured = DVAssetSources.at(directory);
+    for (final String path in captured.list()) {
+      if (path.contains('/') || !path.endsWith('.json')) continue;
+      if (path.endsWith('.images.json')) continue;
       try {
-        pages.add(jsonDecode(entity.readAsStringSync()));
+        pages.add(jsonDecode(utf8.decode(captured.file(path)!.bytes())));
       } on FormatException {
         // Skipped: one unreadable capture does not decide what is shared.
       }
@@ -224,7 +224,7 @@ Object? dvStudioPageContentIn(String? directory, String route) {
 bool dvStudioHasStructure(String? directory, String route) {
   final String? name = dvStudioStructureName(route);
   if (directory == null || name == null) return false;
-  return File('$directory${Platform.pathSeparator}$name.json').existsSync();
+  return DVAssetSources.at(directory).file('$name.json') != null;
 }
 
 /// Where Dartvel keeps documents that are not pages: under it, Studio's

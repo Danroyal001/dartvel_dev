@@ -56,6 +56,32 @@
  */
 #define AW_BODY_PULL_UNKNOWN 1
 
+/**
+ * Brotli, `Content-Encoding: br`.
+ */
+#define AW_CODEC_BROTLI 1
+
+/**
+ * Zstandard, `Content-Encoding: zstd`.
+ */
+#define AW_CODEC_ZSTD 2
+
+/**
+ * The encoding did not fit in the output buffer.
+ */
+#define AW_CODEC_TOO_LARGE -2
+
+/**
+ * An unknown codec, a level out of range, or a null buffer.
+ */
+#define AW_CODEC_BAD_ARGUMENT -3
+
+/**
+ * The input is not a valid stream of the codec, or decodes to a different
+ * length than the caller said.
+ */
+#define AW_CODEC_CORRUPT -4
+
 typedef struct FfiStr {
   const uint8_t *ptr;
   size_t len;
@@ -101,6 +127,8 @@ typedef struct FfiWsFrame {
   int32_t kind;
   struct FfiBuf data;
 } FfiWsFrame;
+
+typedef void *DartHandle;
 
 uint32_t aw_abi_version(void);
 
@@ -247,5 +275,79 @@ struct FfiWsFrame aw_ws_receive(uint64_t id);
 void aw_ws_free(struct FfiBuf data);
 
 void aw_ws_dispose(uint64_t id);
+
+/**
+ * Compresses `input_len` bytes at `input` with `codec` at `level` into the
+ * `out_cap` bytes at `out`. Returns the length written, or a negative
+ * `AW_CODEC_*`.
+ *
+ * # Safety
+ * `input` must be valid for `input_len` bytes and `out` for `out_cap`.
+ */
+int64_t aw_codec_encode(int32_t codec,
+                        int32_t level,
+                        const uint8_t *input,
+                        size_t input_len,
+                        uint8_t *out,
+                        size_t out_cap);
+
+/**
+ * Decompresses `input_len` bytes at `input`, encoded with `codec`, into
+ * exactly the `out_len` bytes at `out`. Returns `out_len`, or a negative
+ * `AW_CODEC_*` -- a stream that decodes to any other length is corrupt.
+ *
+ * # Safety
+ * `input` must be valid for `input_len` bytes and `out` for `out_len`.
+ */
+int64_t aw_codec_decode(int32_t codec,
+                        const uint8_t *input,
+                        size_t input_len,
+                        uint8_t *out,
+                        size_t out_len);
+
+/**
+ * Whether this process's runtime exports what loading a unit takes.
+ */
+int32_t aw_units_supported(void);
+
+/**
+ * Records that unit `id` is the ELF at `offset` in the file `path` (UTF-8,
+ * `path_len` bytes). Returns 0, or 1 for a path that is not a C string.
+ *
+ * # Safety
+ * `path` must be valid for `path_len` bytes.
+ */
+int32_t aw_units_register(ptrdiff_t id, const uint8_t *path, size_t path_len, uint64_t offset);
+
+/**
+ * How many units have been mapped so far.
+ */
+int32_t aw_units_loaded(void);
+
+/**
+ * The VM's deferred-load handler: maps unit `id` from the executable the
+ * first time any isolate asks, and completes that isolate's load with it.
+ *
+ * Another isolate of the same group that asks later is also sent here --
+ * the VM keeps whether a prefix is loaded per isolate, and whether a unit
+ * is loaded per group -- and the VM refuses to take the same unit twice
+ * ("Unit already loaded"). The group already has the code, so that isolate
+ * only needs its own pending `loadLibrary()` completed: this calls its
+ * `dart:core` `_completeLoads(id, null, false)`, which is what the VM
+ * itself calls after taking a unit.
+ *
+ * Serialized: an isolate asking while another is still taking the unit
+ * waits until it has, rather than running code the group does not yet have.
+ *
+ * # Safety
+ * Called by the VM, on the isolate that asked, with that isolate entered
+ * and an API scope open.
+ */
+DartHandle aw_units_load(ptrdiff_t id);
+
+/**
+ * Whether unit `id` has been taken by the VM.
+ */
+int32_t aw_units_completed(ptrdiff_t id);
 
 #endif  /* DARTVEL_SHELF_H */

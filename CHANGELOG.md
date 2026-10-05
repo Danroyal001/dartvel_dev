@@ -7,6 +7,13 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- Web-server binaries read bundled assets on request from an indexed pack,
+  negotiate precompressed responses, and keep decoded public assets in bounded
+  caches. Studio assets remain private and uncached. Linux builds with a
+  compatible native library load deferred AOT units from the executable.
+- Asset responses support ETags and single byte ranges; oversized decimal
+  ranges are ignored instead of causing request errors.
+
 ## 0.11.0 — 2026-10-05
 
 Packages: dartvel_core, dartvel_shelf, dartvel_flutter, dartvel_cli and
