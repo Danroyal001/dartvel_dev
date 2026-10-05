@@ -164,6 +164,16 @@ void main() {
   });
 
   group('ranges', () {
+    test('decimal ranges larger than a machine integer do not crash the request', () async {
+      const String huge = '999999999999999999999999999999999999999999';
+      for (final String range in <String>['bytes=$huge-', 'bytes=0-$huge', 'bytes=-$huge']) {
+        final Response r = await ask('/big.png', headers: <String, String>{'range': range});
+        expect(r.status, 200, reason: range);
+        expect(r.headers.get('content-range'), isNull);
+        expect(await body(r), png);
+      }
+    });
+
     test('a range of a file kept as it is', () async {
       final Response r = await ask('/big.png', headers: <String, String>{'range': 'bytes=100-199'});
       expect(r.status, 206);
