@@ -99,6 +99,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'inspector, preview phone, tablet and desktop widths, and undo '
               'any step.',
           'Studio controls use your app’s light and dark colour schemes.',
+          'Use Tab, Enter and Space to select layers, expand groups and insert '
+              'elements without dragging.',
           'Set padding and margin uniformly or on each edge; saved pages and '
               'exported Dart retain the spacing. Compact spacing fields '
               'announce their full names to screen readers.',
