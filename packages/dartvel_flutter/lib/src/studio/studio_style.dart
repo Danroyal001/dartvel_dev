@@ -1366,7 +1366,7 @@ class DVStudioColor extends Color {
     if (scheme == null || _role == null) {
       return DVStudioStyle.dark ? darkValue : light;
     }
-    final colour = switch (_role!) {
+    final colour = switch (_role) {
       .onSurface => scheme.onSurface,
       .onSurfaceVariant => scheme.onSurfaceVariant,
       .outlineVariant => scheme.outlineVariant,
