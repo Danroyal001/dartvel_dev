@@ -2140,6 +2140,7 @@ class DVStudioInspector extends StatelessWidget {
     if (name == 'text' || name == 'src' || name == 'alt') {
       return DVStudioTextInput(
         key: key,
+        semanticLabel: _dvStudioHumanise(name),
         value: '${value ?? ''}',
         placeholder: name == 'src' ? 'https://… or assets/…' : null,
         onChanged: (String text) => name == 'text'
@@ -2183,6 +2184,7 @@ class DVStudioInspector extends StatelessWidget {
         return DVStudioTextInput(
           key: key,
           label: compact ? _dvStudioShortLabels[name] : null,
+          semanticLabel: _dvStudioHumanise(name),
           value: value == null ? '' : '$value',
           placeholder: compact ? null : '—',
           suffix: compact ? null : _dvStudioUnits[name],

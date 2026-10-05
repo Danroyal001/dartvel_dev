@@ -15758,3 +15758,6 @@ against them.
 
 - user says I want to build an app for X
 - Dartvel already has it covered
+
+Studio inspector inputs retain short visible labels where space is limited,
+while their semantic field names identify the complete property.

@@ -1002,6 +1002,9 @@ class DVStudioTextInput extends StatefulWidget {
   final String? label;
   final IconData? icon;
 
+  /// Complete field name announced when the visible label is abbreviated.
+  final String? semanticLabel;
+
   /// Drawn after the value: a unit such as `px`.
   final String? suffix;
 
@@ -1016,6 +1019,7 @@ class DVStudioTextInput extends StatefulWidget {
     this.placeholder,
     this.label,
     this.icon,
+    this.semanticLabel,
     this.suffix,
     this.obscureText = false,
   });
@@ -1103,6 +1107,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput> {
                   // Studio was lost. Material's TextField says so itself.
                   Semantics(
                     enabled: true,
+                    label: widget.semanticLabel,
                     child: EditableText(
                       controller: _text,
                       focusNode: _focus,
