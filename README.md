@@ -463,7 +463,8 @@ data.
 
 Studio’s inspector edits uniform or per-side padding and margin. Named edges
 override the uniform value; saved documents and exported Dart preserve those
-values. Broader Studio feature and accessibility coverage remains partial; see
+values. Compact spacing and size fields announce their full property names to
+assistive technology. Broader Studio feature and accessibility coverage remains partial; see
 [the parity checklist](docs/studio/PARITY.md).
 
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
