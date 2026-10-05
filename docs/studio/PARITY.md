@@ -287,3 +287,10 @@ The Studio frame now binds its control colour tokens to the app’s effective
 `ColorScheme`, including projects with custom light and dark themes. Failing-first
 coverage in `studio_app_theme_test.dart` reproduced the fixed-palette mismatch in
 both appearances. This does not establish complete first-frame theme parity.
+
+Layers now expose named selection actions with Tab/Enter/Space, focus outlines
+and keyboard expand/collapse controls. Palette tiles expose keyboard insertion,
+with read-only insertion/drag disabled. Failing-first regressions are in
+`studio_layers_keyboard_test.dart` and `studio_palette_keyboard_test.dart`;
+34 editor/panel/component/accessibility tests pass. Production-browser coverage
+is still pending, so the overall accessibility verdict remains Partial.
