@@ -1,3 +1,9 @@
+## 0.11.0 — 2026-10-05
+
+- Navigator 2.0 route integration and previews for concrete and guarded links.
+- Keyboard navigation, submission, validation announcements and configurable password visibility for generated forms.
+- Native device file-storage picking and access operations.
+
 ## 0.10.0 — 2026-10-02
 
 - **Typing keys reach text fields on every Dartvel page.** Space, Enter, the
