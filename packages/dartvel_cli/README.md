@@ -62,14 +62,14 @@ carries one binary per platform, with `SHA256SUMS` and `latest.json`:
 There is no Windows on ARM build; the x64 one runs under emulation.
 
 ```sh
-curl -LO https://github.com/Danroyal001/dartvel_dev/releases/download/v0.11.0/dartvel-linux-amd64
+curl -LO https://github.com/Danroyal001/dartvel_dev/releases/download/v0.11.1/dartvel-linux-amd64
 mkdir -p ~/.dartvel/bin
 mv dartvel-linux-amd64 ~/.dartvel/bin/dartvel
 chmod +x ~/.dartvel/bin/dartvel
 ~/.dartvel/bin/dartvel ensure-path   # adds ~/.dartvel/bin to your PATH
 ```
 
-**For 0.11.0, only the Linux binaries are attached until the CI release
+**For 0.11.1, only the Linux binaries are attached until the CI release
 workflow has run.** Until then, npm on macOS or Windows fails on the download
 and prints the release URL. Use the per-project route below on those hosts,
 or 0.5.0.
@@ -81,7 +81,7 @@ dependencies. `dartvel create` already writes this:
 
 ```yaml
 dev_dependencies:
-  dartvel_cli: ^0.11.0
+  dartvel_cli: ^0.11.1
 ```
 
 ```sh

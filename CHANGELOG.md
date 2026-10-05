@@ -7,6 +7,8 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+## 0.11.1 — 2026-10-05
+
 - Web-server binaries read bundled assets on request from an indexed pack,
   negotiate precompressed responses, and keep decoded public assets in bounded
   caches. Studio assets remain private and uncached. Linux builds with a
