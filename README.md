@@ -461,6 +461,11 @@ itself on the first run, with a table per model, and reuses it after that.
 the head, structured data and crawler-visible text generated from each page's
 data.
 
+Studio’s inspector edits uniform or per-side padding and margin. Named edges
+override the uniform value; saved documents and exported Dart preserve those
+values. Broader Studio feature and accessibility coverage remains partial; see
+[the parity checklist](docs/studio/PARITY.md).
+
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
 it): the page builder, a table of each model's records with an edit form, the
 build's routes, functions and jobs, and the list of Studio grants. Studio is
