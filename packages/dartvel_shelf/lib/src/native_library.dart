@@ -19,6 +19,13 @@ import 'package:path/path.dart' as p;
 
 List<int>? _embedded;
 
+/// Where the library lies inside a file, when it was given that way.
+({String path, int offset, int length})? _embeddedAt;
+
+/// The library once it is open: a second [serve] in the same process opens
+/// nothing again, and the bytes it was opened from are not kept.
+({ffi.DynamicLibrary library, String origin})? _opened;
+
 /// Gives this process the native server library as bytes.
 ///
 /// For a compiled executable, which carries the library inside itself: the
@@ -29,6 +36,25 @@ void embedNativeServerLibrary(List<int> bytes) {
     throw ArgumentError.value(bytes, 'bytes', 'the library is empty');
   }
   _embedded = bytes;
+  _embeddedAt = null;
+  _opened = null;
+}
+
+/// Gives this process the native server library as [length] bytes at
+/// [offset] in the file at [path]: where a web-server binary carries it,
+/// inside itself.
+///
+/// Nothing is read until [serve] opens it, and then it is copied a piece at
+/// a time into an anonymous in-memory file (a private temporary file where
+/// the platform has none) and opened from there. No copy of it is kept in
+/// the Dart heap.
+void embedNativeServerLibraryAt(String path, {required int offset, required int length}) {
+  if (length <= 0) {
+    throw ArgumentError.value(length, 'length', 'the library is empty');
+  }
+  _embeddedAt = (path: path, offset: offset, length: length);
+  _embedded = null;
+  _opened = null;
 }
 
 /// The platform directory and file name the package ships the library under,
@@ -70,9 +96,18 @@ void embedNativeServerLibrary(List<int> bytes) {
 /// check failing on the first line of a binary that looked built.
 Future<({ffi.DynamicLibrary library, String origin})>
     openNativeServerLibrary() async {
+  final ({ffi.DynamicLibrary library, String origin})? opened = _opened;
+  if (opened != null) return opened;
+  final ({String path, int offset, int length})? at = _embeddedAt;
+  if (at != null) {
+    return _opened = (library: _openRange(at), origin: 'embedded in this binary');
+  }
   final List<int>? embedded = _embedded;
   if (embedded != null) {
-    return (library: _openBytes(embedded), origin: 'embedded in this binary');
+    final ffi.DynamicLibrary library = _openBytes(embedded);
+    // Open now; the bytes it came from are garbage.
+    _embedded = null;
+    return _opened = (library: library, origin: 'embedded in this binary');
   }
   final location = nativeServerLibraryLocation();
   final Uri? uri = await Isolate.resolvePackageUri(Uri.parse(
@@ -109,6 +144,74 @@ ffi.DynamicLibrary _openBytes(List<int> bytes) {
   final File file = File(p.join(dir.path, nativeServerLibraryLocation().name))
     ..writeAsBytesSync(bytes, flush: true);
   return ffi.DynamicLibrary.open(file.path);
+}
+
+/// The library at [at], copied a piece at a time into where it is opened
+/// from: an anonymous in-memory file on Linux, a private temporary file
+/// elsewhere.
+ffi.DynamicLibrary _openRange(({String path, int offset, int length}) at) {
+  void copyInto(RandomAccessFile out) {
+    final RandomAccessFile source = File(at.path).openSync();
+    try {
+      source.setPositionSync(at.offset);
+      int left = at.length;
+      while (left > 0) {
+        final Uint8List piece = source.readSync(left < (1 << 20) ? left : 1 << 20);
+        if (piece.isEmpty) {
+          throw StateError('dartvel: ${at.path} ends inside the native server library');
+        }
+        out.writeFromSync(piece);
+        left -= piece.length;
+      }
+    } finally {
+      source.closeSync();
+    }
+  }
+
+  if (Platform.isLinux) {
+    final int? fd = _memfd();
+    if (fd != null) {
+      final String path = '/proc/self/fd/$fd';
+      try {
+        final RandomAccessFile out = File(path).openSync(mode: FileMode.writeOnly);
+        try {
+          copyInto(out);
+        } finally {
+          out.closeSync();
+        }
+        return ffi.DynamicLibrary.open(path);
+      } on Object {
+        // A kernel that refuses executable memfds: the file below.
+      }
+    }
+  }
+  final Directory dir = Directory.systemTemp.createTempSync('dartvel-native-');
+  final File file = File(p.join(dir.path, nativeServerLibraryLocation().name));
+  final RandomAccessFile out = file.openSync(mode: FileMode.writeOnly);
+  try {
+    copyInto(out);
+  } finally {
+    out.closeSync();
+  }
+  return ffi.DynamicLibrary.open(file.path);
+}
+
+/// An anonymous in-memory file, or null where there is none.
+int? _memfd() {
+  try {
+    final int Function(ffi.Pointer<pkgffi.Utf8>, int) memfdCreate =
+        ffi.DynamicLibrary.process().lookupFunction<
+            ffi.Int32 Function(ffi.Pointer<pkgffi.Utf8>, ffi.Uint32),
+            int Function(ffi.Pointer<pkgffi.Utf8>, int)>('memfd_create');
+    final ffi.Pointer<pkgffi.Utf8> name =
+        'dartvel_shelf'.toNativeUtf8(allocator: pkgffi.calloc);
+    // MFD_CLOEXEC: a child process this server starts does not inherit it.
+    final int fd = memfdCreate(name, 1);
+    pkgffi.calloc.free(name);
+    return fd < 0 ? null : fd;
+  } on Object {
+    return null;
+  }
 }
 
 ffi.DynamicLibrary? _openMemfd(List<int> bytes) {

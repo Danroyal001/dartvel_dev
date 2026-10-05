@@ -21,6 +21,7 @@ import '../admin/admin_server.dart'
     show DVAdminMount, dvAdminAuthorized, dvAdminContentType;
 import '../http/wintercg.dart';
 import 'docs_mount.dart';
+import '../web/asset_source.dart';
 
 /// Answers the requests under [DVDocsMount.path].
 class DVDocsServer {
@@ -146,14 +147,15 @@ _DocsAsset? _docsAsset(String root, DVAdminMount mount, String path) {
     segments.add(segment);
   }
   if (decoded.startsWith('/')) return null;
-  final String separator = Platform.pathSeparator;
-  final File asset = File(<String>[root, ...segments].join(separator));
-  if (segments.isNotEmpty && asset.existsSync()) {
-    return _DocsAsset(
-        asset.readAsBytesSync(), dvAdminContentType(segments.last));
+  // Through the source registered for the root: the pack a web-server binary
+  // carries (nothing written out), the directory otherwise.
+  final DVAssetSource files = DVAssetSources.at(root);
+  final DVAssetFile? asset = segments.isEmpty ? null : files.file(segments.join('/'));
+  if (asset != null) {
+    return _DocsAsset(asset.bytes(), dvAdminContentType(segments.last));
   }
-  final File shell = File('$root${separator}index.html');
-  if (!shell.existsSync()) return null;
-  return _DocsAsset(shell.readAsBytesSync(), 'text/html; charset=utf-8');
+  final DVAssetFile? shell = files.file('index.html');
+  if (shell == null) return null;
+  return _DocsAsset(shell.bytes(), 'text/html; charset=utf-8');
 }
 

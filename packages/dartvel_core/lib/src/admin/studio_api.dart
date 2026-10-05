@@ -45,6 +45,7 @@ import 'studio_model_schema.dart';
 import 'studio_repository.dart';
 import 'studio_source_files.dart';
 import 'studio_site.dart';
+import '../web/asset_source.dart';
 
 /// One field of a model, as Studio edits it.
 ///
@@ -1757,11 +1758,10 @@ class DVStudioApi {
     Object? graph;
     if (directory != null) {
       try {
-        graph = jsonDecode(
-            File('$directory${Platform.pathSeparator}graph.json')
-                .readAsStringSync());
-      } on FileSystemException {
-        graph = null;
+        // Through the source for Studio's data: the pack a web-server binary
+        // carries, or the directory a build wrote.
+        final DVAssetFile? file = DVAssetSources.at(directory).file('graph.json');
+        graph = file == null ? null : jsonDecode(utf8.decode(file.bytes()));
       } on FormatException {
         graph = null;
       }

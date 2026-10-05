@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dartvel_core/binary_payload.dart';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -1012,5 +1013,19 @@ void main() {
         expect(await as('u-customer'), _refused);
       },
     );
+  });
+
+  test('a web-server binary reads the queues from the graph in its pack', () {
+    final Uint8List bytes = dvWriteAssetPack(<DVAssetPackEntry>[
+      DVAssetPackEntry('admin/graph.json', Uint8List.fromList(utf8.encode('{"jobs":[{"queue":"mail"}]}')),
+          protected: true),
+    ]);
+    final Directory directory = Directory.systemTemp.createTempSync('dartvel_admin_pack_');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final File server = File('${directory.path}/server')..writeAsBytesSync(bytes);
+    DVAssetSources.register('${server.path}/admin',
+        DVPackedAssets(DVAssetPack.open(server.path, offset: 0, length: bytes.length)!, prefix: 'admin/'));
+    addTearDown(DVAssetSources.clear);
+    expect(dvAdminGraphQueues('${server.path}/admin'), <String>['mail']);
   });
 }

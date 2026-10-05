@@ -43,3 +43,8 @@ export 'src/data/capture_runtime.dart';
 // An application answers them by writing the model's view and viewSensitive
 // policies.
 export 'src/web/model_page_access.dart' show DVModelPageAccess;
+// Where a server reads a site's files from: a directory, or the pack a
+// web-server binary carries.
+export 'src/process/asset_pack.dart' show DVAssetCodecs, DVAssetDecoder, DVAssetEncoding;
+export 'src/web/asset_http_policy.dart';
+export 'src/web/asset_source.dart';

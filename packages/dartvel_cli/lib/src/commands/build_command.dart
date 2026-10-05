@@ -1301,11 +1301,21 @@ class BuildCommand extends Command<void> {
       // The dashboard this build wrote, in a section of its own and never
       // among the web files, served by the binary at its mount.
       admin: admin,
+      // Studio's data (the project graph and page structures): protected, in
+      // the pack apart from the web files. Studio's code: in memory.
       adminRoot: p.join(root, dvStudioDataDirectory),
       studioPartsRoot: p.join(root, dvStudioPartsDirectory),
-      // The documentation site: a section of its own.
+      // The documentation site: protected, in the pack under docs/.
       docs: docs,
       docsRoot: p.join(root, 'build', 'web', dvDocsPagesDirectory),
+      // dartvel.web.server.compression: how the web files are kept inside.
+      compression: dvAssetCompression(_webServerSection(root)['compression']),
+      // Deferred imports compile to code units carried inside the binary and
+      // mapped when first used, where the host can build them.
+      units: true,
+      // A build that serves no Studio compiles none of it: every reference
+      // the generated backend makes is behind this.
+      defines: <String, String>{'dartvel.studio': admin == null ? 'false' : 'true'},
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           _processRun(executable, arguments,
@@ -1318,6 +1328,13 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.failed;
     }
     return _PlatformBuildResult.succeeded;
+  }
+
+  /// `dartvel.web.server`, or nothing.
+  Map<Object?, Object?> _webServerSection(String root) {
+    final Object? web = _dartvelSection(root)['web'];
+    final Object? server = web is Map ? web['server'] : null;
+    return server is Map ? server : const <Object?, Object?>{};
   }
 
   /// Builds embedded/television targets through their dedicated Flutter

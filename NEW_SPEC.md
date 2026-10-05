@@ -14227,6 +14227,16 @@ one on the machine.
 
 Stability: `Draft` · Status: `Partial`
 
+The single executable carries an indexed asset pack: startup reads its index,
+and requests read each file in place. Precompressed assets negotiate encoding,
+ETags and byte ranges; protected Studio assets remain private and uncached.
+Decoded public assets may use a bounded memory cache and a build-specific disk
+cache. Linux builds with the required SDK tools carry deferred AOT loading
+units inside the executable and map them on first use; other hosts compile
+one unit. Configuration and platform limits are described in
+`docs/web-server-binary.md`. This changes delivery, not the shared web and
+web-server page render path or the remaining rendering limitations below.
+
 `dartvel build web-server` creates a Dartvel web server that generates
 route-specific HTML on demand:
 

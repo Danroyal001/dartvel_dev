@@ -26,6 +26,15 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
             DocsText('`dartvel build web-server` writes build/server: one '
                 'executable with your backend, the native server, the web app '
                 'and the admin dashboard inside it.'),
+            DocsText('The server reads each bundled asset when a request needs '
+                'it. Compressed files are sent in that encoding when the browser '
+                'accepts it; other requests use a decoded copy. Public files '
+                'have ETags and byte ranges. Studio files stay private and '
+                'are never kept in the asset cache.'),
+            DocsText('DARTVEL_CACHE_DIR moves the disposable asset cache. '
+                'Linux builds can also load deferred backend code from inside '
+                'the executable on first use. Other hosts compile one code '
+                'unit; the app uses the same page render path on every host.'),
             DocsShell(<String>[
               r'$ dartvel build web-server',
               r'$ scp build/server you@host:/srv/shop/',
