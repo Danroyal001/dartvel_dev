@@ -201,6 +201,10 @@ Future<String> _ping() async => 'pong from one file';
   }, skip: skip);
 
   group('Studio, served by the binary alone', () {
+    // Compare the public asset before and after requesting Studio against
+    // the same compressible fixture, so an asset-source mix-up is detected.
+    final String script =
+        List<String>.generate(2000, (int i) => 'function f$i(){return $i}').join('\n');
     /// Builds build/server carrying a web root and Studio at [mount],
     /// copies the one file somewhere empty, starts it and returns a way to
     /// ask it for a path.
@@ -224,8 +228,6 @@ Future<String> _ping() async => 'pong from one file';
             '<body><script src="flutter_bootstrap.js" async></script>'
             '</body></html>');
       // A code asset big enough to be worth compressing.
-      final String script =
-          List<String>.generate(2000, (int i) => 'function f$i(){return $i}').join('\n');
       File(p.join(web.path, 'main.dart.js')).writeAsStringSync(script);
       // What an older build left in the web output: a separately built
       // Studio. The binary never carries it as a web file.
@@ -407,7 +409,7 @@ Future<String> _ping() async => 'pong from one file';
       expect(raw.body, isNot(contains('OLD STUDIO APP')));
       // And the site is still the site.
       expect((await get('/')).body, contains('The site'));
-      expect((await get('/main.dart.js')).body, '// the site');
+      expect((await get('/main.dart.js')).body, script);
     }, skip: skip);
 
     test('sends an ungranted page request to the sign-in, and hides Studio\'s '
