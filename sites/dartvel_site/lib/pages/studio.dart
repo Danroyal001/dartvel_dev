@@ -98,6 +98,7 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Select a node on the canvas or in Layers, style it in the '
               'inspector, preview phone, tablet and desktop widths, and undo '
               'any step.',
+          'Studio controls use your app’s light and dark colour schemes.',
           'Set padding and margin uniformly or on each edge; saved pages and '
               'exported Dart retain the spacing. Compact spacing fields '
               'announce their full names to screen readers.',

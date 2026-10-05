@@ -68,9 +68,9 @@ class _DVStudioFrameState extends State<DVStudioFrame> {
 
   /// Follow the effective app theme, including an explicit theme mode.
   static Widget _keyed(BuildContext context, Widget child) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-    DVStudioStyle.dark = dark;
-    return KeyedSubtree(key: ValueKey<bool>(dark), child: child);
+    final theme = Theme.of(context);
+    DVStudioStyle.bindTheme(theme);
+    return KeyedSubtree(key: ValueKey<ThemeData>(theme), child: child);
   }
 
   @override
