@@ -15761,3 +15761,6 @@ against them.
 
 Studio inspector inputs retain short visible labels where space is limited,
 while their semantic field names identify the complete property.
+
+Studio control colour tokens resolve against the containing app’s effective
+Material colour scheme, including custom light and dark themes.

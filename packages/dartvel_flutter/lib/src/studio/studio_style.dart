@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart'
-    show Icon, IconData, Icons, Material, Tooltip;
+    show ColorScheme, Icon, IconData, Icons, Material, ThemeData, Tooltip;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
@@ -7,77 +7,85 @@ import '../../dartvel_flutter.dart';
 /// Studio's design system: the colours, spacing, type and controls every
 /// Studio screen — and every section attached to one — is built from.
 ///
-/// A fixed palette rather than the application's theme: Studio edits the
-/// application, so it has to stay readable over whatever that application's
-/// theme happens to be, and a builder whose chrome changes colour with the
-/// page being built is a builder you cannot trust what you are seeing in.
-///
-/// Public because [DVStudioSection] is an extension seam, and a seam with no
-/// style vocabulary produces sections that look foreign to the tool hosting
-/// them. That is not hypothetical: Studio's own Pages section went unstyled
-/// for its whole life, and the Pro workflow builder was written by copying
-/// it, so the copy inherited the absence.
+/// Colour tokens resolve against the effective application theme. Constant
+/// references remain usable in widget declarations; their channels follow the
+/// theme bound by the Studio frame when the tree is rebuilt.
 abstract final class DVStudioStyle {
   // --- colour ---------------------------------------------------------------
 
   /// Whether Studio is drawn dark. `DVStudioApp` sets it from the system's
   /// setting, the browser's `prefers-color-scheme` on the web, and rebuilds
   /// Studio when it changes. Every colour below reads it.
-  static bool dark = false;
+  static bool _dark = false;
+  static ColorScheme? _scheme;
+
+  static bool get dark => _dark;
+
+  /// Standalone appearance selection, before a frame is mounted.
+  static set dark(bool value) {
+    _dark = value;
+    _scheme = null;
+  }
+
+  /// Bind the effective theme of the containing application.
+  static void bindTheme(ThemeData theme) {
+    _dark = theme.brightness == Brightness.dark;
+    _scheme = theme.colorScheme;
+  }
 
   /// Primary text.
-  static const Color ink = DVStudioColor(0xFF16161D, 0xFFF0F0F5);
+  static const Color ink = DVStudioColor._themed(0xFF16161D, 0xFFF0F0F5, _DVStudioThemeColour.onSurface);
 
   /// Secondary text: labels, metadata, headings over a list.
-  static const Color muted = DVStudioColor(0xFF6B6B7B, 0xFFA6A6B4);
+  static const Color muted = DVStudioColor._themed(0xFF6B6B7B, 0xFFA6A6B4, _DVStudioThemeColour.onSurfaceVariant);
 
   /// Tertiary text: placeholders, disabled labels, hints.
-  static const Color faint = DVStudioColor(0xFF9A9AA8, 0xFF72727F);
+  static const Color faint = DVStudioColor._themed(0xFF9A9AA8, 0xFF72727F, _DVStudioThemeColour.onSurfaceVariant);
 
   /// Rules between panes, and control borders.
-  static const Color line = DVStudioColor(0xFFE4E4EB, 0xFF2B2B35);
+  static const Color line = DVStudioColor._themed(0xFFE4E4EB, 0xFF2B2B35, _DVStudioThemeColour.outlineVariant);
 
   /// A border that has to be seen: a focused field's resting state, a card.
-  static const Color lineStrong = DVStudioColor(0xFFD2D2DC, 0xFF3B3B47);
+  static const Color lineStrong = DVStudioColor._themed(0xFFD2D2DC, 0xFF3B3B47, _DVStudioThemeColour.outline);
 
   /// Panels that hold controls.
-  static const Color surface = DVStudioColor(0xFFFFFFFF, 0xFF1B1B22);
+  static const Color surface = DVStudioColor._themed(0xFFFFFFFF, 0xFF1B1B22, _DVStudioThemeColour.surface);
 
   /// Behind the panels: the workspace a canvas sits in.
-  static const Color canvas = DVStudioColor(0xFFF3F3F7, 0xFF111116);
+  static const Color canvas = DVStudioColor._themed(0xFFF3F3F7, 0xFF111116, _DVStudioThemeColour.surfaceContainerLowest);
 
   /// A row or control under the pointer.
-  static const Color hover = DVStudioColor(0xFFF4F4F8, 0xFF25252E);
+  static const Color hover = DVStudioColor._themed(0xFFF4F4F8, 0xFF25252E, _DVStudioThemeColour.surfaceContainerHigh);
 
   /// The background of the row that is open.
-  static const Color selected = DVStudioColor(0xFFEFEBFF, 0xFF2C2548);
+  static const Color selected = DVStudioColor._themed(0xFFEFEBFF, 0xFF2C2548, _DVStudioThemeColour.primaryContainer);
 
   /// The selected tab, the open row, a primary action, the selection outline.
-  static const Color accent = DVStudioColor(0xFF6C4BF4, 0xFF8E74F8);
+  static const Color accent = DVStudioColor._themed(0xFF6C4BF4, 0xFF8E74F8, _DVStudioThemeColour.primary);
 
   /// A primary action under the pointer.
-  static const Color accentStrong = DVStudioColor(0xFF5A38E6, 0xFFA38EFA);
+  static const Color accentStrong = DVStudioColor._themed(0xFF5A38E6, 0xFFA38EFA, _DVStudioThemeColour.primary);
 
   /// A tint of the accent, for badges and soft highlights.
-  static const Color accentSoft = DVStudioColor(0xFFE9E3FF, 0xFF2F2757);
+  static const Color accentSoft = DVStudioColor._themed(0xFFE9E3FF, 0xFF2F2757, _DVStudioThemeColour.primaryContainer);
 
   /// Published, healthy, done.
-  static const Color success = DVStudioColor(0xFF1F9D63, 0xFF36C47F);
+  static const Color success = DVStudioColor._themed(0xFF1F9D63, 0xFF36C47F, _DVStudioThemeColour.tertiary);
 
   /// Draft, pending, needs a look.
-  static const Color warning = DVStudioColor(0xFFD48A0C, 0xFFE8A53F);
+  static const Color warning = DVStudioColor._themed(0xFFD48A0C, 0xFFE8A53F, _DVStudioThemeColour.secondary);
 
   /// Failed, destructive, refused.
-  static const Color danger = DVStudioColor(0xFFD1344B, 0xFFF2596E);
+  static const Color danger = DVStudioColor._themed(0xFFD1344B, 0xFFF2596E, _DVStudioThemeColour.error);
 
   /// The navigation rail: dark, so the workspace reads as the bright thing.
-  static const Color rail = DVStudioColor(0xFF15151C, 0xFF0B0B10);
+  static const Color rail = DVStudioColor._themed(0xFF15151C, 0xFF0B0B10, _DVStudioThemeColour.surfaceContainer);
 
   /// Labels on the rail.
-  static const Color railInk = DVStudioColor(0xFFB9B9C6, 0xFF9C9CAA);
+  static const Color railInk = DVStudioColor._themed(0xFFB9B9C6, 0xFF9C9CAA, _DVStudioThemeColour.onSurface);
 
   /// The selected item on the rail.
-  static const Color railSelected = DVStudioColor(0xFF2A2A36, 0xFF23232D);
+  static const Color railSelected = DVStudioColor._themed(0xFF2A2A36, 0xFF23232D, _DVStudioThemeColour.primaryContainer);
 
   // --- spacing, radius, elevation ------------------------------------------
 
@@ -1338,8 +1346,14 @@ abstract final class DVStudioIcons {
 /// constants into getters would have broken each of them; a colour whose
 /// channels read [DVStudioStyle.dark] keeps every one compiling and still
 /// changes when the system does, once the tree that painted it rebuilds.
+enum _DVStudioThemeColour { onSurface, onSurfaceVariant, outlineVariant, outline, surface, surfaceContainerLowest, surfaceContainerHigh, primaryContainer, primary, tertiary, secondary, error, surfaceContainer }
+
 class DVStudioColor extends Color {
-  const DVStudioColor(this.light, this.darkValue) : super(light);
+  const DVStudioColor(this.light, this.darkValue) : _role = null, super(light);
+
+  const DVStudioColor._themed(this.light, this.darkValue, this._role) : super(light);
+
+  final _DVStudioThemeColour? _role;
 
   /// The colour in light mode, as `0xAARRGGBB`.
   final int light;
@@ -1347,7 +1361,28 @@ class DVStudioColor extends Color {
   /// The colour in dark mode, as `0xAARRGGBB`.
   final int darkValue;
 
-  int get _current => DVStudioStyle.dark ? darkValue : light;
+  int get _current {
+    final scheme = DVStudioStyle._scheme;
+    if (scheme == null || _role == null) {
+      return DVStudioStyle.dark ? darkValue : light;
+    }
+    final colour = switch (_role!) {
+      .onSurface => scheme.onSurface,
+      .onSurfaceVariant => scheme.onSurfaceVariant,
+      .outlineVariant => scheme.outlineVariant,
+      .outline => scheme.outline,
+      .surface => scheme.surface,
+      .surfaceContainerLowest => scheme.surfaceContainerLowest,
+      .surfaceContainerHigh => scheme.surfaceContainerHigh,
+      .primaryContainer => scheme.primaryContainer,
+      .primary => scheme.primary,
+      .tertiary => scheme.tertiary,
+      .secondary => scheme.secondary,
+      .error => scheme.error,
+      .surfaceContainer => scheme.surfaceContainer,
+    };
+    return colour.toARGB32();
+  }
 
   @override
   double get a => ((_current >> 24) & 0xff) / 255;
