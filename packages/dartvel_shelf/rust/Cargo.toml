@@ -32,6 +32,11 @@ tokio-stream = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 libc = "0.2"
+# The build compresses every embedded asset with these, and the binary
+# decodes one for a client that does not accept its encoding. Both are
+# already linked through tower-http's compression; named for direct use.
+brotli = "8"
+zstd = "0.13"
 
 [build-dependencies]
 cbindgen = "0.29"

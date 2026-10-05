@@ -32,6 +32,7 @@ import 'dart:io';
 
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
+import '../web/asset_source.dart';
 
 /// One of Studio's screens: the id it is addressed by, the name a person
 /// reads, and what it is for.
@@ -335,9 +336,9 @@ class DVStudioProjectData {
   static DVStudioProjectData fromGraph(String root) {
     Object? decoded;
     try {
-      decoded = jsonDecode(
-        File('$root${Platform.pathSeparator}graph.json').readAsStringSync(),
-      );
+      final DVAssetFile? file = DVAssetSources.at(root).file('graph.json');
+      if (file == null) return const DVStudioProjectData();
+      decoded = jsonDecode(utf8.decode(file.bytes()));
     } on Object {
       return const DVStudioProjectData();
     }

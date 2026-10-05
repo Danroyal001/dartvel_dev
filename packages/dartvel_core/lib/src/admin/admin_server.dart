@@ -15,7 +15,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization, DVAuthEndpoints;
@@ -26,6 +25,7 @@ import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../web/asset_source.dart';
 import '../web/route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'studio_access.dart';
 import 'studio_api.dart';
@@ -135,9 +135,8 @@ String dvAdminContentType(String relative) {
 /// server knows its queue names from. Read on each request, so a graph that
 /// is missing or unreadable lists no queue of its own rather than failing.
 List<String> dvAdminGraphQueues(String root) {
-  final File graph = File('$root${Platform.pathSeparator}graph.json');
   try {
-    final Object? decoded = jsonDecode(graph.readAsStringSync());
+    final Object? decoded = jsonDecode(utf8.decode(DVAssetSources.at(root).file('graph.json')!.bytes()));
     final Object? jobs = decoded is Map ? decoded['jobs'] : null;
     return <String>{
       if (jobs is List)
@@ -306,13 +305,11 @@ class DVAdminServer {
   }) {
     final String? web = webRoot;
     if (web == null) return null;
-    final File shell = File('$web${Platform.pathSeparator}index.html');
-    final String html;
-    try {
-      html = shell.readAsStringSync();
-    } on FileSystemException {
-      return null;
-    }
+    // Through the source registered for the web root: the pack a web-server
+    // binary carries (nothing is written to disk), the directory otherwise.
+    final DVAssetFile? shell = DVAssetSources.at(web).file('index.html');
+    if (shell == null) return null;
+    final String html = utf8.decode(shell.bytes(), allowMalformed: true);
     final String page = dvRenderRoutePage(
       html,
       DVRoutePage(

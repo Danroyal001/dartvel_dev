@@ -82,3 +82,6 @@ Future<ServerHandle> serve(
 /// Gives this process the native server library as bytes. Nothing to load
 /// where there is no FFI, so this only records that the call was made.
 void embedNativeServerLibrary(List<int> bytes) {}
+
+/// Where there is no FFI there is no library to embed.
+void embedNativeServerLibraryAt(String path, {required int offset, required int length}) {}

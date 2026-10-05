@@ -17,8 +17,14 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
+import 'package:dartvel_core/framework.dart' show DVAssetFile, DVAssetSource, DVAssetSources, dvAssetPath;
+
+import 'asset_response.dart' show DVAssetCache;
+// Deferred: a binary compiled in loading units maps package:image the first
+// time an image is asked for, and never for a server that resizes nothing.
+import 'image_codec.dart' deferred as codec;
+import 'site_files.dart';
 
 /// Fetches a remote image's bytes, or null when it cannot be had.
 typedef DVRemoteImageFetch = Future<List<int>?> Function(Uri address);
@@ -61,17 +67,18 @@ Future<Response?> dvImageVariantResponse(
     source = await (fetchRemote ?? _fetch)(remote);
     if (source == null) return _text(502, 'the image could not be fetched');
   } else {
-    final File? file = _inside(webRoot, asked.src);
-    if (file == null) return _text(404, 'no such image');
-    source = await file.readAsBytes();
+    final List<int>? local = _localSource(webRoot, asked.src);
+    if (local == null) return _text(404, 'no such image');
+    source = local;
   }
   if (source.length > _maxSourceBytes) {
     return _text(remote == null ? 413 : 502, 'the image is too large');
   }
 
   final Uint8List bytes = source is Uint8List ? source : Uint8List.fromList(source);
-  final img.ImageFormat format = img.findFormatForData(bytes);
-  if (format == img.ImageFormat.invalid) {
+  await codec.loadLibrary();
+  final String? format = codec.dvImageFormatOf(bytes);
+  if (format == null) {
     return _text(remote == null ? 415 : 502, 'that is not an image');
   }
   final bool acceptsWebP =
@@ -92,7 +99,7 @@ Future<Response?> dvImageVariantResponse(
     ..set('cache-control', 'public, max-age=86400, stale-while-revalidate=604800');
   // A PNG answers WebP or PNG by Accept, so a shared cache has to keep the
   // two apart. Nothing else varies.
-  if (format == img.ImageFormat.png || format == img.ImageFormat.webp) {
+  if (format == 'png' || format == 'webp') {
     headers.set('vary', 'Accept');
   }
   if (request.headers.get('if-none-match') == etag) {
@@ -125,34 +132,35 @@ Future<Response?> dvImageVariantResponse(
 }
 
 /// The `dartvel.images` the build wrote into `dartvel_routes.json`, read
-/// once per change of the file.
+/// once per version of the file.
 DVImageVariants dvImageVariantsFor(String webRoot) {
-  final File manifest = File(p.join(webRoot, 'dartvel_routes.json'));
-  if (!manifest.existsSync()) return const DVImageVariants();
-  final DateTime modified = manifest.lastModifiedSync();
-  final ({DateTime modified, DVImageVariants variants})? known =
-      _configs[manifest.path];
-  if (known != null && known.modified == modified) return known.variants;
+  final String? hash = dvSiteHash(webRoot, 'dartvel_routes.json');
+  if (hash == null) return const DVImageVariants();
+  final ({String hash, DVImageVariants variants})? known = _configs[webRoot];
+  if (known != null && known.hash == hash) return known.variants;
   DVImageVariants variants = const DVImageVariants();
   try {
-    final Object? decoded = jsonDecode(manifest.readAsStringSync());
+    final Object? decoded = dvSiteJson(webRoot, 'dartvel_routes.json');
     if (decoded is Map) variants = DVImageVariants.fromJson(decoded['images']);
   } on FormatException {
     // A manifest that is not JSON serves no variants rather than failing
     // every request.
   }
-  _configs[manifest.path] = (modified: modified, variants: variants);
+  _configs[webRoot] = (hash: hash, variants: variants);
   return variants;
 }
 
-final Map<String, ({DateTime modified, DVImageVariants variants})> _configs =
-    <String, ({DateTime modified, DVImageVariants variants})>{};
+final Map<String, ({String hash, DVImageVariants variants})> _configs =
+    <String, ({String hash, DVImageVariants variants})>{};
 
 /// Where [webRoot]'s variants are kept: under the system's temporary
 /// directory, one folder per site, because the site itself may be deployed
 /// read-only and a cache that cannot be written only makes the server slower.
+///
+/// A web-server binary names a cache directory of its own, beside its data,
+/// and the variants go there instead.
 String dvImageVariantCacheDir(String webRoot) => p.join(
-      Directory.systemTemp.path,
+      DVAssetCache.current?.imagesDirectory ?? p.join(Directory.systemTemp.path, 'dartvel_image_variants'),
       'dartvel_image_variants',
       sha1.convert(utf8.encode(p.canonicalize(webRoot))).toString().substring(0, 16),
     );
@@ -163,11 +171,11 @@ String dvImageVariantCacheDir(String webRoot) => p.join(
 /// JPEG of a photograph. So a PNG becomes WebP for a browser that takes it,
 /// a JPEG stays a JPEG, and a GIF is passed through untouched -- resizing it
 /// would keep only the first frame of an animation.
-String _outputFormat(img.ImageFormat source, {required bool acceptsWebP}) =>
+String _outputFormat(String source, {required bool acceptsWebP}) =>
     switch (source) {
-      img.ImageFormat.jpg => 'jpeg',
-      img.ImageFormat.gif => 'gif',
-      img.ImageFormat.png || img.ImageFormat.webp =>
+      'jpg' => 'jpeg',
+      'gif' => 'gif',
+      'png' || 'webp' =>
         acceptsWebP ? 'webp' : 'png',
       _ => 'png',
     };
@@ -183,8 +191,11 @@ Future<Uint8List?> _variant(
   if (format == 'gif') return source;
   // Off the event loop: a large image takes long enough to decode that the
   // server would stop answering everybody else while it did.
-  final Uint8List? made = await Isolate.run(
-      () => _resize(source, width: width, quality: quality, format: format));
+  final Uint8List? made = await Isolate.run(() async {
+    // Its own isolate asks for the unit too; the group maps it once.
+    await codec.loadLibrary();
+    return codec.dvResizeImage(source, width: width, quality: quality, format: format);
+  });
   if (made != null && cache != null) {
     try {
       cache.parent.createSync(recursive: true);
@@ -200,24 +211,20 @@ Future<Uint8List?> _variant(
   return made;
 }
 
-Uint8List? _resize(
-  Uint8List source, {
-  required int width,
-  required int quality,
-  required String format,
-}) {
-  final img.Image? decoded = img.decodeImage(source);
-  if (decoded == null) return null;
-  // Never larger than it is: an upscaled copy is bigger and no sharper.
-  final img.Image sized = decoded.width > width
-      ? img.copyResize(decoded,
-          width: width, interpolation: img.Interpolation.average)
-      : decoded;
-  return switch (format) {
-    'jpeg' => img.encodeJpg(sized, quality: quality),
-    'webp' => img.encodeWebP(sized),
-    _ => img.encodePng(sized),
-  };
+/// The bytes of [src] under [webRoot], or null when it is not there.
+///
+/// From the pack when the site is carried by this executable, where a path
+/// is only ever a name in its index; from the directory otherwise, where a
+/// link can point anywhere and is checked as firmly as `..`.
+List<int>? _localSource(String webRoot, String src) {
+  final DVAssetSource site = DVAssetSources.at(webRoot);
+  if (site.embedded) {
+    final String? path = dvAssetPath(src);
+    final DVAssetFile? file = path == null ? null : site.file(path);
+    if (file == null || file.protected) return null;
+    return file.bytes();
+  }
+  return _inside(webRoot, src)?.readAsBytesSync();
 }
 
 /// [src] under [webRoot], or null when it is not there or is not really

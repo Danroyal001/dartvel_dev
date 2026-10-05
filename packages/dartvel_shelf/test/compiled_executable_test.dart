@@ -31,7 +31,10 @@ import 'dart:io';
 import 'package:dartvel_shelf/dartvel_shelf.dart';
 
 Future<void> main(List<String> arguments) async {
-  if (arguments.isNotEmpty) {
+  if (arguments.length == 4 && arguments.first == '--at') {
+    embedNativeServerLibraryAt(arguments[1],
+        offset: int.parse(arguments[2]), length: int.parse(arguments[3]));
+  } else if (arguments.isNotEmpty) {
     embedNativeServerLibrary(File(arguments.first).readAsBytesSync());
   }
   try {
@@ -125,6 +128,31 @@ void main() {
     ]).timeout(const Duration(seconds: 30));
     return (process: process, lines: lines);
   }
+
+  test('a compiled executable told where the library lies inside a file serves '
+      'a request, and holds no copy of it', () async {
+    // How a web-server binary carries it: somewhere inside its own file.
+    final File carrier = File(p.join(work.path, 'carrier.bin'))
+      ..writeAsBytesSync(<int>[
+        ...List<int>.filled(12345, 7),
+        ...library!.readAsBytesSync(),
+        ...List<int>.filled(999, 9),
+      ]);
+    final run = await start(<String>[
+      '--at', carrier.path, '12345', '${library.lengthSync()}',
+    ]);
+    addTearDown(() => run.process.kill());
+    final String? announced =
+        run.lines.where((String l) => l.startsWith('PORT ')).firstOrNull;
+    expect(announced, isNotNull, reason: run.lines.join('\n'));
+    final HttpClient client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final HttpClientResponse response = await (await client.getUrl(Uri.parse(
+      'http://127.0.0.1:${announced!.substring(5)}/',
+    )))
+        .close();
+    expect(await response.transform(utf8.decoder).join(), 'served by the binary');
+  }, skip: skip);
 
   test('a compiled executable handed the library serves a request', () async {
     final run = await start(<String>[library!.path]);

@@ -21,6 +21,7 @@ import 'dart:isolate';
 
 import 'package:dartvel_cli/src/build/admin_mount.dart';
 import 'package:dartvel_cli/src/build/server_binary.dart';
+import 'package:dartvel_core/binary_payload.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -127,12 +128,19 @@ Future<String> _ping() async => 'pong from one file';
       root: project.path,
       library: library,
       dart: Platform.resolvedExecutable,
+      units: true,
       run: (String executable, List<String> arguments,
               {String? workingDirectory}) =>
           Process.run(executable, arguments,
               workingDirectory: workingDirectory),
     );
     expect(built.ok, isTrue, reason: built.lines.join('\n'));
+    if (Platform.isLinux) {
+      // The image resizer, which nothing here asks for, is a unit of its own
+      // inside the file and is never mapped.
+      expect(DVBinaryPayload.read(built.binary!.path)!.names.where((String n) => n.startsWith('unit.')),
+          isNotEmpty, reason: built.lines.join('\n'));
+    }
     final File binary = File(p.join(
         project.path, dvServerBinaryPath(windows: Platform.isWindows)));
     expect(built.binary?.path, binary.path);
@@ -193,6 +201,10 @@ Future<String> _ping() async => 'pong from one file';
   }, skip: skip);
 
   group('Studio, served by the binary alone', () {
+    // Compare the public asset before and after requesting Studio against
+    // the same compressible fixture, so an asset-source mix-up is detected.
+    final String script =
+        List<String>.generate(2000, (int i) => 'function f$i(){return $i}').join('\n');
     /// Builds build/server carrying a web root and Studio at [mount],
     /// copies the one file somewhere empty, starts it and returns a way to
     /// ask it for a path.
@@ -215,7 +227,8 @@ Future<String> _ping() async => 'pong from one file';
         ..writeAsStringSync('<html><head><title>The site</title></head>'
             '<body><script src="flutter_bootstrap.js" async></script>'
             '</body></html>');
-      File(p.join(web.path, 'main.dart.js')).writeAsStringSync('// the site');
+      // A code asset big enough to be worth compressing.
+      File(p.join(web.path, 'main.dart.js')).writeAsStringSync(script);
       // What an older build left in the web output: a separately built
       // Studio. The binary never carries it as a web file.
       File(p.join(web.path, '__admin', 'index.html'))
@@ -241,6 +254,7 @@ Future<String> _ping() async => 'pong from one file';
         admin: mount,
         adminRoot: p.join(studio.path, 'data'),
         studioPartsRoot: p.join(studio.path, 'parts'),
+        units: true,
         run: (String executable, List<String> arguments,
                 {String? workingDirectory}) =>
             Process.run(executable, arguments,
@@ -315,6 +329,34 @@ Future<String> _ping() async => 'pong from one file';
           await Future<void>.delayed(const Duration(milliseconds: 250));
         }
       }
+
+      // The web app is read from the binary, in the encoding it was kept
+      // in, and nothing of it was written beside the binary.
+      final HttpClient raw = HttpClient()..autoUncompress = false;
+      try {
+        final HttpClientRequest request =
+            await raw.getUrl(Uri.parse('http://127.0.0.1:$port/main.dart.js'));
+        request.headers
+          ..removeAll(HttpHeaders.acceptEncodingHeader)
+          ..set(HttpHeaders.acceptEncodingHeader, 'br');
+        final HttpClientResponse response = await request.close();
+        await response.drain<void>();
+        expect(response.statusCode, 200);
+        expect(response.headers.value('content-encoding'), 'br');
+        expect(response.headers.value('etag'), isNotNull);
+        expect(response.headers.value('cache-control'), 'public, no-cache');
+        final String plain = await get('/main.dart.js').then((r) => r.body);
+        expect(plain, script);
+      } finally {
+        raw.close(force: true);
+      }
+      final List<String> kept = <String>[
+        for (final FileSystemEntity e
+            in Directory(p.join(elsewhere.path, 'dartvel_data')).listSync())
+          p.basename(e.path),
+      ];
+      expect(kept, isNot(contains('.web')));
+      expect(kept, isNot(contains('.admin')));
       return get;
     }
 
@@ -367,7 +409,7 @@ Future<String> _ping() async => 'pong from one file';
       expect(raw.body, isNot(contains('OLD STUDIO APP')));
       // And the site is still the site.
       expect((await get('/')).body, contains('The site'));
-      expect((await get('/main.dart.js')).body, '// the site');
+      expect((await get('/main.dart.js')).body, script);
     }, skip: skip);
 
     test('sends an ungranted page request to the sign-in, and hides Studio\'s '
@@ -416,6 +458,111 @@ Future<String> _ping() async => 'pong from one file';
       expect(login.cache, contains('no-store'));
       expect(login.body, contains('<title>Studio · server_binary_probe</title>'));
       expect(login.body, contains('flutter_bootstrap.js'));
+    }, skip: skip);
+  });
+
+  group('Studio turned off', () {
+    // A release build that serves no Studio compiles none of it: the
+    // generated backend puts every Studio reference behind dartvelStudio, and
+    // the build passes -Ddartvel.studio=false, so AOT drops the dashboard,
+    // its API and its grants. Its files are not carried, and its mount is a
+    // path like any other the application does not serve.
+    Future<File> buildWith({required bool studio}) async {
+      final ProcessResult generated = await Process.run(
+        Platform.resolvedExecutable,
+        <String>['run', 'dartvel_cli:dartvel', 'routes'],
+        workingDirectory: project.path,
+      ).timeout(const Duration(minutes: 5));
+      expect(generated.exitCode, 0, reason: '${generated.stdout}\n${generated.stderr}');
+      final Directory web = Directory(p.join(project.path, 'build', 'web'));
+      if (web.existsSync()) web.deleteSync(recursive: true);
+      File(p.join(web.path, 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<html><head><title>The site</title></head><body></body></html>');
+      File(p.join(web.path, '__admin', 'index.html'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<html><title>Studio dashboard 7c1d</title></html>');
+      const DVAdminMount mount = DVAdminMount(path: '/__studio', enabled: true, requiresAuth: true);
+      final DVServerBinaryResult built = await dvBuildServerBinary(
+        root: project.path,
+        library: library,
+        dart: Platform.resolvedExecutable,
+        webRoot: web.path,
+        admin: studio ? mount : null,
+        adminRoot: p.join(web.path, '__admin'),
+        units: true,
+        defines: <String, String>{'dartvel.studio': '$studio'},
+        run: (String executable, List<String> arguments, {String? workingDirectory}) =>
+            Process.run(executable, arguments, workingDirectory: workingDirectory),
+      );
+      expect(built.ok, isTrue, reason: built.lines.join('\n'));
+      final File kept = File(p.join(project.path, 'build', studio ? 'server-on' : 'server-off'));
+      built.binary!.copySync(kept.path);
+      return kept;
+    }
+
+    test('carries no Studio code or files, and is smaller for it', () async {
+      final File on = await buildWith(studio: true);
+      final File off = await buildWith(studio: false);
+      // What only Studio's server has: its class names, which an AOT
+      // snapshot keeps, and its own messages.
+      const List<String> studioOnly = <String>['DVAdminServer', 'DVStudioApi', 'DVStudioGrants', 'Missing CSRF header.'];
+      bool carries(File binary, String text) => latin1.decode(binary.readAsBytesSync()).contains(text);
+      for (final String marker in studioOnly) {
+        expect(carries(on, marker), isTrue, reason: 'a Studio build carries $marker');
+        expect(carries(off, marker), isFalse, reason: 'a build without Studio carries $marker');
+      }
+      final DVBinaryPayload payload = DVBinaryPayload.read(off.path)!;
+      expect(payload.names, isNot(contains('admin.mount')));
+      final ({int offset, int length}) at = payload.locate('assets')!;
+      final DVAssetPack pack = DVAssetPack.open(off.path, offset: at.offset, length: at.length)!;
+      expect(pack.paths.where((String path) => path.startsWith('admin/')), isEmpty);
+      expect(off.lengthSync(), lessThan(on.lengthSync()));
+    }, skip: skip);
+
+    test('answers its mount as a path nobody serves', () async {
+      final File off = await buildWith(studio: false);
+      final Directory elsewhere = Directory.systemTemp.createTempSync('dv_server_binary_nostudio_');
+      addTearDown(() => elsewhere.deleteSync(recursive: true));
+      final File copy = off.copySync(p.join(elsewhere.path, 'server'));
+      await Process.run('chmod', <String>['+x', copy.path]);
+      final int port = await _freePort();
+      final Process server = await Process.start(copy.path, const <String>[],
+          workingDirectory: elsewhere.path,
+          includeParentEnvironment: false,
+          environment: <String, String>{..._serverEnvironment(), 'DARTVEL_PORT': '$port'});
+      final StringBuffer output = StringBuffer();
+      server.stdout.transform(utf8.decoder).listen(output.write);
+      server.stderr.transform(utf8.decoder).listen(output.write);
+      addTearDown(() async {
+        server.kill();
+        await server.exitCode;
+      });
+      final HttpClient client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+      addTearDown(() => client.close(force: true));
+      Future<(int, String)> get(String path) async {
+        final HttpClientRequest request = await client.getUrl(Uri.parse('http://127.0.0.1:$port$path'));
+        request.followRedirects = false;
+        final HttpClientResponse response = await request.close();
+        return (response.statusCode, await response.transform(utf8.decoder).join());
+      }
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 60));
+      while (true) {
+        try {
+          await get('/api/ping');
+          break;
+        } on SocketException {
+          if (DateTime.now().isAfter(deadline)) fail('the binary never answered:\n$output');
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
+      for (final String path in <String>['/__studio', '/__studio/', '/__studio/login', '/__studio/api/access']) {
+        final (int status, String body) = await get(path);
+        final (int nowhereStatus, String nowhereBody) = await get(path.replaceFirst('__studio', '__nowhr'));
+        expect(status, nowhereStatus, reason: path);
+        expect(body.replaceAll('/__studio', '/__nowhr'), nowhereBody, reason: path);
+        expect(body, isNot(contains('Studio dashboard 7c1d')), reason: path);
+      }
     }, skip: skip);
   });
 

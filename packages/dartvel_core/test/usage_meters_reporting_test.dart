@@ -43,6 +43,33 @@ class _FlakyProvider implements DVBillingProvider {
   Future<bool> hasEntitlement(Object customer, Entitlement entitlement) =>
       inner.hasEntitlement(customer, entitlement);
 
+  // The subscription lifecycle (DV.Billing step 2): passed to the local
+  // provider, which refuses each with a message naming what it cannot do.
+  @override
+  Future<void> changeSubscriptionPlan(
+          {required Object customer, required BillingPlan plan, bool prorate = true}) =>
+      inner.changeSubscriptionPlan(customer: customer, plan: plan, prorate: prorate);
+
+  @override
+  Future<void> cancelSubscription({required Object customer, bool atPeriodEnd = false}) =>
+      inner.cancelSubscription(customer: customer, atPeriodEnd: atPeriodEnd);
+
+  @override
+  Future<void> resumeSubscription({required Object customer}) =>
+      inner.resumeSubscription(customer: customer);
+
+  @override
+  Future<void> pauseSubscription({required Object customer}) =>
+      inner.pauseSubscription(customer: customer);
+
+  @override
+  Future<DVSubscriptionStatus> subscriptionStatus({required Object customer}) =>
+      inner.subscriptionStatus(customer: customer);
+
+  @override
+  Future<String> customerPortalUrl({required Object customer}) =>
+      inner.customerPortalUrl(customer: customer);
+
   @override
   Future<List<DVInvoice>> invoices(Object customer, {int limit = 20}) =>
       inner.invoices(customer, limit: limit);

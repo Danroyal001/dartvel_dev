@@ -116,6 +116,48 @@ void main() {
     ]);
   });
 
+  test('a section is found where it lies, so it can be read in place',
+      () async {
+    final List<int> big = List<int>.generate(200000, (int i) => (i * 13) % 256);
+    final Uint8List spliced = DVBinaryPayload.splice(
+      compiled.readAsBytesSync(),
+      <String, List<int>>{'greeting': utf8.encode('hi'), 'big': big},
+    );
+    final File out = File(p.join(work.path, 'located'))..writeAsBytesSync(spliced);
+    final DVBinaryPayload payload = DVBinaryPayload.read(out.path)!;
+    final ({int offset, int length}) at = payload.locate('big')!;
+    expect(at.length, big.length);
+    expect(Uint8List.sublistView(spliced, at.offset, at.offset + at.length), big);
+    expect(payload.locate('missing'), isNull);
+    expect(payload.path, out.path);
+  });
+
+  test('a section asked to be aligned starts on a 64 KiB boundary of the file, '
+      'and the executable still runs', () async {
+    final Uint8List spliced = DVBinaryPayload.splice(
+      compiled.readAsBytesSync(),
+      <String, List<int>>{
+        'greeting': utf8.encode('hello from inside'),
+        'files': dvPackFiles(<String, List<int>>{'index.html': utf8.encode('<!doctype html>')}),
+        'unit.2': List<int>.generate(70000, (int i) => i % 256),
+        'unit.3': List<int>.generate(10, (int i) => i),
+      },
+      aligned: const <String>{'unit.2', 'unit.3'},
+    );
+    final File out = File(p.join(work.path, 'aligned'))..writeAsBytesSync(spliced);
+    final DVBinaryPayload payload = DVBinaryPayload.read(out.path)!;
+    for (final String unit in <String>['unit.2', 'unit.3']) {
+      expect(payload.locate(unit)!.offset % 65536, 0, reason: unit);
+    }
+    expect(payload.section('unit.2'), List<int>.generate(70000, (int i) => i % 256));
+    expect(payload.section('unit.3'), List<int>.generate(10, (int i) => i));
+    expect(await runAlone(out), <String>[
+      'SECTIONS greeting,files,unit.2,unit.3',
+      'GREETING hello from inside',
+      'FILE index.html 15',
+    ]);
+  });
+
   // Only the Linux executable ends with the snapshot trailer. On Windows
   // `dart compile exe` puts the snapshot in a PE section, and on macOS in a
   // Mach-O segment, and the runtime finds it there -- so neither ends the way
