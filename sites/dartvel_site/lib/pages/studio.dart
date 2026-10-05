@@ -99,7 +99,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'inspector, preview phone, tablet and desktop widths, and undo '
               'any step.',
           'Set padding and margin uniformly or on each edge; saved pages and '
-              'exported Dart retain the spacing.',
+              'exported Dart retain the spacing. Compact spacing fields '
+              'announce their full names to screen readers.',
           'Deploy sends the page to your website, phone and tablet apps, '
               'desktop apps, TVs, browser extensions and devices, or only the '
               'ones you tick.',

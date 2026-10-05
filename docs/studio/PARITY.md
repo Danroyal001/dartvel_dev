@@ -277,3 +277,7 @@ The page document, renderer and exported `.marginOnly(...)` use the same values.
 Failing-first regression coverage: `studio_margin_edges_test.dart` (three failures
 on the preceding implementation), alongside padding and inspector regressions.
 Production-browser verification is pending; the broader box-model verdict remains Partial.
+
+Compact numeric inspector fields now expose complete assistive names (for example,
+“Margin top” rather than only “T”). Failing-first widget evidence is in
+`studio_inspector_labels_test.dart`; production-browser evidence remains pending.
