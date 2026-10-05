@@ -75,6 +75,11 @@ Dartvel simplifies developer workflows. Instead of writing controllers, reposito
 
 Everything else is automatically compiled, generated, or served by the framework.
 
+`dartvel build web-server` bundles the app into one executable. Its indexed
+asset pack reads files on request, serves precompressed bytes when accepted,
+and keeps Studio assets private. Linux builds can load deferred AOT code from
+the same executable. See [the binary layout and HTTP policy](docs/web-server-binary.md).
+
 ---
 
 ## 🚀 Key Features
