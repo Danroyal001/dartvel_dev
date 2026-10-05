@@ -322,12 +322,16 @@ bool _rangeApplies(String? ifRange, String identityTag) =>
   final String last = m.group(2)!;
   if (first.isEmpty && last.isEmpty) return null;
   if (first.isEmpty) {
-    final int suffix = int.parse(last);
+    final int? suffix = int.tryParse(last);
+    if (suffix == null) return null;
     if (suffix == 0 || size == 0) return (start: -1, end: -1);
     return (start: suffix >= size ? 0 : size - suffix, end: size - 1);
   }
-  final int start = int.parse(first);
-  final int? end = last.isEmpty ? null : int.parse(last);
+  // Range is untrusted input. Ignore values this runtime cannot represent
+  // rather than turning an otherwise valid file request into a server error.
+  final int? start = int.tryParse(first);
+  final int? end = last.isEmpty ? null : int.tryParse(last);
+  if (start == null || (last.isNotEmpty && end == null)) return null;
   if (end != null && end < start) return null;
   if (start >= size) return (start: -1, end: -1);
   return (start: start, end: end == null || end >= size ? size - 1 : end);
