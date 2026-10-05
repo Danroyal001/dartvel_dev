@@ -1,3 +1,7 @@
+## 1.4.5 — 2026-10-05
+
+- Resolve the matching 0.11.1 Dartvel package family.
+
 ## 1.4.4 — 2026-10-05
 
 - Refresh the core dependency to 0.11.0 and allow lints 4.x through 6.x.

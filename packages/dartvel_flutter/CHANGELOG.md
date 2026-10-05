@@ -1,3 +1,7 @@
+## 0.11.1 — 2026-10-05
+
+- Resolve the matching 0.11.1 Dartvel package family.
+
 ## 0.11.0 — 2026-10-05
 
 - Navigator 2.0 route integration and previews for concrete and guarded links.

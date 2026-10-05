@@ -2285,7 +2285,7 @@ by default.
 Dartvel's packages are published under the `dartvel_dev` name on pub.dev.
 `dartvel` was taken on 2026-08-06 by an unrelated package, so the published
 identifier carries a suffix while the command stays `dartvel`.
-## Unreleased
+## 0.11.1 — 2026-10-05
 
 - Read bundled site and protected Studio assets through a shared asset source
   and indexed pack, with configurable public HTTP cache policies.

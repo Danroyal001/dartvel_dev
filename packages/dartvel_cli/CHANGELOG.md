@@ -1784,7 +1784,7 @@ by default.
 Dartvel's packages are published under the `dartvel_dev` name on pub.dev.
 `dartvel` was taken on 2026-08-06 by an unrelated package, so the published
 identifier carries a suffix while the command stays `dartvel`.
-## Unreleased
+## 0.11.1 — 2026-10-05
 
 - Build indexed, deduplicated asset packs with cached compression and deferred
   AOT loading units where the host SDK and embedded native library support them.
