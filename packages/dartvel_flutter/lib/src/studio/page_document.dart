@@ -1154,9 +1154,19 @@ final List<DVStudioProperty> dvStudioProperties = <DVStudioProperty>[
     DVStudioProperty(side, DVStudioPropertyKind.number,
         (m, v, p) => _padding(m, p),
         source: (v, p) => _paddingEdgeSource(side, p)),
-  DVStudioProperty('margin', DVStudioPropertyKind.number,
-      (m, v, p) => _number(m, v, (m, v) => m.margin(v)),
-      source: (v, p) => _numberSource('margin', v)),
+  DVStudioProperty(
+    'margin',
+    DVStudioPropertyKind.number,
+    (m, v, p) => _margin(m, p),
+    source: (v, p) => _hasEdgeMargin(p) ? null : _numberSource('margin', v),
+  ),
+  for (final String side in _marginEdges)
+    DVStudioProperty(
+      side,
+      DVStudioPropertyKind.number,
+      (m, v, p) => _margin(m, p),
+      source: (v, p) => _marginEdgeSource(side, p),
+    ),
   DVStudioProperty('width', DVStudioPropertyKind.number,
       (m, v, p) => _number(m, v, (m, v) => m.width(v)),
       source: (v, p) => _numberSource('width', v)),
@@ -1778,6 +1788,46 @@ String? _paddingEdgeSource(String side, Map<String, Object?> properties) {
     'bottom: ${_paddingEdge(properties, 'paddingBottom')}',
   ].join(', ');
   return '.paddingOnly($args)';
+}
+
+const List<String> _marginEdges = <String>[
+  'marginLeft',
+  'marginTop',
+  'marginRight',
+  'marginBottom',
+];
+
+bool _hasEdgeMargin(Map<String, Object?> properties) =>
+    _marginEdges.any((side) => properties[side] is num);
+
+double _marginEdge(Map<String, Object?> properties, String side) {
+  final own = properties[side];
+  if (own is num) return own.toDouble();
+  final all = properties['margin'];
+  return all is num ? all.toDouble() : 0;
+}
+
+DVModifier? _margin(DVModifier modifier, Map<String, Object?> properties) {
+  if (!_hasEdgeMargin(properties)) {
+    final all = properties['margin'];
+    return all is num ? modifier.margin(all.toDouble()) : null;
+  }
+  return modifier.marginOnly(
+    left: _marginEdge(properties, 'marginLeft'),
+    top: _marginEdge(properties, 'marginTop'),
+    right: _marginEdge(properties, 'marginRight'),
+    bottom: _marginEdge(properties, 'marginBottom'),
+  );
+}
+
+String? _marginEdgeSource(String side, Map<String, Object?> properties) {
+  if (!_hasEdgeMargin(properties)) return null;
+  final first = _marginEdges.firstWhere((s) => properties[s] is num);
+  if (side != first) return null;
+  return '.marginOnly(left: ${_marginEdge(properties, 'marginLeft')}, '
+      'top: ${_marginEdge(properties, 'marginTop')}, '
+      'right: ${_marginEdge(properties, 'marginRight')}, '
+      'bottom: ${_marginEdge(properties, 'marginBottom')})';
 }
 
 /// A single-quoted Dart literal's contents.

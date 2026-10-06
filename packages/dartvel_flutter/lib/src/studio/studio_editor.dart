@@ -583,7 +583,8 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
                       ? _DVStudioPaletteTile(
                           item: items[i + c].$1,
                           sample: items[i + c].$2,
-                          onInsert: widget.controller == null
+                          onInsert: widget.controller == null ||
+                                  widget.controller!.readOnly
                               ? null
                               : () => _insert(items[i + c].$1),
                         )
@@ -616,6 +617,7 @@ class _DVStudioPaletteTile extends StatefulWidget {
 
 class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -627,13 +629,16 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: .opaque,
+        excludeFromSemantics: true,
         onTap: widget.onInsert,
         child: Container(
           height: 64,
           decoration: BoxDecoration(
             color: _hover ? DVStudioStyle.hover : DVStudioStyle.surface,
             border: Border.all(
-              color: _hover ? DVStudioStyle.lineStrong : DVStudioStyle.line,
+              color: _focused ? DVStudioStyle.accent :
+                  _hover ? DVStudioStyle.lineStrong : DVStudioStyle.line,
+              width: _focused ? 2 : 1,
             ),
             borderRadius: .circular(DVStudioStyle.radius),
           ),
@@ -657,11 +662,30 @@ class _DVStudioPaletteTileState extends State<_DVStudioPaletteTile> {
         ),
       ),
     );
-    return Draggable<DVStudioPaletteItem>(
-      data: widget.item,
-      feedback: _dvStudioDragChip(icon, widget.item.label),
-      childWhenDragging: Opacity(opacity: 0.5, child: face),
-      child: face,
+    return Actions(
+      actions: widget.onInsert == null
+          ? const <Type, Action<Intent>>{}
+          : dvStudioActivate(widget.onInsert!),
+      child: Focus(
+        canRequestFocus: widget.onInsert != null,
+        onFocusChange: (value) {
+          if (mounted && value != _focused) setState(() => _focused = value);
+        },
+        child: Semantics(
+          button: true,
+          enabled: widget.onInsert != null,
+          label: 'Insert ${widget.item.label}',
+          onTap: widget.onInsert,
+          excludeSemantics: true,
+          child: Draggable<DVStudioPaletteItem>(
+            data: widget.item,
+            maxSimultaneousDrags: widget.onInsert == null ? 0 : 1,
+            feedback: _dvStudioDragChip(icon, widget.item.label),
+            childWhenDragging: Opacity(opacity: 0.5, child: face),
+            child: face,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -749,6 +773,7 @@ class _DVStudioLayerRow extends StatefulWidget {
 
 class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
   bool _hover = false;
+  bool _focused = false;
 
   /// What follows the label, quieter: a text's words in quotes, an image's
   /// file, how many things a box holds, the page's route.
@@ -812,6 +837,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
           onExit: (_) => setState(() => _hover = false),
           child: GestureDetector(
             behavior: .opaque,
+            excludeFromSemantics: true,
             onTap: () => widget.controller.select(node.id),
             child: Container(
               height: 30,
@@ -826,8 +852,9 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                         : _hover
                             ? DVStudioStyle.hover
                             : const Color(0x00000000),
-                border: dropping
-                    ? Border.all(color: DVStudioStyle.accent)
+                border: dropping || _focused
+                    ? Border.all(color: DVStudioStyle.accent,
+                        width: _focused ? 2 : 1)
                     : null,
                 borderRadius: .circular(DVStudioStyle.radiusSmall),
               ),
@@ -837,18 +864,15 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                     width: 18,
                     child: node.children.isEmpty
                         ? null
-                        : GestureDetector(
+                        : DVStudioIconButton(
                             key: ValueKey<String>(
                                 'dv-studio-layer-toggle-${node.id}'),
-                            behavior: .opaque,
+                            tooltip: '${widget.collapsed ? 'Expand' : 'Collapse'} ${widget.label}',
+                            size: 18,
                             onTap: widget.onToggle,
-                            child: Icon(
-                              widget.collapsed
+                            icon: widget.collapsed
                                   ? DVStudioIcons.chevronRight
                                   : DVStudioIcons.chevronDown,
-                              size: 16,
-                              color: DVStudioStyle.faint,
-                            ),
                           ),
                   ),
                   Icon(
@@ -858,7 +882,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text.rich(
+                    child: ExcludeSemantics(child: Text.rich(
                       TextSpan(
                         children: <InlineSpan>[
                           TextSpan(
@@ -884,7 +908,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                       ),
                       maxLines: 1,
                       overflow: .ellipsis,
-                    ),
+                    )),
                   ),
                   if (selected && !widget.isRoot)
                     DVStudioIconButton(
@@ -926,7 +950,21 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
         child: built,
       );
     }
-    return built;
+    return Actions(
+      actions: dvStudioActivate(() => widget.controller.select(node.id)),
+      child: Focus(
+        onFocusChange: (value) {
+          if (mounted && value != _focused) setState(() => _focused = value);
+        },
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: dvStudioNodeTitle(node, widget.controller.document),
+          onTap: () => widget.controller.select(node.id),
+          child: built,
+        ),
+      ),
+    );
   }
 }
 
@@ -1595,6 +1633,10 @@ const List<(String, List<String>)> _dvStudioGroupLayout =
     'width',
     'height',
     'margin',
+    'marginTop',
+    'marginRight',
+    'marginBottom',
+    'marginLeft',
     'padding',
     'paddingTop',
     'paddingRight',
@@ -1706,6 +1748,10 @@ const Map<String, String> _dvStudioShortLabels = <String, String>{
   'width': 'W',
   'height': 'H',
   'paddingTop': 'T',
+  'marginTop': 'T',
+  'marginRight': 'R',
+  'marginBottom': 'B',
+  'marginLeft': 'L',
   'paddingRight': 'R',
   'paddingBottom': 'B',
   'paddingLeft': 'L',
@@ -1726,6 +1772,8 @@ const Map<String, String> _dvStudioShortLabels = <String, String>{
 /// Fields that share a row, and what the row is called.
 const Map<(String, String), String> _dvStudioPairs = <(String, String), String>{
   ('width', 'height'): 'Size',
+  ('marginTop', 'marginRight'): 'Outer sides',
+  ('marginBottom', 'marginLeft'): '',
   ('paddingTop', 'paddingRight'): 'Sides',
   ('paddingBottom', 'paddingLeft'): '',
   ('borderTopWidth', 'borderRightWidth'): 'Sides',
@@ -1777,6 +1825,10 @@ const Map<String, String> _dvStudioUnits = <String, String>{
   'width': 'px',
   'height': 'px',
   'margin': 'px',
+  'marginTop': 'px',
+  'marginRight': 'px',
+  'marginBottom': 'px',
+  'marginLeft': 'px',
   'padding': 'px',
   'paddingTop': 'px',
   'paddingRight': 'px',
@@ -2126,6 +2178,7 @@ class DVStudioInspector extends StatelessWidget {
     if (name == 'text' || name == 'src' || name == 'alt') {
       return DVStudioTextInput(
         key: key,
+        semanticLabel: _dvStudioHumanise(name),
         value: '${value ?? ''}',
         placeholder: name == 'src' ? 'https://… or assets/…' : null,
         onChanged: (String text) => name == 'text'
@@ -2169,6 +2222,7 @@ class DVStudioInspector extends StatelessWidget {
         return DVStudioTextInput(
           key: key,
           label: compact ? _dvStudioShortLabels[name] : null,
+          semanticLabel: _dvStudioHumanise(name),
           value: value == null ? '' : '$value',
           placeholder: compact ? null : '—',
           suffix: compact ? null : _dvStudioUnits[name],

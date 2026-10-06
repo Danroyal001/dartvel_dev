@@ -38,5 +38,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(observed, inherited);
     });
+
+    testWidgets('Studio controls use the app colour scheme in $brightness',
+        (tester) async {
+      final scheme = ColorScheme.fromSeed(
+        seedColor: const Color(0xFF008577), brightness: brightness,
+      );
+      Color? ink;
+      Color? accent;
+      Color? surface;
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(colorScheme: scheme),
+        home: DVStudioFrame(
+          title: 'Another project',
+          home: Builder(builder: (context) {
+            ink = Color(DVStudioStyle.ink.toARGB32());
+            accent = Color(DVStudioStyle.accent.toARGB32());
+            surface = Color(DVStudioStyle.surface.toARGB32());
+            return const Scaffold(body: Text('Studio'));
+          }),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(ink, scheme.onSurface);
+      expect(accent, scheme.primary);
+      expect(surface, scheme.surface);
+      DVStudioStyle.dark = false;
+    });
   }
 }
