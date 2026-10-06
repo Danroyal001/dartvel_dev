@@ -22,6 +22,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Install the CLI, create an app and run it', 'Getting started'),
   DocsPageInfo(DVRoutes.docsadopting, 'Existing Flutter apps',
       'Add Dartvel to an app you already have', 'Getting started'),
+  DocsPageInfo(DVRoutes.docsexistingnativeapps, 'Existing Native apps',
+      'Embed Dartvel inside an Android, iOS, web or desktop host', 'Getting started'),
   DocsPageInfo(DVRoutes.docsdevclient, 'Run on your phone',
       'Pair a development build with `dartvel dev`', 'Getting started'),
   DocsPageInfo(DVRoutes.docsui, 'UI and styling',
