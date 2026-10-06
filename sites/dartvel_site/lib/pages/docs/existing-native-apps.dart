@@ -4,7 +4,7 @@ import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Embed Dartvel in an existing native app',
-  description: 'Add Dartvel to an existing Android, iOS, web or desktop application. '
+  description: 'Add Dartvel to an existing native application across all Dartvel targets. '
       'dartvel build <target> --brownfield builds the native artifacts and generates '
       'typed host APIs.',
   showAppBar: false,
@@ -14,7 +14,7 @@ Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
       page: DVRoutes.docsexistingnativeapps,
       lead: <String>[
         'An organisation with an existing native app rarely rewrites it: it adds screens.',
-        'Flutter solves add-to-app, and Dartvel extends it with `--brownfield` across mobile, desktop, and web.',
+        'Flutter solves add-to-app, and Dartvel extends it with `--brownfield` across all Dartvel targets.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -36,6 +36,8 @@ Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
               'Android and iOS embed through Flutter\'s add-to-app engine architecture.',
               'Web hosts embed through multi-view custom elements that mount into the DOM.',
               'Desktop hosts (Linux, macOS, Windows) link shared libraries via embedder APIs.',
+              'TV and embedded targets (Apple TV, Samsung Tizen, Sony eLinux, LG webOS) embed via native vendor embedders.',
+              'Terminal and extension hosts embed via headless Dartvel modules and C interop.',
             ]),
           ],
         ),
@@ -48,13 +50,17 @@ Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
               'dartvel build ios --brownfield                # xcframeworks for Xcode',
               'dartvel build web --brownfield                # script & custom element',
               'dartvel build linux --brownfield              # shared library for host window',
+              'dartvel build tizen --brownfield              # TPK / shared library for Samsung Smart TVs',
+              'dartvel build sony-elinux --brownfield        # shared library for Sony eLinux devices',
+              'dartvel build tvos --brownfield               # framework for Apple TV apps',
               'dartvel build android --brownfield --integrated',
             ]),
             Bullets(<String>[
               'Android produces an AAR package ready for Gradle dependency resolution.',
-              'iOS produces pre-built xcframeworks for Xcode project linking.',
+              'iOS and tvOS produce pre-built frameworks / xcframeworks for Xcode project linking.',
               'Web produces a lightweight bootstrap script and a custom HTML element.',
-              'Desktop produces a shared library and C/C++ header for native host windows.',
+              'Desktop (Linux, macOS, Windows) produces a shared library and C/C++ header for native host windows.',
+              'TV and embedded targets (Tizen, Sony eLinux, webOS) produce vendor embedder modules.',
             ]),
           ],
         ),
