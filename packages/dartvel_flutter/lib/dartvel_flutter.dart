@@ -4660,7 +4660,7 @@ class DVLocation {
   }
 }
 
-class DVNotifications {
+class DVNotifications extends DVNotificationsService {
   const DVNotifications();
   static final List<Map<String, String>> _sent = [];
 
@@ -4685,6 +4685,10 @@ class DVNotifications {
     }
     _sent.add({'title': title, 'body': body});
   }
+
+  /// Shorter alias for [sendLocalNotification].
+  Future<void> sendLocal(String title, String body) =>
+      sendLocalNotification(title, body);
 
   List<Map<String, String>> get sentNotifications => List.unmodifiable(_sent);
 }
@@ -7018,11 +7022,10 @@ class DVPlatform {
   /// and [DVDeviceStorage.requestAccess].
   DVDeviceStorage get fileStorage => DVDeviceStorage.instance;
   @Deprecated('Use DV.Platform.fileStorage instead')
-  DVDeviceStorage get FileStorage => DVDeviceStorage.instance;
+  DVDeviceStorage get FileStorage => fileStorage;
 
-  /// Proxies to [DV.Notifications]. Device-local notifications remain on the
-  /// lowerCamel [notifications] getter.
-  DVNotificationsService get Notifications => DV.Notifications;
+  @Deprecated('Use DV.Platform.notifications instead')
+  DVNotifications get Notifications => notifications;
 }
 
 abstract class DVAuthProvider {
@@ -9722,6 +9725,7 @@ class DV {
   static DVWorkers get Workers => DVWorkers.current;
   static DVNotificationsService get Notifications =>
       const DVNotificationsService();
+  static DVNotificationsService get notifications => Notifications;
   static DVUpdates get Updates => const DVUpdates();
   static DVSecrets get Secrets => const DVSecrets();
 
