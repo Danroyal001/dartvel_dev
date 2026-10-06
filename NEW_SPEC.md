@@ -361,7 +361,7 @@ Fluent modifiers include
 
 ```dart
 .padding()          // also paddingOnly, paddingSymmetric
-.margin()
+.margin()           // also marginOnly for named outer edges
 .color()            // text colour
 .backgroundColor()
 .gradient()
@@ -9525,6 +9525,9 @@ be rebuilt with it.
   document exports to the same private `@DVPage` source a hand-written page
   uses, with no builder runtime required afterwards.
 
+Studio control colour tokens resolve against the containing app’s effective
+Material colour scheme, including custom light and dark themes.
+
 The editor is laid out like the design tools it is compared with:
 
 - **Toolbar.** Back to the overview, the route with a Published or Draft badge,
@@ -9539,14 +9542,19 @@ The editor is laid out like the design tools it is compared with:
 - **Layers.** `DVStudioLayers` shows the document as a tree with collapsible
   containers, shares its selection with the canvas, and moves a node when a
   row is dragged onto a container. It reaches nodes the canvas cannot, such as
-  a spacer with no height.
+  a spacer with no height. Keyboard selection and expansion expose named
+  accessible actions and visible focus outlines.
 - **Insert.** `DVStudioPalette` is searchable and grouped into basics and
   layouts. A tile drags onto the canvas, or a tap inserts it into the selected
-  container, beside a selected leaf, or into the page.
+  container, beside a selected leaf, or into the page. Keyboard activation
+  inserts without dragging; read-only palettes cannot insert or start drags.
 - **Inspector.** `DVStudioInspector` opens on a header naming the node, then
   groups properties: content, layout, size and spacing, typography, fill,
   border, effects and interaction. Any property no group names lands in Other,
-  and a test holds every property reachable on every kind of node.
+  and a test holds every property reachable on every kind of node. Numeric
+  padding and margin controls include all four edges; named values override
+  uniform spacing, including an explicit zero, in saved documents and exported
+  Dart. Compact visible labels retain complete semantic property names.
 
 The load-bearing primitive is the **page document**: a serializable widget
 tree (`DVPageDocument`) that the builder edits, the renderer instantiates as

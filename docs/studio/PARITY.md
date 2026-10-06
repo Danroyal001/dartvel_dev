@@ -39,8 +39,7 @@ an application platform in the Bubble or Power Apps sense.
 
 Concretely, the four biggest gaps against these tools:
 
-1. **No visual design primitives** the way Figma has them: no auto-layout inspector with
-   per-side padding and margin readouts, no constraint solver, no components with typed
+1. **No visual design primitives** the way Figma has them: no hugging/filling auto-layout rules or linked-edge presets, no constraint solver, no components with typed
    variants and properties bound to a component set, no prototyping links, no design
    tokens or styleguide management, no Figma import.
 2. **No responsive design surface**: breakpoints exist in the document model and a device
@@ -106,7 +105,7 @@ Full accessibility remains **Partial** until those flows are verified too.
 | Webflow feature | Studio | Evidence |
 | --- | --- | --- |
 | Visual site builder with boxes | **Done** | `studio_editor.dart`, `page_document.dart:1424` |
-| Box model: margin, padding, sizing, per-side borders, radius | **Partial** — padding, gap, alignment, sizing, radius, background, border sides are in the node property chain (`page_document.dart:1444` border sides); per-side margin/padding *presets* and a numeric four-field editor are not | `page_document.dart` node properties, `studio_formula.dart` |
+| Box model: margin, padding, sizing, per-side borders, radius | **Partial** — padding, gap, alignment, sizing, radius, background, border sides are in the node property chain (`page_document.dart:1444` border sides); numeric per-side padding and margin fields are now present; linked-edge presets and the broader box-model design surface remain partial | `page_document.dart` node properties, `studio_formula.dart` |
 | Flexbox and Grid | **Done** — row, column, wrap, grid, stack as node layouts, exported as Flutter layouts | `page_document.dart:1424` |
 | Breakpoints and responsive design mode | **Partial** — device switcher and per-node breakpoint overrides, but no breakpoint rails, no separate breakpoint canvases, no element-visibility-per-breakpoint UI | `studio_screen.dart:469`, `dartvel_flutter.dart:5058` |
 | Reusable components (symbols) with fields | **Done** — components with props and an Insert panel | `studio_components_section.dart`, screenshot `docs/studio/nocode/insert-panel-components.png` |
@@ -225,8 +224,9 @@ appear on the rail with no address.
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
-partial: Studio’s custom color tokens and the visible server-rendered first
-frame have not yet been migrated.
+partial: Studio’s control colour tokens now resolve against the application’s colour
+scheme. Complete browser-flow and server-rendered first-frame parity remain
+unverified.
 
 A web-server build of this branch and the browser probe (`docs/studio/evidence/2026-10-02/`, 2 October 2026) pass every check with no page errors: the guarded-mode server documents, keyboard sign-in with Enter, URLs and deep links, back and forward, Ctrl+F, Tab, screen-reader buttons, and drag-select-and-copy. Theme parity is in this build (`18891f15`).
 
@@ -242,8 +242,9 @@ opening a different one. Tests: `studio_selection_test.dart` and
 1. Finish accessibility and URL coverage for setup, dialogs, new-object forms and
    component editing; verify keyboard, copy, browser history and assistive tree in
    the production server build for each flow.
-2. Add a numeric box-model inspector with per-side padding/margin and breakpoint
-   overrides. Verify saved values survive reload, export and a narrow viewport.
+2. Complete linked-edge presets and breakpoint overrides in the numeric box-model
+   inspector. Per-side padding/margin are present; verify browser save/reload/export
+   and narrow viewports before extending the surface.
 3. Add data-model galleries and forms to the page palette, with policy-aware data
    binding. Verify a real create/edit flow and denied access in two projects.
 4. Add a page condition/action builder over typed data-model fields, then reusable
@@ -268,3 +269,28 @@ does not establish browser parity for every Studio control.
   path, its own URL, Ctrl+F/selection/Tab/screen reader working, generic for every
   Dartvel project, checked in a real browser on a web-server build, with the docs updated
   in the same change.
+
+### Per-side outer spacing
+
+The numeric inspector now exposes margin on all four edges alongside padding.
+A named margin edge overrides the uniform margin; an explicit zero is retained.
+The page document, renderer and exported `.marginOnly(...)` use the same values.
+Failing-first regression coverage: `studio_margin_edges_test.dart` (three failures
+on the preceding implementation), alongside padding and inspector regressions.
+Production-browser verification is pending; the broader box-model verdict remains Partial.
+
+Compact numeric inspector fields now expose complete assistive names (for example,
+“Margin top” rather than only “T”). Failing-first widget evidence is in
+`studio_inspector_labels_test.dart`; production-browser evidence remains pending.
+
+The Studio frame now binds its control colour tokens to the app’s effective
+`ColorScheme`, including projects with custom light and dark themes. Failing-first
+coverage in `studio_app_theme_test.dart` reproduced the fixed-palette mismatch in
+both appearances. This does not establish complete first-frame theme parity.
+
+Layers now expose named selection actions with Tab/Enter/Space, focus outlines
+and keyboard expand/collapse controls. Palette tiles expose keyboard insertion,
+with read-only insertion/drag disabled. Failing-first regressions are in
+`studio_layers_keyboard_test.dart` and `studio_palette_keyboard_test.dart`;
+34 editor/panel/component/accessibility tests pass. Production-browser coverage
+is still pending, so the overall accessibility verdict remains Partial.

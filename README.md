@@ -441,8 +441,9 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
-partial: Studio’s custom color tokens and the visible server-rendered first
-frame have not yet been migrated.
+partial: Studio’s control colour tokens now resolve against the application’s colour
+scheme. Complete browser-flow and server-rendered first-frame parity remain
+unverified.
 
 `dartvel build web-server` writes `build/server`, a single executable that
 carries the backend, the native server library and the web app. It runs on
@@ -460,6 +461,13 @@ itself on the first run, with a table per model, and reuses it after that.
 `DARTVEL_DATA_DIR` moves that directory. Pages are rendered on request, with
 the head, structured data and crawler-visible text generated from each page's
 data.
+
+Studio’s inspector edits uniform or per-side padding and margin. Named edges
+override the uniform value; saved documents and exported Dart preserve those
+values. Compact spacing and size fields announce their full property names to
+assistive technology. Layers support keyboard selection and expansion; palette
+tiles support keyboard insertion without dragging. Broader Studio feature and accessibility coverage remains partial; see
+[the parity checklist](docs/studio/PARITY.md).
 
 The binary also carries Studio at `/__studio` (`dartvel.admin.path` moves
 it): the page builder, a table of each model's records with an edit form, the
