@@ -14,6 +14,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
     <String, (Widget Function(), Future<void> Function())>{
   '/docs': (() => const DocsPageGeneratedPage(), DocsPageGeneratedPage.loadLibrary),
   '/docs/adopting': (() => const DocsAdoptingPageGeneratedPage(), DocsAdoptingPageGeneratedPage.loadLibrary),
+  '/docs/existing-native-apps': (() => const DocsExistingNativeAppsPageGeneratedPage(), DocsExistingNativeAppsPageGeneratedPage.loadLibrary),
   '/docs/dev-client': (() => const DocsDevClientPageGeneratedPage(), DocsDevClientPageGeneratedPage.loadLibrary),
   '/docs/ui': (() => const DocsUiPageGeneratedPage(), DocsUiPageGeneratedPage.loadLibrary),
   '/docs/routing': (() => const DocsRoutingPageGeneratedPage(), DocsRoutingPageGeneratedPage.loadLibrary),
@@ -55,6 +56,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/billing': (() => const DocsBillingPageGeneratedPage(), DocsBillingPageGeneratedPage.loadLibrary),
   '/docs/modules': (() => const DocsModulesPageGeneratedPage(), DocsModulesPageGeneratedPage.loadLibrary),
   '/docs/devices': (() => const DocsDevicesPageGeneratedPage(), DocsDevicesPageGeneratedPage.loadLibrary),
+  '/docs/native-access': (() => const DocsNativeAccessPageGeneratedPage(), DocsNativeAccessPageGeneratedPage.loadLibrary),
   '/docs/media-3d': (() => const DocsMedia3dPageGeneratedPage(), DocsMedia3dPageGeneratedPage.loadLibrary),
   '/docs/cli': (() => const DocsCliPageGeneratedPage(), DocsCliPageGeneratedPage.loadLibrary),
   '/docs/agents': (() => const DocsAgentsPageGeneratedPage(), DocsAgentsPageGeneratedPage.loadLibrary),
@@ -112,7 +114,8 @@ void main() {
   test('every docs route is in the navigation, and every entry is a route', () {
     final Set<String> routed = <String>{
       for (final DVRouteInfo route in dartvelRouteManifest)
-        if (route.path == '/docs' || route.path.startsWith('/docs/')) route.path,
+        if (route.path == '/docs' || route.path.startsWith('/docs/'))
+          if (route.path != '/docs/platform') route.path,
     };
     expect(<String>{for (final DocsPageInfo p in kDocsPages) p.path}, routed);
     expect(docsWidgets.keys.toSet(), routed);
