@@ -882,7 +882,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text.rich(
+                    child: ExcludeSemantics(child: Text.rich(
                       TextSpan(
                         children: <InlineSpan>[
                           TextSpan(
@@ -908,7 +908,7 @@ class _DVStudioLayerRowState extends State<_DVStudioLayerRow> {
                       ),
                       maxLines: 1,
                       overflow: .ellipsis,
-                    ),
+                    )),
                   ),
                   if (selected && !widget.isRoot)
                     DVStudioIconButton(

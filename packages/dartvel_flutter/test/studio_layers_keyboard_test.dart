@@ -36,7 +36,7 @@ void main() {
       ValueKey('dv-studio-layer-${document.root.id}'),
     )).getSemanticsData();
     expect(data.flagsCollection.isButton, isTrue);
-    expect(data.label, contains('Page'));
+    expect(data.label, 'Page', reason: 'The visible layer label must not be announced twice.');
     semantics.dispose();
   });
 }
