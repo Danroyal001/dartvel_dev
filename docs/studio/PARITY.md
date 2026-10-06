@@ -39,8 +39,7 @@ an application platform in the Bubble or Power Apps sense.
 
 Concretely, the four biggest gaps against these tools:
 
-1. **No visual design primitives** the way Figma has them: no auto-layout inspector with
-   per-side padding and margin readouts, no constraint solver, no components with typed
+1. **No visual design primitives** the way Figma has them: no hugging/filling auto-layout rules or linked-edge presets, no constraint solver, no components with typed
    variants and properties bound to a component set, no prototyping links, no design
    tokens or styleguide management, no Figma import.
 2. **No responsive design surface**: breakpoints exist in the document model and a device
@@ -243,8 +242,9 @@ opening a different one. Tests: `studio_selection_test.dart` and
 1. Finish accessibility and URL coverage for setup, dialogs, new-object forms and
    component editing; verify keyboard, copy, browser history and assistive tree in
    the production server build for each flow.
-2. Add a numeric box-model inspector with per-side padding/margin and breakpoint
-   overrides. Verify saved values survive reload, export and a narrow viewport.
+2. Complete linked-edge presets and breakpoint overrides in the numeric box-model
+   inspector. Per-side padding/margin are present; verify browser save/reload/export
+   and narrow viewports before extending the surface.
 3. Add data-model galleries and forms to the page palette, with policy-aware data
    binding. Verify a real create/edit flow and denied access in two projects.
 4. Add a page condition/action builder over typed data-model fields, then reusable
