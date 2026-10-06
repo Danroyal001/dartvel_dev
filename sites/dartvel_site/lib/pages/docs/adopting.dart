@@ -251,10 +251,10 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'native-apps',
-          title: 'Existing native apps (Android, iOS, desktop)',
+          title: 'Existing native apps (All Dartvel targets)',
           children: <Widget>[
             DocsText('Dartvel can be embedded into an existing native '
-                'application the same way Flutter supports add-to-app: '
+                'application across all Dartvel targets the same way Flutter supports add-to-app: '
                 'a Dartvel module hosts the screens and backend, and the '
                 'native app hosts it through its embedder.'),
             Bullets(<String>[
@@ -274,10 +274,10 @@ Widget _docsAdoptingPage(BuildContext context) => const DocsArticle(
               'files; the module mount works; the generated backend '
               'serves the embedded app. What is planned: full add-to-app '
               'scaffold generation for Kotlin/Java (Android), Swift '
-              '(iOS) and desktop embedder hosts.',
+              '(iOS), desktop, TV and embedded embedder hosts.',
             ]),
             DocsStatus('Native App Embedding', missing: <String>[
-              'No full Kotlin/Java, Swift/Objective-C or desktop-native '
+              'No full Kotlin/Java, Swift/Objective-C, desktop or embedded-native '
               'scaffold generator yet. The framework supports module '
               'mounts and shared auth; native-side routing and '
               'embedding templates are planned.',
