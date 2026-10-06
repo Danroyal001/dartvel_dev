@@ -58,12 +58,10 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             DocsSubheading('Device namespaces'),
             DocsText('Every DV.Platform member is lowerCamel, like the rest of '
                 '`DV.*`: `DV.Platform.camera`, `DV.Platform.window`, '
-                '`DV.Platform.fileStorage`. The older capitalised names '
-                '(`Camera`, `Window`, `Tray`, `FileStorage` and the rest) '
+                '`DV.Platform.fileStorage`, `DV.Platform.notifications`. The older capitalised names '
+                '(`Camera`, `Window`, `Tray`, `FileStorage`, `Notifications` and the rest) '
                 'still compile as `@Deprecated` aliases for one release. '
-                'One pair is not a renaming: `DV.Platform.Notifications` is the '
-                'notifications service, and `DV.Platform.notifications` is '
-                'device-local notifications.'),
+                '`DV.Platform.notifications` unifies the notifications service and device-local notifications under the standard lowerCamel convention.'),
             DocsShell(<String>[
               'DV.Platform.camera, media, location, bluetooth, nfc, clipboard, share',
               'DV.Platform.sensors, biometrics, deepLinks, haptics, contacts',
@@ -85,7 +83,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             DocsSubheading('File, storage and notifications proxies'),
             DocsShell(<String>[
               'DV.Platform.fileStorage    // DV.FileStorage on the device disk',
-              'DV.Platform.notifications  // proxy to DV.Notifications',
+              'DV.Platform.notifications  // proxy to DV.Notifications & local notifications',
             ]),
           ],
         ),

@@ -269,10 +269,11 @@ void main() {
     // default storage uses.
     expect(DV.Platform.fileStorage, isA<DVStorage>());
     expect(DV.Platform.fileStorage, isA<DVDeviceStorage>());
-    expect(
-      DV.Platform.Notifications.runtimeType,
-      DV.Notifications.runtimeType,
-    );
+    expect(DV.Platform.notifications, isA<DVNotificationsService>());
+    expect(DV.Platform.notifications, isA<DVNotifications>());
+    // ignore: deprecated_member_use_from_same_package
+    expect(DV.Platform.Notifications, same(DV.Platform.notifications));
+    expect(DV.notifications, same(DV.Notifications));
   });
 
   test('storage has one canonical name, and the framework uses it', () {
