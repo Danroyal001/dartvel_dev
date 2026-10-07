@@ -7,6 +7,8 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- A backend function returning `String` reaches the client as that text. The client used to JSON-decode it, so a String holding JSON arrived as a Map and the generated `as String` cast threw.
+
 - `DV.Navigation.push` puts the pushed page's URL in the address bar, so a copied link or a reload opens the page that was pushed, not the one underneath.
 
 ## 0.11.2 — 2026-10-07
