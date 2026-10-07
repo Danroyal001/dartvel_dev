@@ -29,17 +29,18 @@ void main() {
       expect(found?.path, endsWith('branding/logo.png'));
     });
 
-    test('web/icon.png is the convention when nothing is configured', () {
+    // web/ is build output now, so the convention is a file the project keeps.
+    test('assets/icon.png is the convention when nothing is configured', () {
       put('web/icon.png');
       put('assets/icon.png');
       expect(dvPwaIconSource(root.path, const <Object?, Object?>{})?.path,
-          endsWith('web/icon.png'));
+          endsWith('assets/icon.png'));
     });
 
-    test('then assets/icon.png', () {
-      put('assets/icon.png');
+    test('then web/icon.png, where an older project kept it', () {
+      put('web/icon.png');
       expect(dvPwaIconSource(root.path, const <Object?, Object?>{})?.path,
-          endsWith('assets/icon.png'));
+          endsWith('web/icon.png'));
     });
 
     test('nothing anywhere is null, not an exception', () {

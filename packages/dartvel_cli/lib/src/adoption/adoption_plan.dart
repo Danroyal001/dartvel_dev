@@ -637,6 +637,8 @@ List<String> _coexistence(YamlMap pubspec) {
       .any((String s) => pubspec[s] is YamlMap && (pubspec[s] as YamlMap).containsKey(name));
   return <String>[
     dvDetectHostRouter(pubspec).message,
+    if (_isFlutter(pubspec))
+      'native platform folders: existing android/, ios/, etc. folders are left untouched; missing platform folders are regenerated on build.',
     if (has('freezed') || has('json_serializable'))
       'freezed / json_serializable: those classes stay as they are. A class '
           'becomes a Dartvel model only when it is annotated, and annotating '

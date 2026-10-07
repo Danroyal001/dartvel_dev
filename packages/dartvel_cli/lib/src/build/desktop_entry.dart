@@ -290,7 +290,7 @@ DVDesktopWrite dvWriteMacosDesktopEntries(String root) {
   if (!plist.existsSync()) {
     return DVDesktopWrite(written: const <String>[], problems: <String>[
       ...settings.problems,
-      'macos/Runner/Info.plist is not there; run flutter create . to add the macOS runner before declaring dartvel.desktop for it.',
+      'macos/Runner/Info.plist is not there to configure dartvel.desktop.',
     ]);
   }
   final String before = plist.readAsStringSync();
