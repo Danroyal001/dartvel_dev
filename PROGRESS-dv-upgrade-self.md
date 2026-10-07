@@ -66,3 +66,27 @@ Done: final targeted checks completed with disk-backed temp storage. Source/docs
 Tests: 72/72 touched CLI tests pass, including fresh-shell execution of new/restored binaries and fake Windows PATH rollback. Spec-status passes. Analyzer has no errors; 2 pre-existing warnings and 5 infos. Site tests pending.
 Next: commit/push the coherent feature, open draft review PR, collect complete full-suite/site results and update the review.
 Blockers: none in implementation; native Windows/browser-rendering verification remains unperformed.
+
+## Step 12 — branch and review PR preserved
+Done: commit dfe52ed1 pushed to origin/agent/dv-upgrade-self. Draft review PR opened: https://github.com/Danroyal001/dartvel_dev/pull/70. No merge/main push/release/deploy/messages. Site tests have started; complete disk-backed suite rerun still awaits its shared slot.
+Tests: targeted 72/72 pass; analyzer baseline-only warnings; spec check passes. Final suite/site results pending.
+Next: collect results, update PR and commit final progress report.
+Blockers: shared queue; native Windows/browser-rendering limitations remain.
+
+## Step 13 — site command checker follow-up
+Done: site reference freshness test passes. Site command checker exposed ambiguous new prose combining update and upgrade --plan in one sentence; split it into separate explicit command sentences. The same checker also finds 10 pre-existing --brownfield/--integrated references on existing-native-apps.dart, which this change does not alter.
+Tests: site initial run 4 pass / 1 fail; failure included our sentence plus the 10 existing unsupported-flag references. Rerunning after prose correction. Full disk-backed CLI suite has started.
+Next: verify only baseline site failures remain, commit/push this coherent docs fix, finish complete suite.
+Blockers: existing site command references; Windows/browser limitations unchanged.
+
+## Step 14 — complete validation and local rendering queued
+Done: queued a local-only web-server site build to check the documentation in a real browser if the build succeeds; this is verification, not deployment. Full suite is running with disk-backed TMPDIR (361 passes / 1 baseline failure so far).
+Tests: site sentence follow-up queued; targeted CLI 72/72 pass.
+Next: site checker result, docs follow-up commit/push, full-suite completion, local browser check, final report/PR update.
+Blockers: shared build slots; native Windows lock cannot be exercised locally.
+
+## Step 15 — site follow-up verified
+Done: site command prose correction verified; committing/pushing the docs follow-up.
+Tests: site checks 4 pass / 1 existing failure. The remaining failing command checker lists only 10 unsupported --brownfield/--integrated examples on unchanged existing-native-apps.dart; no cli.dart issue remains. Generated CLI reference test passes. Full suite ~689 passes / 1 baseline failure; local web-server build compiling.
+Next: finish suite and browser check; update review PR and final handoff.
+Blockers: known site-doc checker failure and native Windows verification limitation.

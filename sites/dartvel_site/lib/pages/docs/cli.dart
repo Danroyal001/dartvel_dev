@@ -22,8 +22,8 @@ Widget _docsCliPage(BuildContext context) => DocsArticle(
         'Framework transaction compensations restore the previous binary and PATH '
         'if installation, PATH configuration or stale-copy cleanup fails. '
         'Open a new terminal to refresh PATH. Windows retires locked old binaries '
-        'on a later invocation. dartvel update uses the same flow; '
-        'upgrade --plan remains a read-only project plan.',
+        'on a later invocation. dartvel update uses the same flow. '
+        'dartvel upgrade --plan remains a read-only project plan.',
   ],
   sections: <DocsSection>[
     for (final DocsCliCommand command in kCliCommands)
