@@ -22,6 +22,7 @@ import '../utils/build_runner.dart';
 import '../utils/lan_address.dart';
 import '../utils/linux_utils.dart';
 import '../build/dev_studio.dart';
+import '../build/platform_scaffold.dart';
 import '../build/seo_head.dart';
 import '../utils/logger.dart';
 
@@ -189,8 +190,8 @@ class DevCommand extends Command<void> {
         await _startDevClient(root, attached);
 
     String? deviceOpt = explicitDevice;
+    List<Map<String, Object?>> detected = const <Map<String, Object?>>[];
     if (deviceOpt == null || deviceOpt.isEmpty) {
-      List<Map<String, Object?>> detected = const <Map<String, Object?>>[];
       try {
         final proc = await Process.run('flutter', ['devices', '--machine'],
             runInShell: true);
@@ -228,6 +229,13 @@ class DevCommand extends Command<void> {
       Logger.log(
           'Headless Linux detected; defaulting to Flutter web-server. Pass -d linux to run the desktop target.');
     }
+    if (runLocalApp) {
+      final targetPlatform =
+          dvPlatformForDevice(deviceOpt!, detected: detected);
+      if (targetPlatform != null) {
+        await dvEnsurePlatformScaffold(root: root, platform: targetPlatform);
+      }
+    }
     if (deviceOpt != null && deviceOpt.isNotEmpty) {
       flutterArgs.addAll(['-d', deviceOpt]);
     }
@@ -237,7 +245,7 @@ class DevCommand extends Command<void> {
     // 980 CSS pixels and scaling down.
     if (deviceOpt != null && deviceOpt.contains('web') ||
         deviceOpt == 'chrome') {
-      if (dvEnsureProjectViewport(Directory.current.path)) {
+      if (dvEnsureProjectViewport(root)) {
         Logger.log('Added a viewport meta to web/index.html.');
       }
     }
