@@ -1826,6 +1826,9 @@ class DVModifier {
     return _copyWith(semanticHeadingValue: level);
   }
 
+  /// Shorthand alias for [semanticHeading].
+  DVModifier heading(int level) => semanticHeading(level);
+
   DVModifier minimumTapTarget({
     double width = 48,
     double height = 48,
@@ -9604,6 +9607,12 @@ class DVObservabilityAndLogging {
 }
 
 class DV {
+  /// Boots the Dartvel application [app], serving as the framework's canonical
+  /// entry point instead of calling Flutter's `runApp` directly.
+  static void run(Widget app) {
+    runApp(app);
+  }
+
   static final _globals = <_DVGlobalKey, Object>{};
 
   /// The loads the bar across the top of the page shows: `track(future)`,
