@@ -415,21 +415,28 @@ void main() {
   });
 
   group('the command', () {
-    test('upgrade without --plan refuses and writes nothing', () async {
-      oldProject();
-      final Map<String, String> before = snapshot();
-      final List<String> out = <String>[];
-      final int code = await dvRunUpgrade(
-        root.path,
-        plan: false,
-        out: out.add,
-        probe: () async => _modernToolchain,
-        generatedCheck: noGeneratedChange,
-      );
-      expect(code, 1);
-      expect(snapshot(), before);
-      expect(out.join('\n'), contains('--plan'));
-    });
+    test(
+      'upgrade without --plan updates the CLI and leaves the project alone',
+      () async {
+        oldProject();
+        final Map<String, String> before = snapshot();
+        final List<String> out = <String>[];
+        var upgraded = false;
+        final int code = await dvRunUpgrade(
+          root.path,
+          selfUpgrade: () async {
+            upgraded = true;
+          },
+          plan: false,
+          out: out.add,
+          probe: () async => _modernToolchain,
+          generatedCheck: noGeneratedChange,
+        );
+        expect(code, 0);
+        expect(upgraded, isTrue);
+        expect(snapshot(), before);
+      },
+    );
 
     test('is upgrade, with --plan', () {
       final CommandRunner<void> runner = CommandRunner<void>('dartvel', 't')
@@ -447,9 +454,8 @@ void main() {
     final DVGenerateCheckResult result = await dvGenerateCheck(
       root.path,
       generator: (String at) async {
-        File(
-          p.join(at, 'lib', 'dartvel_client', 'routes.dart'),
-        ).writeAsStringSync('a\nB\nc\nd\ne\n');
+        File(p.join(at, 'lib', 'dartvel_client', 'routes.dart'))
+            .writeAsStringSync('a\nB\nc\nd\ne\n');
       },
     );
     expect(result.stale, <String>['lib/dartvel_client/routes.dart']);

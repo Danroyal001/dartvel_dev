@@ -11854,10 +11854,10 @@ granted `Studio.access` with `dartvel admin grant`. There is no `dartvel
 studio` command.
 
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
-migrate-code` complete the last step. All three exist; applying an upgrade
-(`dartvel upgrade` without `--plan`) does not, and Unified Development,
-Transparency, and Contracts says what each covers. `dartvel update` and
-`dartvel updates` are different commands despite the near-miss in the names.
+migrate-code` complete the last step. All three exist. `dartvel upgrade`
+without `--plan` upgrades the CLI binary
+transactionally; applying a project plan remains manual. `dartvel update`
+also upgrades the CLI; `dartvel updates` ships application patches.
 
 During development, generation happens incrementally through `dartvel dev`.
 
@@ -14768,22 +14768,26 @@ dartvel migrate-code
 dartvel upgrade
 ```
 
-**Three of the four are built; `dartvel upgrade` on its own is not.**
-`dartvel update` updates the CLI itself and `dartvel updates` ships
-over-the-air patches to a released application; neither is this, and the
-near-miss in the names is worth stating once.
+`dartvel upgrade` downloads the latest CLI release for this host and verifies
+its published SHA-256 checksum before installation. The framework transaction
+runner installs the binary, ensures PATH and retires stale CLI copies, with
+compensations registered before each mutation. A failure restores the original
+executables and PATH configuration. Windows retains locked rename-aside images
+until a subsequent CLI invocation can delete them. `dartvel update` uses the
+same flow, retaining --check and --force. `dartvel updates` ships application
+patches.
 
 `dartvel upgrade --plan` plans against the release of the CLI it is run with,
 because that is the only release whose floors, constraints and rewrites the CLI
-knows; `dartvel update` fetches a newer one first. It writes nothing and lists
+knows; `dartvel upgrade` fetches a newer one first. It writes nothing and lists
 each area above: the SDK constraint and the installed Dart and Flutter, each
 Dartvel package's constraint and resolved version, shared dependencies, the
 names `migrate-code` would rewrite, the generated files this CLI's generator
 would change with the lines each gains and loses, the protocol lockfile, and
 each mounted module's Dartvel constraints. An area it cannot check is listed as
 not checked, never as unchanged, and a project already newer than the CLI is
-blocked rather than planned backwards. Applying the plan is not built, so
-`dartvel upgrade` without `--plan` refuses.
+blocked rather than planned backwards. Applying the project plan remains
+manual; upgrading the CLI does not modify project source or dependencies.
 
 `dartvel migrate-code` is a dry run that prints every rewritten line;
 `--apply` writes them, and writes nothing if a file changed after the plan was

@@ -40,64 +40,28 @@ class UpdateCommand extends Command<void> {
     final bool checkOnly = argResults!['check'] as bool;
     final bool force = argResults!['force'] as bool;
 
-    final String assetName = dvAssetName(
+    final changed = await dvUpgradeExecutable(
+      current: File(Platform.resolvedExecutable),
+      runningVersion: dartvelCliVersion,
       os: Platform.operatingSystem,
       arch: _architecture(),
+      currentPath: Platform.environment['PATH'] ?? '',
+      home:
+          Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          '.',
+      shell: Platform.environment['SHELL'],
+      fetchManifest: _fetchManifest,
+      download: _download,
+      force: force,
+      checkOnly: checkOnly,
     );
-
-    Logger.log('Checking for a newer release...');
-    final Map<String, Object?> manifest = await _fetchManifest();
-    final DVUpdateTarget target =
-        dvUpdateTargetFrom(manifest, assetName: assetName);
-
-    if (!force && !dvIsNewer(published: target.version, running: dartvelCliVersion)) {
-      Logger.log(
-        'dartvel $dartvelCliVersion is already the latest '
-        '(published: ${target.version}).',
-      );
-      return;
-    }
-
-    Logger.log('A newer release is available: ${target.version} '
-        '(running $dartvelCliVersion).');
-    if (checkOnly) return;
-
-    // The running executable, not whatever is first on PATH: updating a
-    // different copy than the one being run is the confusing failure here.
-    final File current = File(Platform.resolvedExecutable);
-    if (!current.existsSync()) {
-      throw StateError(
-        'Could not find the running executable at ${current.path}.',
-      );
-    }
-    // A `dart run` of the CLI resolves to the Dart VM, and replacing that
-    // would be catastrophic. Refuse rather than overwrite it.
-    final String basename = current.uri.pathSegments.last;
-    if (basename == 'dart' || basename == 'dart.exe') {
-      Logger.error(
-        'This is running through the Dart VM rather than as the packaged '
-        'binary, so there is no dartvel executable to replace. Install the '
-        'binary with Homebrew or npm, or run `dart pub global activate '
-        'dartvel_cli` to update the pub copy.',
-      );
-      return;
-    }
-
-    Logger.log('Downloading ${target.url}...');
-    final List<int> bytes = await _download(target.url);
-
-    if (!dvVerifyDownload(bytes, target.sha256)) {
-      throw StateError(
-        'The download did not match its published checksum and has not been '
-        'installed. Expected ${target.sha256}, got ${dvSha256Hex(bytes)}.',
-      );
-    }
-    Logger.log('Checksum verified.');
-
-    await dvReplaceExecutable(current: current, bytes: bytes);
     Logger.log(
-      'Updated to ${target.version}. The previous binary is at '
-      '${current.path}.old.',
+      changed
+          ? (checkOnly
+                ? 'A newer CLI release is available.'
+                : 'CLI upgraded. Open a new terminal to refresh PATH.')
+          : 'The CLI is already the latest release.',
     );
   }
 
@@ -114,8 +78,9 @@ class UpdateCommand extends Command<void> {
   Future<Map<String, Object?>> _fetchManifest() async {
     final HttpClient client = HttpClient();
     try {
-      final HttpClientRequest request =
-          await client.getUrl(Uri.parse(dvLatestManifestUrl));
+      final HttpClientRequest request = await client.getUrl(
+        Uri.parse(dvLatestManifestUrl),
+      );
       request.followRedirects = true;
       final HttpClientResponse response = await request.close();
       if (response.statusCode != 200) {

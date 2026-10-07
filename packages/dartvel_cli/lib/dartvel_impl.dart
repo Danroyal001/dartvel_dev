@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'src/update/self_update.dart';
 import 'src/commands/update_command.dart';
 import 'src/commands/mcp_command.dart';
 import 'src/commands/migrate_code_command.dart';
@@ -48,6 +49,7 @@ import 'src/commands/upgrade_command.dart';
 import 'src/commands/version_command.dart';
 
 Future<void> main(List<String> args) async {
+  dvCleanupDeferredExecutables(File(Platform.resolvedExecutable));
   // Handle --version flag
   if (args.contains('--version')) {
     await VersionCommand().run();
