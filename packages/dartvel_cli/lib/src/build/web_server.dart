@@ -32,6 +32,8 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVSessionAuthenticationResult,
         DVSessionCookie,
         dvSignInLocation,
+        DVConfiguredRedirect,
+        dvConfiguredRedirect,
         DVAdminServer,
         DVModelDataApi,
         DVPublishedPages,
@@ -95,6 +97,7 @@ String dvWebServerManifest({
   Map<String, String> federated = const <String, String>{},
   Set<String> guarded = const <String>{},
   String? signIn,
+  Map<String, DVConfiguredRedirectDeclaration> redirects = const <String, DVConfiguredRedirectDeclaration>{},
   DVImageVariants? images,
   Map<String, DVRoutePage> pages = const <String, DVRoutePage>{},
 }) =>
@@ -103,6 +106,12 @@ String dvWebServerManifest({
       // Where the server sends somebody signed out who asked for a guarded
       // route: the sign-in page the client's gate sends them to.
       if (signIn != null) 'signIn': signIn,
+      // dartvel.redirects, answered by the server before anything else.
+      if (redirects.isNotEmpty)
+        'redirects': <String, Object?>{
+          for (final MapEntry<String, DVConfiguredRedirectDeclaration> r in redirects.entries)
+            r.key: <String, Object?>{'to': r.value.to, 'status': r.value.status},
+        },
       // dartvel.images, for the server's /_dartvel/image: the widths it may
       // resize to and the hosts it may fetch from. Absent when the build has
       // no variants, and the server then answers that address like any other.
@@ -383,6 +392,13 @@ Handler dvWebServerHandler({
       return files(request);
     }
 
+    // dartvel.redirects, as the deployed server answers them (dartvel_shelf).
+    final core.DVConfiguredRedirect? configured =
+        core.dvConfiguredRedirect(manifest['redirects'], '/${request.url.path}');
+    if (configured != null) {
+      return Response(configured.status, headers: <String, String>{'location': configured.to});
+    }
+
     if (!shellFile.existsSync()) {
       return Response.notFound('No index.html in $webRoot.');
     }
@@ -598,4 +614,51 @@ Future<bool> _signedIn(Request request) async {
     cookie: request.headers['cookie'],
   );
   return !result.refused && result.principal != null;
+}
+
+/// One entry of `dartvel.redirects`.
+final class DVConfiguredRedirectDeclaration {
+  const DVConfiguredRedirectDeclaration(this.to, {this.status = 301});
+
+  final String to;
+  final int status;
+}
+
+/// `dartvel.redirects` from pubspec: `from: to`, or `from: {to: ..., status: 302}`.
+///
+/// A source is a path on this site; a target is a path or an http(s) URL; the
+/// status one of 301, 302, 307 or 308. Anything else is reported in [problems]
+/// and left out, never guessed at.
+Map<String, DVConfiguredRedirectDeclaration> dvParseRedirects(Object? section, List<String> problems) {
+  final Map<String, DVConfiguredRedirectDeclaration> out = <String, DVConfiguredRedirectDeclaration>{};
+  if (section == null) return out;
+  if (section is! Map) {
+    problems.add('dartvel.redirects must be a map of path: target.');
+    return out;
+  }
+  for (final MapEntry<Object?, Object?> e in section.entries) {
+    final String from = '${e.key}';
+    final Object? value = e.value;
+    final String? to = value is String ? value : (value is Map && value['to'] is String ? value['to']! as String : null);
+    final Object? statusRaw = value is Map ? value['status'] : null;
+    final int status = statusRaw is int ? statusRaw : 301;
+    if (!from.startsWith('/')) {
+      problems.add('dartvel.redirects: "$from" must be a path starting with /.');
+      continue;
+    }
+    if (to == null || !(to.startsWith('/') || to.startsWith('https://') || to.startsWith('http://'))) {
+      problems.add('dartvel.redirects: "$from" needs a target that is a path or an http(s) URL.');
+      continue;
+    }
+    if (to == from) {
+      problems.add('dartvel.redirects: "$from" redirects to itself.');
+      continue;
+    }
+    if (!const <int>{301, 302, 307, 308}.contains(status)) {
+      problems.add('dartvel.redirects: "$from" has status $status; use 301, 302, 307 or 308.');
+      continue;
+    }
+    out[from] = DVConfiguredRedirectDeclaration(to, status: status);
+  }
+  return out;
 }

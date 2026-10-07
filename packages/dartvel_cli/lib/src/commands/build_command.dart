@@ -3849,6 +3849,7 @@ class BuildCommand extends Command<void> {
         // So `streaming: shell` knows which routes it must not answer early.
         guarded: dvGuardedRoutes(_routerSource(root)),
         signIn: dvSignInRouteFrom(_routerSource(root)),
+        redirects: _configuredRedirects(root),
         // dartvel.images, for the server's /_dartvel/image: which widths it
         // may resize to and which hosts it may fetch from.
         images: _imageVariants(root, 'web-server'),
@@ -4062,6 +4063,17 @@ class BuildCommand extends Command<void> {
     );
     Logger.log('   Image variants: ${written.images} image(s), '
         '${written.written} file(s) written.');
+  }
+
+  /// `dartvel.redirects`, with every problem in it reported and left out.
+  Map<String, DVConfiguredRedirectDeclaration> _configuredRedirects(String root) {
+    final List<String> problems = <String>[];
+    final Map<String, DVConfiguredRedirectDeclaration> redirects =
+        dvParseRedirects(_dartvelSection(root)['redirects'], problems);
+    for (final String problem in problems) {
+      Logger.log('⚠️  $problem');
+    }
+    return redirects;
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {
