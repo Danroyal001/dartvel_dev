@@ -28,6 +28,10 @@ import 'package:dartvel_core/dartvel.dart'
         dvWithPreloads;
 import 'package:dartvel_core/dartvel.dart' as core
     show
+        DVSessionAuthentication,
+        DVSessionAuthenticationResult,
+        DVSessionCookie,
+        dvSignInLocation,
         DVAdminServer,
         DVModelDataApi,
         DVPublishedPages,
@@ -90,11 +94,15 @@ String dvWebServerManifest({
   DVSiteSeo site = const DVSiteSeo(),
   Map<String, String> federated = const <String, String>{},
   Set<String> guarded = const <String>{},
+  String? signIn,
   DVImageVariants? images,
   Map<String, DVRoutePage> pages = const <String, DVRoutePage>{},
 }) =>
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'siteUrl': siteUrl,
+      // Where the server sends somebody signed out who asked for a guarded
+      // route: the sign-in page the client's gate sends them to.
+      if (signIn != null) 'signIn': signIn,
       // dartvel.images, for the server's /_dartvel/image: the widths it may
       // resize to and the hosts it may fetch from. Absent when the build has
       // no variants, and the server then answers that address like any other.
@@ -453,6 +461,32 @@ Handler dvWebServerHandler({
 
     final DVPageData? data = await resolve(matched);
 
+    // A guarded route for somebody signed out goes to the sign-in page, as
+    // the deployed server sends it (dartvel_shelf's SSR): never the page the
+    // build captured, which is the screen the guard protects.
+    if (matched != null &&
+        guarded.contains(matched.pattern) &&
+        (data == null || data.visibility == DVPageVisibility.public) &&
+        !await _signedIn(request)) {
+      final Object? signIn = manifest['signIn'];
+      if (signIn is String && signIn.isNotEmpty && signIn != cleanPath) {
+        final String from =
+            '$cleanPath${request.url.hasQuery ? '?${request.url.query}' : ''}';
+        return Response.found(core.dvSignInLocation(signIn, from),
+            headers: const <String, String>{'cache-control': 'no-store'});
+      }
+      return Response(401,
+          body: dvServeRoute(
+            shell: shell,
+            path: cleanPath,
+            routes: const <String, String>{},
+            text: const <String, List<String>>{},
+            siteUrl: siteUrl,
+            siteName: name,
+          ),
+          headers: htmlHeaders);
+    }
+
     // Hidden or unauthorized: the shell with none of the data, and the
     // status that says why, so a crawler indexes nothing and the client can
     // sign the person in. The site's description and image stay off too --
@@ -550,3 +584,18 @@ Response _shelfResponse(core.Response response) => Response(
           header.key: header.value,
       },
     );
+
+/// Whether [request] carries a live session of the application's own.
+Future<bool> _signedIn(Request request) async {
+  final core.DVSessionAuthenticationResult result =
+      await core.DVSessionAuthentication.authenticateRequest(
+    plainLocal: core.DVSessionCookie.plainLocal(
+      request.requestedUri,
+      forwardedProto: request.headers['x-forwarded-proto'],
+      host: request.headers['host'],
+    ),
+    authorization: request.headers['authorization'],
+    cookie: request.headers['cookie'],
+  );
+  return !result.refused && result.principal != null;
+}

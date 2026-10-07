@@ -9,12 +9,14 @@
 // manifest is how the server does.
 import 'dart:convert';
 
+import 'package:dartvel_cli/src/build/static_seo.dart' show dvSignInRouteFrom;
 import 'package:dartvel_cli/src/build/web_server.dart';
 import 'package:test/test.dart';
 
 Map<String, Object?> manifest({
   Set<String> guarded = const <String>{},
   DVWebServerSettings server = const DVWebServerSettings(),
+  String? signIn,
 }) =>
     jsonDecode(dvWebServerManifest(
       routes: const <String>['/', '/account/:id'],
@@ -23,6 +25,7 @@ Map<String, Object?> manifest({
       siteUrl: null,
       server: server,
       guarded: guarded,
+      signIn: signIn,
     )) as Map<String, Object?>;
 
 void main() {
@@ -51,5 +54,13 @@ void main() {
           'streaming'],
       'shell',
     );
+  });
+
+  test('the sign-in page the generated router names reaches the manifest', () {
+    const String router = "void _install() {\n  dvSignInRoute = '/account/sign-in';\n}";
+    expect(dvSignInRouteFrom(router), '/account/sign-in');
+    expect(manifest(signIn: dvSignInRouteFrom(router))['signIn'], '/account/sign-in');
+    expect(dvSignInRouteFrom('void main() {}'), isNull);
+    expect(manifest().containsKey('signIn'), isFalse);
   });
 }

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 
@@ -221,6 +221,28 @@ Future<Response> _fromManifest(
         headers: Headers()..set('location', target),
       );
     }
+  }
+  // A guarded route, asked for by nobody signed in: sent to the sign-in page
+  // with where they were going, as the client's gate would. Rendering it
+  // instead served the page the build captured -- the guarded screen and
+  // whatever it showed -- to anybody, before Flutter loaded to redirect.
+  // Without a sign-in page to send them to, the bare shell and a 401.
+  if (route?['guarded'] == true &&
+      (data == null || data.visibility == DVPageVisibility.public) &&
+      await dvStudioSessionUserId(req) == null) {
+    final Object? signIn = manifest['signIn'];
+    if (signIn is String && signIn.isNotEmpty && signIn != path) {
+      final String from = '$path${req.url.hasQuery ? '?${req.url.query}' : ''}';
+      return Response(
+        302,
+        headers: Headers()
+          ..set('location', dvSignInLocation(signIn, from))
+          ..set('cache-control', 'no-store'),
+        body: const Stream<List<int>>.empty(),
+      );
+    }
+    final String? bareTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
+    return _html(dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: bareTitle ?? path, siteUrl: siteUrl, siteName: site.name ?? bareTitle)), status: 401);
   }
   final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
   final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);

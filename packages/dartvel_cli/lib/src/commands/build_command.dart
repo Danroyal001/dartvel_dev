@@ -3829,6 +3829,7 @@ class BuildCommand extends Command<void> {
         federated: dvFederatedRoutes(root),
         // So `streaming: shell` knows which routes it must not answer early.
         guarded: dvGuardedRoutes(_routerSource(root)),
+        signIn: dvSignInRouteFrom(_routerSource(root)),
         // dartvel.images, for the server's /_dartvel/image: which widths it
         // may resize to and which hosts it may fetch from.
         images: _imageVariants(root, 'web-server'),
