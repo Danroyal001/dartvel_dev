@@ -1747,6 +1747,9 @@
         "packages/dartvel_cli/lib/src/commands/compatibility_check_command.dart",
         "packages/dartvel_cli/lib/src/commands/migrate_code_command.dart",
         "packages/dartvel_cli/test/upgrade_plan_test.dart",
+        "packages/dartvel_cli/lib/src/update/self_update.dart",
+        "packages/dartvel_cli/test/self_upgrade_test.dart",
+        "packages/dartvel_cli/test/self_update_runtime_guard_test.dart",
         "packages/dartvel_cli/test/compatibility_check_command_test.dart",
         "packages/dartvel_cli/test/migrate_code_test.dart"
       ],

@@ -90,3 +90,24 @@ Done: site command prose correction verified; committing/pushing the docs follow
 Tests: site checks 4 pass / 1 existing failure. The remaining failing command checker lists only 10 unsupported --brownfield/--integrated examples on unchanged existing-native-apps.dart; no cli.dart issue remains. Generated CLI reference test passes. Full suite ~689 passes / 1 baseline failure; local web-server build compiling.
 Next: finish suite and browser check; update review PR and final handoff.
 Blockers: known site-doc checker failure and native Windows verification limitation.
+
+## Step 16 — local site web build passed
+Done: site web compilation succeeded; web-server build is capturing semantics for 67 routes before server packaging. Prepared an isolated browser-tab check and saved live /docs/cli HTML for diffing; no deployment.
+Tests: full rerun ~1,632 passes / 1 skip / 3 known baseline failures, no quota errors. Site reference/our command prose checks good, broad site checker retains the existing-native-apps failure.
+Next: inspect local server artifact, browser/selectability/accessibility comparison, full-suite summary, final handoff.
+Blockers: no new implementation blocker; native Windows image locks unverified.
+
+## Step 17 — validation still progressing
+Done: local semantics capture has written 32/67 route snapshots; browser comparison is prepared.
+Tests: disk-backed full suite 2,133 passes, 1 skip, 3 known baseline failures; no additional errors. Targeted 72/72, site reference/prose verified. Branch commits dfe52ed1/e70c3c59 are pushed; PR #70 remains draft while full validation finishes.
+Next: finish capture/server build and full suite, run local browser check, update PR/report and clean owned build outputs.
+Blockers: no new code blocker; native Windows locks unverified.
+
+Correction to capture counts in Steps 14–17 and commentary: directory counts included per-route .images.json metadata, so 74 files means about 37 captured routes, not 74/67. Build is progressing normally; wait for its explicit captured X of 67 verdict before reporting completion. New upgrade implementation/test paths added to Golden Path evidence; spec-status check still passes.
+
+## Step 18 — runtime guard extension and verification
+Done: observed expected red test failures for `dartvm`, `dartvm.exe`, `dartaotruntime`, and `dartaotruntime.exe`; extended the runtime-name refusal in `self_update.dart` to cover all SDK runtime binaries. All 6 guard tests pass. Added `self_update_runtime_guard_test.dart` to Golden Path evidence in `docs/spec-status.json` and regenerated `docs/spec-gaps.md`. `tool/spec_status_check.dart` passes (115 sections, 105 labelled, all evidence present).
+Tests: 6/6 runtime guard tests pass; 18/18 self_upgrade tests pass; 23/23 upgrade_plan tests pass; 92/92 related CLI update/upgrade/ensure_path tests pass. CLI `dart analyze` passes with 0 errors and no changed-file diagnostics (2 known baseline warnings, 5 infos).
+Next: commit runtime guard fix to branch, push to `origin/agent/dv-upgrade-self`, verify PR #70 and full test suite.
+Blockers: no code blockers; native Windows locks unverified on Linux host.
+

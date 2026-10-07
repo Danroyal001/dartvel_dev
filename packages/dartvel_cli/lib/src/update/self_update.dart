@@ -217,7 +217,15 @@ Future<bool> dvUpgradeExecutable({
   }
   if (checkOnly) return true;
   final name = p.basename(current.path).toLowerCase();
-  if (name == 'dart' || name == 'dart.exe') {
+  const sdkRuntimes = {
+    'dart',
+    'dart.exe',
+    'dartvm',
+    'dartvm.exe',
+    'dartaotruntime',
+    'dartaotruntime.exe',
+  };
+  if (sdkRuntimes.contains(name)) {
     throw StateError(
       'Run the packaged dartvel binary to upgrade; '
       'for a pub installation use dart pub global activate dartvel_cli.',
