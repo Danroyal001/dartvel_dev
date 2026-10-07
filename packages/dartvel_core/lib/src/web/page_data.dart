@@ -1063,3 +1063,27 @@ DVPageDataResolver dvModelPageResolver(
 /// sign-in returns there, exactly as the client's gate builds it.
 String dvSignInLocation(String signIn, String from) =>
     Uri(path: signIn, queryParameters: <String, String>{'from': from}).toString();
+
+/// A redirect `dartvel.redirects` declared: where to send the request and with
+/// which status.
+final class DVConfiguredRedirect {
+  const DVConfiguredRedirect(this.to, this.status);
+
+  final String to;
+  final int status;
+}
+
+/// The redirect declared for [rawPath] in a web-server manifest's `redirects`,
+/// or null.
+///
+/// Matched against the path exactly as requested, trailing slash included, so
+/// `/downloads` -> `/downloads/` can never answer its own target and loop.
+DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
+  if (redirects is! Map) return null;
+  final Object? entry = redirects[rawPath];
+  if (entry is! Map) return null;
+  final Object? to = entry['to'];
+  final Object? status = entry['status'];
+  if (to is! String || to.isEmpty) return null;
+  return DVConfiguredRedirect(to, status is int ? status : 301);
+}
