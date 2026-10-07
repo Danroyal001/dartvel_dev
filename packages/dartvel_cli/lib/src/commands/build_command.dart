@@ -1123,8 +1123,8 @@ class BuildCommand extends Command<void> {
       _writeNativeSplash(_projectRoot, platform);
     }
     // The launcher's name and icon, from dartvel.pwa, for the same reason.
-    if (platform == 'android' || platform == 'fireos') {
-      final List<String> launcher = dvWriteAndroidLauncher(_projectRoot);
+    {
+      final List<String> launcher = dvWriteLauncherIdentity(_projectRoot, platform);
       if (launcher.isNotEmpty) {
         Logger.log('🏷️  Launcher name and icon from dartvel.pwa: '
             '${launcher.length} file(s) written.');
