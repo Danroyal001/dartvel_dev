@@ -1289,3 +1289,16 @@ Preloading is an optimisation, so a failure is reported and swallowed rather
 than stopping the tap that follows.
 
 ---
+
+### Upgrading the CLI
+
+Run `dartvel upgrade` from the packaged binary to install the latest release
+for your host. It verifies SHA-256, installs the command on PATH and removes
+stale copies. Framework transaction compensations restore the previous binary
+and PATH configuration if a step fails. Open a new terminal to refresh PATH.
+Windows deletes locked rename-aside binaries on a later CLI invocation.
+
+`dartvel update` uses the same flow, with `--check` and `--force`.
+`dartvel upgrade --plan` still reports project changes without writing them;
+applying that project plan remains manual. For a pub installation, use
+`dart pub global activate dartvel_cli`. See [CLI upgrade](docs/cli-upgrade.md).
