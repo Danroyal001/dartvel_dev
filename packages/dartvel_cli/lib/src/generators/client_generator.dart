@@ -1729,7 +1729,7 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
     GoRoute(
       path: '${esc(page.path)}',
 ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.requireSession(context, state),\n' : ''}      pageBuilder: (context, state) => NoTransitionPage<void>(
-        child: Scaffold(body: SafeArea(child: DV.Auth.${page.widget}(${page.key == 'signIn' ? "from: state.uri.queryParameters['from']" : ''}))),
+        child: Scaffold(body: SafeArea(child: DV.Auth.${page.widget}(${page.key == 'signIn' || page.key == 'signUp' ? "from: state.uri.queryParameters['from']" : ''}))),
       ),
     ),''')
         .join('\n');
@@ -1739,6 +1739,35 @@ ${page.requiresSession ? '      redirect: (context, state) => DVAccountPages.req
     final signInRouteAssignment = signInPage.isEmpty
         ? ''
         : "\n  dvSignInRoute = '${esc(signInPage.first.path)}';";
+    final authPageLinks = '  DV.Auth.configurePageRoutes(\n'
+        '${accountPages.where((page) => page.key == 'signIn' || page.key == 'signUp').map((page) => "    ${page.key}: DVRouteTarget('${esc(page.path)}'),\n").join()}'
+        '  );';
+    final Object? authConfig = dv['auth'];
+    final Object? pwaConfig = dv['pwa'];
+    String? authText(Object? value, String key) {
+      if (value == null) return null;
+      if (value is! String || value.trim().isEmpty) {
+        throw StateError('$key must be a non-empty string.');
+      }
+      return value;
+    }
+    final authName = authText(pwaConfig is Map ? pwaConfig['name'] : null,
+        'dartvel.pwa.name') ?? pkgName;
+    final authTagline = authText(authConfig is Map ? authConfig['tagline'] : null,
+        'dartvel.auth.tagline') ?? 'A place for what matters to you.';
+    final authIcon = authText(pwaConfig is Map ? pwaConfig['icon'] : null,
+        'dartvel.pwa.icon');
+    final authHero = authText(authConfig is Map ? authConfig['heroImage'] : null,
+        'dartvel.auth.heroImage');
+    final authColor = authText(authConfig is Map ? authConfig['brandPanelColor'] : null,
+        'dartvel.auth.brandPanelColor');
+    if (authColor != null && !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(authColor)) {
+      throw StateError('dartvel.auth.brandPanelColor must be a #RRGGBB color.');
+    }
+    final authAppearance = '''  DV.Auth.installDefaultAppearance(const DVAuthAppearance(
+    name: '${esc(authName)}',
+    tagline: '${esc(authTagline)}',
+${authIcon == null ? '' : "    icon: '${esc(authIcon)}',\n"}${authHero == null ? '' : "    heroImage: '${esc(authHero)}',\n"}${authColor == null ? '' : '    brandPanelColor: Color(0xFF${authColor.substring(1).toUpperCase()}),\n'}  ));''';
     final accountEntriesSrc = accountPages.isEmpty
         ? '<DVAccountPageEntry>[]'
         : '<DVAccountPageEntry>[\n${accountPages.map((page) => "  DVAccountPageEntry(DVAccountPage.${page.key}, DVRouteTarget('${esc(page.path)}')),").join('\n')}\n]';
@@ -2062,6 +2091,8 @@ void _dartvelSetUp(List<String> arguments) {
   // know how to build a route; the router does.
 $routeCapabilities
 $signInRouteAssignment
+$authPageLinks
+$authAppearance
 $semanticsCall
 $pageMiddlewareInstall
 }

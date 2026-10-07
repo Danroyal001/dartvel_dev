@@ -378,7 +378,7 @@ void main() {
           find.byKey(const ValueKey<String>('dv-auth-password')), 'wrong-password');
       await tester.tap(find.byKey(const ValueKey<String>('dv-auth-submit')));
       await tester.pumpAndSettle();
-      expect(find.text(AuthException.invalidCredentials.message), findsOneWidget);
+      expect(find.text('Wrong email or password'), findsOneWidget);
 
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-auth-password')), 'lovelace-1843');
