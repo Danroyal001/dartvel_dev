@@ -22,6 +22,14 @@ between the runtime and the snapshot (see
 Older binaries wrote every web file into `dartvel_data/.web` and
 `dartvel_data/.admin` at start; a new binary deletes those directories.
 
+## Guarded pages
+
+A page behind a `_guard.dart`, a page policy or the account pages' session gate is answered by the
+server, not only by the client. A request with no live session gets a `302` to the sign-in page
+(`dvSignInRoute`, the one the client's gate uses) carrying `from=<path and query>`, so nobody signed out
+is ever sent the guarded screen's HTML. An application with no sign-in page answers `401` with the bare
+shell. `dartvel dev --release` behaves the same.
+
 ## Assets
 
 Each file is kept the smallest way the build finds it
