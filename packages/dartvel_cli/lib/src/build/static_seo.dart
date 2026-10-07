@@ -59,6 +59,15 @@ Set<String> dvGuardedRoutes(String routerSource) {
       .toSet();
 }
 
+/// The sign-in page's path, as the generated router assigns it to
+/// `dvSignInRoute`, or null for an application with no sign-in page.
+///
+/// The server sends a signed-out request for a guarded route there, the way
+/// the client's gate does, and has no other way to know where it is.
+String? dvSignInRouteFrom(String routerSource) => RegExp(
+      r"dvSignInRoute\s*=\s*'([^']+)'",
+    ).firstMatch(routerSource)?.group(1);
+
 /// What a page or a project says about how a URL should be crawled.
 ///
 /// [changeFrequency] is the sitemaps.org token rather than the enum, because

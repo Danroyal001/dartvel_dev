@@ -1057,3 +1057,9 @@ DVPageDataResolver dvModelPageResolver(
     return null;
   };
 }
+
+/// Where a signed-out request for a guarded route is sent: the sign-in page
+/// at [signIn], carrying [from] -- the path and query it asked for -- so the
+/// sign-in returns there, exactly as the client's gate builds it.
+String dvSignInLocation(String signIn, String from) =>
+    Uri(path: signIn, queryParameters: <String, String>{'from': from}).toString();
