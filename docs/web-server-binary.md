@@ -30,6 +30,26 @@ server, not only by the client. A request with no live session gets a `302` to t
 is ever sent the guarded screen's HTML. An application with no sign-in page answers `401` with the bare
 shell. `dartvel dev --release` behaves the same.
 
+## Redirects
+
+`dartvel.redirects` in pubspec.yaml sends an address somewhere else before routing, the sign-in guard or
+the not-found page see it:
+
+```yaml
+dartvel:
+  redirects:
+    /downloads: /downloads/          # 301 by default
+    /botm:
+      to: /book-of-the-month
+      status: 302                    # 301, 302, 307 or 308
+    /old-blog: https://blog.example.com/
+```
+
+The source is matched exactly as requested, trailing slash included, so `/downloads` → `/downloads/` never
+answers its own target. A query string is carried over unless the target has one. An entry that is not a
+path, points at itself or names another status is reported by the build and left out. `dartvel dev
+--release` answers them the same way.
+
 ## Assets
 
 Each file is kept the smallest way the build finds it
