@@ -1,3 +1,11 @@
+## 0.11.2 — 2026-10-07
+
+- `dartvel upgrade` installs the latest CLI transactionally (download, checksum, PATH repair, old binary removed, full rollback on failure).
+- Native folders are ephemeral: `dartvel create` makes none and enables every platform; `dartvel build`/`dev` generate the platform folder they need. Default icon `assets/icon.png`.
+- Launcher name and icon from `dartvel.pwa` on Android, Fire OS, iOS, macOS, Windows and Linux.
+- The web-server manifest carries the sign-in route; old captures of guarded routes are deleted before a build.
+- New projects use the 0.11.2 package family.
+
 ## 0.11.0 — 2026-10-05
 
 - Unify create/init adoption behavior, refresh coding-agent rules and architecture documentation, and declare file-storage permissions in native builds.
