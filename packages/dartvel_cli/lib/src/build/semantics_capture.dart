@@ -88,6 +88,29 @@ String dvSemanticsPathFor(String projectRoot, String route) {
   return p.join(projectRoot, '.dart_tool', 'dartvel_semantics', '$name.json');
 }
 
+/// Deletes what an earlier build captured for each of the [guarded] routes,
+/// and returns the files it removed.
+///
+/// A guarded route is not captured -- the capturing browser has no session,
+/// so it would capture the sign-in page -- but a capture from before the route
+/// was guarded stayed on disk, and every later build rendered it into the
+/// page and the server's manifest: a signed-in reader was sent the screen as
+/// it looked on that old build, numbers and all.
+List<String> dvForgetGuardedCaptures(String projectRoot, Iterable<String> guarded) {
+  final List<String> removed = <String>[];
+  for (final String route in guarded) {
+    final String tree = dvSemanticsPathFor(projectRoot, route);
+    for (final String path in <String>[tree, tree.replaceFirst(RegExp(r'\.json$'), '.images.json')]) {
+      final File file = File(path);
+      if (file.existsSync()) {
+        file.deleteSync();
+        removed.add(p.relative(path, from: projectRoot));
+      }
+    }
+  }
+  return removed;
+}
+
 /// Capture [routes] from the build in [webRoot], writing one JSON tree each.
 ///
 /// Returns the number of routes that produced a tree. Zero means the caller
