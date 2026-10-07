@@ -18,6 +18,7 @@ import 'linux_device.dart';
 import 'linux_dialogs_ffi.dart';
 import 'linux_dnd_ffi.dart';
 import 'linux_kiosk_ffi.dart';
+import 'linux_launch_at_login.dart';
 import 'linux_media_gst.dart';
 import 'linux_menus_ffi.dart';
 import 'linux_nfc.dart';
@@ -27,6 +28,7 @@ import 'linux_shortcuts_ffi.dart';
 import 'linux_tray_dbus.dart';
 import 'linux_usb.dart';
 import 'linux_usb_transfer.dart';
+import 'linux_window_gtk.dart';
 
 // --- libX11 ------------------------------------------------------------------
 
@@ -172,6 +174,10 @@ class DVLinuxBindings {
     'window.minimize',
     'window.restore',
     'window.setSize',
+    // The main window from a tray, and close-to-hide under exitPolicy
+    // explicit: GTK's own calls and delete-event.
+    'window.hide',
+    'window.show',
     'display.enterFullscreen',
     'display.exitFullscreen',
     'shortcuts.register',
@@ -230,6 +236,9 @@ class DVLinuxBindings {
     'associations.register',
     'associations.unregister',
     'associations.handlerFor',
+    // An XDG autostart entry: a file, like the associations.
+    'launchAtLogin.isEnabled',
+    'launchAtLogin.setEnabled',
   };
 
 
@@ -375,6 +384,7 @@ class DVLinuxBindings {
     // Needs a session bus rather than X11, and says so when there is none:
     // an item nothing can watch is not a failure of the other bindings.
     DVLinuxTray.register(DVNativeBridge.register);
+    DVLinuxWindow.register(_gtk!, _glib!, DVNativeBridge.register);
     // A desktop deep link arrives as a launch argument; the launch keeps
     // the first one. The stream is fed by the launch as well.
     DVNativeBridge.register('deepLinks.initial', (Object? _) => DVAppLaunch.initialLink);
@@ -401,6 +411,7 @@ class DVLinuxBindings {
     // Files, not X11: an application copied onto a kiosk with no desktop
     // session is exactly the one whose associations nobody installed.
     DVLinuxAssociations.register(DVNativeBridge.register);
+    DVLinuxLaunchAtLogin.register(DVNativeBridge.register);
     DVLinuxDevice.register(DVNativeBridge.register);
     DVLinuxSerial.register(DVNativeBridge.register);
     DVLinuxUsb.register(DVNativeBridge.register);
@@ -429,6 +440,7 @@ class DVLinuxBindings {
     unawaited(DVLinuxTray.unregister());
     unawaited(DVLinuxShortcuts.unregister());
     DVLinuxMenus.unregister();
+    DVLinuxWindow.unregister();
     DVLinuxDialogs.unregister();
     DVLinuxDevice.unregister();
     // Stops serving the selections this process owns. Left running, the pump
