@@ -18,6 +18,7 @@ import 'package:yaml/yaml.dart';
 Future<Directory> _generate(
   Map<String, String> pages, {
   Object? auth,
+  String? config,
 }) async {
   final Directory root =
       await Directory.systemTemp.createTemp('dartvel_account_routes_');
@@ -51,7 +52,7 @@ Future<Directory> _generate(
     notFoundRedirect: '',
     plugins: const <String>[],
     ota: false,
-    dv: loadYaml(auth == null ? '{}' : 'auth:\n  pages: $auth\n') as YamlMap,
+    dv: loadYaml(config ?? (auth == null ? '{}' : 'auth:\n  pages: $auth\n')) as YamlMap,
   );
   return root;
 }
@@ -105,6 +106,31 @@ List<String> _guarded(String router) {
 const String _gate = 'DVAccountPages.requireSession(context, state)';
 
 void main() {
+  test('auth branding uses the app identity and validates its panel color', () async {
+    final router = _router(await _generate({}, config: '''
+pwa:
+  name: Harvest
+  icon: assets/harvest.png
+auth:
+  tagline: Good food, together.
+  heroImage: assets/garden.png
+  brandPanelColor: '#21664B'
+'''));
+    expect(router, contains("name: 'Harvest'"));
+    expect(router, contains("tagline: 'Good food, together.'"));
+    expect(router, contains("icon: 'assets/harvest.png'"));
+    expect(router, contains('brandPanelColor: Color(0xFF21664B)'));
+    await expectLater(_generate({}, config: "auth:\n  brandPanelColor: green\n"),
+      throwsA(isA<StateError>()));
+  });
+  test('sign-up carries the return destination and configured typed links', () async {
+    final router = _router(await _generate({'index.dart': _page('home', '@DVPage()')},
+      auth: '{signIn: /enter, signUp: /join}'));
+    expect(_route(router, '/join'), contains("SignUpPage(from: state.uri.queryParameters['from'])"));
+    expect(router, contains('DV.Auth.configurePageRoutes('));
+    expect(router, contains("signIn: DVRouteTarget('/enter')"));
+    expect(router, contains("signUp: DVRouteTarget('/join')"));
+  });
   test('with nothing declared, every account page is served, behind sign-in '
       'but sign-up, and listed for navigation', () async {
     final String router = _router(await _generate(<String, String>{
@@ -120,7 +146,7 @@ void main() {
       expect(_route(router, path), contains(_gate), reason: path);
       expect(_route(router, path), contains(widget), reason: path);
     });
-    expect(_route(router, '/sign-up'), contains('DV.Auth.SignUpPage()'));
+    expect(_route(router, '/sign-up'), contains("DV.Auth.SignUpPage(from: state.uri.queryParameters['from'])"));
     expect(_route(router, '/sign-up'), isNot(contains('redirect')));
     // Where the gate sends somebody signed out, so it lands on a page: an
     // application with no sign-in page of its own sent them to not-found.
@@ -150,7 +176,7 @@ void main() {
     expect(_route(router, '/settings/security'), contains(_gate));
     expect(router, isNot(contains("path: '/account/security'")));
     expect(router, isNot(contains('DV.Auth.DeletePage()')));
-    expect(_route(router, '/join'), contains('DV.Auth.SignUpPage()'));
+    expect(_route(router, '/join'), contains("DV.Auth.SignUpPage(from: state.uri.queryParameters['from'])"));
     expect(_route(router, '/enter'), contains('DV.Auth.SignInWithEmailAndPasswordPage('));
     expect(router, contains("dvSignInRoute = '/enter';"));
     expect(router, isNot(contains("path: '/login'")));
