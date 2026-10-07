@@ -301,7 +301,11 @@ handlers, and refuses when nothing is shown.
 Verified on this Linux host: the StatusNotifierItem and its dbusmenu against a
 watcher on a private session bus (`dbus-run-session`, `test/linux_tray_test.dart`:
 nested layout, toggle state, `GetGroupProperties`, a submenu click, `Activate`,
-an update emitting the four signals without a second registration); the
+an update emitting the four signals without a second registration, and a
+watcher that appears after the item -- a shell starting after an app that
+started at login -- being told about it through `NameOwnerChanged`); the built
+Passepartout Linux app registering its item with such a watcher and serving its
+menu over the bus; the
 close-to-hide hook, hide and show against real GTK under Xvfb
 (`test/linux_window_close_test.dart`); the autostart entry against a
 temporary config home (`test/tray_resident_test.dart`). The macOS and Windows
