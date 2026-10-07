@@ -3197,6 +3197,10 @@ class BuildCommand extends Command<void> {
   /// pages fall back to reading string literals out of the page source, which
   /// cannot tell a heading from a sentence and produces no links at all.
   Future<void> _captureSemantics(String root) async {
+    // First, whatever else this build does: a guarded route is never
+    // captured, so an old capture of it would be served as its page.
+    final Set<String> guarded = dvGuardedRoutes(_routerSource(root));
+    dvForgetGuardedCaptures(root, guarded);
     // Asked for explicitly. The build is otherwise right to refuse to ship
     // pages with no crawler-visible content, and this is the one way to say
     // the pages are not going to be served to anybody.
@@ -3209,7 +3213,7 @@ class BuildCommand extends Command<void> {
     if (!web.existsSync()) return;
     final routes = dvRoutesToCapture(
       routes: await _pagesToGenerate(root),
-      guarded: dvGuardedRoutes(_routerSource(root)),
+      guarded: guarded,
     );
     if (routes.isEmpty) return;
 
