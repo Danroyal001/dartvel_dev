@@ -40,6 +40,7 @@ import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/native_assets_config.dart';
+import '../build/launcher_identity.dart';
 import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
@@ -1120,6 +1121,14 @@ class BuildCommand extends Command<void> {
     if (const <String>{'android', 'fireos', 'ios', 'macos', 'linux'}
         .contains(platform)) {
       _writeNativeSplash(_projectRoot, platform);
+    }
+    // The launcher's name and icon, from dartvel.pwa, for the same reason.
+    if (platform == 'android' || platform == 'fireos') {
+      final List<String> launcher = dvWriteAndroidLauncher(_projectRoot);
+      if (launcher.isNotEmpty) {
+        Logger.log('🏷️  Launcher name and icon from dartvel.pwa: '
+            '${launcher.length} file(s) written.');
+      }
     }
 
     final args = resolveFlutterBuildArguments(
