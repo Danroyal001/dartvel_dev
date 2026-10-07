@@ -1,3 +1,7 @@
+## 1.4.6 — 2026-10-08
+
+- Resolve the matching 0.11.3 Dartvel package family.
+
 ## 1.4.5 — 2026-10-05
 
 - Resolve the matching 0.11.1 Dartvel package family.
