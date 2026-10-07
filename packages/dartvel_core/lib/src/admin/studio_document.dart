@@ -28,7 +28,6 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
