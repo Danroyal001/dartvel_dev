@@ -6,9 +6,14 @@
 /// user with no working CLI and no way to install one.
 library dartvel_cli.update.self_update;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartvel_core/dartvel.dart' show DVTransactionRunner;
+import 'package:path/path.dart' as p;
+
+import '../build/ensure_path.dart';
 
 /// Where the published manifest lives.
 ///
@@ -48,10 +53,10 @@ String dvAssetName({required String os, required String arch}) {
     'x64' || 'x86_64' || 'amd64' => 'amd64',
     'arm64' || 'aarch64' => 'arm64',
     _ => throw ArgumentError.value(
-        arch,
-        'arch',
-        'no published binary for this architecture',
-      ),
+      arch,
+      'arch',
+      'no published binary for this architecture',
+    ),
   };
 
   // Windows keeps its extension: without it the file is not executable there,
@@ -121,8 +126,8 @@ bool dvIsNewer({required String published, required String running}) {
 }
 
 List<int>? _parseVersion(String value) {
-  final RegExpMatch? match =
-      RegExp(r'^v?(\d+)\.(\d+)\.(\d+)').firstMatch(value.trim());
+  final RegExpMatch? match = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)')
+      .firstMatch(value.trim());
   if (match == null) return null;
   return <int>[
     int.parse(match.group(1)!),
@@ -172,13 +177,225 @@ Future<void> dvReplaceExecutable({
   }
 
   if (!Platform.isWindows) {
-    final ProcessResult result =
-        await Process.run('chmod', <String>['+x', current.path]);
+    final ProcessResult result = await Process.run('chmod', <String>[
+      '+x',
+      current.path,
+    ]);
     if (result.exitCode != 0) {
       throw StateError(
         'Downloaded ${current.path} but could not make it executable: '
         '${result.stderr}',
       );
+    }
+  }
+}
+
+/// Upgrade the packaged CLI with framework transaction compensation.
+/// All mutating steps register their undo before touching the filesystem.
+Future<bool> dvUpgradeExecutable({
+  required File current,
+  required String runningVersion,
+  required String os,
+  required String arch,
+  required String currentPath,
+  required String home,
+  String? shell,
+  required Future<Map<String, Object?>> Function() fetchManifest,
+  required Future<List<int>> Function(String) download,
+  Future<void> Function(String)? checkpoint,
+  Future<String> Function(String)? powershell,
+  bool force = false,
+  bool checkOnly = false,
+}) async {
+  final target = dvUpdateTargetFrom(
+    await fetchManifest(),
+    assetName: dvAssetName(os: os, arch: arch),
+  );
+  if (!force &&
+      !dvIsNewer(published: target.version, running: runningVersion)) {
+    return false;
+  }
+  if (checkOnly) return true;
+  final name = p.basename(current.path).toLowerCase();
+  if (name == 'dart' || name == 'dart.exe') {
+    throw StateError(
+      'Run the packaged dartvel binary to upgrade; '
+      'for a pub installation use dart pub global activate dartvel_cli.',
+    );
+  }
+  if (!current.existsSync()) {
+    throw StateError('The running CLI executable does not exist.');
+  }
+  final bytes = await download(target.url);
+  if (!dvVerifyDownload(bytes, target.sha256)) {
+    throw StateError('The download did not match its published checksum.');
+  }
+  final windows = os == 'windows';
+  final installed = File(
+    p.join(current.absolute.parent.path, windows ? 'dartvel.exe' : 'dartvel'),
+  );
+  final backups = <File>[];
+  // Unique names avoid overwriting a backup from an interrupted upgrade.
+  final token = '$pid-${DateTime.now().microsecondsSinceEpoch}';
+  await DVTransactionRunner().call<void>((context) async {
+    void preserve(File file) {
+      if (!file.existsSync()) return;
+      final backup = File('${file.path}.dartvel-old-$token');
+      final link = FileSystemEntity.isLinkSync(file.path)
+          ? Link(file.path).targetSync()
+          : null;
+      final saved = link == null ? file.readAsBytesSync() : <int>[];
+      final mode = file.statSync().mode & 0x1ff;
+      var moved = false;
+      context.compensate(() async {
+        if (!moved) return;
+        if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+            .notFound) {
+          file.deleteSync();
+        }
+        if (backup.existsSync() || FileSystemEntity.isLinkSync(backup.path)) {
+          backup.renameSync(file.path);
+        } else if (link != null) {
+          Link(file.path).createSync(link);
+        } else {
+          file.writeAsBytesSync(saved, flush: true);
+          if (!windows) {
+            final result = await Process.run('chmod', [
+              mode.toRadixString(8),
+              file.path,
+            ]);
+            if (result.exitCode != 0) {
+              throw StateError('Could not restore executable mode');
+            }
+          }
+        }
+      });
+      file.renameSync(backup.path);
+      moved = true;
+      backups.add(backup);
+    }
+
+    preserve(current);
+    if (installed.path != current.absolute.path) preserve(installed);
+    context.compensate(() {
+      if (installed.existsSync()) installed.deleteSync();
+    });
+    await installed.writeAsBytes(bytes, flush: true);
+    if (!windows) {
+      final result = await Process.run('chmod', ['+x', installed.path]);
+      if (result.exitCode != 0) {
+        throw StateError('chmod failed: ${result.stderr}');
+      }
+    }
+    await checkpoint?.call('install');
+
+    final plan = ensurePathPlan(
+      directory: installed.parent.path,
+      currentPath: currentPath,
+      platform: windows
+          ? .windows
+          : os == 'macos'
+          ? .macos
+          : .linux,
+      home: home,
+      shell: shell,
+    );
+    if (windows) {
+      final run = powershell ?? _powershell;
+      final before = jsonDecode(
+        await run(
+          "ConvertTo-Json -Compress -InputObject ([Environment]::GetEnvironmentVariable('Path','User'))",
+        ),
+      ) as String?;
+      final saved = before == null
+          ? r'$null'
+          : "'${before.replaceAll("'", "''")}'";
+      context.compensate(() async {
+        await run(
+          "[Environment]::SetEnvironmentVariable('Path', $saved, 'User')",
+        );
+      });
+      final dir = installed.parent.path.replaceAll("'", "''");
+      await run(
+        "[Environment]::SetEnvironmentVariable('Path', '$dir;' + "
+        "[Environment]::GetEnvironmentVariable('Path','User'), 'User')",
+      );
+    } else if (!plan.alreadyPresent) {
+      for (final target in plan.targets) {
+        final file = File(target.file);
+        final existed = file.existsSync();
+        final saved = existed ? file.readAsBytesSync() : <int>[];
+        context.compensate(() {
+          if (existed) {
+            file.writeAsBytesSync(saved);
+          } else if (file.existsSync()) {
+            file.deleteSync();
+          }
+        });
+        final dir = installed.parent.path.replaceAll("'", "'\\''");
+        file.writeAsStringSync(
+          "\nexport PATH='$dir':\"\$PATH\" # dartvel upgrade\n",
+          mode: .append,
+        );
+      }
+    }
+    await checkpoint?.call('ensure-path');
+
+    for (final directory in currentPath.split(windows ? ';' : ':')) {
+      // Empty entries denote the working directory; leave those alone.
+      if (directory.isEmpty) continue;
+      final stale = File(
+        p.join(directory, windows ? 'dartvel.exe' : 'dartvel'),
+      );
+      if (p.equals(stale.absolute.path, installed.absolute.path)) continue;
+      // A link to the installed executable is already correct.
+      if (stale.existsSync() &&
+          stale.resolveSymbolicLinksSync() ==
+              installed.resolveSymbolicLinksSync()) {
+        continue;
+      }
+      preserve(stale);
+    }
+    await checkpoint?.call('cleanup');
+    for (final backup in backups) {
+      try {
+        backup.deleteSync();
+      } on FileSystemException {
+        if (!windows) rethrow;
+      }
+    }
+    await checkpoint?.call('retire');
+  }, isolated: true);
+  return true;
+}
+
+Future<String> _powershell(String command) async {
+  final result = await Process.run('powershell', [
+    '-NoProfile',
+    '-Command',
+    command,
+  ]);
+  if (result.exitCode != 0) {
+    throw StateError('PATH change failed: ${result.stderr}');
+  }
+  return result.stdout.toString();
+}
+
+/// Retire rename-aside images from previous Windows processes, never the
+/// current process. Called at startup, including already-latest invocations.
+void dvCleanupDeferredExecutables(File executable) {
+  if (!Platform.isWindows) return;
+  final directory = executable.absolute.parent;
+  if (!directory.existsSync()) return;
+  for (final entry in directory.listSync()) {
+    if (entry is! File ||
+        !RegExp(r'\.exe\.dartvel-old-\d+-\d+$').hasMatch(entry.path)) {
+      continue;
+    }
+    try {
+      entry.deleteSync();
+    } on FileSystemException {
+      // Another still-running CLI process may hold this image open.
     }
   }
 }
