@@ -1,3 +1,7 @@
+## 0.11.2 — 2026-10-07
+
+- A signed-out request for a guarded route is redirected to the sign-in page (401 bare shell without one) instead of being sent the captured page.
+
 ## 0.11.0 — 2026-10-05
 
 - Serve sitemap XML, UTF-8 robots.txt and other common web files with their correct content types.
