@@ -2283,6 +2283,15 @@ routes: `/login`, `/sign-up`, and `/account/profile`, `/account/security`,
 `DV.Platform.biometrics`. That binding is not available on Android yet
 (Platform).
 
+`DVAuthAppearance` supplies the prebuilt pages' identity and an optional
+`brandPanelBuilder` widget slot. Generated defaults read `dartvel.pwa.name`
+and `icon`, plus `dartvel.auth.tagline`, `heroImage` and `brandPanelColor`.
+The Flutter forms use the app theme, next/done input actions, autofill,
+pending indicators and announced errors; generated data-model forms await
+their saves. Sign-up preserves the internal `from` destination. Interactive
+server HTML forms and visual parity before Flutter loads remain unverified
+and unimplemented in the existing semantics-fallback render contract.
+
 Authentication is provider-backed. Applications configure a typed
 `DVAuthProvider` implementation for their identity service; calling an auth
 method without a configured provider fails with a clear configuration error.

@@ -1302,3 +1302,5 @@ Windows deletes locked rename-aside binaries on a later CLI invocation.
 `dartvel upgrade --plan` still reports project changes without writing them;
 applying that project plan remains manual. For a pub installation, use
 `dart pub global activate dartvel_cli`. See [CLI upgrade](docs/cli-upgrade.md).
+
+Prebuilt authentication pages and generated data-model forms share keyboard, pending-save and theme behavior. See [auth and form UX](docs/auth-forms-ux.md) for branding options, the custom panel slot, and current server-rendering limitations.

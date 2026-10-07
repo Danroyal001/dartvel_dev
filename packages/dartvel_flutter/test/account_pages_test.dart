@@ -108,6 +108,14 @@ void main() {
     DV.Test.resetAuthProvider();
   });
 
+  // Scroll to each action before pressing it, as a person does on a compact
+  // account page. A tap outside the viewport never exercises the action.
+  Future<void> press(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+  }
+
   // --- SecurityPage ----------------------------------------------------------
 
   group('SecurityPage', () {
@@ -135,7 +143,7 @@ void main() {
         expect(find.byKey(const ValueKey<String>('dv-security-totp-off')), findsOneWidget);
         expect(find.byType(DVQrImage), findsNothing);
 
-        await tester.tap(find.byKey(const ValueKey<String>('dv-security-enroll')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-security-enroll')));
         await settle(tester);
         final DVQrImage image = tester.widget(find.byType(DVQrImage));
         final Uri encoded = Uri.parse(readQr(image.code.modules).text);
@@ -145,7 +153,7 @@ void main() {
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-security-code')), '123456');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-security-confirm')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-security-confirm')));
         await settle(tester);
         expect(backend.bodyOf('POST /auth/factors/totp/confirm'),
             <String, Object?>{'code': '123456'});
@@ -179,16 +187,16 @@ void main() {
       addTearDown(() => DVNativeBridge.unregister('clipboard.copy'));
 
       await pump(tester, DV.Auth.SecurityPage(), const Size(800, 600));
-      await tester.tap(find.byKey(const ValueKey<String>('dv-security-recovery-generate')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-security-recovery-generate')));
       await settle(tester);
       expect(find.text('AAAAA-BBBBB'), findsOneWidget);
       expect(find.text('CCCCC-DDDDD'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey<String>('dv-security-recovery-copy')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-security-recovery-copy')));
       await settle(tester);
       expect(copied.single, contains('AAAAA-BBBBB'));
       expect(copied.single, contains('CCCCC-DDDDD'));
 
-      await tester.tap(find.byKey(const ValueKey<String>('dv-security-recovery-done')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-security-recovery-done')));
       await settle(tester);
       expect(find.text('AAAAA-BBBBB'), findsNothing);
       expect(find.textContaining('AAAAA'), findsNothing);
@@ -211,14 +219,14 @@ void main() {
         });
       };
       await pump(tester, DV.Auth.SecurityPage(), const Size(800, 600));
-      await tester.tap(find.byKey(const ValueKey<String>('dv-security-remove')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-security-remove')));
       await settle(tester);
       expect(backend.paths, isNot(contains('POST /auth/factors/remove')));
       expect(find.byKey(const ValueKey<String>('dv-security-error')), findsOneWidget);
 
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-security-remove-code')), '654321');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-security-remove')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-security-remove')));
       await settle(tester);
       expect(backend.bodyOf('POST /auth/factors/remove'),
           <String, Object?>{'code': '654321'});
@@ -264,13 +272,13 @@ void main() {
             findsNothing);
         expect(tester.takeException(), isNull);
 
-        await tester.tap(find.byKey(const ValueKey<String>('dv-sessions-revoke-ses_laptop')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-sessions-revoke-ses_laptop')));
         await settle(tester);
         expect(backend.bodyOf('POST /auth/sessions/revoke'),
             <String, Object?>{'id': 'ses_laptop'});
         expect(find.text('macOS desktop'), findsNothing);
 
-        await tester.tap(find.byKey(const ValueKey<String>('dv-sessions-revoke-others')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-sessions-revoke-others')));
         await settle(tester);
         expect(backend.paths, contains('POST /auth/sessions/revoke-others'));
         expect(find.text('Unknown device'), findsNothing);
@@ -288,7 +296,7 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey<String>('dv-signup-email')), email);
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-signup-password')), 'correct horse battery');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-signup-submit')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-signup-submit')));
       await settle(tester);
     }
 
@@ -391,7 +399,7 @@ void main() {
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-profile-new-email')), 'ada@new.example');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-profile-change-email')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-profile-change-email')));
         await settle(tester);
         expect(backend.bodyOf('POST /auth/account/email'),
             <String, Object?>{'email': 'ada@new.example'});
@@ -404,7 +412,7 @@ void main() {
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-profile-email-code')), '123456');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-profile-verify-email')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-profile-verify-email')));
         await settle(tester);
         expect(DV.Session.id, 'ses_rotated');
         final DVText changed = tester.widget<DVText>(find.descendant(
@@ -434,7 +442,7 @@ void main() {
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-delete-password')), 'correct horse');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
         await settle(tester);
         expect(backend.paths, isNot(contains('POST /auth/account/delete')));
         expect(find.byKey(const ValueKey<String>('dv-delete-error')), findsOneWidget);
@@ -442,13 +450,13 @@ void main() {
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-delete-confirm-text')), 'DELETE');
         await tester.enterText(find.byKey(const ValueKey<String>('dv-delete-password')), '');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
         await settle(tester);
         expect(backend.paths, isNot(contains('POST /auth/account/delete')));
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-delete-password')), 'correct horse');
-        await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+        await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
         await settle(tester);
         expect(backend.bodyOf('POST /auth/account/delete'), <String, Object?>{
           'password': 'correct horse',
@@ -472,11 +480,11 @@ void main() {
           find.byKey(const ValueKey<String>('dv-delete-confirm-text')), 'DELETE');
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-delete-password')), 'correct horse');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
       await settle(tester);
       expect(backend.paths, isNot(contains('POST /auth/account/delete')));
       await tester.enterText(find.byKey(const ValueKey<String>('dv-delete-code')), '111222');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
       await settle(tester);
       expect(backend.bodyOf('POST /auth/account/delete')['code'], '111222');
       expect(DV.Session.current, isNull);
@@ -494,7 +502,7 @@ void main() {
           find.byKey(const ValueKey<String>('dv-delete-confirm-text')), 'DELETE');
       await tester.enterText(
           find.byKey(const ValueKey<String>('dv-delete-password')), 'wrong');
-      await tester.tap(find.byKey(const ValueKey<String>('dv-delete-submit')));
+      await press(tester, find.byKey(const ValueKey<String>('dv-delete-submit')));
       await settle(tester);
       expect(DV.Session.id, 'ses_here');
       expect(find.byKey(const ValueKey<String>('dv-delete-error')), findsOneWidget);
