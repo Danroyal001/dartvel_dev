@@ -337,6 +337,22 @@ void main() {
     expect(clicks, 1);
   });
 
+  test('a watcher that starts after the item -- a shell after an autostarted app -- is told about it', () async {
+    await client.releaseName('org.kde.StatusNotifierWatcher');
+    await showTray();
+    expect(watcher.registered, isEmpty);
+    expect(DVLinuxTray.lastError, contains('no StatusNotifierWatcher'));
+
+    // The shell comes up, or restarts: the name appears on the bus.
+    await client.requestName('org.kde.StatusNotifierWatcher');
+    for (var i = 0; i < 40 && watcher.registered.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+
+    expect(watcher.registered, hasLength(1));
+    expect(watcher.registered.single, DVLinuxTray.busName);
+  });
+
   test('an icon that is a file is drawn from its directory, the way libappindicator does', () async {
     final Directory dir = Directory.systemTemp.createTempSync('dv_tray');
     final File png = File('${dir.path}/connected.png')..writeAsBytesSync(<int>[0x89, 0x50]);

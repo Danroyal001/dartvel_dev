@@ -467,25 +467,45 @@ class DVLinuxTray {
         return false;
       }
       _busName = name;
+    } on DBusMethodResponseException catch (e) {
+      lastError = 'the item could not be exported: ${e.response}';
+      return false;
+    }
+    // A watcher that appears later -- the shell starting after an
+    // application that started at login, or restarting -- is told about
+    // the item then, as the specification asks of an item.
+    _watcherAppeared ??= client.nameOwnerChanged.listen((DBusNameOwnerChangedEvent event) {
+      if (event.name == _watcherName && event.newOwner != null && _busName != null) {
+        unawaited(_registerWithWatcher(client));
+      }
+    });
+    await _registerWithWatcher(client);
+    return true;
+  }
+
+  static const String _watcherName = 'org.kde.StatusNotifierWatcher';
+  static StreamSubscription<DBusNameOwnerChangedEvent>? _watcherAppeared;
+
+  static Future<void> _registerWithWatcher(DBusClient client) async {
+    final String? name = _busName;
+    if (name == null) return;
+    try {
       await client.callMethod(
-        destination: 'org.kde.StatusNotifierWatcher',
+        destination: _watcherName,
         path: DBusObjectPath('/StatusNotifierWatcher'),
-        interface: 'org.kde.StatusNotifierWatcher',
+        interface: _watcherName,
         name: 'RegisterStatusNotifierItem',
         values: <DBusValue>[DBusString(name)],
         replySignature: DBusSignature(''),
       );
       lastError = null;
-      return true;
     } on DBusServiceUnknownException {
       // No watcher: the item is exported and nothing is drawing it. Said
       // rather than reported as a failure -- a desktop may start a shell
-      // later, and the item is there when it does.
+      // later, and the item is registered with it when it does.
       lastError = 'no StatusNotifierWatcher on the bus, so nothing is drawing the item yet';
-      return true;
     } on DBusMethodResponseException catch (e) {
       lastError = 'the watcher refused the item: ${e.response}';
-      return true;
     }
   }
 
@@ -494,6 +514,8 @@ class DVLinuxTray {
     final DBusClient? client = _client;
     final String? name = _busName;
     if (client == null) return;
+    await _watcherAppeared?.cancel();
+    _watcherAppeared = null;
     if (_item != null) await client.unregisterObject(_item!);
     if (_menu != null) await client.unregisterObject(_menu!);
     if (name != null) await client.releaseName(name);
