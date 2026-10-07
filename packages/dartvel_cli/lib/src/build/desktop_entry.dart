@@ -14,6 +14,9 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import 'launcher_identity.dart' show dvLauncherArt, dvLauncherLabel;
+import 'pwa_icons.dart' show DVRgbaImage, dvPngEncode, dvResizeRgba;
+
 class DVFileAssociation {
   final String mimeType;
   final List<String> extensions;
@@ -178,8 +181,29 @@ DVDesktopWrite dvWriteLinuxDesktopFiles(String root, String bundle) {
   final String app = top['name'] is String ? top['name']! as String : 'dartvel_app';
   final Object? dartvel = top['dartvel'];
   final Object? desktop = dartvel is Map ? dartvel['desktop'] : null;
-  final DVDesktopSettings settings = DVDesktopSettings.parse(desktop, app: app, appName: app);
+  // The name and icon dartvel.pwa gives the launcher on every other
+  // platform, unless dartvel.desktop says otherwise.
+  DVDesktopSettings settings = DVDesktopSettings.parse(desktop, app: app, appName: dvLauncherLabel(root) ?? app);
   final List<String> written = <String>[];
+  final DVRgbaImage? art = settings.icon == null ? dvLauncherArt(root) : null;
+  if (art != null) {
+    final String icon = 'share/icons/hicolor/256x256/apps/$app.png';
+    File('$bundle/$icon')
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(dvPngEncode(dvResizeRgba(art, 256, 256)));
+    written.add(icon);
+    settings = DVDesktopSettings(
+      app: settings.app,
+      name: settings.name,
+      exec: settings.exec,
+      comment: settings.comment,
+      icon: app,
+      categories: settings.categories,
+      associations: settings.associations,
+      schemes: settings.schemes,
+      problems: settings.problems,
+    );
+  }
   for (final MapEntry<String, String> e in dvDesktopFiles(settings).entries) {
     final File file = File('$bundle/${e.key}');
     file.parent.createSync(recursive: true);

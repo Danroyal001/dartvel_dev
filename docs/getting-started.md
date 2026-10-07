@@ -120,8 +120,18 @@ a currency list or a country table, would be broken by a predicate it never
 asked for.
 
 An application's name and icon are said once, under `dartvel.pwa`, and every
-build uses them: the web manifest and icons, and on Android the launcher label
-and the `ic_launcher` icon at every density.
+build uses them:
+
+- web: the manifest and icons;
+- Android and Fire OS: the launcher label and the `ic_launcher` icon at every density;
+- iOS: `CFBundleDisplayName` and every icon in `AppIcon.appiconset`, flattened onto
+  `backgroundColor` because the App Store refuses transparency;
+- macOS: `CFBundleName` (menu bar and Dock), `CFBundleDisplayName` and the app icon set;
+- Windows: the window title, the version resource's name and `app_icon.ico`;
+- Linux: the window title, and the desktop entry's `Name` and `Icon` (installed under the
+  bundle's `share/icons`), unless `dartvel.desktop` names its own.
+
+The embedded TV targets (Tizen, webOS, eLinux, tvOS, Fuchsia) do not take them yet.
 
 ```yaml
 dartvel:
@@ -131,7 +141,7 @@ dartvel:
     icon: assets/icon.png       # default: web/icon.png, then assets/icon.png
 ```
 
-With neither set, the Android folder is left as `flutter create` wrote it.
+With neither set, the native folders are left as `flutter create` wrote them.
 
 Every platform shows something before an application's first frame, and the
 files `flutter create` writes make it white. `dartvel build` writes a splash
