@@ -12,8 +12,8 @@
 ///
 /// `shortName` is the launcher label when there is one, because a launcher
 /// cuts a long name at about twelve characters; otherwise `name`. The icon is
-/// the PWA's source image (`dartvel.pwa.icon`, then `web/icon.png`, then
-/// `assets/icon.png`), resized for each launcher density.
+/// the PWA's source image (`dartvel.pwa.icon`, then `assets/icon.png`, then
+/// `web/icon.png`), resized for each launcher density.
 ///
 /// With neither configured nothing is written, so a project that has not
 /// said keeps exactly what it had.

@@ -406,7 +406,8 @@ List<String> dvGeneratePwaIcons({
 
 /// The PNG the icon set is generated from, or null when the project has none.
 ///
-/// `dartvel.pwa.icon` wins; then `web/icon.png`, then `assets/icon.png`. A
+/// `dartvel.pwa.icon` wins; then `assets/icon.png`, then `web/icon.png` (where
+/// a project from before native folders were build output kept it). A
 /// configured path that does not exist is an error rather than a fallback,
 /// because falling back would quietly ship a different image from the one the
 /// project named. Nothing anywhere is null: a project with no icon gets no
@@ -422,7 +423,7 @@ File? dvPwaIconSource(String root, Map<Object?, Object?> pwaSettings) {
     }
     return file;
   }
-  for (final String candidate in <String>['web/icon.png', 'assets/icon.png']) {
+  for (final String candidate in <String>['assets/icon.png', 'web/icon.png']) {
     final File file = File('$root/$candidate');
     if (file.existsSync()) return file;
   }

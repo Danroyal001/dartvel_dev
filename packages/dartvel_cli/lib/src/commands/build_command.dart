@@ -41,6 +41,7 @@ import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
 import '../build/native_assets_config.dart';
 import '../build/launcher_identity.dart';
+import '../build/platform_scaffold.dart';
 import '../build/native_splash.dart';
 import '../build/capture_completeness.dart';
 import '../build/home_widget_check.dart';
@@ -97,6 +98,14 @@ typedef BuildProcessRun = Future<ProcessResult> Function(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
+  bool runInShell,
+});
+
+typedef BuildProcessStart = Future<Process> Function(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
   bool runInShell,
 });
 
@@ -501,6 +510,7 @@ class BuildCommand extends Command<void> {
   BuildCommand({
     BuildPreflight? preflight,
     BuildProcessRun? processRun,
+    this._processStart,
     BuildRunnerDependencyCheck? hasBuildRunner,
     bool Function(String)? onPath,
     this._cloud,
@@ -627,6 +637,7 @@ class BuildCommand extends Command<void> {
   bool _isOnPath(String executable) =>
       (_onPathOverride ?? isExecutableOnPath)(executable);
   final BuildProcessRun _processRun;
+  final BuildProcessStart? _processStart;
   final BuildRunnerDependencyCheck _hasBuildRunner;
 
   static Future<ProcessResult> _defaultProcessRun(
@@ -1045,6 +1056,12 @@ class BuildCommand extends Command<void> {
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
+    final bool scaffoldOk = await dvEnsurePlatformScaffold(
+      root: _projectRoot,
+      platform: platform,
+      processRun: _processRun,
+    );
+    if (!scaffoldOk) return _PlatformBuildResult.failed;
     // dartvel.deepLinks, before anything is built for a target it names
     // nothing for (DV-LINKS-001): a link file with no application in it is a
     // link that opens the browser, from a build that succeeded.
@@ -1180,7 +1197,7 @@ class BuildCommand extends Command<void> {
     // for 41 minutes; the log could not even show the command.
     Logger.log('   flutter ${args.join(' ')}');
 
-    final proc = await Process.start(
+    final proc = await (_processStart ?? Process.start)(
       'flutter',
       args,
       workingDirectory: _projectRoot,
@@ -1612,8 +1629,7 @@ class BuildCommand extends Command<void> {
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-          'so the platform bindings will have no Context. Run flutter '
-          'create . to add the Android runner.');
+          'so the platform bindings will have no Context.');
       return;
     }
     final String before = manifest.readAsStringSync();
@@ -1692,8 +1708,7 @@ class BuildCommand extends Command<void> {
     final File info = File(p.join(root, platform, 'Runner', 'Info.plist'));
     if (!project.existsSync() || !info.existsSync()) {
       Logger.log('❌ $platform/Runner.xcodeproj or $platform/Runner/Info.plist '
-          'is not there, so a development build has nowhere to put the '
-          'tunnel. Run flutter create --platforms=$platform . first.');
+          'is not there, so a development build has nowhere to put the tunnel.');
       return false;
     }
     final Map<String, String> files = <String, String>{
@@ -1747,8 +1762,7 @@ class BuildCommand extends Command<void> {
     final File cmake = File(p.join(root, dvLinuxRunnerCmakePath));
     if (!cmake.existsSync()) {
       Logger.log('❌ $dvLinuxRunnerCmakePath is not there, so a development '
-          'build has nowhere to compile the tunnel. Run flutter create '
-          '--platforms=linux . first.');
+          'build has nowhere to compile the tunnel.');
       return false;
     }
     final String before = cmake.readAsStringSync();
@@ -1797,8 +1811,7 @@ class BuildCommand extends Command<void> {
     final File cmake = File(p.join(root, dvWindowsRunnerCmakePath));
     if (!cmake.existsSync()) {
       Logger.log('❌ $dvWindowsRunnerCmakePath is not there, so a development '
-          'build has nowhere to compile the tunnel. Run flutter create '
-          '--platforms=windows . first.');
+          'build has nowhere to compile the tunnel.');
       return false;
     }
     final String before = cmake.readAsStringSync();
@@ -1935,7 +1948,7 @@ class BuildCommand extends Command<void> {
       if (!target.existsSync()) {
         if (file.value.isNotEmpty) {
           Logger.log('⚠️  ${file.key} is not there, so dartvel.fileStorage could '
-              'not be applied to it. Run flutter create --platforms=$platform . first.');
+              'not be applied to it.');
         }
         continue;
       }
@@ -2016,8 +2029,7 @@ class BuildCommand extends Command<void> {
     if (!manifest.existsSync()) {
       if (kiosk.ownsTheDevice) {
         Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-            'so the kiosk declaration reaches nothing. Run flutter create . '
-            'to add the Android runner.');
+            'so the kiosk declaration reaches nothing.');
       }
       return;
     }
@@ -2063,8 +2075,7 @@ class BuildCommand extends Command<void> {
     if (!manifest.existsSync()) {
       if (widgets.isNotEmpty) {
         Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
-            'so the home widgets reach nothing. Run flutter create . to add '
-            'the Android runner.');
+            'so the home widgets reach nothing.');
       }
       return;
     }
@@ -2127,8 +2138,7 @@ class BuildCommand extends Command<void> {
     if (!project.existsSync()) {
       if (widgets.isNotEmpty) {
         Logger.log('⚠️  $platform/Runner.xcodeproj is not there, so the home '
-            'widgets reach nothing. Run flutter create . to add the '
-            '$platform runner.');
+            'widgets reach nothing.');
       }
       return;
     }
@@ -2233,8 +2243,7 @@ class BuildCommand extends Command<void> {
         File(p.join(root, 'ios', 'Runner', 'AppDelegate.swift'));
     if (!delegate.existsSync()) {
       Logger.log('⚠️  ios/Runner/AppDelegate.swift is not there, so a link '
-          'this application is launched with reaches nothing. Run flutter '
-          'create . to add the iOS runner.');
+          'this application is launched with reaches nothing.');
       return;
     }
     final String before = delegate.readAsStringSync();
@@ -2616,6 +2625,12 @@ class BuildCommand extends Command<void> {
 
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
+    final bool scaffoldOk = await dvEnsurePlatformScaffold(
+      root: root,
+      platform: platform,
+      processRun: _processRun,
+    );
+    if (!scaffoldOk) return _PlatformBuildResult.failed;
 
     final pubspec = readPubspecYaml(root);
     if (pubspec == null) {
@@ -2909,7 +2924,7 @@ class BuildCommand extends Command<void> {
       exit(1);
     }
     if (source == null) {
-      Logger.log('   No PWA icons generated: add web/icon.png (or set '
+      Logger.log('   No PWA icons generated: add assets/icon.png (or set '
           'dartvel.pwa.icon) and the 192 and 512 sizes will be built from it.');
       return;
     }

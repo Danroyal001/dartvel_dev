@@ -25,10 +25,32 @@ class ProjectTemplates {
     required String org,
     bool web = true,
     bool mobile = true,
-    bool desktop = false,
+    bool desktop = true,
     String? localPackagesDir,
-  }) =>
-      '''
+  }) {
+    final List<String> flutterPlatforms = <String>[
+      if (web) 'web',
+      if (mobile) ...<String>['android', 'ios'],
+      if (desktop) ...<String>['linux', 'macos', 'windows'],
+    ];
+
+    final StringBuffer platformsYaml = StringBuffer();
+    if (flutterPlatforms.isNotEmpty) {
+      platformsYaml.writeln('platforms:');
+      for (final p in flutterPlatforms) {
+        platformsYaml.writeln('  $p:');
+      }
+    }
+
+    final StringBuffer dartvelPlatformsYaml = StringBuffer();
+    if (flutterPlatforms.isNotEmpty) {
+      dartvelPlatformsYaml.writeln('  platforms:');
+      for (final p in flutterPlatforms) {
+        dartvelPlatformsYaml.writeln('    - $p');
+      }
+    }
+
+    return '''
 name: $name
 description: A new Dartvel project
 publish_to: "none"
@@ -36,7 +58,8 @@ version: 0.0.1
 
 environment:
   sdk: ">=3.13.0 <4.0.0"
-
+  flutter: ">=3.47.0"
+${platformsYaml.toString()}
 dependencies:
   flutter:
     sdk: flutter
@@ -52,7 +75,16 @@ dev_dependencies:
     sdk: flutter
   lints: ^4.0.0
   dartvel_cli: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_cli'}
-
+${localPackagesDir == null ? '' : '''
+dependency_overrides:
+  dartvel_core:
+    path: $localPackagesDir/dartvel_core
+  dartvel_shelf:
+    path: $localPackagesDir/dartvel_shelf
+  dartvel_flutter:
+    path: $localPackagesDir/dartvel_flutter
+  dartvel_cli:
+    path: $localPackagesDir/dartvel_cli'''}
 
 flutter:
   uses-material-design: true
@@ -60,6 +92,7 @@ flutter:
     - assets/
 
 dartvel:
+  org: $org
   backendHost: 0.0.0.0
   backendPort: 3000
   devBackendHost: http://localhost:3000
@@ -70,7 +103,7 @@ dartvel:
   envFiles: [.env, .env.local]
   plugins: []
   ota: false
-
+${dartvelPlatformsYaml.toString()}
   transitions:
     default: fade
     durationMs: 200
@@ -81,6 +114,7 @@ dartvel:
     defaultTitle: Welcome
     defaultDescription: A Dartvel application
 ''';
+  }
 
   static const String envTemplate = '''# Environment variables
 # Add your secrets here - this file is gitignored
@@ -280,6 +314,18 @@ void main() {
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Ephemeral native platform folders (generated at build time)
+android/
+ios/
+web/
+linux/
+windows/
+macos/
+tizen/
+elinux/
+webos/
+tvos/
 
 # Environment
 .env

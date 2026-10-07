@@ -357,6 +357,13 @@ cd my_app
 dartvel dev
 ```
 
+`dartvel create` sets up a clean project with **ephemeral native platform folders**:
+no `android/`, `ios/`, `web/`, or desktop folders clutter your repository at create time,
+and `.gitignore` treats them as build outputs. All target platforms are enabled by default.
+When you run `dartvel build <platform>` or `dartvel dev` / `run`, missing platform folders
+are auto-generated quietly before any native writers (launcher identity, splash, deep links,
+kiosk, widgets) run.
+
 `dartvel dev` runs generation, the Flutter app and the backend together, and
 reloads only what changed: a page edit hot-reloads Flutter, a backend edit
 restarts the server, a Rust edit rebuilds the native library. It also prints a

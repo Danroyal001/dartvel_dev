@@ -287,7 +287,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'create',
-    description: 'Initialize a new Dartvel project with best practices. (Aliases: new)',
+    description: 'Create a Dartvel project, or add Dartvel to the project already in the folder (the same as dartvel init). (Aliases: new)',
     aliases: <String>['new'],
     options: <String>[
       '    --[no-]web        Include web platform',
@@ -295,10 +295,13 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --[no-]mobile     Include mobile platforms',
       '                      (defaults to on)',
       '    --[no-]desktop    Include desktop platforms',
+      '                      (defaults to on)',
       '    --[no-]ssr        Enable SSR/SSG features',
       '    --project-name    The package name, when it should differ from the folder\'s. Lowercase with underscores, as `flutter create` requires.',
       '-o, --org             Organization domain',
       '                      (defaults to "com.example")',
+      '    --dry-run         In an existing project: print the adoption plan; write nothing.',
+      '-y, --yes             In an existing project: apply the adoption plan without asking.',
     ],
   ),
   DocsCliCommand(
