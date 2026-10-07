@@ -9985,6 +9985,11 @@ class DVNavigation {
   /// handle to the live router because [to] is used in callbacks such as
   /// `onPressed`, where no `BuildContext` is in scope.
   static void attach(GoRouter router) {
+    // A pushed page is a page with its own URL: the address bar, a copied
+    // link and a reload must show it, not the page underneath. go_router
+    // leaves the URL alone on push unless this is set, and it is global, so
+    // it is set where every Dartvel router is attached.
+    GoRouter.optionURLReflectsImperativeAPIs = true;
     _router = router;
   }
 
