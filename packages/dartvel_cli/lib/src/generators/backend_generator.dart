@@ -2681,7 +2681,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           // Future types
           String conv(String t) {
             final tt = t.replaceAll(' ', '');
-            if (tt == 'String') return 'r.data as String';
+            // The server answers a String as text (Response.text), so the
+            // client reads the text. `r.data` would JSON-decode it, and a
+            // String that holds JSON would arrive as a Map.
+            if (tt == 'String') return 'r.body';
             if (tt == 'int') {
               return "(r.data is int) ? (r.data as int) : (int.tryParse(r.data?.toString() ?? '') ?? 0)";
             }
