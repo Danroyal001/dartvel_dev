@@ -108,6 +108,44 @@ Correction to capture counts in Steps 14–17 and commentary: directory counts i
 ## Step 18 — runtime guard extension and verification
 Done: observed expected red test failures for `dartvm`, `dartvm.exe`, `dartaotruntime`, and `dartaotruntime.exe`; extended the runtime-name refusal in `self_update.dart` to cover all SDK runtime binaries. All 6 guard tests pass. Added `self_update_runtime_guard_test.dart` to Golden Path evidence in `docs/spec-status.json` and regenerated `docs/spec-gaps.md`. `tool/spec_status_check.dart` passes (115 sections, 105 labelled, all evidence present).
 Tests: 6/6 runtime guard tests pass; 18/18 self_upgrade tests pass; 23/23 upgrade_plan tests pass; 92/92 related CLI update/upgrade/ensure_path tests pass. CLI `dart analyze` passes with 0 errors and no changed-file diagnostics (2 known baseline warnings, 5 infos).
-Next: commit runtime guard fix to branch, push to `origin/agent/dv-upgrade-self`, verify PR #70 and full test suite.
+Next: PR update and final handoff.
 Blockers: no code blockers; native Windows locks unverified on Linux host.
+
+## Step 19 — PR update and validation complete
+Done: commit `450330c3` ("Refuse SDK runtime binaries in self-upgrade guard") pushed to `origin/agent/dv-upgrade-self`. Updated draft review PR #70 (https://github.com/Danroyal001/dartvel_dev/pull/70) body with clean markdown and complete validation numbers. Working tree clean.
+Tests:
+- 92/92 related CLI update/upgrade/ensure-path tests pass (including 18 self-upgrade tests with rollback and fresh-shell invocation checks, and 6 runtime guard refusal tests).
+- Spec-status check passes cleanly (`tool/spec_status_check.dart`: 115 sections, 105 labelled, all evidence present).
+- `dart analyze packages/dartvel_cli`: 0 errors or changed-file diagnostics; only two existing baseline warnings on main, 5 infos.
+- Full CLI test suite (`dv-upgrade-full2.log`): 3,177+ tests run with disk-backed TMPDIR; only the 3 known baseline failures from main (`studio_models_generation_test`, `supervisor_unit_systemd_test` x2), 0 new failures.
+- Site command checker: passes for our CLI commands; only the 10 existing `--brownfield`/`--integrated` examples on unchanged `existing-native-apps.dart` remain.
+Next: final handoff to lead agent for review and landing.
+Blockers: none. Native Windows image locks cannot be exercised on this Linux host.
+
+## Final Report
+- **Task Objective:** Make `dartvel upgrade` (with no flags) download the latest CLI release binary for the host, verify its published SHA-256, install it, run `ensure-path` logic to place it on PATH, delete the old binary and any stale copies on PATH, with contractual rollback on failure using Dartvel's `DVTransactionRunner`. `dartvel upgrade --plan` remains read-only project planning. `dartvel update` remains supported with `--check` and `--force`.
+- **Implementation:**
+  - Integrated transactional CLI self-upgrade in `packages/dartvel_cli/lib/src/update/self_update.dart` using `DVTransactionRunner`.
+  - Registered compensations in reverse order for: moving/restoring the original binary (retaining bytes, chmod mode, symlinks), removing installed binary on failure, reverting shell rc / Windows user-PATH changes via `ensurePathPlan`, and restoring any retired stale binaries on PATH.
+  - Windows deferred deletion: renamed-aside binaries are cleaned on subsequent CLI startups via `dvCleanupDeferredExecutables` in `dartvel_impl.dart`.
+  - Extended runtime refusal guard to refuse replacing SDK runtime binaries (`dart`, `dart.exe`, `dartvm`, `dartvm.exe`, `dartaotruntime`, `dartaotruntime.exe`).
+  - `dartvel upgrade` command updated to delegate to the shared transactional updater when `--plan` is omitted.
+  - Documentation updated across `README.md`, `docs/cli-upgrade.md`, `NEW_SPEC.md`, `sites/dartvel_site/lib/pages/docs/cli.dart`, and `sites/dartvel_site/lib/components/docs_cli_reference.dart`.
+  - Spec status updated and validated in `docs/spec-status.json` and `docs/spec-gaps.md`.
+- **Commits on branch `agent/dv-upgrade-self`:**
+  - `dfe52ed1`: Upgrade the CLI transactionally with PATH repair and rollback
+  - `e70c3c59`: Clarify upgrade and update command sentences in CLI docs
+  - `450330c3`: Refuse SDK runtime binaries in self-upgrade guard
+  - Authored by `SigmaDev <Danroyal001@users.noreply.github.com>`, no AI trailers.
+- **Pull Request:**
+  - Draft PR opened and updated: https://github.com/Danroyal001/dartvel_dev/pull/70
+  - Never pushed to main, never merged, no deployments or messages per rules. Ready for lead agent review.
+- **Verification & Test Results:**
+  - 92/92 related CLI update/upgrade/ensure-path tests passing.
+  - `tool/spec_status_check.dart`: 115 sections, 105 labelled, all evidence present.
+  - CLI `dart analyze`: 0 errors; 0 changed-file diagnostics (2 known baseline warnings, 5 infos).
+  - Full CLI test suite (3,177+ tests): only the 3 known baseline failures on main (`studio_models_generation_test`, `supervisor_unit_systemd_test` x2), 0 new failures.
+  - Site command checker: CLI commands pass; only pre-existing `existing-native-apps.dart` examples fail.
+  - Limitations: Native Windows image-locking behavior cannot be executed on Linux.
+
 
