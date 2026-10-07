@@ -6169,7 +6169,7 @@ class DVTray {
   static Set<String> _ids = const <String>{};
   static void Function(String id)? _onSelected;
   static void Function()? _onActivate;
-  static Map<String, Object?>? _shown;
+  static Map<String, Object>? _shown;
   static final StreamController<String> _selected =
       StreamController<String>.broadcast();
   static final StreamController<void> _activated =
@@ -6238,7 +6238,7 @@ class DVTray {
         'is a ${icon.kind.name}, and the tray shows an image',
       );
     }
-    final Map<String, Object?> arguments = <String, Object?>{
+    final Map<String, Object> arguments = <String, Object>{
       'icon': icon.path,
       'tooltip': ?tooltip,
       'menu': menu.map((DVTrayMenuItem item) => item.toMap()).toList(growable: false),
@@ -6260,14 +6260,14 @@ class DVTray {
     List<DVTrayMenuItem>? menu,
     bool? template,
   }) async {
-    final Map<String, Object?>? current = _shown;
+    final Map<String, Object>? current = _shown;
     if (current == null) {
       throw StateError('DVTray.update needs a tray shown with DVTray.show first.');
     }
     if (icon != null && icon.kind != DVAssetKind.image) {
       throw ArgumentError.value(icon.path, 'icon', 'is a ${icon.kind.name}, and the tray shows an image');
     }
-    final Map<String, Object?> arguments = <String, Object?>{
+    final Map<String, Object> arguments = <String, Object>{
       ...current,
       'icon': ?icon?.path,
       'tooltip': ?tooltip,
@@ -6280,7 +6280,7 @@ class DVTray {
     await _send(arguments, menu == null ? _ids : _choosableIds(menu));
   }
 
-  static Future<void> _send(Map<String, Object?> arguments, Set<String> ids) async {
+  static Future<void> _send(Map<String, Object> arguments, Set<String> ids) async {
     final bool handled = await DVNativeBridge.require<bool>('tray.show', arguments);
     if (!handled) throw StateError('Native tray binding rejected show.');
     _ids = ids;

@@ -27,6 +27,13 @@ const Set<String> dvWindowsImplementedBindings = <String>{
 
   // SetWindowPos, moving nothing and reordering nothing.
   'window.setSize',
+  // The main window from the tray, found even while hidden, and WM_CLOSE
+  // hiding it under exitPolicy explicit.
+  'window.hide',
+  'window.show',
+  // The per-user Run key, and Task Manager's StartupApproved record.
+  'launchAtLogin.isEnabled',
+  'launchAtLogin.setEnabled',
 
   // RegisterHotKey for the escape combos, ClipCursor for the pointer, the
   // window style for fullscreen. Notifications are never claimed held: Focus
