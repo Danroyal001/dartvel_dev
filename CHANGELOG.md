@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
-## Unreleased
+## 0.11.3 — 2026-10-08
+
+- `dartvel.redirects`: declared redirects answered before routing and the guard, on the web-server binary and the preview server.
+- Auth pages and forms: Enter submits, a pending state while submitting, sign-up links, and a wide branded layout with the app's own brand panel.
+- Tray menus: separators, headers, check and radio marks, submenus, in-place updates and icon clicks on macOS, Windows and Linux; tray-resident windows (hide/show, close hides) and launch at login.
 
 - A backend function returning `String` reaches the client as that text. The client used to JSON-decode it, so a String holding JSON arrived as a Map and the generated `as String` cast threw.
 

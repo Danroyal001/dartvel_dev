@@ -310,7 +310,7 @@ run as a global command.
 
 Or take the binary straight from a
 [release](https://github.com/Danroyal001/dartvel_dev/releases): Linux, macOS
-and Windows on x64, Linux and macOS on arm64. (0.11.2, released 2026-10-07,
+and Windows on x64, Linux and macOS on arm64. (0.11.3, released 2026-10-08,
 ships Linux binaries first; macOS and Windows follow when the release workflow
 runs.) Then put it on your PATH:
 
