@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dartvel_cli/src/build/desktop_entry.dart';
 import 'package:dartvel_cli/src/build/launcher_identity.dart';
 import 'package:dartvel_cli/src/build/pwa_icons.dart';
 import 'package:test/test.dart';
@@ -85,5 +86,84 @@ void main() {
     Directory('${root.path}/android').deleteSync(recursive: true);
     pubspec('  pwa:\n    name: Web Only\n');
     expect(() => dvWriteAndroidLauncher(root.path), returnsNormally);
+  });
+
+  group('every other flutter platform', () {
+    void file(String rel, String text) => File('${root.path}/$rel')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(text);
+    String read(String rel) => File('${root.path}/$rel').readAsStringSync();
+    const String appleIcons = '{"images":[{"size":"20x20","idiom":"iphone",'
+        '"filename":"Icon-App-20x20@3x.png","scale":"3x"},'
+        '{"size":"1024x1024","idiom":"ios-marketing",'
+        '"filename":"Icon-App-1024x1024@1x.png","scale":"1x"},'
+        '{"size":"16x16","idiom":"mac","scale":"2x"}]}';
+
+    setUp(() => pubspec('  pwa:\n    name: Eating Today Kitchen\n'
+        '    shortName: Eating Today\n    icon: assets/logo.png\n'
+        '    backgroundColor: "#00ff00"\n'));
+
+    test('iOS: the display name, and every icon the set lists, at its pixel size, opaque', () {
+      file('ios/Runner/Info.plist', '<plist><dict>\n\t<key>CFBundleDisplayName</key>\n'
+          '\t<string>My App</string>\n</dict></plist>');
+      file('ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json', appleIcons);
+      dvWriteLauncherIdentity(root.path, 'ios');
+      expect(read('ios/Runner/Info.plist'), contains('<string>Eating Today</string>'));
+      final String set = '${root.path}/ios/Runner/Assets.xcassets/AppIcon.appiconset';
+      expect(dvPngDecode(File('$set/Icon-App-20x20@3x.png').readAsBytesSync()).width, 60);
+      final DVRgbaImage marketing =
+          dvPngDecode(File('$set/Icon-App-1024x1024@1x.png').readAsBytesSync());
+      expect(marketing.width, 1024);
+      expect(marketing.get(512, 512), <int>[200, 30, 40, 255]);
+    });
+
+    test('macOS: the menu bar name replaces \$(PRODUCT_NAME) and the display name is added', () {
+      file('macos/Runner/Info.plist', '<plist>\n<dict>\n\t<key>CFBundleName</key>\n'
+          '\t<string>\$(PRODUCT_NAME)</string>\n</dict>\n</plist>');
+      dvWriteLauncherIdentity(root.path, 'macos');
+      final String plist = read('macos/Runner/Info.plist');
+      expect(plist, isNot(contains('PRODUCT_NAME')));
+      expect('<string>Eating Today</string>'.allMatches(plist).length, 2);
+    });
+
+    test('Windows: the window title, the version resource and app_icon.ico', () {
+      file('windows/runner/main.cpp', '  if (!window.Create(L"my_app", origin, size)) {');
+      file('windows/runner/Runner.rc', '            VALUE "FileDescription", "my_app" "\\0"\n'
+          '            VALUE "ProductName", "my_app" "\\0"\n'
+          '            VALUE "OriginalFilename", "my_app.exe" "\\0"\n');
+      dvWriteLauncherIdentity(root.path, 'windows');
+      expect(read('windows/runner/main.cpp'), contains('window.Create(L"Eating Today", origin'));
+      final String rc = read('windows/runner/Runner.rc');
+      expect(rc, contains('"FileDescription", "Eating Today"'));
+      expect(rc, contains('"ProductName", "Eating Today"'));
+      expect(rc, contains('"my_app.exe"'), reason: 'the file name is the binary\'s');
+      final List<int> ico = File('${root.path}/windows/runner/resources/app_icon.ico')
+          .readAsBytesSync();
+      expect(ico.sublist(0, 6), <int>[0, 0, 1, 0, dvWindowsIconSizes.length, 0]);
+    });
+
+    test('Windows: a name outside ASCII is a universal character name in the source', () {
+      pubspec('  pwa:\n    name: Naija Lifé\n');
+      file('windows/runner/main.cpp', 'window.Create(L"my_app", origin, size)');
+      dvWriteLauncherIdentity(root.path, 'windows');
+      expect(read('windows/runner/main.cpp'), contains(r'L"Naija Lif\u00e9"'));
+    });
+
+    test('Linux: both window titles', () {
+      file('linux/runner/my_application.cc',
+          '    gtk_header_bar_set_title(header_bar, "my_app");\n'
+          '    gtk_window_set_title(window, "my_app");\n');
+      dvWriteLauncherIdentity(root.path, 'linux');
+      expect('"Eating Today"'.allMatches(read('linux/runner/my_application.cc')).length, 2);
+    });
+
+    test('Linux: the desktop entry takes the name and installs the icon', () {
+      final Directory bundle = Directory('${root.path}/bundle')..createSync();
+      final DVDesktopWrite result = dvWriteLinuxDesktopFiles(root.path, bundle.path);
+      expect(result.written, contains('share/icons/hicolor/256x256/apps/my_app.png'));
+      final String entry = File('${bundle.path}/my_app.desktop').readAsStringSync();
+      expect(entry, contains('Name=Eating Today\n'));
+      expect(entry, contains('Icon=my_app\n'));
+    });
   });
 }
