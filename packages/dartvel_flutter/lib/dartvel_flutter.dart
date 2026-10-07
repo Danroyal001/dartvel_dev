@@ -6071,46 +6071,142 @@ class DVScreen {
 }
 
 
+/// One entry of the tray menu.
+///
+/// The plain constructor is an item the user chooses, as it always was.
+/// [checked] gives it a check mark (null: no mark at all), [radio] draws the
+/// mark as one of a group where the desktop has a radio mark, and
+/// [children] makes it a submenu, whose own id is then never chosen. The
+/// named constructors are the two entries that are never chosen: a
+/// [DVTrayMenuItem.separator] and a [DVTrayMenuItem.header] -- a status
+/// line or a section title, drawn disabled.
 class DVTrayMenuItem {
   final String id;
   final String label;
   final bool enabled;
 
+  /// Whether the check mark is on; null where the item has none.
+  final bool? checked;
+
+  /// Draws [checked] as a radio mark where the desktop distinguishes one.
+  final bool radio;
+
+  /// Items of a submenu. Non-empty makes this item a submenu.
+  final List<DVTrayMenuItem> children;
+
+  final _DVTrayEntryType _type;
+
   const DVTrayMenuItem({
     required this.id,
     required this.label,
     this.enabled = true,
-  });
+    this.checked,
+    this.radio = false,
+    this.children = const <DVTrayMenuItem>[],
+  }) : _type = _DVTrayEntryType.item;
 
-  Map<String, Object> toMap() => <String, Object>{
-        'id': id,
-        'label': label,
-        'enabled': enabled,
-      };
+  /// A line between groups of items.
+  const DVTrayMenuItem.separator()
+      : id = '',
+        label = '',
+        enabled = false,
+        checked = null,
+        radio = false,
+        children = const <DVTrayMenuItem>[],
+        _type = _DVTrayEntryType.separator;
+
+  /// A label nobody chooses: the status line of a VPN's menu, a section
+  /// title above a list. Its [id] is only for finding it again.
+  const DVTrayMenuItem.header(this.label, {this.id = ''})
+      : enabled = false,
+        checked = null,
+        radio = false,
+        children = const <DVTrayMenuItem>[],
+        _type = _DVTrayEntryType.header;
+
+  bool get isSeparator => _type == _DVTrayEntryType.separator;
+  bool get isHeader => _type == _DVTrayEntryType.header;
+  bool get isSubmenu => _type == _DVTrayEntryType.item && children.isNotEmpty;
+
+  /// Whether choosing it reaches the application.
+  bool get isChoosable => _type == _DVTrayEntryType.item && children.isEmpty && enabled;
+
+  /// What crosses the bridge. A plain item is the three keys it always was;
+  /// everything else is said only where it differs from that.
+  Map<String, Object> toMap() {
+    if (isSeparator) return const <String, Object>{'type': 'separator'};
+    return <String, Object>{
+      if (isHeader) 'type': 'header',
+      if (isSubmenu) 'type': 'submenu',
+      'id': id,
+      'label': label,
+      'enabled': enabled,
+      'checked': ?checked,
+      if (radio) 'radio': true,
+      if (isSubmenu)
+        'children': <Map<String, Object>>[
+          for (final DVTrayMenuItem child in children) child.toMap(),
+        ],
+    };
+  }
 }
 
+enum _DVTrayEntryType { item, separator, header }
+
+/// The tray icon: the macOS status bar, the Windows notification area, a
+/// StatusNotifierItem on Linux.
+///
+/// [show] puts it up; [update] changes the icon, tooltip or menu of the one
+/// that is up, in place, without taking it down -- a VPN swapping its
+/// connected and disconnected icons does not flicker. A click on the icon
+/// itself reaches `onActivate` where the desktop has such a click (Windows
+/// and Linux; a macOS status item always opens its menu).
 class DVTray {
   const DVTray();
 
   static Set<String> _ids = const <String>{};
   static void Function(String id)? _onSelected;
+  static void Function()? _onActivate;
+  static Map<String, Object?>? _shown;
   static final StreamController<String> _selected =
       StreamController<String>.broadcast();
+  static final StreamController<void> _activated =
+      StreamController<void>.broadcast();
 
   /// Every tray menu item chosen, by id.
   Stream<String> get selected => _selected.stream;
 
+  /// Every click on the icon itself, where the desktop sends one and
+  /// `onActivate` was given.
+  Stream<void> get activated => _activated.stream;
+
+  /// Whether the icon is up.
+  bool get isShown => _shown != null;
+
   /// For platform bindings: an item of the shown menu was chosen. An id the
-  /// menu does not have -- a stale command after hide -- reaches nobody.
+  /// menu does not have -- a stale command after hide, a submenu, a header,
+  /// a disabled item -- reaches nobody.
   static void dispatch(String id) {
     if (!_ids.contains(id)) return;
     _onSelected?.call(id);
     _selected.add(id);
   }
 
+  /// For platform bindings: the icon itself was clicked. Reaches nobody
+  /// when no `onActivate` was given, because the binding then opened the
+  /// menu instead.
+  static void activate() {
+    final void Function()? handler = _onActivate;
+    if (handler == null) return;
+    handler();
+    _activated.add(null);
+  }
+
   static void reset() {
     _ids = const <String>{};
     _onSelected = null;
+    _onActivate = null;
+    _shown = null;
   }
 
   /// Shows the icon with [menu], and runs [onSelected] with the id of any
@@ -6118,12 +6214,20 @@ class DVTray {
   ///
   /// [icon] is a generated `DVAsset` value, so a renamed or unlisted file is
   /// a compile error rather than an empty tray slot on a desktop. An asset
-  /// that is not an image is refused, naming it.
+  /// that is not an image is refused, naming it. [template] marks it a
+  /// template image on macOS -- drawn in the menu bar's own colour, light or
+  /// dark -- and is ignored elsewhere. [onActivate] makes a click on the
+  /// icon an action (on Windows and Linux; the menu is then on a
+  /// right-click) rather than opening the menu.
+  ///
+  /// Showing again while shown changes the icon in place.
   Future<void> show({
     required DVAssetRef icon,
     String? tooltip,
     List<DVTrayMenuItem> menu = const <DVTrayMenuItem>[],
     void Function(String id)? onSelected,
+    bool template = false,
+    void Function()? onActivate,
   }) async {
     if (icon.kind != DVAssetKind.image) {
       throw ArgumentError.value(
@@ -6132,27 +6236,84 @@ class DVTray {
         'is a ${icon.kind.name}, and the tray shows an image',
       );
     }
-    final Set<String> ids = <String>{};
-    for (final DVTrayMenuItem item in menu) {
-      if (!ids.add(item.id)) {
-        throw ArgumentError.value(item.id, 'id', 'appears more than once in the tray menu');
-      }
-    }
-    final handled = await DVNativeBridge.require<bool>('tray.show', {
+    final Map<String, Object?> arguments = <String, Object?>{
       'icon': icon.path,
-      if (tooltip != null) 'tooltip': tooltip,
-      'menu': menu.map((item) => item.toMap()).toList(growable: false),
-    });
+      'tooltip': ?tooltip,
+      'menu': menu.map((DVTrayMenuItem item) => item.toMap()).toList(growable: false),
+      if (template) 'template': true,
+      if (onActivate != null) 'activate': true,
+    };
+    await _send(arguments, _choosableIds(menu));
+    _onSelected = onSelected;
+    _onActivate = onActivate;
+  }
+
+  /// Changes the icon, tooltip or menu of the icon that is up, keeping
+  /// whatever is not given and the handlers [show] was given. Refused when
+  /// nothing is shown: an update that put up an icon would be a show
+  /// nobody asked for.
+  Future<void> update({
+    DVAssetRef? icon,
+    String? tooltip,
+    List<DVTrayMenuItem>? menu,
+    bool? template,
+  }) async {
+    final Map<String, Object?>? current = _shown;
+    if (current == null) {
+      throw StateError('DVTray.update needs a tray shown with DVTray.show first.');
+    }
+    if (icon != null && icon.kind != DVAssetKind.image) {
+      throw ArgumentError.value(icon.path, 'icon', 'is a ${icon.kind.name}, and the tray shows an image');
+    }
+    final Map<String, Object?> arguments = <String, Object?>{
+      ...current,
+      'icon': ?icon?.path,
+      'tooltip': ?tooltip,
+      if (menu != null)
+        'menu': menu.map((DVTrayMenuItem item) => item.toMap()).toList(growable: false),
+    };
+    if (template != null) {
+      template ? arguments['template'] = true : arguments.remove('template');
+    }
+    await _send(arguments, menu == null ? _ids : _choosableIds(menu));
+  }
+
+  static Future<void> _send(Map<String, Object?> arguments, Set<String> ids) async {
+    final bool handled = await DVNativeBridge.require<bool>('tray.show', arguments);
     if (!handled) throw StateError('Native tray binding rejected show.');
     _ids = ids;
-    _onSelected = onSelected;
+    _shown = arguments;
+  }
+
+  /// Every id that can be chosen, submenus' included. Refuses an id twice
+  /// anywhere in the tree, and a choosable item with no id, before any
+  /// binding is asked.
+  static Set<String> _choosableIds(List<DVTrayMenuItem> menu) {
+    final Set<String> all = <String>{};
+    final Set<String> choosable = <String>{};
+    void walk(List<DVTrayMenuItem> items) {
+      for (final DVTrayMenuItem item in items) {
+        if (item.isSeparator) continue;
+        if (item.id.isEmpty) {
+          if (item.isHeader) continue;
+          throw ArgumentError.value(item.label, 'id', 'a tray menu item that can be chosen needs an id');
+        }
+        if (!all.add(item.id)) {
+          throw ArgumentError.value(item.id, 'id', 'appears more than once in the tray menu');
+        }
+        if (item.isChoosable) choosable.add(item.id);
+        walk(item.children);
+      }
+    }
+
+    walk(menu);
+    return choosable;
   }
 
   Future<void> hide() async {
     final handled = await DVNativeBridge.require<bool>('tray.hide');
     if (!handled) throw StateError('Native tray binding rejected hide.');
-    _ids = const <String>{};
-    _onSelected = null;
+    reset();
   }
 }
 
