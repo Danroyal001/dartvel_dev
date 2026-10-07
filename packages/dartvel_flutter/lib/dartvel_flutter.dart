@@ -61,6 +61,7 @@ import 'src/platform/dialogs.dart';
 import 'src/platform/storage/device_storage.dart';
 import 'src/platform/drag_drop.dart';
 import 'src/platform/file_associations.dart';
+import 'src/platform/launch_at_login.dart';
 import 'src/platform/network.dart';
 import 'src/platform/printing.dart';
 import 'src/platform/terminal_graphics.dart';
@@ -788,6 +789,7 @@ export 'src/platform/dialogs.dart';
 export 'src/platform/storage/device_storage.dart';
 export 'src/platform/drag_drop.dart';
 export 'src/platform/file_associations.dart';
+export 'src/platform/launch_at_login.dart';
 export 'src/platform/file_bindings.dart';
 export 'src/platform/ios/ios_bindings.dart';
 export 'src/platform/linux/linux_bindings.dart';
@@ -7154,6 +7156,10 @@ class DVPlatform {
   /// What this application opens: registering its own file types with the
   /// desktop, for the user running it.
   DVFileAssociations get associations => const DVFileAssociations();
+
+  /// Starting this application when the user logs in: an XDG autostart
+  /// entry, the per-user Run key, or a macOS login item.
+  DVLaunchAtLogin get launchAtLogin => const DVLaunchAtLogin();
 
   DVCamera get camera => const DVCamera();
   DVMedia get media => const DVMedia();
