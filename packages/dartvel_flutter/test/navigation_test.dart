@@ -33,6 +33,17 @@ GoRouter _buildRouter() {
 void main() {
   tearDown(DVNavigation.detach);
 
+  testWidgets('push() puts the pushed page in the URL', (WidgetTester tester) async {
+    final router = _buildRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    unawaited(DV.Navigation.push(_users));
+    await tester.pumpAndSettle();
+    expect(find.text('users'), findsOneWidget);
+    expect(GoRouter.optionURLReflectsImperativeAPIs, isTrue);
+    expect(router.routeInformationProvider.value.uri.path, '/users');
+  });
+
   testWidgets('to() returns a callback that navigates', (WidgetTester tester) async {
     final router = _buildRouter();
     addTearDown(router.dispose);
