@@ -43,6 +43,12 @@ void main() {
           // NSStatusBar's status item with its menu, chosen by id.
           'tray.show',
           'tray.hide',
+          // The main window from the status item, and windowShouldClose:.
+          'window.hide',
+          'window.show',
+          // SMAppService's main-app login item.
+          'launchAtLogin.isEnabled',
+          'launchAtLogin.setEnabled',
           // What a desktop grants without asking, and the deep link the app was
           // launched with.
           'permissions.isGranted',
