@@ -205,6 +205,174 @@ void main() {
     final DBusStruct root = layout.values[1] as DBusStruct;
     expect((root.children.last as DBusArray).children, hasLength(1));
   });
+
+  Future<DBusStruct> layoutOf(String service) async {
+    final DBusMethodSuccessResponse layout = await client.callMethod(
+      destination: service,
+      path: DBusObjectPath('/MenuBar'),
+      interface: 'com.canonical.dbusmenu',
+      name: 'GetLayout',
+      values: <DBusValue>[const DBusInt32(0), const DBusInt32(-1), DBusArray.string(<String>[])],
+      replySignature: DBusSignature('u(ia{sv}av)'),
+    );
+    return layout.values[1] as DBusStruct;
+  }
+
+  List<DBusStruct> childrenOf(DBusStruct node) => <DBusStruct>[
+        for (final DBusValue child in (node.children.last as DBusArray).children)
+          (child as DBusVariant).value as DBusStruct,
+      ];
+
+  Map<String, DBusValue> propsOf(DBusStruct node) => <String, DBusValue>{
+        for (final MapEntry<DBusValue, DBusValue> e in (node.children[1] as DBusDict).children.entries)
+          (e.key as DBusString).value: (e.value as DBusVariant).value,
+      };
+
+  Future<void> showVpnMenu({void Function(String id)? onSelected, void Function()? onActivate}) =>
+      const DVTray().show(
+        icon: _TrayIcon.dartvelTray,
+        tooltip: 'VPN',
+        onSelected: onSelected,
+        onActivate: onActivate,
+        menu: const <DVTrayMenuItem>[
+          DVTrayMenuItem.header('Connected'),
+          DVTrayMenuItem.separator(),
+          DVTrayMenuItem(id: 'profiles', label: 'Profiles', children: <DVTrayMenuItem>[
+            DVTrayMenuItem(id: 'home', label: 'Home', checked: true, radio: true),
+            DVTrayMenuItem(id: 'work', label: 'Work', checked: false, radio: true),
+          ]),
+          DVTrayMenuItem(id: 'keep', label: 'Keep in menu', checked: true),
+          DVTrayMenuItem(id: 'quit', label: 'Quit'),
+        ],
+      );
+
+  test('separators, headers, check marks and submenus are dbusmenu properties', () async {
+    await showVpnMenu();
+    final List<DBusStruct> top = childrenOf(await layoutOf(watcher.registered.single));
+
+    expect(top, hasLength(5));
+    expect(propsOf(top[0])['label'], const DBusString('Connected'));
+    expect(propsOf(top[0])['enabled'], const DBusBoolean(false), reason: 'a header is never chosen');
+    expect(propsOf(top[1])['type'], const DBusString('separator'));
+    expect(propsOf(top[2])['children-display'], const DBusString('submenu'));
+    final List<DBusStruct> profiles = childrenOf(top[2]);
+    expect(profiles, hasLength(2));
+    expect(propsOf(profiles[0])['toggle-type'], const DBusString('radio'));
+    expect(propsOf(profiles[0])['toggle-state'], const DBusInt32(1));
+    expect(propsOf(profiles[1])['toggle-state'], const DBusInt32(0));
+    expect(propsOf(top[3])['toggle-type'], const DBusString('checkmark'));
+    expect(propsOf(top[4]).containsKey('toggle-type'), isFalse);
+  });
+
+  test('a submenu item chosen over the bus reaches Dart by its own id', () async {
+    final List<String> chosen = <String>[];
+    await showVpnMenu(onSelected: chosen.add);
+    final String service = watcher.registered.single;
+    final DBusStruct work = childrenOf(childrenOf(await layoutOf(service))[2])[1];
+    final int workNumber = (work.children.first as DBusInt32).value;
+
+    for (final int number in <int>[workNumber, (childrenOf(await layoutOf(service))[2].children.first as DBusInt32).value]) {
+      await client.callMethod(
+        destination: service,
+        path: DBusObjectPath('/MenuBar'),
+        interface: 'com.canonical.dbusmenu',
+        name: 'Event',
+        values: <DBusValue>[DBusInt32(number), const DBusString('clicked'), const DBusVariant(DBusString('')), const DBusUint32(0)],
+        replySignature: DBusSignature(''),
+      );
+    }
+
+    expect(chosen, <String>['work'], reason: 'the submenu itself is not a choice');
+  });
+
+  test('GetGroupProperties answers for the ids asked, which is how GNOME reads a menu', () async {
+    await showVpnMenu();
+    final String service = watcher.registered.single;
+    final DBusMethodSuccessResponse response = await client.callMethod(
+      destination: service,
+      path: DBusObjectPath('/MenuBar'),
+      interface: 'com.canonical.dbusmenu',
+      name: 'GetGroupProperties',
+      values: <DBusValue>[DBusArray.int32(<int>[1, 4]), DBusArray.string(<String>[])],
+      replySignature: DBusSignature('a(ia{sv})'),
+    );
+    final List<DBusValue> rows = (response.values.first as DBusArray).children.toList();
+    expect(rows, hasLength(2));
+    final DBusStruct first = rows.first as DBusStruct;
+    expect(first.children.first, const DBusInt32(1));
+  });
+
+  test('an update changes the icon and tooltip in place and says so with signals', () async {
+    await showVpnMenu();
+    final String service = watcher.registered.single;
+    final List<String> signals = <String>[];
+    final DBusSignalStream stream = DBusSignalStream(client, sender: service);
+    final subscription = stream.listen((DBusSignal s) => signals.add(s.name));
+
+    await const DVTray().update(icon: _TrayIcon.x, tooltip: 'Disconnected');
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await subscription.cancel();
+
+    expect(watcher.registered, hasLength(1), reason: 'an update is the same item, not a second one');
+    expect(((await itemProperty(service, 'IconName')) as DBusString).value, 'x');
+    expect(((await itemProperty(service, 'Title')) as DBusString).value, 'Disconnected');
+    expect(signals, containsAll(<String>['NewIcon', 'NewToolTip', 'NewTitle', 'LayoutUpdated']));
+  });
+
+  test('with onActivate, a click on the icon is an action and the menu waits for a right-click', () async {
+    int clicks = 0;
+    await showVpnMenu(onActivate: () => clicks++);
+    final String service = watcher.registered.single;
+
+    expect(((await itemProperty(service, 'ItemIsMenu')) as DBusBoolean).value, isFalse);
+    await client.callMethod(
+      destination: service,
+      path: DBusObjectPath('/StatusNotifierItem'),
+      interface: 'org.kde.StatusNotifierItem',
+      name: 'Activate',
+      values: <DBusValue>[const DBusInt32(0), const DBusInt32(0)],
+      replySignature: DBusSignature(''),
+    );
+
+    expect(clicks, 1);
+  });
+
+  test('a watcher that starts after the item -- a shell after an autostarted app -- is told about it', () async {
+    await client.releaseName('org.kde.StatusNotifierWatcher');
+    await showTray();
+    expect(watcher.registered, isEmpty);
+    expect(DVLinuxTray.lastError, contains('no StatusNotifierWatcher'));
+
+    // The shell comes up, or restarts: the name appears on the bus.
+    await client.requestName('org.kde.StatusNotifierWatcher');
+    for (var i = 0; i < 40 && watcher.registered.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+
+    expect(watcher.registered, hasLength(1));
+    expect(watcher.registered.single, DVLinuxTray.busName);
+  });
+
+  test('an icon that is a file is drawn from its directory, the way libappindicator does', () async {
+    final Directory dir = Directory.systemTemp.createTempSync('dv_tray');
+    final File png = File('${dir.path}/connected.png')..writeAsBytesSync(<int>[0x89, 0x50]);
+    addTearDown(() => dir.deleteSync(recursive: true));
+    await const DVTray().show(icon: _FileIcon(png.path), tooltip: 'VPN');
+    final String service = watcher.registered.single;
+
+    expect(((await itemProperty(service, 'IconName')) as DBusString).value, 'connected');
+    expect(((await itemProperty(service, 'IconThemePath')) as DBusString).value, dir.path);
+  });
+}
+
+class _FileIcon implements DVAssetRef {
+  const _FileIcon(this.path);
+
+  @override
+  final String path;
+
+  @override
+  DVAssetKind get kind => DVAssetKind.image;
 }
 
 /// Tray icons as the generated DVAsset enum would name them. The paths are

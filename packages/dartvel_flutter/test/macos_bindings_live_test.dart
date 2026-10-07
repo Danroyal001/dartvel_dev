@@ -337,6 +337,32 @@ void main() {
       await const DVTray().hide();
       expect(DVMacosTray.shown, isFalse);
     });
+
+    test('separators, a header, check marks and an update in place, as AppKit has them', () async {
+      final List<String> chosen = <String>[];
+      await const DVTray().show(
+        icon: _TrayIcon.missing,
+        tooltip: 'VPN',
+        onSelected: chosen.add,
+        menu: const <DVTrayMenuItem>[
+          DVTrayMenuItem.header('Connected'),
+          DVTrayMenuItem.separator(),
+          DVTrayMenuItem(id: 'home', label: 'Home', checked: true),
+          DVTrayMenuItem(id: 'more', label: 'More', children: <DVTrayMenuItem>[DVTrayMenuItem(id: 'about', label: 'About')]),
+          DVTrayMenuItem(id: 'quit', label: 'Quit'),
+        ],
+      );
+      expect(DVMacosTray.menuTitles(), <String>['Connected', '', 'Home', 'More', 'Quit']);
+      expect(DVMacosTray.itemState(0).$2, isFalse, reason: 'a header is disabled');
+      expect(DVMacosTray.itemState(2).$1, 1, reason: 'the check mark is on');
+
+      DVMacosTray.performAction(4);
+      expect(chosen, <String>['quit']);
+
+      await const DVTray().update(menu: const <DVTrayMenuItem>[DVTrayMenuItem(id: 'home', label: 'Home', checked: false)]);
+      expect(DVMacosTray.menuTitles(), <String>['Home']);
+      expect(DVMacosTray.itemState(0).$1, 0);
+    });
   });
 
 

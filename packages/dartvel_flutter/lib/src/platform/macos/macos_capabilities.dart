@@ -62,6 +62,16 @@ const Set<String> dvMacosImplementedBindings = <String>{
   'tray.show',
   'tray.hide',
 
+  // The main window from the status item: orderOut: and
+  // makeKeyAndOrderFront:, and windowShouldClose: hiding it under
+  // exitPolicy explicit.
+  'window.hide',
+  'window.show',
+
+  // SMAppService's main-app login item, macOS 13 and later.
+  'launchAtLogin.isEnabled',
+  'launchAtLogin.setEnabled',
+
   // CoreGraphics: pictures onto the pages of a PDF. The dialog and the
   // printer are NSPrintOperation's, which needs the application's event
   // loop, so printing.print is not claimed.

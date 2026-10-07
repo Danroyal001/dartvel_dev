@@ -24,6 +24,12 @@ void main() {
           'window.minimize',
           'window.restore',
           'window.setSize',
+          // The main window from the tray, and WM_CLOSE hiding it under explicit.
+          'window.hide',
+          'window.show',
+          // The per-user Run key.
+          'launchAtLogin.isEnabled',
+          'launchAtLogin.setEnabled',
           // RegisterHotKey, ClipCursor and the window style, for a kiosk.
           'kiosk.enforce',
           'kiosk.release',
@@ -129,6 +135,10 @@ void main() {
         'window.minimize',
         'window.restore',
         'window.setSize',
+        'window.hide',
+        'window.show',
+        'launchAtLogin.isEnabled',
+        'launchAtLogin.setEnabled',
         'kiosk.enforce',
         'kiosk.release',
         'shortcuts.register',

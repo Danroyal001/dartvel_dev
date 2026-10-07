@@ -57,6 +57,7 @@ class DVMacosTray {
   static bool get shown => false;
   static List<String> menuTitles() => const <String>[];
   static void performAction(int index) {}
+  static (int state, bool enabled) itemState(int index) => (0, false);
   static void unregister() {}
 }
 
