@@ -187,6 +187,15 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
       'shell, and nothing in a tab reaches it.',
   'tray.hide': 'The other half of a tray icon a browser cannot create in the '
       'first place.',
+  'launchAtLogin.isEnabled': 'A page cannot start itself. An installed PWA can '
+      'be set to open at login only by the person, in the browser\'s own '
+      'settings, and a page cannot read whether they did.',
+  'launchAtLogin.setEnabled': 'The same wall from the other side: no browser '
+      'API adds a page to the session\'s login items.',
+  'window.hide': 'A page cannot hide the tab or window it is in; only the '
+      'person can.',
+  'window.show': 'A page cannot raise its own window. focus() on a window a '
+      'page did not open is ignored by every browser.',
 
   'homeWidgets.publish': 'A home-screen widget is drawn by a launcher or by '
       'the system shell, in its own process. A browser has no way to hand '
