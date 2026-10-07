@@ -1,6 +1,6 @@
 name: dartvel_generator
 description: Retired build_runner generators for Dartvel routing glue. Generate with the dartvel CLI (dart run dartvel_cli:dartvel routes) instead.
-version: 0.11.3
+version: 1.4.6
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 
