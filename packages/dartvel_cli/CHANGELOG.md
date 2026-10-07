@@ -1,3 +1,9 @@
+## 0.11.3 — 2026-10-08
+
+- `dartvel.redirects`: redirects declared in pubspec (301/302/307/308), written to the web-server manifest and answered before routing.
+- A backend function returning `String` is read as the response text on the client, never JSON-decoded.
+- New projects use the 0.11.3 package family.
+
 ## 0.11.2 — 2026-10-07
 
 - `dartvel upgrade` installs the latest CLI transactionally (download, checksum, PATH repair, old binary removed, full rollback on failure).

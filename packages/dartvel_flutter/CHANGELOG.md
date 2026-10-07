@@ -1,4 +1,7 @@
-## Unreleased
+## 0.11.3 — 2026-10-08
+
+- Auth pages and forms: Enter submits, a pending state while submitting, sign-up links, and a wide branded layout (`DVAuthFrame`, `DVAuthAppearance`) from 720px.
+- `DV.Navigation.push` puts the pushed page's URL in the address bar.
 
 - **Tray menus for menu-bar and tray applications.** `DVTrayMenuItem` gains
   `.separator()`, `.header(label)`, `checked`, `radio` and `children`
