@@ -7,6 +7,8 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+- `DV.Navigation.push` puts the pushed page's URL in the address bar, so a copied link or a reload opens the page that was pushed, not the one underneath.
+
 ## 0.11.2 — 2026-10-07
 
 - Guarded pages are refused on the server: a signed-out request for a guarded route gets a 302 to the sign-in page (or a bare 401 without one), never the guarded screen's HTML.
