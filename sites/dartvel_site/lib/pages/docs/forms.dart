@@ -35,6 +35,9 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
               'Article.Form() creates a record. article.Form() edits that '
                   'record.',
               'Neither takes a callback. Saving is what the form does.',
+              'The form awaits the save, shows progress and prevents another '
+                  'submission or reset while it runs. A failed save keeps '
+                  'your edits and announces a safe error message.',
               'Each field the model serializes becomes a text input, '
                   'labelled with the field\'s name, followed by Save and '
                   'Reset.',

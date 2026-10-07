@@ -907,7 +907,7 @@ void main() {
     ]);
   });
 
-  testWidgets('prebuilt auth pages use Dartvel primitives without scaffolds',
+  testWidgets('prebuilt auth pages use the app theme without scaffolds',
       (WidgetTester tester) async {
     await DV.Auth.signUp(
       email: 'pages@example.com',
@@ -922,30 +922,14 @@ void main() {
     );
 
     expect(find.byType(Scaffold), findsNothing);
-    expect(find.byType(FilledButton), findsNothing);
-    // At least one, and it used to be exactly one -- which passed because the
-    // Sign in button was not being drawn. It asks for padding, a corner
-    // radius and a dark fill; DVText looked at none of that and rendered the
-    // words on their own, so the count was a measure of the bug rather than
-    // of the page.
-    expect(find.byType(DVBox), findsWidgets);
+    expect(find.byType(FilledButton), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
-
-    // And the button is a button. Asserted here rather than left to the
-    // count, because a number of widgets says nothing about what they draw.
-    final Iterable<Container> boxes = tester.widgetList<Container>(
-      find.ancestor(
-        of: find.text('Sign in'),
-        matching: find.byType(Container),
-      ),
-    );
-    // The nearest box is the control's own, which holds the focus ring and no
-    // fill; the box that was asked for is the one that carries the fill.
-    expect(boxes.first.foregroundDecoration, isNull);
-    final BoxDecoration button =
-        boxes.map((Container box) => box.decoration).whereType<BoxDecoration>().first;
-    expect(button.color, const Color(0xFF111827));
-    expect(button.borderRadius, BorderRadius.circular(8));
+    // Assert the fill actually painted on the control: the app's primary
+    // color, rather than the hard-coded dark color the old page imposed.
+    final button = find.byType(FilledButton);
+    final material = tester.widget<Material>(find.descendant(
+      of: button, matching: find.byType(Material)).first);
+    expect(material.color, Theme.of(tester.element(button)).colorScheme.primary);
 
     await tester.enterText(find.byType(TextField).first, 'pages@example.com');
     await tester.enterText(find.byType(TextField).last, 'pages-password');

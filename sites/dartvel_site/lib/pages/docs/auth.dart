@@ -20,6 +20,25 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
       ],
       sections: <DocsSection>[
         DocsSection(
+          id: 'appearance',
+          title: 'Make account pages yours',
+          children: <Widget>[
+            DocsText('Prebuilt pages use your Material theme. Wide screens '
+                'show a brand panel; small screens use a scrolling form. '
+                'dartvel.pwa.name and icon supply the identity. '
+                'dartvel.auth accepts tagline, heroImage and brandPanelColor '
+                '(a six-digit RGB hex color). Include images in flutter.assets.'),
+            DocsText('DV.Auth.appearance accepts DVAuthAppearance with a '
+                'brandPanelBuilder for your own wide-screen panel. '
+                'Sign-in and sign-up links follow configured account routes '
+                'and carry the internal from destination. Pending requests '
+                'disable submission and errors are announced.'),
+            DocsText('There is no public password-reset endpoint yet. '
+                'Interactive server HTML forms and visual parity before '
+                'Flutter loads are not delivered by the current fallback renderer.'),
+          ],
+        ),
+        DocsSection(
           id: 'provider',
           title: 'Choose an auth provider',
           children: <Widget>[
