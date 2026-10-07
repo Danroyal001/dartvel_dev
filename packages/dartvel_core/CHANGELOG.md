@@ -1,3 +1,7 @@
+## 0.11.2 — 2026-10-07
+
+- `dvSignInLocation`: where a signed-out request for a guarded route is sent.
+
 ## 0.11.0 — 2026-10-05
 
 - Device file storage is backed by the platform filesystem, with cache directories, picking and declared access permissions.
