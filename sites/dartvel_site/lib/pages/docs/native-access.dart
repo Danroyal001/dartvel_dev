@@ -103,7 +103,10 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['breakpoint / orientation', 'Shipped', 'all'],
                 <String>['screen', 'Shipped', 'all'],
                 <String>['Window', 'Shipped', 'all (desktop controls partial)'],
-                <String>['Tray / Menus / Shortcuts / Printing', 'Shipped (stub)', 'all (empty)'],
+                <String>['tray', 'Shipped', 'macOS, Windows, Linux: separators, headers, check and radio marks, submenus, update in place'],
+                <String>['window.hide / .show, close-to-hide', 'Shipped', 'macOS, Windows, Linux (exitPolicy explicit)'],
+                <String>['launchAtLogin', 'Shipped', 'macOS 13+, Windows, Linux'],
+                <String>['Menus / Shortcuts / Printing', 'Shipped (stub)', 'all (empty)'],
                 <String>['Dialogs', 'Shipped (stub)', 'all (empty)'],
                 <String>['DragDrop', 'Shipped', 'desktop (Linux, Windows, macOS)'],
                 <String>['associations', 'Shipped', 'desktop'],
@@ -190,8 +193,6 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
               'CoreNFC entitlement.',
               '`biometrics.authenticate` / `.canAuthenticate` — needs '
               'Activity (Android) or `LAContext` (iOS).',
-              '`tray.show` / `.hide` — system tray needs desktop-specific '
-              'bindings per platform.',
               '`bluetooth.isEnabled` — needs runtime-granted permission '
               'since API 31.',
               'Additional media/capture bindings requiring `Activity` '

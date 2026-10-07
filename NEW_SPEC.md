@@ -7073,6 +7073,23 @@ await DV.Platform.tray.show(
     DVTrayMenuItem(id: 'open', label: 'Open'),
   ],
 );
+// A menu-bar application: a status line, check marks, a submenu, an icon
+// click that shows the window, and the icon changed in place.
+await DV.Platform.tray.show(
+  icon: DVAsset.trayOff,
+  template: true,
+  onActivate: () => DV.Platform.window.show(),
+  menu: const <DVTrayMenuItem>[
+    DVTrayMenuItem.header('Disconnected'),
+    DVTrayMenuItem.separator(),
+    DVTrayMenuItem(id: 'profiles', label: 'Profiles', children: <DVTrayMenuItem>[
+      DVTrayMenuItem(id: 'home', label: 'Home', checked: false, radio: true),
+    ]),
+  ],
+);
+await DV.Platform.tray.update(icon: DVAsset.trayOn);
+DVWindowManager.exitPolicy = .explicit; // closing the window hides it
+await DV.Platform.launchAtLogin.setEnabled(true);
 await DV.Platform.menus.setApplicationMenu(
   const DVApplicationMenu(<DVMenuItem>[
     DVMenuItem(
@@ -8914,7 +8931,9 @@ The first window opened is `main`. It is a peer for every purpose except two:
 - **Exit policy.** `exit: lastWindow` (default on desktop) ends the process
   when the last *regular or kiosk* window closes; owned windows do not count.
   `exit: mainWindow` ends the process when `main` closes; `exit: explicit`
-  never exits on window close (tray-resident applications).
+  never exits on window close (tray-resident applications): closing `main`
+  hides it, through each desktop's own close hook, and
+  `DV.Platform.window.show()` brings it back.
 
 If `main` closes under `exit: lastWindow` while other regular windows remain,
 the oldest remaining regular window becomes `main`. `DV.Window.main` is a

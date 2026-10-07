@@ -274,6 +274,43 @@ reports nothing either way. The binding returns whether the call was made, not
 whether the window ended up that size — a distinction the caller cannot learn
 from GTK and should not be handed a guess about.
 
+## Tray and tray-resident applications
+
+`tray.show` and `tray.hide` are bound on all three desktops, and a menu-bar or
+tray application needs three more things beside them: the main window hidden
+and shown from the tray (`window.hide`, `window.show`), the window hidden
+rather than closed when the user closes it, and starting at login
+(`launchAtLogin.isEnabled`, `launchAtLogin.setEnabled`).
+
+| | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Icon | `NSStatusItem` button, 18 pt, template image on `template: true` | `Shell_NotifyIcon`; `.ico` through `LoadImageW`, PNG through `CreateIconFromResourceEx` | StatusNotifierItem; a file is `IconThemePath` + `IconName`, as libappindicator names it |
+| Menu | `NSMenu`, autoenable off so a disabled item stays disabled | popup menu, `MF_SEPARATOR`, `MF_GRAYED`, `MF_CHECKED`, `MFT_RADIOCHECK`, `MF_POPUP` | `com.canonical.dbusmenu`: `type`, `toggle-type`, `toggle-state`, `children-display`, `GetGroupProperties`, `EventGroup` |
+| Update in place | same status item | `NIM_MODIFY` | same item; `NewIcon`, `NewToolTip`, `NewTitle`, `LayoutUpdated` |
+| Click on the icon | opens the menu (macOS has no other click) | left-click is `onActivate` when given, else the menu; right-click is the menu | `Activate` is `onActivate` when given (`ItemIsMenu` false), else the menu |
+| `window.hide` / `window.show` | `orderOut:` / activate + `makeKeyAndOrderFront:` | `ShowWindow` + `SetForegroundWindow`, the window found by the runner's class while hidden | `gtk_widget_hide` / `gtk_widget_show` + `gtk_window_present` |
+| Close hides under `exitPolicy: explicit` | `windowShouldClose:` on the window's delegate | `WM_CLOSE` in a window subclass | `delete-event` on the toplevel |
+| Launch at login | `SMAppService.mainAppService` (macOS 13+; unregistered before) | `HKCU\…\Run`, and Task Manager's `StartupApproved` record | `$XDG_CONFIG_HOME/autostart/<exe>.desktop` |
+
+The menu is one tree parsed once (`lib/src/platform/tray_menu.dart`) and
+numbered depth first, so an id inside a submenu dispatches the same way on
+every desktop; a submenu, a header, a separator and a disabled item never
+reach `onSelected`. `DVTray.update` merges into what `show` sent, keeps the
+handlers, and refuses when nothing is shown.
+
+Verified on this Linux host: the StatusNotifierItem and its dbusmenu against a
+watcher on a private session bus (`dbus-run-session`, `test/linux_tray_test.dart`:
+nested layout, toggle state, `GetGroupProperties`, a submenu click, `Activate`,
+an update emitting the four signals without a second registration); the
+close-to-hide hook, hide and show against real GTK under Xvfb
+(`test/linux_window_close_test.dart`); the autostart entry against a
+temporary config home (`test/tray_resident_test.dart`). The macOS and Windows
+bindings analyse clean and have live tests in
+`macos_bindings_live_test.dart` and `windows_bindings_live_test.dart`, which
+run only on those runners and have not been run for this change. No
+desktop shell draws the Linux item on a runner, so the pixels are not
+claimed.
+
 ## What the framework calls and nothing implements
 
 These have call sites in `dartvel_flutter` and no registration on any platform:
@@ -283,7 +320,6 @@ These have call sites in `dartvel_flutter` and no registration on any platform:
 | Biometrics | `biometrics.authenticate`, `biometrics.canAuthenticate` (bound on the web) | `BiometricPrompt` attaches to an `Activity`; `LAContext` is reachable but presents UI from the main thread |
 | NFC | `nfc.isAvailable`, `nfc.readTag` | Android delivers NFC dispatch to an `Activity`; iOS CoreNFC needs an entitlement |
 | Bluetooth | `bluetooth.isEnabled` | a permission and a runtime-granted one since API 31 |
-| Tray | `tray.show`, `tray.hide` | Windows `Shell_NotifyIcon` and macOS `NSStatusBar` are reachable; Linux needs a StatusNotifierItem over DBus, and a tray on one desktop only is worse than none |
 
 Four more came off it on the web, and the reason is worth stating: the browser
 has first-class APIs for all of them and nobody had looked.
