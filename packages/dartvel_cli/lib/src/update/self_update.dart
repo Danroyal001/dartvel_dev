@@ -308,7 +308,9 @@ Future<bool> dvUpgradeExecutable({
       home: home,
       shell: shell,
     );
-    if (windows) {
+    if (windows && !plan.alreadyPresent) {
+      // Only when the folder is not on PATH yet: prepending it on every
+      // upgrade grew the user's Path by one entry each time.
       final run = powershell ?? _powershell;
       final before = jsonDecode(
         await run(
