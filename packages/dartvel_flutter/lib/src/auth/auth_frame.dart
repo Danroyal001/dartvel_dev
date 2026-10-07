@@ -21,11 +21,13 @@ class const DVAuthFrame({
     builder: (context, box) {
       final theme = Theme.of(context);
       final wide = box.maxWidth >= 720;
-      final panelColor = appearance.brandPanelColor ?? theme.colorScheme.primaryContainer;
+      final panelColor =
+          appearance.brandPanelColor ?? theme.colorScheme.primaryContainer;
       final panelTextColor = appearance.brandPanelColor == null
           ? theme.colorScheme.onPrimaryContainer
           : ThemeData.estimateBrightnessForColor(panelColor) == Brightness.dark
-              ? Colors.white : Colors.black;
+          ? Colors.white
+          : Colors.black;
       final padding = box.maxWidth <= 320 ? 12.0 : 32.0;
       final content = Column(
         crossAxisAlignment: .stretch,
@@ -50,55 +52,62 @@ class const DVAuthFrame({
           ),
         ),
       );
-      final panel = Container(
-        key: const ValueKey('dv-auth-brand-panel'),
-        padding: const .all(48),
-        decoration: BoxDecoration(
-          color: panelColor,
-          borderRadius: const .all(.circular(24)),
-        ),
-        child:
-            appearance.brandPanelBuilder?.call(context) ??
-            Column(
-              crossAxisAlignment: .start,
-              mainAxisAlignment: .center,
-              mainAxisSize: .min,
-              children: [
-                if (appearance.icon case final icon?) ...[
-                  Image.asset(
-                    icon,
-                    width: 64,
-                    height: 64,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      // A panel the application drew owns its whole box: wrapping it in the default one drew a box
+      // inside a box, in two colours.
+      final Widget? custom = appearance.brandPanelBuilder?.call(context);
+      final panel = custom != null
+          ? KeyedSubtree(
+              key: const ValueKey('dv-auth-brand-panel'),
+              child: custom,
+            )
+          : Container(
+              key: const ValueKey('dv-auth-brand-panel'),
+              padding: const .all(48),
+              decoration: BoxDecoration(
+                color: panelColor,
+                borderRadius: const .all(.circular(24)),
+              ),
+              child: Column(
+                crossAxisAlignment: .start,
+                mainAxisAlignment: .center,
+                mainAxisSize: .min,
+                children: [
+                  if (appearance.icon case final icon?) ...[
+                    Image.asset(
+                      icon,
+                      width: 64,
+                      height: 64,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                  Text(
+                    appearance.name,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: panelTextColor,
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
+                  Text(
+                    appearance.tagline,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: panelTextColor,
+                    ),
+                  ),
+                  if (appearance.heroImage case final image?) ...[
+                    const SizedBox(height: 32),
+                    Image.asset(
+                      image,
+                      fit: .cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ],
                 ],
-                Text(
-                  appearance.name,
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: panelTextColor,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  appearance.tagline,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: panelTextColor,
-                  ),
-                ),
-                if (appearance.heroImage case final image?) ...[
-                  const SizedBox(height: 32),
-                  Image.asset(
-                    image,
-                    fit: .cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-                ],
-              ],
-            ),
-      );
+              ),
+            );
       return Material(
-        color: theme.colorScheme.surface,
+        // The page the app's other screens sit on, not the card colour.
+        color: theme.scaffoldBackgroundColor,
         child: SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(
