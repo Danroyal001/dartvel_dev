@@ -61,6 +61,10 @@ const Set<String> dvNativeBindingNames = <String>{
   'tray.hide',
   'tray.show',
 
+  // Starting at login: XDG autostart, the per-user Run key, SMAppService.
+  'launchAtLogin.isEnabled',
+  'launchAtLogin.setEnabled',
+
   // The one thing that can cross to a home-screen widget. The surface is
   // composed in the launcher's process on Android and by the system on iOS
   // and macOS, and neither can host a Flutter engine, so the tree and the
@@ -156,6 +160,11 @@ const Set<String> dvNativeBindingNames = <String>{
   // DVWindowingCapability.multiWindow true.
   'window.close',
   'window.displays',
+  // Hiding and showing the main window, from a tray. Registered by the
+  // desktop platform bindings themselves, since a single-window application
+  // needs them without dartvel_windowing.
+  'window.hide',
+  'window.show',
   'window.maximize',
   'window.minimize',
   'window.open',

@@ -647,6 +647,38 @@ void main() {
       window.send(0x0111, DVWindowsTray.debugCommandFor('open') ?? 0x1000, 0);
       expect(chosen, <String>['quit']);
     });
+
+    test('an item inside a submenu is chosen by its own command, and a header is not a choice', () async {
+      final List<String> chosen = <String>[];
+      try {
+        await const DVTray().show(
+          icon: _TrayIcon.missing,
+          tooltip: 'VPN',
+          onSelected: chosen.add,
+          menu: const <DVTrayMenuItem>[
+            DVTrayMenuItem.header('Connected', id: 'status'),
+            DVTrayMenuItem.separator(),
+            DVTrayMenuItem(id: 'profiles', label: 'Profiles', children: <DVTrayMenuItem>[
+              DVTrayMenuItem(id: 'home', label: 'Home', checked: true, radio: true),
+              DVTrayMenuItem(id: 'work', label: 'Work', checked: false, radio: true),
+            ]),
+          ],
+        );
+      } on StateError {
+        if ('${DVWindowsTray.lastError}'.contains('no notification area')) {
+          markTestSkipped('this session has no notification area: ${DVWindowsTray.lastError}');
+          return;
+        }
+        rethrow;
+      }
+
+      window.send(0x0111, DVWindowsTray.debugCommandFor('work')!, 0);
+      window.send(0x0111, DVWindowsTray.debugCommandFor('status') ?? 0x1001, 0);
+      expect(chosen, <String>['work']);
+
+      await const DVTray().update(tooltip: 'Disconnected');
+      expect(DVWindowsTray.shown, isTrue, reason: 'an update modifies the icon that is there');
+    });
   });
 
 

@@ -21,11 +21,13 @@ import 'windows_device_ffi.dart';
 import 'windows_dialogs_ffi.dart';
 import 'windows_dnd_ffi.dart';
 import 'windows_kiosk_ffi.dart';
+import 'windows_launch_at_login_ffi.dart';
 import 'windows_menus_ffi.dart';
 import 'windows_printing_ffi.dart';
 import 'windows_serial_ffi.dart';
 import 'windows_shortcuts_ffi.dart';
 import 'windows_tray_ffi.dart';
+import 'windows_window_ffi.dart';
 
 export 'windows_associations_ffi.dart' show DVWindowsAssociations;
 export 'windows_device_ffi.dart' show DVWindowsDeviceProbes;
@@ -149,6 +151,8 @@ class DVWindowsBindings {
     DVWindowsKiosk.register(DVNativeBridge.register, user32: _user32, kernel32: _kernel32);
     DVWindowsMenus.register(DVNativeBridge.register, user32: _user32);
     DVWindowsTray.register(DVNativeBridge.register, user32: _user32);
+    DVWindowsWindow.register(DVNativeBridge.register, user32: _user32);
+    DVWindowsLaunchAtLogin.register(DVNativeBridge.register);
     DVWindowsPrinting.register(DVNativeBridge.register);
     // The serial port, which was the last desktop this was missing from.
     // Its own libraries -- kernel32 for the port, advapi32 for the registry
@@ -192,6 +196,7 @@ class DVWindowsBindings {
       await DVWindowsShortcuts.unregister();
       DVWindowsMenus.unregister();
       DVWindowsTray.unregister();
+      DVWindowsWindow.unregister();
       DVWindowsDialogs.unregister();
       DVWindowsDragDrop.unregister();
       DVDeviceRuntime.unregister();

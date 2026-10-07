@@ -1,3 +1,16 @@
+## Unreleased
+
+- **Tray menus for menu-bar and tray applications.** `DVTrayMenuItem` gains
+  `.separator()`, `.header(label)`, `checked`, `radio` and `children`
+  (submenus), and `DV.Platform.tray.update(...)` changes the icon, tooltip or
+  menu in place; `show(template: true)` draws a macOS template image and
+  `show(onActivate: ...)` takes a click on the icon on Windows and Linux.
+  The existing `DVTrayMenuItem(id:, label:, enabled:)` is unchanged.
+- **Tray-resident applications.** `DV.Platform.window.hide()` and `.show()`,
+  closing the main window hides it under `DVWindowManager.exitPolicy = .explicit`,
+  and `DV.Platform.launchAtLogin` (XDG autostart, the per-user Run key,
+  SMAppService).
+
 ## 0.11.2 — 2026-10-07
 
 - Resolve the matching 0.11.2 Dartvel package family.

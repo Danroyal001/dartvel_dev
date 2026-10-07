@@ -660,6 +660,13 @@ class DVWindowManager {
   /// tasks, iPadOS scenes -- where nothing reads [shouldExit].
   static DVWindowExitPolicy exitPolicy = DVWindowExitPolicy.lastWindow;
 
+  /// Whether the user closing the main window hides it rather than closing
+  /// it. The desktop bindings ask this from their close hook -- GTK's
+  /// delete-event, WM_CLOSE, windowShouldClose: -- so a tray-resident
+  /// application (`exitPolicy: explicit`) keeps running with its window
+  /// hidden, and [DVWindowManager.show] brings it back.
+  static bool get closeHidesWindow => exitPolicy == DVWindowExitPolicy.explicit;
+
   static final ValueNotifier<DVWindow?> _main =
       ValueNotifier<DVWindow?>(null);
   static final ValueNotifier<bool> _shouldExit = ValueNotifier<bool>(false);
@@ -1505,6 +1512,18 @@ class DVWindowManager {
 
   Future<void> restore() async {
     await DVNativeBridge.require<bool>('window.restore');
+  }
+
+  /// Takes the main window off screen without closing it: the process, its
+  /// state and its tray icon stay. What "Show" in a tray menu undoes.
+  Future<void> hide() async {
+    await DVNativeBridge.require<bool>('window.hide');
+  }
+
+  /// Puts the main window back on screen and in front, from hidden,
+  /// minimised or behind other windows, and brings the application forward.
+  Future<void> show() async {
+    await DVNativeBridge.require<bool>('window.show');
   }
 
   /// Remembers this window's size under [key].

@@ -486,6 +486,33 @@ open at `<mount>/data/<model>/<record>` and report stale links explicitly.
   route instead and reports why.
   Real OS windows need the separate `dartvel_windowing` package, which is not
   published, because it depends on Flutter's internal windowing API.
+- **Tray and menu-bar applications.** `DV.Platform.tray.show(...)` puts up an
+  icon on macOS (status bar), Windows (notification area) and Linux
+  (StatusNotifierItem); its menu takes separators, disabled header lines,
+  check and radio marks and submenus, and `tray.update(...)` changes the icon,
+  tooltip or menu in place. Set `DVWindowManager.exitPolicy = .explicit` and
+  closing the main window hides it instead of quitting;
+  `DV.Platform.window.show()` and `.hide()` bring it back and send it away,
+  and `DV.Platform.launchAtLogin` starts the app at login:
+
+  ```dart
+  await DV.Platform.tray.show(
+    icon: DVAsset.trayDisconnected,
+    template: true, // macOS draws it in the menu bar's own colour
+    tooltip: 'Disconnected',
+    onActivate: () => DV.Platform.window.show(), // Windows and Linux click
+    onSelected: (String id) { /* by id, submenus included */ },
+    menu: const <DVTrayMenuItem>[
+      DVTrayMenuItem.header('Disconnected'),
+      DVTrayMenuItem.separator(),
+      DVTrayMenuItem(id: 'profiles', label: 'Profiles', children: <DVTrayMenuItem>[
+        DVTrayMenuItem(id: 'home', label: 'Home', checked: true, radio: true),
+      ]),
+      DVTrayMenuItem(id: 'quit', label: 'Quit'),
+    ],
+  );
+  await DV.Platform.tray.update(icon: DVAsset.trayConnected, tooltip: 'Connected');
+  ```
 - **Terminal** (`Partial`). `dartvel build linux-cli` renders the same app in
   a terminal. It is opt-in at build time, so no other build links terminal
   code.

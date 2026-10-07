@@ -58,10 +58,15 @@ Future<void> installDesktopChrome() async {
     icon: DVAsset.tray,
     tooltip: 'Oakline',
     menu: const <DVTrayMenuItem>[
+      DVTrayMenuItem.header('Oakline'),
+      DVTrayMenuItem.separator(),
       DVTrayMenuItem(id: 'cart', label: 'Open the cart'),
+      DVTrayMenuItem(id: 'sounds', label: 'Order sounds', checked: true),
     ],
     onSelected: (String id) => DV.Platform.window.open(DVRoutes.cart),
   );
+  // The same icon, changed in place: no flicker, no second icon.
+  await DV.Platform.tray.update(tooltip: 'Oakline: 2 orders waiting');
   await DV.Platform.shortcuts.register(
     const DVGlobalShortcut(id: 'cart', accelerator: 'Ctrl+Shift+O'),
     onPressed: () => DV.Platform.window.open(DVRoutes.cart),

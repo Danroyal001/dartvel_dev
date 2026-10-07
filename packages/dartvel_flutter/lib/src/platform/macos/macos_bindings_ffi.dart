@@ -35,11 +35,13 @@ import 'macos_device_ffi.dart';
 import 'macos_dialogs_ffi.dart';
 import 'macos_dnd_ffi.dart';
 import 'macos_kiosk_ffi.dart';
+import 'macos_launch_at_login_ffi.dart';
 import 'macos_menus_ffi.dart';
 import 'macos_printing_ffi.dart';
 import 'macos_serial.dart';
 import 'macos_shortcuts_ffi.dart';
 import 'macos_tray_ffi.dart';
+import 'macos_window_ffi.dart';
 
 export 'macos_associations_ffi.dart' show DVMacosAssociations;
 export 'macos_device_ffi.dart' show DVMacosDeviceProbes;
@@ -133,6 +135,8 @@ class DVMacosBindings {
     DVMacosShortcuts.register(DVNativeBridge.register);
     DVMacosMenus.register(DVNativeBridge.register, objc: _objc);
     DVMacosTray.register(DVNativeBridge.register, objc: _objc);
+    DVMacosWindow.register(DVNativeBridge.register, objc: _objc);
+    DVMacosLaunchAtLogin.register(DVNativeBridge.register, objc: _objc);
     DVMacosPrinting.register(DVNativeBridge.register);
     DVMacosDialogs.register(DVNativeBridge.register, objc: _objc);
     DVMacosDragDrop.register(DVNativeBridge.register, objc: _objc);
@@ -179,6 +183,7 @@ class DVMacosBindings {
       DVMacosDialogs.unregister();
       DVMacosDragDrop.unregister();
       DVMacosTray.unregister();
+      DVMacosWindow.unregister();
       DVMacosMenus.unregister();
       DVDeviceRuntime.unregister();
     }
