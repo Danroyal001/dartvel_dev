@@ -7,6 +7,14 @@ changes are called out explicitly below.
 
 ## Unreleased
 
+## 0.11.2 — 2026-10-07
+
+- Guarded pages are refused on the server: a signed-out request for a guarded route gets a 302 to the sign-in page (or a bare 401 without one), never the guarded screen's HTML.
+- A guarded route's old semantics capture is deleted, never served.
+- Launcher name and icon come from `dartvel.pwa` on Android, Fire OS, iOS, macOS, Windows and Linux.
+- Native folders are ephemeral: `dartvel create` makes none and enables every platform; builds generate the platform folder they need. The default icon is `assets/icon.png`.
+- `dartvel upgrade` installs the latest CLI release, repairs PATH and removes the old binary, rolling every step back on failure.
+
 ## 0.11.1 — 2026-10-05
 
 - Web-server binaries read bundled assets on request from an indexed pack,
