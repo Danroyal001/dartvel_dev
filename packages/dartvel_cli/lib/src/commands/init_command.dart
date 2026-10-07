@@ -155,7 +155,7 @@ class InitCommand extends Command<void> {
     argParser
       ..addFlag('web', defaultsTo: true, help: 'Include web platform')
       ..addFlag('mobile', defaultsTo: true, help: 'Include mobile platforms')
-      ..addFlag('desktop', defaultsTo: false, help: 'Include desktop platforms')
+      ..addFlag('desktop', defaultsTo: true, help: 'Include desktop platforms')
       ..addFlag('ssr', defaultsTo: false, help: 'Enable SSR/SSG features')
       ..addOption('project-name',
           help: 'The package name, when it should differ from the folder\'s. '
@@ -228,33 +228,12 @@ class InitCommand extends Command<void> {
 
     Logger.log('🚀 Initializing Dartvel project: $projectName in $root');
 
-    // Run flutter create to generate platform scaffolding
-    Logger.log('📦 Running: flutter create .');
-    final createArgs = ['create', '.', '--project-name', projectName];
-    if (web) createArgs.add('--platforms=web');
-    if (mobile) createArgs.add('--platforms=android,ios');
-    if (desktop) createArgs.add('--platforms=linux,macos,windows');
-    if (org != 'com.example') {
-      createArgs.addAll(['--org', org]);
-    }
-
-    // Ensure directory exists before running flutter create
+    // Ensure directory exists
     if (!Directory(root).existsSync()) {
       Directory(root).createSync(recursive: true);
     }
 
-    final createProc = await Process.run('flutter', createArgs,
-        workingDirectory: root, runInShell: true);
-
-    if (createProc.exitCode != 0) {
-      Logger.log('⚠️  Warning: flutter create failed');
-      Logger.log(createProc.stderr.toString());
-      // Continue anyway as we might be able to recover or the user might fix it
-    } else {
-      Logger.log('✅ Flutter project scaffolded');
-    }
-
-    // Create pubspec.yaml (will overwrite the one from flutter create)
+    // Create pubspec.yaml
     final pubspecFile = File(p.join(root, 'pubspec.yaml'));
     if (pubspecFile.existsSync()) {
       Logger.log('ℹ️  Overwriting pubspec.yaml with Dartvel configuration...');
@@ -280,6 +259,7 @@ class InitCommand extends Command<void> {
       'lib/services',
       'assets',
       '.dartvel',
+      'test',
     ];
 
     for (final dir in directories) {

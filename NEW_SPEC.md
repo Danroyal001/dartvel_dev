@@ -11765,7 +11765,12 @@ dartvel dev
 
 `dartvel create` scaffolds the default project structure (`lib/pages`,
 `lib/models`, `lib/backend`, `lib/components`, `lib/styles`, `lib/services`,
-`main.dart`, `pubspec.yaml`).
+`main.dart`, `pubspec.yaml`). All target platforms are enabled by default
+(`--web`, `--mobile`, `--desktop`), and native folders (`android/`, `ios/`,
+`web/`, `linux/`, `windows/`, `macos/`) are ephemeral build outputs: `dartvel create`
+writes none of them at project create time, and `.gitignore` ignores them. Missing
+platform folders are generated quietly on `dartvel build <platform>` or `dartvel dev`/`run`
+before any native writers run.
 
 `dartvel dev` starts the complete local Dartvel environment: the Flutter
 application, the Dartvel backend, the code generator, analyzer integration, the

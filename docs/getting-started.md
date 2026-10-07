@@ -50,11 +50,15 @@ Flags for `create`:
 | `--org` | `com.example` | Organisation domain |
 | `--[no-]web` | on | Include web |
 | `--[no-]mobile` | on | Include Android and iOS |
-| `--[no-]desktop` | off | Include Linux, macOS, Windows |
+| `--[no-]desktop` | on | Include Linux, macOS, Windows |
 | `--[no-]ssr` | — | Enable SSR/SSG features |
 
-It scaffolds a Flutter project, replaces `pubspec.yaml` with Dartvel
-configuration, writes `.env` and `.env.example`, and runs `flutter pub get`.
+It scaffolds a Flutter project with Dartvel configuration, writes `.env` and `.env.example`,
+and runs `flutter pub get`. Native platform folders (`android/`, `ios/`, `web/`, `linux/`,
+`windows/`, `macos/`) are ephemeral build outputs: `dartvel create` writes none of them,
+and `.gitignore` ignores them. When you run `dartvel build <platform>` or `dartvel dev`/`run`
+for a device, Dartvel auto-generates the missing platform scaffold quietly and applies launcher
+identity, splash screens, deep links, and other native configuration from your `pubspec.yaml`.
 
 ## What you get
 
@@ -138,7 +142,7 @@ dartvel:
   pwa:
     name: EatingToday Kitchen   # the full name
     shortName: EatingToday      # what a launcher shows; default: name
-    icon: assets/icon.png       # default: web/icon.png, then assets/icon.png
+    icon: assets/icon.png       # default: assets/icon.png (web/ is build output)
 ```
 
 With neither set, the native folders are left as `flutter create` wrote them.
