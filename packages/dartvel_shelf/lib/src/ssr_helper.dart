@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId;
+    show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 
@@ -171,6 +171,14 @@ Future<Response> _fromManifest(
   final DVWebServerSettings settings = DVWebServerSettings.parse(manifest['server']);
   final String raw = req.url.path.isEmpty ? '/' : (req.url.path.startsWith('/') ? req.url.path : '/${req.url.path}');
   final String path = raw == '/' ? '/' : raw.replaceAll(RegExp(r'/+$'), '');
+
+  // dartvel.redirects: answered before routing, the guard or any rendering, so
+  // a declared address never reaches the application's not-found page.
+  final DVConfiguredRedirect? redirect = dvConfiguredRedirect(manifest['redirects'], raw);
+  if (redirect != null) {
+    final String target = req.url.hasQuery && !redirect.to.contains('?') ? '${redirect.to}?${req.url.query}' : redirect.to;
+    return Response(redirect.status, headers: Headers()..set('location', target), body: const Stream<List<int>>.empty());
+  }
 
   final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
   // The route's own deferred parts and first-frame images, by the pattern it

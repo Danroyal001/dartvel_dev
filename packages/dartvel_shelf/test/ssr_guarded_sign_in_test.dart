@@ -24,6 +24,10 @@ Directory site({String? signIn}) {
   File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(jsonEncode(
     <String, Object?>{
       if (signIn != null) 'signIn': signIn,
+      'redirects': <String, Object?>{
+        '/downloads': <String, Object?>{'to': '/downloads/', 'status': 301},
+        '/old': <String, Object?>{'to': 'https://example.org/new', 'status': 308},
+      },
       'routes': <String, Object?>{
         '/': <String, Object?>{
           'title': 'Today',
@@ -75,5 +79,20 @@ void main() {
     expect(about.status, 200);
     expect(await body(about), contains('Who we are'));
     expect((await get(root, '/login')).status, 200);
+  });
+
+  test('a declared redirect is answered before the guard and the not-found page', () async {
+    final Directory root = site(signIn: '/login');
+    final Response downloads = await get(root, '/downloads');
+    expect(downloads.status, 301);
+    expect(downloads.headers.get('location'), '/downloads/');
+    final Response old = await get(root, '/old?x=1');
+    expect(old.status, 308);
+    expect(old.headers.get('location'), 'https://example.org/new?x=1');
+  });
+
+  test('the target of a redirect is not redirected again', () async {
+    final Response target = await get(site(signIn: '/login'), '/downloads/');
+    expect(target.status, isNot(301));
   });
 }
