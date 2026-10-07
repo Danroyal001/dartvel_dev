@@ -119,6 +119,20 @@ build cannot know. Which models carry a tenant is per model, with
 a currency list or a country table, would be broken by a predicate it never
 asked for.
 
+An application's name and icon are said once, under `dartvel.pwa`, and every
+build uses them: the web manifest and icons, and on Android the launcher label
+and the `ic_launcher` icon at every density.
+
+```yaml
+dartvel:
+  pwa:
+    name: EatingToday Kitchen   # the full name
+    shortName: EatingToday      # what a launcher shows; default: name
+    icon: assets/icon.png       # default: web/icon.png, then assets/icon.png
+```
+
+With neither set, the Android folder is left as `flutter create` wrote it.
+
 Every platform shows something before an application's first frame, and the
 files `flutter create` writes make it white. `dartvel build` writes a splash
 instead, with nothing configured, and this is how to say what it looks like:
