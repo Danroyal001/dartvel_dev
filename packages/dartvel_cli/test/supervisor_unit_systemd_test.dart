@@ -33,8 +33,14 @@ ProcessResult verify(String unit, Directory dir) {
 /// removed option (Ubuntu's xfs_scrub units and `CPUAccounting=`, on systemd
 /// 259) prints a warning naming that file. It is not about the generated unit,
 /// which is the only one in [dir].
+///
+/// The same for a host unit systemd could not read at all: a unit installed
+/// mode 600 is reported as `<name>.service: Failed to open /etc/systemd/...`,
+/// which names that unit and its file, never ours.
 bool aboutAnotherUnit(String line, Directory dir) =>
-    line.startsWith('/') && !line.startsWith(dir.path);
+    (line.startsWith('/') && !line.startsWith(dir.path)) ||
+    RegExp(r'^[\w@.\\-]+: Failed to open /(?:etc|run|usr/lib|lib)/systemd/')
+        .hasMatch(line);
 
 DVSupervisorDeclaration declare(Map<String, Object?> application) =>
     DVSupervisorDeclaration.parse(

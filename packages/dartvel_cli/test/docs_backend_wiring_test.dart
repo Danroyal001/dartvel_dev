@@ -109,7 +109,7 @@ void main() {
       contains('core.DVDocsServer(mount: docs, root: docsRoot, '
           'adminMount: admin ?? '),
     );
-    expect(routes, contains('await docsServer?.respond(request) ?? '));
+    expect(routes, contains('await docsServer.respond(request) ?? '));
     // dartvelMain passes both on to the server it starts.
     expect(routes, contains('docs: docs, docsRoot: docsRoot'));
   });
@@ -163,16 +163,22 @@ void main() {
         docs: const DVDocsMount(
             path: '/manual', enabled: true, access: DVDocsAccess.studio),
       );
-      expect(payload.names, containsAll(<String>['docs', 'docs.mount']));
-      expect(dvUnpackFiles(payload.section('docs')).keys,
-          containsAll(<String>['index.html', 'docs.json', 'graph.json']));
+      // The site's files are in the binary's one pack under docs/, every one
+      // protected; nothing is carried the old way, as a section of its own.
+      expect(payload.names, contains('docs.mount'));
+      expect(payload.names, isNot(contains('docs')));
+      final ({int offset, int length}) at = payload.locate('assets')!;
+      final DVAssetPack pack =
+          DVAssetPack.open(payload.path, offset: at.offset, length: at.length)!;
+      for (final String file in <String>['index.html', 'docs.json', 'graph.json']) {
+        expect(pack['docs/$file']?.protected, isTrue, reason: file);
+      }
       expect(jsonDecode(utf8.decode(payload.section('docs.mount'))),
           containsPair('access', 'studio'));
       // Never among the files the binary serves to anybody.
       expect(
-        dvUnpackFiles(payload.section('web'))
-            .keys
-            .where((String path) => path.contains(dvDocsPagesDirectory)),
+        pack.paths.where((String path) =>
+            path.startsWith('web/') && path.contains(dvDocsPagesDirectory)),
         isEmpty,
       );
     });

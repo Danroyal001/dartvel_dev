@@ -378,9 +378,17 @@ Future<List<String>> _notes() async => <String>[
       'its code, and serves the sign-in page to anybody', () async {
     // Carried, and not among the web files the binary serves to anybody.
     final DVBinaryPayload? payload = DVBinaryPayload.read(binary.path);
-    expect(payload?.names, containsAll(<String>['admin', 'studio']),
+    expect(payload?.names, containsAll(<String>['admin.mount', 'studio']),
         reason: buildOutput);
-    final Map<String, List<int>> web = dvUnpackFiles(payload!.section('web'));
+    // The files served to anybody: the pack's unprotected web/ entries.
+    final ({int offset, int length}) at = payload!.locate('assets')!;
+    final DVAssetPack pack =
+        DVAssetPack.open(payload.path, offset: at.offset, length: at.length)!;
+    final Map<String, DVPackedAsset> web = <String, DVPackedAsset>{
+      for (final String path in pack.paths)
+        if (path.startsWith('web/') && !pack[path]!.protected)
+          path.substring(4): pack[path]!,
+    };
     expect(web.keys.where((String path) => path.startsWith('__admin/')),
         isEmpty);
     // Studio's code is the application's deferred library, carried in a
@@ -398,15 +406,18 @@ Future<List<String>> _notes() async => <String>[
             .any((List<int> b) => utf8.decode(b, allowMalformed: true).contains(screensOnly)),
         isTrue,
         reason: "Studio's screens are in its own parts");
-    for (final MapEntry<String, List<int>> file in web.entries) {
-      if (!file.key.endsWith('.js')) continue;
-      expect(utf8.decode(file.value, allowMalformed: true), isNot(contains(screensOnly)),
-          reason: '${file.key} is public and carries Studio screen code');
-    }
     final String studioPart = studioParts.keys.first;
 
     final run = await start();
     try {
+      // Every public script, as the binary serves it to anybody: the pack
+      // keeps them brotli-compressed, and only the binary decodes that.
+      for (final String script in web.keys.where((String path) => path.endsWith('.js'))) {
+        final served = await request(run.port, 'GET', '/$script');
+        expect(served.status, 200, reason: script);
+        expect(served.body, isNot(contains(screensOnly)),
+            reason: '$script is public and carries Studio screen code');
+      }
       Future<void> expectLogin({String? bearer}) async {
         for (final path in ['/__studio', '/__studio/', '/__studio/pages', '/__studio/index.html']) {
           final page = await request(run.port, 'GET', path, bearer: bearer);
