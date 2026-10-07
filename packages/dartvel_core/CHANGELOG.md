@@ -1,3 +1,7 @@
+## 0.11.3 — 2026-10-08
+
+- `DVConfiguredRedirect` and `dvConfiguredRedirect`: exact-path redirects declared under `dartvel.redirects`.
+
 ## 0.11.2 — 2026-10-07
 
 - `dvSignInLocation`: where a signed-out request for a guarded route is sent.
