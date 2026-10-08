@@ -18,8 +18,9 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
       lead: <String>[
         'Players, recorders, 3D scenes and spatial windows share one rule: '
             'their state moves only when the device confirms it.',
-        'The runtime is built and tested. Most targets have no native player, '
-            'renderer or headset binding yet, and each section says which.',
+        'The runtime is built and tested. 3D scenes render on every Flutter '
+            'target through Flutter Scene; most targets have no native player '
+            'or headset binding yet, and each section says which.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -56,12 +57,22 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
               'Tapping picks the node under the finger by its real shape.',
               'Assets must come from your own storage or listed hosts, with a '
                   'digest that is checked before use.',
+              'Set dartvel.scene3d.enabled: true and add dartvel_scene: scenes '
+                  'then render through Flutter Scene, on Flutter GPU natively and '
+                  'WebGL2 in the browser, and the build switches Flutter GPU on '
+                  'for each platform for you.',
+              'Boxes, spheres and planes take small JSON materials (base colour, '
+                  'metal, roughness, glow); glTF models load as they are.',
+              'Where a device has no GPU support, the scene shows its poster and '
+                  'says why. It never shows a hole.',
             ]),
             DocsCode('media3d-scene'),
             DocsStatus('3D Scenes', missing: <String>[
-              'There is no GPU renderer yet, so every target shows the scene\'s '
-                  'poster image.',
+              'Lights and materials render; environment maps, textures and '
+                  '.fmat shader materials do not yet.',
               'No animation, physics or build-time asset import.',
+              'Checked in a browser; Linux, Android, iOS, macOS and Windows '
+                  'are not yet checked on a device.',
             ]),
           ],
         ),
