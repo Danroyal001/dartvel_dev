@@ -311,7 +311,10 @@ class _DVSceneViewportState extends State<DVSceneViewport> {
 }
 
 class _DVScenePainter extends CustomPainter {
-  _DVScenePainter(this.runtime, this.renderer, this.view);
+  // A renderer that finishes work after the frame it was given (a model that
+  // imports asynchronously) says so by notifying, and the scene repaints.
+  _DVScenePainter(this.runtime, this.renderer, this.view)
+      : super(repaint: renderer is Listenable ? renderer as Listenable : null);
 
   final DVSceneRuntime runtime;
   final DVSceneRenderer? renderer;

@@ -27,12 +27,13 @@ done
 
 # Dependency order, and it is load-bearing rather than tidy: shelf, flutter and
 # generator each depend on core, cli depends on core and shelf, and dev depends
-# on all of them. Publishing out of order fails to resolve, because the version
+# on all of them; scene depends on core and flutter. Publishing out of order fails to resolve, because the version
 # a package names is not on pub.dev yet.
 PUB_PACKAGES=(
   dartvel_core
   dartvel_shelf
   dartvel_flutter
+  dartvel_scene
   dartvel_generator
   dartvel_cli
   dartvel_dev

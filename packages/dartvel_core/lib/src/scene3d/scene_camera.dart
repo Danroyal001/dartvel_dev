@@ -63,6 +63,8 @@ final class DVSceneView {
       return DVSceneView.orbit(
         target: camera.orbitTarget!,
         distance: camera.orbitDistance!,
+        yaw: camera.orbitYawDegrees * math.pi / 180,
+        pitch: camera.orbitPitchDegrees * math.pi / 180,
         fovYDegrees: camera.fovYDegrees,
         near: camera.near,
         far: camera.far,
