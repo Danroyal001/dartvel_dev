@@ -284,11 +284,13 @@ class DVMesh extends DVSceneNode with DVSceneNodeModifiers<DVMesh> {
 class DVSceneCamera extends DVSceneNode with DVSceneNodeModifiers<DVSceneCamera> {
   DVSceneCamera._(this.camera, _Props props) : super._(props, const <DVSceneNode>[]);
 
-  /// Orbits [target] at [distance]; with [controls], drag turns and pinch
-  /// zooms it.
+  /// Orbits [target] at [distance], starting [yawDegrees] round and
+  /// [pitchDegrees] up; with [controls], drag turns and pinch zooms it.
   factory DVSceneCamera.orbit({
     DVVec3 target = DVVec3.zero,
     required double distance,
+    double yawDegrees = 0,
+    double pitchDegrees = 0,
     bool controls = false,
     double fovYDegrees = 45,
     double near = 0.1,
@@ -298,6 +300,8 @@ class DVSceneCamera extends DVSceneNode with DVSceneNodeModifiers<DVSceneCamera>
         DVSceneCameraData.orbit(
           target: target,
           distance: distance,
+          yawDegrees: yawDegrees,
+          pitchDegrees: pitchDegrees,
           controls: controls,
           fovYDegrees: fovYDegrees,
           near: near,

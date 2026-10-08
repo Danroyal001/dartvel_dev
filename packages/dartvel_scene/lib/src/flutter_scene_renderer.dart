@@ -59,6 +59,12 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
   // Made in initialize, once Flutter GPU is known to be there: constructing a
   // Scene on a target without it throws, and a missing GPU must be a poster.
   fs.Scene? _scene;
+
+  // Dartvel's scene world is right-handed (Y up, -Z forward) and Flutter
+  // Scene's is left-handed, the way its own glTF importer roots every model
+  // under scale(1, 1, -1). Everything is placed under one such root, and the
+  // camera is flipped to match, so +X is on the right of the screen in both.
+  final fs.Node _root = fs.Node(name: 'dartvel', localTransform: vm.Matrix4.diagonal3Values(1, 1, -1));
   final Map<int, _Upload> _uploads = <int, _Upload>{};
   final Map<String, _Placed> _placed = <String, _Placed>{};
   final Map<String, _Placed> _lights = <String, _Placed>{};
@@ -79,7 +85,7 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
   Future<DV3DDegradation> initialize() async {
     try {
       await fs.Scene.initializeStaticResources();
-      _scene = fs.Scene();
+      _scene = fs.Scene()..add(_root);
       return .none;
     } catch (error) {
       // No Flutter GPU on this embedder (or it is switched off): the poster,
@@ -138,7 +144,7 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
       final String signature = _drawSignature(draw, material, model);
       _Placed? placed = _placed[draw.nodeId];
       if (placed == null || placed.signature != signature) {
-        if (placed != null) scene.remove(placed.node);
+        if (placed != null) _root.remove(placed.node);
         final fs.Node? node = _buildDraw(draw, material?.material, model);
         if (node == null) {
           _placed.remove(draw.nodeId);
@@ -146,20 +152,20 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
         }
         placed = _Placed(node, signature);
         _placed[draw.nodeId] = placed;
-        scene.add(node);
+        _root.add(node);
       }
       placed.node.localTransform = _matrix(draw.world);
     }
     for (final String gone in _placed.keys.where((String id) => !seen.contains(id)).toList()) {
-      scene.remove(_placed.remove(gone)!.node);
+      _root.remove(_placed.remove(gone)!.node);
     }
-    _syncLights(scene, frame.lights);
+    _syncLights(frame.lights);
     final DVSceneView view = frame.view;
     _camera = fs.PerspectiveCamera(
       fovRadiansY: view.fovYDegrees * vm.degrees2Radians,
-      position: _vec(view.eye),
-      target: _vec(view.target),
-      up: _vec(view.up),
+      position: _flipped(view.eye),
+      target: _flipped(view.target),
+      up: _flipped(view.up),
       fovNear: view.near,
       fovFar: view.far,
     );
@@ -178,6 +184,7 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
     if (_disposed) return;
     _disposed = true;
     _scene?.removeAll();
+    _root.removeAll();
     _placed.clear();
     _lights.clear();
     for (final _Upload upload in _uploads.values) {
@@ -230,7 +237,7 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
       ..emissiveFactor = vm.Vector4(glow[0], glow[1], glow[2], 1);
   }
 
-  void _syncLights(fs.Scene scene, List<DVSceneLightDraw> lights) {
+  void _syncLights(List<DVSceneLightDraw> lights) {
     final Set<String> seen = <String>{};
     for (final DVSceneLightDraw draw in lights) {
       seen.add(draw.nodeId);
@@ -249,15 +256,15 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
       ].join('|');
       _Placed? placed = _lights[draw.nodeId];
       if (placed == null || placed.signature != signature) {
-        if (placed != null) scene.remove(placed.node);
+        if (placed != null) _root.remove(placed.node);
         placed = _Placed(_buildLight(draw.nodeId, light), signature);
         _lights[draw.nodeId] = placed;
-        scene.add(placed.node);
+        _root.add(placed.node);
       }
       placed.node.localTransform = _matrix(draw.world);
     }
     for (final String gone in _lights.keys.where((String id) => !seen.contains(id)).toList()) {
-      scene.remove(_lights.remove(gone)!.node);
+      _root.remove(_lights.remove(gone)!.node);
     }
   }
 
@@ -294,6 +301,9 @@ final class DVFlutterSceneRenderer extends ChangeNotifier implements DVSceneCanv
   }
 
   static vm.Vector3 _vec(DVVec3 value) => vm.Vector3(value.x, value.y, value.z);
+
+  /// A point or direction in Dartvel's world, in Flutter Scene's.
+  static vm.Vector3 _flipped(DVVec3 value) => vm.Vector3(value.x, value.y, -value.z);
 
   static vm.Matrix4 _matrix(DVMat4 value) => vm.Matrix4.fromList(value.storage.toList());
 }
