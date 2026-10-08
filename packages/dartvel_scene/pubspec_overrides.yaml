@@ -1,0 +1,12 @@
+# Local development only. pub reads this and never publishes it.
+#
+# The full transitive set, not just the direct dependency: overrides apply only
+# to the package being resolved as root, so a path override for dartvel_flutter
+# does nothing about the hosted dartvel_core it declares.
+dependency_overrides:
+  dartvel_flutter:
+    path: ../dartvel_flutter
+  dartvel_core:
+    path: ../dartvel_core
+  dartvel_shelf:
+    path: ../dartvel_shelf
