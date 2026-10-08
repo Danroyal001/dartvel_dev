@@ -15,6 +15,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
 import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // Shell-first streaming and each route's preloads, through the same core
@@ -96,6 +97,7 @@ String dvWebServerManifest({
   DVSiteSeo site = const DVSiteSeo(),
   Map<String, String> federated = const <String, String>{},
   Set<String> guarded = const <String>{},
+  Set<String> uncached = const <String>{},
   String? signIn,
   Map<String, DVConfiguredRedirectDeclaration> redirects = const <String, DVConfiguredRedirectDeclaration>{},
   DVImageVariants? images,
@@ -134,6 +136,7 @@ String dvWebServerManifest({
             // anything. Absent rather than false, so a manifest from before
             // the marker reads the same for every unguarded route.
             if (guarded.contains(route)) 'guarded': true,
+            if (uncached.contains(route)) 'cache': false,
             // The page as `dartvel build web` renders it: head, structured
             // data, icon and the captured document. The server renders the
             // same thing from it, with the same function.
@@ -324,7 +327,7 @@ Handler dvWebServerHandler({
   // the host and the headers and knows neither shape. requestedUri carries
   // the Host header, which is where a tenant subdomain lives; request.url
   // is the path alone.
-  return (Request request) => dvWithRequestTenant(
+  Future<Response> render(Request request) => dvWithRequestTenant(
         <String, Object?>{
           'url': request.requestedUri,
           'headers': request.headers,
@@ -575,6 +578,63 @@ Handler dvWebServerHandler({
     );
         }),
       );
+  final documents = DVRenderedPageCache();
+  return (Request request) async {
+    final path = '/${request.url.path}'.replaceAll(RegExp(r'/+$'), '');
+    final matched = dvMatchRoute(path.isEmpty ? '/' : path, routeMap.keys);
+    final route = matched == null ? null : routeMap[matched.pattern];
+    if ((request.url.path.isNotEmpty &&
+            File(p.join(webRoot, request.url.path)).existsSync()) ||
+        (admin?.owns('/${request.url.path}') ?? false) ||
+        (adminServer?.mount.owns('/${request.url.path}') ?? false) ||
+        !dvMayCacheRenderedPage(
+          request.method,
+          request.headers,
+          route is Map ? route : null,
+          staticContent: dvPageResolverIsStatic(pageData, matched?.pattern),
+        )) {
+      return render(request);
+    }
+    final key = dvRenderedPageKey(
+      webRoot,
+      request.requestedUri,
+      request.headers,
+    );
+    DVRenderedPage? kept = documents.get(key);
+    if (kept == null) {
+      final generation = dvRenderedPagesGeneration;
+      final response = await render(request);
+      if (response.statusCode != 200 ||
+          response.headers.containsKey('set-cookie') ||
+          (response.headers['content-type'] ?? '')
+                  .split(';')
+                  .first
+                  .trim()
+                  .toLowerCase() !=
+              'text/html') {
+        return response;
+      }
+      final bytes = await response.read().expand((chunk) => chunk).toList();
+      final headers = {...response.headers, ...dvRenderedPageHeaders(bytes)};
+      documents.put(
+        key,
+        bytes,
+        headers,
+        status: response.statusCode,
+        generation: generation,
+      );
+      kept = DVRenderedPage(bytes, headers);
+    }
+    final notModified = dvRenderedPageNotModified(
+      request.headers['if-none-match'],
+      kept.headers['etag']!,
+    );
+    return Response(
+      notModified ? 304 : 200,
+      headers: kept.headers,
+      body: notModified ? null : kept.bytes,
+    );
+  };
 }
 
 

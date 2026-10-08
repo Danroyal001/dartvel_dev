@@ -1629,6 +1629,8 @@ ${m.auth == 'inherit' ? inheritedGuard : ''}      pageBuilder: (context, state) 
       for (final r in config.routes)
         if (r.guarded || guardMapByDir.containsKey(pagesDir)) r.path,
     };
+    final uncachedRoutesSrc = "<String>[${config.routes.where((r) => !r.cache).map((r) => "'${esc(r.path)}'").join(', ')}]";
+
     final guardedRoutesSrc = guardedRoutes.isEmpty
         ? '<String>[]'
         : "<String>[\n  ${guardedRoutes.map((r) => "'${esc(r)}',").join('\n  ')}\n]";
@@ -2065,6 +2067,9 @@ $generatedPageWidgets
 /// available to an application that wants to hide a link it would not be
 /// allowed to follow.
 const List<String> dartvelGuardedRoutes = $guardedRoutesSrc;
+
+/// Routes opting out of shared server HTML caching.
+const List<String> dartvelUncachedRoutes = $uncachedRoutesSrc;
 
 /// The prebuilt account pages this application serves, where
 /// `dartvel.auth.pages` put them, for its own navigation.
