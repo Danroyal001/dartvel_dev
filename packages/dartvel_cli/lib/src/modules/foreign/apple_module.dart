@@ -124,9 +124,9 @@ DVForeignModuleSpec dvAppleModuleSpec({
     ],
     dependencies: <String, String>{
       'ffi': '^2.1.0',
-      'hooks': '^0.20.1',
-      'code_assets': '^0.19.7',
-      if (!swift) 'native_toolchain_c': '^0.17.2',
+      'hooks': '^2.0.0',
+      'code_assets': '^2.0.0',
+      if (!swift) 'native_toolchain_c': '^0.19.4',
     },
     targets: offApple
         ? const <String>['ios', 'macos', 'linux', 'windows']
