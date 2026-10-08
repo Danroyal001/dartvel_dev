@@ -34,6 +34,7 @@ const List<String> _pubPackages = <String>[
   'dartvel_core',
   'dartvel_shelf',
   'dartvel_flutter',
+  'dartvel_scene',
   'dartvel_generator',
   'dartvel_cli',
   'dartvel_dev',

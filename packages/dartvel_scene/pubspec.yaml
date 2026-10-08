@@ -3,7 +3,6 @@ description: The 3D renderer for Dartvel's DVBox.scene, backed by Flutter Scene 
 version: 0.11.3
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
-publish_to: none
 environment:
   # One floor for every Dartvel package, deliberately.
   sdk: ">=3.13.0 <4.0.0"
