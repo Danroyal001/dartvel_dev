@@ -37,6 +37,8 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/scene3d_native.dart' show dvScene3dEnabledIn;
+
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
 import '../build/native_splash.dart' show DVSplash;
@@ -725,7 +727,7 @@ import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform,
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
-${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
+${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
 import 'home_widgets.g.dart' show dartvelHomeWidgets;
 import 'flags.g.dart' show registerDartvelFlags;
@@ -760,7 +762,7 @@ void configureDartvelRuntime({List<String> arguments = const <String>[]}) {
   // backgrounded and one refreshing on the way back never saw the return --
   // an enum whose other states existed and were produced by nothing.
   dvStartAppLifecycleBridge();
-  DV.registerRuntime(
+${_scene3dInstallSource(dv)}  DV.registerRuntime(
     baseUrl: () => DartvelRuntime.baseUrl,
     apiBasePath: () => DartvelRuntime.apiBasePath,
     api: DartvelRuntime.api,
@@ -2684,6 +2686,21 @@ void startDartvelKiosk() {
     readSecret: (String name) async => DV.Secrets.maybeGet(name),
   ));''';
   }
+
+  /// `dartvel.scene3d.enabled`: Flutter Scene draws every `DVBox.scene`.
+  /// The import and the call share one condition, so neither is emitted
+  /// without the other.
+  static bool _scene3dOn(YamlMap dv) => dvScene3dEnabledIn(dv);
+
+  static String _scene3dImportSource(YamlMap dv) => _scene3dOn(dv)
+      ? "import 'package:dartvel_scene/dartvel_scene.dart' show DVFlutterScene;\n"
+      : '';
+
+  static String _scene3dInstallSource(YamlMap dv) => _scene3dOn(dv)
+      ? '  // dartvel.scene3d: every DVBox.scene renders through Flutter Scene\n'
+          '  // rather than showing its poster.\n'
+          '  DVFlutterScene.install();\n'
+      : '';
 
   /// What the runtime file takes from config.g.dart: only what this build
   /// declares, so an unused import is not an analyzer finding in every app.

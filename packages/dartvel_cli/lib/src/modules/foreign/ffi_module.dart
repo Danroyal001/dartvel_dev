@@ -133,11 +133,12 @@ DVForeignModuleSpec dvFfiModuleSpec({
     ],
     dependencies: <String, String>{
       if (strings) 'ffi': '^2.1.0',
-      'hooks': '^0.20.1',
-      'code_assets': '^0.19.7',
-      // 0.17.2 is the last release on hooks 0.20, which the rest of
-      // Dartvel is on; one application cannot hold two majors of hooks.
-      if (surface.language == 'c') 'native_toolchain_c': '^0.17.2',
+      'hooks': '^2.0.0',
+      'code_assets': '^2.0.0',
+      // Dartvel is on hooks 2 (Flutter Scene needs it), and one application
+      // cannot hold two majors of hooks: 0.19.4 is the first release of
+      // native_toolchain_c on hooks 2 and code_assets 2.
+      if (surface.language == 'c') 'native_toolchain_c': '^0.19.4',
     },
     skipped: surface.skipped,
     extraFiles: <String, String>{
