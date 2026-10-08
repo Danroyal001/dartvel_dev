@@ -1,3 +1,8 @@
+## 0.11.4 — 2026-10-08
+
+- Moves to `hooks` 2 and `code_assets` 2 (needed beside Flutter Scene).
+- Orbit cameras take a starting yaw and pitch (`DVSceneCameraData.orbit(yawDegrees:, pitchDegrees:)`), kept in the scene document.
+
 ## 0.11.3 — 2026-10-08
 
 - `DVConfiguredRedirect` and `dvConfiguredRedirect`: exact-path redirects declared under `dartvel.redirects`.
