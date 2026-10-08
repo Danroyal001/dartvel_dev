@@ -29,6 +29,7 @@ import 'package:dartvel_core/dartvel.dart'
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/file_storage_permissions.dart';
+import '../build/scene3d_native.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
@@ -761,6 +762,13 @@ class BuildCommand extends Command<void> {
       }
       exit(78); // EX_CONFIG
     }
+    // dartvel.scene3d.enabled generates a call into dartvel_scene. Without the
+    // package that is a compile error naming a file the developer never wrote.
+    final String? scene3dProblem = dvScene3dDependencyProblem(readPubspecYaml(root));
+    if (scene3dProblem != null) {
+      Logger.log('❌ $scene3dProblem');
+      exit(78); // EX_CONFIG
+    }
 
     // What the project declares, before anything is generated. Never start a
     // build that cannot finish reads as being about tools -- the host, the
@@ -1132,6 +1140,9 @@ class BuildCommand extends Command<void> {
     } else if (platform == 'windows') {
       _stripWindowsDevClient(_projectRoot);
     }
+    // Flutter GPU, which a dartvel.scene3d project renders through, is off
+    // by default on every native platform and switched on in its own file.
+    _writeScene3dGpu(_projectRoot, platform);
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
     // start, and a splash written after that ships in the next build.
@@ -1965,6 +1976,35 @@ class BuildCommand extends Command<void> {
       }
     }
     return true;
+  }
+
+  /// `dartvel.scene3d.enabled` into the file that switches Flutter GPU on
+  /// for [platform], or back out of it when the project turned 3D off.
+  void _writeScene3dGpu(String root, String platform) {
+    final bool enabled = dvScene3dEnabled(_dartvelSection(root));
+    final (String, String Function(String, {required bool enabled}))? target = switch (platform) {
+      'android' || 'fireos' => (p.join('android', 'app', 'src', 'main', 'AndroidManifest.xml'), dvAndroidFlutterGpu),
+      'ios' || 'macos' => (p.join(platform, 'Runner', 'Info.plist'), dvAppleFlutterGpu),
+      'linux' => (p.join('linux', 'runner', 'my_application.cc'), dvLinuxFlutterGpu),
+      'windows' => (p.join('windows', 'runner', 'main.cpp'), dvWindowsFlutterGpu),
+      _ => null,
+    };
+    if (target == null) return;
+    final File file = File(p.join(root, target.$1));
+    if (!file.existsSync()) {
+      if (enabled) {
+        Logger.log('⚠️  ${target.$1} is not there, so dartvel.scene3d could not switch Flutter GPU on; '
+            'scenes on $platform show their poster.');
+      }
+      return;
+    }
+    final String before = file.readAsStringSync();
+    final String after = target.$2(before, enabled: enabled);
+    if (after != before) file.writeAsStringSync(after);
+    if (enabled && !after.contains('FlutterGPU') && !after.contains('flutter_gpu')) {
+      Logger.log('⚠️  ${target.$1} has no place Dartvel recognises to switch Flutter GPU on; '
+          'scenes on $platform show their poster.');
+    }
   }
 
   /// The splash, into the platform files it lives in.
