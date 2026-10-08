@@ -1,3 +1,8 @@
+## 0.11.4 — 2026-10-08
+
+- `DVSceneCamera.orbit` takes `yawDegrees` and `pitchDegrees`.
+- A scene repaints when its renderer says a model has finished loading.
+
 ## 0.11.3 — 2026-10-08
 
 - Auth pages and forms: Enter submits, a pending state while submitting, sign-up links, and a wide branded layout (`DVAuthFrame`, `DVAuthAppearance`) from 720px.

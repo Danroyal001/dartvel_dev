@@ -1,3 +1,9 @@
+## 0.11.4 — 2026-10-08
+
+- `dartvel.scene3d.enabled`: the build switches Flutter GPU on in each platform's files and the generated runtime installs `dartvel_scene`; turning 3D on without the package is refused with the fix.
+- Generated FFI and Apple modules use `hooks` 2 and `native_toolchain_c` 0.19.4.
+- New projects use the 0.11.4 package family.
+
 ## 0.11.3 — 2026-10-08
 
 - `dartvel.redirects`: redirects declared in pubspec (301/302/307/308), written to the web-server manifest and answered before routing.
