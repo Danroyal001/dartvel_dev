@@ -1,0 +1,31 @@
+name: dartvel_scene
+description: The 3D renderer for Dartvel's DVBox.scene, backed by Flutter Scene on Flutter GPU (WebGL2 on the web).
+version: 0.11.3
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
+publish_to: none
+environment:
+  # One floor for every Dartvel package, deliberately.
+  sdk: ">=3.13.0 <4.0.0"
+  # Flutter Scene needs the Flutter GPU of Flutter 3.47.
+  flutter: ">=3.47.0"
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dartvel_core: ^0.11.3
+  dartvel_flutter: ^0.11.3
+  flutter_scene: ^0.24.1
+  vector_math: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
