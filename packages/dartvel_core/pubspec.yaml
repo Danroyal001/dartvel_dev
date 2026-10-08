@@ -50,8 +50,8 @@ dependencies:
   # The native-asset build hook that compiles this package's rust/ crate.
   # They belong in dependencies rather than dev_dependencies: the hook runs
   # for anything that depends on this package, not only when testing it.
-  hooks: ^0.20.1
-  code_assets: ^0.19.7
+  hooks: ^2.0.0
+  code_assets: ^2.0.0
 
 dev_dependencies:
   test: ^1.28.0

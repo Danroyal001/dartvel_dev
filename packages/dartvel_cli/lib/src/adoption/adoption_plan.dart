@@ -60,8 +60,8 @@ const Map<String, Map<String, String>> dvDartvelDependencyConstraints =
     'drift': '^2.14.0',
     'pointycastle': '^4.0.0',
     'xml': '^6.5.0',
-    'hooks': '^0.20.1',
-    'code_assets': '^0.19.7',
+    'hooks': '^2.0.0',
+    'code_assets': '^2.0.0',
   },
   'dartvel_flutter': <String, String>{
     'path': '^1.9.0',

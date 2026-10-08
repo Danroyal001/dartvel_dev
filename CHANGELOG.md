@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.11.4 — 2026-10-08
+
+- 3D scenes render. New package `dartvel_scene`: `DVBox.scene` draws through Flutter Scene, on Flutter GPU natively and WebGL2 in the browser, with lights, glTF models, and boxes, spheres and planes in JSON PBR materials. `dartvel.scene3d.enabled: true` installs it and `dartvel build` switches Flutter GPU on in each platform's files. A target without Flutter GPU shows the scene's poster with `gpuInitFailed`.
+- **Breaking for native hooks:** Dartvel moves to `hooks` 2 and `code_assets` 2 (Flutter Scene needs them). A project with its own build hook on `hooks` 0.20 moves with it; generated FFI and Apple modules now use `native_toolchain_c` 0.19.4.
+
 ## 0.11.3 — 2026-10-08
 
 - `dartvel.redirects`: declared redirects answered before routing and the guard, on the web-server binary and the preview server.
