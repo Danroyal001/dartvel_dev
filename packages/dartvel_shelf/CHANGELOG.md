@@ -1,3 +1,7 @@
+## 0.11.4 — 2026-10-08
+
+- Moves to `hooks` 2 and `code_assets` 2.
+
 ## 0.11.3 — 2026-10-08
 
 - Declared `dartvel.redirects` are answered before routing and before the guard.
