@@ -15,6 +15,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dartvel_core/dartvel.dart';
+import 'package:dartvel_core/framework.dart' show DVRenderedPageCache;
 import 'package:test/test.dart';
 
 typedef _Adapter = (String name, DVDatabaseAdapter Function() create);
@@ -526,10 +527,13 @@ void main() {
         test(
           'cache tags are revalidated and publish hooks run after commit',
           () async {
+            final cache = DVRenderedPageCache();
+            cache.put('page', [1], {}, status: 200);
             final DVContentVersion<_Page> live = await wf.publish(
               await h.approved('/about'),
               as: grace,
             );
+            expect(cache.get('page'), isNull, reason: 'committed content publish purges documents');
             expect(
               h.revalidated,
               containsAll(<String>[
@@ -545,6 +549,8 @@ void main() {
         test('a publish rolled back with its transaction invalidates nothing '
             'and leaves nothing live', () async {
           final DVContentVersion<_Page> approved = await h.approved('/about');
+          final cache = DVRenderedPageCache();
+          cache.put('page', [1], {}, status: 200);
           await expectLater(
             DVTransactionRunner()((DVContext context) async {
               await wf.publish(approved, as: grace);
@@ -557,6 +563,7 @@ void main() {
             }),
             throwsStateError,
           );
+          expect(cache.get('page'), isNotNull, reason: 'rolled-back publish must not purge documents');
           expect(h.revalidated, isEmpty);
           expect(h.published, isEmpty);
           expect(await wf.resolve('/about'), isNull);

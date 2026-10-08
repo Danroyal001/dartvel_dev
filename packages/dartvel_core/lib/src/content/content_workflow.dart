@@ -53,6 +53,7 @@ import '../data/record_history.dart';
 import '../database/adapter.dart';
 import '../observability/observability.dart';
 import '../transaction/transaction.dart';
+import '../web/rendered_page_cache.dart';
 
 /// The policy actions the workflow checks, registered like `update` and
 /// `delete` through `DV.Auth.authorization.register<User, Document>(...)`.
@@ -1465,6 +1466,7 @@ class DVContentWorkflow<T> {
   }
 
   Future<void> _invalidate(DVContentVersion<T> version) async {
+    dvPurgeRenderedPages();
     for (final String tag in _tagsFor(version)) {
       await _revalidateTag(tag);
     }
