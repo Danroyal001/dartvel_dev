@@ -349,19 +349,27 @@ final class DVSceneCameraData {
     this.far = 1000,
   })  : orbitTarget = null,
         orbitDistance = null,
+        orbitYawDegrees = 0,
+        orbitPitchDegrees = 0,
         controls = false;
 
   /// A camera orbiting [target] at [distance]; with [controls] a viewport
-  /// lets the user drag and pinch it.
+  /// lets the user drag and pinch it. It starts turned [yawDegrees] about the
+  /// up axis and raised [pitchDegrees] above the horizon (0 and 0 look down
+  /// -Z from +Z, level).
   const DVSceneCameraData.orbit({
     DVVec3 target = DVVec3.zero,
     required double distance,
+    double yawDegrees = 0,
+    double pitchDegrees = 0,
     this.controls = false,
     this.fovYDegrees = 45,
     this.near = 0.1,
     this.far = 1000,
   })  : orbitTarget = target,
-        orbitDistance = distance;
+        orbitDistance = distance,
+        orbitYawDegrees = yawDegrees,
+        orbitPitchDegrees = pitchDegrees;
 
   const DVSceneCameraData._({
     required this.fovYDegrees,
@@ -370,6 +378,8 @@ final class DVSceneCameraData {
     required this.orbitTarget,
     required this.orbitDistance,
     required this.controls,
+    this.orbitYawDegrees = 0,
+    this.orbitPitchDegrees = 0,
   });
 
   final double fovYDegrees;
@@ -377,6 +387,8 @@ final class DVSceneCameraData {
   final double far;
   final DVVec3? orbitTarget;
   final double? orbitDistance;
+  final double orbitYawDegrees;
+  final double orbitPitchDegrees;
   final bool controls;
 
   bool get isOrbit => orbitDistance != null;
@@ -390,6 +402,8 @@ final class DVSceneCameraData {
           'orbit': <String, Object?>{
             'target': orbitTarget!.toList(),
             'distance': orbitDistance,
+            if (orbitYawDegrees != 0) 'yaw': orbitYawDegrees,
+            if (orbitPitchDegrees != 0) 'pitch': orbitPitchDegrees,
             if (controls) 'controls': true,
           },
       };
@@ -420,6 +434,11 @@ final class DVSceneCameraData {
       throw DV3DSceneFormatException(
           '$path.orbit.distance', 'must be positive');
     }
+    final double yaw = _number(o['yaw'] ?? 0, '$path.orbit.yaw');
+    final double pitch = _number(o['pitch'] ?? 0, '$path.orbit.pitch');
+    if (pitch < -90 || pitch > 90) {
+      throw DV3DSceneFormatException('$path.orbit.pitch', 'must be between -90 and 90 degrees');
+    }
     return DVSceneCameraData._(
       fovYDegrees: fov,
       near: near,
@@ -427,6 +446,8 @@ final class DVSceneCameraData {
       orbitTarget: _vec3(o['target'] ?? const <double>[0, 0, 0], '$path.orbit.target'),
       orbitDistance: distance,
       controls: _bool(o['controls'] ?? false, '$path.orbit.controls'),
+      orbitYawDegrees: yaw,
+      orbitPitchDegrees: pitch,
     );
   }
 }
