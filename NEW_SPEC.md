@@ -5274,6 +5274,10 @@ When the process environment names `DARTVEL_LOG_FORWARD_URL` (Dartvel Cloud
 sets it on the deployments it hosts), the accepted, redacted batch is passed on
 there; the client address is never forwarded.
 
+| Code | Reason | Level |
+|---|---|---|
+| `DV-LOG-001` | an install sent more log records this hour than the backend accepts; the rest were counted, not written | `warning` |
+
 ---
 
 # Distributed Tracing

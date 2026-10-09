@@ -488,7 +488,6 @@ class DVLogger {
     // however deep in the context map it sits. A password inside a URL under
     // the key `url` is the case the key-name list will never catch.
     if (value is String) return _redactText(value);
-    if (value is DateTime) return value.toUtc().toIso8601String();
     if (value is Iterable) {
       return value
           .map((Object? item) => _encodable(item, depth + 1))
