@@ -28,6 +28,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
+import '../build/android_media_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import '../build/scene3d_native.dart';
 import '../build/android_context_provider.dart';
@@ -1116,6 +1117,7 @@ class BuildCommand extends Command<void> {
       // the same manifest and the order the blocks appear in is the order
       // they are written.
       _writeAndroidCaptureBridge(_projectRoot);
+      _writeAndroidMedia(_projectRoot);
       _writeAndroidKioskFiles(_projectRoot);
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
@@ -1904,6 +1906,13 @@ class BuildCommand extends Command<void> {
     for (final String name in dvFileStorageAndroidPermissionNames(fileStorage)) {
       if (!requested.contains(name)) requested.add(name);
     }
+    // DVBox.camera asks for the camera and the microphone itself, so the
+    // code using it is the declaration; without these lines Android refuses
+    // the request with no dialog.
+    for (final String name
+        in dvAndroidMediaPermissions(_androidMediaUsage(root))) {
+      if (!requested.contains(name)) requested.add(name);
+    }
     for (final String note in dvFileStorageAndroidNotes(fileStorage)) {
       Logger.log('⚠️  $note');
     }
@@ -1931,6 +1940,58 @@ class BuildCommand extends Command<void> {
 
     if (requested.isNotEmpty) {
       Logger.log('   Permissions declared: ${requested.join(', ')}.');
+    }
+  }
+
+  /// What the code under lib/ uses of Dartvel's media.
+  DVAndroidMediaUsage _androidMediaUsage(String root) {
+    final Directory lib = Directory(p.join(root, 'lib'));
+    if (!lib.existsSync()) return const DVAndroidMediaUsage();
+    return dvAndroidMediaUsage(lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .map((File f) => f.readAsStringSync()));
+  }
+
+  /// ExoPlayer, the media session and CameraX: their Java, Gradle
+  /// dependencies and manifest lines, for an application whose code uses
+  /// them, and none of it -- removed again -- for one that does not.
+  void _writeAndroidMedia(String root) {
+    final DVAndroidMediaUsage usage = _androidMediaUsage(root);
+    final File manifest = File(
+        p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidMediaManifest(before, usage);
+    if (after != before) manifest.writeAsStringSync(after);
+
+    for (final String name in <String>['build.gradle.kts', 'build.gradle']) {
+      final File gradle = File(p.join(root, 'android', 'app', name));
+      if (!gradle.existsSync()) continue;
+      final String was = gradle.readAsStringSync();
+      final String now =
+          dvAndroidMediaGradle(was, usage, kotlin: name.endsWith('.kts'));
+      if (now != was) gradle.writeAsStringSync(now);
+      break;
+    }
+
+    final Map<String, String> sources = dvAndroidMediaSources(usage);
+    for (final String path in dvAndroidMediaAllPaths) {
+      final File file = File(p.join(root, path));
+      final String? source = sources[path];
+      if (source == null) {
+        if (file.existsSync()) file.deleteSync();
+        continue;
+      }
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(source);
+    }
+    if (usage.any) {
+      Logger.log('   Media: ${<String>[
+        if (usage.player) 'ExoPlayer and a media session',
+        if (usage.camera) 'CameraX',
+      ].join(' and ')} for the code under lib/.');
     }
   }
 
