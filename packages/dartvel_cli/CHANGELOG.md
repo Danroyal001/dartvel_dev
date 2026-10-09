@@ -1,3 +1,7 @@
+## 0.11.5
+
+- Generated web-server binaries serve cached public pages; routes accept `cache: false`.
+
 ## 0.11.4 — 2026-10-08
 
 - `dartvel.scene3d.enabled`: the build switches Flutter GPU on in each platform's files and the generated runtime installs `dartvel_scene`; turning 3D on without the package is refused with the fix.
