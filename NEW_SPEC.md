@@ -12254,6 +12254,10 @@ parameters yet.
 
 Stability: `Draft` · Status: `Designed`
 
+**Planned / Not yet implemented.** The build flags and host APIs below are a
+draft contract; the current CLI does not accept them. Existing Flutter apps
+can adopt Dartvel with `dartvel init`.
+
 An organisation with a native app rarely rewrites it. It adds screens. Flutter
 already solves the hard part of that -- add-to-app runs a Flutter module
 inside an Android, iOS or desktop host -- and Dartvel extends it rather than
