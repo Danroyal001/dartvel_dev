@@ -1,3 +1,7 @@
+## 0.11.5
+
+- `DVRenderedPageCache` and one content purge hook, called by OTA updates and Studio saves and publishes.
+
 ## 0.11.4 — 2026-10-08
 
 - Moves to `hooks` 2 and `code_assets` 2 (needed beside Flutter Scene).

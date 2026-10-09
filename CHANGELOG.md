@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 Dartvel is pre-1.0. Minor versions may contain breaking changes; breaking
 changes are called out explicitly below.
 
+## 0.11.5 — 2026-10-09
+
+- Web-server binaries cache public pages. A public GET route is rendered once and served from a bounded in-process cache with an `ETag` (and `304` on revalidation) until content changes: an OTA update, a Studio save or publish, or a new binary clears it. Guarded routes, requests with a cookie or authorization, responses that set a cookie or are not `200`, and routes with a data resolver are never cached; a route opts out with `cache: false`. NaijaLife's sign-in page went from 72 to 1,789 requests a second with byte-identical HTML.
+
 ## 0.11.4 — 2026-10-08
 
 - 3D scenes render. New package `dartvel_scene`: `DVBox.scene` draws through Flutter Scene, on Flutter GPU natively and WebGL2 in the browser, with lights, glTF models, and boxes, spheres and planes in JSON PBR materials. `dartvel.scene3d.enabled: true` installs it and `dartvel build` switches Flutter GPU on in each platform's files. A target without Flutter GPU shows the scene's poster with `gpuInitFailed`.
