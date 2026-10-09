@@ -51,6 +51,9 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
           id: 'previews',
           title: 'Give every branch its own deployment',
           children: <Widget>[
+            DocsNote('Planned', 'The branch lifecycle and checks are built, '
+                'but no hosting adapter ships yet. Creating a preview reports '
+                'that there is nowhere to host it.'),
             DocsShell(<String>[
               'dartvel deploy --preview',
               'dartvel deploy --preview --from-pr 412',
@@ -80,6 +83,8 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
           id: 'backend-releases',
           title: 'Release a backend behind health gates',
           children: <Widget>[
+            DocsNote('Planned', 'Health-gate primitives are built. Automated '
+                'deploy integration and hosting adapters are not yet implemented.'),
             Bullets(<String>[
               'Every release records where it came from. A canary becomes '
                   'blue-green when the host cannot split traffic.',
@@ -102,6 +107,9 @@ Widget _docsReleasesPage(BuildContext context) => const DocsArticle(
           id: 'old-clients',
           title: 'Keep old app versions working',
           children: <Widget>[
+            DocsNote('Planned', 'Compatibility checks accept an explicit contract. '
+                'Reading it from the project, generating the protocol lock and '
+                'the client handshake are not yet implemented.'),
             DocsShell(<String>[
               'dartvel compatibility-check',
               'dartvel compatibility-check --against production --histogram '

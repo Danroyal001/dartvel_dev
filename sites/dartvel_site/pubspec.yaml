@@ -34,6 +34,8 @@ dev_dependencies:
   # The CLI reference is generated from the command table; see
   # tool/cli_reference.dart.
   args: ^2.5.0
+  # Read-only browser evidence for documentation review.
+  puppeteer: ^3.0.0
 
 
 flutter:
