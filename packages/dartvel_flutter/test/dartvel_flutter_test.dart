@@ -698,11 +698,17 @@ void main() {
     final provider = LocalAnalyticsProvider();
     Analytics.register(provider);
 
-    await DV.log(
+    // A log is a log record, not a product analytics event: analytics is
+    // consented to for another purpose, and it used to receive every line.
+    DV.log(
       'checkout completed',
-      level: 'info',
+      tag: 'checkout',
       context: <String, Object>{'orderId': 'order-1'},
     );
+    final DVLogRecord logged = DV.log.recent.last;
+    expect(logged.message, 'checkout completed');
+    expect(logged.tag, 'checkout');
+    expect(logged.context['orderId'], 'order-1');
     await DV.ObservabilityAndLogging.metric(
       'checkout_total',
       12.5,
@@ -729,19 +735,14 @@ void main() {
     expect(result, 42);
     expect(
       provider.events.map((event) => event.name),
-      containsAll(<String>[
-        'log',
-        'metric',
-        'trace',
-        'error',
-        'diagnostic',
-      ]),
+      containsAll(<String>['metric', 'trace', 'diagnostic']),
     );
+    expect(provider.events.map((event) => event.name),
+        isNot(anyOf(contains('log'), contains('error'))));
     expect(provider.events.where((event) => event.name == 'trace').length, 2);
-    expect(
-      provider.events.first.parameters,
-      containsPair('message', 'checkout completed'),
-    );
+    expect(DV.log.recent.last.level, DVLogLevel.error,
+        reason: 'an error is an error-level log record');
+    expect(DV.log.recent.last.message, contains('failed'));
   });
 
   test('form controls execute submit and reset callbacks', () {

@@ -93,6 +93,11 @@ import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
     show
+        // DV.log: one structured log stream, the same on every target.
+        DVLog,
+        DVLogConfig,
+        DVLogLevel,
+        DVLogRecord,
         // Platform Memory: DV.Memory and the arenas it creates.
         DVBool,
         DVDouble,
@@ -758,6 +763,7 @@ export 'src/auth/session_client.dart';
 export 'src/auth/session_token_file_io.dart'
     if (dart.library.js_interop) 'src/auth/session_token_file_web.dart';
 export 'src/crashes/crashes.dart';
+export 'src/logging/logging.dart';
 // The documentation site: the widgets that draw the document `dartvel docs`
 // writes, so a project hosting its documentation under a mount of its own can
 // reach them. The document itself is re-exported from dartvel_core below.
@@ -9781,23 +9787,27 @@ class DVRust {
 class DVObservabilityAndLogging {
   const DVObservabilityAndLogging();
 
-  Future<void> log(
+  /// One record, the same as `DV.log(...)`. It used to print the message
+  /// and send the whole record to product analytics as an event -- logs in a
+  /// store that is consented to for a different purpose, and no log at all.
+  void log(
     String message, {
-    String level = 'info',
-    Map<String, Object>? context,
+    DVLogLevel level = DVLogLevel.info,
+    String? tag,
+    Map<String, Object?> context = const <String, Object?>{},
+    String? code,
     Object? error,
     StackTrace? stackTrace,
-  }) async {
-    final payload = <String, Object>{
-      'message': message,
-      'level': level,
-      if (context != null) 'context': context,
-      if (error != null) 'error': error.toString(),
-      if (stackTrace != null) 'stackTrace': stackTrace.toString(),
-    };
-    debugPrint('[dartvel] $message');
-    await Analytics.logEvent('log', payload);
-  }
+  }) =>
+      const DVLog()(
+        message,
+        level: level,
+        tag: tag,
+        context: context,
+        code: code,
+        error: error,
+        stackTrace: stackTrace,
+      );
 
   Future<void> event(String name, [Map<String, Object>? parameters]) {
     return Analytics.logEvent(name, parameters);
@@ -9858,16 +9868,16 @@ class DVObservabilityAndLogging {
     return trace<T>('profile:$name', callback, context: context);
   }
 
+  /// An error as a log record at error level.
   Future<void> error(
     Object error, {
     StackTrace? stackTrace,
     Map<String, Object>? context,
-  }) {
-    return Analytics.logEvent('error', <String, Object>{
-      'error': error.toString(),
-      if (stackTrace != null) 'stackTrace': stackTrace.toString(),
-      if (context != null) 'context': context,
-    });
+  }) async {
+    const DVLog().error('$error',
+        error: error,
+        stackTrace: stackTrace,
+        context: context ?? const <String, Object?>{});
   }
 
   Future<void> diagnostic(
@@ -10104,21 +10114,10 @@ class DV {
     );
   }
 
-  static Future<void> log(
-    String message, {
-    String level = 'info',
-    Map<String, Object>? context,
-    Object? error,
-    StackTrace? stackTrace,
-  }) {
-    return ObservabilityAndLogging.log(
-      message,
-      level: level,
-      context: context,
-      error: error,
-      stackTrace: stackTrace,
-    );
-  }
+  /// One structured log stream for application code, the framework and the
+  /// platform: `DV.log('message', tag: ..., context: {...})`, a method per
+  /// level (`DV.log.warn(...)`), `DV.log.export()` and `DV.log.share()`.
+  static const DVLog log = DVLog();
 }
 
 // ==========================================
