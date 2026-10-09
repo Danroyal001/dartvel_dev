@@ -5212,16 +5212,67 @@ Application logging uses the discoverable `DV.ObservabilityAndLogging` service
 and the shorter autocomplete-friendly `DV.log` shortcut:
 
 ```dart
-await DV.log(
-  "Checkout completed",
-  {"orderId": order.id},
+DV.log(
+  'Checkout completed',
+  tag: 'checkout',
+  context: {'orderId': order.id},
 );
+DV.log.warn('Payment retried', tag: 'checkout');
 
-await DV.ObservabilityAndLogging.event(
-  "checkout_completed",
-  {"orderId": order.id},
+DV.ObservabilityAndLogging.event(
+  'checkout_completed',
+  fields: {'orderId': order.id},
 );
 ```
+
+## One log stream
+
+`DV.log` is the one way a record is written -- by application code, by the
+framework and by the platform bindings -- and it takes the same arguments on a
+device, in a browser and on a server. A record has a level (`trace`, `debug`,
+`info`, `warn`, `error`, `fatal`), a message, an optional tag (its category)
+and its fields as data, plus the trace it happened inside.
+
+Where it goes is the runtime's business, not the call's:
+
+| Where | Destination |
+| --- | --- |
+| Server | JSON lines on stdout, and the recent-records buffer `/_dartvel/logs` serves with diagnostics on |
+| Android | logcat, through `__android_log_write` over FFI |
+| iOS, macOS | the unified log, through `syslog(3)` over FFI (the path Flutter's engine uses; `os_log` itself is a macro whose format string must be compiled into the binary) |
+| Linux | stderr, with the journald priority prefix under systemd |
+| Windows | stderr and `OutputDebugStringW` |
+| Web | the console, at the record's level, with the fields as an object |
+| Every device | a capped, rotating log file (2 MB and 7 days by default), and warnings as crash breadcrumbs |
+
+Redaction happens before any destination sees a record: every
+`@DVModel.sensitiveField()` name (registered by the generated models, matched
+exactly), key names that look like credentials, credential-shaped values (a
+bearer token, a JWT, the password in a URL) and every secret `DV.Secrets`
+resolved. A data model passed as a field is written as its public form.
+
+`DV.log.export()` returns what a device kept, one JSON object per line;
+`DV.log.share()` opens the share sheet with the newest of it; `DV.log.clear()`
+deletes it.
+
+```yaml
+dartvel:
+  logging:
+    level: info
+    native: true
+    file: {maxBytes: 1048576, files: 2, retentionDays: 7}   # or file: false
+    ship: {enabled: false, level: warn, batch: 50, perInstallPerHour: 600, maxBytes: 262144}
+```
+
+Shipping is off unless declared. When it is on, a device sends records at
+`warn` and above (never below) to `POST <apiBasePath>/_dartvel/client-logs` on
+the application's own backend, with a random install id, the release and the
+platform and nothing that names a person. The backend redacts each record
+again, writes it into its own stream with that client context, and counts
+records past the per-install budget (`DV-LOG-001`) rather than writing them.
+When the process environment names `DARTVEL_LOG_FORWARD_URL` (Dartvel Cloud
+sets it on the deployments it hosts), the accepted, redacted batch is passed on
+there; the client address is never forwarded.
 
 ---
 

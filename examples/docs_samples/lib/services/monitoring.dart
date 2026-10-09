@@ -1,15 +1,26 @@
 import '../dartvel_client/dartvel_client.dart';
 
 // docs:start monitoring-log
-// One line, with whatever belongs beside it. DV.log and
-// DV.ObservabilityAndLogging are the surface; there is no second logger to
-// configure per package.
+// One record: a message, a tag to filter on, and the fields as data. The
+// same call on a phone, in a browser and on the server; there is no second
+// logger to configure per package.
 void recordRefund(String orderId, int cents) {
   DV.log(
     'refunded an order',
-    context: <String, Object>{'order': orderId, 'cents': cents},
+    tag: 'billing',
+    context: <String, Object?>{'order': orderId, 'cents': cents},
   );
+  // A method per level, each taking the same shape.
+  DV.log.warn('refund took a second attempt', tag: 'billing');
 }
+// docs:end
+
+// docs:start monitoring-log-export
+// What the device kept, oldest first, one JSON object per line -- for a
+// "send us your logs" button. share() opens the platform share sheet with
+// the newest records that fit.
+Future<void> sendLogs() => DV.log.share();
+Future<String> logsAsText() => DV.log.export();
 // docs:end
 
 // docs:start monitoring-trace
