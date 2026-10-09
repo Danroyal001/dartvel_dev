@@ -193,9 +193,8 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       tint: true,
       children: <Widget>[
         Body(
-          'Studio inherits your app’s Material theme. New projects start with '
-          'Dartvel’s light and dark theme. Custom Studio colors and the visible '
-          'server-rendered first frame are still being brought into parity.',
+          'Studio inherits your app’s Material theme, light and dark. New '
+          'projects start with Dartvel’s theme until you customise it.',
         ),
         Eyebrow('KEYBOARD AND SCREEN READER'),
         Heading('Controls support keyboard and screen reader input.'),
@@ -225,8 +224,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Each screen has its own address: /__studio is Pages, /__studio/'
           'components is Components, /__studio/data/Product is one model '
           'and /__studio/data/Product/p-1 opens one record; '
-          'so a screen can be linked, bookmarked and reloaded. A visible '
-          'interactive document before Flutter loads is Planned.',
+          'so a screen can be linked, bookmarked and reloaded, and the '
+          'server sends a document with it for anything reading without '
+          'the app. Planned: that document fully interactive before '
+          'Flutter loads.',
         ),
       ],
     ),

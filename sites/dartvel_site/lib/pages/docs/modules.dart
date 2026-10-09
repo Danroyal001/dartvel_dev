@@ -50,14 +50,17 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
         DocsText(
           'Use --as to choose the module id, --mount to choose its '
           'mount path, and --dry-run to inspect the changes first. '
-          'Bare C, Cargo and Swift directories are detected automatically. '
-          'For npm and JVM libraries, use npm:, maven: or jar: explicitly.',
+          'A bare directory holding C sources, a Cargo.toml, a '
+          'Package.swift, a .wasm or a .jar file is detected and wrapped '
+          'automatically. For an npm package, a Maven library or a plain '
+          'Dart package directory, name the source as npm:, maven: or '
+          'path: and it is wrapped the same way.',
         ),
         DocsNote(
           'Planned',
-          'PyPI and Go package wrapping are not yet '
-              'implemented. A directory with an unsupported source is '
-              'refused with an explanation; it is not silently wrapped.',
+          'Not yet implemented: PyPI and Go packages, and .proto '
+              'service definitions, as module sources. `dartvel add` refuses '
+              'them with an explanation and writes nothing.',
         ),
       ],
     ),
@@ -104,11 +107,13 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
         ]),
         Bullets(<String>[
           'add reads the directory and says what it found. A pubspec with '
-              'a `dartvel key` is a Dartvel project; a Package.swift, a '
-              'Cargo.toml, a build.gradle, a package.json or an '
-              'openapi.yaml each name a source the spec covers. A '
-              'directory matching none of them is refused with a list of '
-              'what it holds.',
+              'a `dartvel:` key is a Dartvel project and is mounted. C '
+              'sources, a Cargo.toml, a Package.swift and a .wasm are '
+              'wrapped, and an openapi.yaml or a GraphQL schema is '
+              'generated into a module. A build.gradle or a package.json is '
+              'named, with the maven:, jar: or npm: source to use instead. '
+              'A directory matching none of them is refused with a list of '
+              'what it holds (DV-MODULE-009).',
           'A source that is already a Dartvel project is mounted '
               'directly. Nothing is wrapped, because wrapping a module '
               'that is already a module adds a layer whose only job is '
@@ -134,15 +139,9 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'nothing. Everything is generated before anything is '
               'written, so a document add cannot read stops the command '
               'with an empty modules directory.',
-          'Every other kind of source is wrapped: see the next '
-              'section. A .proto is the one that is named and refused.',
+          'Packages from other ecosystems are wrapped: see the next '
+              'section.',
         ]),
-        DocsNote(
-          'Supported sources and planned sources',
-          'A .proto is named and refused. Supported source kinds are '
-              'generated into a module and pinned in the '
-              'lockfile.',
-        ),
       ],
     ),
     DocsSection(
@@ -181,7 +180,7 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             ],
             <String>[
               'npm package',
-              'Node bundled beside a desktop app; phones not yet',
+              'Node bundled beside a desktop app (Planned: phones)',
               'dynamic import() of the bundled package',
               'Node, one process per call',
             ],
@@ -193,13 +192,13 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
             ],
             <String>[
               'WebAssembly binary',
-              'Node bundled beside a desktop app; phones not yet',
+              'Node bundled beside a desktop app (Planned: phones)',
               'WebAssembly.instantiate',
               'Node\'s WebAssembly',
             ],
             <String>[
               'Maven artifact or jar',
-              'JNI through package:jni, Android only',
+              'JNI through package:jni on Android (Planned: other targets)',
               '--elsewhere',
               '--elsewhere',
             ],
