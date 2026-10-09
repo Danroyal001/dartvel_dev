@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// `all`.
 const Set<String> cliPlatforms = <String>{
   'web', 'web-server', 'android', 'ios', 'fireos', 'windows', 'macos',
+  'horizon', 'visionos',
   'linux', 'linux-cli', 'macos-cli', 'windows-cli', 'fuchsia-cli', 'tizen',
   'sony-elinux', 'webos', 'tvos', 'fuchsia', 'vscode', 'chrome-extension',
   'firefox-extension',
@@ -39,6 +40,8 @@ void main() {
     expect(groupOf('vscode'), DVDeployTarget.extensions);
     expect(groupOf('sony-elinux'), DVDeployTarget.devices);
     expect(groupOf('fuchsia'), DVDeployTarget.devices);
+    expect(groupOf('horizon'), DVDeployTarget.headsets);
+    expect(groupOf('visionos'), DVDeployTarget.headsets);
   });
 
   test('a platform that does not build today says so, and why', () {

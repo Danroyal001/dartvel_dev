@@ -219,7 +219,8 @@ enum DVDeployTarget {
   desktop('Desktop apps'),
   tvs('TVs'),
   extensions('Browser extensions'),
-  devices('Devices');
+  devices('Devices'),
+  headsets('Headsets');
 
   const DVDeployTarget(this.label);
 
@@ -233,6 +234,9 @@ enum DVDeployTarget {
   }) {
     if (isTV) return DVDeployTarget.tvs;
     switch (platform) {
+      case 'horizon':
+      case 'visionos':
+        return DVDeployTarget.headsets;
       case 'web':
         return isExtension ? DVDeployTarget.extensions : DVDeployTarget.web;
       case 'android':
@@ -334,7 +338,11 @@ enum DVDeployPlatform {
       <String>['sony-elinux'], DVDeployStatus.limited,
       'Runs on a virtual board; needs Sony\'s engine installed.'),
   fuchsia(DVDeployTarget.devices, 'Fuchsia', <String>['fuchsia'],
-      DVDeployStatus.notYet, 'Fuchsia\'s embedder ships a Flutter too old for Dartvel.');
+      DVDeployStatus.notYet, 'Fuchsia\'s embedder ships a Flutter too old for Dartvel.'),
+  metaQuest(DVDeployTarget.headsets, 'Meta Quest', <String>['horizon'],
+      DVDeployStatus.limited, 'Builds as a 2D panel app; not yet run on a headset.'),
+  visionPro(DVDeployTarget.headsets, 'Apple Vision Pro', <String>['visionos'],
+      DVDeployStatus.notYet, 'Runs as the iPad app; not yet built on a Mac.');
 
   const DVDeployPlatform(this.target, this.label, this.commands, this.status,
       [this.reason = '']);

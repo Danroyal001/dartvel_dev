@@ -130,6 +130,9 @@ List<ToolRequirement> toolRequirementsFor(
 
     case 'android':
     case 'fireos':
+    // Horizon OS is the Android build; aapt2, which checks the APK, ships in
+    // the SDK's build-tools.
+    case 'horizon':
       return const <ToolRequirement>[
         ToolRequirement(
           executable: 'sdkmanager',
@@ -202,6 +205,8 @@ List<ToolRequirement> toolRequirementsFor(
 
     case 'macos':
     case 'ios':
+    // Vision Pro runs the iOS build as Designed for iPad.
+    case 'visionos':
       return const <ToolRequirement>[
         ToolRequirement(
           executable: 'xcodebuild',
