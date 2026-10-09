@@ -49,10 +49,9 @@ Windows on ARM has no build yet; the launcher says so rather than fetching a
 URL that does not exist. The x64 binary runs there under emulation if you
 download it yourself. Node 18 or newer.
 
-**For 0.10.0, only the Linux binaries are attached until the CI release
+**For 0.11.5, only the Linux binaries are attached until the CI release
 workflow has run.** Until then, on macOS or Windows the first run fails with
-`HTTP 404` and prints the release page. Use `dartvel_dev@0.5.0` there, or run
-the CLI from a project's dependencies with `dart run dartvel_cli:dartvel` (see
+`HTTP 404` and prints the release page. Run the CLI from a project's dependencies with `dart run dartvel_cli:dartvel` (see
 the [dartvel_cli README](https://pub.dev/packages/dartvel_cli)).
 
 ## First steps

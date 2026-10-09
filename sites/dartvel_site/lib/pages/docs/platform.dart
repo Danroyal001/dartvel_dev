@@ -19,7 +19,7 @@ Widget _docsPlatformPage(BuildContext context) {
       DVBox.list(<Widget>[
         const Eyebrow('DOCS'),
         Prose('This page moved', const DVModifier()
-            .fontSize(34)
+            .fontSize(30)
             .fontWeight(.w700)
             .color(palette.ink)
             .semanticHeading(1)),

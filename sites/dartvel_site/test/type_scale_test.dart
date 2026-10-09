@@ -33,7 +33,7 @@ List<(String, int, String)> sizesNamed() {
         RegExp(r'fontSize[:(]\s*([0-9]+(?:\.[0-9]+)?)'),
         RegExp(r'fontSize\([^)]*?(?:mobile|desktop|tablet):\s*'
             r'([0-9]+(?:\.[0-9]+)?)'),
-        RegExp(r'(?:mobile|desktop|tablet):\s*([0-9]+(?:\.[0-9]+)?)\s*\)\)\s*\n?\s*\.fontWeight'),
+        RegExp(r'(?:mobile|desktop|tablet):\s*([0-9]+(?:\.[0-9]+)?)\s*,?\s*\)\s*,?\s*\)\s*\.fontWeight'),
       ]) {
         for (final RegExpMatch match in pattern.allMatches(source)) {
           found.add((
