@@ -84,6 +84,11 @@ void main() {
       expect(of('fuchsia'), DVDeployTarget.devices);
     });
 
+    test('headsets', () {
+      expect(of('horizon'), DVDeployTarget.headsets);
+      expect(of('visionos'), DVDeployTarget.headsets);
+    });
+
     test('every target has a label a site owner reads', () {
       expect(<String>[for (final t in DVDeployTarget.values) t.label], <String>[
         'Website',
@@ -92,6 +97,7 @@ void main() {
         'TVs',
         'Browser extensions',
         'Devices',
+        'Headsets',
       ]);
     });
   });

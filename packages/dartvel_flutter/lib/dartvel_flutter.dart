@@ -7019,9 +7019,26 @@ class DVPlatform {
     }
   }
 
-  bool get isAndroid =>
-      currentPlatform == 'android' || currentPlatform == 'fireos';
-  bool get isIOS => currentPlatform == 'ios';
+  // A Horizon OS app is an Android app and a Vision Pro one the iOS app,
+  // so the bindings behind DV.Platform are the ones that run there.
+  bool get isAndroid => dvIsAndroidFamily(currentPlatform);
+  bool get isIOS => dvIsIOSFamily(currentPlatform);
+
+  /// A Meta Quest, from `dartvel build horizon`: an Android app in a 2D panel.
+  bool get isHorizonOS => currentPlatform == 'horizon';
+
+  /// Apple Vision Pro, from `dartvel build visionos`: the iPad app, Designed
+  /// for iPad. The same app built with `dartvel build ios` reports iOS there,
+  /// because nothing at run time tells it apart without a native binding.
+  bool get isVisionOS => currentPlatform == 'visionos';
+
+  /// Whether this build is for a headset. A panel is an ordinary window, so
+  /// this is for what to offer -- larger targets, a back button where hands
+  /// have no back gesture -- never for whether a page works.
+  /// `DV.Platform.window.capability.spatial` stays null until a native XR
+  /// binding reports what the headset can present.
+  bool get isHeadset =>
+      _deviceTypeOverride == 'headset' || dvIsHeadsetPlatform(currentPlatform);
   bool get isWindows => currentPlatform == 'windows';
   bool get isLinux => currentPlatform == 'linux';
   bool get isSonyELinux => currentPlatform == 'sony-elinux';
@@ -11800,6 +11817,20 @@ const Set<String> _dvTelevisionPlatforms = <String>{
   'fireos',
 };
 
+/// Whether [platform] is a headset build: `horizon` (Meta Quest, Horizon OS)
+/// or `visionos` (Apple Vision Pro). Both present a Dartvel app as a 2D panel.
+bool dvIsHeadsetPlatform(String platform) =>
+    platform == 'horizon' || platform == 'visionos';
+
+/// Whether [platform] runs Android, whatever it is called: Fire OS and
+/// Horizon OS are both Android builds.
+bool dvIsAndroidFamily(String platform) =>
+    platform == 'android' || platform == 'fireos' || platform == 'horizon';
+
+/// Whether [platform] runs the iOS app: an iPhone or iPad, or Vision Pro
+/// running it as Designed for iPad. Not tvOS, which is its own embedder.
+bool dvIsIOSFamily(String platform) => platform == 'ios' || platform == 'visionos';
+
 /// What kind of device this is.
 ///
 /// Separated from [DVPlatform] so it can be asserted on directly, and because
@@ -11824,6 +11855,9 @@ String dvDeviceTypeFor({
   bool isWeb = false,
   bool isFoldable = false,
 }) {
+  // A headset first: Horizon OS reports Android and Vision Pro an iPad-sized
+  // iOS window, so without this both read as a tablet.
+  if (dvIsHeadsetPlatform(platform)) return 'headset';
   // The explicit kinds first: a television is a television at any width, and
   // calling it a desktop would send an application down the pointer-and-window
   // path on a device driven by a remote control.
