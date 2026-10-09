@@ -1,6 +1,6 @@
 # Dartvel documentation review — 9 October 2026
 
-Local review handoff on `agent/dv-docs-review`. No PR was opened, pushed or merged; the user instructed this worker to commit locally and stop. This inventory is ready for the lead’s PR description.
+Review of `agent/dv-docs-review`, verified and finished by the lead agent: one PR to main, not merged or deployed.
 
 ## Page inventory
 
@@ -26,17 +26,17 @@ Every annotated page is listed. “No change needed” means the existing automa
 | `/docs/dev-client` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/devices` | Platform names and binding limitations corrected. |
 | `/docs/edge-security` | No change needed: generated workflow, reference and explicit status limits retained. |
-| `/docs/existing-native-apps` | Unsupported build flags and host APIs removed; native embedding marked Planned; Flutter init shown first. |
+| `/docs/existing-native-apps` | Unsupported build flags and host APIs removed; native embedding marked Planned; Flutter init shown first; corrected the claim that init generates the client (dev/build does). |
 | `/docs/forms` | Removes historic bug narration; describes shipped keyboard/accessibility behavior directly. |
 | `/docs/graphql` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/http` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/import-export` | No change needed: generated workflow, reference and explicit status limits retained. |
-| `/docs` | Release labels updated; CLI upgrade distinguished from project planning. |
+| `/docs` | Release labels updated; CLI upgrade distinguished from project planning; status line states the real counts (24 shipped, 79 partial, 2 planned, 25 frozen contracts) instead of a narrower list. |
 | `/docs/localization` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/media-3d` | Adds install/config/build workflow; native GPU availability qualified. |
 | `/docs/media` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/models` | No change needed: generated workflow, reference and explicit status limits retained. |
-| `/docs/modules` | Leads with add/build automation; manual configuration moved to reference; PyPI/Go and unsupported directory kinds marked Planned. |
+| `/docs/modules` | Leads with `dartvel add` and automatic wrapping; manual mount/native YAML moved to “Under the hood”; bare-directory detection stated exactly (C, Cargo, Swift, .wasm, .jar wrapped; npm/Gradle named with the scheme to use); PyPI, Go and .proto under one Planned note; phone Node and non-Android JVM marked Planned in the table. |
 | `/docs/monitoring` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/docs/native-access` | Corrects desktop binding coverage and planned device capabilities. |
 | `/docs/notifications` | No change needed: generated workflow, reference and explicit status limits retained. |
@@ -62,7 +62,7 @@ Every annotated page is listed. “No change needed” means the existing automa
 | `/flutter-without-a-mac` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/` | Release labels updated; CLI upgrade distinguished from project planning. |
 | `/privacy` | Copy/style and layout consistency. |
-| `/studio` | Theme and visible first-frame parity qualified; accessible copy and layout structure corrected. |
+| `/studio` | Accessible copy and layout structure corrected; keeps the shipped claim that each screen has its own URL and a server document, and marks an interactive pre-Flutter document as Planned. |
 | `/terms` | Licence/privacy copy and layout consistency. |
 | `/vs/bubble` | No change needed: generated workflow, reference and explicit status limits retained. |
 | `/vs/expo` | No change needed: generated workflow, reference and explicit status limits retained. |
@@ -83,5 +83,12 @@ Existing comparisons link official sources and retain dated claims rather than p
 
 ## Verification
 
-Web release build verified locally (sites/dartvel_site/build/web/; index.html + main.dart.js 3.2MB + assets). Server binary build not produced separately (only Flutter web release captured). Browser harness (`sites/dartvel_site/tool/docs_review_browser.dart`) present; full all-route 360/768/1440 run queued behind shared `heavy.sh` slots and another agent's build — could not complete without overriding resource rules. Evidence directory (`docs/reviews/dv-docs-review/`) holds only this REVIEW.md; no screenshots, live HTML or diff files produced. Final site suite queued; no unresolved production test failure identified (390 passes / 1 skip / 2 corrected from previous run; scanner fix applied in this session; no new regression). Blockers for lead: complete full site test suite, run all-route browser harness, generate screenshots/diffs, verify server binary artifact, then open PR from `agent/dv-docs-review` to main.
+Verified on 9 October 2026 at the branch head, after merging origin/main (already up to date).
 
+- Site suite (`flutter test` in sites/dartvel_site, via heavy.sh): 392 passed, 1 skipped, 0 failed. Targeted copy-style, inline-code and docs-review tests rerun after the last copy edit: 14 passed.
+- Repository checks: `tool/spec_status_check.dart` (115 sections, 105 labelled, all evidence present), `tool/spec_gaps.dart` (no change), `tool/site_features_check.dart` (24 listed, 24 shipped, in agreement), `tool/ci/no_python_check.dart` (pass).
+- Built the site as a web-server binary exactly as `tool/deploy_site_server.sh` does (`dart run dartvel_cli:dartvel build web-server`, 67 route semantics captured, 35.9 MB binary). Ran it on a loopback port with a throwaway data directory; `tool/ci/server_pages_check.dart` passed (65 pages server-rendered with title, description and text; Studio refuses a stranger; image endpoint resizes). Nothing deployed.
+- Fetched all 65 sitemap routes plus /docs/platform from the local binary and from https://dartvel.dev, extracted the server-rendered (no-JS) text and links, and diffed them. All 66 answered 200. 17 pages are text-identical; the rest differ only by the corrections listed above, the shared status-box heading ("Planned work and implementation limits" / "Implementation notes"), and content already on main but not yet deployed (auth appearance section, deploying page-cache section, CLI reference help text). Header/sidebar navigation is identical; the only link changes are the docs index anchor /docs/modules#mount → #add and the added Power Apps pricing source. HTML stays minified (same line structure as live).
+- Chrome (own tab on CDP 9333), 390 and 1440 px, no horizontal overflow: /docs/modules, /docs/existing-native-apps, /docs/cache, /docs/media-3d. Screenshots are in this directory (`docs-*-390.jpg`, `docs-*-1440.jpg`).
+
+Shared component change: a `DocsNote('Planned', ...)` now renders its title as the same amber Planned badge DocsStatus uses, so planned items look the same on every page.
