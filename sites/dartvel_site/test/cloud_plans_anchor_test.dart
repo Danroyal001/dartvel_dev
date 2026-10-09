@@ -6,7 +6,7 @@ import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const String plansHeading = 'Cloud builds are paid only.';
+const String plansHeading = 'Dartvel Cloud and Studio Pro: one price per project.';
 
 void main() {
   setUpAll(() async => CloudPageGeneratedPage.loadLibrary());

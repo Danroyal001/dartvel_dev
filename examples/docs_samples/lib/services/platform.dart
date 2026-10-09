@@ -136,13 +136,3 @@ void configureTenantDatabases() {
   );
 }
 // docs:end
-
-Future<void> acrossTenants() async {
-  // docs:start tenancy-across
-  // A report over every tenant has to say so.
-  final List<Map<String, Object?>> totals = await DV.Database.acrossTenants(
-    () => DV.Database.query('select dv_tenant, count(*) as n from invoices group by dv_tenant'),
-  );
-  // docs:end
-  DV.log('$totals');
-}

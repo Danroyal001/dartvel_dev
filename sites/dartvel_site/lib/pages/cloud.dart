@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../components/docs.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Dartvel Cloud and Studio Pro',
-  description: 'Build, sign and ship Dartvel apps on Dartvel-run machines: '
+  description:
+      'Build, sign and ship Dartvel apps on Dartvel-run machines: '
       'cloud builds for every target, store submission, over-the-air '
       'updates and managed credentials.',
   showAppBar: false,
@@ -47,7 +49,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
         const Section(
           children: <Widget>[
             Eyebrow('SUBMIT'),
-            Heading('Build and upload to Google Play or the App Store in one step.'),
+            Heading(
+              'Build and upload to Google Play or the App Store in one step.',
+            ),
             Bullets(<String>[
               'Google Play gets an App Bundle, and the App Store a signed IPA.',
               'Your iOS build is signed on a Mac with the certificate you keep in '
@@ -213,9 +217,9 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
                 built: false,
               ),
             ], spacing: 16),
-            UpstreamCredits(ids: <String>[
-              'tvos', 'tizen', 'elinux', 'flt', 'vscode',
-            ]),
+            UpstreamCredits(
+              ids: <String>['tvos', 'tizen', 'elinux', 'flt', 'vscode'],
+            ),
           ],
         ),
         const Section(
@@ -237,18 +241,24 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             children: <Widget>[
               Eyebrow('PRICING · COMING SOON'),
               Heading('Dartvel Cloud and Studio Pro: one price per project.'),
-              Bullets(<String>[
+              Body(
                 '\$35 per project per month for the first 100 people who sign '
-                    'up in the first week after launch.',
-                '\$40 per project per month after that.',
+                'up in the first week after launch.',
+              ),
+              Body('\$40 per project per month after that.'),
+              Body(
                 'Includes Dartvel Cloud and Studio Pro for that project. There '
-                    'is no free tier for cloud builds.',
+                'is no free tier for cloud builds.',
+              ),
+              Body(
                 'Includes a monthly AI credit allowance for Studio AI. When it '
-                    'runs out, buy a top-up pack, or use your own provider key '
-                    'from the start.',
+                'runs out, buy a top-up pack, or use your own provider key '
+                'from the start.',
+              ),
+              Body(
                 'Not open yet. Prices may be reviewed before launch, and the '
-                    'final price is shown before you pay.',
-              ]),
+                'final price is shown before you pay.',
+              ),
             ],
           ),
         ),
