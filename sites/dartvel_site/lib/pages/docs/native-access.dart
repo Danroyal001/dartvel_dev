@@ -29,7 +29,7 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 'window controls and file associations; a phone does not. '
                 'A browser has a different set. Calling a capability the '
                 'target lacks throws a typed error that names the missing '
-                'binding rather than returning a plausible default.'),
+                'binding.'),
             DocsText('Bindings are registered through `dart:ffi` (Linux, '
                 'Windows, macOS, embedded) or `jnigen`-generated JNI '
                 '(Android), and through `dart:js_interop` with `package:web` '
@@ -106,8 +106,8 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['tray', 'Shipped', 'macOS, Windows, Linux: separators, headers, check and radio marks, submenus, update in place'],
                 <String>['window.hide / .show, close-to-hide', 'Shipped', 'macOS, Windows, Linux (exitPolicy explicit)'],
                 <String>['launchAtLogin', 'Shipped', 'macOS 13+, Windows, Linux'],
-                <String>['Menus / Shortcuts / Printing', 'Shipped (stub)', 'all (empty)'],
-                <String>['Dialogs', 'Shipped (stub)', 'all (empty)'],
+                <String>['Menus / Shortcuts / Printing', 'Partial', 'Linux, Windows, macOS bindings; availability depends on the desktop session'],
+                <String>['Dialogs', 'Partial', 'Linux, Windows, macOS native bindings'],
                 <String>['DragDrop', 'Shipped', 'desktop (Linux, Windows, macOS)'],
                 <String>['associations', 'Shipped', 'desktop'],
                 <String>['camera', 'Partial', 'Android, iOS, some web'],
@@ -141,11 +141,11 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsText('Runtime permissions are requested through '
                 '`DV.Platform.permissions`. The framework asks at the point '
-                'the capability is first called, not at startup. Each '
+                'the capability is first called. Each '
                 'permission is mapped to a policy entry in `pubspec.yaml`. '
-                'A refusal produces a typed error rather than a null.'),
+                'A refusal produces a typed error.'),
             DocsShell(<String>[
-              'DV.Platform.permissions.request(context, DVPermission.microphone)',
+              'DV.Platform.permissions.request(\'microphone\')',
             ]),
             DocsNote('Permissions are per-capability',
                 'A camera call checks the camera permission; a microphone '
@@ -174,11 +174,11 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             DocsText('Native UI that Flutter cannot render is embedded '
                 'through platform views. Their lifecycle and routing '
                 'are framework concerns; applications declare what they '
-                'need, not how it is embedded.'),
+                'need.'),
             DocsSubheading('DVPreferredRenderingMode'),
             DocsText('A planned feature: selecting the render mode '
-                '(hardware, software, hybrid) at build time rather than '
-                'at runtime. Not implemented yet.'),
+                '(hardware, software, hybrid) at build time. Selection '
+                'is not yet implemented.'),
           ],
         ),
         DocsSection(
@@ -187,13 +187,13 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
           children: <Widget>[
             DocsText('These members are referenced in the spec but have '
                 'no binding registered today. They are listed honestly '
-                'as planned — never as shipped.'),
+                'as Planned.'),
             Bullets(<String>[
-              '`nfc.readTag` — needs Android `Activity` dispatch or iOS '
+              '`nfc.readTag` needs Android `Activity` dispatch or iOS '
               'CoreNFC entitlement.',
-              '`biometrics.authenticate` / `.canAuthenticate` — needs '
+              '`biometrics.authenticate` / `.canAuthenticate` needs '
               'Activity (Android) or `LAContext` (iOS).',
-              '`bluetooth.isEnabled` — needs runtime-granted permission '
+              '`bluetooth.isEnabled` needs runtime-granted permission '
               'since API 31.',
               'Additional media/capture bindings requiring `Activity` '
               'context or specific entitlements.',

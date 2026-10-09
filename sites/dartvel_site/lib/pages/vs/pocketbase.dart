@@ -25,7 +25,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
               'app inside it.',
               level: 1,
             ),
-            Body('PocketBase is the nicest answer in its category: download '
+            Body('PocketBase packages its backend in one executable: download '
                 'one file, run it, and you have a database, an admin panel, '
                 'auth, file storage and realtime. Dartvel arrives at the same '
                 'place from the other direction: `dartvel build web-server` '
@@ -60,7 +60,7 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
                 <String>['Custom logic', 'Go hooks, or JavaScript', '@DVBackendFunction, in Dart, in the same repository'],
                 <String>['The client app', 'Official JavaScript and Dart SDKs, in a project you build separately', 'Generated and typed, and it is the same project'],
                 <String>['Other targets', 'None. It is a backend', 'Android, iOS, desktop, TVs, browser extensions'],
-                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.9. Most spec sections are Partial, each with what is missing'],
+                <String>['Maturity', 'v0.40, before 1.0. Its docs do not yet recommend it for production critical apps', 'v0.11.5. Built capabilities and planned work are listed per spec section'],
               ],
             ),
           ],

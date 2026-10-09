@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../dartvel_client/dartvel_client.dart';
 
 // What Studio is, split the way it ships: the free Studio in every app and in
@@ -14,7 +15,8 @@ import '../dartvel_client/dartvel_client.dart';
 // screenshots are of the real Studio.
 @DVPage(
   title: 'Dartvel Studio and Studio Pro',
-  description: 'Dartvel Studio is the visual builder for a Dartvel app: pages, '
+  description:
+      'Dartvel Studio is the visual builder for a Dartvel app: pages, '
       'models, backend functions, modules and deploys, in the browser '
       'and on a phone.',
   showAppBar: false,
@@ -34,20 +36,25 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           'Run your app\'s pages and data from a browser, and keep the code.',
           level: 1,
         ),
-        Bullets(<String>[
+        Body(
           'Studio is free. It runs inside your web-server binary at /__studio, '
-              'and never inside an app.',
+          'with its code served only to granted sessions.',
+        ),
+        Body(
           'Build pages visually, design data models and edit their records '
-              'without writing an admin panel.',
+          'without writing an admin panel.',
+        ),
+        Body(
           'Frontend and backend functions built from steps are free too. '
-              'Studio Pro comes with Dartvel Cloud, and adds Figma import, '
-              'reusable components, revision history and team review.',
-        ]),
+          'Studio Pro comes with Dartvel Cloud, and adds Figma import, '
+          'reusable components, revision history and team review.',
+        ),
         StudioShot(
           'assets/studio_shots/page-builder.png',
           'Dartvel Studio page builder with the Layers tree, a selected '
               'heading on the canvas and the inspector',
-          caption: 'The page builder served by a web-server binary: Layers on '
+          caption:
+              'The page builder served by a web-server binary: Layers on '
               'the left, the selected heading on the canvas, its styles on the '
               'right.',
         ),
@@ -68,22 +75,27 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           r'$ dartvel admin grant <user-id> --database dartvel_data/data.db',
           '# open https://your-host/__studio and sign in there',
         ]),
-        Bullets(<String>[
+        Body(
           'Only people you grant can open it. Studio has its own sign-in at '
-              '/__studio/login, so it opens even with your app\'s account '
-              'pages turned off.',
+          '/__studio/login, so it opens even with your app\'s account '
+          'pages turned off.',
+        ),
+        Body(
           'Design a data model in the browser, with field types, rules, '
-              'relations, indexes and who may read and write it, and edit its '
-              'records in a form. An edit made against a row that changed after '
-              'you opened it is refused.',
+          'relations, indexes and who may read and write it, and edit its '
+          'records in a form. An edit made against a row that changed after '
+          'you opened it is refused.',
+        ),
+        Body(
           'Studio fits a phone: sections move to a bar along the bottom, and '
-              'the editor shows Elements, Page or Style one at a time.',
-        ]),
+          'the editor shows Elements, Page or Style one at a time.',
+        ),
         StudioShot(
           'assets/studio_shots/model-records.png',
           'Dartvel Studio Data section listing Product records with one '
               'open in an edit form',
-          caption: 'Data: each record of a model, and a form typed from its '
+          caption:
+              'Data: each record of a model, and a form typed from its '
               'fields.',
         ),
       ],
@@ -92,27 +104,36 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('PAGE BUILDER'),
         Heading('Drag a page together, then keep it as an ordinary @DVPage.'),
-        Bullets(<String>[
+        Body(
           'Insert text, images, buttons, spacers and dividers, and arrange '
-              'them in columns, rows, wraps, grids and stacks.',
+          'them in columns, rows, wraps, grids and stacks.',
+        ),
+        Body(
           'Select a node on the canvas or in Layers, style it in the '
-              'inspector, preview phone, tablet and desktop widths, and undo '
-              'any step.',
-          'Studio controls use your app’s light and dark colour schemes.',
+          'inspector, preview phone, tablet and desktop widths, and undo '
+          'any step.',
+        ),
+        Body('Studio controls use your app’s light and dark colour schemes.'),
+        Body(
           'Use Tab, Enter and Space to select layers, expand groups and insert '
-              'elements without dragging.',
+          'elements without dragging.',
+        ),
+        Body(
           'Set padding and margin uniformly or on each edge; saved pages and '
-              'exported Dart retain the spacing. Compact spacing fields '
-              'announce their full names to screen readers.',
+          'exported Dart retain the spacing. Compact spacing fields '
+          'announce their full names to screen readers.',
+        ),
+        Body(
           'Deploy sends the page to your website, phone and tablet apps, '
-              'desktop apps, TVs, browser extensions and devices, or only the '
-              'ones you tick.',
-        ]),
+          'desktop apps, TVs, browser extensions and devices, or only the '
+          'ones you tick.',
+        ),
         StudioShot(
           'assets/studio_shots/deploy-menu.png',
           'The Deploy button open on its menu: Deploy now, and Restore '
               'original page',
-          caption: 'Deploy puts the page live. Its menu also restores the page '
+          caption:
+              'Deploy puts the page live. Its menu also restores the page '
               'from your last build.',
         ),
         Objection(
@@ -127,30 +148,37 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('FORMULA BAR AND COMMAND PALETTE'),
-        Heading('Edit what is selected in one line, and reach anything with Ctrl+K.'),
-        Bullets(<String>[
+        Heading(
+          'Edit what is selected in one line, and reach anything with Ctrl+K.',
+        ),
+        Body(
           'The formula bar runs across the top of the editor, as in Excel or '
-              'Power Apps. Select an element and its text is there; the box on '
-              'the left picks any other field: its layout, its style, its '
-              'action.',
+          'Power Apps. Select an element and its text is there; the box on '
+          'the left picks any other field: its layout, its style, its '
+          'action.',
+        ),
+        Body(
           'A formula is a value of that field\'s kind: "text", 12 * 2 + 4, '
-              '#111827 or rgb(17, 24, 39), one of a choice\'s options, TRUE, '
-              'or Navigate("/pricing"). It is highlighted as you type and '
-              'offers completions: options, routes, data models and their '
-              'fields, functions. Enter applies it, Esc puts back what was '
-              'there, and a formula that is wrong says where and writes '
-              'nothing. Each edit is one step in the canvas\'s undo history.',
+          '#111827 or rgb(17, 24, 39), one of a choice\'s options, TRUE, '
+          'or Navigate("/pricing"). It is highlighted as you type and '
+          'offers completions: options, routes, data models and their '
+          'fields, functions. Enter applies it, Esc puts back what was '
+          'there, and a formula that is wrong says where and writes '
+          'nothing. Each edit is one step in the canvas\'s undo history.',
+        ),
+        Body(
           'Ctrl+K (Cmd+K on a Mac) opens the command palette: every section, '
-              'every page, every element on the page by name, and what can be '
-              'done to it, found by typing a few letters. Ctrl+D duplicates '
-              'the selected element, and Ctrl+/ lists every shortcut.',
-        ]),
+          'every page, every element on the page by name, and what can be '
+          'done to it, found by typing a few letters. Ctrl+D duplicates '
+          'the selected element, and Ctrl+/ lists every shortcut.',
+        ),
         StudioShot(
           'assets/studio_shots/formula-bar.png',
           'The Studio page editor with the formula bar across the top: the '
               'fontSize field picked in the name box and 12 * 3 + 12 being '
               'typed for the selected heading',
-          caption: 'The formula bar: fontSize picked in the name box, and a '
+          caption:
+              'The formula bar: fontSize picked in the name box, and a '
               'formula typed for the selected heading.',
         ),
         StudioShot(
@@ -164,35 +192,43 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       tint: true,
       children: <Widget>[
-        Bullets(<String>[
-          'Studio inherits your app’s Material theme. New projects start with '
-          'Dartvel’s light and dark theme. Custom Studio colors and the visible '
-          'server-rendered first frame are still being brought into parity.',
-        ]),
+        Body(
+          'Studio inherits your app’s Material theme, light and dark. New '
+          'projects start with Dartvel’s theme until you customise it.',
+        ),
         Eyebrow('KEYBOARD AND SCREEN READER'),
-        Heading('Every control is a control, not a picture of one.'),
-        Bullets(<String>[
+        Heading('Controls support keyboard and screen reader input.'),
+        Body(
           'On sign-in, the email and password fields have accessible labels. '
-              'Tab from the password reaches Sign in; Enter submits it.',
+          'Tab from the password reaches Sign in; Enter submits it.',
+        ),
+        Body(
           'Tab reaches every button, every icon on the rail and the toolbar, '
-              'and every toggle. Enter and Space both press one. The focus is '
-              'drawn as a ring on the control itself, so you can see where you '
-              'are.',
+          'and every toggle. Enter and Space both press one. The focus is '
+          'drawn as a ring on the control itself, so you can see where you '
+          'are.',
+        ),
+        Body(
           'A screen reader is told what each control is, what it is called and '
-              'whether it works. A control with nothing to do — Undo with no '
-              'history, Sign in while signing in — says so and is skipped, '
-              'rather than looking live and doing nothing.',
+          'whether it works. A disabled control, such as Undo with no '
+          'history or Sign in while signing in, announces its state '
+          'and is skipped.',
+        ),
+        Body(
           'Ctrl+F works on a Studio screen, because Studio is a route of your '
-              'app rendered by the same server as every other page. So does '
-              'selecting text with the mouse, the arrow keys, a remote\'s '
-              'D-pad and switch control.',
-          'Each screen has its own address — /__studio is Pages, /__studio/'
-              'components is Components, /__studio/data/Product is one model '
-              'and /__studio/data/Product/p-1 opens one record — '
-              'so a screen can be linked, bookmarked and reloaded, and the '
-              'server sends a document with it for anything reading without '
-              'the app.',
-        ]),
+          'app rendered by the same server as every other page. So does '
+          'selecting text with the mouse, the arrow keys, a remote\'s '
+          'D-pad and switch control.',
+        ),
+        Body(
+          'Each screen has its own address: /__studio is Pages, /__studio/'
+          'components is Components, /__studio/data/Product is one model '
+          'and /__studio/data/Product/p-1 opens one record; '
+          'so a screen can be linked, bookmarked and reloaded, and the '
+          'server sends a document with it for anything reading without '
+          'the app. Planned: that document fully interactive before '
+          'Flutter loads.',
+        ),
       ],
     ),
     Section(
@@ -305,24 +341,31 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
     Section(
       children: <Widget>[
         Eyebrow('FRONTEND AND BACKEND FUNCTIONS'),
-        Heading('Build what a button does and what the server does, from the '
-            'same steps. Free.'),
-        Bullets(<String>[
+        Heading(
+          'Build what a button does and what the server does, from the '
+          'same steps. Free.',
+        ),
+        Body(
           'Frontend functions run in the app and backend functions on your '
-              'server, each in its own Studio section. A frontend function '
-              'calls a backend one by name.',
+          'server, each in its own Studio section. A frontend function '
+          'calls a backend one by name.',
+        ),
+        Body(
           'Inputs and results have types, Text, Whole number, Number or Yes '
-              'or no, and a run refuses the wrong type before any step runs.',
+          'or no, and a run refuses the wrong type before any step runs.',
+        ),
+        Body(
           'Both builders are free: a page builder whose buttons can do '
-              'nothing is not a page builder. Deploy saves the function, and '
-              'Export writes ordinary Dart, so you can drop the builder.',
-        ]),
+          'nothing is not a page builder. Deploy saves the function, and '
+          'Export writes ordinary Dart, so you can drop the builder.',
+        ),
         StudioShot(
           'assets/studio_shots/frontend-function.png',
           'The Frontend section of Studio with the orderAhead function open: '
               'Call, Condition and Return steps on the canvas, and the '
               'selected Condition step\'s argument on the right',
-          caption: 'A frontend function: what a button does, built from '
+          caption:
+              'A frontend function: what a button does, built from '
               'steps that branch on a value.',
         ),
         StudioShot(
@@ -331,11 +374,14 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
               'step selected, and the '
               'backend functions the project wrote in code listed underneath '
               'by the address each answers',
-          caption: 'The Backend section builds one and lists the ones your '
+          caption:
+              'The Backend section builds one and lists the ones your '
               'code already declares.',
         ),
-        Body('Export writes this backend function, and nothing in it refers '
-            'to the builder:'),
+        Body(
+          'Export writes this backend function, and nothing in it refers '
+          'to the builder:',
+        ),
         CodeBlock(<String>[
           "import 'package:dartvel_core/dartvel.dart';",
           '',
@@ -354,8 +400,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
           '  return receipt;',
           '}',
         ]),
-        Body('A frontend function built in the Frontend section calls it '
-            'through the generated client:'),
+        Body(
+          'A frontend function built in the Frontend section calls it '
+          'through the generated client:',
+        ),
         CodeBlock(<String>[
           "import '../dartvel_client/dartvel_client.dart';",
           '',
@@ -379,8 +427,10 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       dark: true,
       children: <Widget>[
         Eyebrow('STUDIO PRO', onDark: true),
-        Heading('Studio Pro adds Figma import, components and team review.',
-            onDark: true),
+        Heading(
+          'Studio Pro adds Figma import, components and team review.',
+          onDark: true,
+        ),
         Bullets(onDark: true, <String>[
           'Studio Pro comes with Dartvel Cloud. There is nothing separate to '
               'buy, and it is not in your web-server binary.',
@@ -428,11 +478,13 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('EVERY SECTION'),
         Heading('All ten sections, photographed from a Studio that was run.'),
-        Body('Each picture below was taken by `dartvel capture studio` against a '
-            'web-server binary built from this repository: it signs in, clicks '
-            'each item on the rail and photographs what is on screen. A job '
-            'takes them again whenever Studio changes, so a section added this '
-            'week is a section you can see this week.'),
+        Body(
+          'Each picture below was taken by `dartvel capture studio` against a '
+          'web-server binary built from this repository: it signs in, clicks '
+          'each item on the rail and photographs what is on screen. A job '
+          'takes them again whenever Studio changes, so a section added this '
+          'week is a section you can see this week.',
+        ),
         StudioSectionGallery(),
       ],
     ),

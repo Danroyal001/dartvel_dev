@@ -81,15 +81,9 @@ Widget _docsTenancyPage(BuildContext context) => const DocsArticle(
           id: 'across',
           title: 'Query across tenants on purpose',
           children: <Widget>[
-            DocsText('Under shared-database, raw SQL that names a scoped table '
-                'without dv_tenant is refused. An operator report says so '
-                'out loud:'),
-            DocsCode('tenancy-across'),
-            DocsNote('Being replaced by data model queries',
-                'This report is a SQL string, which is leaving the '
-                'application surface. A cross-tenant read will be a data '
-                'model query inside DV.Database.acrossTenants once model '
-                'queries exist.'),
+            DocsNote('Planned', 'A generated cross-tenant data model query '
+                'surface is not yet implemented. Application queries stay '
+                'inside the tenant selected by DV.withTenant.'),
             DocsText('Group the people inside a tenant into an organization '
                 'with roles and invitations. See Organizations.'),
           ],
