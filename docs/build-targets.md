@@ -49,6 +49,8 @@ local Dartvel `dartvel_vscode` fork added as a dependency.
 | `linux` | ✅ Builds and **runs** | `build/linux/x64/release/bundle/dartvel_example`, 23.8 KB launcher + bundle. Runtime-verified under Xvfb: the release binary ran headless (software EGL), stayed alive, and a root-window screenshot showed the full UI — `DV.Platform` live-reporting `linux`/`desktop`, signals active (`showcase-ready`). The first target verified by running, not only building. **Re-verified 2026-08-15** after the native-asset hook was rewritten (`976ccfa8`, `db93571b`): the hook compiled `x86_64-unknown-linux-gnu` from an empty target directory, `libdartvel_shelf.so` (6.5 MB) was bundled into `bundle/lib/`, and the binary ran and rendered as before |
 | `android` | ✅ Builds | `build/app/outputs/flutter-apk/app-release.apk`, 47.9 MB |
 | `fireos` | ✅ Builds | Same APK path; `fireos` maps onto the Android toolchain |
+| `horizon` | ✅ Builds; APK checked with aapt2. Not run on a headset | 2026-10-09, Linux x64, a fresh `dartvel create` project: `build/app/outputs/flutter-apk/app-release.apk` (18.3 MB), arm64-v8a only, minSdk 32, targetSdk 34, install-location auto, head tracking not required, `com.oculus.supportedDevices` and a 1024x640 dp panel layout, no prohibited permission; the build's own aapt2 check passed after refusing the first run for x86_64 and armeabi-v7a `libdartjni.so`. Debug-signed. See [Meta Horizon OS](#meta-horizon-os-quest) |
+| `visionos` | ⏳ Planned: wired, never run | Needs macOS and Xcode; not run because GitHub Actions on this account is billing-locked. The iOS build Vision Pro runs as Designed for iPad. See [visionOS](#visionos-apple-vision-pro) |
 | `windows` | ✅ Builds | **Verified on a Windows runner**, artifact downloaded and inspected rather than inferred: `dartvel_example.exe` (89 KB, PE32+ executable GUI x86-64), `dartvel_shelf.dll` (7.2 MB, the Rust runtime), `flutter_windows.dll`, `data/`. Run [32587129093](https://github.com/Danroyal001/dartvel_dev/actions/runs/32587129093). Took eight attempts and **seven bugs** — two earlier runs had burned 257 and 226 minutes in silence. Four of the seven were not Windows quirks but silent corruption on every platform, exposed only because a Windows path forced the issue: `esc` never escaped backslashes; `routeFromRel` normalised separators with a doubled backslash and stripped its prefix before normalising; the same doubled-backslash fault sat in six more sites across two packages; and four glob patterns were built with `p.join`, where the separator is always `/` and a backslash is the escape character. See [Windows](#windows) |
 | `macos` | ✅ Builds | **Verified on a macOS runner**, artifact downloaded and inspected: `dartvel_example.app/Contents/MacOS/dartvel_example` is a **Mach-O universal binary (x86_64 + arm64)**, with `dartvel_shelf.framework` — the Rust runtime — bundled into `Contents/Frameworks`. Run [32602765861](https://github.com/Danroyal001/dartvel_dev/actions/runs/32602765861). The 41-minute silence was never Flutter: the native asset hook buffered its output, so a long C compile was indistinguishable from a wedge. Bounding and streaming it turned the hang into a visible failure, which turned out to be **cc-rs invoked with no `-isysroot`** — `SDKROOT` was unset, so every C crate (`ring`, `zstd-sys`, `aws-lc-sys`) failed to find its headers. The hook now asks `xcrun` for the SDK path, chosen from the target rather than the host. `aws-lc-rs` was also dropped: it is rustls's default provider, this crate uses `ring`, and it was compiling a large C codebase for nothing on every platform. See [macOS](#macos) |
 | `ios` | ✅ Builds | **Verified on a macOS runner**, not this host: `build/ios/iphoneos/Runner.app` (15.4 MB), artifact directory listed. Run [31554165981](https://github.com/Danroyal001/dartvel_dev/actions/runs/31554165981) |
@@ -1030,6 +1032,99 @@ mapped `tvos` onto the iOS toolchain and ran `flutter build ios --no-codesign`,
 so the matrix reported a green tvOS job for an iPhone app.
 
 ---
+
+### Meta Horizon OS (Quest)
+
+**Builds; the APK is checked; not run on a headset.** Verified 2026-10-09 on
+Linux x64, Flutter 3.47.5, on a fresh `dartvel create` project (no `android/`
+folder until the build generated it):
+
+- `dartvel build horizon` generated the scaffold, wrote the Horizon entries,
+  and ran `flutter build apk --release ... --target-platform android-arm64
+  --android-project-arg=dartvelMinSdk=32 --android-project-arg=dartvelTargetSdk=34
+  --android-project-arg=dartvelAbiFilters=arm64-v8a --dart-define=DARTVEL_PLATFORM=horizon`.
+- `build/app/outputs/flutter-apk/app-release.apk`, 18.3 MB (sha256
+  `f8f87552...ee68`). `aapt2 dump badging`: `minSdkVersion:'32'`,
+  `targetSdkVersion:'34'`, `install-location:'auto'`,
+  `uses-feature-not-required: name='android.hardware.vr.headtracking' version='1'`,
+  `native-code: 'arm64-v8a'`. Permissions were `VIBRATE`, `USE_BIOMETRIC`
+  and the app's own dynamic-receiver permission, none of them on Meta's
+  prohibited list. `aapt2 dump xmltree` shows `com.oculus.supportedDevices` =
+  `quest2|questpro|quest3|quest3s` and a `<layout>` on `MainActivity` of
+  1024x640 dp. `lib/` holds only `arm64-v8a` libraries.
+- The build's own aapt2 check printed "checked with aapt2: a Horizon OS panel
+  app". **The first run failed it, correctly**: `--target-platform` limits
+  Flutter's own code only, and the `jni` package's `libdartjni.so` still came
+  for `armeabi-v7a` and `x86_64`. The `dartvelAbiFilters` property fixed that.
+- The APK is signed with Android's debug key, as Flutter's template signs
+  release builds. The store needs your own release key.
+
+What the build writes, all from Meta's docs: head tracking `required="false"`
+(required is for immersive apps), `com.oculus.supportedDevices`, the panel
+`<layout>`, `installLocation="auto"`, and targetSdk 34 (required of apps
+created since 2026-03-01) with minSdk 32 (the accepted range is 29-34), from
+[Application Manifests for Release Builds](https://developers.meta.com/horizon/resources/publish-mobile-manifest/)
+and [create app](https://developers.meta.com/horizon/documentation/android-apps/create-app/).
+It never adds `com.oculus.intent.category.VR`, which launches an immersive
+OpenXR app. The kiosk and home-widget blocks are left out, because their
+components need `BIND_DEVICE_ADMIN` and `BIND_APPWIDGET`, which are on the
+[prohibited list](https://developers.meta.com/horizon/resources/permissions-prohibited/).
+An `android` build after a `horizon` one takes every Horizon entry back out of
+the shared `android/` project; the Gradle hook is inert without the
+properties.
+
+Not verified, and needed before calling it shipped:
+
+- Installing on a Quest (`adb install`, developer mode) and photographing the
+  panel; controller, hand and keyboard input reaching the page. Meta says
+  controllers, hands, mice and styluses arrive as Android motion events on a
+  panel and the thumbstick as scroll axes, and hands have no back gesture.
+- An upload through the Horizon Store's own checks, and a release-signed APK.
+- Horizon OS has no Google Mobile Services; a plugin that needs them fails at
+  run time and nothing checks for that.
+- Not on Dartvel Cloud yet.
+
+### visionOS (Apple Vision Pro)
+
+**Planned: wired, not yet run.** `dartvel build visionos` is accepted, checks
+for a macOS host and Xcode, and runs `flutter build ios --release --no-codesign
+--dart-define=DARTVEL_PLATFORM=visionos` (`--simulator` for a simulator
+build). It has not been run, because it needs a Mac and GitHub Actions on this
+account is billing-locked. On Linux it skips with "linux cannot build
+visionos", and `dartvel doctor --target visionos` says it builds on macOS with
+Xcode.
+
+Why it is the iOS build:
+
+- Flutter has no visionOS support. [flutter/flutter#128313](https://github.com/flutter/flutter/issues/128313)
+  is open (P3, "would require significant investment"), and the Flutter team
+  said in June 2024 that not building it is a deliberate decision. No
+  maintained community engine for `xros` was found.
+- Apple runs iPad and iPhone apps on Vision Pro unchanged, "Designed for
+  iPad": such an app "links against the iOS SDK and runs in visionOS without
+  needing to add a visionOS destination", and is published there
+  automatically unless it is opted out in App Store Connect
+  ([Making your existing app compatible with visionOS](https://developer.apple.com/documentation/visionos/making-your-app-compatible-with-visionos)).
+  Compatible apps have no camera capture, Core Motion, HealthKit, or location
+  beyond the standard service, and see at most two touches.
+- flutter/flutter#129638 records running a Flutter iOS app on the visionOS
+  simulator from Xcode and attaching `flutter attach`. Nobody has recorded one
+  on a device.
+
+What needs a Mac (to be run in CI once Actions is available, or on any Mac):
+
+1. `dartvel build visionos` on a `dartvel create` project, and the
+   `build/ios/iphoneos/Runner.app` listed.
+2. `dartvel build visionos --simulator --profile development`, the app
+   installed into an Apple Vision Pro simulator (`xcrun simctl install`), launched, and a
+   screenshot showing `Platform: visionos` and `Device: headset`.
+3. A signed build on a device.
+
+Native visionOS -- a SwiftUI `WindowGroup` hosting `FlutterViewController`
+through `UIViewControllerRepresentable`, volumes, and RealityKit in an
+`ImmersiveSpace` -- needs a Flutter engine that builds for `xros`
+(`xrsimulator` on the simulator), which does not exist. It is not attempted
+here.
 
 ### Browser extensions
 

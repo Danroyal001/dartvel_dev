@@ -213,6 +213,8 @@ dartvel build tizen        # alias: dartvel build tpk
 dartvel build sony-elinux --format iso        # also: sony-elinux-iso, sony-elinux-img
 dartvel build webos
 dartvel build tvos --simulator   # the only unsigned tvOS build
+dartvel build horizon      # Meta Quest: an Android 2D panel app, checked with aapt2
+dartvel build visionos     # Apple Vision Pro: the iPad app (macOS only)
 dartvel build linux-cli    # the terminal backend and no GUI code
 dartvel build vscode       # VS Code extension host + Flutter webview
 ```
@@ -232,6 +234,8 @@ what it drew was checked, usually on every push.
 | `linux-cli` | ✅ Runs in a pty in CI, with the terminal embedder built there. Locally the build needs `dartvel_cli_flt` installed |
 | `webos` | ✅ Runs in a Wayland window on ARM under emulation. Not run on a television |
 | `fireos` | ✅ Builds (the Android toolchain) |
+| `horizon` | ✅ Builds an APK that `aapt2` reads back as a Horizon OS panel app (manifest, SDK levels, arm64, no prohibited permissions). Not yet run on a headset |
+| `visionos` | ⏳ Planned: the command is wired (the unsigned iOS build Vision Pro runs as Designed for iPad, macOS only) and has not yet been run on a Mac |
 | `tizen` / `tpk` | ✅ Builds a signed TPK where Tizen Studio is installed. CI can only check that it skips, since the SDK is licence-gated |
 | `vscode` | ✅ Builds. Not run |
 | `fuchsia` | ❌ Blocked: the Fuchsia embedder engine does not build at Flutter 3.44.5 |
