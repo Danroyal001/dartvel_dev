@@ -17,7 +17,7 @@ import 'package:test/test.dart';
 
 late Directory dir;
 
-String _openssl(List<String> args, {List<int>? stdinBytes}) {
+String _openssl(List<String> args) {
   final ProcessResult result = Process.runSync(
     'openssl',
     args,

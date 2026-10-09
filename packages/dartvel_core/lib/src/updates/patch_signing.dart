@@ -151,9 +151,7 @@ class DVPatchSigning {
         final ASN1Sequence info = _sequence(der);
         final ASN1Object octets = info.elements![2];
         if (octets is! ASN1OctetString) {
-          throw const DVPatchSigningException(
-            'The private key is not PKCS#8.',
-          );
+          throw const DVPatchSigningException('The private key is not PKCS#8.');
         }
         return _pkcs1PrivateKey(octets.valueBytes!);
       case 'ENCRYPTED PRIVATE KEY':
