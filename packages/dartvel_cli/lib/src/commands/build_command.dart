@@ -24,12 +24,14 @@ import 'package:dartvel_core/dartvel.dart'
         dvAndroidPermissionNames,
         dvOfflineRoute,
         DVDocsMount,
-        DVFileStorageConfig;
+        DVFileStorageConfig,
+        DVXRConfig;
 
 import '../build/android_home_widget.dart';
 import '../build/android_capture_bridge.dart';
 import '../build/file_storage_permissions.dart';
 import '../build/scene3d_native.dart';
+import '../build/spatial_targets.dart';
 import '../build/android_context_provider.dart';
 import '../build/android_kiosk_manifest.dart';
 import '../build/apple_home_widget.dart';
@@ -168,6 +170,7 @@ const browserExtensionBuildPlatforms = <String>[
 /// explicit packaging targets, not part of a general build.
 const allBuildPlatforms = <String>[
   ...flutterBuildPlatforms,
+  ...spatialBuildPlatforms,
   ...embeddedBuildPlatforms,
   ...extensionBuildPlatforms,
   ...browserExtensionBuildPlatforms,
@@ -477,6 +480,8 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
     case 'web-server':
     case 'android':
     case 'fireos':
+    // An Android build with the Horizon OS manifest.
+    case 'horizon':
       return true;
     // A browser extension is web output; any host that can build web can
     // build it.
@@ -486,6 +491,8 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
     case 'ios':
     case 'macos':
     case 'tvos':
+    // The iOS build Vision Pro runs as Designed for iPad.
+    case 'visionos':
       return hostOs == 'macos';
     case 'windows':
       return hostOs == 'windows';
@@ -1064,9 +1071,12 @@ class BuildCommand extends Command<void> {
   }) async {
     Logger.log('');
     Logger.log('🔨 Building for $platform...');
+    // The native project this target is built from: android/ for Horizon OS,
+    // ios/ for Vision Pro. Every writer below prepares that project.
+    final String project = dvNativeProjectFor(platform);
     final bool scaffoldOk = await dvEnsurePlatformScaffold(
       root: _projectRoot,
-      platform: platform,
+      platform: project,
       processRun: _processRun,
     );
     if (!scaffoldOk) return _PlatformBuildResult.failed;
@@ -1081,7 +1091,7 @@ class BuildCommand extends Command<void> {
       return _PlatformBuildResult.failed;
     }
     final List<String> linkErrors = deepLinks?.missingIdentifiers(<String>{
-          platform == 'fireos' ? 'android' : platform,
+          project == 'fireos' ? 'android' : project,
         }) ??
         const <String>[];
     if (linkErrors.isNotEmpty) {
@@ -1096,16 +1106,16 @@ class BuildCommand extends Command<void> {
     // Before Xcode reads the project: an extension target cannot be added to
     // a build that has already started, and a widget with no target is Swift
     // that nothing compiles.
-    if (platform == 'ios' || platform == 'macos') {
-      _writeAppleHomeWidgets(_projectRoot, platform);
+    if (project == 'ios' || project == 'macos') {
+      _writeAppleHomeWidgets(_projectRoot, project);
     }
-    if (platform == 'ios' || platform == 'macos') {
+    if (project == 'ios' || project == 'macos') {
       // Before Xcode reads Info.plist and the entitlements: what
       // dartvel.fileStorage lets the app reach outside its own container.
-      if (!_writeAppleFileStorage(_projectRoot, platform)) return _PlatformBuildResult.failed;
+      if (!_writeAppleFileStorage(_projectRoot, project)) return _PlatformBuildResult.failed;
     }
-    if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
-    if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
+    if (project == 'ios') _writeIosDeepLinks(_projectRoot);
+    if (project == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
     if (platform == 'android' || platform == 'fireos') {
@@ -1120,6 +1130,25 @@ class BuildCommand extends Command<void> {
       _writeAndroidHomeWidgets(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
     }
+    if (project == 'android') {
+      // Last among the manifest writers, and for every Android-family build:
+      // an android build after a horizon one takes the Horizon entries back
+      // out, so a phone APK never carries a headset's store metadata.
+      if (!_writeHorizonProject(_projectRoot, enabled: platform == 'horizon')) {
+        return _PlatformBuildResult.failed;
+      }
+    }
+    if (platform == 'horizon') {
+      _writeAndroidContextProvider(_projectRoot);
+      _writeAndroidCaptureBridge(_projectRoot);
+      _writeAndroidDeepLinks(_projectRoot, deepLinks);
+      // Not the kiosk or the home widgets. Both rest on components the
+      // Horizon Store refuses -- a device-admin receiver is guarded by
+      // BIND_DEVICE_ADMIN and a widget provider by BIND_APPWIDGET -- and a
+      // headset has no home screen to put a widget on. An android build's
+      // blocks are taken back out of the shared manifest.
+      _stripAndroidForHorizon(_projectRoot);
+    }
     // A development build pairs with `dartvel dev`: the tunnel,
     // the activity a scanned link opens, and the entrypoint that starts it.
     if (_profile.isDevelopment && dvDevClientPlatforms.contains(platform)) {
@@ -1130,11 +1159,11 @@ class BuildCommand extends Command<void> {
         _ => _writeAndroidDevClient(_projectRoot, target),
       };
       if (!written) return _PlatformBuildResult.failed;
-    } else if (platform == 'ios' || platform == 'macos') {
+    } else if (project == 'ios' || project == 'macos') {
       // A profile or release build of a project that was built for
       // development: the tunnel and the development Info.plist come back out
       // of the Xcode project, so nothing of them can reach this build.
-      _stripAppleDevClient(_projectRoot, platform);
+      _stripAppleDevClient(_projectRoot, project);
     } else if (platform == 'linux') {
       _stripLinuxDevClient(_projectRoot);
     } else if (platform == 'windows') {
@@ -1142,17 +1171,17 @@ class BuildCommand extends Command<void> {
     }
     // Flutter GPU, which a dartvel.scene3d project renders through, is off
     // by default on every native platform and switched on in its own file.
-    _writeScene3dGpu(_projectRoot, platform);
+    _writeScene3dGpu(_projectRoot, project);
     // Before the platform build reads them: the launch theme, the launch
     // storyboard and the runner's first colour are each read once, at the
     // start, and a splash written after that ships in the next build.
     if (const <String>{'android', 'fireos', 'ios', 'macos', 'linux'}
-        .contains(platform)) {
-      _writeNativeSplash(_projectRoot, platform);
+        .contains(project)) {
+      _writeNativeSplash(_projectRoot, project);
     }
     // The launcher's name and icon, from dartvel.pwa, for the same reason.
     {
-      final List<String> launcher = dvWriteLauncherIdentity(_projectRoot, platform);
+      final List<String> launcher = dvWriteLauncherIdentity(_projectRoot, project);
       if (launcher.isNotEmpty) {
         Logger.log('🏷️  Launcher name and icon from dartvel.pwa: '
             '${launcher.length} file(s) written.');
@@ -1305,6 +1334,10 @@ class BuildCommand extends Command<void> {
       if (platform == 'linux') _writeLinuxDesktopFiles(_projectRoot);
       if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
       if (!_bundleNodeRuntime(_projectRoot, platform)) {
+        Logger.log('❌ $platform build failed');
+        return _PlatformBuildResult.failed;
+      }
+      if (platform == 'horizon' && !await _checkHorizonApk(_projectRoot, buildMode)) {
         Logger.log('❌ $platform build failed');
         return _PlatformBuildResult.failed;
       }
@@ -2101,6 +2134,107 @@ class BuildCommand extends Command<void> {
     policy.writeAsStringSync(dvAndroidDeviceAdminPolicy());
     Logger.log('   Kiosk: the application is the home screen, with a '
         'device-admin receiver for dpm set-device-owner.');
+  }
+
+  /// The Horizon OS panel-app entries in android/, or taken back out of it
+  /// for every other Android-family build. False when dartvel.xr is wrong or
+  /// the Gradle file is not one Dartvel can make the SDK levels overridable
+  /// in, since a Horizon build at Flutter's own levels is refused by the store.
+  bool _writeHorizonProject(String root, {required bool enabled}) {
+    final DVXRConfig config = DVXRConfig.parse(_dartvelSection(root)['xr']);
+    if (enabled && config.problems.isNotEmpty) {
+      for (final String problem in config.problems) {
+        Logger.log('❌ $problem');
+      }
+      return false;
+    }
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (manifest.existsSync()) {
+      final String before = manifest.readAsStringSync();
+      final String after = dvHorizonManifest(before, config, enabled: enabled);
+      if (after != before) manifest.writeAsStringSync(after);
+    } else if (enabled) {
+      Logger.log('❌ android/app/src/main/AndroidManifest.xml is not there, so '
+          'the Horizon OS entries reach nothing.');
+      return false;
+    }
+    if (!enabled) return true;
+    for (final String name in const <String>['build.gradle.kts', 'build.gradle']) {
+      final File gradle = File(p.join(root, 'android', 'app', name));
+      if (!gradle.existsSync()) continue;
+      final String before = gradle.readAsStringSync();
+      final String? after = dvHorizonGradle(before);
+      if (after == null) {
+        Logger.log('❌ android/app/$name sets minSdk and targetSdk in a way '
+            'Dartvel does not recognise, so the Horizon build cannot set the '
+            'levels Meta requires (minSdk $dvHorizonMinSdk, targetSdk '
+            '$dvHorizonTargetSdk).');
+        return false;
+      }
+      if (after != before) gradle.writeAsStringSync(after);
+      Logger.log('   Horizon OS: a ${config.panel.width}x${config.panel.height} dp '
+          'panel for ${config.horizonSupportedDevices}, minSdk $dvHorizonMinSdk, '
+          'targetSdk $dvHorizonTargetSdk, arm64.');
+      return true;
+    }
+    Logger.log('❌ android/app has no build.gradle.kts or build.gradle.');
+    return false;
+  }
+
+  /// The kiosk and home-widget blocks an android build wrote, out of the
+  /// manifest a Horizon build shares with it.
+  void _stripAndroidForHorizon(String root) {
+    final File manifest =
+        File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidHomeWidgetManifest(
+        dvAndroidKioskManifest(before, const DVAndroidKiosk(enabled: false)),
+        const <DVHomeWidgetSpec>[]);
+    if (after != before) manifest.writeAsStringSync(after);
+    if (DVAndroidKiosk.of(root).ownsTheDevice) {
+      Logger.log('[i] dartvel.kiosk is not in the horizon build: a device-admin '
+          'receiver needs BIND_DEVICE_ADMIN, which the Horizon Store refuses.');
+    }
+  }
+
+  /// Reads the built APK back with aapt2 and refuses it when the Horizon
+  /// Store's upload check would. The merged manifest is what is checked, so
+  /// a permission a plugin added is caught here and not at upload.
+  Future<bool> _checkHorizonApk(String root, String buildMode) async {
+    final String apk = dvHorizonApkPath(root, buildMode);
+    if (!File(apk).existsSync()) {
+      Logger.log('❌ $apk was not written.');
+      return false;
+    }
+    final String? aapt2 = dvLocateAapt2();
+    if (aapt2 == null) {
+      Logger.log('⚠️  No aapt2 in the Android SDK build-tools, so $apk was not '
+          'checked against the Horizon Store\'s manifest rules.');
+      return true;
+    }
+    final ProcessResult badging = await _processRun(aapt2, <String>['dump', 'badging', apk]);
+    final ProcessResult tree = await _processRun(
+        aapt2, <String>['dump', 'xmltree', '--file', 'AndroidManifest.xml', apk]);
+    if (badging.exitCode != 0 || tree.exitCode != 0) {
+      Logger.log('❌ aapt2 could not read $apk: ${badging.stderr}${tree.stderr}');
+      return false;
+    }
+    final List<String> problems = dvHorizonApkProblems(
+      badging: '${badging.stdout}',
+      manifestTree: '${tree.stdout}',
+      config: DVXRConfig.parse(_dartvelSection(root)['xr']),
+    );
+    if (problems.isEmpty) {
+      Logger.log('   $apk checked with aapt2: a Horizon OS panel app.');
+      return true;
+    }
+    Logger.log('❌ $apk would be refused by the Horizon Store:');
+    for (final String problem in problems) {
+      Logger.log('   • $problem');
+    }
+    return false;
   }
 
   /// A provider, its metadata and its layout for every `@DVHomeWidget`.
@@ -4750,7 +4884,9 @@ List<String> resolveFlutterBuildArguments({
   final command = switch (platform) {
     'android' when bundle => 'appbundle',
     'ios' when ipa => 'ipa',
-    'android' || 'fireos' => 'apk',
+    'android' || 'fireos' || 'horizon' => 'apk',
+    // Vision Pro runs the iPad app; there is no visionOS Flutter build.
+    'visionos' => 'ios',
     // The same Flutter web build. What differs is what Dartvel writes beside
     // it afterwards: a manifest rather than a file per route.
     'web-server' => 'web',
@@ -4823,6 +4959,20 @@ List<String> resolveFlutterBuildArguments({
     // A simulator app is never signed; a device build is built unsigned and
     // signed where it is distributed.
     args.add(simulator ? '--simulator' : '--no-codesign');
+  } else if (platform == 'visionos') {
+    // The same unsigned iOS build. Whether a Vision Pro simulator takes the
+    // simulator build has not been run yet: see docs/build-targets.md.
+    args.add(simulator ? '--simulator' : '--no-codesign');
+  }
+
+  // Horizon OS: 64-bit, at the SDK levels the Horizon Store requires.
+  if (platform == 'horizon') args.addAll(dvHorizonFlutterArguments());
+
+  // A Horizon APK and a Vision Pro build cannot tell at run time that they
+  // are on a headset without a native binding -- Horizon OS reports Android,
+  // a Designed-for-iPad app reports iOS -- so the build says so, as tvOS does.
+  if (platform == 'horizon' || platform == 'visionos') {
+    args.add('--dart-define=DARTVEL_PLATFORM=$platform');
   }
 
   return List<String>.unmodifiable(args);
@@ -4840,6 +4990,9 @@ String? dvPackageFormatProblem({
   bool? codesign,
   String? exportOptionsPlist,
 }) {
+  if (format == 'aab' && platform == 'horizon') {
+    return "dartvel build horizon makes an APK, the package Meta's Horizon OS publishing docs describe; leave out --format aab.";
+  }
   if (format == 'aab' && platform != 'android') {
     return '--format aab is an Android App Bundle; build it with dartvel build android --format aab.';
   }

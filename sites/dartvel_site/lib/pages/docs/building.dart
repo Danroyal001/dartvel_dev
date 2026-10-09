@@ -78,6 +78,8 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['web', 'Any host', 'Builds, and runs in headless Chrome'],
               <String>['android', 'The Android SDK', 'Builds an APK'],
               <String>['fireos', 'The Android SDK', 'Builds the Android APK'],
+              <String>['horizon', 'The Android SDK', 'Builds a Meta Quest '
+                  'panel app, checked with aapt2. Not yet run on a headset'],
               <String>['ios', 'macOS with Xcode', 'Builds, verified on a macOS '
                   'runner'],
               <String>['macos', 'macOS', 'Builds a universal binary'],
@@ -86,6 +88,8 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               <String>['linux', 'Linux', 'Builds and runs'],
               <String>['tvos', 'macOS with Xcode', 'Builds and runs on the '
                   'simulator. Signed device builds are not verified'],
+              <String>['visionos', 'macOS with Xcode', 'Planned: wired as the '
+                  'iPad app Vision Pro runs, not yet built on a Mac'],
               <String>['tizen (alias tpk)', 'Tizen Studio', 'Builds a signed '
                   'TPK. CI can only skip it'],
               <String>['sony-elinux', 'Linux', 'Builds and runs in release on '
@@ -132,6 +136,35 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
               lead: 'Thanks to the embedders these targets are built on:',
               link: false,
             ),
+          ],
+        ),
+        DocsSection(
+          id: 'headsets',
+          title: 'Headsets: Meta Quest and Apple Vision Pro',
+          children: <Widget>[
+            DocsShell(<String>[
+              'dartvel build horizon      # Meta Quest, Horizon OS',
+              'dartvel build visionos     # Apple Vision Pro, on a Mac',
+              'dartvel doctor --target horizon',
+            ]),
+            Bullets(<String>[
+              'Both open your app as a 2D panel. Your pages need no changes.',
+              'horizon is the Android build with what the Horizon Store asks '
+                  'of a panel app. Dartvel reads the finished APK back and '
+                  'stops the build if the store would refuse it.',
+              'Set the panel size and the headsets under dartvel.xr in '
+                  'pubspec.yaml: panel width and height in dp, and '
+                  'horizon devices.',
+              'visionos is the iPad app, which Vision Pro runs as Designed '
+                  'for iPad. Flutter has no visionOS engine, so there are no '
+                  'native windows, volumes or immersive spaces yet.',
+              'DV.Platform.isHeadset is true in both builds. Use it to '
+                  'decide what to offer, such as a back button for hands.',
+            ]),
+            DocsNote('Not yet run on a headset',
+                'The Quest build has been checked with Android\'s own tools, '
+                'not on a Quest. The Vision Pro build has not yet been built '
+                'on a Mac.'),
           ],
         ),
         DocsSection(
