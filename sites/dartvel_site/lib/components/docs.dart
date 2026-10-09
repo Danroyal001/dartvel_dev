@@ -18,103 +18,294 @@ import 'site.dart';
 /// all read this one list, so a page cannot be in one and missing from
 /// another. test/docs_structure_test.dart checks it against the router.
 const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
-  DocsPageInfo(DVRoutes.docs, 'Getting started',
-      'Install the CLI, create an app and run it', 'Getting started'),
-  DocsPageInfo(DVRoutes.docsadopting, 'Existing Flutter apps',
-      'Add Dartvel to an app you already have', 'Getting started'),
-  DocsPageInfo(DVRoutes.docsexistingnativeapps, 'Existing Native apps',
-      'Embed Dartvel inside an Android, iOS, web or desktop host', 'Getting started'),
-  DocsPageInfo(DVRoutes.docsdevclient, 'Run on your phone',
-      'Pair a development build with `dartvel dev`', 'Getting started'),
-  DocsPageInfo(DVRoutes.docsui, 'UI and styling',
-      'DVBox, DVText, modifiers and layouts', 'App'),
-  DocsPageInfo(DVRoutes.docsrouting, 'Routing',
-      'File pages, parameters, layouts and links', 'App'),
-  DocsPageInfo(DVRoutes.docsstate, 'State',
-      'Signals, derived signals and globals', 'App'),
-  DocsPageInfo(DVRoutes.docsaccessibility, 'Accessibility',
-      'Build-time audit, switch control and remote keys', 'App'),
-  DocsPageInfo(DVRoutes.docsshortcuts, 'Keyboard shortcuts',
-      'Page and app shortcuts, safe typing and a shortcut sheet', 'App'),
-  DocsPageInfo(DVRoutes.docslocalization, 'Localization',
-      'Typed translation keys, plurals and ARB files', 'App'),
-  DocsPageInfo(DVRoutes.docsdevices, 'Devices and desktop',
-      'Native features, home widgets, kiosks, windows and trays', 'App'),
-  DocsPageInfo(DVRoutes.docsnativeaccess, 'Native device access',
-      'DV.Platform: camera, location, files, windows and the rest of the device', 'App'),
-  DocsPageInfo(DVRoutes.docsmedia3d, 'Media, 3D and XR',
-      'Players, recorders, 3D scenes and spatial windows', 'App'),
-  DocsPageInfo(DVRoutes.docsmodels, 'Data models',
-      'One class gives you storage, forms, tables and pages', 'Data'),
-  DocsPageInfo(DVRoutes.docsforms, 'Forms',
-      'A create or edit form for every model', 'Data'),
-  DocsPageInfo(DVRoutes.docssearch, 'Search',
-      'Full text, hosted engines and semantic search', 'Data'),
-  DocsPageInfo(DVRoutes.docssync, 'Sync and offline',
-      'Model changes, presence and offline writes', 'Data'),
-  DocsPageInfo(DVRoutes.docsimportexport, 'Import and export',
-      'CSV, NDJSON and Excel in and out of a model', 'Data'),
-  DocsPageInfo(DVRoutes.docschangecapture, 'Change capture',
-      'An ordered log of writes, copied to a warehouse', 'Data'),
-  DocsPageInfo(DVRoutes.docsdatabase, 'Database',
-      'SQLite, Postgres, MySQL and migrations', 'Data'),
-  DocsPageInfo(DVRoutes.docscache, 'Cache',
-      'Remember values and drop them by tag', 'Data'),
-  DocsPageInfo(DVRoutes.docsstorage, 'File storage',
-      'Files on local disk, S3, GCS or Azure', 'Data'),
-  DocsPageInfo(DVRoutes.docsmedia, 'Images',
-      'Resized image variants for web builds', 'Data'),
-  DocsPageInfo(DVRoutes.docsprivacy, 'Privacy and erasure',
-      'Export and erase a person\'s data', 'Data'),
-  DocsPageInfo(DVRoutes.docsbackendfunctions, 'Backend functions',
-      'A function in lib/backend is an endpoint', 'Backend'),
-  DocsPageInfo(DVRoutes.docsauth, 'Auth and sessions',
-      'Sign-in, second factor, sessions and account pages', 'Backend'),
-  DocsPageInfo(DVRoutes.docsauthorization, 'Authorization',
-      'Policies under DV.Auth.authorization', 'Backend'),
-  DocsPageInfo(DVRoutes.docsqueues, 'Queues and jobs',
-      'Work that runs after the response', 'Backend'),
-  DocsPageInfo(DVRoutes.docsworkers, 'Workers and memory',
-      'Heavy work on other cores, and memory reserved up front', 'Backend'),
-  DocsPageInfo(DVRoutes.docsnotifications, 'Notifications and mail',
-      'Email, in-app and push through one service', 'Backend'),
-  DocsPageInfo(DVRoutes.docshttp, 'Outbound HTTP',
-      'Call APIs you have declared, with retries', 'Backend'),
-  DocsPageInfo(DVRoutes.docsai, 'AI',
-      'Chat, structured output, embeddings and tools', 'Backend'),
-  DocsPageInfo(DVRoutes.docswebhooks, 'Webhooks',
-      'Signed events your customers subscribe to', 'Backend'),
-  DocsPageInfo(DVRoutes.docsgraphql, 'GraphQL and OpenAPI',
-      'The API your models and functions already have', 'Backend'),
-  DocsPageInfo(DVRoutes.docsplatformapi, 'API keys and OAuth',
-      'Let other systems call your app\'s API with scoped keys or OAuth', 'Backend'),
-  DocsPageInfo(DVRoutes.docstenancy, 'Multi-tenancy',
-      'One deployment, many customers', 'Backend'),
-  DocsPageInfo(DVRoutes.docsbilling, 'Billing and commerce',
-      'Subscriptions, store purchases, tax and usage limits', 'Backend'),
-  DocsPageInfo(DVRoutes.docsmodules, 'Modules',
-      'Mount apps, and wrap Dart, npm, C, Rust, JVM or Swift code',
-      'Backend'),
-  DocsPageInfo(DVRoutes.docsedgesecurity, 'Edge security',
-      'Sign-in limits, WAF rules and query budgets', 'Operations'),
-  DocsPageInfo(DVRoutes.docssecrets, 'Secrets and environments',
-      'Keys that stay on the server, checked at build and deploy', 'Operations'),
-  DocsPageInfo(DVRoutes.docsmonitoring, 'Monitoring',
-      'Metrics, traces, crash reports, alerts and analytics', 'Operations'),
-  DocsPageInfo(DVRoutes.docsreleases, 'Releases',
-      'Flags, branch previews, rollouts and old clients', 'Operations'),
-  DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
-      '`dartvel build` for every platform, with its status', 'Shipping'),
-  DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',
-      '`dartvel build web` on Apache or LiteSpeed', 'Shipping'),
-  DocsPageInfo(DVRoutes.docsdeploying, 'Servers and deploying',
-      'Run the backend, deploy and provision hosts', 'Shipping'),
-  DocsPageInfo(DVRoutes.docstesting, 'Testing',
-      'DV.Test fakes, model factories and test modes', 'Reference'),
-  DocsPageInfo(DVRoutes.docscli, 'CLI reference',
-      'Every dartvel command and flag', 'Reference'),
-  DocsPageInfo(DVRoutes.docsagents, 'Coding agents',
-      'One generated block, in every agent\'s file', 'Reference'),
+  DocsPageInfo(
+    DVRoutes.docs,
+    'Getting started',
+    'Install the CLI, create an app and run it',
+    'Getting started',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsadopting,
+    'Existing Flutter apps',
+    'Add Dartvel to an app you already have',
+    'Getting started',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsexistingnativeapps,
+    'Existing Native apps',
+    'Embed Dartvel inside an Android, iOS, web or desktop host',
+    'Getting started',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsdevclient,
+    'Run on your phone',
+    'Pair a development build with `dartvel dev`',
+    'Getting started',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsui,
+    'UI and styling',
+    'DVBox, DVText, modifiers and layouts',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsrouting,
+    'Routing',
+    'File pages, parameters, layouts and links',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsstate,
+    'State',
+    'Signals, derived signals and globals',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsaccessibility,
+    'Accessibility',
+    'Build-time audit, switch control and remote keys',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsshortcuts,
+    'Keyboard shortcuts',
+    'Page and app shortcuts, safe typing and a shortcut sheet',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docslocalization,
+    'Localization',
+    'Typed translation keys, plurals and ARB files',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsdevices,
+    'Devices and desktop',
+    'Native features, home widgets, kiosks, windows and trays',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsnativeaccess,
+    'Native device access',
+    'DV.Platform: camera, location, files, windows and the rest of the device',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsmedia3d,
+    'Media, 3D and XR',
+    'Players, recorders, 3D scenes and spatial windows',
+    'App',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsmodels,
+    'Data models',
+    'One class gives you storage, forms, tables and pages',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsforms,
+    'Forms',
+    'A create or edit form for every model',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docssearch,
+    'Search',
+    'Full text, hosted engines and semantic search',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docssync,
+    'Sync and offline',
+    'Model changes, presence and offline writes',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsimportexport,
+    'Import and export',
+    'CSV, NDJSON and Excel in and out of a model',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docschangecapture,
+    'Change capture',
+    'An ordered log of writes, copied to a warehouse',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsdatabase,
+    'Database',
+    'SQLite, Postgres, MySQL and migrations',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docscache,
+    'Cache',
+    'Remember values and drop them by tag',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsstorage,
+    'File storage',
+    'Files on local disk, S3, GCS or Azure',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsmedia,
+    'Images',
+    'Resized image variants for web builds',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsprivacy,
+    'Privacy and erasure',
+    'Export and erase a person\'s data',
+    'Data',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsbackendfunctions,
+    'Backend functions',
+    'A function in lib/backend is an endpoint',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsauth,
+    'Auth and sessions',
+    'Sign-in, second factor, sessions and account pages',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsauthorization,
+    'Authorization',
+    'Policies under DV.Auth.authorization',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsqueues,
+    'Queues and jobs',
+    'Work that runs after the response',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsworkers,
+    'Workers and memory',
+    'Heavy work on other cores, and memory reserved up front',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsnotifications,
+    'Notifications and mail',
+    'Email, in-app and push through one service',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docshttp,
+    'Outbound HTTP',
+    'Call APIs you have declared, with retries',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsai,
+    'AI',
+    'Chat, structured output, embeddings and tools',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docswebhooks,
+    'Webhooks',
+    'Signed events your customers subscribe to',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsgraphql,
+    'GraphQL and OpenAPI',
+    'The API your models and functions already have',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsplatformapi,
+    'API keys and OAuth',
+    'Let other systems call your app\'s API with scoped keys or OAuth',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docstenancy,
+    'Multi-tenancy',
+    'One deployment, many customers',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsbilling,
+    'Billing and commerce',
+    'Subscriptions, store purchases, tax and usage limits',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsmodules,
+    'Modules',
+    'Mount apps, and wrap Dart, npm, C, Rust, JVM or Swift code',
+    'Backend',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsedgesecurity,
+    'Edge security',
+    'Sign-in limits, WAF rules and query budgets',
+    'Operations',
+  ),
+  DocsPageInfo(
+    DVRoutes.docssecrets,
+    'Secrets and environments',
+    'Keys that stay on the server, checked at build and deploy',
+    'Operations',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsmonitoring,
+    'Monitoring',
+    'Metrics, traces, crash reports, alerts and analytics',
+    'Operations',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsreleases,
+    'Releases',
+    'Flags, branch previews, rollouts and old clients',
+    'Operations',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsbuilding,
+    'Build targets',
+    '`dartvel build` for every platform, with its status',
+    'Shipping',
+  ),
+  DocsPageInfo(
+    DVRoutes.docswebhosting,
+    'Static web hosting',
+    '`dartvel build web` on Apache or LiteSpeed',
+    'Shipping',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsdeploying,
+    'Servers and deploying',
+    'Run the backend, deploy and provision hosts',
+    'Shipping',
+  ),
+  DocsPageInfo(
+    DVRoutes.docstesting,
+    'Testing',
+    'DV.Test fakes, model factories and test modes',
+    'Reference',
+  ),
+  DocsPageInfo(
+    DVRoutes.docscli,
+    'CLI reference',
+    'Every dartvel command and flag',
+    'Reference',
+  ),
+  DocsPageInfo(
+    DVRoutes.docsagents,
+    'Coding agents',
+    'One generated block, in every agent\'s file',
+    'Reference',
+  ),
 ];
 
 /// Every docs group, in sidebar order.
@@ -131,14 +322,15 @@ const List<String> kDocsGroupOrder = <String>[
 
 /// The groups that have pages, in sidebar order.
 List<String> get docsGroups => <String>[
-      for (final String group in kDocsGroupOrder)
-        if (kDocsPages.any((DocsPageInfo p) => p.group == group)) group,
-    ];
+  for (final String group in kDocsGroupOrder)
+    if (kDocsPages.any((DocsPageInfo p) => p.group == group)) group,
+];
 
 /// The page at [path], or null when [path] is not a docs page.
 DocsPageInfo? docsPageAt(String path) {
-  final String normal =
-      path.length > 1 && path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  final String normal = path.length > 1 && path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
   for (final DocsPageInfo page in kDocsPages) {
     if (page.path == normal) return page;
   }
@@ -318,8 +510,9 @@ class const _DocsAnchorKeys({
 /// Flutter has no fragment navigation, so this is what an anchor does: find
 /// the section by key and scroll to it. Quiet when the key has no element yet.
 void dvDocsGoTo(BuildContext context, String id) {
-  final BuildContext? target =
-      DocsAnchors.maybeOf(context)?[id]?.currentContext;
+  final BuildContext? target = DocsAnchors.maybeOf(
+    context,
+  )?[id]?.currentContext;
   if (target == null) return;
   Scrollable.ensureVisible(
     target,
@@ -351,14 +544,21 @@ class _ScrollToFragmentState extends State<ScrollToFragment> {
     if (_started) return;
     _started = true;
     final String fragment =
-        GoRouter.maybeOf(context)?.routeInformationProvider.value.uri.fragment ?? '';
+        GoRouter.maybeOf(context)
+            ?.routeInformationProvider
+            .value
+            .uri
+            .fragment ??
+        '';
     if (fragment.isNotEmpty) _scroll(fragment, 10);
   }
 
   void _scroll(String id, int tries) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final BuildContext? target = DocsAnchors.maybeOf(context)?[id]?.currentContext;
+      final BuildContext? target = DocsAnchors.maybeOf(
+        context,
+      )?[id]?.currentContext;
       if (target != null) {
         Scrollable.ensureVisible(target);
       } else if (tries > 0) {
@@ -382,8 +582,11 @@ Widget _docsArticle(
   final Palette palette = Palette.of(context);
   final DocsPageInfo? info = docsPageAt(page.path);
   final List<DocsSection> parts = sections;
-  final double gutter =
-      context.screen.value<double>(mobile: 22, tablet: 40, desktop: 56);
+  final double gutter = context.screen.value<double>(
+    mobile: 22,
+    tablet: 40,
+    desktop: 56,
+  );
 
   return DocsAnchors(
     ids: <String>[for (final DocsSection s in parts) s.id],
@@ -392,54 +595,71 @@ Widget _docsArticle(
     },
     builder: (BuildContext inner, Map<String, GlobalKey> keys) =>
         ScrollToFragment(
-      child: SingleChildScrollView(
-      child: DVBox.list(<Widget>[
-        DVBox(
-          DVBox.list(<Widget>[
-            DVBox.list(<Widget>[
-              Eyebrow((info?.group ?? 'Docs').toUpperCase()),
-              Prose(info?.title ?? '', const DVModifier()
-                  .fontSize(context.screen.value<double>(mobile: 30, desktop: 38))
-                  .fontWeight(.w700)
-                  .color(palette.ink)
-                  .lineHeight(1.15)
-                  .semanticHeading(1)),
-              Bullets(lead),
-            ], spacing: 14),
-            DocsOnThisPage(sections: parts),
-            for (final DocsSection section in parts)
-              KeyedSubtree(key: keys[section.id], child: section),
-            DocsPager(path: page.path),
-          ], spacing: 44),
-          const DVModifier()
-              .maxWidth(780)
-              .paddingSymmetric(horizontal: gutter, vertical: 40),
+          child: SingleChildScrollView(
+            child: DVBox.list(<Widget>[
+              DVBox(
+                DVBox.list(<Widget>[
+                  DVBox.list(<Widget>[
+                    Eyebrow((info?.group ?? 'Docs').toUpperCase()),
+                    Prose(
+                      info?.title ?? '',
+                      const DVModifier()
+                          .fontSize(
+                            context.screen.value<double>(
+                              mobile: 30,
+                              desktop: 38,
+                            ),
+                          )
+                          .fontWeight(.w700)
+                          .color(palette.ink)
+                          .lineHeight(1.15)
+                          .semanticHeading(1),
+                    ),
+                    Bullets(lead),
+                  ], spacing: 14),
+                  DocsOnThisPage(sections: parts),
+                  for (final DocsSection section in parts)
+                    KeyedSubtree(key: keys[section.id], child: section),
+                  DocsPager(path: page.path),
+                ], spacing: 44),
+                const DVModifier()
+                    .maxWidth(780)
+                    .paddingSymmetric(horizontal: gutter, vertical: 40),
+              ),
+              const SiteFooter(),
+            ], spacing: 0),
+          ),
         ),
-        const SiteFooter(),
-      ], spacing: 0),
-    ),
-    ),
   );
 }
 
 /// The list a page opens with: every section on it, each a jump.
 @DVFunctionalWidget()
-Widget _docsOnThisPage(BuildContext context,
-    {required List<DocsSection> sections}) {
+Widget _docsOnThisPage(
+  BuildContext context, {
+  required List<DocsSection> sections,
+}) {
   final Palette palette = Palette.of(context);
   final List<DocsSection> parts = sections;
   return DVBox(
-    DVBox.list(<Widget>[
-      const Eyebrow('ON THIS PAGE'),
-      for (final DocsSection section in parts)
-        Prose(section.title, const DVModifier()
-            .fontSize(15)
-            .fontWeight(.w600)
-            .color(palette.accent)
-            .paddingSymmetric(vertical: 5)
-            .semanticButton()
-            .onTap(() => dvDocsGoTo(context, section.id))),
-    ], spacing: 2, crossAlign: .start),
+    DVBox.list(
+      <Widget>[
+        const Eyebrow('ON THIS PAGE'),
+        for (final DocsSection section in parts)
+          Prose(
+            section.title,
+            const DVModifier()
+                .fontSize(15)
+                .fontWeight(.w600)
+                .color(palette.accent)
+                .paddingSymmetric(vertical: 5)
+                .semanticButton()
+                .onTap(() => dvDocsGoTo(context, section.id)),
+          ),
+      ],
+      spacing: 2,
+      crossAlign: .start,
+    ),
     const DVModifier()
         .width(double.infinity)
         .padding(20)
@@ -457,34 +677,45 @@ Widget _docsSection(
   required List<Widget> children,
 }) {
   final Palette palette = Palette.of(context);
-  return DVBox.list(<Widget>[
-    Prose(title, const DVModifier()
-        .fontSize(context.screen.value<double>(mobile: 20, desktop: 24))
-        .fontWeight(.w700)
-        .color(palette.ink)
-        .lineHeight(1.25)
-        .semanticHeading(2)),
-    ...children,
-  ], spacing: 16, crossAlign: .start);
+  return DVBox.list(
+    <Widget>[
+      Prose(
+        title,
+        const DVModifier()
+            .fontSize(context.screen.value<double>(mobile: 20, desktop: 24))
+            .fontWeight(.w700)
+            .color(palette.ink)
+            .lineHeight(1.25)
+            .semanticHeading(2),
+      ),
+      ...children,
+    ],
+    spacing: 16,
+    crossAlign: .start,
+  );
 }
 
 /// A smaller heading inside a section.
 @DVFunctionalWidget()
-Widget _docsSubheading(BuildContext context, String text) =>
-    Prose(text, const DVModifier()
-        .fontSize(17)
-        .fontWeight(.w700)
-        .color(Palette.of(context).ink)
-        .semanticHeading(3));
+Widget _docsSubheading(BuildContext context, String text) => Prose(
+  text,
+  const DVModifier()
+      .fontSize(17)
+      .fontWeight(.w700)
+      .color(Palette.of(context).ink)
+      .semanticHeading(3),
+);
 
 /// A short paragraph.
 @DVFunctionalWidget()
-Widget _docsText(BuildContext context, String text) =>
-    Prose(text, const DVModifier()
-        .fontSize(17)
-        .color(Palette.of(context).muted)
-        .lineHeight(1.6)
-        .maxWidth(680));
+Widget _docsText(BuildContext context, String text) => Prose(
+  text,
+  const DVModifier()
+      .fontSize(17)
+      .color(Palette.of(context).muted)
+      .lineHeight(1.6)
+      .maxWidth(680),
+);
 
 /// A compiled sample from examples/docs_samples, by name.
 ///
@@ -501,8 +732,11 @@ Widget _docsCode(BuildContext context, String name) {
 }
 
 /// One sample in two shapes, the function first.
-class const CodeTabs(final List<String> functional, final List<String> asClass,
-    {super.key}) extends StatefulWidget {
+class const CodeTabs(
+  final List<String> functional,
+  final List<String> asClass, {
+  super.key,
+}) extends StatefulWidget {
   @override
   State<CodeTabs> createState() => _CodeTabsState();
 }
@@ -532,8 +766,10 @@ class _CodeTabsState extends State<CodeTabs> {
         ),
         child: Semantics(
           selected: selected,
-          child: Text(label,
-              style: TextStyle(fontWeight: selected ? .w700 : .w500)),
+          child: Text(
+            label,
+            style: TextStyle(fontWeight: selected ? .w700 : .w500),
+          ),
         ),
       ),
     );
@@ -541,24 +777,24 @@ class _CodeTabsState extends State<CodeTabs> {
 
   @override
   Widget build(BuildContext context) => DVBox.list(<Widget>[
-        DVBox.row(<Widget>[
-          _tab('Functional', !_class, false),
-          _tab('Class', _class, true),
-        ], spacing: 4),
-        CodeBlock(_class ? widget.asClass : widget.functional),
-      ], spacing: 6);
+    DVBox.row(<Widget>[
+      _tab('Functional', !_class, false),
+      _tab('Class', _class, true),
+    ], spacing: 4),
+    CodeBlock(_class ? widget.asClass : widget.functional),
+  ], spacing: 6);
 }
 
 /// A block of the dartvel: section of pubspec.yaml, from the samples
 /// project, where generation reads and checks it.
 @DVFunctionalWidget()
 Widget _docsYaml(BuildContext context, String name) => CodeBlock(<String>[
-      '# pubspec.yaml',
-      'dartvel:',
-      for (final String line
-          in kDocsSamples[name] ?? <String>['# missing sample: $name'])
-        line.isEmpty ? '' : '  $line',
-    ]);
+  '# pubspec.yaml',
+  'dartvel:',
+  for (final String line
+      in kDocsSamples[name] ?? <String>['# missing sample: $name'])
+    line.isEmpty ? '' : '  $line',
+]);
 
 /// Commands, a pubspec block or other text that is not Dart.
 @DVFunctionalWidget()
@@ -568,16 +804,34 @@ Widget _docsShell(BuildContext context, List<String> lines) => CodeBlock(lines);
 @DVFunctionalWidget()
 Widget _docsNote(BuildContext context, String title, String text) {
   final Palette palette = Palette.of(context);
+  // A Planned note wears the same badge as a Planned spec section, so what
+  // is not built yet reads the same at a glance wherever it is mentioned.
+  final bool planned = title == 'Planned';
   return DVBox(
     DVBox.list(<Widget>[
-      Prose(title, const DVModifier()
-          .fontSize(15)
-          .fontWeight(.w700)
-          .color(palette.ink)),
-      Prose(text, const DVModifier()
-          .fontSize(15)
-          .color(palette.muted)
-          .lineHeight(1.55)),
+      if (planned)
+        DVBox.wrapLine(<Widget>[
+          DVText(title).modifier(
+            const DVModifier()
+                .fontSize(12)
+                .fontWeight(.w700)
+                .color(palette.ink)
+                .paddingSymmetric(horizontal: 9, vertical: 3)
+                .backgroundColor(
+                  const Color(0xFFFFC857).withValues(alpha: 0.45),
+                )
+                .rounded(999),
+          ),
+        ])
+      else
+        Prose(
+          title,
+          const DVModifier().fontSize(15).fontWeight(.w700).color(palette.ink),
+        ),
+      Prose(
+        text,
+        const DVModifier().fontSize(15).color(palette.muted).lineHeight(1.55),
+      ),
     ], spacing: 6),
     const DVModifier()
         .width(double.infinity)
@@ -608,27 +862,45 @@ Widget _docsStatus(
   final List<String> gaps = missing;
   return DVBox(
     DVBox.list(<Widget>[
-      DVBox.wrapLine(<Widget>[
-        DVText(designed
-                ? 'Designed'
+      DVBox.wrapLine(
+        <Widget>[
+          DVText(
+            designed
+                ? 'Planned'
                 : built
-                    ? 'Built'
-                    : 'Partial')
-            .modifier(const DVModifier()
-            .fontSize(12)
-            .fontWeight(.w700)
-            .color(partial ? palette.ink : palette.accent)
-            .paddingSymmetric(horizontal: 9, vertical: 3)
-            .backgroundColor(partial
-                ? const Color(0xFFFFC857).withValues(alpha: 0.45)
-                : palette.accent.withValues(alpha: 0.12))
-            .rounded(999)),
-        DVText('Spec section: $section').modifier(const DVModifier()
-            .fontSize(14)
-            .fontWeight(.w600)
-            .color(palette.muted)),
-      ], spacing: 10, crossAlign: .center),
-      if (gaps.isNotEmpty) Bullets(gaps),
+                ? 'Built'
+                : 'Partial',
+          ).modifier(
+            const DVModifier()
+                .fontSize(12)
+                .fontWeight(.w700)
+                .color(partial ? palette.ink : palette.accent)
+                .paddingSymmetric(horizontal: 9, vertical: 3)
+                .backgroundColor(
+                  partial
+                      ? const Color(0xFFFFC857).withValues(alpha: 0.45)
+                      : palette.accent.withValues(alpha: 0.12),
+                )
+                .rounded(999),
+          ),
+          DVText('Spec section: $section').modifier(
+            const DVModifier()
+                .fontSize(14)
+                .fontWeight(.w600)
+                .color(palette.muted),
+          ),
+        ],
+        spacing: 10,
+        crossAlign: .center,
+      ),
+      if (gaps.isNotEmpty) ...<Widget>[
+        DocsText(
+          built
+              ? 'Implementation notes'
+              : 'Planned work and implementation limits',
+        ),
+        Bullets(gaps),
+      ],
     ], spacing: 12),
     const DVModifier()
         .width(double.infinity)
@@ -653,16 +925,22 @@ Widget _docsTable(
     for (final List<String> row in rows)
       DVBox(
         DVBox.list(<Widget>[
-          Prose(row.first, const DVModifier()
-              .fontSize(15)
-              .fontWeight(.w700)
-              .fontFamily('JetBrainsMono')
-              .color(palette.ink)),
+          Prose(
+            row.first,
+            const DVModifier()
+                .fontSize(15)
+                .fontWeight(.w700)
+                .fontFamily('JetBrainsMono')
+                .color(palette.ink),
+          ),
           for (int i = 1; i < row.length && i < heads.length; i++)
-            Prose('${heads[i]}: ${row[i]}', const DVModifier()
-                .fontSize(14)
-                .color(palette.muted)
-                .lineHeight(1.5)),
+            Prose(
+              '${heads[i]}: ${row[i]}',
+              const DVModifier()
+                  .fontSize(14)
+                  .color(palette.muted)
+                  .lineHeight(1.5),
+            ),
         ], spacing: 4),
         const DVModifier()
             .width(double.infinity)
@@ -678,8 +956,9 @@ Widget _docsTable(
 Widget _docsPager(BuildContext context, {required String path}) {
   final int at = kDocsPages.indexWhere((DocsPageInfo p) => p.path == path);
   final DocsPageInfo? previous = at > 0 ? kDocsPages[at - 1] : null;
-  final DocsPageInfo? next =
-      at >= 0 && at < kDocsPages.length - 1 ? kDocsPages[at + 1] : null;
+  final DocsPageInfo? next = at >= 0 && at < kDocsPages.length - 1
+      ? kDocsPages[at + 1]
+      : null;
   return DVBox.wrapLine(<Widget>[
     if (previous != null) DocsPagerLink(page: previous, label: 'Previous'),
     if (next != null) DocsPagerLink(page: next, label: 'Next'),
@@ -699,17 +978,24 @@ Widget _docsPagerLink(
     padding: .zero,
     child: DVBox(
       DVBox.list(<Widget>[
-        DVText(label.toUpperCase()).modifier(const DVModifier()
-            .fontSize(12)
-            .fontWeight(.w700)
-            .letterSpacing(1.2)
-            .color(palette.faint)),
-        Prose(page.title, const DVModifier()
-            .fontSize(17)
-            .fontWeight(.w700)
-            .color(palette.accent)),
-        Prose(page.summary, 
-            const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.4)),
+        DVText(label.toUpperCase()).modifier(
+          const DVModifier()
+              .fontSize(12)
+              .fontWeight(.w700)
+              .letterSpacing(1.2)
+              .color(palette.faint),
+        ),
+        Prose(
+          page.title,
+          const DVModifier()
+              .fontSize(17)
+              .fontWeight(.w700)
+              .color(palette.accent),
+        ),
+        Prose(
+          page.summary,
+          const DVModifier().fontSize(14).color(palette.muted).lineHeight(1.4),
+        ),
       ], spacing: 4),
       const DVModifier()
           .width(context.screen.value<double>(mobile: 300, tablet: 320))
@@ -717,8 +1003,11 @@ Widget _docsPagerLink(
           .border(Border.all(color: palette.rule))
           .rounded(10)
           .animate(const Duration(milliseconds: 160))
-          .hover(const DVModifier()
-              .border(Border.all(color: palette.accent.withValues(alpha: 0.5)))),
+          .hover(
+            const DVModifier().border(
+              Border.all(color: palette.accent.withValues(alpha: 0.5)),
+            ),
+          ),
     ),
   );
 }
@@ -737,60 +1026,86 @@ Widget _docsNav(
 }) {
   final Palette palette = Palette.of(context);
   final List<String> groups = docsGroups;
-  final DVSignal<String?> openGroup =
-      context.signal<String?>(docsPageAt(current)?.group ?? groups.first);
+  final DVSignal<String?> openGroup = context.signal<String?>(
+    docsPageAt(current)?.group ?? groups.first,
+  );
   final bool fold = folding;
-  return DVBox.list(<Widget>[
-    for (final String group in groups)
-      DVBox.list(<Widget>[
-        if (fold)
-          MergeSemantics(
-            child: Semantics(
-              button: true,
-              expanded: openGroup.value == group,
-              child: DVBox(
-                DVBox.row(<Widget>[
-                  Flexible(
-                    child: DVText(group.toUpperCase()).modifier(const DVModifier()
-                        .fontSize(13)
-                        .fontWeight(.w700)
-                        .letterSpacing(1.2)
-                        .color(openGroup.value == group
-                            ? palette.ink
-                            : palette.muted)),
+  return DVBox.list(
+    <Widget>[
+      for (final String group in groups)
+        DVBox.list(
+          <Widget>[
+            if (fold)
+              MergeSemantics(
+                child: Semantics(
+                  button: true,
+                  label: group.toUpperCase(),
+                  excludeSemantics: true,
+                  onTap: () =>
+                      openGroup.value = openGroup.value == group ? null : group,
+                  expanded: openGroup.value == group,
+                  child: DVBox(
+                    DVBox.row(
+                      <Widget>[
+                        Flexible(
+                          child: DVText(group.toUpperCase()).modifier(
+                            const DVModifier()
+                                .fontSize(13)
+                                .fontWeight(.w700)
+                                .letterSpacing(1.2)
+                                .color(
+                                  openGroup.value == group
+                                      ? palette.ink
+                                      : palette.muted,
+                                ),
+                          ),
+                        ),
+                        ExcludeSemantics(
+                          child: DVText(openGroup.value == group ? '−' : '+')
+                              .modifier(
+                                const DVModifier()
+                                    .fontSize(17)
+                                    .fontWeight(.w600)
+                                    .color(palette.faint),
+                              ),
+                        ),
+                      ],
+                      spacing: 12,
+                      align: .spaceBetween,
+                      crossAlign: .center,
+                    ),
+                    const DVModifier()
+                        .width(double.infinity)
+                        .paddingSymmetric(vertical: 10)
+                        .onTap(
+                          () => openGroup.value = openGroup.value == group
+                              ? null
+                              : group,
+                        ),
                   ),
-                  ExcludeSemantics(
-                    child: DVText(openGroup.value == group ? '−' : '+')
-                        .modifier(const DVModifier()
-                            .fontSize(17)
-                            .fontWeight(.w600)
-                            .color(palette.faint)),
-                  ),
-                ],
-                    spacing: 12,
-                    align: .spaceBetween,
-                    crossAlign: .center),
+                ),
+              )
+            else
+              DVText(group.toUpperCase()).modifier(
                 const DVModifier()
-                    .width(double.infinity)
-                    .paddingSymmetric(vertical: 10)
-                    .onTap(() => openGroup.value =
-                        openGroup.value == group ? null : group),
+                    .fontSize(12)
+                    .fontWeight(.w700)
+                    .letterSpacing(1.2)
+                    .color(palette.faint)
+                    .semanticHeading(2),
               ),
-            ),
-          )
-        else
-          DVText(group.toUpperCase()).modifier(const DVModifier()
-              .fontSize(12)
-              .fontWeight(.w700)
-              .letterSpacing(1.2)
-              .color(palette.faint)
-              .semanticHeading(2)),
-        if (!fold || openGroup.value == group)
-          for (final DocsPageInfo page in kDocsPages)
-            if (page.group == group)
-              DocsNavLink(page: page, active: page.path == current),
-      ], spacing: 2, crossAlign: .start),
-  ], spacing: fold ? 4 : 22, crossAlign: .start);
+            if (!fold || openGroup.value == group)
+              for (final DocsPageInfo page in kDocsPages)
+                if (page.group == group)
+                  DocsNavLink(page: page, active: page.path == current),
+          ],
+          spacing: 2,
+          crossAlign: .start,
+        ),
+    ],
+    spacing: fold ? 4 : 22,
+    crossAlign: .start,
+  );
 }
 
 /// One link in the docs navigation.
@@ -804,10 +1119,13 @@ Widget _docsNavLink(
   return DVNavLink(
     to: page.target,
     padding: const .symmetric(vertical: 5),
-    child: Prose(page.title, const DVModifier()
-        .fontSize(15)
-        .fontWeight(active ? FontWeight.w700 : FontWeight.w500)
-        .color(active ? palette.accent : palette.muted)),
+    child: Prose(
+      page.title,
+      const DVModifier()
+          .fontSize(15)
+          .fontWeight(active ? FontWeight.w700 : FontWeight.w500)
+          .color(active ? palette.accent : palette.muted),
+    ),
   );
 }
 
@@ -824,44 +1142,56 @@ Widget _docsFrame(
   final Widget page = child;
 
   if (context.screen.width >= 960) {
-    return DVBox.row(<Widget>[
-      DVBox(
-        SingleChildScrollView(
-          // The sidebar, not the page: the page's controller is the article's.
-          primary: false,
-          padding: const .fromLTRB(32, 32, 20, 48),
-          child: DocsNav(current: current),
+    return DVBox.row(
+      <Widget>[
+        DVBox(
+          SingleChildScrollView(
+            // The sidebar, not the page: the page's controller is the article's.
+            primary: false,
+            padding: const .fromLTRB(32, 32, 20, 48),
+            child: DocsNav(current: current),
+          ),
+          const DVModifier()
+              .width(270)
+              .border(Border(right: BorderSide(color: palette.rule))),
         ),
-        const DVModifier()
-            .width(270)
-            .border(Border(right: BorderSide(color: palette.rule))),
-      ),
-      Expanded(child: page),
-    ], spacing: 0, crossAlign: .stretch);
+        Expanded(child: page),
+      ],
+      spacing: 0,
+      crossAlign: .stretch,
+    );
   }
 
   final DocsPageInfo? here = docsPageAt(current);
   return DVBox.list(<Widget>[
     DVBox(
-      DVBox.row(<Widget>[
-        DVText(open.value ? 'Close menu' : 'Docs menu').modifier(const DVModifier()
-            .fontSize(15)
-            .fontWeight(.w700)
-            .color(palette.accent)),
-        Flexible(
-          child: Prose(here?.title ?? '', const DVModifier()
-              .fontSize(14)
-              .color(palette.muted)
-              .maxLines(1)),
-        ),
-      ], spacing: 12, crossAlign: .center),
+      DVBox.row(
+        <Widget>[
+          DVText(open.value ? 'Close menu' : 'Docs menu').modifier(
+            const DVModifier()
+                .fontSize(15)
+                .fontWeight(.w700)
+                .color(palette.accent),
+          ),
+          Flexible(
+            child: Prose(
+              here?.title ?? '',
+              const DVModifier().fontSize(14).color(palette.muted).maxLines(1),
+            ),
+          ),
+        ],
+        spacing: 12,
+        crossAlign: .center,
+      ),
       const DVModifier()
           .width(double.infinity)
           .paddingSymmetric(horizontal: 22, vertical: 12)
           .backgroundColor(palette.surface)
           .border(Border(bottom: BorderSide(color: palette.rule)))
           .semanticButton()
-          .semanticLabel(open.value ? 'Close the docs menu' : 'Open the docs menu')
+          .semanticLabel(
+            open.value ? 'Close the docs menu' : 'Open the docs menu',
+          )
           .onTap(() => open.value = !open.value),
     ),
     Expanded(
@@ -872,7 +1202,9 @@ Widget _docsFrame(
                 padding: const .fromLTRB(22, 20, 22, 40),
                 child: DocsNav(current: current, folding: true),
               ),
-              const DVModifier().width(double.infinity).backgroundColor(palette.page),
+              const DVModifier()
+                  .width(double.infinity)
+                  .backgroundColor(palette.page),
             )
           : page,
     ),
@@ -885,22 +1217,31 @@ Widget _docsFrame(
 Widget _docsCliEntry(BuildContext context, {required DocsCliCommand command}) {
   final Palette palette = Palette.of(context);
   final DocsCliCommand entry = command;
-  return DVBox.list(<Widget>[
-    DocsText(entry.description),
-    if (entry.aliases.isNotEmpty)
-      DVText('Also: ${entry.aliases.map((String a) => 'dartvel $a').join(', ')}')
-          .modifier(const DVModifier().fontSize(14).color(palette.muted)),
-    if (entry.options.isNotEmpty) CodeBlock(entry.options),
-    for (final DocsCliCommand sub in entry.subcommands)
-      DVBox(
-        DVBox.list(<Widget>[
-          DocsSubheading('dartvel ${entry.name} ${sub.name}'),
-          DocsText(sub.description),
-          if (sub.options.isNotEmpty) CodeBlock(sub.options),
-        ], spacing: 10, crossAlign: .start),
-        const DVModifier()
-            .paddingOnly(left: 14)
-            .border(Border(left: BorderSide(color: palette.rule, width: 2))),
-      ),
-  ], spacing: 12, crossAlign: .start);
+  return DVBox.list(
+    <Widget>[
+      DocsText(entry.description),
+      if (entry.aliases.isNotEmpty)
+        DVText(
+          'Also: ${entry.aliases.map((String a) => 'dartvel $a').join(', ')}',
+        ).modifier(const DVModifier().fontSize(14).color(palette.muted)),
+      if (entry.options.isNotEmpty) CodeBlock(entry.options),
+      for (final DocsCliCommand sub in entry.subcommands)
+        DVBox(
+          DVBox.list(
+            <Widget>[
+              DocsSubheading('dartvel ${entry.name} ${sub.name}'),
+              DocsText(sub.description),
+              if (sub.options.isNotEmpty) CodeBlock(sub.options),
+            ],
+            spacing: 10,
+            crossAlign: .start,
+          ),
+          const DVModifier()
+              .paddingOnly(left: 14)
+              .border(Border(left: BorderSide(color: palette.rule, width: 2))),
+        ),
+    ],
+    spacing: 12,
+    crossAlign: .start,
+  );
 }

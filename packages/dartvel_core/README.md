@@ -69,11 +69,10 @@ yet exist.
 | Surface | In an application | Status |
 |---|---|---|
 | Data models: `@DVModel`, find/save/destroy, optimistic versions | `Article.find`, `article.save()` | Shipped |
-| Storage-neutral records | `DV.Database.records` | Partial |
 | Record history, soft delete, revert | `article.history()`, `Article.restore(id)` | Partial |
 | Authentication providers, sessions, MFA, passkeys, SAML, LDAP | `DV.Auth` | Shipped |
 | Authorization: policies, default deny | `DV.Auth.authorization` | Shipped |
-| Cache: set, get, has, delete, clear, remember, tags, lock; the store named in `dartvel.cache` | `DV.Cache` | Partial |
+| Cache: get, set, has and delete, with named options; the store named in `dartvel.cache` | `DV.Cache` | Partial |
 | Queues and jobs, seven adapters | `DV.Jobs`, `@DVJob` | Partial |
 | Mail and notifications | `DV.Notifications`, `DV.Notifications.mail` | Partial |
 | Privacy: subject paths, retention, erasure, export | `DV.Privacy` | Partial |

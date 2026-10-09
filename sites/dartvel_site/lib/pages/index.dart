@@ -117,7 +117,7 @@ Widget _heroCopy(BuildContext context) => DVBox.list(<Widget>[
     PrimaryLink('Create your first app', '/docs'),
     GhostLink('See what works today', '/features'),
   ], spacing: 12),
-  const DVText('FSL-1.1-MIT licensed. dartvel_dev 0.10.0 is on pub.dev.').modifier(
+  const DVText('FSL-1.1-MIT licensed. dartvel_dev 0.11.5 is on pub.dev.').modifier(
     const DVModifier()
         .fontSize(14)
         .color(Palette.of(context).faint)
@@ -570,7 +570,7 @@ Widget _honest(BuildContext context) => const Section(
     DVBox.wrapLine(<Widget>[
       Stat('24', 'sections shipped'),
       Stat('79', 'sections partial'),
-      Stat('0.10.0', 'current version'),
+      Stat('0.11.5', 'current version'),
     ], spacing: 14),
     Bullets(<String>[
       'Every partial section names what is missing.',

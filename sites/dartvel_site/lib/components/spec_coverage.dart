@@ -109,7 +109,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Database', 'Data', DVRoutes.docsdatabase, 'Use SQLite locally',
       anchor: 'sqlite'),
   SpecCoverage('Storage-Neutral Records', 'Data', DVRoutes.docsdatabase,
-      'Store records without writing SQL', anchor: 'records'),
+      'Storage engine reference', anchor: 'records'),
   SpecCoverage('Schema Evolution', 'Data', DVRoutes.docsdatabase,
       'Migrate production safely', anchor: 'production'),
   SpecCoverage('Cache', 'Data', DVRoutes.docscache,
@@ -209,7 +209,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Meter usage and cap it per tenant', anchor: 'usage'),
 
   SpecCoverage('Modules', 'Backend', DVRoutes.docsmodules,
-      'Mount a module at a path', anchor: 'mount'),
+      'Add a module in one command', anchor: 'add'),
 
   SpecCoverage('Module Distribution and Trust', 'Backend', DVRoutes.docsmodules,
       'Publish a signed module, and pin what you mount', anchor: 'trust'),
@@ -218,7 +218,7 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Where a module can come from', anchor: 'sources'),
 
   SpecCoverage('Native Binding Graph', 'Backend', DVRoutes.docsmodules,
-      'Put a Rust crate or an Android library behind a module',
+      'Under the hood: native bindings and capabilities',
       anchor: 'native'),
 
   SpecCoverage('Web Server Rendering', 'Backend', DVRoutes.docsdeploying,
