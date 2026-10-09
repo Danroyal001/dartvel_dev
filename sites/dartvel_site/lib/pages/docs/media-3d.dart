@@ -53,11 +53,13 @@ Widget _docsMedia3dPage(BuildContext context) => const DocsArticle(
           'Media Playback and Capture',
           missing: <String>[
             'Linux plays through GStreamer, and only the audio: video frames '
-                'are not drawn yet.',
-            'No player or recorder backend yet for Android, iOS, macOS, '
-                'Windows, the web or TVs, and no camera capture anywhere.',
-            'No captions, lock-screen controls, picture-in-picture or '
-                'casting.',
+                'are not drawn yet. Linux has no lock-screen controls or '
+                'camera yet.',
+            'The browser player and camera are written but not yet checked '
+                'in a real browser.',
+            'No player or camera backend yet for Android, iOS, macOS, '
+                'Windows or TVs.',
+            'No casting.',
           ],
         ),
       ],
