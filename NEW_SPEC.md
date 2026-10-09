@@ -8614,7 +8614,21 @@ dartvel:
       shared: cloudAnchorsAdapter    # optional
     performance:
       targetFps: 90
+    panel:                   # the size a 2D panel opens at, in dp
+      width: 1024            # Meta's default; Horizon OS reads it from the manifest
+      height: 640
+      minWidth: 360          # optional
+      minHeight: 225         # optional
+    horizon:
+      devices: [quest2, questpro, quest3, quest3s]   # the default; vrglasses is opt-in
 ```
+
+`panel` and `horizon` are applied by `dartvel build horizon`. The Dart class
+for the section is `DVXRConfig`: `DVXRConfig.parse` reads the map and
+`toDeclaration()` writes it back exactly, so a project configured in Dart and
+one configured in YAML build the same thing. `enabled`, `immersion`, `comfort`,
+`anchors` and `performance` are recognised and kept as written, and no build
+applies them yet. Any other key is refused by name.
 
 Per the compatibility principle, an application that opens only regular windows
 carries no XR code and still arrives on every headset as panels. `xr:` is
@@ -8634,9 +8648,44 @@ dartvel build web             # WebXR session support when scene3d and xr are bo
 and bindings before a build starts, per the build toolchain rule; `dartvel dev`
 attaches to the Android XR and visionOS simulators.
 
-This is designed. `build` and `doctor --target` accept none of the three XR
-names yet, `dartvel dev` attaches to no XR simulator, and `dartvel build web`
-builds without WebXR session support.
+`horizon` and `visionos` are built; `android-xr` is designed, and `build` and
+`doctor --target` do not accept it yet. `dartvel dev` attaches to no XR
+simulator, and `dartvel build web` builds without WebXR session support.
+
+**`dartvel build horizon`** is the Android build as a Horizon OS 2D panel
+app. It writes into the generated `android/` project, as marked blocks an
+`android` build takes back out: `android.hardware.vr.headtracking` with
+`required="false"` (required is for immersive apps), the
+`com.oculus.supportedDevices` list from `dartvel.xr.horizon.devices`, a
+`<layout>` on the main activity from `dartvel.xr.panel`, and
+`installLocation="auto"`. It builds arm64 only, at minSdk 32 and targetSdk 34
+(passed as Gradle properties, so an `android` build keeps Flutter's levels),
+and never adds `com.oculus.intent.category.VR`, which launches an immersive
+OpenXR app. The kiosk and home-widget blocks are left out, because their
+components need `BIND_DEVICE_ADMIN` and `BIND_APPWIDGET`, which the Horizon
+Store refuses. After the build the APK is read back with `aapt2 dump badging`
+and `aapt2 dump xmltree` and the build fails when the merged manifest breaks a
+store rule: target SDK, minimum SDK, a required head-tracking feature, an
+install location other than auto, a prohibited permission (a plugin's
+included), non-arm64 native code, a missing or different device list, no
+panel size, or the VR category. The app reports `DV.Platform.isHorizonOS`,
+`isAndroid` and `deviceType == 'headset'`.
+
+**`dartvel build visionos`** is the unsigned iOS build (`--simulator` for a
+simulator build), on macOS only. Flutter has no visionOS embedder
+(flutter/flutter#128313, open; the Flutter team has said it is not planned),
+and Apple runs iPad apps on Vision Pro unchanged as "Designed for iPad". The
+build stamps `DARTVEL_PLATFORM=visionos`, so the app reports
+`DV.Platform.isVisionOS`, `isIOS` and `deviceType == 'headset'`; the same app
+published from `dartvel build ios`, which Vision Pro also runs, reports iOS,
+because nothing at run time tells the two apart without a native binding.
+Designed-for-iPad apps have no camera capture, Core Motion, or location beyond
+the standard service, and see at most two touches.
+
+`capability.spatial` stays null on both: a panel is an ordinary window, and
+volumes and immersive spaces need a native XR binding that does not exist yet.
+`DV.Platform.isHeadset` is for deciding what to offer, never whether `open()`
+works.
 
 ## Diagnostics
 
@@ -14383,12 +14432,12 @@ dartvel build fuchsia
 dartvel build vscode
 dartvel build chrome-extension
 dartvel build firefox-extension
+dartvel build horizon               # Meta Quest: an Android 2D panel app
+dartvel build visionos              # Apple Vision Pro: the iPad app (macOS)
 
-# Designed, not built: no command routes these yet. See XR — Spatial
-# Presentation, which carries them as Draft/Designed.
+# Designed, not built: no command routes this yet. See XR — Spatial
+# Presentation, which carries it as Draft/Designed.
 dartvel build android-xr
-dartvel build horizon
-dartvel build visionos
 ```
 
 Each target is driven by the platform's dedicated Flutter embedder or host
@@ -14401,13 +14450,20 @@ extension generator rather than plain `flutter build`:
 - **Fuchsia** → the `flutter-embedder` Bazel workspace, with the app staged
   in as `dartvel_app`
 - **VS Code** → `flutter_vscode` extension generator and webview helper
-- **Android XR** and **Horizon OS** → the Android toolchain with the platform's
-  XR manifest and generated JNI bindings over Jetpack XR or the Spatial SDK
-- **visionOS** → the iOS toolchain producing an iPad-compatible application;
-  native volumes and immersive spaces wait on generated FFI bindings over the
-  native spatial frameworks
+- **Horizon OS** → the Android toolchain. `dartvel build horizon` is the
+  Android build with the manifest Meta requires of a 2D panel app, 64-bit, at
+  minSdk 32 and targetSdk 34, and the APK is read back with `aapt2` and
+  refused when it breaks a Horizon Store rule. Immersive content waits on
+  generated JNI bindings over the Spatial SDK or OpenXR
+- **visionOS** → the iOS toolchain. Flutter has no visionOS embedder, and
+  Apple runs an iPad app on Vision Pro unchanged ("Designed for iPad"), so
+  `dartvel build visionos` is the unsigned iOS build, on macOS only. Native
+  windows, volumes and immersive spaces wait on an engine that builds for
+  `xros` and generated FFI bindings over SwiftUI and RealityKit
+- **Android XR** → designed: the Android toolchain with its XR manifest and
+  generated JNI bindings over Jetpack XR
 
-The three spatial targets are the newest and least proven of these, and they
+The spatial targets are the newest and least proven of these, and they
 inherit the rule the rest of the table already follows: `dartvel doctor
 --target <t>` reports whether the SDK is present before a build starts, and an
 absent toolchain skips with a message rather than failing the build. See XR —
@@ -14611,7 +14667,8 @@ does not provide a Bluetooth adapter or fallback implementation.
 
 Validation is also available through `dartvel doctor --target` with
 `webos`, `tizen`, `sony-elinux`, `tvos`, `fuchsia`, `vscode`,
-`chrome-extension`, `firefox-extension` or a terminal target.
+`chrome-extension`, `firefox-extension`, `horizon`, `visionos` or a terminal
+target.
 
 ## Updated build target list
 
@@ -14629,6 +14686,9 @@ dartvel build linux
 dartvel build macos
 # Terminal (see Terminal Rendering)
 dartvel build linux-cli      # also: windows-cli, macos-cli, fuchsia-cli, and -tui
+# Headsets (see XR — Spatial Presentation)
+dartvel build horizon
+dartvel build visionos
 # Television, embedded, and extension platforms
 dartvel build webos
 dartvel build tizen
