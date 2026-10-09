@@ -37,6 +37,7 @@ import '../../pwa/install_prompt.dart';
 import '../network.dart';
 import '../network_source.dart';
 import 'web_bluetooth_js.dart';
+import 'web_camera_js.dart';
 import 'web_capabilities.dart';
 import 'web_contacts_js.dart';
 import 'web_device_js.dart';
@@ -46,6 +47,7 @@ import 'web_kiosk_js.dart';
 import 'web_media_js.dart';
 import 'web_nfc_js.dart';
 import 'web_permissions_js.dart';
+import 'web_player_js.dart';
 import 'web_sensors_js.dart';
 
 // Re-exported so the capability lists and DVWebPermissionDenied reach an
@@ -390,7 +392,13 @@ class DVWebBindings {
 
     if (DVWebPermissions.available) DVWebPermissions.register(register);
     if (DVWebFiles.available) DVWebFiles.register(register);
-    if (DVWebMedia.cameraAvailable) DVWebMedia.registerCamera(register);
+    if (DVWebMedia.cameraAvailable) {
+      DVWebMedia.registerCamera(register);
+      // DVBox.camera: the live preview, photos and recordings.
+      DVWebCamera.register();
+    }
+    // DVBox.video and DVBox.audio through the page's own media elements.
+    DVWebPlayer.register();
     if (DVWebContacts.available) DVWebContacts.register(register);
     if (DVWebNfc.available) DVWebNfc.register(register);
     DVWebMedia.registerPicker(register);
