@@ -109,7 +109,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Build for production. Pass a platform (dartvel build web) or omit it to build every available platform.',
     options: <String>[
       '-p, --platform                   Target platform (or pass it positionally)',
-      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, telegram, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
+      '                                 [android, ios, web, windows, macos, linux, fireos, horizon, visionos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, telegram, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
       '    --profile                    What kind of build to make.',
       '',
       '          [development]          Flutter debug (JIT). On Android, iOS, macOS, Linux and Windows it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
@@ -427,7 +427,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     options: <String>[
       '    --modules    Verify every module pin (digest, signing key, publisher, version) and compare what each module uses against what this application grants.',
       '    --target     Validate the toolchain for an embedded, TV or extension build target, or, for android and ios, the deep-link verification documents the declared domains serve. Comma-separate several: --target android,ios.',
-      '                 [tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, android, ios]',
+      '                 [horizon, visionos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, android, ios]',
     ],
   ),
   DocsCliCommand(

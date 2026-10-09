@@ -490,7 +490,7 @@ Widget _targets(BuildContext context) => Section(
   dark: true,
   children: <Widget>[
     const Eyebrow('BUILD TARGETS', onDark: true),
-    const Heading('Fifteen targets build today.', onDark: true),
+    const Heading('Sixteen targets build today.', onDark: true),
     DVBox.wrapLine(<Widget>[
       // Named the way you type them after dartvel build, and checked against
       // docs/build-targets.md by platform_breadth_test.dart.
@@ -505,6 +505,7 @@ Widget _targets(BuildContext context) => Section(
         'linux',
         'fireos',
         'tvos',
+        'horizon',
         'tizen',
         'sony-elinux',
         'vscode',
@@ -525,7 +526,7 @@ Widget _targets(BuildContext context) => Section(
       ],
     ),
     const Stats(onDark: true, <Figure>[
-      Figure('15', 'targets that build'),
+      Figure('16', 'targets that build'),
       Figure('4', 'targets in progress'),
       Figure('6', 'packages on pub.dev'),
     ]),
