@@ -50,6 +50,12 @@ const int dvHorizonTargetSdk = 34;
 const String dvHorizonMinSdkProperty = 'dartvelMinSdk';
 const String dvHorizonTargetSdkProperty = 'dartvelTargetSdk';
 
+/// The ABIs every native library is packaged for. `--target-platform`
+/// limits Flutter's own code and nothing else: a plugin's libraries, such as
+/// the `jni` package's libdartjni.so, came for armeabi-v7a and x86_64 too, and
+/// the APK check refused the first Horizon build for it.
+const String dvHorizonAbiFiltersProperty = 'dartvelAbiFilters';
+
 /// What `flutter build apk` is given for a Horizon build, after the mode.
 List<String> dvHorizonFlutterArguments() => const <String>[
       // The store takes 64-bit apps, and every Quest is arm64.
@@ -57,6 +63,7 @@ List<String> dvHorizonFlutterArguments() => const <String>[
       'android-arm64',
       '--android-project-arg=$dvHorizonMinSdkProperty=$dvHorizonMinSdk',
       '--android-project-arg=$dvHorizonTargetSdkProperty=$dvHorizonTargetSdk',
+      '--android-project-arg=$dvHorizonAbiFiltersProperty=arm64-v8a',
     ];
 
 const String _begin = '<!-- dartvel.horizon: begin -->';
@@ -144,6 +151,22 @@ String? dvHorizonGradle(String gradle) {
             "minSdkVersion project.findProperty('$dvHorizonMinSdkProperty')?.toInteger() ?: flutter.minSdkVersion")
         .replaceFirst('targetSdkVersion flutter.targetSdkVersion',
             "targetSdkVersion project.findProperty('$dvHorizonTargetSdkProperty')?.toInteger() ?: flutter.targetSdkVersion");
+  }
+  // The ABI filter, after the targetSdk line inside defaultConfig, once.
+  // Without the property nothing is filtered, as Flutter's template had it.
+  if (!out.contains(dvHorizonAbiFiltersProperty)) {
+    final RegExpMatch? target =
+        RegExp(r'^([ \t]*)targetSdk(?:Version)?\b.*$', multiLine: true).firstMatch(out);
+    if (target == null) return null;
+    final String indent = target[1]!;
+    final String filter = kotlin
+        ? '$indent(project.findProperty("$dvHorizonAbiFiltersProperty") as String?)?.let { abis ->\n'
+            '$indent    ndk { abiFilters.clear(); abiFilters.addAll(abis.split(",")) }\n'
+            '$indent}'
+        : "${indent}if (project.findProperty('$dvHorizonAbiFiltersProperty')) {\n"
+            "$indent    ndk { abiFilters(*project.findProperty('$dvHorizonAbiFiltersProperty').split(',')) }\n"
+            '$indent}';
+    out = '${out.substring(0, target.end)}\n$filter${out.substring(target.end)}';
   }
   return out;
 }

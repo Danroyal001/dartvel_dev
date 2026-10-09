@@ -91,6 +91,9 @@ void main() {
           'android-arm64',
           '--android-project-arg=$dvHorizonMinSdkProperty=$dvHorizonMinSdk',
           '--android-project-arg=$dvHorizonTargetSdkProperty=$dvHorizonTargetSdk',
+          // --target-platform covers Flutter's own code only; a plugin's
+          // libraries (libdartjni.so) still came for every ABI until this.
+          '--android-project-arg=$dvHorizonAbiFiltersProperty=arm64-v8a',
           '--dart-define=DARTVEL_PLATFORM=horizon',
         ],
       );
@@ -185,6 +188,10 @@ void main() {
       // Without the property the value is Flutter's, so android is untouched.
       expect(out, contains('?: flutter.minSdkVersion'));
       expect(out, contains('?: flutter.targetSdkVersion'));
+      // Every native library, a plugin's included, is packaged for arm64
+      // alone -- but only when a Horizon build asks.
+      expect(out, contains('findProperty("$dvHorizonAbiFiltersProperty")'));
+      expect(out, contains('abiFilters'));
       expect(dvHorizonGradle(out!), out);
     });
 
@@ -193,6 +200,7 @@ void main() {
           '        minSdkVersion flutter.minSdkVersion\n        targetSdkVersion flutter.targetSdkVersion\n');
       expect(out, contains("findProperty('$dvHorizonMinSdkProperty')"));
       expect(out, contains("findProperty('$dvHorizonTargetSdkProperty')"));
+      expect(out, contains("findProperty('$dvHorizonAbiFiltersProperty')"));
     });
 
     test('a build file it cannot recognise is reported, not guessed at', () {
