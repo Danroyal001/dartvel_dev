@@ -216,6 +216,7 @@ export 'src/media/capture_fakes.dart';
 export 'src/media/capture_files.dart';
 export 'src/media/image.dart';
 export 'src/media/image_variants.dart';
+export 'src/media/camera.dart';
 export 'src/media/captions.dart';
 export 'src/media/media_cache.dart';
 export 'src/media/media_controller.dart';
