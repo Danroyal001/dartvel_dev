@@ -809,7 +809,7 @@ class BuildCommand extends Command<void> {
     final DVModuleCallCheck moduleCalls =
         DVModuleCallCheck.run(root, platforms: platforms.toSet(), <DVModuleEnvironment>{
       for (final String platform in platforms)
-        (platform == 'web' || platform == 'web-server' || platform == 'telegram')
+        (platform == 'web' || platform == 'telegram')
             ? DVModuleEnvironment.web
             : (platform == 'server' || platform == 'backend')
                 ? DVModuleEnvironment.backend

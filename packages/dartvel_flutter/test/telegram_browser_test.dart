@@ -1,8 +1,8 @@
 @TestOn('browser')
 library;
 
-import 'dart:js_interop';
 import 'dart:convert';
+import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
@@ -107,8 +107,24 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(size.height, 360);
+    expect(size.height, 340);
     expect(background, const Color(0xff102030));
+    // The insets and anything below the host viewport show the host
+    // background, not whatever the document behind the canvas paints.
+    expect(
+      find
+          .ancestor(
+            of: find.text('Host viewport'),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is ColoredBox &&
+                  widget.color == const Color(0xff102030),
+            ),
+          )
+          .evaluate()
+          .isNotEmpty,
+      isTrue,
+    );
     globalContext.callMethod<JSAny?>(
       'eval'.toJS,
       '''
@@ -118,7 +134,7 @@ void main() {
           .toJS,
     );
     await tester.pump();
-    expect(size.height, 460);
+    expect(size.height, 440);
     await tester.pumpWidget(const SizedBox());
   });
 }

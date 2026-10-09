@@ -31,13 +31,13 @@ void main() {
   }
 
   test('valid signed identity is accepted', () {
-    final result = DVTelegramInitDataValidator(botToken: token)
+    final result = const DVTelegramInitDataValidator(botToken: token)
         .validate(signed(), now: now);
     expect(result.id, 'telegram:42');
     expect(result.name, 'Ada');
   });
   test('tampering, expiry, future dates and duplicate keys are refused', () {
-    final validator = DVTelegramInitDataValidator(botToken: token);
+    const validator = DVTelegramInitDataValidator(botToken: token);
     for (final input in [
       signed().replaceFirst('Ada', 'Eve'),
       signed(age: 301),
@@ -52,7 +52,7 @@ void main() {
   test('wrong bot token cannot verify a login', () {
     expect(
       () =>
-          DVTelegramInitDataValidator(botToken: 'wrong')
+          const DVTelegramInitDataValidator(botToken: 'wrong')
               .validate(signed(), now: now),
       throwsFormatException,
     );
