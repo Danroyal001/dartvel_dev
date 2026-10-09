@@ -429,6 +429,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVNowPlayingBackend,
         DVNowPlayingState,
         DVTransportAction,
+        DVVideoQuality,
         DVAudioFocusRefused,
         DVAudioFormat,
         DVBackgroundPlayback,
