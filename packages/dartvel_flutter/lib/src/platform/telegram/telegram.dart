@@ -313,8 +313,9 @@ class DVTelegramStorage {
         callback: true,
         errorFirst: true,
       );
-      if (keys is! List)
+      if (keys is! List) {
         throw StateError('Telegram returned invalid storage keys');
+      }
       if (keys.isEmpty) return;
       await _bridge.call(
         '$_name.removeItems',

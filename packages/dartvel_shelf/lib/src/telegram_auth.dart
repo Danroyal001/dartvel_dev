@@ -19,8 +19,9 @@ class const DVTelegramInitDataValidator({
     Duration maxAge = const Duration(minutes: 5),
   }) {
     final token = Platform.environment[variable];
-    if (token == null || token.isEmpty)
+    if (token == null || token.isEmpty) {
       throw StateError('$variable must be set on the server');
+    }
     return DVTelegramInitDataValidator(botToken: token, maxAge: maxAge);
   }
 
@@ -52,8 +53,9 @@ class const DVTelegramInitDataValidator({
       different |=
           expected[i] ^ int.parse(hash.substring(i * 2, i * 2 + 2), radix: 16);
     }
-    if (different != 0)
+    if (different != 0) {
       throw const FormatException('Invalid Telegram signature');
+    }
     final timestamp = int.tryParse(all['auth_date'] ?? '');
     final seconds = (now ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
     if (timestamp == null ||
