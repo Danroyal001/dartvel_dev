@@ -33,6 +33,7 @@ class DVConfigRoute {
     required this.source,
     required this.guarded,
     this.name,
+    this.cache = true,
   });
 
   /// The full path, joined to its parents.
@@ -47,6 +48,8 @@ class DVConfigRoute {
   /// Whether a redirect on the route or anything above it runs first. The
   /// application's root guard is not counted here; the generator adds it.
   final bool guarded;
+
+  final bool cache;
 }
 
 /// What the routes file declares.
@@ -401,6 +404,8 @@ class _Reader {
         name: name,
         source: at(start),
         guarded: covered,
+        cache: args['cache'] == null ||
+            code.substring(args['cache']!.$1, args['cache']!.$2).trim() == 'true',
       ),
     );
     final (int, int)? children = args['routes'];

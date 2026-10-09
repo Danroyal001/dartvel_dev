@@ -4,6 +4,7 @@
 // fleet asks the same question and most of them have to be told no -- and
 // told *why*, because "no update" and "not your turn yet" look identical
 // from a support desk and are hours apart to diagnose.
+import 'package:dartvel_core/framework.dart' show DVRenderedPageCache;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,6 +20,27 @@ void serverOffers({required String version, String? rollout, bool required = fal
 }
 
 void main() {
+  test('successful native OTA apply and rollback purge rendered documents', () async {
+    final cache = DVRenderedPageCache();
+    serverOffers(version: '1.4.0');
+    DVNativeBridge.register('updates.apply', (_) => true);
+    DVNativeBridge.register('updates.rollback', (_) => true);
+    addTearDown(() {
+      DVNativeBridge.unregister('updates.apply');
+      DVNativeBridge.unregister('updates.rollback');
+    });
+    cache.put('page', [1], {}, status: 200);
+    await const DVUpdates().apply();
+    expect(cache.get('page'), isNull);
+    cache.put('page', [2], {}, status: 200);
+    await const DVUpdates().rollback();
+    expect(cache.get('page'), isNull);
+    DVNativeBridge.register('updates.apply', (_) => false);
+    cache.put('page', [3], {}, status: 200);
+    await expectLater(const DVUpdates().apply(), throwsStateError);
+    expect(cache.get('page')!.bytes, [3]);
+  });
+
   tearDown(() {
     DVNativeBridge.unregister('updates.check');
     DVUpdates.identifyDevice(null);

@@ -1021,8 +1021,9 @@ DVPageDataResolver dvModelPageResolver(
   DVPageQuery query, {
   String? applicationFavicon,
 }) {
-  return (DVPageRequest request) async {
-    for (final DVModelPageSpec spec in specs) {
+  final ownedSpecs = List<DVModelPageSpec>.unmodifiable(specs);
+  final DVPageDataResolver resolver = (DVPageRequest request) async {
+    for (final DVModelPageSpec spec in ownedSpecs) {
       if (spec.route != request.pattern) continue;
       final String? key = request.params[spec.param];
       if (key == null) return null;
@@ -1056,7 +1057,18 @@ DVPageDataResolver dvModelPageResolver(
     }
     return null;
   };
+  _modelResolverPatterns[resolver] = {for (final spec in ownedSpecs) spec.route};
+  return resolver;
 }
+
+final Expando<Set<String>> _modelResolverPatterns = Expando();
+
+/// Framework proof: this generated resolver cannot read data for this pattern.
+bool dvPageResolverIsStatic(DVPageDataResolver? resolver, String? pattern) =>
+    resolver == null ||
+    (pattern != null &&
+        _modelResolverPatterns[resolver] != null &&
+        !_modelResolverPatterns[resolver]!.contains(pattern));
 
 /// Where a signed-out request for a guarded route is sent: the sign-in page
 /// at [signIn], carrying [from] -- the path and query it asked for -- so the

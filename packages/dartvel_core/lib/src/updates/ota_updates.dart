@@ -1,3 +1,4 @@
+import '../web/rendered_page_cache.dart';
 import 'ota.dart';
 
 /// OTA Update Manager
@@ -19,8 +20,10 @@ class OtaUpdateManager {
     final installer = updateInstaller;
     if (installer != null) {
       await installer();
+      dvPurgeRenderedPages();
       return;
     }
     await ShorebirdUpdater.downloadUpdate();
+    dvPurgeRenderedPages();
   }
 }

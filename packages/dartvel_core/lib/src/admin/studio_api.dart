@@ -46,6 +46,7 @@ import 'studio_repository.dart';
 import 'studio_source_files.dart';
 import 'studio_site.dart';
 import '../web/asset_source.dart';
+import '../web/rendered_page_cache.dart';
 
 /// One field of a model, as Studio edits it.
 ///
@@ -1523,6 +1524,7 @@ class DVStudioApi {
         if (sources != null) {
           for (final MapEntry<String, Map<String, Object?>?> changed
               in (await sources.changedInCode()).entries) {
+            dvPurgeRenderedPages();
             await records.delete(dvStudioPagesTable,
                 where: DVFilter.equals('route', changed.key));
             final Map<String, Object?>? document = changed.value;
@@ -1583,6 +1585,7 @@ class DVStudioApi {
           'title': document['title'],
           'document': jsonEncode(document),
         });
+        dvPurgeRenderedPages();
         return _reply(<String, Object?>{'route': route});
       case 'DELETE':
         final String? route = request.url.queryParameters['route'];
@@ -1597,6 +1600,7 @@ class DVStudioApi {
         }
         await records.delete(dvStudioPagesTable,
             where: DVFilter.equals('route', route));
+        dvPurgeRenderedPages();
         return _reply(<String, Object?>{'deleted': route});
     }
     _notAllowed();
