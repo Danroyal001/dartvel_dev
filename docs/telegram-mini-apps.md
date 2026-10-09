@@ -45,14 +45,18 @@ Building does not register the bot, publish the app or send any messages.
 
 The framework calls `ready()`/`expand()` at startup. Its page shell applies
 host colors to the app theme while preserving typography and layout, follows
-host theme/inset events, and respects the safe content area. The Telegram back
+host theme/inset events, and pads each page by the device safe area plus
+Telegram's content safe area (which Telegram measures from the safe area's
+edges), filling both with the host background. The Telegram back
 button follows the router's push stack. Unsupported methods throw
 `UnsupportedError`; asynchronous host callbacks surface errors and time out
 after two minutes rather than remaining pending forever.
 
 ## Authentication and payments
 
-Set `TELEGRAM_BOT_TOKEN` only on the backend. A configured generated server
+Set `TELEGRAM_BOT_TOKEN` only on the backend. A server built with the
+`telegram` section refuses to start without it, rather than running with a
+sign-in that cannot verify anyone. A configured generated server
 installs the Telegram auth provider unless the application installed its own.
 Call `DV.Auth.signInWithProvider('telegram')` from the client. The existing
 CSRF-protected sign-in endpoint validates raw initData with HMAC-SHA256 and a
