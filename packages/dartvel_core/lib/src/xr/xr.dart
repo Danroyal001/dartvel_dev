@@ -12,4 +12,5 @@ export 'spatial_consent.dart';
 export 'spatial_input.dart';
 export 'spatial_pose.dart';
 export 'spatial_session.dart';
+export 'xr_config.dart';
 export 'xr_device.dart';
