@@ -490,13 +490,14 @@ Widget _targets(BuildContext context) => Section(
   dark: true,
   children: <Widget>[
     const Eyebrow('BUILD TARGETS', onDark: true),
-    const Heading('Fourteen targets build today.', onDark: true),
+    const Heading('Fifteen targets build today.', onDark: true),
     DVBox.wrapLine(<Widget>[
       // Named the way you type them after dartvel build, and checked against
       // docs/build-targets.md by platform_breadth_test.dart.
       for (final String target in const <String>[
         'web',
         'web-server',
+        'telegram',
         'android',
         'ios',
         'macos',
@@ -524,7 +525,7 @@ Widget _targets(BuildContext context) => Section(
       ],
     ),
     const Stats(onDark: true, <Figure>[
-      Figure('14', 'targets that build'),
+      Figure('15', 'targets that build'),
       Figure('4', 'targets in progress'),
       Figure('6', 'packages on pub.dev'),
     ]),

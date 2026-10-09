@@ -109,7 +109,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
     description: 'Build for production. Pass a platform (dartvel build web) or omit it to build every available platform.',
     options: <String>[
       '-p, --platform                   Target platform (or pass it positionally)',
-      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
+      '                                 [android, ios, web, windows, macos, linux, fireos, tizen, sony-elinux, webos, tvos, fuchsia, vscode, chrome-extension, firefox-extension, web-server, telegram, tpk, sony-elinux-iso, sony-elinux-img, linux-cli, linux-tui, windows-cli, windows-tui, macos-cli, macos-tui, fuchsia-cli, fuchsia-tui, all (default)]',
       '    --profile                    What kind of build to make.',
       '',
       '          [development]          Flutter debug (JIT). On Android, iOS, macOS, Linux and Windows it carries the dev-client pairing, so `dartvel dev` can hot reload it over the network.',
