@@ -6,6 +6,7 @@
 // it builds navigates, is generated_client_analyzes_test.dart and the example
 // application's own widget tests.
 import 'dart:io';
+import 'package:dartvel_cli/src/build/static_seo.dart' show dvUncachedRoutes;
 
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
 import 'package:path/path.dart' as p;
@@ -196,6 +197,12 @@ void main() {
         expect(manifest, contains("path: '$path',"), reason: path);
       }
       expect(manifest, contains("directory: 'lib/routes.dart',"));
+    });
+
+    test('a cache opt-out survives client generation for the server build', () async {
+      write('lib/routes.dart', _routes.replaceFirst("title: 'Settings',", "title: 'Settings', cache: false,"));
+      await routes.generate(root_: root.path);
+      expect(dvUncachedRoutes(router()), {'/settings'});
     });
 
     test(

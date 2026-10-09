@@ -11,7 +11,7 @@ import 'dart:ui' as ui;
 import 'package:dartvel_core/dartvel.dart';
 // The offline queue, which signing out empties. The framework's own, and
 // not re-exported to applications.
-import 'package:dartvel_core/framework.dart' show DVOfflineSync;
+import 'package:dartvel_core/framework.dart' show DVOfflineSync, dvPurgeRenderedPages;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -4859,6 +4859,7 @@ class DVUpdates {
     if (!handled) {
       throw StateError('Native update binding rejected the update request.');
     }
+    dvPurgeRenderedPages();
   }
 
   /// Why an update was refused, in terms somebody can act on.
@@ -4895,6 +4896,7 @@ class DVUpdates {
     if (!handled) {
       throw StateError('Native update binding rejected the rollback request.');
     }
+    dvPurgeRenderedPages();
   }
 
   static String? _lockedVersion;

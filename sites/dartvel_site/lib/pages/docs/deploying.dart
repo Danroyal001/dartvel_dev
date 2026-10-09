@@ -102,6 +102,15 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                   'refreshed, or left to the app. With a shared cache such as '
                   'Redis, every instance serves what one of them resolved.',
             ]),
+            DocsText('Public GET pages with compiled content keep the rendered '
+                'HTML after the first request. Cookies, authorization, guarded '
+                'routes and runtime data bypass this cache. Studio saves and '
+                'publishes and successful OTA updates purge it. Set cache: '
+                'false on a DVRoute in route config to opt out.'),
+            DocsText('Safe pages send an ETag and require revalidation. Browsers '
+                'and CDNs can reuse the same document with a 304 response, '
+                'while a content change reaches the next request. The cache '
+                'is bounded and local to each server process.'),
             DocsStatus('Web Server Rendering', missing: <String>[
               'Widgets are not rendered to HTML on each request. Crawlers get '
                   'the text, links and headings the build captured from each '

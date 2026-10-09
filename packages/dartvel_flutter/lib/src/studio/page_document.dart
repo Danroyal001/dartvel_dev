@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart' show dvStudioIsReservedRoute;
+import 'package:dartvel_core/framework.dart' show dvPurgeRenderedPages;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -2169,6 +2170,7 @@ class DVPageStore {
       'document': jsonEncode(document.toJson()),
     });
     _cache[document.route] = document;
+    dvPurgeRenderedPages();
     _changes.add(document.route);
   }
 
@@ -2201,6 +2203,7 @@ class DVPageStore {
     await DV.Database.records
         .delete(table, where: DVFilter.equals('route', route));
     _cache.remove(route);
+    dvPurgeRenderedPages();
     _changes.add(route);
   }
 }

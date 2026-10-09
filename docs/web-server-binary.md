@@ -186,3 +186,36 @@ platform libraries only, not custom flags, so they are not used for this.
 build carries `DVAdminServer`, `DVStudioApi`, `DVStudioGrants` and Studio's
 messages; the other carries none of them nor any Studio file, is smaller, and
 answers `/__studio` exactly as a path nobody serves.
+
+## Rendered public page cache
+
+Known public GET routes with compiled content keep their rendered UTF-8 HTML
+and headers after the first render, in a process-local LRU cache (256 entries,
+32 MiB). The existing shared renderer still produces the document; cache hits
+send those same bytes, including the semantic content and Flutter bootstrap.
+Path, query, host and request headers partition entries, including theme and
+locale inputs. The directory server also keys by shell, manifest and preload
+content hashes.
+
+Requests with cookies or authorization bypass this cache. Guarded routes
+(including Studio), unknown routes, redirects, responses other than 200 and
+responses with Set-Cookie are never stored. Runtime data resolvers also bypass:
+only the framework's generated model resolver can prove that a route uses no
+model data. A public data model's page still follows the configured page-data
+cache policy, independently of this document cache.
+
+Use `cache: false` on a `DVRoute` in the route config to opt a page out. The
+CLI carries that option into the server manifest; no per-app setup is needed
+for ordinary public pages. Rebuild after changing route configuration.
+
+Studio page saves/deletes and content publishes/withdrawals, and successful OTA
+apply/rollback, call one internal purge hook. Every new binary process starts
+empty. Purging also prevents an older in-flight render from filling the cache.
+The cache is local to one process: multi-process deployments must deliver
+content changes to each process (or restart them together).
+
+Cached pages send a SHA-256 ETag and `Cache-Control: public, no-cache,
+must-revalidate`. A matching If-None-Match gets a bodyless 304; the browser or
+CDN reuses its bytes after validation, so a publish does not leave a fresh
+external copy serving old content. Cookie, authorization, language and theme
+variants are named in Vary. Bypassed pages retain `no-store`.

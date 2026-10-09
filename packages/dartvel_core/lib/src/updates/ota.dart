@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import '../web/rendered_page_cache.dart';
 
 /// Update check result
 class UpdateCheckResult {
@@ -147,6 +148,7 @@ class OtaUpdater {
       'installedAt': DateTime.now().toIso8601String(),
       'size': await update.length(),
     }));
+    dvPurgeRenderedPages();
     developer.log('Staged OTA update manifest: ${manifest.path}',
         name: 'dartvel');
   }

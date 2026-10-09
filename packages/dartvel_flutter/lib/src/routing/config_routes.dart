@@ -112,6 +112,7 @@ class DVRoute extends DVRouteNode {
     this.redirect,
     this.transition,
     this.preview = true,
+    this.cache = true,
     this.routes = const <DVRouteNode>[],
   });
 
@@ -138,6 +139,9 @@ class DVRoute extends DVRouteNode {
   /// Whether a `DVNavLink` resting on a link here shows the screen. Only a
   /// route with no parameters and no redirect over it ever does.
   final bool preview;
+
+  /// False bypasses shared server HTML caching for this route.
+  final bool cache;
 
   /// Child routes, pushed over this one.
   final List<DVRouteNode> routes;

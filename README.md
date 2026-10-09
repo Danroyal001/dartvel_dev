@@ -445,6 +445,14 @@ final Map<String, Object?> greeting = await hello(name: 'Ada');
 
 ## 🖥️ One binary: web-server and Studio
 
+Public GET pages with compiled content keep their rendered HTML after the first
+request. Cookies, authorization, guarded routes and runtime data bypass this
+process-local cache. Studio saves/publishes and successful OTA updates purge it.
+Use `cache: false` on a `DVRoute` in route config to opt out. Safe pages
+send ETags and require revalidation, so browsers and CDNs can reuse bytes while
+seeing content changes. See [the cache policy](docs/web-server-binary.md#rendered-public-page-cache).
+
+
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
 Dartvel site, including its bundled Manrope font. Full theme parity is still
