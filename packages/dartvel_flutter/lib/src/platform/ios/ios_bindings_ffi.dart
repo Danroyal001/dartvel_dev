@@ -30,7 +30,13 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:ffi/ffi.dart';
 
 import '../../../dartvel_flutter.dart' show DVNativeBridge;
+import '../device_runtime.dart';
+import '../file_bindings.dart';
+import '../network_source.dart';
 import 'ios_capabilities.dart';
+import 'ios_device_ffi.dart';
+import 'ios_shim_ffi.dart';
+import 'ios_shim_plan.dart';
 
 typedef _ObjcGetClassNative = Pointer<Void> Function(Pointer<Utf8> name);
 typedef _ObjcGetClassDart = Pointer<Void> Function(Pointer<Utf8> name);
@@ -116,6 +122,13 @@ class DVIosBindings {
 
   static bool get isRegistered => _registered;
 
+  /// Why part of the list is unregistered, or null when all of it is.
+  ///
+  /// The shim's bindings need an application built with `dartvel build
+  /// ios`; without one they stay unregistered and this says why, rather
+  /// than every one of them answering null as an unsupported platform does.
+  static String? lastFailure;
+
   static const Set<String> implemented = dvIosImplementedBindings;
 
   static bool register() {
@@ -184,12 +197,49 @@ class DVIosBindings {
     ]) {
       DVNativeBridge.register(name, (Object? _) {
         _playSystemSound!(dvIosHapticSoundId(name));
-        return null;
+        // A bool, because DV.Platform.haptics reads one through
+        // require<bool>. This answered null, and every haptic call on iOS
+        // threw "returned Null, expected bool" after the tap had played.
+        return true;
       });
     }
 
+    _registerDeviceAndFiles();
+    _registerShim();
     _registered = true;
     return true;
+  }
+
+  /// The file bindings and the device runtime, under Application Support.
+  static void _registerDeviceAndFiles() {
+    final String? home = Platform.environment['HOME'];
+    final String? state = dvIosStateDirectory(home);
+    final String? root = dvIosFilesRoot(home);
+    if (state == null || root == null) {
+      lastFailure = 'HOME is not set, so the device runtime and the file '
+          'bindings have nowhere they are allowed to write.';
+      return;
+    }
+    final DVIosShim? shim = DVIosShim.open();
+    DVDeviceRuntime.probes = DVIosDeviceProbes(shim == null ? (String _) => 0 : shim.diskFreeBytes);
+    DVDeviceRuntime.stateDirectory = state;
+    DVDeviceRuntime.register(DVNativeBridge.register);
+    DVFileBindings.register(root, DVNativeBridge.register);
+  }
+
+  /// Everything the Swift shim backs, when the application carries it.
+  static void _registerShim() {
+    final DVIosShim? shim = DVIosShim.open();
+    if (shim == null) {
+      lastFailure = DVIosShim.failure;
+      return;
+    }
+    dvIosShimHandlers(shim.call).forEach(DVNativeBridge.register);
+    // Connectivity, which DV.Platform.network reads as a signal. The
+    // first path arrives at once, so `unknown` lasts one callback.
+    shim.onNetwork = (Map<String, Object?> event) =>
+        DVNetworkSource.report(dvIosNetworkStatus(event));
+    unawaited(shim.call('network.watch', const <String, Object?>{}));
   }
 
   /// `BLOCK_IS_GLOBAL`.
@@ -286,6 +336,8 @@ class DVIosBindings {
     for (final name in implemented) {
       DVNativeBridge.unregister(name);
     }
+    DVDeviceRuntime.unregister();
+    DVFileBindings.reset();
     _registered = false;
   }
 
