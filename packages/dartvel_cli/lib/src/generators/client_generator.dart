@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVTelegramConfig,
         DVCrashBuildMode,
         DVCrashConfig,
         DVFileStorageConfig,
@@ -2519,11 +2520,16 @@ ${(() {
       }
     }
 
+    final telegram = dv['telegram'];
+    final telegramConfig = telegram == null ? null : DVTelegramConfig.fromMap((telegram as Map).cast<Object?, Object?>());
     final configContent = '''
 // GENERATED CODE - DO NOT MODIFY BY HAND
+import 'package:dartvel_core/dartvel.dart' show DVTelegramConfig;
 ${_hasKioskPolicies(dv) ? "import 'package:dartvel_flutter/dartvel_flutter.dart' show DVKioskPolicy;\n" : ''}
 /// Centrally generated Dartvel configuration matching your pubspec.yaml.
 class DartvelConfig {
+  /// Telegram metadata; no bot token is emitted into this client.
+  static const DVTelegramConfig? telegram = ${telegramConfig == null ? 'null' : 'DVTelegramConfig(botUsername: ${jsonEncode(telegramConfig.botUsername)}, shortName: ${jsonEncode(telegramConfig.shortName)}, requiredPermissions: <String>${jsonEncode(telegramConfig.requiredPermissions)})'};
   /// The database provider (e.g. sqlite, postgres, mysql).
   static const databaseProvider = '$dbProvider';
   

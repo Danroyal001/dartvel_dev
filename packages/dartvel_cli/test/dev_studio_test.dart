@@ -11,6 +11,14 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
+  test('generated server imports resolve within the application', () {
+    final source = dvDevServerSource(
+      admin: const DVAdminMount(
+          path: '/__studio', enabled: false, requiresAuth: false),
+      adminRoot: '.',
+    );
+    expect(source, isNot(contains("import '../build/telegram.dart'")));
+  });
   late Directory root;
 
   setUp(() {

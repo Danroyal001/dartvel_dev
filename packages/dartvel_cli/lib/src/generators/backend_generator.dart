@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart' show sha256;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheConfig,
+        DVTelegramConfig,
         DVCacheConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
@@ -805,6 +806,13 @@ $openApiJson\'\'\';
       final Object? dartvel = doc is Map ? doc['dartvel'] : null;
       return dartvel is Map ? PlatformApiGenerator.read(dartvel) : null;
     }();
+    final Object? telegramSection = () {
+      final doc = loadYaml(File(p.join(root, 'pubspec.yaml')).readAsStringSync());
+      final dartvel = doc is Map ? doc['dartvel'] : null;
+      return dartvel is Map ? dartvel['telegram'] : null;
+    }();
+    final bool telegram = telegramSection != null;
+    if (telegram) DVTelegramConfig.fromMap((telegramSection as Map).cast<Object?, Object?>());
     final bool authenticates = platformApi != null;
     final bool studioOff = _dvStudioDeclaredOff(root);
     final String? corsSource = server.corsSource;
@@ -1862,6 +1870,10 @@ ${studioOff ? '  // Studio is off (dartvel.admin.enabled: false): no grants to r
   // this process's database, so they outlive a restart and every web process
   // sees them. An application that installed its own provider keeps it; with
   // no database there is nowhere to keep an account, and none is installed.
+  if ($telegram && !core.DVAuthEndpoints.installed) {
+    core.DVAuthEndpoints.install(credentials: core.DVCredentialGuard(
+      provider: dv.DVTelegramAuthProvider(validator: dv.DVTelegramInitDataValidator.fromEnvironment())));
+  }
   if (dartvelDatabase != null && !core.DVAuthEndpoints.installed) {
     core.DVAuthEndpoints.install(credentials: core.DVCredentialGuard(provider: core.DVDatabaseAuthProvider(dartvelDatabase)));
   }${authenticates ? '''
