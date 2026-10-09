@@ -223,7 +223,7 @@ more.
 
 | # | What | Impact | Effort | Dartvel area |
 |---|---|---|---|---|
-| 1 | **iOS platform bindings to Android parity**: permissions, share, notifications, camera, location, biometrics, files, media pick (iOS has 8 of 103, Android 36) | High | L | Platform (`platform/ios/`) |
+| 1 | **iOS platform bindings to Android parity**: permissions, share, notifications, camera, location, biometrics, files, media pick (iOS had 8 of 103, Android 36; 37 bound since 2026-10-09 but not yet run on iOS) | High | L | Platform (`platform/ios/`) |
 | 2 | **Video and audio players on Android and iOS** (AVPlayer, ExoPlayer) behind `DVBox.video`/`audio`, with **disk cache and precache**, PiP, background playback, now-playing | High | L | Media Playback and Capture |
 | 3 | **Camera capture on Android and iOS** (CameraX, AVFoundation) behind `recordVideo`/`takePhoto` with a preview box | High | L | Media Playback and Capture |
 | 4 | **OTA patch verified on iOS**, then hosted patches on Cloud with an install-volume tier on top of the project price | High | M | OTA Updates, Dartvel Cloud |

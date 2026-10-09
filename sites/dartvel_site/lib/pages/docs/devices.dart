@@ -32,14 +32,20 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'desktop and not in a browser.',
               'Before you rely on a feature, check capability. Calling one '
                   'the target lacks is an error that names it.',
-              'Linux binds the most today and iOS the fewest. A test checks '
+              'Linux binds the most today. Android and iOS bind about the '
+                  'same set; on iOS most of it is Swift that dartvel build ios '
+                  'compiles into the app. A test checks '
                   'that every binding a target claims has a handler behind '
                   'it, and on Android an emulator job checks it again.',
             ]),
             DocsCode('devices-platform'),
             DocsStatus('Platform', missing: <String>[
               'On Android, biometrics and NFC tags are not bound yet.',
-              'iOS binds only a handful of features so far.',
+              'On iOS, share, location, contacts, pickers, permissions, '
+                  'sensors, Bluetooth, notifications and Face ID are built and '
+                  'unit-tested but not yet run on an iPhone or simulator.',
+              'On iOS, declare what you ask for under dartvel.ios.permissions '
+                  'in pubspec.yaml. iOS closes an app that asks without it.',
             ]),
           ],
         ),

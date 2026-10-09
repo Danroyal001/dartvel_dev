@@ -110,22 +110,22 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
                 <String>['Dialogs', 'Partial', 'Linux, Windows, macOS native bindings'],
                 <String>['DragDrop', 'Shipped', 'desktop (Linux, Windows, macOS)'],
                 <String>['associations', 'Shipped', 'desktop'],
-                <String>['camera', 'Partial', 'Android, iOS, some web'],
-                <String>['media', 'Partial', 'Android, iOS, some web'],
+                <String>['camera', 'Partial', 'Android, some web; iOS built, not yet run on an iPhone'],
+                <String>['media', 'Partial', 'Android, some web; iOS pickers built, not yet run on an iPhone'],
                 <String>['fileStorage', 'Shipped', 'all: Android, iOS, macOS, Windows, Linux, embedded Linux, web (OPFS); pickers on Android, desktop and web'],
                 <String>['files (deprecated)', 'Shipped', 'Android, web; use fileStorage'],
-                <String>['location', 'Partial', 'Android, iOS'],
+                <String>['location', 'Partial', 'Android; iOS built, not yet run on an iPhone'],
                 <String>['notifications', 'Stub', 'all'],
                 <String>['bluetooth', 'Partial', 'Android 31+, some others'],
-                <String>['nfc', 'Planned', 'needs Activity / entitlement'],
+                <String>['nfc', 'Partial', 'isAvailable on Android and iOS; reading and writing tags planned'],
                 <String>['device', 'Shipped (stub)', 'all'],
                 <String>['clipboard', 'Partial', 'web, Linux, Windows, macOS (varies)'],
-                <String>['share', 'Partial', 'Android, web'],
-                <String>['sensors', 'Partial', 'Android, iOS, some web'],
-                <String>['biometrics', 'Planned', 'needs Activity / iOS entitlement'],
+                <String>['share', 'Partial', 'Android, web; iOS built, not yet run on an iPhone'],
+                <String>['sensors', 'Partial', 'Android, some web; iOS built, not yet run on an iPhone'],
+                <String>['biometrics', 'Partial', 'web; canAuthenticate on Android; iOS (Face ID, Touch ID) built, not yet run on an iPhone'],
                 <String>['deepLinks', 'Stub', 'all'],
                 <String>['haptics', 'Partial', 'Android, iOS, web'],
-                <String>['contacts', 'Planned', 'needs Activity / entitlement'],
+                <String>['contacts', 'Partial', 'Android; iOS built, not yet run on an iPhone'],
                 <String>['permissions', 'Shipped', 'all (policy framework)'],
                 <String>['browserExtension', 'Shipped', 'Chromium / Firefox extensions'],
                 <String>['network', 'Shipped', 'all (signal: online / metered / offline / unknown)'],
@@ -191,8 +191,8 @@ Widget _docsNativeAccessPage(BuildContext context) => const DocsArticle(
             Bullets(<String>[
               '`nfc.readTag` needs Android `Activity` dispatch or iOS '
               'CoreNFC entitlement.',
-              '`biometrics.authenticate` / `.canAuthenticate` needs '
-              'Activity (Android) or `LAContext` (iOS).',
+              '`biometrics.authenticate` on Android needs a small Java '
+              'shim for its callback.',
               '`bluetooth.isEnabled` needs runtime-granted permission '
               'since API 31.',
               'Additional media/capture bindings requiring `Activity` '
