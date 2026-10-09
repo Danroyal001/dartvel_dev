@@ -806,9 +806,13 @@ $openApiJson\'\'\';
       final Object? dartvel = doc is Map ? doc['dartvel'] : null;
       return dartvel is Map ? PlatformApiGenerator.read(dartvel) : null;
     }();
+    // dartvel.telegram: install the Telegram sign-in provider. Refused here,
+    // as the client generator refuses it, when it names a server secret.
     final Object? telegramSection = () {
-      final doc = loadYaml(File(p.join(root, 'pubspec.yaml')).readAsStringSync());
-      final dartvel = doc is Map ? doc['dartvel'] : null;
+      final File pubspec = File(p.join(root, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return null;
+      final Object? doc = loadYaml(pubspec.readAsStringSync());
+      final Object? dartvel = doc is Map ? doc['dartvel'] : null;
       return dartvel is Map ? dartvel['telegram'] : null;
     }();
     final bool telegram = telegramSection != null;
