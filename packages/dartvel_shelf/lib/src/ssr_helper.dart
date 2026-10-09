@@ -4,6 +4,7 @@ import 'package:dartvel_core/dartvel.dart'
     show DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
+import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
 import 'site_files.dart';
 
@@ -36,7 +37,7 @@ Future<Response> handleSsrFallback(
 }) =>
     dvWithRequestTenant(
       req,
-      () => _handleSsrFallback(
+      () => _cachedSsrFallback(
         req,
         spaRoot,
         pageData: pageData,
@@ -356,3 +357,97 @@ Response _html(String page, {int status = 200, bool streaming = false}) {
 /// `HtmlEscape` covers `&`, `<`, `>`, `"` and `'`, which is the whole set that
 /// matters for both element text and an attribute value.
 String _escape(String value) => const HtmlEscape().convert(value);
+
+final Map<String, DVRenderedPageCache> _documents = {};
+
+Future<Response> _cachedSsrFallback(
+  Request req,
+  String spaRoot, {
+  DVPageDataResolver? pageData,
+  DVPageDataCache? cache,
+  DVCacheAdapter? pageStore,
+  Future<Set<String>> Function()? publishedRoutes,
+}) async {
+  Future<Response> render() => _handleSsrFallback(
+    req,
+    spaRoot,
+    pageData: pageData,
+    cache: cache,
+    pageStore: pageStore,
+    publishedRoutes: publishedRoutes,
+  );
+  Object? manifest;
+  try {
+    manifest = dvSiteJson(spaRoot, 'dartvel_routes.json');
+  } on FormatException {
+    return render();
+  }
+  final routes = manifest is Map ? manifest['routes'] : null;
+  final path = req.url.path == '/'
+      ? '/'
+      : req.url.path.replaceAll(RegExp(r'/+$'), '');
+  final matched = routes is Map
+      ? dvMatchRoute(path, routes.keys.cast<String>())
+      : null;
+  final route = matched == null ? null : routes[matched.pattern];
+  final headers = req.headers.singleValueMap;
+  if (!dvMayCacheRenderedPage(
+    req.method,
+    headers,
+    route is Map ? route : null,
+    staticContent: dvPageResolverIsStatic(pageData, matched?.pattern),
+  )) {
+    return render();
+  }
+  // A directory can be replaced in place; its content hashes change the key.
+  final stamp = [
+    spaRoot,
+    dvSiteHash(spaRoot, 'index.html'),
+    dvSiteHash(spaRoot, 'dartvel_routes.json'),
+    dvSiteHash(spaRoot, dvRoutePreloadsFile),
+  ].join('|');
+  final key = dvRenderedPageKey(stamp, req.url, headers);
+  final documents = _documents.putIfAbsent(
+    spaRoot,
+    () => DVRenderedPageCache(),
+  );
+  DVRenderedPage? kept = documents.get(key);
+  if (kept == null) {
+    final generation = dvRenderedPagesGeneration;
+    final response = await render();
+    if (response.status != 200 ||
+        response.headers.has('set-cookie') ||
+        (response.headers.get('content-type') ?? '')
+                .split(';')
+                .first
+                .trim()
+                .toLowerCase() !=
+            'text/html') {
+      return response;
+    }
+    final bytes = await response.body?.bytes() ?? <int>[];
+    final keptHeaders = {
+      ...response.headers.singleValueMap,
+      ...dvRenderedPageHeaders(bytes),
+    };
+    documents.put(
+      key,
+      bytes,
+      keptHeaders,
+      status: response.status,
+      generation: generation,
+    );
+    kept = DVRenderedPage(bytes, keptHeaders);
+  }
+  final notModified = dvRenderedPageNotModified(
+    req.headers.get('if-none-match'),
+    kept.headers['etag']!,
+  );
+  return Response(
+    notModified ? 304 : 200,
+    headers: Headers(kept.headers),
+    body: notModified
+        ? const Stream<List<int>>.empty()
+        : Stream<List<int>>.value(kept.bytes),
+  );
+}

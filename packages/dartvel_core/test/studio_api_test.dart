@@ -98,6 +98,20 @@ void main() {
   // Studio built its own table for the model and handed it no capture log,
   // so an operator's correction never reached a warehouse, and the copy
   // disagreed with the source from then on without anything saying so.
+  test('Studio page save and delete purge rendered public documents', () async {
+    final cache = DVRenderedPageCache();
+    cache.put('page', [1], {}, status: 200);
+    final saved = await server.respond(_request('PUT', '/__studio/api/pages', json: {
+      'document': {'route': '/hello', 'title': 'Hello', 'children': []},
+    }));
+    expect(saved!.status, 200);
+    expect(cache.get('page'), isNull);
+    cache.put('page', [2], {}, status: 200);
+    final deleted = await server.respond(_request('DELETE', '/__studio/api/pages?route=/hello'));
+    expect(deleted!.status, 200);
+    expect(cache.get('page'), isNull);
+  });
+
   test('a captured data model edited in Studio is captured', () async {
     final DVCapture log = DVCapture(
       database: database,

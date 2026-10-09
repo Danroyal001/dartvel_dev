@@ -48,3 +48,6 @@ export 'src/web/model_page_access.dart' show DVModelPageAccess;
 export 'src/process/asset_pack.dart' show DVAssetCodecs, DVAssetDecoder, DVAssetEncoding;
 export 'src/web/asset_http_policy.dart';
 export 'src/web/asset_source.dart';
+
+export 'src/web/rendered_page_cache.dart';
+export 'src/web/page_data.dart' show dvPageResolverIsStatic;

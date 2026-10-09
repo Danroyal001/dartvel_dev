@@ -9,6 +9,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/framework.dart' show DVRenderedPageCache;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,7 +58,10 @@ void main() {
       pages: <DVPageDocument>[documentFor('/about', 'Edited in Studio')],
     ).encode();
 
+    final cache = DVRenderedPageCache();
+    cache.put('page', [1], {}, status: 200);
     final result = await DV.Updates.applyPages(from: endpoint);
+    expect(cache.get('page'), isNull, reason: 'applied page OTA purges rendered documents');
 
     expect(result.outcome, DVPageUpdateOutcome.applied);
     expect(result.version, '1.4.0');

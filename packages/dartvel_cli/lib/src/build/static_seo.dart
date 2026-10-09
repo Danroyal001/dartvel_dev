@@ -59,6 +59,19 @@ Set<String> dvGuardedRoutes(String routerSource) {
       .toSet();
 }
 
+/// Routes opting out of shared HTML caching, from the generated router.
+Set<String> dvUncachedRoutes(String routerSource) {
+  final RegExpMatch? match = RegExp(
+    r'dartvelUncachedRoutes\s*=\s*<String>\[([^\]]*)\]',
+    dotAll: true,
+  ).firstMatch(routerSource);
+  if (match == null) return const <String>{};
+  return RegExp(r"'([^']*)'")
+      .allMatches(match.group(1)!)
+      .map((RegExpMatch m) => m.group(1)!)
+      .toSet();
+}
+
 /// The sign-in page's path, as the generated router assigns it to
 /// `dvSignInRoute`, or null for an application with no sign-in page.
 ///
