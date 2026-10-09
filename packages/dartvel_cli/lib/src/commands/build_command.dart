@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../build/telegram.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
@@ -182,6 +183,7 @@ const buildPlatformArguments = <String>[
   // static web build and a server one, since they are two answers to the
   // same question and the second would overwrite the first.
   ...webServerBuildPlatforms,
+  'telegram',
   'tpk',
   'sony-elinux-iso',
   'sony-elinux-img',
@@ -475,6 +477,7 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
   switch (platform) {
     case 'web':
     case 'web-server':
+    case 'telegram':
     case 'android':
     case 'fireos':
       return true;
@@ -806,7 +809,7 @@ class BuildCommand extends Command<void> {
     final DVModuleCallCheck moduleCalls =
         DVModuleCallCheck.run(root, platforms: platforms.toSet(), <DVModuleEnvironment>{
       for (final String platform in platforms)
-        platform == 'web'
+        (platform == 'web' || platform == 'web-server' || platform == 'telegram')
             ? DVModuleEnvironment.web
             : (platform == 'server' || platform == 'backend')
                 ? DVModuleEnvironment.backend
@@ -1197,7 +1200,8 @@ class BuildCommand extends Command<void> {
     // page without one is laid out by a phone at a notional 980 CSS pixels
     // and scaled down, which makes every breakpoint report "desktop" on a
     // phone.
-    if (platform == 'web' || platform == 'web-server') {
+    if (platform == 'web' || platform == 'web-server' || platform == 'telegram') {
+      dvPrepareTelegramShell(_projectRoot, enabled: platform == 'telegram' || _dartvelSection(_projectRoot)['telegram'] != null);
       if (dvEnsureProjectViewport(_projectRoot)) {
         Logger.log('   Added a viewport meta to web/index.html.');
       }
@@ -1227,7 +1231,7 @@ class BuildCommand extends Command<void> {
     if (exitCode == null) return _PlatformBuildResult.failed;
 
     if (exitCode == 0) {
-      if (platform == 'web' || platform == 'web-server') {
+      if (platform == 'web' || platform == 'web-server' || platform == 'telegram') {
         final root = _projectRoot;
         // First, before anything reads build/web or lists its parts: Studio's
         // code comes out of the web root, whose every file is public, and a
@@ -4063,7 +4067,7 @@ class BuildCommand extends Command<void> {
   /// for one with no declared image and no remote host -- then there is
   /// nothing to hand the application, and it renders exactly as it did.
   DVImageVariants _imageVariants(String root, String platform) {
-    if (platform != 'web' && platform != 'web-server') {
+    if (platform != 'web' && platform != 'web-server' && platform != 'telegram') {
       return const DVImageVariants();
     }
     final DVImageVariants declared =
@@ -4753,7 +4757,7 @@ List<String> resolveFlutterBuildArguments({
     'android' || 'fireos' => 'apk',
     // The same Flutter web build. What differs is what Dartvel writes beside
     // it afterwards: a manifest rather than a file per route.
-    'web-server' => 'web',
+    'web-server' || 'telegram' => 'web',
     _ => platform,
   };
   final args = <String>['build', command, buildMode];
