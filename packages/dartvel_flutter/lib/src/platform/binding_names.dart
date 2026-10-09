@@ -169,6 +169,7 @@ const Set<String> dvNativeBindingNames = <String>{
   'window.minimize',
   'window.open',
   'window.restore',
+  'window.setFullscreen',
   'window.setSize',
   'window.setTitle',
 
