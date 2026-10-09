@@ -568,6 +568,52 @@ class DVWindow {
     });
   }
 
+  /// Puts this window fullscreen, or takes it out, and answers whether the
+  /// platform did it.
+  ///
+  /// [on] names the display to fill; a projector output passes
+  /// `DVDisplayHint.secondary` or the display it was opened on. A hint that
+  /// matches no display is **refused**, never "fullscreen wherever the window
+  /// is": that puts the output on the operator's own screen in front of the
+  /// room, and looks as if it worked.
+  ///
+  /// A virtual window, or a target without the `window.setFullscreen`
+  /// binding, answers false rather than throwing, as every window call does.
+  Future<bool> setFullscreen(bool fullscreen, {DVDisplayHint? on}) async {
+    if (isVirtual) {
+      await _logIgnored('setFullscreen');
+      return false;
+    }
+    if (!DVNativeBridge.isRegistered('window.setFullscreen')) return false;
+
+    String? displayId;
+    if (fullscreen && on != null) {
+      final List<DVDisplay> displays =
+          await DV.Platform.window.refreshDisplays();
+      final DVDisplay? display = DVDisplays.resolve(displays, on).display;
+      if (display == null) {
+        _code('DV-WINDOW-013', 'setFullscreen refused: $on matched no display');
+        return false;
+      }
+      displayId = display.id;
+    }
+
+    final bool done = await DVNativeBridge.invoke<bool>(
+          'window.setFullscreen',
+          <String, Object?>{
+            'id': nativeId,
+            'fullscreen': fullscreen,
+            'displayId': ?displayId,
+          },
+        ) ??
+        false;
+    if (done) {
+      _lifecycle.value =
+          fullscreen ? DVWindowLifecycle.fullscreen : DVWindowLifecycle.active;
+    }
+    return done;
+  }
+
   /// Maps to the page title on a virtual window, which is the closest true
   /// equivalent rather than a discard.
   Future<void> setTitle(String title) async {

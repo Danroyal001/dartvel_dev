@@ -43,6 +43,12 @@ class DVWindowHost extends StatefulWidget {
   @visibleForTesting
   static void debugResetBindings() => _DVWindowBindings.reset();
 
+  /// Releases the calling thread's current EGL context, as the host does after
+  /// creating a window on Linux. True when one was released.
+  @visibleForTesting
+  static bool debugReleaseCurrentEglContext() =>
+      _DVLinuxEgl.releaseCurrentContext();
+
   /// What was asked for when the window with [nativeId] was opened.
   @visibleForTesting
   static DVWindowRequest? debugRequestFor(String? nativeId) =>
@@ -66,6 +72,8 @@ class _DVWindowHostState extends State<DVWindowHost> {
             widget.routeBuilder(context, window.route),
       ),
     );
+
+    _DVWindowBindings.useSurfaces(_surfaces);
 
     _windows = DV.Platform.window.all;
     _windows.addListener(_onWindowsChanged);
