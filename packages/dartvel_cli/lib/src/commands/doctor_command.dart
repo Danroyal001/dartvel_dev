@@ -2,12 +2,14 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 // Shown, not whole: dartvel_core exports a Platform enum that would shadow
 // dart:io's Platform, which this file uses for environment and OS checks.
-import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
+import 'package:dartvel_core/dartvel.dart' show DVKioskTarget, DVXRConfig;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../build/deep_link_files.dart';
+import '../build/spatial_targets.dart';
 import '../build/static_seo.dart' show dvGuardedRoutes;
+import '../utils/android_sdk.dart';
 import '../config/dartvel_config.dart';
 import '../doctor/kiosk_check.dart';
 import '../doctor/memory_check.dart';
@@ -31,6 +33,9 @@ import 'build_command.dart'
 /// be asked about, while the browser extensions had check logic that the
 /// option's allowlist made unreachable.
 final List<String> doctorTargets = <String>[
+  // Headsets: the Android SDK and aapt2 for horizon, Xcode on a Mac for
+  // visionos, and the dartvel.xr declaration both read.
+  ...spatialBuildPlatforms,
   ...embeddedBuildPlatforms,
   ...extensionBuildPlatforms,
   ...browserExtensionBuildPlatforms,
@@ -261,6 +266,10 @@ class DoctorCommand extends Command<void> {
       await _checkTerminalToolchain(target);
       return;
     }
+    if (spatialBuildPlatforms.contains(target)) {
+      await _checkSpatialToolchain(target);
+      return;
+    }
 
     // Executable each target's build path invokes.
     final executable = switch (target) {
@@ -367,6 +376,68 @@ class DoctorCommand extends Command<void> {
     } catch (_) {}
     Logger.log('[!] Git: Not found (recommended for version control)');
     return true; // Not critical
+  }
+
+  /// `dartvel doctor --target horizon|visionos`: what the build needs, asked
+  /// the way the build asks it, and whether `dartvel.xr` reads.
+  Future<void> _checkSpatialToolchain(String target) async {
+    var ready = true;
+    final File pubspec = File(p.join(root ?? Directory.current.path, 'pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      try {
+        final Object? document = loadYaml(pubspec.readAsStringSync());
+        final Object? dartvel = document is Map ? document['dartvel'] : null;
+        final DVXRConfig config = DVXRConfig.parse(dartvel is Map ? dartvel['xr'] : null);
+        if (config.problems.isEmpty) {
+          Logger.log('[+] dartvel.xr: a ${config.panel.width}x${config.panel.height} dp panel'
+              '${target == 'horizon' ? ' for ${config.horizonSupportedDevices}' : ''}');
+        } else {
+          ready = false;
+          for (final String problem in config.problems) {
+            Logger.log('[!] $problem');
+          }
+        }
+      } on Object catch (error) {
+        ready = false;
+        Logger.log('[!] pubspec.yaml does not read: $error');
+      }
+    }
+    if (target == 'horizon') {
+      if (dvAndroidSdkInstalled()) {
+        Logger.log('[+] horizon toolchain: Android SDK found');
+      } else {
+        ready = false;
+        Logger.log('[!] horizon toolchain: no Android SDK. Install it and set '
+            'ANDROID_HOME (https://developer.android.com/studio).');
+      }
+      final String? aapt2 = dvLocateAapt2();
+      if (aapt2 != null) {
+        Logger.log('[+] horizon APK check: $aapt2');
+      } else {
+        Logger.log('[!] horizon APK check: no aapt2 in the SDK build-tools, so '
+            'the built APK cannot be checked against the Horizon Store rules.');
+      }
+    } else {
+      if (!Platform.isMacOS) {
+        ready = false;
+        Logger.log('[!] visionos builds on macOS with Xcode: it is the iOS '
+            'build Vision Pro runs as Designed for iPad.');
+      } else if (await _isExecutableAvailable('xcodebuild')) {
+        Logger.log('[+] visionos toolchain: xcodebuild found');
+        final ProcessResult sdks =
+            await Process.run('xcodebuild', const <String>['-showsdks'], runInShell: true);
+        Logger.log('${sdks.stdout}'.contains('xrsimulator')
+            ? '[+] visionOS simulator SDK installed, for trying the build in a Vision Pro simulator'
+            : '[i] No visionOS simulator SDK. The build does not need it; trying it in a '
+                'Vision Pro simulator does (Xcode > Settings > Components).');
+      } else {
+        ready = false;
+        Logger.log('[!] visionos toolchain: xcodebuild not found. Install Xcode.');
+      }
+    }
+    Logger.log(ready
+        ? '\n[+] Target $target looks ready to build.'
+        : '\n[!] Target $target is not ready to build.');
   }
 
   Future<void> _checkTerminalToolchain(String target) async {
