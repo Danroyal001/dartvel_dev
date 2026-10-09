@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../dartvel_client/dartvel_client.dart';
 import '../components/record.dart';
 import '../components/site.dart';
@@ -52,7 +53,7 @@ const List<(String, String, String)> shipped = <(String, String, String)>[
     'Article.Form() creates a record and article.Form() edits one, with an '
         'input per field. Saving checks the rules each field declares with '
         '@DVModel.validate. DVForm.builder lays it out with a typed getter per '
-        'field. Absent: validation messages shown beside the fields.',
+        'field. Rejected saves announce the error and focus the field.',
   ),
   (
     'Backend',
@@ -678,7 +679,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
 
 @DVPage(
   title: 'Dartvel features: what ships and what is partial',
-  description: 'What ships in Dartvel today and what is partial, section by '
+  description:
+      'What ships in Dartvel today and what is partial, section by '
       'section, with the evidence behind each status.',
   showAppBar: false,
   sitemap: DVPageSitemap(
@@ -721,12 +723,20 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
       children: <Widget>[
         Eyebrow('BUILT ON'),
         Heading('The projects under the build targets and updates.', level: 2),
-        Body('The TV, embedded, extension and terminal targets run on '
-            'embedders other people wrote. Dartvel keeps a pinned fork of '
-            'each, and the building docs list what every fork changes.'),
+        Body(
+          'The TV, embedded, extension and terminal targets run on '
+          'embedders other people wrote. Dartvel keeps a pinned fork of '
+          'each, and the building docs list what every fork changes.',
+        ),
         UpstreamCredits(
           ids: <String>[
-            'tizen', 'elinux', 'webos', 'fuchsia', 'vscode', 'tvos', 'flt',
+            'tizen',
+            'elinux',
+            'webos',
+            'fuchsia',
+            'vscode',
+            'tvos',
+            'flt',
           ],
         ),
         UpstreamCredit('shorebird', lead: 'DV.Updates runs on the'),
@@ -754,32 +764,30 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
 Widget _featureGrid(
   BuildContext context, {
   required List<(String, String, String)> items,
-}) =>
-    LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final int columns = constraints.maxWidth >= 900 ? 2 : 1;
-        if (columns == 1) {
-          return DVBox.list(<Widget>[
-            for (final (String area, String surface, String body) f in items)
-              FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-          ], spacing: 14);
-        }
-        const double gap = 18;
-        final double width =
-            (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: <Widget>[
-            for (final (String area, String surface, String body) f in items)
-              SizedBox(
-                width: width,
-                child: FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
-              ),
-          ],
-        );
-      },
+}) => LayoutBuilder(
+  builder: (BuildContext context, BoxConstraints constraints) {
+    final int columns = constraints.maxWidth >= 900 ? 2 : 1;
+    if (columns == 1) {
+      return DVBox.list(<Widget>[
+        for (final (String area, String surface, String body) f in items)
+          FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+      ], spacing: 14);
+    }
+    const double gap = 18;
+    final double width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+    return Wrap(
+      spacing: gap,
+      runSpacing: gap,
+      children: <Widget>[
+        for (final (String area, String surface, String body) f in items)
+          SizedBox(
+            width: width,
+            child: FeatureRow(area: f.$1, surface: f.$2, body: f.$3),
+          ),
+      ],
     );
+  },
+);
 
 /// One capability: the area, the surface you actually type, what works and,
 /// when the record names one, what is missing.
@@ -796,7 +804,8 @@ Widget _featureRow(
     DVBox.list(<Widget>[
       // A wrapping line: the chip carries an API name and some are long.
       DVBox.wrapLine(<Widget>[
-        Prose(area,
+        Prose(
+          area,
           const DVModifier()
               .fontSize(17)
               .fontWeight(.w700)
@@ -807,7 +816,8 @@ Widget _featureRow(
       ], spacing: 10),
       // One sentence. Three lines at most, so one long opening cannot make
       // its card taller than the row it sits in.
-      Prose(siteLead(body),
+      Prose(
+        siteLead(body),
         const DVModifier()
             .fontSize(15)
             .color(palette.muted)
@@ -816,21 +826,28 @@ Widget _featureRow(
             .overflow(.ellipsis),
       ),
       if (gap.isNotEmpty)
-        DVBox.list(<Widget>[
-          const DVText('Missing').modifier(const DVModifier()
-              .fontSize(12)
-              .fontWeight(.w700)
-              .letterSpacing(0.8)
-              .color(palette.faint)),
-          Prose(gap,
-            const DVModifier()
-                .fontSize(15)
-                .color(palette.muted)
-                .lineHeight(1.6)
-                .maxLines(3)
-                .overflow(.ellipsis),
-          ),
-        ], spacing: 4, crossAlign: .start),
+        DVBox.list(
+          <Widget>[
+            const DVText('Missing').modifier(
+              const DVModifier()
+                  .fontSize(12)
+                  .fontWeight(.w700)
+                  .letterSpacing(0.8)
+                  .color(palette.faint),
+            ),
+            Prose(
+              gap,
+              const DVModifier()
+                  .fontSize(15)
+                  .color(palette.muted)
+                  .lineHeight(1.6)
+                  .maxLines(3)
+                  .overflow(.ellipsis),
+            ),
+          ],
+          spacing: 4,
+          crossAlign: .start,
+        ),
     ], spacing: 10),
     const DVModifier()
         // No height: a wrap gives its children unbounded height.

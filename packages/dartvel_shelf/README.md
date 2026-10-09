@@ -374,7 +374,7 @@ final cors = CorsOptions(
 that category, and `exposeHeaders` and `allowCredentials` are also available.
 Credentials cannot be combined with any origin.
 
-The `ignore_for_file` line is needed in 0.8.0. `CorsOptions` has two
+The `ignore_for_file` line is needed while the analyzer resolves the web stub. `CorsOptions` has two
 definitions behind a conditional export, one for platforms with `dart:ffi` and
 a stub for the web, and the analyzer (and so your IDE and the API reference)
 reads the stub, whose fields are named differently (`allowedOrigins`,
@@ -501,7 +501,7 @@ behaves; see [Routing](#routing).
 **Requests hang for a minute and then get 504.** A handler is awaiting
 something that never completes. Lower `requestTimeout` to find it sooner.
 
-## Known limitations in 0.8.0
+## Implementation limits
 
 - No HTTP/2 over TLS (see above).
 - Some configuration is process-wide rather than per server. If you start more
@@ -515,7 +515,8 @@ something that never completes. Lower `requestTimeout` to find it sooner.
 - The analyzer, and so the API reference, sees the web stub of `CorsOptions`
   rather than the one that runs; see
   [Static files, CORS and compression](#static-files-cors-and-compression).
-- Request bodies are buffered, not streamed; there are no WebSockets.
+- Request bodies are buffered, not streamed. WebSockets are built in through
+  `webSocketHandler` and `wsHandler`, with bounded queues in both directions.
 
 ## Examples
 

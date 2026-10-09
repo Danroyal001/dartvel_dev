@@ -43,8 +43,8 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                 'focusable control, whichever primitive it was reached for: '
                 'Tab reaches it in the order it is drawn, Enter or Space '
                 'presses it, and a focus ring is drawn while it holds the '
-                'focus. The ring is drawn by the control rather than taken from '
-                'a theme, so it is there in an application that never '
+                'focus. The control draws its own ring, including in an application '
+                'that never '
                 'installed Material widgets.'),
             Bullets(<String>[
               'A control names itself to a screen reader from the text it draws, '

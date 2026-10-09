@@ -62,17 +62,17 @@ carries one binary per platform, with `SHA256SUMS` and `latest.json`:
 There is no Windows on ARM build; the x64 one runs under emulation.
 
 ```sh
-curl -LO https://github.com/Danroyal001/dartvel_dev/releases/download/v0.11.2/dartvel-linux-amd64
+curl -LO https://github.com/Danroyal001/dartvel_dev/releases/download/v0.11.5/dartvel-linux-amd64
 mkdir -p ~/.dartvel/bin
 mv dartvel-linux-amd64 ~/.dartvel/bin/dartvel
 chmod +x ~/.dartvel/bin/dartvel
 ~/.dartvel/bin/dartvel ensure-path   # adds ~/.dartvel/bin to your PATH
 ```
 
-**For 0.11.2, only the Linux binaries are attached until the CI release
+**For 0.11.5, only the Linux binaries are attached until the CI release
 workflow has run.** Until then, npm on macOS or Windows fails on the download
 and prints the release URL. Use the per-project route below on those hosts,
-or 0.5.0.
+using Dart 3.13 or newer.
 
 ### From pub, per project
 
@@ -81,7 +81,7 @@ dependencies. `dartvel create` already writes this:
 
 ```yaml
 dev_dependencies:
-  dartvel_cli: ^0.11.2
+  dartvel_cli: ^0.11.5
 ```
 
 ```sh
@@ -228,7 +228,7 @@ had.
 | `flags list\|prune` | Declared feature flags, and the ones past their expiry with the code still reading them. |
 | `i18n extract\|check` | Collect translatable strings and check locale catalogues. |
 | `import openapi\|postman` | Generate models and a typed client from an OpenAPI document or a Postman export. |
-| `add <source>` | Resolve a capability source (a Dartvel project, an OpenAPI document, a GraphQL schema) into a mounted module. |
+| `add <source>` | Mount a Dartvel app or automatically wrap a Dart, npm, C, Rust, WebAssembly, Maven/jar, Swift/pod, OpenAPI or GraphQL source as a pinned module. PyPI, Go and .proto are planned. |
 | `modules list\|manifest\|pin\|publish` | Inspect, pin, sign and publish modules. |
 | `plugin add\|list\|remove` | Manage Dartvel plugins. |
 

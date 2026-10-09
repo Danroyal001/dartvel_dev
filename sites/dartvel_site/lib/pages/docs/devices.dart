@@ -107,9 +107,8 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'a stack on a phone.',
               'context.screen.folds lists each fold with where it is and '
                   'whether it hides pixels. posture is book, tabletop or flat.',
-              'Android foldables report their folds today. The iPhone Duo is '
-                  'next: its fold comes from iOS 27.1, which needs a binding '
-                  'built against that SDK.',
+              'Android foldables report their folds today. Fold reporting '
+                  'on iOS is planned and requires a native binding.',
             ]),
             DocsCode('devices-foldable'),
           ],
@@ -123,7 +122,7 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
                   'Linux, Windows and macOS.',
               'A window can accept dropped files or text, and gets what was '
                   'dropped and where.',
-              'Native print and file dialogs are bound on Linux first.',
+              'Native print and file dialogs have Linux, Windows and macOS bindings.',
             ]),
             DocsCode('devices-desktop'),
             DocsNote('Platform access',
