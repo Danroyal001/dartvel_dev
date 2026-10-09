@@ -241,6 +241,79 @@ everything: both captures landed *after* the change, so both windows read
 `AMAZING GRACE` in a way a pair of constants would also produce. The captures
 have to straddle the change.
 
+## What a window manager changed, and why (2026-10-09)
+
+Every run above was on a bare X server. On 2026-09-01 the same two-window app
+was run under openbox and died with a GLX `BadAccess`, while one window under
+the same openbox was fine. Which of "two windows", "a window manager" and
+"software GL" was at fault was left open, and with it whether this would
+fail on every real desktop. It has now been taken apart on Flutter 3.47.5
+stable, on a virtual two-monitor desktop: Xorg with the dummy driver and two
+RANDR outputs (DUMMY0 and DUMMY1, 1920x1080 each), and Xvfb, both with
+openbox and Mesa llvmpipe.
+
+**First, a stable-only wall in front of it.** On 3.47.5 the projector never
+opened at all: `RegularWindowController` threw "Windowing APIs are not
+enabled". `WidgetsBinding` chooses its windowing owner when it is
+initialized, before any application code, and with the flag still false it
+chooses the unsupported one. Assigning `isWindowingEnabled` afterwards did
+not replace it. `DVFlutterWindowSurfaceFactory.enable` now installs
+`createDefaultWindowingOwner()` after setting the flag.
+
+**Then the crash.** With `GDK_SYNCHRONIZE=1` under gdb, catching the
+`exit_group` the X error handler ends in:
+
+```
+_exit <- gdk_x_error <- _XError <- libGLX.so.0 (libglvnd) <- gdk_gl_context_make_current
+      <- gdk_window_begin_draw_frame <- gtk_main_do_event   (GTK main thread)
+```
+
+The `BadAccess` on `X_GLXMakeContextCurrent` is raised **inside libglvnd**,
+not by the X server: libglvnd refuses to make a GLX context current on a
+thread where a context from another API (EGL) is current. Tracing
+`eglMakeCurrent` and `glXMakeContextCurrent` per thread shows exactly that:
+
+| thread | call | from |
+| --- | --- | --- |
+| main | `eglMakeCurrent(ctx)`, never released | the embedder's realize handler for the new view (`gtk_widget_realize`) |
+| main | `glXMakeContextCurrent(paint ctx)` -> `BadAccess` | GDK painting a toplevel |
+
+Flutter's Linux embedder renders with EGL; GDK 3 paints a window that has a
+GL context with **GLX**. When a second view is realized while the engine is
+running, the embedder leaves its EGL context current on the main thread. If
+GTK paints before the engine next tidies up, the process ends. A window
+manager is what makes GTK paint first -- reparenting, configure and expose
+all arrive right after the window maps -- which is why the bare server
+survived. It is a timing race, not a software-GL limit, and libglvnd is how
+Mesa and the NVIDIA driver both ship, so **it would have failed on real
+desktops too**.
+
+Controls, all on the same build: Xvfb without a window manager survives;
+Xvfb with openbox dies; Xorg dummy dies with or without openbox, and with one
+monitor or two, because its expose timing differs from Xvfb's; and
+`GDK_GL=disable` survives everywhere, which confirms GDK's GL paint as the
+victim but is not a fix (it gives up GL in GDK for every app).
+
+**The fix** is in `dartvel_windowing`, where every Dartvel app gets it: right
+after creating a window's controller, `DVWindowHost` releases the calling
+thread's current EGL context (`eglMakeCurrent` with no context, through FFI).
+Dart runs on the GTK main thread on Linux, so that is the thread the embedder
+left it on, and the engine makes its context current again whenever it uses
+it. With the fix the operator and projector windows ran under openbox on
+both servers, through moves, maximise, and fullscreen toggles from the window
+manager, and operator changes reached the projector.
+
+**Fullscreen on a chosen display.** Flutter's Linux `setFullscreen(display:)`
+ignores the display (its own TODO). `window.setFullscreen` is now bound on
+Linux to `gtk_window_move` onto the display plus
+`gtk_window_fullscreen_on_monitor`, the GDK monitor found by the display's
+origin. Under openbox the projector came up `_NET_WM_STATE_FULLSCREEN` at
+1920,0 1920x1080, which is DUMMY1 exactly.
+
+What is still unproven: a GPU driver (the race is the same, the timing is
+not), a compositing window manager such as mutter or KWin, and hot-plugging
+a projector while the app runs.
+
 ## Reproducing
 
 The probes are four `flutter create` apps differing only in `lib/main.dart`,

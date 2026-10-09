@@ -36,6 +36,9 @@ class _RecordingSurface implements DVWindowSurface {
   final _RecordingFactory _factory;
 
   @override
+  bool setFullscreen(bool fullscreen, {DVDisplay? on}) => true;
+
+  @override
   void destroy() => _factory.destroyed.add(window.route.path);
 }
 
