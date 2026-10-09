@@ -117,9 +117,16 @@ abstract final class DVMediaBackends {
   }
 
   static String? _captureDirectory;
+  static DVCaptureFiles? _captureFiles;
+
+  /// Where a camera writes on a target with no directory to give: a browser,
+  /// whose recordings are Blobs in a page-lifetime store.
+  static void useCaptureFiles(DVCaptureFiles files) => _captureFiles = files;
 
   /// Where a camera writes, private to this account.
   static DVCaptureFiles get captureFiles {
+    final DVCaptureFiles? files = _captureFiles;
+    if (files != null) return files;
     final String? directory = _captureDirectory;
     return directory == null
         ? const _DVNoCaptureFiles()
@@ -194,6 +201,7 @@ abstract final class DVMediaBackends {
     _camera = null;
     _cameraCapabilities = DVCameraCapabilities.none;
     _captureDirectory = null;
+    _captureFiles = null;
     _nowPlaying = null;
     _focus = null;
     _cache = null;
