@@ -804,12 +804,30 @@ Widget _docsShell(BuildContext context, List<String> lines) => CodeBlock(lines);
 @DVFunctionalWidget()
 Widget _docsNote(BuildContext context, String title, String text) {
   final Palette palette = Palette.of(context);
+  // A Planned note wears the same badge as a Planned spec section, so what
+  // is not built yet reads the same at a glance wherever it is mentioned.
+  final bool planned = title == 'Planned';
   return DVBox(
     DVBox.list(<Widget>[
-      Prose(
-        title,
-        const DVModifier().fontSize(15).fontWeight(.w700).color(palette.ink),
-      ),
+      if (planned)
+        DVBox.wrapLine(<Widget>[
+          DVText(title).modifier(
+            const DVModifier()
+                .fontSize(12)
+                .fontWeight(.w700)
+                .color(palette.ink)
+                .paddingSymmetric(horizontal: 9, vertical: 3)
+                .backgroundColor(
+                  const Color(0xFFFFC857).withValues(alpha: 0.45),
+                )
+                .rounded(999),
+          ),
+        ])
+      else
+        Prose(
+          title,
+          const DVModifier().fontSize(15).fontWeight(.w700).color(palette.ink),
+        ),
       Prose(
         text,
         const DVModifier().fontSize(15).color(palette.muted).lineHeight(1.55),

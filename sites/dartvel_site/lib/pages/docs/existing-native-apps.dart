@@ -26,8 +26,8 @@ Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
       children: <Widget>[
         DocsShell(<String>['dartvel init', 'dartvel dev']),
         DocsText(
-          'init configures a Flutter project and generates the '
-          'client barrel. Keep its router or adopt file-based pages. '
+          'init adds Dartvel to a Flutter project, and `dartvel dev` '
+          'generates the client. Keep its router or adopt file-based pages. '
           'A Dartvel application can also mount another Dartvel '
           'application with `dartvel add`.',
         ),

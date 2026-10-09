@@ -286,9 +286,11 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       title: 'Check what is built before you depend on it',
       children: <Widget>[
         Bullets(<String>[
-          'Dartvel 0.11.5 includes generated pages, data models, forms and backend functions. Other spec sections are '
-              'partial.',
-          'Contract stability and implementation status are tracked separately.',
+          'Dartvel 0.11.5 ships 24 spec sections in full and 79 in part; '
+              'two are planned.',
+          'Twenty-five sections are a frozen public contract with unfinished '
+              'code behind them. Contract stability and implementation '
+              'status are tracked separately.',
           'Pages in these docs mark partial features and say what is '
               'missing.',
           'The full record is spec-status.json in the Dartvel repository.',
