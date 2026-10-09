@@ -1,3 +1,7 @@
+## 0.11.5
+
+- Server-rendered documents are cached when the request and response are provably shared; `ETag`, `304` and `Vary` headers.
+
 ## 0.11.4 — 2026-10-08
 
 - Moves to `hooks` 2 and `code_assets` 2.

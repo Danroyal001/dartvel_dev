@@ -1,3 +1,7 @@
+## 0.11.5
+
+- Route config carries `cache`; page updates purge the rendered-page cache.
+
 ## 0.11.4 — 2026-10-08
 
 - `DVSceneCamera.orbit` takes `yawDegrees` and `pitchDegrees`.
