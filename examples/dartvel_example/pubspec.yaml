@@ -68,6 +68,16 @@ dartvel:
     # installed APK.
     permissions: [camera, location, contacts]
 
+  ios:
+    # The same three on iOS, as Info.plist usage descriptions. iOS terminates
+    # an application that asks without one, so the shim refuses before any
+    # dialog when a key is missing -- and the simulator job asserts these
+    # reach the built app.
+    permissions:
+      camera: The example takes a photo when you ask it to.
+      location: The example shows where you are when you ask it to.
+      contacts: The example lists your contacts when you ask it to.
+
   search:
     synonyms:
       admin: [administrator, superuser]
