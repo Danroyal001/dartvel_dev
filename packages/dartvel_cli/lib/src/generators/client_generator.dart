@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVCrashConfig,
         DVFileStorageConfig,
         DVHomeWidgetSpec,
+        DVLogConfig,
         dvHomeWidgetAnnotationArgs,
         dvHomeWidgetDeclaration,
         dvHomeWidgetDeclaredName,
@@ -177,6 +178,16 @@ class ClientGenerator {
     final DVCrashConfig crashConfig;
     try {
       crashConfig = DVCrashConfig.parse(_plain(dv['crashes']));
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+    // dartvel.logging, refused here naming the key rather than at startup on
+    // a device, where a refusal would leave the application without logs.
+    final DVLogConfig logConfig;
+    try {
+      logConfig = DVLogConfig.parse(_plain(dv['logging']));
     } on ArgumentError catch (error) {
       throw StateError(
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
@@ -726,7 +737,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb, defaultTargetPlatform, TargetPlatform, debugPrint;
 import 'dart:io' show exit${dualMode ? ', stdin, stdout, stderr, File, Platform, Process, ProcessStartMode' : ''};
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
-import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
+import 'package:dartvel_core/dartvel.dart' show DVCredentialedOrigins, DVCrashConfig, DVLogConfig, DVFileStorageConfig, DVDevServerHost, dvDevBackendUrl, DVCrashSink, DVCrashStore, DVModuleRpc, DVStartupProfile, dvLiveWindowsPathFor, dvLocalAnalyticsDatabase;
 import 'package:dartvel_core/framework.dart' show DVOfflineReplay, DVOfflineSync, dvLocalOfflineDatabase, dvOfflineSendOverHttp;
 ${_scene3dImportSource(dv)}${_configImportSource(dv)}import 'package:dartvel_flutter/dartvel_flutter.dart' show DV, DVAuth, DVNetworkStatus, DVSessionAuthProvider, DVSessionClient, dvSessionDeviceLabel, dvSessionTokenStoreFor, DVAppLifecycle, DVCrashInstallation, DVDeviceRuntime, DVDeviceStorage, DVPageStore, dvStartAppLifecycleBridge,${_hasMemoryConfig(dv) ? ' DVMemory, DVMemoryConfig,' : ''}${_hasDeviceKiosk(dv) ? ' DVPlatform,' : ''}${_hasDeviceProfileDisplays(dv) || _hasSharedStoreTuning(dv) || _hasWindowingDeclaration(dv) ? ' DVWindowManager,' : ''} DVWindowSharedStore, dvAppKeyStoreFor,${_hasWindowingDeclaration(dv) ? ' DVWindowingDeclaration,' : ''} DVLinuxBindings, DVWindowsBindings, DVMacosBindings, DVIosBindings, DVAndroidBindings, DVWebBindings, DVShorebirdUpdates, DVAppLaunch, DVHomeWidgets, DVNativeBridge, DVRouteTarget, DVWindowOptions, DVRenderSurface${dualMode ? ', DVLaunchOutcome, resolveLaunchSurface, dvDisplayAvailable, dvTerminalFallbackPrompt, dvTerminalRunnerPathFor' : ''}${terminalOnly ? ', DVTerminalSurface' : ''};
 import 'dartvel_config.g.dart' as cfg;
@@ -812,6 +823,15 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // are kept in is the files directory they found. Before this nothing
   // installed the crash runtime, so a real application recorded no crash.
   installDartvelCrashReporting();
+  // DV.log's destinations, after crash reporting so warnings become its
+  // breadcrumbs: the platform log, the device's capped log file and, when
+  // dartvel.logging.ship declares it, this application's own backend.
+  dvInstallApplicationLogging(
+    appId: '$pkgName',
+    release: '${esc(crashRelease)}',
+    config: DVLogConfig.parse(${_dartLiteral(logConfig.toDeclaration(), 2)}),
+    api: DartvelRuntime.api,
+  );
   // DV.Auth signs in through this application's own backend unless the
   // application configures another provider. A native session token is
   // sealed under the application key `dartvel key` manages before it is
