@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'media_box.dart';
+import 'web_media_mapping.dart';
 
 /// Which built-in controls a camera box draws.
 enum DVCameraControls {
@@ -257,6 +258,7 @@ class _DVCameraViewState extends State<DVCameraView> {
           );
 
     return Semantics(
+      identifier: dvCameraSemanticsIdentifier,
       label: 'Camera',
       value: _message ?? _stateText(state),
       child: Stack(

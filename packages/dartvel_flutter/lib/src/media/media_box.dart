@@ -18,6 +18,7 @@ import 'package:http/http.dart' as http;
 import '../../dartvel_flutter.dart' show DV, DVRenderSurface;
 import 'caption_file.dart';
 import 'image_view.dart';
+import 'web_media_mapping.dart';
 
 /// Whether a box plays video or audio.
 enum DVMediaKind { video, audio }
@@ -661,6 +662,14 @@ class _DVMediaViewState extends State<DVMediaView> {
     final Widget content = Focus(
       onKeyEvent: _onFocusedKey,
       child: Semantics(
+        // What the server-rendered document turns into a real <video> or
+        // <audio>: the page capture reads it off the semantics tree.
+        identifier: dvMediaSemanticsIdentifier(
+          kind: widget.kind,
+          source: widget.source,
+          poster: widget.poster,
+          captions: widget.captions,
+        ),
         label: title == null
             ? (video ? 'Video player' : 'Audio player')
             : '${video ? 'Video' : 'Audio'}: $title',
