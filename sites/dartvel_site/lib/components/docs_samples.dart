@@ -791,6 +791,17 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '      height: 210,',
     '    );',
   ],
+  'media3d-camera': <String>[
+    'Widget scanner(void Function(DVFile photo) keep) =>',
+    '    DVBox.camera(lens: .back, onPhoto: keep);',
+  ],
+  'media3d-precache': <String>[
+    '// The first megabyte is on disk before the page that plays it opens.',
+    'Future<bool> warmTrailer() => DV.Platform.media.precache(',
+    '      const DVMediaSource.url(\'https://cdn.example.com/trailer.mp4\'),',
+    '      bytes: 1024 * 1024,',
+    '    );',
+  ],
   'media3d-scene': <String>[
     '// A scene is a list of nodes, so what is in it is data a page builds rather',
     '// than a sequence of calls into a renderer. The viewport reports how it had',
@@ -819,19 +830,6 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '      ),',
     '      session: const DVMediaSession(title: \'Launch trailer\'),',
     '    ).modifier(const DVModifier().width(640));',
-  ],
-  'media3d-precache': <String>[
-    '// The first megabyte is on disk before the page that plays it opens.',
-    'await DV.Platform.media.precache(',
-    '  const DVMediaSource.url(\'https://cdn.example.com/trailer.mp4\'),',
-    '  bytes: 1024 * 1024,',
-    ');',
-  ],
-  'media3d-camera': <String>[
-    'Widget scanner(void Function(DVFile photo) keep) => DVBox.camera(',
-    '      lens: .back,',
-    '      onPhoto: keep,',
-    '    );',
   ],
   'memory-arena': <String>[
     'final DVPlatformMemory arena = DV.Memory.allocate(megabytes: 512);',
