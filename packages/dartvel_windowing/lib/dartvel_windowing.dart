@@ -21,9 +21,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/src/foundation/_features.dart';
 // ignore: invalid_use_of_internal_member
 import 'package:flutter/src/widgets/_window.dart';
+// ignore: invalid_use_of_internal_member, implementation_imports
+import 'package:flutter/src/widgets/_window_linux.dart' show WindowControllerLinux;
 import 'package:flutter/widgets.dart';
 
 part 'src/linux_displays_ffi.dart';
+part 'src/linux_window_ffi.dart';
 part 'src/macos_displays_ffi.dart';
 part 'src/windows_displays_ffi.dart';
 part 'src/flutter_window_surface.dart';
