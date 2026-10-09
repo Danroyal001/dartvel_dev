@@ -22,6 +22,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVBuildLifecycle,
         DVImageVariants,
         dvAndroidPermissionNames,
+        dvIosPermissions,
+        dvIosUsageKeysFor,
         dvOfflineRoute,
         DVDocsMount,
         DVFileStorageConfig;
@@ -37,6 +39,7 @@ import '../build/apple_widget_reload.dart';
 import '../build/apple_widget_target.dart';
 import '../build/deep_link_files.dart';
 import '../build/ios_deep_links.dart';
+import '../build/ios_platform_shim.dart';
 import '../build/browser_extension.dart';
 import '../build/desktop_entry.dart';
 import '../build/elinux_bundle.dart';
@@ -1105,6 +1108,10 @@ class BuildCommand extends Command<void> {
       if (!_writeAppleFileStorage(_projectRoot, platform)) return _PlatformBuildResult.failed;
     }
     if (platform == 'ios') _writeIosDeepLinks(_projectRoot);
+    // Before Xcode reads the project: the Swift the iOS DV.Platform
+    // bindings call, and the usage descriptions iOS terminates an app
+    // without.
+    if (platform == 'ios') _writeIosPlatformShim(_projectRoot);
     if (platform == 'ios') _writeIosAssociatedDomains(_projectRoot, deepLinks);
     // Before Gradle reads the manifest: a lock-task launcher is two things
     // in it, and neither can be added at run time.
@@ -2269,6 +2276,68 @@ class BuildCommand extends Command<void> {
         'sharing its App Group.');
   }
 
+
+  /// The Swift shim behind the iOS `DV.Platform` bindings that need UIKit,
+  /// delegates or completion blocks, compiled into the Runner target; and
+  /// `dartvel.ios.permissions` into Info.plist as usage descriptions.
+  ///
+  /// Written for every iOS build, like the deep link capture, because the
+  /// capability list claims these bindings on iOS. A build without the shim
+  /// leaves them unregistered and `DVIosBindings.lastFailure` says why.
+  void _writeIosPlatformShim(String root) {
+    final File project =
+        File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
+    if (!project.existsSync()) {
+      Logger.log('⚠️  ios/Runner.xcodeproj is not there, so the DV.Platform '
+          'shim was not compiled in; share, location, the pickers and the '
+          'rest of the iOS device bindings stay unregistered.');
+      return;
+    }
+    final File shim = File(p.join(root, 'ios', 'Runner', dvIosPlatformShimFileName));
+    shim.parent.createSync(recursive: true);
+    final String source = dvIosPlatformShimSource();
+    if (!shim.existsSync() || shim.readAsStringSync() != source) {
+      shim.writeAsStringSync(source);
+    }
+    final String before = project.readAsStringSync();
+    final String after = dvIosPbxprojWithPlatformShim(before);
+    if (after != before) project.writeAsStringSync(after);
+
+    final Map<Object?, Object?> section = _dartvelSection(root);
+    final Map<String, String> requested = dvIosRequestedPermissions(section);
+    final List<String> unknown = dvIosUnknownPermissions(requested.keys);
+    if (unknown.isNotEmpty) {
+      Logger.log('⚠️  dartvel.ios.permissions names ${unknown.join(', ')}, '
+          'which Dartvel has no iOS permission for. The names it knows are '
+          '${dvIosPermissions.keys.toList()..sort()}.');
+    }
+    final List<String> android = dvAndroidRequestedPermissions(section);
+    final List<String> missing = <String>[
+      for (final String name in android)
+        if (!requested.containsKey(name) && (dvIosUsageKeysFor(name)?.isNotEmpty ?? false)) name,
+    ];
+    if (missing.isNotEmpty) {
+      Logger.log('   dartvel.android.permissions asks for ${missing.join(', ')} '
+          'and dartvel.ios.permissions does not. On iOS a request for them '
+          'is refused before any dialog, because iOS terminates an app that '
+          'asks without the Info.plist key.');
+    }
+    final File plist = File(p.join(root, 'ios', 'Runner', 'Info.plist'));
+    if (plist.existsSync()) {
+      final List<String> skipped = <String>[];
+      final String plistBefore = plist.readAsStringSync();
+      final String plistAfter = dvWithIosPermissionsBlock(
+          plistBefore, dvIosUsageDescriptionEntries(requested), skipped: skipped);
+      if (plistAfter != plistBefore) plist.writeAsStringSync(plistAfter);
+      for (final String key in skipped) {
+        Logger.log('   dartvel.ios.permissions: $key is already in your '
+            'Info.plist, so yours is kept.');
+      }
+    }
+    if (requested.isNotEmpty) {
+      Logger.log('   iOS permissions declared: ${requested.keys.join(', ')}.');
+    }
+  }
 
   /// The capture that gives iOS a link to hand back.
   ///
