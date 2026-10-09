@@ -19,6 +19,7 @@ class DVObservabilityAndLogging {
   void log(
     String message, {
     DVLogLevel level = DVLogLevel.info,
+    String? tag,
     Map<String, Object?> context = const <String, Object?>{},
     String? code,
     Object? error,
@@ -27,6 +28,7 @@ class DVObservabilityAndLogging {
       DVObservability.log(
         message,
         level: level,
+        tag: tag,
         context: context,
         code: code,
         error: error,
@@ -80,6 +82,9 @@ class DVObservabilityAndLogging {
         bufferCapacity: bufferCapacity,
       );
 
+  /// Keeps records in [file] too, and makes it what `DV.log.export()` reads.
+  void useLogFile(DVLogFile file) => DVObservability.useLogFile(file);
+
   /// Back to the default sinks and an empty buffer. For tests.
   void resetLogging() => DVObservability.resetLogging();
 }
@@ -102,21 +107,7 @@ abstract final class DV {
   // ignore: non_constant_identifier_names -- the specification's spelling.
   static const DVCache Cache = DVCache();
 
-  /// The short spelling of `DV.ObservabilityAndLogging.log`.
-  static void log(
-    String message, {
-    DVLogLevel level = DVLogLevel.info,
-    Map<String, Object?> context = const <String, Object?>{},
-    String? code,
-    Object? error,
-    StackTrace? stackTrace,
-  }) =>
-      ObservabilityAndLogging.log(
-        message,
-        level: level,
-        context: context,
-        code: code,
-        error: error,
-        stackTrace: stackTrace,
-      );
+  /// One structured log stream: `DV.log('message', tag: ..., context: ...)`,
+  /// `DV.log.warn(...)` and the other levels, `DV.log.export()`.
+  static const DVLog log = DVLog();
 }
