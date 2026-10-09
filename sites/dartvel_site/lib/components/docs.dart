@@ -105,6 +105,8 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
       'Flags, branch previews, rollouts and old clients', 'Operations'),
   DocsPageInfo(DVRoutes.docsbuilding, 'Build targets',
       '`dartvel build` for every platform, with its status', 'Shipping'),
+  DocsPageInfo(DVRoutes.docstelegram, 'Telegram Mini Apps',
+      'Build for Telegram, use host controls and sign in', 'Shipping'),
   DocsPageInfo(DVRoutes.docswebhosting, 'Static web hosting',
       '`dartvel build web` on Apache or LiteSpeed', 'Shipping'),
   DocsPageInfo(DVRoutes.docsdeploying, 'Servers and deploying',

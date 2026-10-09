@@ -1,15 +1,20 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_shelf/src/telegram_auth.dart';
 import 'package:test/test.dart';
 
 void main() {
   final now = DateTime.utc(2026, 10, 9);
   const token = '123:server-only-secret';
-  String signed({int age = 0, String user = '{"id":42,"first_name":"Ada"}'}) {
+  String signed({
+    int age = 0,
+    DateTime? at,
+    String user = '{"id":42,"first_name":"Ada"}',
+  }) {
     final fields = <String, String>{
-      'auth_date': '${now.millisecondsSinceEpoch ~/ 1000 - age}',
+      'auth_date': '${(at ?? now).millisecondsSinceEpoch ~/ 1000 - age}',
       'user': user,
       'query_id': 'AAExample',
       'signature': 'signed-by-telegram',
@@ -52,4 +57,42 @@ void main() {
       throwsFormatException,
     );
   });
+  test(
+    'verified Telegram identity receives a normal session; tampering does not',
+    () async {
+      DVSessionAuthentication.install(sessions: DVSessions());
+      DVAuthEndpoints.install(
+        credentials: DVCredentialGuard(
+          provider: const DVTelegramAuthProvider(
+            validator: DVTelegramInitDataValidator(botToken: token),
+          ),
+          refusalFloor: .zero,
+        ),
+      );
+      addTearDown(DVAuthEndpoints.uninstall);
+      addTearDown(DVSessionAuthentication.uninstall);
+      Future<Response> signIn(String data) => DVAuthEndpoints.signIn(
+        Request(
+          method: 'POST',
+          url: Uri.parse('http://localhost/auth/sign-in'),
+          headers: Headers({
+            'content-type': 'application/json',
+            'x-dartvel-csrf-token': 'c' * 32,
+          }),
+          bodyStream: Stream.value(
+            utf8.encode(jsonEncode({'email': 'telegram:42', 'password': data})),
+          ),
+        ),
+      );
+      final data = signed(at: DateTime.now());
+      final response = await signIn(data);
+      expect(response.status, 200);
+      final body = jsonDecode(
+        utf8.decode(await response.body!.stream.expand((c) => c).toList()),
+      ) as Map;
+      expect((body['user'] as Map)['id'], 'telegram:42');
+      expect(response.headers.get('set-cookie'), contains('HttpOnly'));
+      expect((await signIn(data.replaceFirst('Ada', 'Eve'))).status, 400);
+    },
+  );
 }

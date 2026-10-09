@@ -1,6 +1,9 @@
 library dartvel_flutter;
 
 export 'src/default_theme.dart';
+export 'src/platform/telegram/telegram.dart';
+import 'src/platform/telegram/telegram.dart';
+import 'src/platform/telegram/frame.dart';
 export 'src/auth/auth_frame.dart';
 
 import 'dart:async';
@@ -6920,6 +6923,8 @@ class DVTerminalSurface {
 bool dvDisplayAvailable() => terminal_size.dvDisplayAvailable();
 
 class DVPlatform {
+  /// The Telegram host, or null in an ordinary browser/native app.
+  DVTelegram? get telegram => dvTelegramHere();
   const DVPlatform();
 
   static DVDeviceKiosk? _deviceKiosk;
@@ -10149,6 +10154,13 @@ class DVNavigation {
   const DVNavigation();
 
   static GoRouter? _router;
+  static StreamSubscription<void>? _telegramBack;
+  static GoRouter? _telegramRouteOwner;
+  static void _syncTelegramBack() {
+    final telegram = dvTelegramHere();
+    if (telegram == null || _telegramRouteOwner == null) return;
+    unawaited(_telegramRouteOwner!.canPop() ? telegram.backButton.show() : telegram.backButton.hide());
+  }
 
   /// Called by the generated `createDartvelRouter()`. Navigation needs a
   /// handle to the live router because [to] is used in callbacks such as
@@ -10160,11 +10172,24 @@ class DVNavigation {
     // it is set where every Dartvel router is attached.
     GoRouter.optionURLReflectsImperativeAPIs = true;
     _router = router;
+    unawaited(_telegramBack?.cancel());
+    final telegram = dvTelegramHere();
+    _telegramBack = telegram?.backButton.clicks.listen((_) {
+      if (router.canPop()) router.pop();
+    });
+    _telegramRouteOwner?.routeInformationProvider.removeListener(_syncTelegramBack);
+    _telegramRouteOwner = telegram == null ? null : router;
+    _telegramRouteOwner?.routeInformationProvider.addListener(_syncTelegramBack);
+    _syncTelegramBack();
   }
 
   /// Forgets the attached router. Tests that build their own router should
   /// call this in teardown so one test cannot navigate another's.
   static void detach() {
+    unawaited(_telegramBack?.cancel());
+    _telegramBack = null;
+    _telegramRouteOwner?.routeInformationProvider.removeListener(_syncTelegramBack);
+    _telegramRouteOwner = null;
     _router = null;
   }
 
@@ -10716,7 +10741,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => DVTelegramFrame(child: Builder(builder: _buildPage));
+
+  Widget _buildPage(BuildContext context) {
     // The module this page belongs to may have replaced its chrome or taken
     // it away. Read here rather than passed in: the page widget between the
     // router and this one is generated from the module's own project and

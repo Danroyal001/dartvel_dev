@@ -6,7 +6,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:dartvel_core/dartvel.dart' show AuthProvider, AuthUser;
+import 'package:dartvel_core/dartvel.dart'
+    show AuthProvider, AuthUser, AuthException;
 
 /// Checks Telegram's HMAC and freshness before trusting user fields.
 class const DVTelegramInitDataValidator({
@@ -85,8 +86,14 @@ class const DVTelegramAuthProvider({
   required final DVTelegramInitDataValidator validator,
 }) implements AuthProvider {
   @override
-  Future<AuthUser?> signIn(String email, String password) async =>
-      validator.validate(password);
+  Future<AuthUser?> signIn(String email, String password) async {
+    try {
+      return validator.validate(password);
+    } on FormatException {
+      throw AuthException.invalidCredentials;
+    }
+  }
+
   @override
   Future<AuthUser?> signUp(String email, String password, {String? name}) =>
       signIn(email, password);

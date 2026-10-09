@@ -991,7 +991,6 @@ ${projectRoot == null ? '' : '''    studioSourceRoot: ${quoted(projectRoot)},
   return '''
 import 'dart:async';
 import 'dart:io';
-import '../build/telegram.dart';
 import 'package:dartvel_core/dartvel.dart' as core;
 import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
 import 'dartvel_backend.g.dart' as cfg;
