@@ -413,4 +413,35 @@ void main() {
       await expectLater(session, throwsA(isA<DVCaptureUnsupported>()));
     }, skip: skip);
   });
+
+  group('registration', () {
+    tearDown(DVMediaBackends.reset);
+
+    test('reads remote media through a disk cache under the user cache',
+        () {
+      if (!DVGStreamer.load()) {
+        expect(DVLinuxMedia.register(), isFalse);
+        expect(DVMediaBackends.cache, isNull);
+        return;
+      }
+      expect(DVLinuxMedia.register(), isTrue);
+      final DVMediaCache? cache = DVMediaBackends.cache;
+      expect(cache, isA<DVDiskMediaCache>());
+      expect((cache! as DVDiskMediaCache).directory,
+          DVLinuxMedia.cacheDirectory());
+      expect(DVLinuxMedia.cacheDirectory(), endsWith('/dartvel-media'));
+      // A desktop process keeps running in the background, so background
+      // audio needs no declaration here.
+      expect(DVMediaBackends.environment().backgroundAudioDeclared, isTrue);
+    });
+
+    test('the cache directory follows XDG_CACHE_HOME', () {
+      final String dir = DVLinuxMedia.cacheDirectory(
+          environment: <String, String>{'XDG_CACHE_HOME': '/x/cache', 'HOME': '/h'});
+      expect(dir, startsWith('/x/cache/'));
+      expect(
+          DVLinuxMedia.cacheDirectory(environment: <String, String>{'HOME': '/h'}),
+          startsWith('/h/.cache/'));
+    });
+  });
 }
