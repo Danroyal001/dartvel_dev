@@ -42,6 +42,13 @@ Set<String> dvNamesInLiteral(String source, String declaration) {
     if (RegExp(r'^\s{0,4}\};').hasMatch(line)) break;
     final RegExpMatch? m = entry.firstMatch(line);
     if (m != null) found.add(m.group(1)!);
+    // A spread of another set in the same file, which is how iOS keeps the
+    // shim's half of its list in one place. Not following it counted iOS
+    // at 17 when it claims 37.
+    final RegExpMatch? spread = RegExp(r'^\s{2,6}\.\.\.([A-Za-z_][A-Za-z0-9_]*),').firstMatch(line);
+    if (spread != null) {
+      found.addAll(dvNamesInLiteral(source, 'const Set<String> ${spread.group(1)}'));
+    }
   }
   return found;
 }
