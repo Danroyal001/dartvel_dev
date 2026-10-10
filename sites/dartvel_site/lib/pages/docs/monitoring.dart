@@ -46,20 +46,50 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'logging',
-          title: 'Log a line, on the client and on the server',
+          title: 'One log stream, on the device and on the server',
           children: <Widget>[
             Bullets(<String>[
-              'DV.log writes one line with whatever belongs beside it, and '
-                  'DV.ObservabilityAndLogging is the rest of the surface. '
-                  'There is no second logger to configure per package.',
-              'The two halves take different arguments. In the app, level is a '
-                  'string and defaults to info. On the server it is a '
-                  'DVLogLevel, and a line can carry a code.',
+              'DV.log writes one record: a message, a tag and the fields as '
+                  'data. It takes the same arguments in the app and on the '
+                  'server, and there is a method per level, like DV.log.warn.',
+              'The framework logs through it too, so your lines and Dartvel\'s '
+                  'arrive in one stream.',
+              'Each record also goes to the platform\'s own log: logcat on '
+                  'Android, the unified log on iOS and macOS, journald or '
+                  'stderr on Linux, the console in a browser, and JSON lines '
+                  'on stdout from a server.',
+              'Sensitive data model fields, tokens, passwords in URLs and '
+                  'secrets your app has read are redacted before any of them '
+                  'sees the record.',
               'A code is what an alert rule matches on, so it survives a '
                   'rewording of the message.',
             ]),
             DocsCode('monitoring-log'),
             DocsCode('monitoring-server-log'),
+          ],
+        ),
+        DocsSection(
+          id: 'device-logs',
+          title: 'Keep logs on the device and send them when asked',
+          children: <Widget>[
+            Bullets(<String>[
+              'On a phone or desktop, records also go to a log file that never '
+                  'grows past 2 MB, by default, and drops files older than 7 '
+                  'days. Set the size and age under dartvel.logging.file, or '
+                  'turn it off with file: false.',
+              'DV.log.export returns what was kept, and DV.log.share opens '
+                  'the share sheet with it. DV.log.clear deletes it.',
+              'Warnings and errors also become crash report breadcrumbs, so a '
+                  'crash report shows the lines that came before it.',
+              'To collect device logs on your own backend, set '
+                  'dartvel.logging.ship.enabled to true. Devices then send '
+                  'warnings and errors with a random install id, the release '
+                  'and the platform, and nothing that names a person.',
+              'The backend writes those records into its own log stream. On a '
+                  'deployment Dartvel Cloud hosts, it can also pass them on to '
+                  'the hosting log service.',
+            ]),
+            DocsCode('monitoring-log-export'),
           ],
         ),
         DocsSection(
@@ -157,14 +187,12 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
           title: 'Status',
           children: <Widget>[
             DocsStatus('Monitoring and Observability', missing: <String>[
-              'Only the web process writes logs anywhere. It writes JSON '
-                  'lines to stdout, at the level DARTVEL_LOG_LEVEL sets.',
-              'Worker and cron processes have no sink, so what they log stays '
-                  'in a buffer in the process.',
-              'The Flutter app prints to the debug console and nothing more. '
-                  'Its logs never leave the device.',
-              '`dartvel logs` and `dartvel traces` say so when they have nothing '
-                  'to read.',
+              'Worker and cron processes have no sink yet, so what they log '
+                  'stays in a buffer in the process.',
+              'The Rust server core still prints its own messages as plain '
+                  'text, outside the JSON stream.',
+              'There is no logs view in Studio, and `dartvel logs` does not '
+                  'read a device\'s log file.',
             ]),
           ],
         ),
