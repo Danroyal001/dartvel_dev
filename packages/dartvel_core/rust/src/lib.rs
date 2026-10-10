@@ -129,11 +129,11 @@ fn tls_roots() -> Arc<rustls::RootCertStore> {
         .get_or_init(|| {
             let mut store = rustls::RootCertStore::empty();
             let mut loaded = 0usize;
-            if let Ok(result) = rustls_native_certs::load_native_certs() {
-                for cert in result {
-                    if store.add(cert).is_ok() {
-                        loaded += 1;
-                    }
+            // Certificates that could not be read are skipped, as an
+            // unreadable store was before; the rest still count.
+            for cert in rustls_native_certs::load_native_certs().certs {
+                if store.add(cert).is_ok() {
+                    loaded += 1;
                 }
             }
             if loaded == 0 {
