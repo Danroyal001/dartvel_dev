@@ -204,7 +204,10 @@ final class DVWebMediaElementPlayer
 
   @override
   Future<void> dispose() async {
-    _listeners.forEach(_element.removeEventListener);
+    // A loop rather than a tear-off: dart2js and dart2wasm refuse tear-offs of
+    // external interop members, so the tear-off compiled on the VM only.
+    _listeners.forEach((String type, JSFunction listener) =>
+        _element.removeEventListener(type, listener));
     _listeners.clear();
     _element.pause();
     _element.removeAttribute('src');
