@@ -65,6 +65,7 @@ import '../utils/toolchain.dart'
         decideAutoInstall,
         isCiEnvironment,
         AutoInstallDecision;
+import '../build/android_release_hardening.dart' show dvAndroidSigningEnvironmentFor;
 import 'shorebird_config.dart';
 import 'zip_entries.dart';
 
@@ -915,6 +916,9 @@ class DVSelfHostedUpdates {
       environment: <String, String>{
         ...context.environment,
         'FLUTTER_STORAGE_BASE_URL': dvShorebirdStorageBaseUrl,
+        // The release key dartvel build signs with, so the APK is not
+        // refused by the generated project's Gradle block.
+        ...dvAndroidSigningEnvironmentFor(_root, context.environment),
         ...signing,
       },
     );
