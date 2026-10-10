@@ -37,6 +37,7 @@ final class DVMediaSource {
     this.streaming = DVMediaStreaming.auto,
     this.progressive,
     this.protection,
+    this.cache = true,
   })  : kind = DVMediaSourceKind.url,
         reference = url;
 
@@ -45,6 +46,7 @@ final class DVMediaSource {
     this.streaming = DVMediaStreaming.auto,
     this.progressive,
     this.protection,
+    this.cache = true,
   })  : kind = DVMediaSourceKind.asset,
         reference = key;
 
@@ -53,6 +55,7 @@ final class DVMediaSource {
     this.streaming = DVMediaStreaming.auto,
     this.progressive,
     this.protection,
+    this.cache = true,
   })  : kind = DVMediaSourceKind.file,
         reference = path;
 
@@ -62,6 +65,7 @@ final class DVMediaSource {
     required this.streaming,
     required this.progressive,
     required this.protection,
+    required this.cache,
   });
 
   final DVMediaSourceKind kind;
@@ -79,6 +83,11 @@ final class DVMediaSource {
   /// Set when the content is protected.
   final DVDrmProtection? protection;
 
+  /// Whether a progressive `http:`/`https:` source is read through the disk
+  /// cache. Off for content that must not be kept on the device; ignored
+  /// for adaptive streams, assets and files.
+  final bool cache;
+
   /// Whether this is an HLS or DASH stream.
   bool get isAdaptive => switch (streaming) {
         DVMediaStreaming.adaptive => true,
@@ -95,6 +104,7 @@ final class DVMediaSource {
           streaming: DVMediaStreaming.progressive,
           progressive: null,
           protection: protection,
+          cache: cache,
         );
 
   static bool _manifestExtension(String reference) {
@@ -111,11 +121,12 @@ final class DVMediaSource {
       other.streaming == streaming &&
       other.progressive == progressive &&
       other.protection?.scheme == protection?.scheme &&
-      other.protection?.licenseUrl == protection?.licenseUrl;
+      other.protection?.licenseUrl == protection?.licenseUrl &&
+      other.cache == cache;
 
   @override
   int get hashCode => Object.hash(kind, reference, streaming, progressive,
-      protection?.scheme, protection?.licenseUrl);
+      protection?.scheme, protection?.licenseUrl, cache);
 
   @override
   String toString() => 'DVMediaSource.${kind.name}($reference)';

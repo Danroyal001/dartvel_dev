@@ -388,6 +388,35 @@ rather than a `Context`. The Platform section is `Partial`, and its entry in
 `docs/spec-status.json` lists what each target binds and why the rest is
 absent. The generated app registers the bindings for its target at startup.
 
+### Media and the camera
+
+Playback and the camera are box modes. The box's element owns the player or
+the camera, so leaving the page releases the decoder, audio focus and the
+camera light:
+
+```dart
+Widget trailer() => DVBox.video(
+      const DVMediaSource.url('https://cdn.example.com/trailer.mp4'),
+      captions: DVCaptions.track(
+        'en',
+        const DVMediaSource.url('https://cdn.example.com/trailer.en.vtt'),
+      ),
+      session: const DVMediaSession(title: 'Launch trailer'),
+    );
+
+Widget scanner(void Function(DVFile photo) keep) =>
+    DVBox.camera(lens: .back, onPhoto: keep);
+```
+
+Captions are text over the picture, so screen readers and Ctrl+F reach them.
+The standard controls are labelled and keyboard-operable. A `DVMediaSession`
+puts the player on the lock screen. Remote files go through a disk cache, and
+`DV.Platform.media.precache(source, bytes: ...)` fetches the start ahead of
+time. Which targets have a player, a camera, lock-screen controls and
+picture-in-picture is listed under Media Playback and Capture in
+`docs/spec-status.json`; elsewhere the box reports that nothing is bound
+rather than drawing an empty rectangle.
+
 ## The web: SEO and PWA
 
 A page's `title` and `description` on `@DVPage` become its title, meta

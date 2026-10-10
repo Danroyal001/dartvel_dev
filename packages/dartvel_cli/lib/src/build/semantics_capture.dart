@@ -58,9 +58,18 @@ const String _extract = r"""() => {
       // Semantics has no role for code and SelectableText would otherwise be
       // a textarea with no readable content at all.
       const identifier = child.getAttribute('flt-semantics-identifier') || '';
-      const declared = identifier.startsWith('dartvel:')
+      let declared = identifier.startsWith('dartvel:')
         ? identifier.slice('dartvel:'.length)
         : null;
+      // A player or camera box says what it plays after a bar:
+      // `dartvel:video|{"src":...}`. Flutter's semantics has no source, so
+      // without this the document could only say "Video player".
+      let media = null;
+      if (declared && declared.indexOf('|') >= 0) {
+        const bar = declared.indexOf('|');
+        try { media = JSON.parse(declared.slice(bar + 1)); } catch (e) {}
+        declared = declared.slice(0, bar);
+      }
       const node = {
         role: declared || child.getAttribute('role')
               || (tag === 'a' ? 'link' : null),
@@ -68,10 +77,12 @@ const String _extract = r"""() => {
                        : (aria ? parseInt(aria, 10) : null),
         label: labelOf(child),
         href: child.getAttribute('href'),
+        media: media,
         children: walk(child),
       };
       // Nothing to say, nowhere to go, nothing inside.
-      if (!node.label && !node.href && node.children.length === 0) continue;
+      if (!node.label && !node.href && !node.media
+          && node.children.length === 0) continue;
       out.push(node);
     }
     return out;

@@ -27,6 +27,8 @@ final class DVMediaBackendCapabilities {
   /// Can keep playing while the application is in the background.
   final bool backgroundAudio;
 
+  /// Can float the video over other applications: a
+  /// [DVMediaPictureInPictureBackend] that the platform will honour.
   final bool pictureInPicture;
 
   /// Can render frames rather than audio alone.
@@ -115,4 +117,33 @@ final class DVMediaCompleted extends DVMediaBackendEvent {
 final class DVMediaFailed extends DVMediaBackendEvent {
   const DVMediaFailed(this.message);
   final String message;
+}
+
+/// The size of the decoded picture, in pixels, once the backend knows it.
+final class DVMediaVideoSize extends DVMediaBackendEvent {
+  const DVMediaVideoSize(this.width, this.height);
+  final int width;
+  final int height;
+}
+
+/// The video went into, or came out of, picture-in-picture -- by the
+/// application's request or by the person closing the floating window.
+final class DVMediaPictureInPictureChanged extends DVMediaBackendEvent {
+  const DVMediaPictureInPictureChanged(this.active);
+  final bool active;
+}
+
+/// A backend whose video can float over other applications.
+///
+/// A separate interface rather than two more methods on every backend,
+/// because most targets have no such thing, and a method that exists only to
+/// refuse is a method somebody calls expecting it to work.
+abstract interface class DVMediaPictureInPictureBackend
+    implements DVMediaPlayerBackend {
+  /// Asks the platform to float the video. Confirmed by
+  /// [DVMediaPictureInPictureChanged]; false when the platform refused here
+  /// and now (the setting is off, the application is not in the foreground).
+  Future<bool> enterPictureInPicture();
+
+  Future<void> exitPictureInPicture();
 }
