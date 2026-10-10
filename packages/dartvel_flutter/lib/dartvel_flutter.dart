@@ -57,6 +57,7 @@ import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/kiosk/session_clear.dart';
 import 'src/media/image_view.dart';
+import 'src/media/camera_view.dart';
 import 'src/media/media_box.dart';
 import 'src/modules/module_shell.dart';
 import 'src/platform/accelerator.dart';
@@ -403,6 +404,39 @@ export 'package:dartvel_core/dartvel.dart'
         // native binding implements, with the fakes a test drives them with.
         DVAudioFocus,
         DVAudioFocusBackend,
+        DVCameraBackend,
+        DVCameraCapabilities,
+        DVCameraClosed,
+        DVCameraController,
+        DVCameraDisconnected,
+        DVCameraEnvironment,
+        DVCameraEvent,
+        DVCameraFailed,
+        DVCameraLens,
+        DVCameraOpened,
+        DVCameraPhotoTaken,
+        DVCameraRecordingStarted,
+        DVCameraRecordingStopped,
+        DVCameraState,
+        DVCameraUnavailable,
+        DVCaptionCue,
+        DVCaptionTrack,
+        DVCaptions,
+        DVDiskMediaCache,
+        DVFakeCameraBackend,
+        DVFlashMode,
+        DVMediaCache,
+        DVMediaCommand,
+        DVMediaPictureInPictureBackend,
+        DVMediaPictureInPictureChanged,
+        DVMediaPictureInPictureUnavailable,
+        DVMediaSession,
+        DVMediaVideoSize,
+        DVNoNowPlayingBackend,
+        DVNowPlaying,
+        DVNowPlayingBackend,
+        DVNowPlayingState,
+        DVTransportAction,
         DVAudioFocusRefused,
         DVAudioFormat,
         DVBackgroundPlayback,
@@ -786,6 +820,7 @@ export 'src/media/image_view.dart'
         DVImageView,
         dvImageServedPath,
         dvImageVariantProvider;
+export 'src/media/camera_view.dart' hide DVCameraView;
 export 'src/media/media_box.dart' hide DVMediaView;
 export 'src/media/stored_image.dart';
 export 'src/modules/module_shell.dart';
@@ -2249,6 +2284,8 @@ class DVBox<T> extends StatelessWidget {
     DVMediaControls controls = DVMediaControls.standard,
     DVBackgroundPlayback background = DVBackgroundPlayback.none,
     bool autoplay = false,
+    DVMediaSession? session,
+    DVCaptions? captions,
     DVMediaController? controller,
     DVModifier? modifier,
   }) : this._(
@@ -2259,6 +2296,8 @@ class DVBox<T> extends StatelessWidget {
             controls: controls,
             background: background,
             autoplay: autoplay,
+            session: session,
+            captions: captions,
             controller: controller,
           ),
           modifier: modifier,
@@ -2271,6 +2310,8 @@ class DVBox<T> extends StatelessWidget {
     DVMediaControls controls = DVMediaControls.standard,
     DVBackgroundPlayback background = DVBackgroundPlayback.none,
     bool autoplay = false,
+    DVMediaSession? session,
+    DVCaptions? captions,
     DVMediaController? controller,
     DVModifier? modifier,
   }) : this._(
@@ -2281,6 +2322,33 @@ class DVBox<T> extends StatelessWidget {
             controls: controls,
             background: background,
             autoplay: autoplay,
+            session: session,
+            captions: captions,
+            controller: controller,
+          ),
+          modifier: modifier,
+        );
+
+  /// A live camera, as a box: the preview, and a shutter, record, lens,
+  /// flash and torch where the device has them.
+  ///
+  /// The box's element owns the camera: mounting asks for permission and
+  /// opens it, leaving the page closes it, and it closes while the
+  /// application is in the background. Read [DVBox.camera] for the handle,
+  /// to take photos and record from the application's own controls.
+  DVBox.camera({
+    DVCameraLens lens = DVCameraLens.back,
+    DVCameraControls controls = DVCameraControls.standard,
+    void Function(DVFile photo)? onPhoto,
+    void Function(DVFile clip)? onVideo,
+    DVCameraController? controller,
+    DVModifier? modifier,
+  }) : this._(
+          child: DVCameraView(
+            lens: lens,
+            controls: controls,
+            onPhoto: onPhoto,
+            onVideo: onVideo,
             controller: controller,
           ),
           modifier: modifier,
@@ -2377,6 +2445,13 @@ class DVBox<T> extends StatelessWidget {
     final Widget? child = _child;
     if (child is DVMediaView) return child.controller;
     throw StateError('Only DVBox.video and DVBox.audio have a controller.');
+  }
+
+  /// The camera of a `DVBox.camera` box. Throws for any other box.
+  DVCameraController get camera {
+    final Widget? child = _child;
+    if (child is DVCameraView) return child.controller;
+    throw StateError('Only DVBox.camera has a camera.');
   }
 
   /// Holds the box's content to [ratio] (width / height).
@@ -4624,6 +4699,21 @@ class DVMedia {
   /// on a target with no binding registered.
   DVCaptureCapabilities get captureCapabilities =>
       DVMediaBackends.capture.capabilities;
+
+  /// What this target's camera can do, as its binding reports it, without
+  /// opening it.
+  DVCameraCapabilities get cameraCapabilities =>
+      DVMediaBackends.cameraCapabilities;
+
+  /// Fetches [source] before anything plays it: the first [bytes], or all
+  /// of it, into the disk cache -- or, in a browser, into the browser's
+  /// cache. False where this target can do neither, or the source is not a
+  /// progressive URL.
+  Future<bool> precache(DVMediaSource source, {int? bytes}) =>
+      DVMediaBackends.precache(source, bytes: bytes);
+
+  /// Empties the media disk cache.
+  Future<void> clearCache() async => DVMediaBackends.cache?.clear();
 
   /// Records audio. Await the session for the [DVFile]; hold it to stop early.
   ///
