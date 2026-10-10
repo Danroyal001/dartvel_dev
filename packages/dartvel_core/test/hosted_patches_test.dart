@@ -379,6 +379,14 @@ void main() {
           reason: 'the current month by default',
         );
         expect(source.installUsage('other').total, 0);
+        source.recordEvent(<String, Object?>{
+          'event': <String, Object?>{
+            ...(_event('z', 1)['event']! as Map<String, Object?>),
+            'app_id': 'other',
+          },
+        });
+        expect(source.installTotal(), 3, reason: 'every app the source serves');
+        expect(source.installTotal(month: '2026-09'), 1);
       },
     );
 
