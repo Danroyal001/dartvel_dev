@@ -162,4 +162,48 @@ void main() {
       expect(output.readAsStringSync(), '# the project\'s\n');
     });
   });
+
+  group('security headers on a static host', () {
+    late Directory root;
+    late Directory web;
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('dv-headers-');
+      web = Directory(p.join(root.path, 'build', 'web'))..createSync(recursive: true);
+    });
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('Apache sends the same headers the Dartvel server does', () {
+      final String config = dvApacheConfig();
+      expect(config, contains('Header always setifempty X-Content-Type-Options "nosniff"'));
+      expect(config, contains('Header always setifempty X-Frame-Options "SAMEORIGIN"'));
+      expect(config, contains(
+          'Header always setifempty Referrer-Policy "strict-origin-when-cross-origin"'));
+    });
+
+    test('_headers covers every path for Netlify and Cloudflare Pages', () {
+      expect(dvWriteStaticHostHeaders(web, projectRoot: root.path), isTrue);
+      final List<String> lines =
+          File(p.join(web.path, '_headers')).readAsLinesSync();
+      expect(lines.first, startsWith(dvStaticHeadersMarker));
+      expect(lines, containsAllInOrder(<String>[
+        '/*',
+        '  X-Content-Type-Options: nosniff',
+        '  X-Frame-Options: SAMEORIGIN',
+        '  Referrer-Policy: strict-origin-when-cross-origin',
+      ]));
+    });
+
+    test("the project's own web/_headers wins", () {
+      Directory(p.join(root.path, 'web')).createSync();
+      File(p.join(root.path, 'web', '_headers')).writeAsStringSync('/*\n  X-Mine: 1\n');
+      File(p.join(web.path, '_headers')).writeAsStringSync('/*\n  X-Mine: 1\n');
+      expect(dvWriteStaticHostHeaders(web, projectRoot: root.path), isFalse);
+      expect(File(p.join(web.path, '_headers')).readAsStringSync(), '/*\n  X-Mine: 1\n');
+    });
+
+    test('a copy whose marker line was deleted is left alone', () {
+      File(p.join(web.path, '_headers')).writeAsStringSync('/*\n  X-Edited: 1\n');
+      expect(dvWriteStaticHostHeaders(web, projectRoot: root.path), isFalse);
+    });
+  });
 }

@@ -3845,20 +3845,20 @@ class BuildCommand extends Command<void> {
         ));
       }
 
-      // Path URLs need the server to answer index.html for a route with no
-      // file behind it -- every parameterised route, and anything added since
-      // the last build. The generated router's own comment claimed this was
-      // written and nothing wrote it, so a build uploaded to Apache answered
-      // the host's 404 page.
-      // Dartvel's own copy is rewritten every build, so a fix to the rules
-      // reaches a project that has built before; a project's web/.htaccess,
-      // or an output copy whose marker line was deleted, is left alone.
-      dvWriteApacheConfig(web, projectRoot: root);
       Logger.log('   Wrote $written route pages, sitemap.xml and robots.txt.');
     } else {
       Logger.log('   Wrote $written route pages. Set dartvel.seo.siteUrl for '
           'a sitemap and robots.txt.');
     }
+    // Path URLs need the server to answer index.html for a route with no
+    // file behind it -- every parameterised route, and anything added since
+    // the last build. Dartvel's own copy is rewritten every build, so a fix
+    // to the rules reaches a project that has built before; a project's
+    // web/.htaccess or web/_headers, or an output copy whose marker line was
+    // deleted, is left alone. Outside the siteUrl branch, where it used to
+    // be: a site with no siteUrl got no rewrite and every route 404'd.
+    dvWriteApacheConfig(web, projectRoot: root);
+    dvWriteStaticHostHeaders(web, projectRoot: root);
   }
 
 
